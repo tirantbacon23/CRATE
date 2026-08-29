@@ -9,8 +9,22 @@
   This is the only running record of what's been done to this file, so keep
   it going rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.1.0
+  CURRENT_VERSION: 1.3.0
 
+  1.3.0 — 2026-08-29 — Diary "By track" search/manual-search-in-Add-modal fix:
+          the general Add Album search (typing into the search box) picked a
+          result and jumped straight to that ONE MusicBrainz release's data,
+          so a free-text query that only surfaced one hit for an album never
+          showed its other pressings/labels even though MusicBrainz had them.
+          Search-result rows now drill into a proper release-group-scoped
+          pressing lookup on click (same lookup the Artist-tab flow already
+          used), so every "Add album" path now consistently offers a label
+          picker instead of only some of them doing so.
+  1.2.0 — 2026-08-29 — Found the real cause of the "By track" view still
+          looking narrow after 1.1.0: #diaryWrap wasn't stretching to fill
+          its flex parent's width at all (a column-flex + overflow:auto
+          quirk), so every max-width set on it was moot — it was shrink-
+          wrapping to content. Added explicit width:100% to .diary-wrap.
   1.1.0 — 2026-08-29 — Reworked Diary → "By track" view from one full-width
           row per track (with just a single small entry pill in it, leaving
           most of the row blank) into a responsive card grid that actually
@@ -6489,7 +6503,17 @@ function buildReleaseResultRow(hit, opts = {}) {
     cover: '' // Leaves blank initially so iTunes can fallback if CAA fails entirely
   };
 
-  row.addEventListener('click', () => showAddForm(prefillData));
+  row.addEventListener('click', () => {
+    // From a general free-text search, one query can't reliably surface every
+    // pressing of an album (MusicBrainz's relevance ranking may only return
+    // one or two hits for it among unrelated matches) — so drill into a
+    // proper release-group-scoped lookup instead of trusting this single hit.
+    if (opts.drillToPressings && rgId) {
+      openPressingPickerForResult(rgId, prefillData);
+    } else {
+      showAddForm(prefillData);
+    }
+  });
 
   // Fetch the CAA JSON in the background to find the exact image URL
   resolveCoverArt(mbid, rgId).then(artUrls => {
@@ -6589,6 +6613,28 @@ function renderReleasePickerResults(releases, basic) {
   el.addResults.appendChild(manualBtn);
 }
 
+// Looks up every release under a release-group and shows the pressing picker,
+// used when a general-search result is clicked (see drillToPressings in
+// buildReleaseResultRow) — the free-text search that found this one hit isn't
+// scoped to its release-group, so it can't be trusted to have surfaced every
+// pressing/label on its own; this re-queries MusicBrainz properly scoped to
+// the release-group so it does.
+async function openPressingPickerForResult(rgId, basic) {
+  el.addResults.innerHTML = '<p class="tracklist-status">Looking up available pressings…</p>';
+  addSearchSeq++; // invalidate any in-flight search/lookup from before this click
+  const mySeq = addSearchSeq;
+  try {
+    const releases = await fetchReleasesForReleaseGroup(rgId);
+    if (mySeq !== addSearchSeq) return; // superseded by a newer open/search/click
+    renderReleasePickerResults(releases, basic);
+  } catch (err) {
+    if (mySeq !== addSearchSeq) return;
+    console.error('MusicBrainz release-group lookup failed:', err);
+    el.addResults.innerHTML = '<p class="tracklist-status">Couldn\u2019t look up pressings — using the info already on hand.</p>';
+    showAddForm(basic);
+  }
+}
+
 // Opens the Add-album modal for "add as Album" off a currently-playing Spotify
 // track (mini player's now-playing menu). We only have Spotify's artist/album
 // names to go on here — no MusicBrainz release-group id like the Artist tab's
@@ -6671,7 +6717,7 @@ async function doAddSearch() {
     if (!hits.length) {
       el.addResults.innerHTML = '<p class="tracklist-status">No matches found.</p>';
     } else {
-      hits.forEach(hit => el.addResults.appendChild(buildReleaseResultRow(hit)));
+      hits.forEach(hit => el.addResults.appendChild(buildReleaseResultRow(hit, { drillToPressings: true })));
     }
 
     const manualBtn = document.createElement('button');
@@ -8103,6 +8149,10 @@ html, body {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  width: 100%; /* column-flex items with overflow:auto don't reliably stretch
+                  to the container's cross size on their own — without this,
+                  max-width on .diary-wrap/.diary-wrap-tracks etc. below was
+                  moot, since the box was shrink-wrapping to its content. */
 }
 
 #rightPanel {
@@ -8308,7 +8358,7 @@ html, body {
 
   .state-msg { color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 1.7; max-width: 480px; padding: 60px 4px; }
 
-  .diary-wrap { max-width: 760px; margin: 0 auto; }
+  .diary-wrap { max-width: 760px; width: 100%; margin: 0 auto; }
   .diary-feed { display: flex; flex-direction: column; gap: 2px; }
   .diary-entry { display: grid; grid-template-columns: 90px 1fr auto; gap: 16px; align-items: start; padding: 14px 10px; border-bottom: 1px solid var(--line); cursor: pointer; }
   .diary-feed.diary-select-active .diary-entry { grid-template-columns: 20px 90px 1fr auto; }
