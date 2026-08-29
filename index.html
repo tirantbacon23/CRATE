@@ -7,10 +7,29 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- Google Identity Services — provides the "Sign in with Google" button and
+     issues the ID token that gates access to the catalog (see CONFIG.GOOGLE_CLIENT_ID
+     and the auth-gate code near the bottom of the main script). Not async/defer:
+     loaded synchronously so it's guaranteed ready before the app's own script runs. -->
+<script src="https://accounts.google.com/gsi/client"></script>
 </head>
 <body>
 
-<div id="app">
+<!-- Auth gate — shown before the app is usable. Only a signed-in Google account
+     whose ID token the backend accepts (see apps-script-backend.gs) gets past this.
+     Kept as a real DOM sibling of #app (not inside it) so it can never accidentally
+     be revealed by app code that toggles #app's own visibility. -->
+<div id="authGate" class="auth-gate">
+  <div class="auth-gate-box">
+    <h1>CRATE</h1>
+    <p class="tagline">a listening log</p>
+    <p class="auth-gate-hint">Sign in with the Google account this crate is set up for.</p>
+    <div id="googleSignInButton"></div>
+    <p id="authGateStatus" class="auth-gate-status" hidden></p>
+  </div>
+</div>
+
+<div id="app" hidden>
   <header class="topbar">
     <div class="brand">
       <h1>CRATE</h1>
@@ -54,6 +73,8 @@
           <div class="menu-section-title">Integrations</div>
           <button type="button" id="menuSpotifyApi">Spotify API…</button>
           <button type="button" id="menuDiscogsApi">Discogs API…</button>
+          <div class="menu-divider"></div>
+          <button type="button" id="menuSignOut">Sign out</button>
         </div>
       </div>
       <!-- 👆 👆 -->
@@ -710,7 +731,12 @@ const COVERAGE_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
    Paste the Web App URL you get after deploying apps-script-backend.gs.
    Everything else in this file works as-is once this is set. */
 const CONFIG = {
-  SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzQ3a4q67jIr3kRjlekx596Lgwnl8YYil3wX9olaTQJJ_ghGwDfdooMZ7KSCuwwzRE/exec'
+  SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzQ3a4q67jIr3kRjlekx596Lgwnl8YYil3wX9olaTQJJ_ghGwDfdooMZ7KSCuwwzRE/exec',
+  // OAuth 2.0 "Web application" Client ID from Google Cloud Console
+  // (APIs & Services → Credentials). Used only for Sign in with Google —
+  // it's not a secret itself, but the app won't gate anything until this
+  // is set and apps-script-backend.gs is checking tokens against it.
+  GOOGLE_CLIENT_ID: 'PASTE_YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com'
 };
 /* ============================================ */
 
@@ -857,13 +883,138 @@ const el = {};
   'menuSpotifyApi','spotifyOverlay','spotifyClose','spotifyClientId','spotifyClientSecret','spotifySaveBtn','spotifyCancelBtn','spotifyStatus',
   'menuDiscogsApi','discogsOverlay','discogsClose','discogsToken','discogsSaveBtn','discogsCancelBtn','discogsStatus',
   'editGenreDiscogsBtn','editGenreDiscogsStatus',
-  'spotifyRedirectUriDisplay','spotifyConnectBtn','spotifyDisconnectBtn','spotifyConnectStatus'
+  'spotifyRedirectUriDisplay','spotifyConnectBtn','spotifyDisconnectBtn','spotifyConnectStatus',
+  'authGate','authGateStatus','menuSignOut','app'
 ].forEach(id => { el[id] = document.getElementById(id); });
 
 let activeItem = null;
 let logRating = 0;
 
-init();
+/* ---------- Auth gate (Sign in with Google) ----------
+   Nothing in this app touches CONFIG.SCRIPT_URL until a Google ID token is on
+   hand. The token itself doesn't grant access by being *present* — the real
+   check happens server-side in apps-script-backend.gs, which verifies the
+   token's signature and checks the signed-in email against an allowlist
+   before returning any data or accepting any write. This client-side gate
+   just avoids showing a broken/empty app in the meantime and avoids firing
+   requests that we already know will be rejected. */
+
+const GOOGLE_ID_TOKEN_KEY = 'crate_google_id_token_v1';
+let appEntered = false; // guards against enterApp() running twice (e.g. GIS auto-select + manual click)
+
+function getStoredIdToken() {
+  try { return localStorage.getItem(GOOGLE_ID_TOKEN_KEY) || null; }
+  catch (e) { return null; }
+}
+function setStoredIdToken(token) {
+  try { localStorage.setItem(GOOGLE_ID_TOKEN_KEY, token); } catch (e) { /* ignore */ }
+}
+function clearStoredIdToken() {
+  try { localStorage.removeItem(GOOGLE_ID_TOKEN_KEY); } catch (e) { /* ignore */ }
+}
+
+// Reads the payload of a JWT without verifying its signature — fine here
+// because this is purely a client-side UX shortcut (skip straight to the app
+// if we already hold a token that isn't obviously expired yet). The backend
+// re-verifies the real signature on every request regardless; this never
+// substitutes for that check.
+function decodeJwtPayload(token) {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(decodeURIComponent(atob(base64).split('').map(c =>
+      '%' + c.charCodeAt(0).toString(16).padStart(2, '0')
+    ).join('')));
+  } catch (e) { return null; }
+}
+function isTokenLikelyValid(token) {
+  const payload = decodeJwtPayload(token);
+  return !!(payload && payload.exp && payload.exp * 1000 > Date.now());
+}
+
+function isAuthError(data) {
+  return !!(data && data.error === 'unauthorized');
+}
+
+// Called whenever the server tells us the token was missing/invalid/expired —
+// on first load, mid-session, wherever. Drops back to the sign-in screen.
+function handleAuthError(message) {
+  clearStoredIdToken();
+  appEntered = false;
+  el.app.hidden = true;
+  showAuthGate(message || 'Your session expired — sign in again to continue.');
+}
+
+function showAuthGate(message) {
+  el.authGate.hidden = false;
+  if (message) {
+    el.authGateStatus.textContent = message;
+    el.authGateStatus.hidden = false;
+  } else {
+    el.authGateStatus.hidden = true;
+  }
+  initGoogleSignIn();
+}
+
+function initGoogleSignIn() {
+  if (!CONFIG.GOOGLE_CLIENT_ID || CONFIG.GOOGLE_CLIENT_ID.indexOf('PASTE_YOUR') === 0) {
+    el.authGateStatus.textContent = 'Google sign-in isn\u2019t configured yet — set CONFIG.GOOGLE_CLIENT_ID.';
+    el.authGateStatus.hidden = false;
+    return;
+  }
+  if (!window.google || !window.google.accounts || !window.google.accounts.id) {
+    // GIS script hasn't finished loading yet — try again shortly rather than
+    // failing silently.
+    setTimeout(initGoogleSignIn, 200);
+    return;
+  }
+  google.accounts.id.initialize({
+    client_id: CONFIG.GOOGLE_CLIENT_ID,
+    callback: handleGoogleCredential,
+    auto_select: true
+  });
+  const btnHost = document.getElementById('googleSignInButton');
+  btnHost.innerHTML = '';
+  google.accounts.id.renderButton(btnHost, { theme: 'outline', size: 'large', shape: 'pill' });
+  google.accounts.id.prompt(); // offers One Tap if there's already a Google session in this browser
+}
+
+function handleGoogleCredential(response) {
+  setStoredIdToken(response.credential);
+  enterApp();
+}
+
+function enterApp() {
+  if (appEntered) return;
+  appEntered = true;
+  el.authGate.hidden = true;
+  el.app.hidden = false;
+  init();
+}
+
+function signOut() {
+  clearStoredIdToken();
+  appEntered = false;
+  if (window.google && window.google.accounts && window.google.accounts.id) {
+    google.accounts.id.disableAutoSelect();
+  }
+  el.app.hidden = true;
+  showAuthGate();
+}
+
+function startApp() {
+  const token = getStoredIdToken();
+  if (token && isTokenLikelyValid(token)) {
+    // Optimistic: skip straight to the app UI. If the backend ends up
+    // rejecting this token on the first real request, fetchCatalog's
+    // isAuthError check bounces us back to the gate anyway.
+    enterApp();
+  } else {
+    clearStoredIdToken();
+    showAuthGate();
+  }
+}
+
+startApp();
 
 async function init() {
   loadPrefs();
@@ -940,6 +1091,8 @@ function bindEvents() {
   });
 
   el.refreshBtn.addEventListener('click', () => fetchCatalog());
+
+  el.menuSignOut.addEventListener('click', () => { el.layoutMenu.hidden = true; signOut(); });
 
   el.listenedFilterBtn.addEventListener('click', () => {
     state.listenedOnly = !state.listenedOnly;
@@ -1715,12 +1868,15 @@ async function fetchCatalog() {
     showState('setup', 'albums');
     return;
   }
+  const idToken = getStoredIdToken();
+  if (!idToken) { handleAuthError(); return; }
 
   showState('loading', 'albums');
   try {
-    const res = await fetch(CONFIG.SCRIPT_URL, { method: 'GET' });
+    const res = await fetch(CONFIG.SCRIPT_URL + '?id_token=' + encodeURIComponent(idToken), { method: 'GET' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
+    if (isAuthError(data)) { handleAuthError(); return; }
 
     // Inside fetchCatalog(), update the state.raw mapping:
       state.raw = (data.rows || [])
@@ -5623,11 +5779,16 @@ async function saveReview() {
 }
 
 function postUpdate(payload) {
+  const idToken = getStoredIdToken();
+  if (!idToken) { handleAuthError(); return Promise.reject(new Error('unauthorized')); }
   return fetch(CONFIG.SCRIPT_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight against Apps Script
-    body: JSON.stringify(payload)
-  }).then(r => r.json());
+    body: JSON.stringify(Object.assign({}, payload, { idToken }))
+  }).then(r => r.json()).then(data => {
+    if (isAuthError(data)) { handleAuthError(); throw new Error('unauthorized'); }
+    return data;
+  });
 }
 
 function flashToast(node, msg) {
@@ -7587,6 +7748,26 @@ async function getCaaJsonUrls(endpoint) {
   }
 
   * { box-sizing: border-box; }
+
+  /* ---------- Auth gate ---------- */
+  .auth-gate {
+    position: fixed; inset: 0; z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg);
+  }
+  .auth-gate[hidden] { display: none; }
+  .auth-gate-box {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    text-align: center; padding: 40px; max-width: 320px;
+  }
+  .auth-gate-box h1 {
+    font-family: 'Bebas Neue', sans-serif; font-size: 42px; letter-spacing: 2px;
+    color: var(--text); margin: 0;
+  }
+  .auth-gate-box .tagline { color: var(--text-dim); margin: 0 0 20px; font-size: 13px; }
+  .auth-gate-hint { color: var(--text-dim); font-size: 13px; margin: 0 0 18px; line-height: 1.5; }
+  .auth-gate-status { color: var(--accent); font-size: 12px; margin-top: 16px; line-height: 1.5; }
+  #googleSignInButton { min-height: 40px; }
 html, body { 
   margin: 0; 
   padding: 0; 
