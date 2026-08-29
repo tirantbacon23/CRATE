@@ -5021,7 +5021,7 @@ async function renderArtistDetail() {
           <a class="artist-work-link" href="${spotifySearchUrl(workItem)}" target="_blank" rel="noopener" title="Search on Spotify">▶ Spotify</a>
           <a class="artist-work-link" href="${youtubeSearchUrl(workItem)}" target="_blank" rel="noopener" title="Search on YouTube">▶ YouTube</a>
           <a class="artist-work-link" href="https://musicbrainz.org/release-group/${w.id}" target="_blank" rel="noopener" title="View on MusicBrainz">MB ↗</a>
-          ${isOwned ? '' : `<button type="button" class="artist-work-link artist-work-add-btn" data-title="${escapeHtml(w.title)}" data-type="${escapeHtml(w.type)}" data-year="${escapeHtml(w.year || '')}" title="Add to your crate">+ Add</button>`}
+          ${isOwned ? '' : `<button type="button" class="artist-work-link artist-work-add-btn" data-title="${escapeHtml(w.title)}" data-type="${escapeHtml(w.type)}" data-year="${escapeHtml(w.year || '')}" data-rgid="${escapeHtml(w.id || '')}" title="Add to your crate">+ Add</button>`}
         </span>
       </div>`;
   }).join('');
@@ -5042,16 +5042,21 @@ async function renderArtistDetail() {
     });
   });
 
-  // "+ Add" opens the same Add-to-crate form used elsewhere, pre-filled
-  // with what MusicBrainz already told us (artist, title, type, year).
+  // "+ Add" opens the same Add-to-crate modal used elsewhere, but first shows
+  // which specific releases (pressings/labels/catalog numbers) MusicBrainz has
+  // under this release-group, since a single album can have several — a vinyl
+  // on one label, a CD reissue on another, a regional pressing, etc. Picking
+  // one prefills the form with that release's label/catalog/region; if none
+  // are found (or the lookup fails) it falls back to the basic info already
+  // known from the discography row.
   list.querySelectorAll('.artist-work-add-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      openAddModal();
-      showAddForm({
+      openAddModalForReleaseGroup({
         artist: name,
         title: btn.dataset.title,
         type: btn.dataset.type,
-        releaseDate: btn.dataset.year ? `${btn.dataset.year}-01-01` : ''
+        releaseDate: btn.dataset.year ? `${btn.dataset.year}-01-01` : '',
+        rgId: btn.dataset.rgid || ''
       });
     });
   });
@@ -6243,6 +6248,158 @@ function extractGenreFromHit(hit) {
     .join(', ');
 }
 
+// Builds one clickable "release" row (thumbnail + title/label/year text) from a
+// MusicBrainz release resource. Shared by the free-text Add search (doAddSearch)
+// and the artist discography's "+ Add" release picker (openAddModalForReleaseGroup)
+// so both list pressings/labels/catalog numbers the same way. Clicking the row
+// hands the resolved prefill data to showAddForm. `opts` lets callers supply
+// fallbacks (artist/type/releaseDate already known from the discography row) for
+// whichever fields this particular MusicBrainz release resource leaves blank.
+function buildReleaseResultRow(hit, opts = {}) {
+  const row = document.createElement('div');
+  row.className = 'add-result-row';
+
+  const year = hit.date ? new Date(hit.date).getFullYear() : '';
+  const artistName = hit['artist-credit'] ? hit['artist-credit'].map(a => a.name + (a.joinphrase || '')).join('') : (opts.fallbackArtist || 'Unknown Artist');
+  const labelInfo = hit['label-info'] && hit['label-info'][0] ? hit['label-info'][0] : {};
+  const catNo = labelInfo['catalog-number'] || '';
+  const labelName = labelInfo.label ? labelInfo.label.name : '';
+  const catStr = catNo ? ` [${catNo}]` : '';
+  const genreStr = extractGenreFromHit(hit);
+  // Same language-then-country preference as the prefill below, so what you see in the
+  // results list matches what lands in the form if you pick it.
+  const regionStr = (hit['text-representation'] && hit['text-representation'].language) ? hit['text-representation'].language.toUpperCase() : (hit.country || '');
+
+  const mbid = hit.id;
+  const rgId = hit['release-group'] ? hit['release-group'].id : mbid;
+
+  const fallbackImg = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCI+PHJlY3Qgd2lkdGg9IjYwIiBoZWlnaHQ9IjYwIiBmaWxsPSIjMUIyMTJCIi8+PC9zdmc+";
+
+  row.innerHTML = `
+    <img src="${fallbackImg}" alt="" class="add-thumb" style="transition: opacity 0.2s ease;">
+    <div class="add-result-text">
+      <p class="add-result-title">${escapeHtml(hit.title || '')} <span style="color:var(--text-dim);font-weight:normal;">${escapeHtml(catStr)}</span></p>
+      <p class="add-result-artist">${escapeHtml(artistName)}${year ? ' · ' + year : ''}${labelName ? ' · ' + escapeHtml(labelName) : ''}${genreStr ? ' · ' + escapeHtml(genreStr) : ''}${regionStr ? ' · ' + escapeHtml(regionStr) : ''}</p>
+    </div>`;
+
+  const prefillData = {
+    artist: artistName,
+    title: hit.title || (opts.fallbackTitle || ''),
+    type: hit['release-group']?.['primary-type'] === 'Album' ? 'Album' : (hit['release-group']?.['primary-type'] || opts.fallbackType || 'Album'),
+    releaseDate: hit.date ? hit.date.slice(0, 10) : (opts.fallbackReleaseDate || ''),
+    genre: genreStr,
+    label: labelName,
+    catalog: catNo,
+    // MusicBrainz exposes both the release's text/language and its country —
+    // prefer the language of the packaging/liner text when it's known, since
+    // that's the more useful "this one's in Japanese" signal; fall back to
+    // the release country otherwise. Either way it's just a starting point —
+    // the user can edit it in the form.
+    region: regionStr,
+    link: `https://musicbrainz.org/release/${mbid}`,
+    cover: '' // Leaves blank initially so iTunes can fallback if CAA fails entirely
+  };
+
+  row.addEventListener('click', () => showAddForm(prefillData));
+
+  // Fetch the CAA JSON in the background to find the exact image URL
+  resolveCoverArt(mbid, rgId).then(artUrls => {
+    if (artUrls) {
+      const imgEl = row.querySelector('img');
+      imgEl.style.opacity = '0';
+      setTimeout(() => {
+        imgEl.src = artUrls.thumb;
+        imgEl.style.opacity = '1';
+      }, 150);
+      prefillData.cover = artUrls.large; // Injects the resolved URL before you hit Save!
+    }
+  });
+
+  return row;
+}
+
+// Browses MusicBrainz for every *release* (specific pressing — vinyl/CD/label/
+// catalog-number/country) that belongs to a given release-group (the "album" as
+// listed in the Artist tab's discography). inc=labels is what makes label-info
+// (label name + catalog number) show up on each hit; inc=genres+tags matches
+// what doAddSearch already asks for so the row rendering has the same fields
+// to work with either way.
+async function fetchReleasesForReleaseGroup(rgId) {
+  const res = await fetch(`https://musicbrainz.org/ws/2/release?release-group=${rgId}&inc=labels+genres+tags&fmt=json&limit=100`, {
+    headers: {
+      'Accept': 'application/json',
+      'User-Agent': 'CRATEMusicLog/1.0'
+    }
+  });
+  if (!res.ok) throw new Error(`MusicBrainz release lookup failed: ${res.status}`);
+  const data = await res.json();
+  return data.releases || [];
+}
+
+// Opens the Add-album modal for a discography entry and, if we have a
+// release-group id for it, looks up and lists the specific releases
+// MusicBrainz has under that release-group — different labels, catalog
+// numbers, countries, reissues — so the right pressing can be picked instead
+// of always landing on whichever one a generic text search happens to surface
+// first. Falls back straight to the form (with the basic info already known
+// from the discography row) if there's no id to look up, the lookup comes
+// back empty, or it fails outright.
+function openAddModalForReleaseGroup(basic) {
+  el.addOverlay.hidden = false;
+  el.addForm.hidden = true;
+  el.addSearchInput.value = '';
+  el.addResults.innerHTML = '';
+  addSearchSeq++; // invalidate any in-flight search/lookup from a previous open
+  const mySeq = addSearchSeq;
+
+  if (!basic.rgId) {
+    showAddForm(basic);
+    return;
+  }
+
+  el.addResults.innerHTML = '<p class="tracklist-status">Looking up available pressings…</p>';
+
+  fetchReleasesForReleaseGroup(basic.rgId).then(releases => {
+    if (mySeq !== addSearchSeq) return; // superseded by a newer open/search — drop this stale response
+    renderReleasePickerResults(releases, basic);
+  }).catch(err => {
+    if (mySeq !== addSearchSeq) return;
+    console.error('MusicBrainz release-group lookup failed:', err);
+    el.addResults.innerHTML = '<p class="tracklist-status">Couldn\u2019t look up pressings — using the info already on hand.</p>';
+    showAddForm(basic);
+  });
+}
+
+// Renders the list of specific releases (one row per label/pressing) found
+// under a release-group, each clickable via buildReleaseResultRow. Always
+// ends with a fallback link so there's always a way through even when
+// MusicBrainz doesn't have per-release detail for this particular album.
+function renderReleasePickerResults(releases, basic) {
+  el.addResults.innerHTML = '';
+
+  if (!releases.length) {
+    el.addResults.innerHTML = '<p class="tracklist-status">No specific pressings found on MusicBrainz for this release.</p>';
+  } else {
+    // Most-recent-first tends to surface the widely-available pressing/reissue
+    // before obscure regional ones, without hiding any of them.
+    releases.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')).forEach(hit => {
+      el.addResults.appendChild(buildReleaseResultRow(hit, {
+        fallbackArtist: basic.artist,
+        fallbackTitle: basic.title,
+        fallbackType: basic.type,
+        fallbackReleaseDate: basic.releaseDate
+      }));
+    });
+  }
+
+  const manualBtn = document.createElement('button');
+  manualBtn.type = 'button';
+  manualBtn.className = 'add-manual-link';
+  manualBtn.textContent = releases.length ? "None of these? Use basic info instead" : 'Use basic info from discography';
+  manualBtn.addEventListener('click', () => showAddForm(basic));
+  el.addResults.appendChild(manualBtn);
+}
+
 async function doAddSearch() {
   const q = el.addSearchInput.value.trim();
   if (!q) return;
@@ -6274,67 +6431,7 @@ async function doAddSearch() {
     if (!hits.length) {
       el.addResults.innerHTML = '<p class="tracklist-status">No matches found.</p>';
     } else {
-      hits.forEach(hit => {
-        const row = document.createElement('div');
-        row.className = 'add-result-row';
-        
-        const year = hit.date ? new Date(hit.date).getFullYear() : '';
-        const artistName = hit['artist-credit'] ? hit['artist-credit'].map(a => a.name + (a.joinphrase || '')).join('') : 'Unknown Artist';
-        const labelInfo = hit['label-info'] && hit['label-info'][0] ? hit['label-info'][0] : {};
-        const catNo = labelInfo['catalog-number'] || '';
-        const labelName = labelInfo.label ? labelInfo.label.name : '';
-        const catStr = catNo ? ` [${catNo}]` : '';
-        const genreStr = extractGenreFromHit(hit);
-        // Same language-then-country preference as the prefill below, so what you see in the
-        // results list matches what lands in the form if you pick it.
-        const regionStr = (hit['text-representation'] && hit['text-representation'].language) ? hit['text-representation'].language.toUpperCase() : (hit.country || '');
-        
-        const mbid = hit.id;
-        const rgId = hit['release-group'] ? hit['release-group'].id : mbid;
-        
-        const fallbackImg = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCI+PHJlY3Qgd2lkdGg9IjYwIiBoZWlnaHQ9IjYwIiBmaWxsPSIjMUIyMTJCIi8+PC9zdmc+";
-
-        row.innerHTML = `
-          <img src="${fallbackImg}" alt="" class="add-thumb" style="transition: opacity 0.2s ease;">
-          <div class="add-result-text">
-            <p class="add-result-title">${escapeHtml(hit.title || '')} <span style="color:var(--text-dim);font-weight:normal;">${escapeHtml(catStr)}</span></p>
-            <p class="add-result-artist">${escapeHtml(artistName)}${year ? ' · ' + year : ''}${labelName ? ' · ' + escapeHtml(labelName) : ''}${genreStr ? ' · ' + escapeHtml(genreStr) : ''}${regionStr ? ' · ' + escapeHtml(regionStr) : ''}</p>
-          </div>`;
-          
-        const prefillData = {
-          artist: artistName,
-          title: hit.title || '',
-          type: hit['release-group']?.['primary-type'] === 'Album' ? 'Album' : (hit['release-group']?.['primary-type'] || 'Album'),
-          releaseDate: hit.date ? hit.date.slice(0, 10) : '',
-          genre: genreStr, 
-          label: labelName,
-          catalog: catNo,
-          // MusicBrainz exposes both the release's text/language and its country —
-          // prefer the language of the packaging/liner text when it's known, since
-          // that's the more useful "this one's in Japanese" signal; fall back to
-          // the release country otherwise. Either way it's just a starting point —
-          // the user can edit it in the form.
-          region: regionStr,
-          link: `https://musicbrainz.org/release/${mbid}`,
-          cover: '' // Leaves blank initially so iTunes can fallback if CAA fails entirely
-        };
-
-        row.addEventListener('click', () => showAddForm(prefillData));
-        el.addResults.appendChild(row);
-
-        // Fetch the CAA JSON in the background to find the exact image URL
-        resolveCoverArt(mbid, rgId).then(artUrls => {
-          if (artUrls) {
-            const imgEl = row.querySelector('img');
-            imgEl.style.opacity = '0';
-            setTimeout(() => {
-              imgEl.src = artUrls.thumb;
-              imgEl.style.opacity = '1';
-            }, 150);
-            prefillData.cover = artUrls.large; // Injects the resolved URL before you hit Save!
-          }
-        });
-      });
+      hits.forEach(hit => el.addResults.appendChild(buildReleaseResultRow(hit)));
     }
 
     const manualBtn = document.createElement('button');
