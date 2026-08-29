@@ -1958,6 +1958,7 @@ function switchTab(tab) {
   el.scrobblesWrap.hidden = tab !== 'scrobbles';
   el.statsWrap.hidden = tab !== 'stats';
   el.artistWrap.hidden = tab !== 'artist';
+  el.app.classList.toggle('app-wide-diary-tracks', tab === 'diary' && state.diaryViewMode === 'tracks');
   if (tab === 'albums') renderGrid();
   else if (tab === 'diary') renderDiary();
   else if (tab === 'scrobbles') renderScrobbles();
@@ -4483,6 +4484,7 @@ function setDiaryViewMode(mode) {
   [['feed', el.diaryViewFeedBtn], ['grid', el.diaryViewGridBtn], ['tracks', el.diaryViewTracksBtn]]
     .forEach(([m, btn]) => btn && btn.classList.toggle('active', m === mode));
   el.diaryTrackGroupToolbar.hidden = mode !== 'tracks';
+  el.app.classList.toggle('app-wide-diary-tracks', state.activeTab === 'diary' && mode === 'tracks');
   renderDiary();
 }
 
@@ -7848,6 +7850,14 @@ html, body {
   flex-direction: column;
 }
 
+/* The "by track" diary view wants more horizontal room for its entry-card
+   grid than the app's normal reading-width cap allows — widened only while
+   that view is active (toggled via app-wide-diary-tracks in setDiaryViewMode
+   / switchTab) so every other tab keeps the narrower, centered layout. */
+#app.app-wide-diary-tracks {
+  max-width: 1900px;
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--line) transparent;
@@ -8297,7 +8307,7 @@ html, body {
   .diary-select-checkbox input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); cursor: pointer; }
 
   .diary-wrap-wide { max-width: 1100px; }
-  .diary-wrap-tracks { max-width: 1500px; }
+  .diary-wrap-tracks { max-width: 1820px; }
 
   /* Album anniversary notification banner */
   .anniversary-banner {
