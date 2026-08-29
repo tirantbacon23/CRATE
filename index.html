@@ -3739,17 +3739,21 @@ function openNowPlayingAddMenu(track, x, y) {
     const mode = btn.dataset.addMode;
     closeNowPlayingAddMenu();
 
-    openAddModal();
     if (mode === 'search') {
+      openAddModal();
       el.addSearchInput.value = `${artistName} ${album.name || track.name}`.trim();
       doAddSearch();
       return;
     }
     if (mode === 'single') {
+      openAddModal();
       showAddForm({ ...crateAlbumPrefillFromTrack(track), title: track.name, type: 'Single' });
       return;
     }
-    showAddForm(crateAlbumPrefillFromTrack(track));
+    // "as Album": don't drop straight into a form with a blank label — look up
+    // the release group on MusicBrainz first so the different pressings/labels
+    // for this album can be picked from, same as the Artist tab's + Add flow.
+    openAddModalForTrackAlbum(track);
   });
 
   nowPlayingAddMenuEl = menu;
@@ -6559,6 +6563,57 @@ function renderReleasePickerResults(releases, basic) {
   manualBtn.textContent = releases.length ? "None of these? Use basic info instead" : 'Use basic info from discography';
   manualBtn.addEventListener('click', () => showAddForm(basic));
   el.addResults.appendChild(manualBtn);
+}
+
+// Opens the Add-album modal for "add as Album" off a currently-playing Spotify
+// track (mini player's now-playing menu). We only have Spotify's artist/album
+// names to go on here — no MusicBrainz release-group id like the Artist tab's
+// discography rows already have — so first resolve one with a quick release
+// search, then hand off to the same fetchReleasesForReleaseGroup + release-
+// picker flow openAddModalForReleaseGroup uses, so the different pressings
+// (and therefore labels/catalog numbers) for this album can be picked from
+// instead of landing on a form with the label left blank.
+async function openAddModalForTrackAlbum(track) {
+  const basic = crateAlbumPrefillFromTrack(track);
+  el.addOverlay.hidden = false;
+  el.addForm.hidden = true;
+  el.addSearchInput.value = '';
+  el.addResults.innerHTML = '<p class="tracklist-status">Looking up available pressings…</p>';
+  addSearchSeq++; // invalidate any in-flight search/lookup from a previous open
+  const mySeq = addSearchSeq;
+
+  if (!basic.artist || !basic.title) {
+    showAddForm(basic);
+    return;
+  }
+
+  try {
+    const cleanArtist = basic.artist.replace(/["\\]/g, '');
+    const cleanTitle = basic.title.replace(/["\\]/g, '');
+    const termUrl = encodeURIComponent(`artist:"${cleanArtist}" AND release:"${cleanTitle}"`);
+    const res = await fetch(`https://musicbrainz.org/ws/2/release/?query=${termUrl}&fmt=json&limit=1`, {
+      headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' }
+    });
+    if (mySeq !== addSearchSeq) return; // superseded by a newer open/search
+    const data = await res.json();
+    const top = (data.releases || [])[0];
+    const rgId = top && top['release-group'] ? top['release-group'].id : null;
+
+    if (!rgId) {
+      el.addResults.innerHTML = '<p class="tracklist-status">No specific pressings found on MusicBrainz for this release.</p>';
+      showAddForm(basic);
+      return;
+    }
+
+    const releases = await fetchReleasesForReleaseGroup(rgId);
+    if (mySeq !== addSearchSeq) return;
+    renderReleasePickerResults(releases, basic);
+  } catch (err) {
+    if (mySeq !== addSearchSeq) return;
+    console.error('MusicBrainz lookup failed for now-playing track album:', err);
+    el.addResults.innerHTML = '<p class="tracklist-status">Couldn\u2019t look up pressings — using the info already on hand.</p>';
+    showAddForm(basic);
+  }
 }
 
 async function doAddSearch() {
