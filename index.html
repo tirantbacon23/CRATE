@@ -13,8 +13,27 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.8.0
+  CURRENT_VERSION: 1.9.0
 
+  1.9.0 — 2026-09-01 — Two new manual fields in Add/Edit: "Secondary Genre"
+          (a second comma-separated genre field, RYM-style — shown in the
+          deck meta line as "Primary (Secondary)" and folded into genre
+          search/filter/grouping everywhere via new combinedGenreStr()) and
+          "RYM Link" (a dedicated field, separate from the general Link
+          field, since that one's already spoken for by Spotify/SoundCloud/
+          MusicBrainz on releases that have one of those). A filled-in RYM
+          Link always wins over the automatic MusicBrainz/Wikidata
+          resolution added in 1.8.0 — it's the manual override for whatever
+          that lookup can't find. Editing either field on an existing album
+          now also clears that album's getExternalLinksFor() cache entry
+          (state.linkCache), which previously was never invalidated on
+          edit at all, so a changed Link/RYM Link needed a refresh/re-add
+          to actually show up in the deck.
+          REQUIRES A BACKEND CHANGE THIS FILE CAN'T MAKE: the Apps Script
+          backend (apps-script-backend.gs) needs to read/write two more
+          columns — "SecondaryGenre" and "RymLink" — on addAlbum/editAlbum,
+          and the Sheet itself needs those two column headers added (exact
+          spelling, matching how Catalog/TrackData were added before).
   1.8.0 — 2026-09-01 — RYM links now resolve to a real release page instead
           of almost always falling back to a search link. RateYourMusic has
           no public API, but Wikidata's SPARQL endpoint is public, CORS-
@@ -648,10 +667,12 @@
         </label>
         <label class="add-field">Release date <input type="date" id="addReleaseDate"></label>
         <label class="add-field">Genre <input type="text" id="addGenre"></label>
+        <label class="add-field">Secondary Genre <input type="text" id="addGenre2" placeholder="e.g. Shoegaze, Dream Pop"></label>
         <label class="add-field">Region / Language <input type="text" id="addRegion" placeholder="e.g. Japan, JP, 日本語"></label>
         <label class="add-field">Label <input type="text" id="addLabel"></label>
 		<label class="add-field">Catalog No. <input type="text" id="addCatalog"></label> <!-- 👈 ADD THIS -->
         <label class="add-field">Link <input type="text" id="addLink" placeholder="https://…"></label>
+        <label class="add-field">RYM Link <input type="text" id="addRymLink" placeholder="https://rateyourmusic.com/release/…"></label>
         <label class="add-field">Cover Art URL <input type="text" id="addCover" placeholder="https://…"></label>
         <div class="log-form-actions">
           <button id="addSaveBtn" class="save-btn">Add to crate</button>
@@ -685,10 +706,12 @@
           </div>
         </label>
         <p id="editGenreDiscogsStatus" class="arrange-hint" hidden></p>
+        <label class="add-field">Secondary Genre <input type="text" id="editGenre2" placeholder="e.g. Shoegaze, Dream Pop"></label>
         <label class="add-field">Region / Language <input type="text" id="editRegion" placeholder="e.g. Japan, JP, 日本語"></label>
         <label class="add-field">Label <input type="text" id="editLabel"></label>
 		<label class="add-field">Catalog No. <input type="text" id="editCatalog"></label> <!-- 👈 ADD THIS -->
         <label class="add-field">Link <input type="text" id="editLink" placeholder="https://…"></label>
+        <label class="add-field">RYM Link <input type="text" id="editRymLink" placeholder="https://rateyourmusic.com/release/…"></label>
         <label class="add-field">Cover Art URL <input type="text" id="editCover" placeholder="https://…"></label>
         <div class="log-form-actions">
           <button id="editSaveBtn" class="save-btn">Save changes</button>
@@ -792,7 +815,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.9.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -952,10 +975,10 @@ const el = {};
   'fldTitle','fldArtist','fldYear','fldRating','fldType','fldCatalog','fldGenre','fldLabel','fldDuration','menuCustomizeMain',
   'listenedFilterBtn',
   'addAlbumBtn','addOverlay','addClose','addSearchInput','addResults','addForm',
-  'addArtist','addTitle','addType','addReleaseDate','addGenre','addRegion','addLabel','addCatalog','addLink','addCover','addSaveBtn','addCancelBtn','addToast',
+  'addArtist','addTitle','addType','addReleaseDate','addGenre','addGenre2','addRegion','addLabel','addCatalog','addLink','addRymLink','addCover','addSaveBtn','addCancelBtn','addToast',
   'deckOverlay','deckClose','deckImg','deckCatalog','deckTitle','deckArtist','deckMeta','deckAdded','deckScrobbleCount','deckLink','deckRatingNum',
   'deckSpotifyLink','deckSoundcloudLink','deckRymLink','deckPlayBtn',
-  'deckEditBtn','editOverlay','editClose','editArtist','editTitle','editType','editReleaseDate','editGenre','editRegion','editLabel','editCatalog','editLink','editCover','editSaveBtn','editCancelBtn','editToast',
+  'deckEditBtn','editOverlay','editClose','editArtist','editTitle','editType','editReleaseDate','editGenre','editGenre2','editRegion','editLabel','editCatalog','editLink','editRymLink','editCover','editSaveBtn','editCancelBtn','editToast',
   'deckTracklist','deckStars','deckReview','deckSaveReview','deckToast','deckRemoveBtn',
   'logListenBtn','logForm','logDate','logStars','logEntryTitle','logDescription','logSaveBtn','logCancelBtn','deckDiaryList',
   'logTrackSummary','logSelectAllBtn','logClearSelectionBtn',
@@ -1167,6 +1190,29 @@ async function init() {
 function getGenreList(genreStr) {
   if (!genreStr || typeof genreStr !== 'string' || !genreStr.trim()) return ['Unknown'];
   return genreStr.split(',').map(g => g.trim()).filter(g => g.length > 0);
+}
+
+// Merges primary + secondary genre into one comma string so genre-list/filter/
+// search call sites can treat both the same way without every one of them
+// needing to know secondary genre exists as a separate field. Primary-only
+// items behave exactly as before (secondary is just blank).
+function combinedGenreStr(item) {
+  const primary = (item.genre || '').trim();
+  const secondary = (item.genre2 || '').trim();
+  if (!primary) return secondary;
+  if (!secondary) return primary;
+  return primary + ', ' + secondary;
+}
+
+// Display form for the deck meta line — primary genre as normal, secondary
+// genre(s) parenthesized after it (mirrors how RYM itself distinguishes
+// "Genres" from "Secondary Genres" on a release page).
+function genreDisplayStr(item) {
+  const primary = (item.genre || '').trim();
+  const secondary = (item.genre2 || '').trim();
+  if (!primary) return secondary;
+  if (!secondary) return primary;
+  return `${primary} (${secondary})`;
 }
 
 function bindEvents() {
@@ -1997,12 +2043,14 @@ async function fetchCatalog() {
           type: (r.Type ? String(r.Type).trim() : 'Unknown'),
           releaseDate: r.ReleaseDate || '',
           genre: r.Genre || '',
+          genre2: r.SecondaryGenre || '',
           label: r.Label ? String(r.Label).trim() : '',
           region: r.Region ? String(r.Region).trim() : '',
           cover: r.Cover ? String(r.Cover).trim() : '',
           rating: Number(r.Rating) || 0,
           review: r.Review || '',
           link: r.Link ? String(r.Link).trim() : '',
+          rymLink: r.RymLink ? String(r.RymLink).trim() : '',
           dateAdded: r.DateAdded || '',
           catalog: r.Catalog ? String(r.Catalog).trim() : 'CRT-' + String(i + 1).padStart(3, '0'),
           // 👇 ADD THIS LINE 👇
@@ -2153,7 +2201,7 @@ if (mode === 'artist') {
   } else if (mode === 'genre') {
     const genreMap = new Map();
     sourceRaw.forEach(item => {
-      const genres = getGenreList(item.genre);
+      const genres = getGenreList(combinedGenreStr(item));
       genres.forEach(g => {
         genreMap.set(g, (genreMap.get(g) || 0) + 1);
       });
@@ -2483,7 +2531,7 @@ function getSearchTerms() {
 function matchesSearchTerms(r, searchTerms) {
   if (searchTerms.length === 0) return true;
   const year = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getFullYear() : '';
-  const genres = getGenreList(r.genre).join(' ');
+  const genres = getGenreList(combinedGenreStr(r)).join(' ');
   const combinedText = `${r.artist} ${r.title} ${year} ${r.catalog} ${genres}`.toLowerCase();
   return searchTerms.every(term => combinedText.includes(term));
 }
@@ -2505,7 +2553,7 @@ function applyFiltersSort() {
     
     const matchesNav = !state.navFilter || (
       state.navFilter.mode === 'artist' ? r.artist === state.navFilter.value :
-      state.navFilter.mode === 'genre' ? getGenreList(r.genre).includes(state.navFilter.value) : 
+      state.navFilter.mode === 'genre' ? getGenreList(combinedGenreStr(r)).includes(state.navFilter.value) : 
       r.row === state.navFilter.value
     );
 
@@ -2546,7 +2594,7 @@ function groupItems(items, by) {
     let keys = [];
     if (by === 'artist') keys = [item.artist];
     else if (by === 'type') keys = [item.type];
-    else if (by === 'genre') keys = getGenreList(item.genre); // Get array of genres
+    else if (by === 'genre') keys = getGenreList(combinedGenreStr(item)); // Get array of genres (primary + secondary)
     else if (by === 'year') keys = [dateVal(item.releaseDate) !== -Infinity ? String(new Date(item.releaseDate).getFullYear()) : 'Unknown'];
     else if (by === 'decade') {
       if (dateVal(item.releaseDate) === -Infinity) keys = ['Unknown'];
@@ -5606,7 +5654,7 @@ function openDeck(item) {
   };
 
   const year = dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getFullYear() : '';
-  const metaParts = [year, item.genre, item.region, item.label].filter(Boolean);
+  const metaParts = [year, genreDisplayStr(item), item.region, item.label].filter(Boolean);
   el.deckMeta.textContent = metaParts.join(' · ');
 
   if (dateVal(item.dateAdded) !== -Infinity) {
@@ -6405,7 +6453,7 @@ async function loadTracklist(item) {
     }
 
     const year = dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getFullYear() : '';
-    const metaParts = [year, item.genre, item.region, item.label].filter(Boolean);
+    const metaParts = [year, genreDisplayStr(item), item.region, item.label].filter(Boolean);
     el.deckMeta.textContent = metaParts.join(' \u00b7 ');
 
     currentTracklistTracks = tracks;
@@ -6949,10 +6997,12 @@ function showAddForm(prefill) {
   el.addType.value = validTypes.includes(prefill.type) ? prefill.type : 'Album';
   el.addReleaseDate.value = prefill.releaseDate || '';
   el.addGenre.value = prefill.genre || '';
+  el.addGenre2.value = prefill.genre2 || '';
   el.addRegion.value = prefill.region || '';
   el.addLabel.value = prefill.label || '';
   el.addCatalog.value = prefill.catalog || ''; // 👈 ADD THIS
   el.addLink.value = prefill.link || '';
+  el.addRymLink.value = prefill.rymLink || '';
   el.addCover.value = prefill.cover || '';
   el.addToast.textContent = '';
 }
@@ -6965,9 +7015,10 @@ async function saveNewAlbum() {
   const payload = {
     action: 'addAlbum', Artist: artist, Title: title, Type: el.addType.value,
     ReleaseDate: el.addReleaseDate.value, Genre: el.addGenre.value.trim(), 
+    SecondaryGenre: el.addGenre2.value.trim(),
     Region: el.addRegion.value.trim(),
     Label: el.addLabel.value.trim(), Catalog: el.addCatalog.value.trim(), // 👈 ADD CATALOG
-    Link: el.addLink.value.trim(), Cover: el.addCover.value.trim()
+    Link: el.addLink.value.trim(), RymLink: el.addRymLink.value.trim(), Cover: el.addCover.value.trim()
   };
   try {
     await postUpdate(payload);
@@ -6990,10 +7041,12 @@ function openEditModal() {
   el.editType.value = validTypes.includes(activeItem.type) ? activeItem.type : 'Album';
   el.editReleaseDate.value = activeItem.releaseDate || '';
   el.editGenre.value = activeItem.genre || '';
+  el.editGenre2.value = activeItem.genre2 || '';
   el.editRegion.value = activeItem.region || '';
   el.editLabel.value = activeItem.label || '';
   el.editCatalog.value = activeItem.catalog || ''; // 👈 ADD THIS
   el.editLink.value = activeItem.link || '';
+  el.editRymLink.value = activeItem.rymLink || '';
   el.editCover.value = activeItem.cover || '';
   el.editToast.textContent = '';
 }
@@ -7015,10 +7068,12 @@ async function saveEditAlbum() {
     Type: el.editType.value,
     ReleaseDate: el.editReleaseDate.value,
     Genre: el.editGenre.value.trim(),
+    SecondaryGenre: el.editGenre2.value.trim(),
     Region: el.editRegion.value.trim(),
     Label: el.editLabel.value.trim(),
     Catalog: el.editCatalog.value.trim(), // 👈 ADD THIS
     Link: el.editLink.value.trim(),
+    RymLink: el.editRymLink.value.trim(),
     Cover: el.editCover.value.trim()
   };
 
@@ -7033,13 +7088,22 @@ async function saveEditAlbum() {
     activeItem.type = el.editType.value;
     activeItem.releaseDate = payload.ReleaseDate;
     activeItem.genre = payload.Genre;
+    activeItem.genre2 = payload.SecondaryGenre;
     activeItem.region = payload.Region;
     activeItem.label = payload.Label;
 	activeItem.catalog = payload.Catalog || 'CRT-' + String(activeItem.row).padStart(3, '0'); // 👈 ADD THIS
     activeItem.link = payload.Link;
+    activeItem.rymLink = payload.RymLink;
     activeItem.cover = payload.Cover;
     
     const newKey = artKey(activeItem);
+
+    // Spotify/SoundCloud/RYM link resolution (getExternalLinksFor) is cached
+    // per artKey — clear it so a changed Link/RYM Link, or an artist/title
+    // edit that changes the key, gets re-resolved instead of showing stale
+    // (or wrong) quick-links.
+    delete state.linkCache[oldKey];
+    delete state.linkCache[newKey];
     
     // Manage artwork cache routing
     if (payload.Cover) {
@@ -7076,7 +7140,9 @@ async function saveEditAlbum() {
    MusicBrainz, but Wikidata's WikiProject Albums editors frequently tag the
    same item with both a MusicBrainz release-group ID (P436) and a Rate Your
    Music release ID (P8392) — see fetchRymFromWikidata() below — so that's
-   tried before falling all the way back to a plain RYM search link.
+   tried before falling all the way back to a plain RYM search link. The
+   RYM Link field in Add/Edit always wins over all of this, though — a
+   pasted-in link is assumed correct and skips the lookup entirely.
    Results are cached per album so we only ever look each one up once. */
 
 function spotifySearchUrl(item) {
@@ -7316,6 +7382,10 @@ async function getExternalLinksFor(item) {
   if (state.linkCache[key]) return state.linkCache[key];
 
   const result = { spotify: null, soundcloud: null, rym: null };
+
+  // A manually-entered RYM Link always wins — no lookup needed, and it's
+  // the escape hatch for the releases Wikidata/MusicBrainz just don't have.
+  if (item.rymLink && item.rymLink.trim()) result.rym = item.rymLink.trim();
 
   // If the crate's own Link field already points straight at a Spotify or
   // SoundCloud release page, that's already a direct link — use it as-is,
