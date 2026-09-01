@@ -9,8 +9,17 @@
   This is the only running record of what's been done to this file, so keep
   it going rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.3.0
+  CURRENT_VERSION: 1.4.0
 
+  1.4.0 — 2026-09-01 — Search box now filters the whole Music section, not
+          just the main grid: typing narrows the left panel too, so
+          Artists/Genres/Albums mode only lists entries that match (e.g.
+          "beatles" leaves just The Beatles' artist row/albums; a genre
+          name leaves just albums tagged with it and the artists who have
+          one). Also added genre to what the main-grid search matches
+          against, so genre searches work there too. New shared helpers
+          matchesSearchTerms()/searchFilteredRaw() back both the grid
+          filter and buildLeftList().
   1.3.0 — 2026-08-29 — Diary "By track" search/manual-search-in-Add-modal fix:
           the general Add Album search (typing into the search box) picked a
           result and jumped straight to that ONE MusicBrainz release's data,
@@ -1116,6 +1125,7 @@ function bindEvents() {
   // 1. Search Logic
   el.searchInput.addEventListener('input', debounce(() => {
     state.query = el.searchInput.value.trim().toLowerCase();
+    buildLeftList();
     applyFiltersSort();
   }, 150));
 
@@ -2063,18 +2073,23 @@ function buildLeftList() {
   el.leftList.className = 'left-list thumb-' + state.leftThumbSize;
   el.leftList.innerHTML = '';
   
+  // Narrow the source list to whatever matches the search box first, so
+  // every left-panel mode (albums/artists/genres/years) only surfaces
+  // entries that actually belong to the current search results.
+  const sourceRaw = searchFilteredRaw();
+
   let entries;
 
 if (mode === 'artist') {
-    entries = groupCountWithSample(state.raw, r => r.artist);
+    entries = groupCountWithSample(sourceRaw, r => r.artist);
   } else if (mode === 'year') {
-    entries = groupCountWithSample(state.raw, r => {
+    entries = groupCountWithSample(sourceRaw, r => {
       const y = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getFullYear() : null;
       return y ? String(y) : 'Unknown';
     });
   } else if (mode === 'genre') {
     const genreMap = new Map();
-    state.raw.forEach(item => {
+    sourceRaw.forEach(item => {
       const genres = getGenreList(item.genre);
       genres.forEach(g => {
         genreMap.set(g, (genreMap.get(g) || 0) + 1);
@@ -2088,7 +2103,7 @@ if (mode === 'artist') {
         count: count 
       }));
   } else {
-    entries = state.raw
+    entries = sourceRaw
       .map(r => ({ key: r.row, artKey: artKey(r), label: r.title, sub: r.artist, count: null }));
   }
 
@@ -2117,7 +2132,7 @@ if (mode === 'artist') {
   const allLabel = mode === 'artist' ? 'All Artists' : mode === 'genre' ? 'All Genres' : 'All Albums';
   allRow.innerHTML = `
     <div class="left-row-text"><p class="left-row-title">${allLabel}</p></div>
-    <span class="left-row-count">${state.raw.length}</span>`;
+    <span class="left-row-count">${sourceRaw.length}</span>`;
   allRow.addEventListener('click', () => {
     state.navFilter = null;
     buildLeftList();
@@ -2347,14 +2362,36 @@ function updateMainLabel() {
 
 /* ---------- Filter / sort / group ---------- */
 
+function getSearchTerms() {
+  return state.query ? state.query.toLowerCase().split(/\s+/).filter(Boolean) : [];
+}
+
+// Shared by the main grid and the left panel (artists/genres/albums) so a
+// search query narrows both consistently — e.g. "beatles" leaves only the
+// Beatles' albums/artist row, and a genre name leaves only albums (and the
+// artists/genre rows derived from them) tagged with that genre.
+function matchesSearchTerms(r, searchTerms) {
+  if (searchTerms.length === 0) return true;
+  const year = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getFullYear() : '';
+  const genres = getGenreList(r.genre).join(' ');
+  const combinedText = `${r.artist} ${r.title} ${year} ${r.catalog} ${genres}`.toLowerCase();
+  return searchTerms.every(term => combinedText.includes(term));
+}
+
+// The raw catalog narrowed down to just what matches the current search
+// box query (independent of navFilter/listenedOnly) — this is what feeds
+// the left panel so its artist/genre/album lists stay in sync with search.
+function searchFilteredRaw() {
+  const searchTerms = getSearchTerms();
+  if (searchTerms.length === 0) return state.raw;
+  return state.raw.filter(r => matchesSearchTerms(r, searchTerms));
+}
+
 function applyFiltersSort() {
-  const searchTerms = state.query ? state.query.toLowerCase().split(/\s+/).filter(Boolean) : [];
+  const searchTerms = getSearchTerms();
 
   let list = state.raw.filter(r => {
-    const year = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getFullYear() : '';
-    const combinedText = `${r.artist} ${r.title} ${year} ${r.catalog}`.toLowerCase();
-    
-    const matchesQuery = searchTerms.length === 0 || searchTerms.every(term => combinedText.includes(term));
+    const matchesQuery = matchesSearchTerms(r, searchTerms);
     
     const matchesNav = !state.navFilter || (
       state.navFilter.mode === 'artist' ? r.artist === state.navFilter.value :
