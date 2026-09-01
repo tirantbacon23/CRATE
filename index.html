@@ -4,13 +4,24 @@
   MAINTENANCE LOG — READ THIS BEFORE EDITING
   ============================================================
   Instruction for Claude (or anyone else editing this file): every time you
-  make a change to this file, bump CURRENT_VERSION below and add a new entry
-  to the top of the log — one or two lines is enough: what changed and why.
-  This is the only running record of what's been done to this file, so keep
-  it going rather than skipping it for "small" edits.
+  make a change to this file, bump CURRENT_VERSION below AND the matching
+  APP_VERSION constant near the top of the main script section (search
+  "APP_VERSION =") to the same value — that constant is what actually gets
+  printed to the browser console and shown on-site (in the ⚙ Layout menu),
+  so the two must never drift apart. Also add a new entry to the top of
+  this log — one or two lines is enough: what changed and why. This is the
+  only running record of what's been done to this file, so keep it going
+  rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.6.0
+  CURRENT_VERSION: 1.7.0
 
+  1.7.0 — 2026-09-01 — Every version bump now has to show up in two places
+          a person can actually see, not just this comment: the browser
+          console (already had a console.log, but it printed an unrelated
+          hardcoded string that had drifted out of sync with this log —
+          now prints CURRENT_VERSION's value) and, new, a small "CRATE
+          vX.X.X" line at the bottom of the ⚙ Layout menu so it's visible
+          on-site too without opening devtools.
   1.6.0 — 2026-09-01 — Fixed "Artist" tab discography needing several
           Retry clicks to load. Root cause: every MusicBrainz-hitting
           feature (left-panel artist/year badges, the Artist tab's
@@ -140,6 +151,8 @@
           <button type="button" id="menuDiscogsApi">Discogs API…</button>
           <div class="menu-divider"></div>
           <button type="button" id="menuSignOut">Sign out</button>
+          <div class="menu-divider"></div>
+          <div class="menu-app-version" id="menuAppVersion" title="Build version"></div>
         </div>
       </div>
       <!-- 👆 👆 -->
@@ -758,10 +771,12 @@
 </div>
 
 <script>
-/* Bump this string with every deploy so it's obvious (via console + debug
-   toasts) which build is actually live. */
-const APP_VERSION = 'v5-2026-08-11-queue-play';
-console.log('%c[CRATE] build ' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
+/* Bump this with every deploy — it's what actually gets printed to the
+   console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
+   in the maintenance log comment at the very top of this file — see the
+   instruction there. */
+const APP_VERSION = '1.7.0';
+console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
    run on page load further down this script (was previously declared much later,
@@ -949,7 +964,7 @@ const el = {};
   'menuDiscogsApi','discogsOverlay','discogsClose','discogsToken','discogsSaveBtn','discogsCancelBtn','discogsStatus',
   'editGenreDiscogsBtn','editGenreDiscogsStatus',
   'spotifyRedirectUriDisplay','spotifyConnectBtn','spotifyDisconnectBtn','spotifyConnectStatus',
-  'authGate','authGateStatus','menuSignOut','app'
+  'authGate','authGateStatus','menuSignOut','menuAppVersion','app'
 ].forEach(id => { el[id] = document.getElementById(id); });
 
 let activeItem = null;
@@ -1082,6 +1097,7 @@ function startApp() {
 startApp();
 
 async function init() {
+  el.menuAppVersion.textContent = 'CRATE v' + APP_VERSION;
   loadPrefs();
   loadCoverageCache();
   el.sortSelect.value = state.sort;
@@ -8158,6 +8174,13 @@ html, body {
     padding: 8px 16px 2px; text-transform: uppercase; letter-spacing: 0.5px;
   }
   .menu-divider { height: 1px; background: var(--line); margin: 4px 0; }
+  /* Build version shown at the bottom of the ⚙ Layout menu — see
+     APP_VERSION in the main script and the maintenance log at the top of
+     this file. Non-interactive, so no hover/focus styling. */
+  .menu-app-version {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-dim);
+    padding: 6px 16px 8px; letter-spacing: 0.5px; white-space: nowrap;
+  }
 
   .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .search-wrap { position: relative; }
