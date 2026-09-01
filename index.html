@@ -9,8 +9,22 @@
   This is the only running record of what's been done to this file, so keep
   it going rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.5.0
+  CURRENT_VERSION: 1.6.0
 
+  1.6.0 — 2026-09-01 — Fixed "Artist" tab discography needing several
+          Retry clicks to load. Root cause: every MusicBrainz-hitting
+          feature (left-panel artist/year badges, the Artist tab's
+          discography, Add-album pressing lookups) paced its OWN requests
+          independently, so two of them running at once (e.g. the left
+          panel's badge queue still going in the background while you
+          open the Artist tab) could still collide and exceed
+          MusicBrainz's real rate limit even though each looked correctly
+          paced on its own. Added a single shared mbFetch() request gate
+          that ALL MusicBrainz calls now go through — one queue, one
+          clock, so they can never overlap — and it auto-retries a 429
+          with backoff instead of surfacing it as a dead end needing a
+          manual Retry. Removed the now-redundant per-call 1100ms
+          setTimeout delays that were sprinkled across each feature.
   1.5.0 — 2026-09-01 — Right-click on a track (flat Tracks table, "Album
           and Tracks" view, and the album deck's own tracklist) now opens
           a context menu with "View album" and a "Search ▸" flyout ("Find
@@ -2231,6 +2245,54 @@ function groupCountWithSample(items, keyFn) {
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
+// --- Shared MusicBrainz request gate ---
+// Every MusicBrainz call in the app (left-panel artist/year badges, the
+// Artist tab's discography, and the Add-album pressing lookups) used to
+// pace itself independently with its own setTimeout(1100ms) between its
+// own requests. That's fine in isolation, but these run concurrently —
+// e.g. the left panel's artist badges keep fetching in the background
+// while you're looking at the Artist tab — so two independently-paced
+// streams could still collide and blow past MusicBrainz's actual ~1 req/
+// sec limit, causing a 429 that only showed up as "click Retry a few
+// times until one attempt doesn't collide with the other stream."
+//
+// Routing every call through mbFetch() instead of a bare fetch() fixes
+// that at the source: ALL MusicBrainz requests, from every feature, share
+// one queue and one clock, so they can never overlap. It also retries a
+// 429 automatically (honoring Retry-After when MusicBrainz sends one, or
+// backing off if not) instead of surfacing it to the user as a dead end —
+// so a rate-limit hit resolves itself instead of needing manual retries.
+let mbQueueTail = Promise.resolve();
+let mbLastRequestAt = 0;
+const MB_MIN_INTERVAL_MS = 1100;
+const MB_MAX_RETRIES = 3;
+
+function mbFetch(url, opts, attempt = 0) {
+  const run = async () => {
+    const wait = Math.max(0, mbLastRequestAt + MB_MIN_INTERVAL_MS - Date.now());
+    if (wait > 0) await new Promise(r => setTimeout(r, wait));
+    mbLastRequestAt = Date.now();
+    return fetch(url, opts);
+  };
+  // Chain onto the shared queue so this request waits for whatever else is
+  // already pending, regardless of which feature queued it. The .catch on
+  // the tail keeps one failed request from permanently jamming the queue.
+  const queued = mbQueueTail.then(run, run);
+  mbQueueTail = queued.catch(() => {});
+
+  return queued.then(async (res) => {
+    if (res.status === 429 && attempt < MB_MAX_RETRIES) {
+      const retryAfterHeader = res.headers.get('Retry-After');
+      const retryAfterMs = retryAfterHeader
+        ? parseInt(retryAfterHeader, 10) * 1000
+        : MB_MIN_INTERVAL_MS * Math.pow(2, attempt + 1); // back off a bit more each retry
+      await new Promise(r => setTimeout(r, retryAfterMs));
+      return mbFetch(url, opts, attempt + 1);
+    }
+    return res;
+  });
+}
+
 // --- Discography completion badges (left panel, grouped by Artist) ---
 // Shows "N of T (P%)" next to each artist — N is how many albums you've
 // logged for them (already known locally), T is how many studio albums
@@ -2258,7 +2320,7 @@ async function fetchArtistDiscogCount(artistName) {
   const headers = { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' };
   let result = { total: null };
   try {
-    const searchRes = await fetch(`https://musicbrainz.org/ws/2/artist/?query=${encodeURIComponent(`artist:"${artistName}"`)}&fmt=json&limit=5`, { headers });
+    const searchRes = await mbFetch(`https://musicbrainz.org/ws/2/artist/?query=${encodeURIComponent(`artist:"${artistName}"`)}&fmt=json&limit=5`, { headers });
     if (searchRes.ok) {
       const searchData = await searchRes.json();
       const allHits = searchData.artists || [];
@@ -2270,13 +2332,12 @@ async function fetchArtistDiscogCount(artistName) {
 
       let best = { total: 0, mbid: null };
       for (const artist of candidates) {
-        const rgRes = await fetch(`https://musicbrainz.org/ws/2/release-group?artist=${artist.id}&type=album&limit=100&fmt=json`, { headers });
+        const rgRes = await mbFetch(`https://musicbrainz.org/ws/2/release-group?artist=${artist.id}&type=album&limit=100&fmt=json`, { headers });
         if (!rgRes.ok) continue;
         const rgData = await rgRes.json();
         const groups = rgData['release-groups'] || [];
         const studioAlbums = groups.filter(rg => rg['primary-type'] === 'Album' && (!rg['secondary-types'] || rg['secondary-types'].length === 0));
         if (studioAlbums.length > 0) { best = { total: studioAlbums.length, mbid: artist.id }; break; }
-        if (candidates.length > 1) await new Promise(r => setTimeout(r, 1100)); // pace between candidate lookups too
       }
       if (candidates.length) result = best; // we found the artist, even if their studio-album count is genuinely 0
     }
@@ -2303,7 +2364,7 @@ function loadArtistDiscogBadges(artistNames) {
       const badge = el.leftList.querySelector(`.left-row-count[data-artist="${cssEscape(artistName)}"]`);
       if (!badge || result.total == null) return;
       badge.textContent = formatCoverageBadge(Number(badge.dataset.ownedCount), result.total);
-    }).finally(() => { setTimeout(next, 1100); }); // stay under MusicBrainz's ~1 req/sec limit
+    }).finally(next); // mbFetch() itself paces every MusicBrainz request globally now
   }
   next();
 }
@@ -2326,7 +2387,7 @@ async function fetchYearReleaseCount(year) {
   let result = { total: null };
   try {
     const q = `firstreleasedate:[${year}-01-01 TO ${year}-12-31] AND (primarytype:Album OR primarytype:EP OR primarytype:Single) AND NOT secondarytype:*`;
-    const res = await fetch(`https://musicbrainz.org/ws/2/release-group/?query=${encodeURIComponent(q)}&fmt=json&limit=1`, { headers });
+    const res = await mbFetch(`https://musicbrainz.org/ws/2/release-group/?query=${encodeURIComponent(q)}&fmt=json&limit=1`, { headers });
     if (res.ok) {
       const data = await res.json();
       if (typeof data.count === 'number') result = { total: data.count };
@@ -2349,7 +2410,7 @@ function loadYearCoverageBadges(years) {
       const badge = el.leftList.querySelector(`.left-row-count[data-year="${cssEscape(year)}"]`);
       if (!badge || result.total == null) return;
       badge.textContent = formatCoverageBadge(Number(badge.dataset.ownedCount), result.total);
-    }).finally(() => { setTimeout(next, 1100); }); // stay under MusicBrainz's ~1 req/sec limit
+    }).finally(next); // mbFetch() itself paces every MusicBrainz request globally now
   }
   next();
 }
@@ -3193,7 +3254,7 @@ async function getTracksFor(item) {
       const mbidMatch = item.link.match(/release\/([a-f0-9-]+)/);
       if (mbidMatch && mbidMatch[1]) {
         const mbid = mbidMatch[1];
-        const mbRes = await fetch(`https://musicbrainz.org/ws/2/release/${mbid}?inc=recordings&fmt=json`, {
+        const mbRes = await mbFetch(`https://musicbrainz.org/ws/2/release/${mbid}?inc=recordings&fmt=json`, {
           headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' }
         });
         
@@ -5403,7 +5464,7 @@ function clearArtistMbidChoice(artistName) {
 // first-release year). Returns null on a failed request (vs. [] for a
 // real "this artist has nothing"), so callers can tell the two apart.
 async function fetchReleaseGroupsForMbid(mbid, headers, includeAll = false) {
-  const rgRes = await fetch(`https://musicbrainz.org/ws/2/release-group?artist=${mbid}&limit=100&fmt=json`, { headers });
+  const rgRes = await mbFetch(`https://musicbrainz.org/ws/2/release-group?artist=${mbid}&limit=100&fmt=json`, { headers });
   if (!rgRes.ok) return null;
   const rgData = await rgRes.json();
   return (rgData['release-groups'] || [])
@@ -5446,7 +5507,7 @@ async function fetchArtistDiscography(artistName, ownedKeys, includeAll = false)
       const items = await fetchReleaseGroupsForMbid(forcedMbid, headers, includeAll);
       result = items == null ? { items: null } : { items, mbid: forcedMbid };
     } else {
-      const searchRes = await fetch(`https://musicbrainz.org/ws/2/artist/?query=${encodeURIComponent(`artist:"${artistName}"`)}&fmt=json&limit=8`, { headers });
+      const searchRes = await mbFetch(`https://musicbrainz.org/ws/2/artist/?query=${encodeURIComponent(`artist:"${artistName}"`)}&fmt=json&limit=8`, { headers });
       if (searchRes.ok) {
         const searchData = await searchRes.json();
         const allHits = searchData.artists || [];
@@ -5463,7 +5524,6 @@ async function fetchArtistDiscography(artistName, ownedKeys, includeAll = false)
           if (items && items.length > 0) {
             withItems.push({ mbid: candidates[i].id, disambiguation: candidates[i].disambiguation || '', items });
           }
-          if (i < candidates.length - 1) await new Promise(r => setTimeout(r, 1100)); // stay under MusicBrainz's ~1 req/sec limit
         }
 
         if (withItems.length === 0) {
@@ -6646,7 +6706,7 @@ function buildReleaseResultRow(hit, opts = {}) {
 // what doAddSearch already asks for so the row rendering has the same fields
 // to work with either way.
 async function fetchReleasesForReleaseGroup(rgId) {
-  const res = await fetch(`https://musicbrainz.org/ws/2/release?release-group=${rgId}&inc=labels+genres+tags&fmt=json&limit=100`, {
+  const res = await mbFetch(`https://musicbrainz.org/ws/2/release?release-group=${rgId}&inc=labels+genres+tags&fmt=json&limit=100`, {
     headers: {
       'Accept': 'application/json',
       'User-Agent': 'CRATEMusicLog/1.0'
@@ -6769,7 +6829,7 @@ async function openAddModalForTrackAlbum(track) {
     const cleanArtist = basic.artist.replace(/["\\]/g, '');
     const cleanTitle = basic.title.replace(/["\\]/g, '');
     const termUrl = encodeURIComponent(`artist:"${cleanArtist}" AND release:"${cleanTitle}"`);
-    const res = await fetch(`https://musicbrainz.org/ws/2/release/?query=${termUrl}&fmt=json&limit=1`, {
+    const res = await mbFetch(`https://musicbrainz.org/ws/2/release/?query=${termUrl}&fmt=json&limit=1`, {
       headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' }
     });
     if (mySeq !== addSearchSeq) return; // superseded by a newer open/search
@@ -6810,7 +6870,7 @@ async function doAddSearch() {
     // MusicBrainz API (Requires a User-Agent to avoid getting blocked)
     // inc=genres+tags asks MusicBrainz to include genre/tag data on each hit where it has any,
     // so we can show and prefill genre without a separate lookup per result.
-    const res = await fetch(`https://musicbrainz.org/ws/2/release/?query=${termUrl}&fmt=json&limit=12&inc=genres+tags`, {
+    const res = await mbFetch(`https://musicbrainz.org/ws/2/release/?query=${termUrl}&fmt=json&limit=12&inc=genres+tags`, {
       headers: {
         'Accept': 'application/json',
         'User-Agent': 'CRATEMusicLog/1.0'
@@ -7210,7 +7270,7 @@ async function lookupMbReleaseId(artist, title) {
 
   const tryQuery = async (q) => {
     try {
-      const res = await fetch(`https://musicbrainz.org/ws/2/release/?query=${encodeURIComponent(q)}&fmt=json&limit=1`, {
+      const res = await mbFetch(`https://musicbrainz.org/ws/2/release/?query=${encodeURIComponent(q)}&fmt=json&limit=1`, {
         headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' }
       });
       const data = await res.json();
@@ -7228,7 +7288,7 @@ async function lookupMbReleaseId(artist, title) {
 
 async function fetchMbReleaseWithGroup(mbid) {
   try {
-    const res = await fetch(`https://musicbrainz.org/ws/2/release/${mbid}?inc=url-rels+release-groups&fmt=json`, {
+    const res = await mbFetch(`https://musicbrainz.org/ws/2/release/${mbid}?inc=url-rels+release-groups&fmt=json`, {
       headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' }
     });
     if (!res.ok) return { relations: [], releaseGroupId: null };
