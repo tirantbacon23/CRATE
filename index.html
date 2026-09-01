@@ -13,8 +13,25 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.7.0
+  CURRENT_VERSION: 1.8.0
 
+  1.8.0 — 2026-09-01 — RYM links now resolve to a real release page instead
+          of almost always falling back to a search link. RateYourMusic has
+          no public API, but Wikidata's SPARQL endpoint is public, CORS-
+          enabled, and — for albums tagged by its WikiProject Albums
+          editors — often carries both a MusicBrainz release-group ID
+          (P436) and a Rate Your Music release ID (P8392) on the same
+          item, so a single query joining on the release-group ID we
+          already have from MusicBrainz can hand back the exact RYM slug.
+          New fetchRymFromWikidata() tries that first; if the item exists
+          but lacks the RYM id (or MusicBrainz found no release-group at
+          all), a second query falls back to matching by artist/title
+          label instead of just giving up. Only if both come back empty
+          does it fall through to the old rymSearchUrl() search link.
+          Wired into getExternalLinksFor() as an additional source
+          alongside the existing MusicBrainz url-rels checks, and cached
+          in the same per-album linkCache so it's still only ever looked
+          up once.
   1.7.0 — 2026-09-01 — Every version bump now has to show up in two places
           a person can actually see, not just this comment: the browser
           console (already had a console.log, but it printed an unrelated
@@ -775,7 +792,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.8.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -7055,10 +7072,12 @@ async function saveEditAlbum() {
    "streaming" relationships (many editors add these on the release or
    release-group — since we already talk to MusicBrainz for tracklists, we
    ask it for those relationship URLs too, which also covers SoundCloud).
-   RateYourMusic has no public API and is rarely cross-linked on
-   MusicBrainz, so it almost always falls back to a search link — there's
-   no reliable free way to resolve an exact RYM page. Results are cached
-   per album so we only ever look each one up once. */
+   RateYourMusic has no public API of its own and is rarely cross-linked on
+   MusicBrainz, but Wikidata's WikiProject Albums editors frequently tag the
+   same item with both a MusicBrainz release-group ID (P436) and a Rate Your
+   Music release ID (P8392) — see fetchRymFromWikidata() below — so that's
+   tried before falling all the way back to a plain RYM search link.
+   Results are cached per album so we only ever look each one up once. */
 
 function spotifySearchUrl(item) {
   return 'https://open.spotify.com/search/' + encodeURIComponent(item.artist + ' ' + item.title);
@@ -7070,6 +7089,81 @@ function rymSearchUrl(item) {
   // searchtype=l restricts results to releases (albums/EPs/etc) rather than artists or songs.
   return 'https://rateyourmusic.com/search?searchterm=' + encodeURIComponent(item.artist + ' ' + item.title) + '&searchtype=l';
 }
+
+/* ---- RYM release resolution via Wikidata ----
+   RateYourMusic release IDs on Wikidata (P8392) look like
+   "album/stromae/racine-carree" and turn into a real page at
+   https://rateyourmusic.com/release/$1/ — so once we have one, no search
+   is needed. query.wikidata.org's SPARQL endpoint is public, unauthenticated
+   and CORS-enabled, so it can be queried straight from the browser like any
+   other fetch() here.
+
+   Two ways in, tried in order:
+   1. Join on the MusicBrainz release-group ID (P436) we already resolved
+      via MusicBrainz elsewhere in getExternalLinksFor — this is the more
+      reliable match since it's a hard ID-to-ID join, not a text match.
+   2. If that comes up empty (either no release-group id to join on, or a
+      Wikidata item exists but wasn't tagged with a RYM id), fall back to
+      matching by artist + title label instead.
+   Either way returns a real https://rateyourmusic.com/release/... URL, or
+   null if Wikidata has nothing for this release. */
+
+async function sparqlQuery(query) {
+  try {
+    const res = await fetch('https://query.wikidata.org/sparql', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/sparql-results+json',
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: 'query=' + encodeURIComponent(query)
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data.results && data.results.bindings) || [];
+  } catch (e) {
+    console.warn('Wikidata SPARQL query failed', e);
+    return null;
+  }
+}
+
+function rymUrlFromWikidataId(rymId) {
+  // Values are stored without a trailing slash; the formatter URL Wikidata
+  // documents for P8392 is https://rateyourmusic.com/release/$1/
+  return 'https://rateyourmusic.com/release/' + rymId.replace(/^\/|\/$/g, '') + '/';
+}
+
+async function fetchRymFromWikidata(item, releaseGroupId) {
+  // 1) Hard ID join on the MusicBrainz release-group id, when we have one.
+  if (releaseGroupId) {
+    const byMbid = await sparqlQuery(`
+      SELECT ?rymId WHERE {
+        ?item wdt:P436 "${releaseGroupId}".
+        ?item wdt:P8392 ?rymId.
+      } LIMIT 1
+    `);
+    if (byMbid && byMbid.length) return rymUrlFromWikidataId(byMbid[0].rymId.value);
+  }
+
+  // 2) Fall back to a label match on artist + title. CONTAINS + LCASE
+  // instead of an exact match since Wikidata album labels frequently carry
+  // punctuation/formatting differences from what's in the crate.
+  const escape = s => s.replace(/["\\]/g, '\\$&').toLowerCase();
+  const byLabel = await sparqlQuery(`
+    SELECT ?rymId WHERE {
+      ?item wdt:P8392 ?rymId;
+            rdfs:label ?label;
+            wdt:P175 ?artist.
+      ?artist rdfs:label ?artistLabel.
+      FILTER(LANG(?label) = "en" && CONTAINS(LCASE(?label), "${escape(item.title)}"))
+      FILTER(LANG(?artistLabel) = "en" && CONTAINS(LCASE(?artistLabel), "${escape(item.artist)}"))
+    } LIMIT 1
+  `);
+  if (byLabel && byLabel.length) return rymUrlFromWikidataId(byLabel[0].rymId.value);
+
+  return null;
+}
+
 function youtubeSearchUrl(item) {
   return 'https://www.youtube.com/results?search_query=' + encodeURIComponent(item.artist + ' ' + item.title);
 }
@@ -7238,6 +7332,8 @@ async function getExternalLinksFor(item) {
     catch (e) { console.warn('Spotify direct lookup failed', e); }
   }
 
+  let mbReleaseGroupId = null; // reused below for the Wikidata RYM lookup
+
   try {
     let mbid = null;
 
@@ -7257,6 +7353,7 @@ async function getExternalLinksFor(item) {
       // search) rather than needing a second round trip to find it.
       const { relations, releaseGroupId } = await fetchMbReleaseWithGroup(mbid);
       applyRelationUrls(relations, result);
+      mbReleaseGroupId = releaseGroupId;
 
       // Streaming links are frequently attached to the release-group instead
       // of one specific release — check there too for whatever we're missing.
@@ -7267,6 +7364,14 @@ async function getExternalLinksFor(item) {
     }
   } catch (e) {
     console.warn('External link lookup failed', e);
+  }
+
+  // MusicBrainz itself rarely has a RYM cross-link, so most releases reach
+  // here still missing one — try Wikidata (see fetchRymFromWikidata above)
+  // before giving up and handing back a plain search link elsewhere.
+  if (!result.rym) {
+    try { result.rym = await fetchRymFromWikidata(item, mbReleaseGroupId); }
+    catch (e) { console.warn('Wikidata RYM lookup failed', e); }
   }
 
   state.linkCache[key] = result;
