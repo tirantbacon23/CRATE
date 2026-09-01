@@ -9,8 +9,14 @@
   This is the only running record of what's been done to this file, so keep
   it going rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.4.0
+  CURRENT_VERSION: 1.5.0
 
+  1.5.0 — 2026-09-01 — Right-click on a track (flat Tracks table, "Album
+          and Tracks" view, and the album deck's own tracklist) now opens
+          a context menu with "View album" and a "Search ▸" flyout ("Find
+          artist …" / "Open discography"), reusing the same submenu the
+          album card's right-click menu already had. New
+          openTrackContextMenu() wires all three track-row locations to it.
   1.4.0 — 2026-09-01 — Search box now filters the whole Music section, not
           just the main grid: typing narrows the left panel too, so
           Artists/Genres/Albums mode only lists entries that match (e.g.
@@ -1664,6 +1670,16 @@ function bindEvents() {
     }
   });
 
+  el.deckTracklist.addEventListener('contextmenu', (e) => {
+    if (!activeItem) return;
+    const rowEl = e.target.closest('.track-row-wrap');
+    if (!rowEl) return;
+    e.preventDefault();
+    const trackNum = rowEl.dataset.track;
+    const track = currentTracklistTracks.find(t => String(t.trackNumber || 0) === String(trackNum));
+    openTrackContextMenu(activeItem, track ? track.trackName : '', e.clientX, e.clientY);
+  });
+
   // 11b. Play buttons in the "Album and Tracks" list (each row carries its
   // own artist, since — unlike the deck — this view shows many albums at
   // once and there's no single activeItem to fall back on).
@@ -3024,6 +3040,14 @@ function renderFlatTrackTable() {
       }
     }
   };
+  body.oncontextmenu = (e) => {
+    const rowEl = e.target.closest('.main-track-row');
+    if (!rowEl) return;
+    e.preventDefault();
+    const rowKey = rowEl.dataset.trackKey;
+    const match = rows.find(r => trackRowKey(r) === rowKey);
+    if (match) openTrackContextMenu(match.item, match.track.trackName, e.clientX, e.clientY);
+  };
 }
 
 function handleTrackRowClick(e, rowEl) {
@@ -3112,6 +3136,16 @@ function loadTracksForList(list, mode) {
         `;
         }).join('');
       }
+      // Right-click any track row here to get the same track context menu
+      // (View album / Search) as the flat Tracks table and the deck.
+      tw.oncontextmenu = (e) => {
+        const rowEl = e.target.closest('.track-row');
+        if (!rowEl) return;
+        e.preventDefault();
+        const idx = Array.from(tw.children).indexOf(rowEl);
+        const track = tracks[idx];
+        if (track) openTrackContextMenu(item, track.trackName, e.clientX, e.clientY);
+      };
     }).finally(() => { active--; next(); });
     next();
   }
@@ -3876,6 +3910,43 @@ function closeNowPlayingAddMenu() {
   if (nowPlayingAddMenuEl) { nowPlayingAddMenuEl.remove(); nowPlayingAddMenuEl = null; }
   document.removeEventListener('click', closeNowPlayingAddMenuOnOutsideClick);
   closeAlbumSearchSubmenu();
+}
+
+// Right-click menu on an individual track row — in the flat Tracks table,
+// the per-album "Album and Tracks" view, and the album deck's own
+// tracklist. Keeps it simple (view the album, or jump to the artist) since
+// a single track doesn't carry its own crate row the way an album card
+// does. "Search" reuses the same flyout as the album card menu.
+function openTrackContextMenu(item, trackName, x, y) {
+  closeNowPlayingAddMenu();
+
+  const menu = document.createElement('div');
+  menu.className = 'panel-mode-menu now-playing-add-menu';
+  menu.innerHTML = `
+    <div class="menu-section-title">${escapeHtml(trackName || item.title)}</div>
+    <button type="button" data-track-menu-action="view">View album</button>
+    <button type="button" class="menu-parent-btn" data-track-menu-action="search">Search <span class="submenu-caret">▸</span></button>
+  `;
+  document.body.appendChild(menu);
+  positionFloatingMenu(menu, x, y);
+
+  const searchBtn = menu.querySelector('[data-track-menu-action="search"]');
+  searchBtn.addEventListener('mouseenter', () => openAlbumSearchSubmenu(searchBtn, item));
+  searchBtn.addEventListener('mouseleave', scheduleCloseAlbumSearchSubmenu);
+
+  menu.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-track-menu-action]');
+    if (!btn) return;
+    const action = btn.dataset.trackMenuAction;
+
+    if (action === 'search') { openAlbumSearchSubmenu(btn, item); return; } // tap-to-open for touch
+
+    closeNowPlayingAddMenu();
+    if (action === 'view') openDeck(item);
+  });
+
+  nowPlayingAddMenuEl = menu;
+  setTimeout(() => document.addEventListener('click', closeNowPlayingAddMenuOnOutsideClick), 0);
 }
 
 // Right-click menu on an album card in the grid/list/covers views (see
