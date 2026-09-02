@@ -13,7 +13,30 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.9.0
+  CURRENT_VERSION: 1.10.0
+
+  1.10.0 — 2026-09-01 — Added a Playlist system: a new PLAYLISTS tab (list
+          of your playlists on the left, an open playlist's ordered items on
+          the right), synced to the sheet backend via two new sheets
+          (Playlists, PlaylistItems). Playlists can mix whole albums and
+          individual tracks in any order. "+ Add to playlist" is now on the
+          album card right-click menu and the track right-click menu (in the
+          deck tracklist, flat Tracks table, and Album-and-Tracks view); the
+          deck header also got a "+ Playlist" button for the currently open
+          album. Inside an open playlist you can rename it, delete it,
+          remove individual items, and drag-reorder items (native HTML5
+          drag-and-drop on each row). New state.playlists (array of
+          {id,name,description,createdAt,updatedAt,items}) is populated in
+          fetchCatalog() from the new data.playlists/data.playlistItems
+          fields.
+          REQUIRES A BACKEND CHANGE THIS FILE CAN'T MAKE: the Apps Script
+          backend (apps-script-backend.gs) needs the matching update —
+          doGet() reading two new sheets (Playlists, PlaylistItems) and
+          doPost() handling six new actions (createPlaylist, renamePlaylist,
+          deletePlaylist, addPlaylistItems, removePlaylistItems,
+          reorderPlaylist). Paste the updated apps-script-backend.gs into
+          the Apps Script project and redeploy (or update the existing
+          deployment) for playlists to actually save anywhere.
 
   1.9.0 — 2026-09-01 — Two new manual fields in Add/Edit: "Secondary Genre"
           (a second comma-separated genre field, RYM-style — shown in the
@@ -154,6 +177,7 @@
       <button id="tabScrobbles" class="nav-tab">SCROBBLES</button>
       <button id="tabStats" class="nav-tab">STATS</button>
       <button id="tabArtist" class="nav-tab">ARTIST</button>
+      <button id="tabPlaylists" class="nav-tab">PLAYLISTS</button>
     </nav>
 
     <div class="controls">
@@ -359,6 +383,39 @@
       <p class="artist-placeholder">Pick an artist on the left to see their full discography.</p>
     </div>
   </div>
+
+  <!-- Playlists tab: your own curated, ordered lists. Each entry can be a
+       whole album or a single track off one — see state.playlists. -->
+  <div id="playlistsWrap" class="playlists-wrap" hidden>
+    <div class="playlists-sidebar">
+      <div class="playlists-sidebar-head">
+        <span class="playlists-sidebar-title">Your playlists</span>
+        <button type="button" id="newPlaylistBtn" class="icon-btn" title="New playlist" aria-label="New playlist">+</button>
+      </div>
+      <div id="playlistList" class="playlist-list"></div>
+    </div>
+    <div id="playlistDetail" class="playlist-detail">
+      <p class="playlist-placeholder">Pick a playlist on the left, or create a new one.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Create / rename playlist modal -->
+<div id="playlistModalOverlay" class="arrange-overlay" hidden>
+  <div class="arrange-modal add-modal">
+    <div class="arrange-header"><h2 id="playlistModalHeading">New playlist</h2><button id="playlistModalClose" class="modal-x" aria-label="Close">✕</button></div>
+    <div class="arrange-body">
+      <div class="add-form">
+        <label class="add-field">Name <input type="text" id="playlistNameInput" placeholder="e.g. Late Night Drives" maxlength="120"></label>
+        <label class="add-field">Description <textarea id="playlistDescInput" rows="3" placeholder="Optional"></textarea></label>
+        <div class="log-form-actions">
+          <button id="playlistModalSaveBtn" class="save-btn">Save</button>
+          <button id="playlistModalCancelBtn" class="cancel-btn">Cancel</button>
+        </div>
+        <span id="playlistModalToast" class="toast"></span>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- The deck: modal detail / rating / tracklist / diary view -->
@@ -491,6 +548,7 @@
           <a id="deckSoundcloudLink" class="deck-link deck-link-soundcloud" target="_blank" rel="noopener noreferrer">SoundCloud ↗</a>
           <a id="deckRymLink" class="deck-link deck-link-rym" target="_blank" rel="noopener noreferrer">RYM ↗</a>
           <button id="deckPlayBtn" class="deck-btn deck-btn-play" type="button" hidden>▶ Play</button>
+          <button id="deckPlaylistBtn" class="deck-btn" type="button">+ Playlist</button>
           <button id="deckEditBtn" class="deck-btn" type="button">Edit details</button>
         </div>
       </div>
@@ -815,7 +873,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.9.0';
+const APP_VERSION = '1.10.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -886,6 +944,12 @@ const state = {
   filtered: [],
   diary: [],
   scrobbles: [],
+  // Playlists: array of {id, name, description, createdAt, updatedAt, items}
+  // where each item is {id, type: 'album'|'track', row, trackNum, trackName,
+  // position} — see fetchCatalog() for how this is built from data.playlists
+  // / data.playlistItems, and the "Playlists tab" section below for the UI.
+  playlists: [],
+  activePlaylistId: null,
   activeTab: 'albums',
   activeType: 'All',
   query: '',
@@ -979,7 +1043,7 @@ const el = {};
   'deckOverlay','deckClose','deckImg','deckCatalog','deckTitle','deckArtist','deckMeta','deckAdded','deckScrobbleCount','deckLink','deckRatingNum',
   'deckSpotifyLink','deckSoundcloudLink','deckRymLink','deckPlayBtn',
   'deckEditBtn','editOverlay','editClose','editArtist','editTitle','editType','editReleaseDate','editGenre','editGenre2','editRegion','editLabel','editCatalog','editLink','editRymLink','editCover','editSaveBtn','editCancelBtn','editToast',
-  'deckTracklist','deckStars','deckReview','deckSaveReview','deckToast','deckRemoveBtn',
+  'deckTracklist','deckStars','deckReview','deckSaveReview','deckToast','deckRemoveBtn','deckPlaylistBtn',
   'logListenBtn','logForm','logDate','logStars','logEntryTitle','logDescription','logSaveBtn','logCancelBtn','deckDiaryList',
   'logTrackSummary','logSelectAllBtn','logClearSelectionBtn',
   'diaryToolbar','diaryViewFeedBtn','diaryViewGridBtn','diaryViewTracksBtn',
@@ -1004,7 +1068,10 @@ const el = {};
   'menuDiscogsApi','discogsOverlay','discogsClose','discogsToken','discogsSaveBtn','discogsCancelBtn','discogsStatus',
   'editGenreDiscogsBtn','editGenreDiscogsStatus',
   'spotifyRedirectUriDisplay','spotifyConnectBtn','spotifyDisconnectBtn','spotifyConnectStatus',
-  'authGate','authGateStatus','menuSignOut','menuAppVersion','app'
+  'authGate','authGateStatus','menuSignOut','menuAppVersion','app',
+  'tabPlaylists','playlistsWrap','playlistList','newPlaylistBtn','playlistDetail',
+  'playlistModalOverlay','playlistModalHeading','playlistModalClose','playlistNameInput','playlistDescInput',
+  'playlistModalSaveBtn','playlistModalCancelBtn','playlistModalToast'
 ].forEach(id => { el[id] = document.getElementById(id); });
 
 let activeItem = null;
@@ -1268,6 +1335,12 @@ function bindEvents() {
   el.tabScrobbles.addEventListener('click', () => { switchTab('scrobbles'); });
   el.tabStats.addEventListener('click', () => { switchTab('stats'); });
   el.tabArtist.addEventListener('click', () => { switchTab('artist'); });
+  el.tabPlaylists.addEventListener('click', () => { switchTab('playlists'); });
+  el.newPlaylistBtn.addEventListener('click', () => openPlaylistModal('create'));
+  el.playlistModalClose.addEventListener('click', closePlaylistModal);
+  el.playlistModalCancelBtn.addEventListener('click', closePlaylistModal);
+  el.playlistModalSaveBtn.addEventListener('click', savePlaylistModalClick);
+  el.tabPlaylists.addEventListener('click', () => { switchTab('playlists'); });
 
   // Stats tab: back button collapses the expanded year detail.
   el.statsDetailBack.addEventListener('click', () => {
@@ -1547,6 +1620,10 @@ function bindEvents() {
   el.deckClose.addEventListener('click', closeDeck);
   el.deckSaveReview.addEventListener('click', saveReview);
   el.deckRemoveBtn.addEventListener('click', onRemoveBtnClick);
+  el.deckPlaylistBtn.addEventListener('click', () => {
+    if (!activeItem) return;
+    openAddToPlaylistSubmenu(el.deckPlaylistBtn, [{ itemType: 'album', row: activeItem.row, trackNum: '', trackName: '' }]);
+  });
 
   // The deck's Spotify link starts on a search page and gets upgraded to
   // the exact album once MusicBrainz resolution finishes (kicked off in
@@ -1770,7 +1847,7 @@ function bindEvents() {
     e.preventDefault();
     const trackNum = rowEl.dataset.track;
     const track = currentTracklistTracks.find(t => String(t.trackNumber || 0) === String(trackNum));
-    openTrackContextMenu(activeItem, track ? track.trackName : '', e.clientX, e.clientY);
+    openTrackContextMenu(activeItem, track ? track.trackName : '', e.clientX, e.clientY, track ? track.trackNumber : '');
   });
 
   // 11b. Play buttons in the "Album and Tracks" list (each row carries its
@@ -1825,12 +1902,13 @@ function bindEvents() {
   });
 
   // Full-screen overlay backdrop clicks
-  [el.deckOverlay, el.addOverlay, el.editOverlay, el.lastfmOverlay].forEach(overlay => {
+  [el.deckOverlay, el.addOverlay, el.editOverlay, el.lastfmOverlay, el.playlistModalOverlay].forEach(overlay => {
     overlay.addEventListener('click', (e) => { 
       if (e.target === overlay) {
         if (overlay === el.deckOverlay) closeDeck();
         else if (overlay === el.addOverlay) closeAddModal();
         else if (overlay === el.lastfmOverlay) closeLastfmModal();
+        else if (overlay === el.playlistModalOverlay) closePlaylistModal();
         else closeEditModal();
       }
     });
@@ -2082,11 +2160,42 @@ async function fetchCatalog() {
       playCount: Number(s.PlayCount) || 0
     }));
 
+    // Playlists: PlaylistItems rows are grouped under their PlaylistId and
+    // sorted by Position, then nested into each playlist's `items` array.
+    const itemsByPlaylist = {};
+    (data.playlistItems || []).forEach(it => {
+      const pid = it.PlaylistId;
+      if (!pid) return;
+      if (!itemsByPlaylist[pid]) itemsByPlaylist[pid] = [];
+      itemsByPlaylist[pid].push({
+        id: it.Id,
+        type: it.ItemType === 'track' ? 'track' : 'album',
+        row: it.Row,
+        trackNum: it.TrackNum || '',
+        trackName: it.TrackName || '',
+        position: Number(it.Position) || 0
+      });
+    });
+    Object.values(itemsByPlaylist).forEach(arr => arr.sort((a, b) => a.position - b.position));
+
+    state.playlists = (data.playlists || [])
+      .filter(p => p.Id)
+      .map(p => ({
+        id: p.Id,
+        name: p.Name ? String(p.Name).trim() : 'Untitled Playlist',
+        description: p.Description || '',
+        createdAt: p.CreatedAt || '',
+        updatedAt: p.UpdatedAt || '',
+        items: itemsByPlaylist[p.Id] || []
+      }))
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0)); // newest first
+
     buildLeftList();
     updateMainLabel();
     applyFiltersSort();
     prefetchArt(state.raw);
     if (state.activeTab === 'artist') { renderArtistList(); renderArtistDetail(); }
+    if (state.activeTab === 'playlists') { renderPlaylistList(); renderPlaylistDetail(); }
     checkAlbumAnniversaries();
   } catch (err) {
     console.error(err);
@@ -2110,17 +2219,20 @@ function switchTab(tab) {
   el.tabScrobbles.classList.toggle('active', tab === 'scrobbles');
   el.tabStats.classList.toggle('active', tab === 'stats');
   el.tabArtist.classList.toggle('active', tab === 'artist');
+  el.tabPlaylists.classList.toggle('active', tab === 'playlists');
   el.panels.style.display = tab === 'albums' ? 'flex' : 'none';
   el.diaryWrap.hidden = tab !== 'diary';
   el.scrobblesWrap.hidden = tab !== 'scrobbles';
   el.statsWrap.hidden = tab !== 'stats';
   el.artistWrap.hidden = tab !== 'artist';
+  el.playlistsWrap.hidden = tab !== 'playlists';
   el.app.classList.toggle('app-wide-diary-tracks', tab === 'diary' && state.diaryViewMode === 'tracks');
   if (tab === 'albums') renderGrid();
   else if (tab === 'diary') renderDiary();
   else if (tab === 'scrobbles') renderScrobbles();
   else if (tab === 'stats') renderStats();
   else if (tab === 'artist') renderArtistTab();
+  else if (tab === 'playlists') { renderPlaylistList(); renderPlaylistDetail(); }
 }
 
 function applyMainViewMode() {
@@ -3188,7 +3300,7 @@ function renderFlatTrackTable() {
     e.preventDefault();
     const rowKey = rowEl.dataset.trackKey;
     const match = rows.find(r => trackRowKey(r) === rowKey);
-    if (match) openTrackContextMenu(match.item, match.track.trackName, e.clientX, e.clientY);
+    if (match) openTrackContextMenu(match.item, match.track.trackName, e.clientX, e.clientY, match.track.trackNumber);
   };
 }
 
@@ -3286,7 +3398,7 @@ function loadTracksForList(list, mode) {
         e.preventDefault();
         const idx = Array.from(tw.children).indexOf(rowEl);
         const track = tracks[idx];
-        if (track) openTrackContextMenu(item, track.trackName, e.clientX, e.clientY);
+        if (track) openTrackContextMenu(item, track.trackName, e.clientX, e.clientY, track.trackNumber);
       };
     }).finally(() => { active--; next(); });
     next();
@@ -4052,6 +4164,7 @@ function closeNowPlayingAddMenu() {
   if (nowPlayingAddMenuEl) { nowPlayingAddMenuEl.remove(); nowPlayingAddMenuEl = null; }
   document.removeEventListener('click', closeNowPlayingAddMenuOnOutsideClick);
   closeAlbumSearchSubmenu();
+  closeAddToPlaylistSubmenu();
 }
 
 // Right-click menu on an individual track row — in the flat Tracks table,
@@ -4059,7 +4172,7 @@ function closeNowPlayingAddMenu() {
 // tracklist. Keeps it simple (view the album, or jump to the artist) since
 // a single track doesn't carry its own crate row the way an album card
 // does. "Search" reuses the same flyout as the album card menu.
-function openTrackContextMenu(item, trackName, x, y) {
+function openTrackContextMenu(item, trackName, x, y, trackNum) {
   closeNowPlayingAddMenu();
 
   const menu = document.createElement('div');
@@ -4067,10 +4180,16 @@ function openTrackContextMenu(item, trackName, x, y) {
   menu.innerHTML = `
     <div class="menu-section-title">${escapeHtml(trackName || item.title)}</div>
     <button type="button" data-track-menu-action="view">View album</button>
+    <button type="button" class="menu-parent-btn" data-track-menu-action="playlist">Add to playlist <span class="submenu-caret">▸</span></button>
     <button type="button" class="menu-parent-btn" data-track-menu-action="search">Search <span class="submenu-caret">▸</span></button>
   `;
   document.body.appendChild(menu);
   positionFloatingMenu(menu, x, y);
+
+  const trackPlaylistItems = [{ itemType: 'track', row: item.row, trackNum: trackNum || '', trackName: trackName || '' }];
+  const playlistBtn = menu.querySelector('[data-track-menu-action="playlist"]');
+  playlistBtn.addEventListener('mouseenter', () => openAddToPlaylistSubmenu(playlistBtn, trackPlaylistItems));
+  playlistBtn.addEventListener('mouseleave', scheduleCloseAddToPlaylistSubmenu);
 
   const searchBtn = menu.querySelector('[data-track-menu-action="search"]');
   searchBtn.addEventListener('mouseenter', () => openAlbumSearchSubmenu(searchBtn, item));
@@ -4082,6 +4201,7 @@ function openTrackContextMenu(item, trackName, x, y) {
     const action = btn.dataset.trackMenuAction;
 
     if (action === 'search') { openAlbumSearchSubmenu(btn, item); return; } // tap-to-open for touch
+    if (action === 'playlist') { openAddToPlaylistSubmenu(btn, trackPlaylistItems); return; } // tap-to-open for touch
 
     closeNowPlayingAddMenu();
     if (action === 'view') openDeck(item);
@@ -4104,6 +4224,7 @@ function openAlbumCardContextMenu(item, x, y) {
     <div class="menu-section-title">${escapeHtml(item.title)}</div>
     <button type="button" data-card-action="play">▶ Play now</button>
     <button type="button" data-card-action="queue">Add to queue</button>
+    <button type="button" class="menu-parent-btn" data-card-action="playlist">Add to playlist <span class="submenu-caret">▸</span></button>
     <div class="menu-divider"></div>
     <button type="button" data-card-action="view">View album</button>
     <button type="button" data-card-action="artist">View artist discography</button>
@@ -4118,7 +4239,13 @@ function openAlbumCardContextMenu(item, x, y) {
   // actions — see openAlbumSearchSubmenu. It's a separate floating element
   // rather than a nested CSS submenu because this menu scrolls
   // (max-height/overflow-y from .now-playing-add-menu), which would clip an
-  // absolutely-positioned child flyout.
+  // absolutely-positioned child flyout. "Add to playlist" is the same
+  // flyout pattern — see openAddToPlaylistSubmenu.
+  const albumPlaylistItems = [{ itemType: 'album', row: item.row, trackNum: '', trackName: '' }];
+  const playlistBtn = menu.querySelector('[data-card-action="playlist"]');
+  playlistBtn.addEventListener('mouseenter', () => openAddToPlaylistSubmenu(playlistBtn, albumPlaylistItems));
+  playlistBtn.addEventListener('mouseleave', scheduleCloseAddToPlaylistSubmenu);
+
   const searchBtn = menu.querySelector('[data-card-action="search"]');
   searchBtn.addEventListener('mouseenter', () => openAlbumSearchSubmenu(searchBtn, item));
   searchBtn.addEventListener('mouseleave', scheduleCloseAlbumSearchSubmenu);
@@ -4129,6 +4256,7 @@ function openAlbumCardContextMenu(item, x, y) {
     const action = btn.dataset.cardAction;
 
     if (action === 'search') { openAlbumSearchSubmenu(btn, item); return; } // tap-to-open for touch
+    if (action === 'playlist') { openAddToPlaylistSubmenu(btn, albumPlaylistItems); return; } // tap-to-open for touch
 
     closeNowPlayingAddMenu();
     if (action === 'view') openDeck(item);
@@ -5635,6 +5763,301 @@ async function fetchArtistDiscography(artistName, ownedKeys, includeAll = false)
     return state.artistWorksCache[cacheKey];
   }
   return { ...result, fetchedAt: Date.now() };
+}
+
+/* ---------- Playlists tab ---------- */
+// Your own curated, ordered lists — synced via the Playlists/PlaylistItems
+// sheets on the backend (see apps-script-backend.gs). Each item is either a
+// whole album (type: 'album', identified by its crate `row`) or a single
+// track off one (type: 'track', same `row` plus trackNum/trackName) — see
+// state.playlists, built in fetchCatalog().
+
+let playlistModalMode = 'create'; // 'create' | 'rename'
+let playlistModalEditingId = null;
+let pendingPlaylistAddItems = null; // items to add once a brand-new playlist is created from the "+ New playlist…" flow
+let playlistDeleteConfirmTimeout = null;
+
+function playlistAlbumFor(playlistItem) {
+  return state.raw.find(r => r.row === playlistItem.row) || null;
+}
+function playlistItemArtUrl(album) {
+  if (!album) return placeholderArt({ artist: '', title: '' });
+  return album.cover || state.artCache[artKey(album)]?.art || placeholderArt(album);
+}
+
+function renderPlaylistList() {
+  if (!state.playlists.length) {
+    el.playlistList.innerHTML = '<p class="playlist-empty">No playlists yet \u2014 hit + to make one.</p>';
+    return;
+  }
+  el.playlistList.innerHTML = state.playlists.map(p => `
+    <div class="playlist-list-row ${p.id === state.activePlaylistId ? 'active' : ''}" data-id="${escapeHtml(p.id)}">
+      <span class="playlist-list-name">${escapeHtml(p.name)}</span>
+      <span class="playlist-list-count">${p.items.length}</span>
+    </div>
+  `).join('');
+  [...el.playlistList.children].forEach((rowEl, i) => {
+    rowEl.addEventListener('click', () => openPlaylist(state.playlists[i].id));
+  });
+}
+
+function openPlaylist(id) {
+  state.activePlaylistId = id;
+  renderPlaylistList();
+  renderPlaylistDetail();
+}
+
+function renderPlaylistDetail() {
+  const playlist = state.playlists.find(p => p.id === state.activePlaylistId);
+  if (!playlist) {
+    el.playlistDetail.innerHTML = '<p class="playlist-placeholder">Pick a playlist on the left, or create a new one.</p>';
+    return;
+  }
+
+  const itemsHtml = playlist.items.length ? playlist.items.map((it, idx) => {
+    const album = playlistAlbumFor(it);
+    const art = playlistItemArtUrl(album);
+    const albumTitle = album ? album.title : '(album removed from crate)';
+    const artist = album ? album.artist : '';
+    return `
+      <div class="playlist-item-row" draggable="true" data-idx="${idx}" data-id="${escapeHtml(it.id)}">
+        <span class="playlist-item-drag" title="Drag to reorder" aria-hidden="true">\u2637</span>
+        <img class="playlist-item-art" src="${art}" alt="">
+        <div class="playlist-item-info">
+          <span class="playlist-item-title">${it.type === 'track' ? escapeHtml(it.trackName || 'Track') : escapeHtml(albumTitle)}</span>
+          <span class="playlist-item-sub">${it.type === 'track' ? escapeHtml(albumTitle) + ' \u2014 ' + escapeHtml(artist) : escapeHtml(artist)}</span>
+        </div>
+        ${it.type === 'track' ? '<span class="playlist-item-type-badge">TRACK</span>' : ''}
+        <button type="button" class="playlist-item-view-btn" title="View album" aria-label="View album">\u2197</button>
+        <button type="button" class="playlist-item-remove-btn" title="Remove from playlist" aria-label="Remove from playlist">\u2715</button>
+      </div>
+    `;
+  }).join('') : '<p class="playlist-empty">Nothing here yet \u2014 right-click an album or track and choose \u201cAdd to playlist\u201d.</p>';
+
+  el.playlistDetail.innerHTML = `
+    <div class="playlist-detail-header">
+      <div>
+        <h2>${escapeHtml(playlist.name)}</h2>
+        ${playlist.description ? `<p class="playlist-detail-desc">${escapeHtml(playlist.description)}</p>` : ''}
+        <p class="playlist-detail-meta">${playlist.items.length} item${playlist.items.length === 1 ? '' : 's'}</p>
+      </div>
+      <div class="playlist-detail-actions">
+        <button type="button" id="playlistRenameBtn" class="config-btn">Edit</button>
+        <button type="button" id="playlistDeleteBtn" class="remove-btn">Delete playlist</button>
+      </div>
+    </div>
+    <div id="playlistItemsList" class="playlist-items-list">${itemsHtml}</div>
+  `;
+
+  document.getElementById('playlistRenameBtn').addEventListener('click', () => openPlaylistModal('rename', playlist));
+  document.getElementById('playlistDeleteBtn').addEventListener('click', (e) => onPlaylistDeleteClick(e.currentTarget, playlist));
+
+  const listEl = document.getElementById('playlistItemsList');
+  if (!listEl) return;
+
+  listEl.addEventListener('click', (e) => {
+    const rowEl = e.target.closest('.playlist-item-row');
+    if (!rowEl) return;
+    const idx = parseInt(rowEl.dataset.idx, 10);
+    const it = playlist.items[idx];
+    if (!it) return;
+    if (e.target.closest('.playlist-item-remove-btn')) { removePlaylistItem(playlist, it.id); return; }
+    if (e.target.closest('.playlist-item-view-btn')) {
+      const album = playlistAlbumFor(it);
+      if (album) { switchTab('albums'); openDeck(album); }
+      return;
+    }
+  });
+
+  setupPlaylistItemDrag(listEl, playlist);
+}
+
+// Native HTML5 drag-and-drop reorder. Reordering updates state.playlists
+// (and re-renders) immediately for a snappy feel, then persists the new
+// order to the sheet in the background — see reorderPlaylist in the
+// backend, which just rewrites Position to match the given Id order.
+function setupPlaylistItemDrag(listEl, playlist) {
+  let dragSrcIdx = null;
+  [...listEl.children].forEach(rowEl => {
+    rowEl.addEventListener('dragstart', () => {
+      dragSrcIdx = parseInt(rowEl.dataset.idx, 10);
+      rowEl.classList.add('dragging');
+    });
+    rowEl.addEventListener('dragend', () => rowEl.classList.remove('dragging'));
+    rowEl.addEventListener('dragover', (e) => { e.preventDefault(); });
+    rowEl.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const targetIdx = parseInt(rowEl.dataset.idx, 10);
+      if (dragSrcIdx === null || targetIdx === dragSrcIdx) return;
+      const items = playlist.items;
+      const [moved] = items.splice(dragSrcIdx, 1);
+      items.splice(targetIdx, 0, moved);
+      dragSrcIdx = null;
+      renderPlaylistDetail();
+      renderPlaylistList();
+      postUpdate({ action: 'reorderPlaylist', playlistId: playlist.id, itemIds: items.map(x => x.id) })
+        .catch(() => flashGlobalToast('Couldn\u2019t save the new order \u2014 try again'));
+    });
+  });
+}
+
+async function removePlaylistItem(playlist, itemId) {
+  playlist.items = playlist.items.filter(it => it.id !== itemId);
+  renderPlaylistDetail();
+  renderPlaylistList();
+  try {
+    await postUpdate({ action: 'removePlaylistItems', itemIds: [itemId] });
+  } catch (e) {
+    flashGlobalToast('Couldn\u2019t remove that item \u2014 try again');
+    await fetchCatalog();
+  }
+}
+
+function onPlaylistDeleteClick(btn, playlist) {
+  if (btn.classList.contains('confirm')) {
+    deletePlaylistDirect(playlist);
+    return;
+  }
+  btn.classList.add('confirm');
+  btn.textContent = 'Click again to confirm';
+  clearTimeout(playlistDeleteConfirmTimeout);
+  playlistDeleteConfirmTimeout = setTimeout(() => {
+    if (btn.isConnected) { btn.classList.remove('confirm'); btn.textContent = 'Delete playlist'; }
+  }, 3000);
+}
+
+async function deletePlaylistDirect(playlist) {
+  clearTimeout(playlistDeleteConfirmTimeout);
+  try {
+    await postUpdate({ action: 'deletePlaylist', playlistId: playlist.id });
+    state.activePlaylistId = null;
+    await fetchCatalog();
+    switchTab('playlists');
+  } catch (e) {
+    flashGlobalToast('Couldn\u2019t delete this playlist \u2014 try again');
+  }
+}
+
+/* Playlist create/rename modal — shares the same simple overlay pattern as
+   the Add/Edit album modals. */
+function openPlaylistModal(mode, playlist, pendingItems) {
+  playlistModalMode = mode;
+  playlistModalEditingId = playlist ? playlist.id : null;
+  pendingPlaylistAddItems = pendingItems || null;
+  el.playlistModalHeading.textContent = mode === 'rename' ? 'Edit playlist' : 'New playlist';
+  el.playlistNameInput.value = playlist ? playlist.name : '';
+  el.playlistDescInput.value = playlist ? playlist.description : '';
+  el.playlistModalToast.textContent = '';
+  el.playlistModalOverlay.hidden = false;
+  setTimeout(() => el.playlistNameInput.focus(), 0);
+}
+function closePlaylistModal() {
+  el.playlistModalOverlay.hidden = true;
+  pendingPlaylistAddItems = null;
+}
+async function savePlaylistModalClick() {
+  const name = el.playlistNameInput.value.trim();
+  if (!name) { el.playlistModalToast.textContent = 'Give it a name first'; return; }
+  const description = el.playlistDescInput.value.trim();
+
+  el.playlistModalSaveBtn.disabled = true;
+  try {
+    if (playlistModalMode === 'rename' && playlistModalEditingId) {
+      await postUpdate({ action: 'renamePlaylist', playlistId: playlistModalEditingId, name, description });
+      const editingId = playlistModalEditingId;
+      closePlaylistModal();
+      await fetchCatalog();
+      openPlaylist(editingId);
+    } else {
+      const res = await postUpdate({ action: 'createPlaylist', name, description });
+      const newId = res && res.id;
+      if (newId && pendingPlaylistAddItems && pendingPlaylistAddItems.length) {
+        await postUpdate({ action: 'addPlaylistItems', playlistId: newId, items: pendingPlaylistAddItems });
+      }
+      closePlaylistModal();
+      await fetchCatalog();
+      if (newId) { switchTab('playlists'); openPlaylist(newId); }
+      flashGlobalToast(`Created "${name}"`);
+    }
+  } catch (e) {
+    el.playlistModalToast.textContent = 'Couldn\u2019t save \u2014 try again';
+  } finally {
+    el.playlistModalSaveBtn.disabled = false;
+  }
+}
+
+/* "Add to playlist" flyout — a hover/tap submenu shared by the album card
+   context menu and the track context menu (see openAlbumCardContextMenu /
+   openTrackContextMenu), same pattern as openAlbumSearchSubmenu. `items` is
+   the array of {itemType,row,trackNum,trackName} to add if a playlist
+   (existing, or brand new via "+ New playlist…") is picked. */
+let addToPlaylistSubmenuEl = null;
+let addToPlaylistSubmenuCloseTimer = null;
+
+function openAddToPlaylistSubmenu(anchorEl, items) {
+  clearTimeout(addToPlaylistSubmenuCloseTimer);
+  closeAddToPlaylistSubmenu();
+
+  const menu = document.createElement('div');
+  menu.className = 'panel-mode-menu now-playing-add-menu album-search-submenu';
+  const existingHtml = state.playlists.map(p =>
+    `<button type="button" data-playlist-id="${escapeHtml(p.id)}">${escapeHtml(p.name)}</button>`
+  ).join('');
+  menu.innerHTML = `
+    ${existingHtml}
+    ${state.playlists.length ? '<div class="menu-divider"></div>' : ''}
+    <button type="button" data-playlist-id="__new__">+ New playlist\u2026</button>
+  `;
+  document.body.appendChild(menu);
+
+  const rect = anchorEl.getBoundingClientRect();
+  menu.style.position = 'fixed';
+  menu.style.left = `${rect.right + 2}px`;
+  menu.style.top = `${rect.top}px`;
+  requestAnimationFrame(() => {
+    if (!addToPlaylistSubmenuEl) return; // closed again before this ran
+    const menuRect = menu.getBoundingClientRect();
+    if (menuRect.right > window.innerWidth) menu.style.left = `${Math.max(4, rect.left - menuRect.width - 2)}px`;
+    if (menuRect.bottom > window.innerHeight) menu.style.top = `${Math.max(4, window.innerHeight - menuRect.height - 4)}px`;
+  });
+
+  menu.addEventListener('mouseenter', () => clearTimeout(addToPlaylistSubmenuCloseTimer));
+  menu.addEventListener('mouseleave', scheduleCloseAddToPlaylistSubmenu);
+
+  menu.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-playlist-id]');
+    if (!btn) return;
+    const playlistId = btn.dataset.playlistId;
+
+    if (playlistId === '__new__') {
+      closeNowPlayingAddMenu(); // also closes this submenu
+      openPlaylistModal('create', null, items);
+      return;
+    }
+    closeNowPlayingAddMenu();
+    try {
+      await postUpdate({ action: 'addPlaylistItems', playlistId, items });
+      flashGlobalToast('Added to playlist');
+      if (state.activeTab === 'playlists') await fetchCatalog();
+    } catch (err) {
+      flashGlobalToast('Couldn\u2019t add to playlist \u2014 try again');
+    }
+  });
+
+  addToPlaylistSubmenuEl = menu;
+  setTimeout(() => document.addEventListener('click', closeAddToPlaylistSubmenuOnOutsideClick), 0);
+}
+function closeAddToPlaylistSubmenuOnOutsideClick(e) {
+  if (addToPlaylistSubmenuEl && !addToPlaylistSubmenuEl.contains(e.target)) closeAddToPlaylistSubmenu();
+}
+function scheduleCloseAddToPlaylistSubmenu() {
+  clearTimeout(addToPlaylistSubmenuCloseTimer);
+  addToPlaylistSubmenuCloseTimer = setTimeout(closeAddToPlaylistSubmenu, 220);
+}
+function closeAddToPlaylistSubmenu() {
+  if (addToPlaylistSubmenuEl) { addToPlaylistSubmenuEl.remove(); addToPlaylistSubmenuEl = null; }
+  clearTimeout(addToPlaylistSubmenuCloseTimer);
+  document.removeEventListener('click', closeAddToPlaylistSubmenuOnOutsideClick);
 }
 
 /* ---------- The deck (detail / tracklist / rating / diary modal) ---------- */
@@ -8939,6 +9362,54 @@ html, body {
   .artist-disambig-sample { font-size: 11.5px; color: var(--text-dim); margin-bottom: 10px; }
   .artist-reset-match { display: block; margin-bottom: 14px; font-size: 11px; color: var(--text-dim); }
   .artist-reset-match:hover { color: var(--accent); }
+
+  /* ---- Playlists tab ---- */
+  .playlists-wrap { display: flex; gap: 0; height: calc(100vh - 150px); max-width: 1100px; margin: 0 auto; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .playlists-wrap[hidden] { display: none; }
+  .playlists-sidebar { width: 260px; flex: 0 0 260px; border-right: 1px solid var(--line); display: flex; flex-direction: column; background: var(--bg-elevated); }
+  .playlists-sidebar-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  .playlists-sidebar-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); }
+  .playlist-list { flex: 1; overflow-y: auto; padding-bottom: 8px; }
+  .playlist-list-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 9px 14px; cursor: pointer; font-size: 13px; }
+  .playlist-list-row:hover { background: var(--bg-card); }
+  .playlist-list-row.active { background: var(--bg-card); color: var(--accent); border-right: 2px solid var(--accent); }
+  .playlist-list-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .playlist-list-count { color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; font-size: 11px; flex: 0 0 auto; }
+  .playlist-empty { color: var(--text-dim); font-size: 12.5px; padding: 14px; }
+  .playlist-detail { flex: 1; overflow-y: auto; padding: 24px; }
+  .playlist-placeholder { color: var(--text-dim); font-size: 13px; }
+  .playlist-detail-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 18px; }
+  .playlist-detail-header h2 { font-family: 'Bebas Neue', sans-serif; font-size: 30px; letter-spacing: 0.5px; margin: 0 0 4px; }
+  .playlist-detail-desc { color: var(--text-dim); font-size: 13px; margin: 0 0 4px; max-width: 480px; }
+  .playlist-detail-meta { color: var(--text-dim); font-size: 11.5px; font-family: 'IBM Plex Mono', monospace; margin: 0; }
+  .playlist-detail-actions { display: flex; gap: 8px; flex: 0 0 auto; }
+  .playlist-items-list { display: flex; flex-direction: column; gap: 1px; }
+  .playlist-item-row {
+    display: flex; align-items: center; gap: 10px; padding: 8px 6px; border-bottom: 1px solid var(--line);
+    cursor: grab;
+  }
+  .playlist-item-row.dragging { opacity: 0.4; }
+  .playlist-item-row:hover { background: var(--bg-elevated); }
+  .playlist-item-drag { color: var(--text-dim); font-size: 14px; flex: 0 0 auto; cursor: grab; }
+  .playlist-item-art { width: 42px; height: 42px; object-fit: cover; border-radius: 4px; flex: 0 0 auto; background: var(--bg); }
+  .playlist-item-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .playlist-item-title { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .playlist-item-sub { font-size: 11.5px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .playlist-item-type-badge {
+    font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; letter-spacing: 0.5px; color: var(--accent);
+    border: 1px solid var(--accent); border-radius: 3px; padding: 1px 5px; flex: 0 0 auto;
+  }
+  .playlist-item-view-btn, .playlist-item-remove-btn {
+    background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 13px; padding: 4px 6px; flex: 0 0 auto;
+  }
+  .playlist-item-view-btn:hover { color: var(--accent); }
+  .playlist-item-remove-btn:hover { color: #d9534f; }
+
+  @media (max-width: 620px) {
+    .playlists-wrap { flex-direction: column; height: auto; }
+    .playlists-sidebar { width: auto; flex: none; max-height: 240px; border-right: none; border-bottom: 1px solid var(--line); }
+    .playlist-detail-header { flex-direction: column; }
+  }
 
   @media (max-width: 620px) {
     .artist-wrap { flex-direction: column; height: auto; }
