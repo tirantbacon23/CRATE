@@ -13,8 +13,26 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.10.0
+  CURRENT_VERSION: 1.11.0
 
+  1.11.0 — 2026-09-03 — Reworked the left panel into a MusicBee-style tree,
+          matching how MusicBee's own sidebar nests Playlists under Music
+          instead of showing them as an always-visible strip. Two top-level
+          nodes now sit in #leftPanel: "Music" (unchanged Albums/Artists/
+          Genres browser, now nested in #musicTreeBody) and a collapsible
+          "Playlists" node — clicking it toggles #playlistsTreeBody open/
+          closed (caret ▸/▾) to reveal the same playlist list as before,
+          instead of that list permanently occupying its own fixed-height
+          strip under the browser. Clicking "Music" calls exitPlaylistView()
+          same as clicking into Albums/Artists/Genres already did. Opening a
+          playlist (openPlaylist()) now also auto-expands the Playlists
+          node. New setPlaylistsTreeExpanded()/updateLeftTreeActiveState()
+          helpers keep the two nodes' active/expanded styling in sync;
+          wired into buildLeftList(), openPlaylist(), and exitPlaylistView()
+          so every existing entry point that already touched playlist state
+          keeps the tree in sync for free. New state.playlistsTreeExpanded
+          (default false — collapsed on load, per MusicBee). No backend/
+          data-model changes — this is left-panel markup/CSS/JS only.
   1.10.0 — 2026-09-01 — Added a Playlist system. Playlists get their own
           persistent section in the left panel, below the Albums/Artists/
           Genres list (MusicBee-style: a fixed "Playlists" list with a
@@ -232,47 +250,63 @@
   <!-- Three-pane layout: category browser | main grid | reserved sidebar -->
   <div id="panels" class="panels">
     <section id="leftPanel" class="panel panel-left">
-      <div class="panel-bar">
-        <div style="position: relative;">
-          <button id="leftModeBtn" class="panel-mode-btn">
-            <span id="leftModeLabel">Albums</span> <span class="caret">▾</span>
-          </button>
-          
-          <!-- Expanded left panel menu -->
-          <div id="leftModeMenu" class="panel-mode-menu nav-view-menu" hidden style="position: absolute; top: calc(100% + 4px); left: 0; margin: 0; width: max-content; box-shadow: 0 10px 24px rgba(0,0,0,0.4);">
-            <div class="menu-section-title">Category</div>
-            <button type="button" data-mode="album">Albums</button>
-            <button type="button" data-mode="artist">Artists</button>
-            <button type="button" data-mode="genre">Genres</button>
-            
-            <div class="menu-divider"></div>
-            <div class="menu-section-title">Sort by</div>
-            <button type="button" data-left-sort="name">Name A–Z</button>
-            <button type="button" data-left-sort="count">Highest Count</button>
-            
-            <div class="menu-divider"></div>
-            <div class="menu-section-title">Thumbnails</div>
-            <button type="button" data-left-thumb="none">Disable Thumbnails</button>
-            <button type="button" data-left-thumb="small">Small Thumbnails</button>
-            <button type="button" data-left-thumb="medium">Medium Thumbnails</button>
-            <button type="button" data-left-thumb="large">Large Thumbnails</button>
-			<button type="button" data-left-thumb="xlarge">X-large Thumbnails</button>
-            <button type="button" data-left-thumb="xxlarge">XX-large Thumbnails</button>
-          </div>
-        </div>
-      </div>
-      
-      <div id="leftList" class="left-list"></div>
+      <!-- MusicBee-style tree: a top-level "Music" node (the existing
+           Albums/Artists/Genres browser lives under it) and a top-level,
+           collapsible "Playlists" node — clicking it expands/collapses the
+           list of playlists in place, instead of that list always taking
+           up its own fixed strip of the panel. -->
+      <div class="left-tree">
 
-      <!-- Playlists: a persistent section of its own, like MusicBee's
-           Playlists list under Music — not one of the Category toggles
-           above, always visible regardless of Albums/Artists/Genres. -->
-      <div class="left-playlists-section">
-        <div class="left-playlists-head">
-          <span class="left-playlists-title">Playlists</span>
+        <div id="leftTreeMusicBtn" class="left-tree-node left-tree-node-music active" tabindex="0" role="button" aria-expanded="true">
+          <span class="left-tree-icon">♪</span>
+          <span class="left-tree-label">Music</span>
+        </div>
+
+        <div id="musicTreeBody" class="left-tree-body">
+          <div class="panel-bar">
+            <div style="position: relative;">
+              <button id="leftModeBtn" class="panel-mode-btn">
+                <span id="leftModeLabel">Albums</span> <span class="caret">▾</span>
+              </button>
+
+              <!-- Expanded left panel menu -->
+              <div id="leftModeMenu" class="panel-mode-menu nav-view-menu" hidden style="position: absolute; top: calc(100% + 4px); left: 0; margin: 0; width: max-content; box-shadow: 0 10px 24px rgba(0,0,0,0.4);">
+                <div class="menu-section-title">Category</div>
+                <button type="button" data-mode="album">Albums</button>
+                <button type="button" data-mode="artist">Artists</button>
+                <button type="button" data-mode="genre">Genres</button>
+
+                <div class="menu-divider"></div>
+                <div class="menu-section-title">Sort by</div>
+                <button type="button" data-left-sort="name">Name A–Z</button>
+                <button type="button" data-left-sort="count">Highest Count</button>
+
+                <div class="menu-divider"></div>
+                <div class="menu-section-title">Thumbnails</div>
+                <button type="button" data-left-thumb="none">Disable Thumbnails</button>
+                <button type="button" data-left-thumb="small">Small Thumbnails</button>
+                <button type="button" data-left-thumb="medium">Medium Thumbnails</button>
+                <button type="button" data-left-thumb="large">Large Thumbnails</button>
+                <button type="button" data-left-thumb="xlarge">X-large Thumbnails</button>
+                <button type="button" data-left-thumb="xxlarge">XX-large Thumbnails</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="leftList" class="left-list"></div>
+        </div>
+
+        <div id="leftTreePlaylistsBtn" class="left-tree-node left-tree-node-playlists" tabindex="0" role="button" aria-expanded="false">
+          <span id="playlistsTreeCaret" class="left-tree-caret">▸</span>
+          <span class="left-tree-icon">☰</span>
+          <span class="left-tree-label">Playlists</span>
           <button type="button" id="newPlaylistBtn" class="icon-btn" title="New playlist" aria-label="New playlist">+</button>
         </div>
-        <div id="playlistSidebarList" class="playlist-sidebar-list"></div>
+
+        <div id="playlistsTreeBody" class="left-tree-body" hidden>
+          <div id="playlistSidebarList" class="playlist-sidebar-list"></div>
+        </div>
+
       </div>
     </section>
 
@@ -870,7 +904,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.10.0';
+const APP_VERSION = '1.11.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -947,6 +981,9 @@ const state = {
   // / data.playlistItems, and the "Playlists tab" section below for the UI.
   playlists: [],
   activePlaylistId: null,
+  // Whether the left-panel "Playlists" tree node is expanded to show the
+  // list of playlists underneath it (MusicBee-style collapsible node).
+  playlistsTreeExpanded: false,
   activeTab: 'albums',
   activeType: 'All',
   query: '',
@@ -1067,7 +1104,8 @@ const el = {};
   'spotifyRedirectUriDisplay','spotifyConnectBtn','spotifyDisconnectBtn','spotifyConnectStatus',
   'authGate','authGateStatus','menuSignOut','menuAppVersion','app',
   'playlistModalOverlay','playlistModalHeading','playlistModalClose','playlistNameInput','playlistDescInput',
-  'playlistModalSaveBtn','playlistModalCancelBtn','playlistModalToast','newPlaylistBtn','playlistSidebarList'
+  'playlistModalSaveBtn','playlistModalCancelBtn','playlistModalToast','newPlaylistBtn','playlistSidebarList',
+  'leftTreeMusicBtn','leftTreePlaylistsBtn','playlistsTreeCaret','musicTreeBody','playlistsTreeBody'
 ].forEach(id => { el[id] = document.getElementById(id); });
 
 let activeItem = null;
@@ -1334,7 +1372,23 @@ function bindEvents() {
   el.playlistModalClose.addEventListener('click', closePlaylistModal);
   el.playlistModalCancelBtn.addEventListener('click', closePlaylistModal);
   el.playlistModalSaveBtn.addEventListener('click', savePlaylistModalClick);
-  el.newPlaylistBtn.addEventListener('click', () => openPlaylistModal('create'));
+  el.newPlaylistBtn.addEventListener('click', (e) => { e.stopPropagation(); openPlaylistModal('create'); });
+
+  // Left-panel tree: "Music" node re-activates the regular Albums/Artists/
+  // Genres browser (leaving playlist view); "Playlists" node just expands
+  // or collapses the list of playlists nested underneath it.
+  el.leftTreeMusicBtn.addEventListener('click', () => {
+    exitPlaylistView();
+    buildLeftList();
+    updateMainLabel();
+    applyFiltersSort();
+  });
+  el.leftTreePlaylistsBtn.addEventListener('click', (e) => {
+    if (e.target.closest('#newPlaylistBtn')) return;
+    setPlaylistsTreeExpanded(!state.playlistsTreeExpanded);
+  });
+  setPlaylistsTreeExpanded(state.playlistsTreeExpanded);
+  updateLeftTreeActiveState();
 
   // Stats tab: back button collapses the expanded year detail.
   el.statsDetailBack.addEventListener('click', () => {
@@ -2282,6 +2336,7 @@ function makeResizable(resizerEl, panelEl, side) {
 /* ---------- Left category panel ---------- */
 
 function buildLeftList() {
+  updateLeftTreeActiveState();
   const mode = state.leftMode;
   // Apply the chosen thumbnail size CSS class
   el.leftList.className = 'left-list thumb-' + state.leftThumbSize;
@@ -5801,8 +5856,10 @@ function playlistItemArtUrl(album) {
 // whatever category was showing is still there when you leave the playlist.
 function openPlaylist(id) {
   state.activePlaylistId = id;
+  setPlaylistsTreeExpanded(true); // opening a playlist always reveals the list it lives in
   renderPlaylistSidebar();
   buildLeftList(); // to clear any "active" highlight in the Albums/Artists/Genres list
+  updateLeftTreeActiveState();
   updateMainLabel();
   renderGrid();
 }
@@ -5810,13 +5867,35 @@ function openPlaylist(id) {
 // Leaves playlist view without touching navFilter/leftMode — used when the
 // person clicks back into the regular Albums/Artists/Genres list.
 function exitPlaylistView() {
+  updateLeftTreeActiveState();
   if (!state.activePlaylistId) return;
   state.activePlaylistId = null;
   renderPlaylistSidebar();
 }
 
-// Renders the persistent "Playlists" section under the main Albums/Artists/
-// Genres list (see the left-playlists-section markup in the HTML).
+// Expands/collapses the "Playlists" tree node in the left panel. Passing no
+// argument toggles the current state.
+function setPlaylistsTreeExpanded(expanded) {
+  state.playlistsTreeExpanded = expanded;
+  if (!el.playlistsTreeBody || !el.leftTreePlaylistsBtn || !el.playlistsTreeCaret) return;
+  el.playlistsTreeBody.hidden = !expanded;
+  el.playlistsTreeCaret.textContent = expanded ? '▾' : '▸';
+  el.leftTreePlaylistsBtn.classList.toggle('expanded', expanded);
+  el.leftTreePlaylistsBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+}
+
+// Highlights whichever top-level tree node ("Music" vs "Playlists")
+// matches what's currently showing in the main panel.
+function updateLeftTreeActiveState() {
+  if (!el.leftTreeMusicBtn || !el.leftTreePlaylistsBtn) return;
+  const inPlaylist = !!state.activePlaylistId;
+  el.leftTreeMusicBtn.classList.toggle('active', !inPlaylist);
+  el.leftTreeMusicBtn.setAttribute('aria-expanded', String(!inPlaylist));
+  el.leftTreePlaylistsBtn.classList.toggle('active', inPlaylist);
+}
+
+// Renders the list of playlists inside the collapsible "Playlists" tree
+// node (see the #playlistsTreeBody markup in the HTML).
 function renderPlaylistSidebar() {
   if (!el.playlistSidebarList) return;
   if (!state.playlists.length) {
@@ -8929,23 +9008,45 @@ html, body {
   flex: 1; 
   overflow-y: auto; 
   padding-right: 10px; /* Space for scrollbar */
+  min-height: 0;
 }  
 
-/* Playlists: a fixed-height section pinned below the Albums/Artists/Genres
-   list, always visible (not one of the Category toggles) — MusicBee-style. */
-.left-playlists-section {
-  flex: 0 0 auto; border-top: 1px solid var(--line); padding-top: 10px; margin-top: 8px;
-  max-height: 42%; display: flex; flex-direction: column;
+/* MusicBee-style left tree: "Music" (with the Albums/Artists/Genres browser
+   nested under it) and a collapsible "Playlists" node below it. */
+.left-tree {
+  display: flex; flex-direction: column; flex: 1; min-height: 0;
 }
-.left-playlists-head {
-  display: flex; align-items: center; justify-content: space-between; padding: 0 6px 8px;
+.left-tree-node {
+  display: flex; align-items: center; gap: 8px; padding: 8px 6px; border-radius: 6px;
+  cursor: pointer; flex: 0 0 auto;
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;
+  color: var(--text-dim); user-select: none;
 }
-.left-playlists-title {
-  font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase;
-  color: var(--text-dim);
+.left-tree-node:hover { background: var(--bg-elevated); color: var(--text); }
+.left-tree-node.active { color: var(--accent); }
+.left-tree-node.active .left-tree-icon { color: var(--accent); }
+.left-tree-icon { flex: 0 0 auto; font-size: 13px; width: 14px; text-align: center; color: var(--text-dim); }
+.left-tree-caret {
+  flex: 0 0 12px; font-size: 9px; color: var(--text-dim); transition: transform 0.15s ease;
 }
-.playlist-sidebar-list { flex: 1; overflow-y: auto; padding-right: 10px; }
+.left-tree-node-playlists.expanded .left-tree-caret { color: var(--text); }
+.left-tree-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.left-tree-node-playlists .icon-btn {
+  width: 22px; height: 22px; font-size: 13px; flex: 0 0 auto; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.left-tree-body { display: flex; flex-direction: column; min-height: 0; }
+#musicTreeBody { flex: 1; min-height: 0; padding-left: 4px; }
+#playlistsTreeBody {
+  flex: 0 1 auto; max-height: 45%; overflow-y: auto;
+  padding: 2px 0 10px 20px; border-left: 1px solid var(--line); margin: 0 0 4px 16px;
+}
+#playlistsTreeBody[hidden] { display: none; }
+
+.playlist-sidebar-list { flex: 1; }
 .playlist-sidebar-row .left-row-title { font-size: 13px; }
+.playlist-empty { font-size: 12px; color: var(--text-dim); padding: 6px; margin: 0; }
 .left-row {
     display: flex; align-items: center; gap: 10px; padding: 7px 6px; border-radius: 6px; cursor: pointer;
   }
