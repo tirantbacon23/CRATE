@@ -13,8 +13,26 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.10.0
+  CURRENT_VERSION: 1.12.0
 
+  1.12.0 — 2026-09-03 — Replaced the 1.11.0 nested-tree left panel with a
+          genuine new far-left nav column: a narrow #leftNavPanel section
+          sitting to the left of the thumbnail-browser column, containing
+          just two buttons, "Music" and "Playlists". #leftPanel itself now
+          holds two swappable views — #musicBrowserView (today's Albums/
+          Artists/Genres browser, unchanged) and #playlistsBrowserView (the
+          flat playlist list) — with exactly one visible at a time via new
+          setLeftNavView('music'|'playlists'), replacing the old collapsible
+          "Playlists" tree node entirely (no more caret/expand-in-place).
+          Clicking "Music" still calls exitPlaylistView() same as before;
+          opening a playlist (openPlaylist()) now switches the rail to
+          "Playlists" instead of auto-expanding a nested node. Old
+          setPlaylistsTreeExpanded()/updateLeftTreeActiveState() helpers and
+          state.playlistsTreeExpanded are gone, replaced by setLeftNavView()
+          and state.leftNavView ('music' | 'playlists', default 'music').
+          #leftNavPanel hides/shows together with #leftPanel via the
+          existing "Show Categories" layout toggle. No backend/data-model
+          changes — this is left-panel markup/CSS/JS only.
   1.10.0 — 2026-09-01 — Added a Playlist system. Playlists get their own
           persistent section in the left panel, below the Albums/Artists/
           Genres list (MusicBee-style: a fixed "Playlists" list with a
@@ -231,45 +249,62 @@
 
   <!-- Three-pane layout: category browser | main grid | reserved sidebar -->
   <div id="panels" class="panels">
+    <section id="leftNavPanel" class="panel panel-leftnav" aria-label="Sections">
+      <!-- Genuine far-left nav column, its own narrow strip to the left of
+           the thumbnail browser: just "Music" and "Playlists". "Music"
+           keeps today's Albums/Artists/Genres browser + main grid;
+           "Playlists" swaps the browser column (#leftPanel) over to show
+           the flat list of playlists instead. See setLeftNavView(). -->
+      <button type="button" id="navMusicBtn" class="leftnav-btn active" aria-current="page">
+        <span class="leftnav-icon">♪</span>
+        <span class="leftnav-label">Music</span>
+      </button>
+      <button type="button" id="navPlaylistsBtn" class="leftnav-btn">
+        <span class="leftnav-icon">☰</span>
+        <span class="leftnav-label">Playlists</span>
+      </button>
+    </section>
+
     <section id="leftPanel" class="panel panel-left">
-      <div class="panel-bar">
-        <div style="position: relative;">
-          <button id="leftModeBtn" class="panel-mode-btn">
-            <span id="leftModeLabel">Albums</span> <span class="caret">▾</span>
-          </button>
-          
-          <!-- Expanded left panel menu -->
-          <div id="leftModeMenu" class="panel-mode-menu nav-view-menu" hidden style="position: absolute; top: calc(100% + 4px); left: 0; margin: 0; width: max-content; box-shadow: 0 10px 24px rgba(0,0,0,0.4);">
-            <div class="menu-section-title">Category</div>
-            <button type="button" data-mode="album">Albums</button>
-            <button type="button" data-mode="artist">Artists</button>
-            <button type="button" data-mode="genre">Genres</button>
-            
-            <div class="menu-divider"></div>
-            <div class="menu-section-title">Sort by</div>
-            <button type="button" data-left-sort="name">Name A–Z</button>
-            <button type="button" data-left-sort="count">Highest Count</button>
-            
-            <div class="menu-divider"></div>
-            <div class="menu-section-title">Thumbnails</div>
-            <button type="button" data-left-thumb="none">Disable Thumbnails</button>
-            <button type="button" data-left-thumb="small">Small Thumbnails</button>
-            <button type="button" data-left-thumb="medium">Medium Thumbnails</button>
-            <button type="button" data-left-thumb="large">Large Thumbnails</button>
-			<button type="button" data-left-thumb="xlarge">X-large Thumbnails</button>
-            <button type="button" data-left-thumb="xxlarge">XX-large Thumbnails</button>
+      <!-- Two swappable views — exactly one visible at a time, toggled by
+           the #leftNavPanel rail via setLeftNavView(). -->
+      <div id="musicBrowserView" class="left-browser-view">
+        <div class="panel-bar">
+          <div style="position: relative;">
+            <button id="leftModeBtn" class="panel-mode-btn">
+              <span id="leftModeLabel">Albums</span> <span class="caret">▾</span>
+            </button>
+
+            <!-- Expanded left panel menu -->
+            <div id="leftModeMenu" class="panel-mode-menu nav-view-menu" hidden style="position: absolute; top: calc(100% + 4px); left: 0; margin: 0; width: max-content; box-shadow: 0 10px 24px rgba(0,0,0,0.4);">
+              <div class="menu-section-title">Category</div>
+              <button type="button" data-mode="album">Albums</button>
+              <button type="button" data-mode="artist">Artists</button>
+              <button type="button" data-mode="genre">Genres</button>
+
+              <div class="menu-divider"></div>
+              <div class="menu-section-title">Sort by</div>
+              <button type="button" data-left-sort="name">Name A–Z</button>
+              <button type="button" data-left-sort="count">Highest Count</button>
+
+              <div class="menu-divider"></div>
+              <div class="menu-section-title">Thumbnails</div>
+              <button type="button" data-left-thumb="none">Disable Thumbnails</button>
+              <button type="button" data-left-thumb="small">Small Thumbnails</button>
+              <button type="button" data-left-thumb="medium">Medium Thumbnails</button>
+              <button type="button" data-left-thumb="large">Large Thumbnails</button>
+              <button type="button" data-left-thumb="xlarge">X-large Thumbnails</button>
+              <button type="button" data-left-thumb="xxlarge">XX-large Thumbnails</button>
+            </div>
           </div>
         </div>
-      </div>
-      
-      <div id="leftList" class="left-list"></div>
 
-      <!-- Playlists: a persistent section of its own, like MusicBee's
-           Playlists list under Music — not one of the Category toggles
-           above, always visible regardless of Albums/Artists/Genres. -->
-      <div class="left-playlists-section">
-        <div class="left-playlists-head">
-          <span class="left-playlists-title">Playlists</span>
+        <div id="leftList" class="left-list"></div>
+      </div>
+
+      <div id="playlistsBrowserView" class="left-browser-view" hidden>
+        <div class="panel-bar">
+          <span class="panel-label">Playlists</span>
           <button type="button" id="newPlaylistBtn" class="icon-btn" title="New playlist" aria-label="New playlist">+</button>
         </div>
         <div id="playlistSidebarList" class="playlist-sidebar-list"></div>
@@ -870,7 +905,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.10.0';
+const APP_VERSION = '1.12.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -947,6 +982,10 @@ const state = {
   // / data.playlistItems, and the "Playlists tab" section below for the UI.
   playlists: [],
   activePlaylistId: null,
+  // Which view the far-left Music/Playlists nav rail has selected for the
+  // thumbnail-browser column (#leftPanel): 'music' shows the Albums/
+  // Artists/Genres browser, 'playlists' shows the flat playlist list.
+  leftNavView: 'music',
   activeTab: 'albums',
   activeType: 'All',
   query: '',
@@ -1067,7 +1106,8 @@ const el = {};
   'spotifyRedirectUriDisplay','spotifyConnectBtn','spotifyDisconnectBtn','spotifyConnectStatus',
   'authGate','authGateStatus','menuSignOut','menuAppVersion','app',
   'playlistModalOverlay','playlistModalHeading','playlistModalClose','playlistNameInput','playlistDescInput',
-  'playlistModalSaveBtn','playlistModalCancelBtn','playlistModalToast','newPlaylistBtn','playlistSidebarList'
+  'playlistModalSaveBtn','playlistModalCancelBtn','playlistModalToast','newPlaylistBtn','playlistSidebarList',
+  'leftNavPanel','navMusicBtn','navPlaylistsBtn','musicBrowserView','playlistsBrowserView'
 ].forEach(id => { el[id] = document.getElementById(id); });
 
 let activeItem = null;
@@ -1334,7 +1374,14 @@ function bindEvents() {
   el.playlistModalClose.addEventListener('click', closePlaylistModal);
   el.playlistModalCancelBtn.addEventListener('click', closePlaylistModal);
   el.playlistModalSaveBtn.addEventListener('click', savePlaylistModalClick);
-  el.newPlaylistBtn.addEventListener('click', () => openPlaylistModal('create'));
+  el.newPlaylistBtn.addEventListener('click', (e) => { e.stopPropagation(); openPlaylistModal('create'); });
+
+  // Far-left nav rail: "Music" swaps the browser column back to Albums/
+  // Artists/Genres (and leaves playlist view, same as before); "Playlists"
+  // swaps it to the flat list of playlists.
+  el.navMusicBtn.addEventListener('click', () => setLeftNavView('music'));
+  el.navPlaylistsBtn.addEventListener('click', () => setLeftNavView('playlists'));
+  setLeftNavView(state.leftNavView);
 
   // Stats tab: back button collapses the expanded year detail.
   el.statsDetailBack.addEventListener('click', () => {
@@ -2246,6 +2293,7 @@ function updateGroupByMenuUI() {
 
 function applyPanelVisibility() {
   el.leftPanel.style.display = state.showLeft ? 'flex' : 'none';
+  if (el.leftNavPanel) el.leftNavPanel.style.display = state.showLeft ? 'flex' : 'none';
   el.resizerLeft.style.display = state.showLeft ? 'block' : 'none';
   el.rightPanel.style.display = state.showRight ? 'flex' : 'none';
   el.resizerRight.style.display = state.showRight ? 'block' : 'none';
@@ -5801,22 +5849,50 @@ function playlistItemArtUrl(album) {
 // whatever category was showing is still there when you leave the playlist.
 function openPlaylist(id) {
   state.activePlaylistId = id;
-  renderPlaylistSidebar();
-  buildLeftList(); // to clear any "active" highlight in the Albums/Artists/Genres list
+  setLeftNavView('playlists'); // opening a playlist always swaps the browser column to the playlist list
   updateMainLabel();
   renderGrid();
 }
 
-// Leaves playlist view without touching navFilter/leftMode — used when the
-// person clicks back into the regular Albums/Artists/Genres list.
+// Leaves playlist view without touching navFilter/leftMode/leftNavView —
+// used when the person switches back into the regular Albums/Artists/
+// Genres list while a playlist happened to be open.
 function exitPlaylistView() {
   if (!state.activePlaylistId) return;
   state.activePlaylistId = null;
   renderPlaylistSidebar();
 }
 
-// Renders the persistent "Playlists" section under the main Albums/Artists/
-// Genres list (see the left-playlists-section markup in the HTML).
+// Swaps the thumbnail-browser column (#leftPanel) between the Albums/
+// Artists/Genres browser (#musicBrowserView) and the flat playlist list
+// (#playlistsBrowserView), per the Music/Playlists buttons in the far-left
+// #leftNavPanel rail. Switching to "Music" also exits playlist view
+// (closing whatever playlist was open), same as clicking back into Albums/
+// Artists/Genres always did.
+function setLeftNavView(view) {
+  state.leftNavView = view;
+  if (el.navMusicBtn) {
+    el.navMusicBtn.classList.toggle('active', view === 'music');
+    el.navMusicBtn.setAttribute('aria-current', view === 'music' ? 'page' : 'false');
+  }
+  if (el.navPlaylistsBtn) {
+    el.navPlaylistsBtn.classList.toggle('active', view === 'playlists');
+    el.navPlaylistsBtn.setAttribute('aria-current', view === 'playlists' ? 'page' : 'false');
+  }
+  if (el.musicBrowserView) el.musicBrowserView.hidden = view !== 'music';
+  if (el.playlistsBrowserView) el.playlistsBrowserView.hidden = view !== 'playlists';
+
+  if (view === 'music') {
+    exitPlaylistView();
+    buildLeftList();
+    updateMainLabel();
+    applyFiltersSort();
+  } else {
+    renderPlaylistSidebar();
+  }
+}
+
+// Renders the flat list of playlists in #playlistsBrowserView.
 function renderPlaylistSidebar() {
   if (!el.playlistSidebarList) return;
   if (!state.playlists.length) {
@@ -8852,6 +8928,12 @@ html, body {
   height: 100%; 
   min-width: 0; 
 }  
+.panel-leftnav {
+  flex: 0 0 64px;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px 0;
+}
 .panel-left { flex: 0 0 220px; 
 }
 .panel-main { 
@@ -8929,23 +9011,34 @@ html, body {
   flex: 1; 
   overflow-y: auto; 
   padding-right: 10px; /* Space for scrollbar */
+  min-height: 0;
 }  
 
-/* Playlists: a fixed-height section pinned below the Albums/Artists/Genres
-   list, always visible (not one of the Category toggles) — MusicBee-style. */
-.left-playlists-section {
-  flex: 0 0 auto; border-top: 1px solid var(--line); padding-top: 10px; margin-top: 8px;
-  max-height: 42%; display: flex; flex-direction: column;
+/* Far-left nav rail (#leftNavPanel): its own narrow column, separate from
+   the thumbnail-browser column, holding just the "Music" and "Playlists"
+   buttons that pick which view #leftPanel shows (see .left-browser-view
+   below and setLeftNavView() in the script). */
+.leftnav-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  width: 100%; flex: 0 0 auto; padding: 10px 2px; border-radius: 8px; border: none;
+  background: none; cursor: pointer; color: var(--text-dim);
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase;
 }
-.left-playlists-head {
-  display: flex; align-items: center; justify-content: space-between; padding: 0 6px 8px;
-}
-.left-playlists-title {
-  font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase;
-  color: var(--text-dim);
-}
-.playlist-sidebar-list { flex: 1; overflow-y: auto; padding-right: 10px; }
+.leftnav-btn:hover { background: var(--bg-elevated); color: var(--text); }
+.leftnav-btn.active { color: var(--accent); background: var(--bg-elevated); }
+.leftnav-icon { font-size: 17px; line-height: 1; }
+.leftnav-label { line-height: 1.1; text-align: center; }
+
+/* The two swappable views inside the thumbnail-browser column
+   (#leftPanel) — #musicBrowserView (Albums/Artists/Genres, unchanged) and
+   #playlistsBrowserView (flat playlist list). Exactly one is un-hidden at
+   a time. */
+.left-browser-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.left-browser-view[hidden] { display: none; }
+
+.playlist-sidebar-list { flex: 1; }
 .playlist-sidebar-row .left-row-title { font-size: 13px; }
+.playlist-empty { font-size: 12px; color: var(--text-dim); padding: 6px; margin: 0; }
 .left-row {
     display: flex; align-items: center; gap: 10px; padding: 7px 6px; border-radius: 6px; cursor: pointer;
   }
