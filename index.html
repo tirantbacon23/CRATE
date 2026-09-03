@@ -15,22 +15,22 @@
 
   CURRENT_VERSION: 1.10.0
 
-  1.10.0 — 2026-09-01 — Added a Playlist system, built into the existing
-          Albums layout rather than a new tab: "Playlists" is now a fourth
-          option in the left panel's Category menu (Albums/Artists/Genres/
-          Playlists). Picking it lists your playlists on the left (with a
-          pinned "+ New Playlist" row); picking one shows its ordered items
-          in the main panel in place of the album grid. Playlists can mix
-          whole albums and individual tracks in any order. "+ Add to
-          playlist" is on the album card right-click menu and the track
-          right-click menu (deck tracklist, flat Tracks table, and
-          Album-and-Tracks view); the deck header also got a "+ Playlist"
-          button for the currently open album. From an open playlist you can
-          rename it, delete it, remove individual items, and drag-reorder
-          items (native HTML5 drag-and-drop on each row). Synced to the
-          sheet backend via two new sheets (Playlists, PlaylistItems). New
-          state.playlists/state.activePlaylistId, populated in fetchCatalog()
-          from data.playlists/data.playlistItems.
+  1.10.0 — 2026-09-01 — Added a Playlist system. Playlists get their own
+          persistent section in the left panel, below the Albums/Artists/
+          Genres list (MusicBee-style: a fixed "Playlists" list with a
+          "+" to add one, always visible regardless of which category is
+          active) — not a Category dropdown option. Picking a playlist
+          shows its ordered items in the main panel in place of the album
+          grid. Playlists can mix whole albums and individual tracks in any
+          order. "+ Add to playlist" is on the album card right-click menu
+          and the track right-click menu (deck tracklist, flat Tracks
+          table, and Album-and-Tracks view); the deck header also got a
+          "+ Playlist" button for the currently open album. From an open
+          playlist you can rename it, delete it, remove individual items,
+          and drag-reorder items (native HTML5 drag-and-drop on each row).
+          Synced to the sheet backend via two new sheets (Playlists,
+          PlaylistItems). New state.playlists/state.activePlaylistId,
+          populated in fetchCatalog() from data.playlists/data.playlistItems.
           REQUIRES A BACKEND CHANGE THIS FILE CAN'T MAKE: the Apps Script
           backend (apps-script-backend.gs) needs the matching update —
           doGet() reading two new sheets (Playlists, PlaylistItems) and
@@ -244,7 +244,6 @@
             <button type="button" data-mode="album">Albums</button>
             <button type="button" data-mode="artist">Artists</button>
             <button type="button" data-mode="genre">Genres</button>
-            <button type="button" data-mode="playlist">Playlists</button>
             
             <div class="menu-divider"></div>
             <div class="menu-section-title">Sort by</div>
@@ -264,6 +263,17 @@
       </div>
       
       <div id="leftList" class="left-list"></div>
+
+      <!-- Playlists: a persistent section of its own, like MusicBee's
+           Playlists list under Music — not one of the Category toggles
+           above, always visible regardless of Albums/Artists/Genres. -->
+      <div class="left-playlists-section">
+        <div class="left-playlists-head">
+          <span class="left-playlists-title">Playlists</span>
+          <button type="button" id="newPlaylistBtn" class="icon-btn" title="New playlist" aria-label="New playlist">+</button>
+        </div>
+        <div id="playlistSidebarList" class="playlist-sidebar-list"></div>
+      </div>
     </section>
 
     <div class="resizer" id="resizerLeft" aria-hidden="true"></div>
@@ -1057,7 +1067,7 @@ const el = {};
   'spotifyRedirectUriDisplay','spotifyConnectBtn','spotifyDisconnectBtn','spotifyConnectStatus',
   'authGate','authGateStatus','menuSignOut','menuAppVersion','app',
   'playlistModalOverlay','playlistModalHeading','playlistModalClose','playlistNameInput','playlistDescInput',
-  'playlistModalSaveBtn','playlistModalCancelBtn','playlistModalToast'
+  'playlistModalSaveBtn','playlistModalCancelBtn','playlistModalToast','newPlaylistBtn','playlistSidebarList'
 ].forEach(id => { el[id] = document.getElementById(id); });
 
 let activeItem = null;
@@ -1324,6 +1334,7 @@ function bindEvents() {
   el.playlistModalClose.addEventListener('click', closePlaylistModal);
   el.playlistModalCancelBtn.addEventListener('click', closePlaylistModal);
   el.playlistModalSaveBtn.addEventListener('click', savePlaylistModalClick);
+  el.newPlaylistBtn.addEventListener('click', () => openPlaylistModal('create'));
 
   // Stats tab: back button collapses the expanded year detail.
   el.statsDetailBack.addEventListener('click', () => {
@@ -2174,6 +2185,7 @@ async function fetchCatalog() {
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0)); // newest first
 
     buildLeftList();
+    renderPlaylistSidebar();
     updateMainLabel();
     applyFiltersSort();
     prefetchArt(state.raw);
@@ -2306,8 +2318,6 @@ if (mode === 'artist') {
         sub: '', 
         count: count 
       }));
-  } else if (mode === 'playlist') {
-    entries = state.playlists.map(p => ({ key: p.id, label: p.name, sub: '', count: p.items.length }));
   } else {
     entries = sourceRaw
       .map(r => ({ key: r.row, artKey: artKey(r), label: r.title, sub: r.artist, count: null }));
@@ -2330,38 +2340,30 @@ if (mode === 'artist') {
   // "All ___" dummy entry pinned to the top — clears state.navFilter so the
   // main panel shows everything instead of one artist/genre/album. Same
   // effect as clicking the currently-active row again, just discoverable
-  // without already having a filter on. In playlist mode there's no "all
-  // playlists" view (items are ordered lists, not filterable album sets),
-  // so this pinned row becomes a "+ New Playlist" shortcut instead.
+  // without already having a filter on. Also exits playlist view (see
+  // exitPlaylistView) since this is the regular Albums/Artists/Genres list.
   const allRow = document.createElement('div');
   allRow.className = 'left-row left-row-all';
   allRow.tabIndex = 0;
-  if (mode === 'playlist') {
-    allRow.classList.add('left-row-new-playlist');
-    allRow.innerHTML = `<div class="left-row-text"><p class="left-row-title">+ New Playlist</p></div>`;
-    allRow.addEventListener('click', () => openPlaylistModal('create'));
-  } else {
-    if (!state.navFilter) allRow.classList.add('active');
-    const allLabel = mode === 'artist' ? 'All Artists' : mode === 'genre' ? 'All Genres' : 'All Albums';
-    allRow.innerHTML = `
-      <div class="left-row-text"><p class="left-row-title">${allLabel}</p></div>
-      <span class="left-row-count">${sourceRaw.length}</span>`;
-    allRow.addEventListener('click', () => {
-      state.navFilter = null;
-      buildLeftList();
-      updateMainLabel();
-      applyFiltersSort();
-    });
-  }
+  if (!state.navFilter && !state.activePlaylistId) allRow.classList.add('active');
+  const allLabel = mode === 'artist' ? 'All Artists' : mode === 'genre' ? 'All Genres' : 'All Albums';
+  allRow.innerHTML = `
+    <div class="left-row-text"><p class="left-row-title">${allLabel}</p></div>
+    <span class="left-row-count">${sourceRaw.length}</span>`;
+  allRow.addEventListener('click', () => {
+    state.navFilter = null;
+    exitPlaylistView();
+    buildLeftList();
+    updateMainLabel();
+    applyFiltersSort();
+  });
   el.leftList.appendChild(allRow);
 
   entries.forEach(entry => {
     const row = document.createElement('div');
     row.className = 'left-row';
     row.tabIndex = 0;
-    const isActive = mode === 'playlist'
-      ? state.activePlaylistId === entry.key
-      : (state.navFilter && state.navFilter.mode === mode && state.navFilter.value === entry.key);
+    const isActive = !state.activePlaylistId && state.navFilter && state.navFilter.mode === mode && state.navFilter.value === entry.key;
     if (isActive) row.classList.add('active');
 
     if (mode === 'album') {
@@ -2391,22 +2393,12 @@ if (mode === 'artist') {
     }
 
     row.addEventListener('click', () => {
-      if (mode === 'playlist') {
-        if (state.activePlaylistId === entry.key) {
-          state.activePlaylistId = null;
-          buildLeftList();
-          updateMainLabel();
-          renderGrid();
-        } else {
-          openPlaylist(entry.key);
-        }
-        return;
-      }
       if (state.navFilter && state.navFilter.mode === mode && state.navFilter.value === entry.key) {
         state.navFilter = null;
       } else {
         state.navFilter = { mode, value: entry.key };
       }
+      exitPlaylistView();
       buildLeftList();
       updateMainLabel();
       applyFiltersSort();
@@ -2613,7 +2605,7 @@ function loadYearCoverageBadges(years) {
 }
 
 function updateMainLabel() {
-  if (state.leftMode === 'playlist') {
+  if (state.activePlaylistId) {
     const playlist = state.playlists.find(p => p.id === state.activePlaylistId);
     el.mainPanelLabel.textContent = playlist ? `Playlist: ${playlist.name}` : 'Playlists';
     return;
@@ -2745,7 +2737,7 @@ function groupItems(items, by) {
 /* ---------- Grid rendering ---------- */
 
 function renderGrid() {
-  if (state.leftMode === 'playlist') { renderPlaylistMainPanel(); return; }
+  if (state.activePlaylistId) { renderPlaylistMainPanel(); return; }
   el.viewbar.hidden = false;
   el.gridContainer.classList.toggle('covers-only', state.mainViewMode === 'covers');
   el.gridContainer.innerHTML = '';
@@ -5777,16 +5769,18 @@ async function fetchArtistDiscography(artistName, ownedKeys, includeAll = false)
   return { ...result, fetchedAt: Date.now() };
 }
 
-/* ---------- Playlists (left panel mode + main panel) ---------- */
-// Playlists live inside the Albums tab, as a fourth left-panel category
-// alongside Albums/Artists/Genres (leftModeMenu, data-mode="playlist") — see
-// buildLeftList()'s "playlist" branch. Picking one sets state.activePlaylistId
-// and renderGrid() renders its ordered items into the main panel instead of
-// the normal album grid — see renderPlaylistMainPanel(). Synced via the
-// Playlists/PlaylistItems sheets on the backend (see apps-script-backend.gs).
-// Each item is either a whole album (type: 'album', identified by its crate
-// `row`) or a single track off one (type: 'track', same `row` plus
-// trackNum/trackName) — see state.playlists, built in fetchCatalog().
+/* ---------- Playlists (sidebar section + main panel) ---------- */
+// Playlists live inside the Albums tab, in their own persistent section of
+// the left panel (below the Albums/Artists/Genres list, see
+// #playlistSidebarList / renderPlaylistSidebar()) — not a Category toggle,
+// so it stays visible no matter which of Albums/Artists/Genres is active.
+// Picking one sets state.activePlaylistId, and renderGrid() renders its
+// ordered items into the main panel instead of the normal album grid — see
+// renderPlaylistMainPanel(). Synced via the Playlists/PlaylistItems sheets
+// on the backend (see apps-script-backend.gs). Each item is either a whole
+// album (type: 'album', identified by its crate `row`) or a single track
+// off one (type: 'track', same `row` plus trackNum/trackName) — see
+// state.playlists, built in fetchCatalog().
 
 let playlistModalMode = 'create'; // 'create' | 'rename'
 let playlistModalEditingId = null;
@@ -5801,13 +5795,43 @@ function playlistItemArtUrl(album) {
   return album.cover || state.artCache[artKey(album)]?.art || placeholderArt(album);
 }
 
-// Picks a playlist (from the left panel) and shows it in the main panel.
+// Picks a playlist (from the sidebar) and shows it in the main panel.
+// Playlists live alongside the Albums/Artists/Genres browser rather than
+// replacing it — state.leftMode / state.navFilter are untouched, so
+// whatever category was showing is still there when you leave the playlist.
 function openPlaylist(id) {
-  state.leftMode = 'playlist';
   state.activePlaylistId = id;
-  buildLeftList();
+  renderPlaylistSidebar();
+  buildLeftList(); // to clear any "active" highlight in the Albums/Artists/Genres list
   updateMainLabel();
   renderGrid();
+}
+
+// Leaves playlist view without touching navFilter/leftMode — used when the
+// person clicks back into the regular Albums/Artists/Genres list.
+function exitPlaylistView() {
+  if (!state.activePlaylistId) return;
+  state.activePlaylistId = null;
+  renderPlaylistSidebar();
+}
+
+// Renders the persistent "Playlists" section under the main Albums/Artists/
+// Genres list (see the left-playlists-section markup in the HTML).
+function renderPlaylistSidebar() {
+  if (!el.playlistSidebarList) return;
+  if (!state.playlists.length) {
+    el.playlistSidebarList.innerHTML = '<p class="playlist-empty">No playlists yet.</p>';
+    return;
+  }
+  el.playlistSidebarList.innerHTML = state.playlists.map(p => `
+    <div class="left-row playlist-sidebar-row ${p.id === state.activePlaylistId ? 'active' : ''}" data-id="${escapeHtml(p.id)}" tabindex="0">
+      <div class="left-row-text"><p class="left-row-title">${escapeHtml(p.name)}</p></div>
+      <span class="left-row-count">${p.items.length}</span>
+    </div>
+  `).join('');
+  [...el.playlistSidebarList.children].forEach((rowEl, i) => {
+    rowEl.addEventListener('click', () => openPlaylist(state.playlists[i].id));
+  });
 }
 
 // Renders the currently-open playlist's ordered items into the main panel
@@ -5904,7 +5928,7 @@ function setupPlaylistItemDrag(listEl, playlist) {
       items.splice(targetIdx, 0, moved);
       dragSrcIdx = null;
       renderPlaylistMainPanel();
-      buildLeftList();
+      renderPlaylistSidebar();
       postUpdate({ action: 'reorderPlaylist', playlistId: playlist.id, itemIds: items.map(x => x.id) })
         .catch(() => flashGlobalToast('Couldn\u2019t save the new order \u2014 try again'));
     });
@@ -5914,7 +5938,7 @@ function setupPlaylistItemDrag(listEl, playlist) {
 async function removePlaylistItem(playlist, itemId) {
   playlist.items = playlist.items.filter(it => it.id !== itemId);
   renderPlaylistMainPanel();
-  buildLeftList();
+  renderPlaylistSidebar();
   try {
     await postUpdate({ action: 'removePlaylistItems', itemIds: [itemId] });
   } catch (e) {
@@ -6047,7 +6071,7 @@ function openAddToPlaylistSubmenu(anchorEl, items) {
     try {
       await postUpdate({ action: 'addPlaylistItems', playlistId, items });
       flashGlobalToast('Added to playlist');
-      if (state.activeTab === 'albums' && state.leftMode === 'playlist') await fetchCatalog();
+      if (state.activeTab === 'albums') await fetchCatalog();
     } catch (err) {
       flashGlobalToast('Couldn\u2019t add to playlist \u2014 try again');
     }
@@ -8906,6 +8930,22 @@ html, body {
   overflow-y: auto; 
   padding-right: 10px; /* Space for scrollbar */
 }  
+
+/* Playlists: a fixed-height section pinned below the Albums/Artists/Genres
+   list, always visible (not one of the Category toggles) — MusicBee-style. */
+.left-playlists-section {
+  flex: 0 0 auto; border-top: 1px solid var(--line); padding-top: 10px; margin-top: 8px;
+  max-height: 42%; display: flex; flex-direction: column;
+}
+.left-playlists-head {
+  display: flex; align-items: center; justify-content: space-between; padding: 0 6px 8px;
+}
+.left-playlists-title {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase;
+  color: var(--text-dim);
+}
+.playlist-sidebar-list { flex: 1; overflow-y: auto; padding-right: 10px; }
+.playlist-sidebar-row .left-row-title { font-size: 13px; }
 .left-row {
     display: flex; align-items: center; gap: 10px; padding: 7px 6px; border-radius: 6px; cursor: pointer;
   }
@@ -9372,8 +9412,7 @@ html, body {
   .artist-reset-match { display: block; margin-bottom: 14px; font-size: 11px; color: var(--text-dim); }
   .artist-reset-match:hover { color: var(--accent); }
 
-  /* ---- Playlists (left panel mode + main panel) ---- */
-  .left-row-new-playlist .left-row-title { color: var(--accent); }
+  /* ---- Playlists (sidebar section + main panel) ---- */
   .playlist-empty { color: var(--text-dim); font-size: 12.5px; padding: 14px 0; }
   .playlist-placeholder { color: var(--text-dim); font-size: 13px; }
   .playlist-detail-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 18px; }
