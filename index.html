@@ -13,7 +13,26 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.12.2
+  CURRENT_VERSION: 1.13.0
+
+  1.13.0 — 2026-09-05 — Fixed "Add to playlist" on a track to ignore any
+          multi-selection: right-clicking one of several selected tracks
+          (flat Tracks table, ctrl/shift-click) still only added the single
+          track under the cursor, not the whole selection. openTrackContextMenu()
+          now takes an optional selectedItems array — when the right-clicked
+          row is part of the current selection, "Add to playlist" acts on
+          every selected track instead; right-clicking a row outside the
+          selection collapses to just that row first (so the old
+          single-track behavior is exactly what you get when nothing else
+          is selected). The menu title also reflects it ("3 tracks
+          selected" vs. the track name). Also gave the per-album "Album and
+          Tracks" view genuine click-select (plain/ctrl/shift, same
+          handleTrackRowClick() the flat table uses, now generalized to
+          take a container/selector so shift-range stays scoped to one
+          album) — it had no selection at all before, only single-track
+          right-click. Right-clicking an album card is unaffected and still
+          adds the whole album (all tracks) — that path already worked as
+          described.
 
   1.12.2 — 2026-09-03 — Removed #app's max-width: 1450px + margin: 0 auto
           centering — that (pre-existing, unrelated to the 1.12.x sidebar
@@ -933,7 +952,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.12.2';
+const APP_VERSION = '1.13.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -3386,14 +3405,36 @@ function renderFlatTrackTable() {
     e.preventDefault();
     const rowKey = rowEl.dataset.trackKey;
     const match = rows.find(r => trackRowKey(r) === rowKey);
-    if (match) openTrackContextMenu(match.item, match.track.trackName, e.clientX, e.clientY, match.track.trackNumber);
+    if (!match) return;
+
+    // Right-clicking a row that's part of the current selection acts on the
+    // whole selection; right-clicking outside it selects just that row
+    // first (standard behavior), same as a plain click would.
+    if (!state.selectedTracks.has(rowKey)) {
+      state.selectedTracks.clear();
+      state.selectedTracks.add(rowKey);
+      state.lastSelectedTrackKey = rowKey;
+      Array.from(body.querySelectorAll('.main-track-row')).forEach(r => r.classList.toggle('selected', r.dataset.trackKey === rowKey));
+    }
+    const selectedItems = rows
+      .filter(r => state.selectedTracks.has(trackRowKey(r)))
+      .map(r => ({ itemType: 'track', row: r.item.row, trackNum: r.track.trackNumber || '', trackName: r.track.trackName || '' }));
+
+    openTrackContextMenu(match.item, match.track.trackName, e.clientX, e.clientY, match.track.trackNumber, selectedItems);
   };
 }
 
-function handleTrackRowClick(e, rowEl) {
+// Handles click-select (plain click, ctrl/cmd toggle, shift range) for a
+// list of track rows that all share the single state.selectedTracks Set —
+// used by both the flat Tracks table and the per-album "Album and Tracks"
+// view. containerEl/rowSelector default to the flat table's own body/rows;
+// the per-album view passes its own tracklist wrapper so shift-range
+// selection stays scoped to that one album instead of spanning all of them.
+function handleTrackRowClick(e, rowEl, containerEl, rowSelector) {
   const key = rowEl.dataset.trackKey;
-  const body = document.getElementById('trackTableBody');
-  const allRows = Array.from(body.querySelectorAll('.main-track-row'));
+  const body = containerEl || document.getElementById('trackTableBody');
+  const selector = rowSelector || '.main-track-row';
+  const allRows = Array.from(body.querySelectorAll(selector));
   const keys = allRows.map(r => r.dataset.trackKey);
 
   if (e.shiftKey && state.lastSelectedTrackKey && keys.includes(state.lastSelectedTrackKey)) {
@@ -3461,11 +3502,13 @@ function loadTracksForList(list, mode) {
       if (!tracks.length) {
         tw.innerHTML = '<p class="tracklist-status">No tracklist found for this release.</p>';
       } else {
-        tw.innerHTML = tracks.map(t => {
+        tw.innerHTML = tracks.map((t, i) => {
           const scrobbleCount = trackScrobbleCountFor(item.artist, item.title, t.trackName);
           const trackName = t.trackName || '';
+          const rowKey = `${item.row}::${t.trackNumber || i}`;
+          const selected = state.selectedTracks.has(rowKey);
           return `
-          <div class="track-row">
+          <div class="track-row${selected ? ' selected' : ''}" data-track-key="${rowKey}" tabindex="0">
             <span class="track-num">${t.trackNumber || ''}</span>
             <span class="track-name">
               <button type="button" class="track-play-btn" data-artist="${escapeHtml(item.artist)}" data-track-name="${escapeHtml(trackName)}" title="Play on Spotify" aria-label="Play ${escapeHtml(trackName)} on Spotify">▶</button>
@@ -3476,15 +3519,40 @@ function loadTracksForList(list, mode) {
         `;
         }).join('');
       }
-      // Right-click any track row here to get the same track context menu
-      // (View album / Search) as the flat Tracks table and the deck.
+      // Click-select (plain/ctrl/shift, same as the flat Tracks table —
+      // see handleTrackRowClick) scoped to this album's own rows, so a
+      // couple of tracks can be picked out before right-clicking. Right-
+      // click any row to get the same track context menu (View album /
+      // Add to playlist / Search) as the flat Tracks table and the deck —
+      // "Add to playlist" acts on the whole selection when the row that
+      // was right-clicked is part of one.
+      tw.onclick = (e) => {
+        if (e.target.closest('.track-play-btn')) return; // handled by the delegated play-button listener below
+        const rowEl = e.target.closest('.track-row');
+        if (!rowEl) return;
+        handleTrackRowClick(e, rowEl, tw, '.track-row');
+      };
       tw.oncontextmenu = (e) => {
         const rowEl = e.target.closest('.track-row');
         if (!rowEl) return;
         e.preventDefault();
+        const rowKey = rowEl.dataset.trackKey;
         const idx = Array.from(tw.children).indexOf(rowEl);
         const track = tracks[idx];
-        if (track) openTrackContextMenu(item, track.trackName, e.clientX, e.clientY, track.trackNumber);
+        if (!track) return;
+
+        if (!state.selectedTracks.has(rowKey)) {
+          state.selectedTracks.clear();
+          state.selectedTracks.add(rowKey);
+          state.lastSelectedTrackKey = rowKey;
+          Array.from(tw.querySelectorAll('.track-row')).forEach(r => r.classList.toggle('selected', r.dataset.trackKey === rowKey));
+        }
+        const selectedItems = tracks
+          .map((t, i) => ({ t, key: `${item.row}::${t.trackNumber || i}` }))
+          .filter(x => state.selectedTracks.has(x.key))
+          .map(x => ({ itemType: 'track', row: item.row, trackNum: x.t.trackNumber || '', trackName: x.t.trackName || '' }));
+
+        openTrackContextMenu(item, track.trackName, e.clientX, e.clientY, track.trackNumber, selectedItems);
       };
     }).finally(() => { active--; next(); });
     next();
@@ -4258,13 +4326,23 @@ function closeNowPlayingAddMenu() {
 // tracklist. Keeps it simple (view the album, or jump to the artist) since
 // a single track doesn't carry its own crate row the way an album card
 // does. "Search" reuses the same flyout as the album card menu.
-function openTrackContextMenu(item, trackName, x, y, trackNum) {
+// selectedItems, when passed with more than one entry (flat table / "Album
+// and Tracks" view only — both have real click multi-select), makes "Add
+// to playlist" act on the whole selection instead of just the row that was
+// right-clicked.
+function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
   closeNowPlayingAddMenu();
+
+  const isMultiSelect = selectedItems && selectedItems.length > 1;
+  const trackPlaylistItems = isMultiSelect
+    ? selectedItems
+    : [{ itemType: 'track', row: item.row, trackNum: trackNum || '', trackName: trackName || '' }];
+  const menuTitle = isMultiSelect ? `${trackPlaylistItems.length} tracks selected` : (trackName || item.title);
 
   const menu = document.createElement('div');
   menu.className = 'panel-mode-menu now-playing-add-menu';
   menu.innerHTML = `
-    <div class="menu-section-title">${escapeHtml(trackName || item.title)}</div>
+    <div class="menu-section-title">${escapeHtml(menuTitle)}</div>
     <button type="button" data-track-menu-action="view">View album</button>
     <button type="button" class="menu-parent-btn" data-track-menu-action="playlist">Add to playlist <span class="submenu-caret">▸</span></button>
     <button type="button" class="menu-parent-btn" data-track-menu-action="search">Search <span class="submenu-caret">▸</span></button>
@@ -4272,7 +4350,6 @@ function openTrackContextMenu(item, trackName, x, y, trackNum) {
   document.body.appendChild(menu);
   positionFloatingMenu(menu, x, y);
 
-  const trackPlaylistItems = [{ itemType: 'track', row: item.row, trackNum: trackNum || '', trackName: trackName || '' }];
   const playlistBtn = menu.querySelector('[data-track-menu-action="playlist"]');
   playlistBtn.addEventListener('mouseenter', () => openAddToPlaylistSubmenu(playlistBtn, trackPlaylistItems));
   playlistBtn.addEventListener('mouseleave', scheduleCloseAddToPlaylistSubmenu);
@@ -9822,6 +9899,13 @@ html, body {
   .track-row-wrap:last-child { border-bottom: none; }
   
   .track-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; font-size: 13px; padding: 8px 0; color: var(--text); align-items: center; }
+  /* Only the per-album "Album and Tracks" view's rows are click-selectable
+     (see loadTracksForList) — scoped via .track-group-tracks so the deck's
+     own .track-row (star ratings/listened-toggle/notes UI, no selection)
+     doesn't pick up a misleading pointer cursor/hover it can't act on. */
+  .track-group-tracks .track-row { cursor: pointer; border-radius: 4px; }
+  .track-group-tracks .track-row:hover { background: var(--bg-elevated); }
+  .track-group-tracks .track-row.selected { background: var(--bg-elevated); outline: 1px solid var(--accent); outline-offset: -1px; }
   .track-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .track-play-btn {
     display: inline-flex; align-items: center; justify-content: center;
