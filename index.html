@@ -13,7 +13,31 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.16.0
+  CURRENT_VERSION: 1.17.0
+
+  1.17.0 — 2026-09-05 — The YouTube track player (added in 1.16.0) is no
+          longer a centered modal overlay — it's now a small floating
+          window (#ytPlayer) built on YouTube's real IFrame API instead of
+          a plain embed src, so it can expose actual transport controls:
+          drag it anywhere (drag handle in its header, position persisted
+          in localStorage the same way the detached Spotify mini player's
+          position is — see YT_PLAYER_PREFS_KEY), minimize it to a slim bar
+          that keeps playing audio in the background while you use the
+          rest of the app, a seek bar, a volume slider + mute toggle, a
+          fullscreen button (requests fullscreen on the video area), and a
+          Prev/Next/queue system: clicking a track's "▶ YT" button now
+          builds a queue from every track in that album's tracklist that
+          has a YouTube link attached (not just the one clicked), with a
+          popover (☰) to jump to any of them and auto-advance on end. It
+          survives switching tabs/closing the deck since it's a persistent
+          fixed-position element outside the tab content, same as the
+          Spotify mini player. See "YouTube floating player" in the script
+          section (openYoutubePlayer/ensureYtPlayer/playYtQueueIndex/
+          initYtPlayerUI etc.) and the .yt-player CSS block, modeled
+          closely on the existing .mini-player/.queue-panel patterns.
+          Old openYoutubePlayer(url, trackName) call sites are unchanged;
+          only the plumbing behind them changed. Loads
+          https://www.youtube.com/iframe_api once, lazily, on first use.
 
   1.16.0 — 2026-09-05 — Manually-added albums can now get a typed-in
           tracklist with a YouTube link per track, plus a way to actually
@@ -1021,16 +1045,50 @@
   </div>
 </div>
 
-<!-- YouTube track player -->
-<div id="youtubePlayerOverlay" class="arrange-overlay" hidden>
-  <div class="arrange-modal youtube-player-modal">
-    <div class="arrange-header">
-      <h2 id="youtubePlayerTitle">Now playing</h2>
-      <button id="youtubePlayerClose" class="modal-x" aria-label="Close">✕</button>
+<!-- YouTube floating player — a small draggable window that keeps playing
+     in the background across tabs/the deck (replaces the 1.16.0 modal
+     overlay). Built on YouTube's IFrame API rather than a plain embed src
+     so it can expose real transport controls: play/pause, seek, volume +
+     mute, fullscreen, minimize-to-a-slim-bar, and a queue built from every
+     track in the open album's tracklist that has a YouTube link attached.
+     See "YouTube floating player" in the script section. -->
+<div id="ytPlayer" class="yt-player" hidden>
+  <div id="ytPlayerDragHandle" class="yt-player-drag-handle">
+    <span class="yt-player-drag-grip" aria-hidden="true">⠿⠿</span>
+    <span id="ytPlayerTitle" class="yt-player-title">Now playing</span>
+    <button id="ytPlayerMinimizeBtn" class="yt-player-icon-btn" title="Minimize" aria-label="Minimize">–</button>
+    <button id="ytPlayerCloseBtn" class="yt-player-icon-btn" title="Close" aria-label="Close">✕</button>
+  </div>
+  <div id="ytPlayerVideoWrap" class="yt-player-video-wrap">
+    <div id="ytPlayerMount"></div>
+  </div>
+  <div class="yt-player-progress-row">
+    <span id="ytPlayerTimeCurrent" class="yt-player-time">0:00</span>
+    <div id="ytPlayerSeekTrack" class="yt-player-seek-track" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div id="ytPlayerSeekFill" class="yt-player-seek-fill"></div>
+      <div id="ytPlayerSeekHandle" class="yt-player-seek-handle"></div>
     </div>
-    <div class="arrange-body youtube-player-body">
-      <div id="youtubePlayerFrameWrap" class="youtube-player-frame-wrap"></div>
+    <span id="ytPlayerTimeTotal" class="yt-player-time">0:00</span>
+  </div>
+  <div class="yt-player-row">
+    <div class="yt-player-transport">
+      <button id="ytPlayerPrevBtn" class="yt-player-icon-btn" title="Previous track" aria-label="Previous track">⏮</button>
+      <button id="ytPlayerPlayPauseBtn" class="yt-player-icon-btn yt-player-play-btn" title="Pause" aria-label="Play/pause">⏸</button>
+      <button id="ytPlayerNextBtn" class="yt-player-icon-btn" title="Next track" aria-label="Next track">⏭</button>
     </div>
+    <div class="yt-player-volume">
+      <button id="ytPlayerMuteBtn" class="yt-player-icon-btn" title="Mute" aria-label="Mute">♪</button>
+      <input type="range" id="ytPlayerVolume" min="0" max="100" value="80" aria-label="Volume">
+    </div>
+    <button id="ytPlayerQueueBtn" class="yt-player-icon-btn" title="Show queue" aria-label="Show queue">☰</button>
+    <button id="ytPlayerFullscreenBtn" class="yt-player-icon-btn" title="Fullscreen" aria-label="Fullscreen">⛶</button>
+  </div>
+  <div id="ytPlayerQueuePanel" class="queue-panel yt-player-queue-panel" hidden>
+    <div class="queue-panel-header">
+      <span>Queue</span>
+      <button id="ytPlayerQueueClose" class="modal-x" aria-label="Close queue">✕</button>
+    </div>
+    <div id="ytPlayerQueueList" class="queue-list"></div>
   </div>
 </div>
 
@@ -1173,7 +1231,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.16.0';
+const APP_VERSION = '1.17.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -1194,6 +1252,7 @@ function formatArtistNames(artists, max) {
 }
 const SPOTIFY_USER_TOKENS_KEY = 'crate_spotify_user_tokens_v1';
 const SPOTIFY_PLAYER_PREFS_KEY = 'crate_spotify_player_prefs_v1';
+const YT_PLAYER_PREFS_KEY = 'crate_yt_player_prefs_v1';
 const SPOTIFY_PKCE_VERIFIER_KEY = 'crate_spotify_pkce_verifier';
 const SPOTIFY_PKCE_STATE_KEY = 'crate_spotify_pkce_state';
 const SPOTIFY_CREDS_KEY = 'crate_spotify_creds_v1';
@@ -1372,7 +1431,12 @@ const el = {};
   'deckSpotifyLink','deckSoundcloudLink','deckRymLink','deckPlayBtn',
   'deckEditBtn','editOverlay','editClose','editArtist','editTitle','editType','editReleaseDate','editGenre','editGenre2','editRegion','editLabel','editCatalog','editLink','editRymLink','editCover','editSaveBtn','editCancelBtn','editToast',
   'editTracksRows','editTracksAddRowBtn',
-  'youtubePlayerOverlay','youtubePlayerTitle','youtubePlayerClose','youtubePlayerFrameWrap',
+  'ytPlayer','ytPlayerDragHandle','ytPlayerTitle','ytPlayerMinimizeBtn','ytPlayerCloseBtn',
+  'ytPlayerVideoWrap','ytPlayerMount',
+  'ytPlayerPrevBtn','ytPlayerPlayPauseBtn','ytPlayerNextBtn',
+  'ytPlayerVolume','ytPlayerMuteBtn','ytPlayerQueueBtn','ytPlayerFullscreenBtn',
+  'ytPlayerSeekTrack','ytPlayerSeekFill','ytPlayerSeekHandle','ytPlayerTimeCurrent','ytPlayerTimeTotal',
+  'ytPlayerQueuePanel','ytPlayerQueueClose','ytPlayerQueueList',
   'deckTracklist','deckStars','deckReview','deckSaveReview','deckToast','deckRemoveBtn','deckPlaylistBtn',
   'logListenBtn','logForm','logDate','logStars','logEntryTitle','logDescription','logSaveBtn','logCancelBtn','deckDiaryList',
   'logTrackSummary','logSelectAllBtn','logClearSelectionBtn',
@@ -1991,7 +2055,6 @@ function bindEvents() {
   el.editSaveBtn.addEventListener('click', saveEditAlbum);
   el.editTracksAddRowBtn.addEventListener('click', () => addTracklistBuilderRow(el.editTracksRows));
   wireTracklistBuilderContainer(el.editTracksRows);
-  el.youtubePlayerClose.addEventListener('click', closeYoutubePlayer);
 
   // 9. Deck (Detail Modal) Actions
   el.deckClose.addEventListener('click', closeDeck);
@@ -2068,6 +2131,7 @@ function bindEvents() {
   el.miniPlayerDockBtn.addEventListener('click', () => setPlayerDetached(false));
   initPlayerDrag();
   initSeekDrag();
+  initYtPlayerUI();
   el.miniPlayerArt.addEventListener('click', () => {
     if (!currentSpotifyTrack) return;
     const rect = el.miniPlayerArt.getBoundingClientRect();
@@ -2280,20 +2344,23 @@ function bindEvents() {
     }
     if (e.key !== 'Escape') return;
     closeDeck(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal();
-    closeYoutubePlayer();
+    // Deliberately NOT closing the YouTube floating player here — like the
+    // Spotify mini player, it's a persistent background player now, not a
+    // modal, so Escape (used to dismiss whatever modal/menu is open) leaves
+    // it playing. Escape does still close its queue popover if open.
+    el.ytPlayerQueuePanel.hidden = true;
     el.albumsViewMenu.hidden = true; el.leftModeMenu.hidden = true; el.layoutMenu.hidden = true;
     document.getElementById('groupByMenuItem').classList.remove('submenu-open');
   });
 
   // Full-screen overlay backdrop clicks
-  [el.deckOverlay, el.addOverlay, el.editOverlay, el.lastfmOverlay, el.playlistModalOverlay, el.youtubePlayerOverlay].forEach(overlay => {
+  [el.deckOverlay, el.addOverlay, el.editOverlay, el.lastfmOverlay, el.playlistModalOverlay].forEach(overlay => {
     overlay.addEventListener('click', (e) => { 
       if (e.target === overlay) {
         if (overlay === el.deckOverlay) closeDeck();
         else if (overlay === el.addOverlay) closeAddModal();
         else if (overlay === el.lastfmOverlay) closeLastfmModal();
         else if (overlay === el.playlistModalOverlay) closePlaylistModal();
-        else if (overlay === el.youtubePlayerOverlay) closeYoutubePlayer();
         else closeEditModal();
       }
     });
@@ -8784,15 +8851,24 @@ function youtubeSearchUrl(item) {
   return 'https://www.youtube.com/results?search_query=' + encodeURIComponent(item.artist + ' ' + item.title);
 }
 
-/* ---------- YouTube track player ----------
-   A small embedded-iframe player for tracks that have a manually-attached
-   YouTube link (see the tracklist builder / manualTracks). Deliberately
-   separate from the Spotify Web Playback SDK setup elsewhere in this file
-   (spotifyPlayer, showMiniPlayer(), the docked mini player UI) rather than
-   trying to unify the two into one transport — YouTube's IFrame API and
-   Spotify's SDK are different playback engines with different queue/seek
-   models, and manually-added albums are the one case that needs YouTube at
-   all, so a lightweight standalone overlay keeps this simple. */
+/* ---------- YouTube floating player ----------
+   A persistent, draggable floating window for tracks with a manually-
+   attached YouTube link (see the tracklist builder / manualTracks). Built
+   on YouTube's real IFrame API (loaded lazily, once, on first use) rather
+   than a plain embed src, so it can expose actual transport controls —
+   play/pause, seek, volume + mute, fullscreen, minimize-to-a-slim-bar —
+   and a local queue. Deliberately separate from the Spotify Web Playback
+   SDK setup elsewhere in this file (spotifyPlayer, showMiniPlayer(), the
+   docked mini player UI) rather than trying to unify the two into one
+   transport — YouTube's IFrame API and Spotify's SDK are different
+   playback engines with different queue/seek models, and manually-added
+   albums are the one case that needs YouTube at all. Unlike the Spotify
+   mini player (docked by default; "detach" into a floating window is
+   opt-in), this one is *always* floating, since that's what a background
+   YouTube video actually calls for. Modeled closely on that mini player's
+   drag/seek/queue patterns (initPlayerDrag/initSeekDrag/queue-panel CSS)
+   rather than reusing them directly, since this one also owns a video
+   area and its own YT.Player instance. */
 function youtubeVideoIdFromUrl(url) {
   if (!url) return '';
   const patterns = [
@@ -8804,16 +8880,347 @@ function youtubeVideoIdFromUrl(url) {
   }
   return '';
 }
+
+function loadYtPlayerPrefs() {
+  try { return JSON.parse(localStorage.getItem(YT_PLAYER_PREFS_KEY) || '{}'); }
+  catch (e) { return {}; }
+}
+function saveYtPlayerPrefs(patch) {
+  try { localStorage.setItem(YT_PLAYER_PREFS_KEY, JSON.stringify({ ...loadYtPlayerPrefs(), ...patch })); }
+  catch (e) { /* localStorage unavailable — safe to ignore */ }
+}
+
+let ytQueue = [];                // [{videoId, trackName}] — rebuilt each time a YT track is played
+let ytQueueIndex = -1;
+let ytPlayer = null;             // the YT.Player instance, created once and reused via loadVideoById
+let ytApiPromise = null;         // resolves once https://www.youtube.com/iframe_api has loaded
+let ytPlayerReadyPromise = null; // resolves once ytPlayer itself fires onReady
+let ytIsPaused = false;
+let ytDuration = 0;
+let ytSeekDragging = false;      // true while the user is dragging the seek handle
+let ytLastKnownVolume = 80;      // remembered across a mute toggle, to restore on unmute
+
+function loadYouTubeIframeApi() {
+  if (window.YT && window.YT.Player) return Promise.resolve();
+  if (ytApiPromise) return ytApiPromise;
+  ytApiPromise = new Promise(resolve => {
+    const prevReady = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      if (typeof prevReady === 'function') prevReady();
+      resolve();
+    };
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(tag);
+  });
+  return ytApiPromise;
+}
+
+// Creates the underlying YT.Player exactly once and re-uses it across
+// tracks via loadVideoById (rather than tearing down/rebuilding an iframe
+// per track) — that's what lets the volume/mute state stay put as the
+// queue advances.
+function ensureYtPlayer() {
+  if (ytPlayerReadyPromise) return ytPlayerReadyPromise;
+  ytPlayerReadyPromise = loadYouTubeIframeApi().then(() => new Promise(resolve => {
+    ytPlayer = new YT.Player('ytPlayerMount', {
+      width: '100%', height: '100%',
+      playerVars: { autoplay: 1, playsinline: 1, rel: 0, modestbranding: 1 },
+      events: {
+        onReady: (e) => {
+          const prefs = loadYtPlayerPrefs();
+          ytLastKnownVolume = prefs.volume ?? 80;
+          e.target.setVolume(ytLastKnownVolume);
+          el.ytPlayerVolume.value = ytLastKnownVolume;
+          resolve(e.target);
+        },
+        onStateChange: onYtPlayerStateChange
+      }
+    });
+  }));
+  return ytPlayerReadyPromise;
+}
+
+function onYtPlayerStateChange(e) {
+  if (e.data === YT.PlayerState.ENDED) {
+    if (ytQueueIndex < ytQueue.length - 1) playYtQueueIndex(ytQueueIndex + 1);
+    else setYtPlayPauseUI(true);
+    return;
+  }
+  if (e.data === YT.PlayerState.PLAYING) { setYtPlayPauseUI(false); ytDuration = ytPlayer.getDuration() || 0; }
+  else if (e.data === YT.PlayerState.PAUSED) setYtPlayPauseUI(true);
+}
+
+function setYtPlayPauseUI(paused) {
+  ytIsPaused = paused;
+  el.ytPlayerPlayPauseBtn.textContent = paused ? '▶' : '⏸';
+  el.ytPlayerPlayPauseBtn.title = paused ? 'Play' : 'Pause';
+}
+
+// Clicking a track's "▶ YT" button builds a queue out of every track in the
+// currently-open deck's tracklist that has a YouTube link attached (not
+// just the one clicked) — see currentTracklistTracks, populated by
+// loadTracklist()/renderTracklistBody() — so Prev/Next and the queue panel
+// below have the rest of the album to work with. Falls back to a
+// single-track queue when there's no tracklist context (or nothing else in
+// it has a YouTube link).
 function openYoutubePlayer(url, trackName) {
   const videoId = youtubeVideoIdFromUrl(url);
   if (!videoId) { flashGlobalToast('That doesn\u2019t look like a valid YouTube link'); return; }
-  el.youtubePlayerTitle.textContent = trackName || 'Now playing';
-  el.youtubePlayerFrameWrap.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1" title="${escapeHtml(trackName || 'YouTube video player')}" frameborder="0" allow="accelerate-motion; autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
-  el.youtubePlayerOverlay.hidden = false;
+
+  const ytTracks = (currentTracklistTracks || []).filter(t => t.youtubeLink && youtubeVideoIdFromUrl(t.youtubeLink));
+  if (ytTracks.length) {
+    ytQueue = ytTracks.map(t => ({ videoId: youtubeVideoIdFromUrl(t.youtubeLink), trackName: t.trackName || 'Untitled track' }));
+    const idx = ytQueue.findIndex(q => q.videoId === videoId);
+    ytQueueIndex = idx === -1 ? 0 : idx;
+  } else {
+    ytQueue = [{ videoId, trackName: trackName || 'Now playing' }];
+    ytQueueIndex = 0;
+  }
+
+  showYtPlayer();
+  playYtQueueIndex(ytQueueIndex);
 }
+
+function ytDefaultPos() {
+  // Bottom-right-ish, but well clear of the docked Spotify mini player
+  // (which sits flush along the very bottom edge) so the two don't collide
+  // the first time someone uses both in the same session.
+  return { x: Math.max(16, window.innerWidth - 356), y: Math.max(16, window.innerHeight - 400) };
+}
+
+function showYtPlayer() {
+  if (el.ytPlayer.hidden) {
+    el.ytPlayer.hidden = false;
+    const prefs = loadYtPlayerPrefs();
+    const pos = prefs.pos || ytDefaultPos();
+    el.ytPlayer.style.left = pos.x + 'px';
+    el.ytPlayer.style.top = pos.y + 'px';
+    setYtPlayerMinimized(!!prefs.minimized);
+  }
+}
+
+function playYtQueueIndex(i) {
+  if (i < 0 || i >= ytQueue.length) return;
+  ytQueueIndex = i;
+  const q = ytQueue[i];
+  el.ytPlayerTitle.textContent = q.trackName;
+  el.ytPlayerTitle.title = q.trackName;
+  ytDuration = 0;
+  ensureYtPlayer().then(player => { player.loadVideoById(q.videoId); player.playVideo(); });
+  el.ytPlayerPrevBtn.disabled = i === 0;
+  el.ytPlayerNextBtn.disabled = i === ytQueue.length - 1;
+  setYtPlayPauseUI(false);
+  renderYtQueuePanel();
+}
+
 function closeYoutubePlayer() {
-  el.youtubePlayerOverlay.hidden = true;
-  el.youtubePlayerFrameWrap.innerHTML = ''; // removing the iframe (rather than just hiding it) stops playback
+  el.ytPlayer.hidden = true;
+  el.ytPlayerQueuePanel.hidden = true;
+  if (ytPlayer && ytPlayer.stopVideo) { try { ytPlayer.stopVideo(); } catch (e) { /* not ready yet — nothing to stop */ } }
+  ytQueue = []; ytQueueIndex = -1;
+}
+
+/* ---- Seek / progress ---- */
+function formatYtTime(sec) {
+  if (!isFinite(sec) || sec < 0) sec = 0;
+  const totalSec = Math.floor(sec);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return h > 0
+    ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    : `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function updateYtProgressUI() {
+  if (!ytPlayer || !ytPlayer.getCurrentTime || ytSeekDragging || el.ytPlayer.hidden) return;
+  let pos = 0, dur = ytDuration;
+  try { pos = ytPlayer.getCurrentTime() || 0; dur = ytPlayer.getDuration() || dur; } catch (e) { return; }
+  ytDuration = dur;
+  const pct = dur ? (pos / dur) * 100 : 0;
+  el.ytPlayerSeekFill.style.width = pct + '%';
+  el.ytPlayerSeekHandle.style.left = pct + '%';
+  el.ytPlayerSeekTrack.setAttribute('aria-valuenow', String(Math.round(pct)));
+  el.ytPlayerTimeCurrent.textContent = formatYtTime(pos);
+  el.ytPlayerTimeTotal.textContent = formatYtTime(dur);
+}
+setInterval(updateYtProgressUI, 500);
+
+function ytSeekRatioFromEvent(e) {
+  const rect = el.ytPlayerSeekTrack.getBoundingClientRect();
+  const point = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e;
+  const ratio = (point.clientX - rect.left) / rect.width;
+  return Math.max(0, Math.min(1, ratio));
+}
+
+function initYtSeekDrag() {
+  let previewRatio = 0;
+  function updatePreview(e) {
+    previewRatio = ytSeekRatioFromEvent(e);
+    el.ytPlayerSeekFill.style.width = (previewRatio * 100) + '%';
+    el.ytPlayerSeekHandle.style.left = (previewRatio * 100) + '%';
+    el.ytPlayerTimeCurrent.textContent = formatYtTime(previewRatio * ytDuration);
+  }
+  function onMove(e) { if (!ytSeekDragging) return; updatePreview(e); if (e.cancelable) e.preventDefault(); }
+  function onUp() {
+    if (!ytSeekDragging) return;
+    ytSeekDragging = false;
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', onUp);
+    if (ytPlayer && ytPlayer.seekTo) { try { ytPlayer.seekTo(previewRatio * ytDuration, true); } catch (e) {} }
+  }
+  function onDown(e) {
+    if (!ytPlayer) return;
+    ytSeekDragging = true;
+    updatePreview(e);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onUp);
+    e.preventDefault();
+  }
+  el.ytPlayerSeekTrack.addEventListener('mousedown', onDown);
+  el.ytPlayerSeekTrack.addEventListener('touchstart', onDown, { passive: false });
+  el.ytPlayerSeekTrack.addEventListener('keydown', (e) => {
+    if (!ytPlayer) return;
+    let delta = 0;
+    if (e.key === 'ArrowRight') delta = 5;
+    else if (e.key === 'ArrowLeft') delta = -5;
+    else return;
+    e.preventDefault();
+    try {
+      const pos = Math.max(0, Math.min(ytDuration, (ytPlayer.getCurrentTime() || 0) + delta));
+      ytPlayer.seekTo(pos, true);
+      updateYtProgressUI();
+    } catch (err) { /* player not ready yet */ }
+  });
+}
+
+/* ---- Drag (same pointer-tracking approach as initPlayerDrag for the
+   detached Spotify mini player, just always-on rather than opt-in) ---- */
+function initYtPlayerDrag() {
+  let dragging = false, startX = 0, startY = 0, origX = 0, origY = 0;
+  function onDown(e) {
+    if (e.target.closest('.yt-player-icon-btn')) return; // let header buttons' own clicks through
+    dragging = true;
+    const point = (e.touches && e.touches[0]) || e;
+    startX = point.clientX; startY = point.clientY;
+    const rect = el.ytPlayer.getBoundingClientRect();
+    origX = rect.left; origY = rect.top;
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onUp);
+    e.preventDefault();
+  }
+  function onMove(e) {
+    if (!dragging) return;
+    const point = (e.touches && e.touches[0]) || e;
+    const w = el.ytPlayer.offsetWidth, h = el.ytPlayer.offsetHeight;
+    let nx = origX + (point.clientX - startX);
+    let ny = origY + (point.clientY - startY);
+    nx = Math.max(4, Math.min(window.innerWidth - w - 4, nx));
+    ny = Math.max(4, Math.min(window.innerHeight - h - 4, ny));
+    el.ytPlayer.style.left = nx + 'px';
+    el.ytPlayer.style.top = ny + 'px';
+    if (e.cancelable) e.preventDefault();
+  }
+  function onUp() {
+    if (!dragging) return;
+    dragging = false;
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', onUp);
+    const rect = el.ytPlayer.getBoundingClientRect();
+    saveYtPlayerPrefs({ pos: { x: rect.left, y: rect.top } });
+  }
+  el.ytPlayerDragHandle.addEventListener('mousedown', onDown);
+  el.ytPlayerDragHandle.addEventListener('touchstart', onDown, { passive: false });
+}
+
+/* ---- Minimize — collapses to just the header/transport strip. The video
+   area is hidden with display:none rather than removed, so the underlying
+   iframe (and its audio) keeps playing in the background. ---- */
+function setYtPlayerMinimized(minimized) {
+  el.ytPlayer.classList.toggle('minimized', minimized);
+  el.ytPlayerMinimizeBtn.textContent = minimized ? '▢' : '\u2013';
+  el.ytPlayerMinimizeBtn.title = minimized ? 'Expand' : 'Minimize';
+  if (minimized) el.ytPlayerQueuePanel.hidden = true;
+  saveYtPlayerPrefs({ minimized });
+}
+
+/* ---- Queue panel — a local list built from the current album's tracklist
+   (see openYoutubePlayer), not an account-wide queue like Spotify's. ---- */
+function renderYtQueuePanel() {
+  if (!ytQueue.length) { el.ytPlayerQueueList.innerHTML = '<p class="queue-empty">Nothing queued.</p>'; return; }
+  el.ytPlayerQueueList.innerHTML = ytQueue.map((q, i) => `
+    <div class="queue-row queue-row-clickable ${i === ytQueueIndex ? 'queue-row-current' : ''}" data-index="${i}" tabindex="0">
+      <div class="queue-row-meta">
+        <p class="queue-track-title">${escapeHtml(q.trackName)}</p>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ---- Fullscreen — requests fullscreen on the video area itself, not the
+   whole floating window, so the header/controls don't come along. ---- */
+function toggleYtFullscreen() {
+  if (document.fullscreenElement) { document.exitFullscreen(); return; }
+  if (el.ytPlayerVideoWrap.requestFullscreen) el.ytPlayerVideoWrap.requestFullscreen();
+}
+
+/* ---- Wire everything up (called once, from init) ---- */
+function initYtPlayerUI() {
+  el.ytPlayerCloseBtn.addEventListener('click', closeYoutubePlayer);
+  el.ytPlayerMinimizeBtn.addEventListener('click', () => setYtPlayerMinimized(!el.ytPlayer.classList.contains('minimized')));
+  el.ytPlayerPlayPauseBtn.addEventListener('click', () => {
+    if (!ytPlayer) return;
+    if (ytIsPaused) ytPlayer.playVideo(); else ytPlayer.pauseVideo();
+  });
+  el.ytPlayerPrevBtn.addEventListener('click', () => playYtQueueIndex(ytQueueIndex - 1));
+  el.ytPlayerNextBtn.addEventListener('click', () => playYtQueueIndex(ytQueueIndex + 1));
+  el.ytPlayerVolume.addEventListener('input', () => {
+    const val = Number(el.ytPlayerVolume.value);
+    ytLastKnownVolume = val || ytLastKnownVolume;
+    if (ytPlayer && ytPlayer.setVolume) {
+      ytPlayer.setVolume(val);
+      if (val > 0 && ytPlayer.isMuted && ytPlayer.isMuted()) ytPlayer.unMute();
+    }
+    el.ytPlayerMuteBtn.textContent = val === 0 ? '\u2715' : '\u266a';
+    saveYtPlayerPrefs({ volume: val });
+  });
+  el.ytPlayerMuteBtn.addEventListener('click', () => {
+    if (!ytPlayer) return;
+    const muted = ytPlayer.isMuted && ytPlayer.isMuted();
+    if (muted) { ytPlayer.unMute(); el.ytPlayerVolume.value = ytLastKnownVolume || 80; el.ytPlayerMuteBtn.textContent = '\u266a'; }
+    else { ytPlayer.mute(); el.ytPlayerVolume.value = 0; el.ytPlayerMuteBtn.textContent = '\u2715'; }
+  });
+  el.ytPlayerFullscreenBtn.addEventListener('click', toggleYtFullscreen);
+  el.ytPlayerQueueBtn.addEventListener('click', () => {
+    if (!el.ytPlayerQueuePanel.hidden) { el.ytPlayerQueuePanel.hidden = true; return; }
+    if (el.ytPlayer.classList.contains('minimized')) setYtPlayerMinimized(false);
+    renderYtQueuePanel();
+    el.ytPlayerQueuePanel.hidden = false;
+  });
+  el.ytPlayerQueueClose.addEventListener('click', () => { el.ytPlayerQueuePanel.hidden = true; });
+  el.ytPlayerQueueList.addEventListener('click', (e) => {
+    const row = e.target.closest('.queue-row-clickable');
+    if (!row) return;
+    playYtQueueIndex(Number(row.dataset.index));
+  });
+  el.ytPlayerQueueList.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const row = e.target.closest('.queue-row-clickable');
+    if (!row) return;
+    e.preventDefault();
+    playYtQueueIndex(Number(row.dataset.index));
+  });
+  initYtPlayerDrag();
+  initYtSeekDrag();
 }
 
 /* ---- Discogs API (personal access token) ----
@@ -11216,11 +11623,101 @@ html, body {
   .tracklist-builder-remove:hover { color: #E5734A; border-color: #E5734A; }
   .tracklist-builder-hint { font-size: 11.5px; color: var(--text-dim); margin: 0; }
 
-  /* ---------- YouTube track player ---------- */
-  .youtube-player-modal { max-width: 720px; width: 92vw; }
-  .youtube-player-body { padding: 0; }
-  .youtube-player-frame-wrap { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; }
-  .youtube-player-frame-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  /* ---------- YouTube floating player ----------
+     A floating window rather than a centered modal — position:fixed with
+     inline left/top (set/persisted in JS, same left/top-swap approach as
+     .mini-player.detached above) instead of the .arrange-overlay pattern,
+     since it needs to stay visible and interactive while the rest of the
+     app is used normally underneath it. */
+  .yt-player {
+    position: fixed; width: 320px; max-width: calc(100vw - 32px);
+    background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: 0 20px 48px rgba(0,0,0,0.55); z-index: 500;
+    display: flex; flex-direction: column;
+    /* No overflow:hidden here (unlike a typical rounded card) — the queue
+       popover (.yt-player-queue-panel) needs to sit above the controls row
+       without being clipped by the container's corners. */
+  }
+  .yt-player-drag-handle { border-radius: 10px 10px 0 0; }
+  .yt-player-video-wrap { border-radius: 0; overflow: hidden; }
+  .yt-player[hidden] { display: none; }
+
+  .yt-player-drag-handle {
+    display: flex; align-items: center; gap: 8px; padding: 8px 6px 8px 10px;
+    cursor: grab; user-select: none; -webkit-user-select: none;
+    border-bottom: 1px solid var(--line); background: var(--bg-card);
+  }
+  .yt-player-drag-handle:active { cursor: grabbing; }
+  .yt-player-drag-grip { color: var(--text-dim); font-size: 10px; letter-spacing: 1px; }
+  .yt-player-title {
+    flex: 1; min-width: 0; font-family: 'Inter', sans-serif; font-size: 12.5px; font-weight: 600;
+    color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .yt-player-icon-btn {
+    background: none; border: none; color: var(--text-dim); font-size: 14px; cursor: pointer;
+    padding: 4px 6px; border-radius: 6px; line-height: 1; display: inline-flex; align-items: center; justify-content: center;
+    flex: 0 0 auto;
+  }
+  .yt-player-icon-btn:hover:not(:disabled) { color: var(--accent); background: rgba(255,255,255,0.06); }
+  .yt-player-icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .yt-player-icon-btn:disabled { opacity: 0.35; cursor: default; }
+  .yt-player-play-btn { font-size: 15px; }
+
+  .yt-player-video-wrap { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; }
+  .yt-player-video-wrap #ytPlayerMount, .yt-player-video-wrap iframe {
+    position: absolute; inset: 0; width: 100%; height: 100%; border: 0;
+  }
+  /* :fullscreen is requested on this element itself (see toggleYtFullscreen)
+     so only the video — not the header/controls — fills the screen. */
+  .yt-player-video-wrap:fullscreen { aspect-ratio: auto; background: #000; }
+
+  .yt-player-progress-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px 0; }
+  .yt-player-time {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-dim);
+    flex: 0 0 auto; min-width: 30px; text-align: center; user-select: none;
+  }
+  .yt-player-seek-track { position: relative; flex: 1; height: 14px; display: flex; align-items: center; cursor: pointer; }
+  .yt-player-seek-track::before {
+    content: ''; position: absolute; left: 0; right: 0; height: 3px; border-radius: 2px; background: var(--line);
+  }
+  .yt-player-seek-fill {
+    position: absolute; left: 0; top: 50%; transform: translateY(-50%); height: 3px; border-radius: 2px;
+    background: var(--accent); width: 0%; pointer-events: none;
+  }
+  .yt-player-seek-handle {
+    position: absolute; top: 50%; left: 0%; width: 11px; height: 11px; border-radius: 50%;
+    background: var(--accent); transform: translate(-50%, -50%); pointer-events: none;
+    opacity: 0; transition: opacity 0.15s ease;
+  }
+  .yt-player-seek-track:hover .yt-player-seek-handle,
+  .yt-player-seek-track:focus-visible .yt-player-seek-handle { opacity: 1; }
+  .yt-player-seek-track:focus-visible { outline: none; }
+  .yt-player-seek-track:focus-visible::before { background: color-mix(in srgb, var(--line) 60%, var(--accent)); }
+
+  .yt-player-row { display: flex; align-items: center; gap: 6px; padding: 6px 8px 10px; position: relative; }
+  .yt-player-transport { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
+  .yt-player-volume { display: flex; align-items: center; gap: 4px; flex: 1 1 auto; min-width: 0; }
+  .yt-player-volume input[type="range"] {
+    flex: 1; min-width: 0; appearance: none; height: 3px; border-radius: 2px; background: var(--line); outline: none; cursor: pointer;
+  }
+  .yt-player-volume input[type="range"]::-webkit-slider-thumb {
+    appearance: none; width: 11px; height: 11px; border-radius: 50%; background: var(--accent); cursor: pointer;
+  }
+  .yt-player-volume input[type="range"]::-moz-range-thumb {
+    width: 11px; height: 11px; border: none; border-radius: 50%; background: var(--accent); cursor: pointer;
+  }
+
+  /* Minimized: collapse to just the drag handle + transport strip. The
+     video area is display:none (not removed), so the iframe keeps playing
+     audio in the background — see setYtPlayerMinimized(). */
+  .yt-player.minimized .yt-player-video-wrap,
+  .yt-player.minimized .yt-player-progress-row { display: none; }
+
+  /* Queue popover — reuses the .queue-panel/.queue-list/.queue-row layout
+     defined above for the Spotify mini player's queue, anchored above this
+     window's control row instead of the mini player's. */
+  .yt-player-queue-panel { position: absolute; bottom: calc(100% + 8px); left: 8px; right: 8px; width: auto; max-height: 260px; }
 
   
   
