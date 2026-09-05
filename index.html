@@ -13,8 +13,25 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.13.0
+  CURRENT_VERSION: 1.14.0
 
+  1.14.0 — 2026-09-05 — Playlists gained real view modes. Opening a playlist
+          used to always show the same fixed drag-to-reorder list no matter
+          what — the "Albums ▾" view dropdown stayed visible but did nothing
+          useful (clicking Tracks/Album and Tracks/Album covers/Artists just
+          bounced you back to the library). That dropdown now drives a new
+          state.playlistViewMode while a playlist is open, independent of
+          the library's own state.mainViewMode, with four real layouts:
+          Tracks (flat table, every album's tracks expanded), Album and
+          Tracks (per-album header + full tracklist), Album covers (plain
+          covers grid), and Artists (grouped by artist) — the last three
+          reuse the library's own buildAlbumTrackGroup()/buildGridSection()/
+          groupItems() so they look and behave identically (right-click
+          menu, Spotify/SoundCloud/RYM links, cached art, click to open the
+          deck). A new "List" option (playlist-only, hidden for the library)
+          gets back to the classic ordered view. Group by/Customize panel
+          are hidden from the menu while a playlist is open since they don't
+          apply. No backend changes — this is main-panel rendering only.
   1.13.0 — 2026-09-05 — Fixed "Add to playlist" on a track to ignore any
           multi-selection: right-clicking one of several selected tracks
           (flat Tracks table, ctrl/shift-click) still only added the single
@@ -297,17 +314,30 @@
     <section id="leftNavPanel" class="panel panel-leftnav" aria-label="Sections">
       <!-- Genuine far-left nav column, its own narrow strip to the left of
            the thumbnail browser: just "Music" and "Playlists". "Music"
-           keeps today's Albums/Artists/Genres browser + main grid;
-           "Playlists" swaps the browser column (#leftPanel) over to show
-           the flat list of playlists instead. See setLeftNavView(). -->
+           keeps today's Albums/Artists/Genres browser + main grid.
+           "Playlists" is a dropdown (see #navPlaylistsMenu below) — "Playlist
+           Explorer" swaps the browser column (#leftPanel) over to show the
+           flat list of playlists (see setLeftNavView()); the rest of the
+           menu is a quick-jump straight to one playlist (openPlaylist()) or
+           to creating a new one. -->
       <button type="button" id="navMusicBtn" class="leftnav-btn active" aria-current="page">
         <span class="leftnav-icon">♪</span>
         <span class="leftnav-label">Music</span>
       </button>
-      <button type="button" id="navPlaylistsBtn" class="leftnav-btn">
-        <span class="leftnav-icon">☰</span>
-        <span class="leftnav-label">Playlists</span>
-      </button>
+      <div class="leftnav-dropdown">
+        <button type="button" id="navPlaylistsBtn" class="leftnav-btn">
+          <span class="leftnav-icon">☰</span>
+          <span class="leftnav-label">Playlists</span>
+          <span class="leftnav-caret">▾</span>
+        </button>
+        <div id="navPlaylistsMenu" class="panel-mode-menu nav-view-menu leftnav-menu" hidden>
+          <button type="button" data-playlist-nav-action="explorer">Playlist Explorer</button>
+          <div class="menu-divider"></div>
+          <div id="navPlaylistsMenuList"></div>
+          <div class="menu-divider"></div>
+          <button type="button" data-playlist-nav-action="new">+ New playlist…</button>
+        </div>
+      </div>
     </section>
 
     <div class="resizer" id="resizerLeftNav" aria-hidden="true"></div>
@@ -370,6 +400,14 @@
           </button>
           <!-- The menu is now attached to this button -->
 			<div id="albumsViewMenu" class="panel-mode-menu" hidden style="position: absolute; top: calc(100% + 4px); left: 0; margin: 0; box-shadow: 0 10px 24px rgba(0,0,0,0.4);">
+            <!-- "List" only ever does anything while a playlist is open (see
+                 the data-view click handler) — it's the playlist's own
+                 ordered/draggable view, equivalent to what this dropdown
+                 used to be stuck showing no matter which option you picked.
+                 Hidden for the regular library via #playlistOnlyViewDivider
+                 below, toggled in the mainViewBtn click handler. -->
+            <button type="button" data-view="list" id="playlistListViewBtn" hidden>List</button>
+            <div class="menu-divider" id="playlistOnlyViewDivider" hidden></div>
             <button type="button" data-view="tracks">Tracks</button>
 			<button type="button" data-view="albumTracks">Album and Tracks</button>
 			<button type="button" data-view="covers">Album covers</button>           
@@ -952,7 +990,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.13.0';
+const APP_VERSION = '1.14.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -1029,6 +1067,12 @@ const state = {
   // / data.playlistItems, and the "Playlists tab" section below for the UI.
   playlists: [],
   activePlaylistId: null,
+  // Which layout the main panel uses for whichever playlist is currently
+  // open — same idea as mainViewMode but scoped to playlists, so browsing
+  // a playlist's tracks/artists never touches (or gets clobbered by) the
+  // regular library's view mode. 'list' | 'tracks' | 'albumTracks' |
+  // 'covers' | 'artists' — see renderPlaylistBody().
+  playlistViewMode: 'list',
   // Which view the far-left Music/Playlists nav rail has selected for the
   // thumbnail-browser column (#leftPanel): 'music' shows the Albums/
   // Artists/Genres browser, 'playlists' shows the flat playlist list.
@@ -1055,7 +1099,7 @@ const state = {
   fitArtwork: true,
   fieldPlacement: 'below', // 'below' | 'overlay' — only relevant when fitArtwork is true
   closeGaps: false,
-  panelWidths: { leftNav: 124, left: 220, right: 260 },
+  panelWidths: { leftNav: 148, left: 220, right: 260 },
 fields: { 
     // Ordered slots for the Albums Grid
     grid: ['title', 'artist', 'year', 'rating', 'type'], 
@@ -1105,6 +1149,9 @@ fields: {
 };
 
 const MAIN_VIEW_LABELS = { albums: 'Albums', tracks: 'Tracks', albumTracks: 'Album and Tracks', covers: 'Album covers' };
+// Suffix shown after "Playlist: <name>" in the main panel label — 'list' (the
+// default ordered/draggable view) gets no suffix since that's just "the playlist".
+const PLAYLIST_VIEW_LABELS = { tracks: 'Tracks', albumTracks: 'Album and Tracks', covers: 'Album covers', artists: 'Artists' };
 
 const el = {};
 [
@@ -1154,7 +1201,7 @@ const el = {};
   'authGate','authGateStatus','menuSignOut','menuAppVersion','app',
   'playlistModalOverlay','playlistModalHeading','playlistModalClose','playlistNameInput','playlistDescInput',
   'playlistModalSaveBtn','playlistModalCancelBtn','playlistModalToast','newPlaylistBtn','playlistSidebarList',
-  'leftNavPanel','navMusicBtn','navPlaylistsBtn','musicBrowserView','playlistsBrowserView','resizerLeftNav'
+  'leftNavPanel','navMusicBtn','navPlaylistsBtn','navPlaylistsMenu','navPlaylistsMenuList','musicBrowserView','playlistsBrowserView','resizerLeftNav'
 ].forEach(id => { el[id] = document.getElementById(id); });
 
 let activeItem = null;
@@ -1427,9 +1474,21 @@ function bindEvents() {
 
   // Far-left nav rail: "Music" swaps the browser column back to Albums/
   // Artists/Genres (and leaves playlist view, same as before); "Playlists"
-  // swaps it to the flat list of playlists.
+  // is a dropdown (see #navPlaylistsMenu) rather than a plain toggle now —
+  // "Playlist Explorer" does what clicking it used to do, the rest is a
+  // quick-jump to one playlist or to creating a new one.
   el.navMusicBtn.addEventListener('click', () => setLeftNavView('music'));
-  el.navPlaylistsBtn.addEventListener('click', () => setLeftNavView('playlists'));
+  el.navPlaylistsBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    el.navPlaylistsMenu.hidden = !el.navPlaylistsMenu.hidden;
+  });
+  el.navPlaylistsMenu.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-playlist-nav-action]');
+    if (!btn) return;
+    el.navPlaylistsMenu.hidden = true;
+    if (btn.dataset.playlistNavAction === 'explorer') setLeftNavView('playlists');
+    else if (btn.dataset.playlistNavAction === 'new') openPlaylistModal('create', null, null);
+  });
   setLeftNavView(state.leftNavView);
 
   // Stats tab: back button collapses the expanded year detail.
@@ -1446,6 +1505,7 @@ function bindEvents() {
   el.mainViewBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     el.albumsViewMenu.hidden = !el.albumsViewMenu.hidden;
+    if (!el.albumsViewMenu.hidden) refreshViewMenuForContext();
   });
 
   // Open "Customize Panel" - Context dependent Slot logic
@@ -1460,12 +1520,22 @@ function bindEvents() {
     el.albumsViewMenu.hidden = true;
   });
 
-  // Mode buttons inside View dropdown (only the top-level view switches, not the Group-by flyout)
+  // Mode buttons inside View dropdown (only the top-level view switches, not the Group-by flyout).
+  // While a playlist is open, this same dropdown drives state.playlistViewMode
+  // instead of the library's state.mainViewMode — see refreshViewMenuForContext()
+  // and renderPlaylistBody() for how the two stay independent.
   [...el.albumsViewMenu.querySelectorAll('button[data-view]')].forEach(btn => {
     btn.addEventListener('click', () => {
+      el.albumsViewMenu.hidden = true;
+      if (state.activePlaylistId) {
+        state.playlistViewMode = btn.dataset.view;
+        refreshViewMenuForContext();
+        savePrefs();
+        renderPlaylistMainPanel();
+        return;
+      }
       state.mainViewMode = btn.dataset.view;
       applyMainViewMode();
-      el.albumsViewMenu.hidden = true;
       savePrefs();
       if (state.activeTab !== 'albums') switchTab('albums'); else renderGrid();
     });
@@ -1972,6 +2042,7 @@ function bindEvents() {
     if (!el.layoutMenu.hidden && !el.layoutMenu.contains(e.target) && !el.layoutBtn.contains(e.target)) el.layoutMenu.hidden = true;
     if (!el.arrangeModal.hidden && !el.arrangeModal.contains(e.target) && !el.menuArrangePanels.contains(e.target)) el.arrangeModal.hidden = true;
     if (!el.mainConfigModal.hidden && !el.mainConfigModal.contains(e.target) && !el.configureMainBtn.contains(e.target) && !el.menuCustomizeMain.contains(e.target)) el.mainConfigModal.hidden = true;
+    if (el.navPlaylistsMenu && !el.navPlaylistsMenu.hidden && !el.navPlaylistsMenu.contains(e.target) && !el.navPlaylistsBtn.contains(e.target)) el.navPlaylistsMenu.hidden = true;
   });
 
   // Global Key Listeners (Escape key to close, Ctrl/Cmd+A to select all diary entries)
@@ -1988,6 +2059,7 @@ function bindEvents() {
     if (e.key !== 'Escape') return;
     closeDeck(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal();
     el.albumsViewMenu.hidden = true; el.leftModeMenu.hidden = true; el.layoutMenu.hidden = true;
+    if (el.navPlaylistsMenu) el.navPlaylistsMenu.hidden = true;
     document.getElementById('groupByMenuItem').classList.remove('submenu-open');
   });
 
@@ -2122,6 +2194,7 @@ function loadPrefs() {
     const p = JSON.parse(raw);
     if (p.viewMode) state.viewMode = p.viewMode;
     if (p.mainViewMode) state.mainViewMode = p.mainViewMode;
+    if (p.playlistViewMode) state.playlistViewMode = p.playlistViewMode;
     if (p.cardSize) state.cardSize = p.cardSize;
     if (p.sort) state.sort = p.sort;
     if (p.groupBy) state.groupBy = p.groupBy;
@@ -2144,7 +2217,7 @@ function loadPrefs() {
 function savePrefs() {
   try {
 	localStorage.setItem(PREF_KEY, JSON.stringify({
-      viewMode: state.viewMode, mainViewMode: state.mainViewMode, cardSize: state.cardSize, sort: state.sort, groupBy: state.groupBy,
+      viewMode: state.viewMode, mainViewMode: state.mainViewMode, playlistViewMode: state.playlistViewMode, cardSize: state.cardSize, sort: state.sort, groupBy: state.groupBy,
       activeType: state.activeType, leftMode: state.leftMode, leftSort: state.leftSort, leftThumbSize: state.leftThumbSize, // 👈 UPDATED HERE
       showLeft: state.showLeft, showRight: state.showRight, showCoverLinks: state.showCoverLinks, fitArtwork: state.fitArtwork, fieldPlacement: state.fieldPlacement, closeGaps: state.closeGaps, panelWidths: state.panelWidths, fields: state.fields, trackColWidths: state.trackColWidths
     }));
@@ -2324,12 +2397,40 @@ function switchTab(tab) {
 
 function applyMainViewMode() {
   updateMainLabel(); // Refreshes the new dynamic button text
-  [...el.albumsViewMenu.querySelectorAll('button')].forEach(btn => {
-    btn.classList.toggle('active-option', btn.dataset.view === state.mainViewMode);
-  });
+  refreshViewMenuHighlight();
   const isFlatTrackMode = state.mainViewMode === 'tracks' || state.mainViewMode === 'albumTracks';
   el.mainPanel.classList.toggle('mode-tracks', isFlatTrackMode);
   el.viewbar.style.display = isFlatTrackMode ? 'none' : '';
+}
+
+// Highlights whichever view-menu button matches the mode that's actually in
+// effect right now — state.playlistViewMode while a playlist is open,
+// state.mainViewMode otherwise — since the two share one menu.
+function refreshViewMenuHighlight() {
+  const mode = state.activePlaylistId ? state.playlistViewMode : state.mainViewMode;
+  [...el.albumsViewMenu.querySelectorAll('button[data-view]')].forEach(btn => {
+    btn.classList.toggle('active-option', btn.dataset.view === mode);
+  });
+}
+
+// Called whenever the view dropdown is opened — shows/hides the playlist-only
+// "List" option and the library-only Group-by/Customize sections depending on
+// whether a playlist is currently open, and syncs the highlight either way.
+function refreshViewMenuForContext() {
+  const isPlaylist = !!state.activePlaylistId;
+  const listBtn = document.getElementById('playlistListViewBtn');
+  const listDivider = document.getElementById('playlistOnlyViewDivider');
+  const groupByItem = document.getElementById('groupByMenuItem');
+  if (listBtn) listBtn.hidden = !isPlaylist;
+  if (listDivider) listDivider.hidden = !isPlaylist;
+  if (groupByItem) groupByItem.hidden = isPlaylist;
+  if (el.menuCustomizeMain) {
+    el.menuCustomizeMain.hidden = isPlaylist;
+    const divider = el.menuCustomizeMain.previousElementSibling;
+    if (divider && divider.classList.contains('menu-divider')) divider.hidden = isPlaylist;
+  }
+  updateMainLabel();
+  refreshViewMenuHighlight();
 }
 
 function updateGroupByMenuUI() {
@@ -2708,7 +2809,9 @@ function loadYearCoverageBadges(years) {
 function updateMainLabel() {
   if (state.activePlaylistId) {
     const playlist = state.playlists.find(p => p.id === state.activePlaylistId);
-    el.mainPanelLabel.textContent = playlist ? `Playlist: ${playlist.name}` : 'Playlists';
+    const base = playlist ? `Playlist: ${playlist.name}` : 'Playlists';
+    const suffix = PLAYLIST_VIEW_LABELS[state.playlistViewMode];
+    el.mainPanelLabel.textContent = suffix ? `${base} \u00b7 ${suffix}` : base;
     return;
   }
 
@@ -6005,6 +6108,7 @@ function setLeftNavView(view) {
 
 // Renders the flat list of playlists in #playlistsBrowserView.
 function renderPlaylistSidebar() {
+  renderNavPlaylistsMenu();
   if (!el.playlistSidebarList) return;
   if (!state.playlists.length) {
     el.playlistSidebarList.innerHTML = '<p class="playlist-empty">No playlists yet.</p>';
@@ -6021,20 +6125,78 @@ function renderPlaylistSidebar() {
   });
 }
 
-// Renders the currently-open playlist's ordered items into the main panel
-// (el.gridContainer) — called from renderGrid() when state.leftMode is
-// 'playlist'. With no playlist picked yet, shows a simple placeholder.
+// Keeps the "Playlists ▾" nav dropdown's quick-jump list (#navPlaylistsMenuList)
+// in sync with state.playlists — called from renderPlaylistSidebar() so the
+// two playlist listings (dropdown and Explorer sidebar) never drift apart.
+function renderNavPlaylistsMenu() {
+  if (!el.navPlaylistsMenuList) return;
+  el.navPlaylistsMenuList.innerHTML = state.playlists.map(p =>
+    `<button type="button" data-open-playlist-id="${escapeHtml(p.id)}">${escapeHtml(p.name)}</button>`
+  ).join('');
+  [...el.navPlaylistsMenuList.children].forEach((btn, i) => {
+    btn.addEventListener('click', () => {
+      el.navPlaylistsMenu.hidden = true;
+      openPlaylist(state.playlists[i].id);
+    });
+  });
+}
+
+// Renders the currently-open playlist into the main panel (el.gridContainer)
+// — called from renderGrid() when state.activePlaylistId is set. With no
+// playlist picked yet, shows a simple placeholder. The header (name, edit/
+// delete) is always the same; the body underneath switches layout per
+// state.playlistViewMode — see renderPlaylistBody().
 function renderPlaylistMainPanel() {
   el.viewbar.hidden = true;
   el.stateMsg.hidden = true;
-  el.gridContainer.classList.remove('covers-only');
 
   const playlist = state.playlists.find(p => p.id === state.activePlaylistId);
   if (!playlist) {
+    el.gridContainer.classList.remove('covers-only');
     el.gridContainer.innerHTML = '<p class="playlist-placeholder">Pick a playlist on the left, or create a new one.</p>';
     return;
   }
 
+  el.gridContainer.innerHTML = `
+    <div class="playlist-detail-header">
+      <div>
+        <h2>${escapeHtml(playlist.name)}</h2>
+        ${playlist.description ? `<p class="playlist-detail-desc">${escapeHtml(playlist.description)}</p>` : ''}
+        <p class="playlist-detail-meta">${playlist.items.length} item${playlist.items.length === 1 ? '' : 's'}</p>
+      </div>
+      <div class="playlist-detail-actions">
+        <button type="button" id="playlistRenameBtn" class="config-btn">Edit</button>
+        <button type="button" id="playlistDeleteBtn" class="remove-btn">Delete playlist</button>
+      </div>
+    </div>
+    <div id="playlistBody" class="playlist-body"></div>
+  `;
+
+  document.getElementById('playlistRenameBtn').addEventListener('click', () => openPlaylistModal('rename', playlist));
+  document.getElementById('playlistDeleteBtn').addEventListener('click', (e) => onPlaylistDeleteClick(e.currentTarget, playlist));
+
+  renderPlaylistBody(playlist);
+}
+
+// Swaps in whichever layout state.playlistViewMode currently points at,
+// mirroring the library's Tracks/Album and Tracks/Album covers/Artists
+// options (see the view dropdown) but scoped to just this playlist's items.
+function renderPlaylistBody(playlist) {
+  const body = document.getElementById('playlistBody');
+  if (!body) return;
+  const mode = state.playlistViewMode;
+  el.gridContainer.classList.toggle('covers-only', mode === 'covers');
+
+  if (mode === 'tracks') { renderPlaylistTracksView(playlist, body); return; }
+  if (mode === 'albumTracks') { renderPlaylistAlbumTracksView(playlist, body); return; }
+  if (mode === 'covers') { renderPlaylistCoversView(playlist, body); return; }
+  if (mode === 'artists') { renderPlaylistArtistsView(playlist, body); return; }
+  renderPlaylistListView(playlist, body);
+}
+
+// Default view: the playlist's own ordered, drag-to-reorder item list —
+// this is exactly what renderPlaylistMainPanel() used to always show.
+function renderPlaylistListView(playlist, body) {
   const itemsHtml = playlist.items.length ? playlist.items.map((it, idx) => {
     const album = playlistAlbumFor(it);
     const art = playlistItemArtUrl(album);
@@ -6055,23 +6217,7 @@ function renderPlaylistMainPanel() {
     `;
   }).join('') : '<p class="playlist-empty">Nothing here yet \u2014 right-click an album or track and choose \u201cAdd to playlist\u201d.</p>';
 
-  el.gridContainer.innerHTML = `
-    <div class="playlist-detail-header">
-      <div>
-        <h2>${escapeHtml(playlist.name)}</h2>
-        ${playlist.description ? `<p class="playlist-detail-desc">${escapeHtml(playlist.description)}</p>` : ''}
-        <p class="playlist-detail-meta">${playlist.items.length} item${playlist.items.length === 1 ? '' : 's'}</p>
-      </div>
-      <div class="playlist-detail-actions">
-        <button type="button" id="playlistRenameBtn" class="config-btn">Edit</button>
-        <button type="button" id="playlistDeleteBtn" class="remove-btn">Delete playlist</button>
-      </div>
-    </div>
-    <div id="playlistItemsList" class="playlist-items-list">${itemsHtml}</div>
-  `;
-
-  document.getElementById('playlistRenameBtn').addEventListener('click', () => openPlaylistModal('rename', playlist));
-  document.getElementById('playlistDeleteBtn').addEventListener('click', (e) => onPlaylistDeleteClick(e.currentTarget, playlist));
+  body.innerHTML = `<div id="playlistItemsList" class="playlist-items-list">${itemsHtml}</div>`;
 
   const listEl = document.getElementById('playlistItemsList');
   if (!listEl) return;
@@ -6091,6 +6237,172 @@ function renderPlaylistMainPanel() {
   });
 
   setupPlaylistItemDrag(listEl, playlist);
+}
+
+// "Tracks" view: flattens every album in the playlist down to its individual
+// tracks (standalone track items need no lookup — they already know their
+// own trackNum/trackName) and lists everything as one flat table, in
+// playlist order. Whole albums get their tracklist fetched via getTracksFor()
+// the same way the library's flat Tracks view does, just without touching
+// state.mainViewMode/state.flatTrackRows (those belong to the library).
+let playlistTrackViewToken = 0;
+function renderPlaylistTracksView(playlist, body) {
+  const token = ++playlistTrackViewToken;
+  if (!playlist.items.length) {
+    body.innerHTML = '<p class="playlist-empty">Nothing here yet \u2014 right-click an album or track and choose \u201cAdd to playlist\u201d.</p>';
+    return;
+  }
+  body.innerHTML = '<p class="tracklist-status">Loading tracks\u2026</p>';
+
+  const albumsNeedingFetch = [...new Map(
+    playlist.items.filter(it => it.type !== 'track')
+      .map(it => playlistAlbumFor(it))
+      .filter(Boolean)
+      .map(a => [a.row, a])
+  ).values()];
+
+  function render() {
+    if (token !== playlistTrackViewToken) return;
+    const out = [];
+    playlist.items.forEach(it => {
+      const album = playlistAlbumFor(it);
+      if (it.type === 'track') {
+        out.push({ album, trackNumber: it.trackNum, trackName: it.trackName, trackTimeMillis: null });
+        return;
+      }
+      if (!album) return;
+      const tracks = state.trackCache[artKey(album)] || [];
+      if (!tracks.length) { out.push({ album, trackNumber: '', trackName: '(no tracklist found)', trackTimeMillis: null }); return; }
+      tracks.forEach(t => out.push({ album, trackNumber: t.trackNumber, trackName: t.trackName, trackTimeMillis: t.trackTimeMillis }));
+    });
+
+    body.innerHTML = out.length ? `
+      <div class="track-view track-view-table playlist-track-table">
+        <div class="playlist-track-row playlist-track-table-header">
+          <span class="track-num">#</span>
+          <span class="track-name">Track</span>
+          <span class="track-album">Album</span>
+          <span class="track-time">Time</span>
+        </div>
+        <div id="playlistTrackTableBody">
+          ${out.map((r, i) => `
+            <div class="playlist-track-row" data-idx="${i}">
+              <span class="track-num">${r.trackNumber || ''}</span>
+              <span class="track-name">${escapeHtml(r.trackName || '')}</span>
+              <span class="track-album">${r.album ? escapeHtml(r.album.title) + ' \u2014 ' + escapeHtml(r.album.artist) : '(album removed from crate)'}</span>
+              <span class="track-time">${r.trackTimeMillis ? formatDuration(r.trackTimeMillis) : ''}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : '<p class="playlist-empty">No tracks found.</p>';
+
+    const tableBody = document.getElementById('playlistTrackTableBody');
+    if (tableBody) {
+      tableBody.addEventListener('click', (e) => {
+        const rowEl = e.target.closest('.playlist-track-row');
+        if (!rowEl) return;
+        const r = out[parseInt(rowEl.dataset.idx, 10)];
+        if (r && r.album) openDeck(r.album);
+      });
+    }
+  }
+
+  if (!albumsNeedingFetch.length) { render(); return; }
+  let remaining = albumsNeedingFetch.length;
+  albumsNeedingFetch.forEach(album => {
+    getTracksFor(album).then(() => {
+      if (token !== playlistTrackViewToken) return;
+      remaining--;
+      if (remaining === 0) render();
+    });
+  });
+}
+
+// "Album and Tracks" view: each distinct album referenced by the playlist
+// gets its own header + full tracklist, reusing the exact same
+// buildAlbumTrackGroup() markup as the library's Album and Tracks view.
+// Tracks are loaded with a dedicated loader (not loadTracksForList) so this
+// never collides with the library's state.mainViewMode-guarded version.
+function renderPlaylistAlbumTracksView(playlist, body) {
+  const albums = [...new Map(
+    playlist.items.map(it => playlistAlbumFor(it)).filter(Boolean).map(a => [a.row, a])
+  ).values()];
+  if (!albums.length) {
+    body.innerHTML = '<p class="playlist-empty">Nothing here yet \u2014 right-click an album or track and choose \u201cAdd to playlist\u201d.</p>';
+    return;
+  }
+  const wrap = document.createElement('div');
+  wrap.className = 'track-view';
+  albums.forEach(album => wrap.appendChild(buildAlbumTrackGroup(album)));
+  body.innerHTML = '';
+  body.appendChild(wrap);
+  applyCachedArt();
+  loadTracksForPlaylistGroups(albums, wrap);
+}
+
+function loadTracksForPlaylistGroups(list, wrap) {
+  const queue = list.slice();
+  const concurrency = 3;
+  let active = 0;
+  function next() {
+    if (queue.length === 0) return;
+    if (active >= concurrency) return;
+    const item = queue.shift();
+    active++;
+    getTracksFor(item).then(tracks => {
+      const tw = wrap.querySelector(`[data-tracks-for="${item.row}"]`);
+      if (!tw) return;
+      tw.innerHTML = tracks.length ? tracks.map((t, i) => `
+        <div class="track-row" data-track-key="${item.row}::${t.trackNumber || i}">
+          <span class="track-num">${t.trackNumber || ''}</span>
+          <span class="track-name">${escapeHtml(t.trackName || '')}</span>
+          <span class="track-time">${formatDuration(t.trackTimeMillis)}</span>
+        </div>
+      `).join('') : '<p class="tracklist-status">No tracklist found for this release.</p>';
+    }).finally(() => { active--; next(); });
+    next();
+  }
+  for (let i = 0; i < concurrency; i++) next();
+}
+
+// "Album covers" view: a plain covers grid of every distinct album in the
+// playlist, reusing the library's own card/grid builders so it looks and
+// behaves identically (click to open the deck, right-click for the same
+// context menu, Spotify/SoundCloud/RYM quick links, cached art).
+function renderPlaylistCoversView(playlist, body) {
+  const albums = [...new Map(
+    playlist.items.map(it => playlistAlbumFor(it)).filter(Boolean).map(a => [a.row, a])
+  ).values()];
+  if (!albums.length) {
+    body.innerHTML = '<p class="playlist-empty">Nothing here yet \u2014 right-click an album or track and choose \u201cAdd to playlist\u201d.</p>';
+    return;
+  }
+  body.innerHTML = '';
+  body.appendChild(buildGridSection(albums));
+  applyCachedArt();
+}
+
+// "Artists" view: the playlist's distinct albums grouped by artist, using
+// the same groupItems()/buildGridSection() pipeline the library's own
+// Group by \u2192 Artist option uses.
+function renderPlaylistArtistsView(playlist, body) {
+  const albums = [...new Map(
+    playlist.items.map(it => playlistAlbumFor(it)).filter(Boolean).map(a => [a.row, a])
+  ).values()];
+  if (!albums.length) {
+    body.innerHTML = '<p class="playlist-empty">Nothing here yet \u2014 right-click an album or track and choose \u201cAdd to playlist\u201d.</p>';
+    return;
+  }
+  body.innerHTML = '';
+  groupItems(albums, 'artist').forEach(g => {
+    const header = document.createElement('h3');
+    header.className = 'group-header';
+    header.textContent = g.label + ' \u00b7 ' + g.items.length;
+    body.appendChild(header);
+    body.appendChild(buildGridSection(g.items));
+  });
+  applyCachedArt();
 }
 
 // Native HTML5 drag-and-drop reorder. Reordering updates state.playlists
@@ -9036,7 +9348,7 @@ html, body {
   min-width: 0; 
 }  
 .panel-leftnav {
-  flex: 0 0 124px;
+  flex: 0 0 148px;
   gap: 3px;
   padding: 10px 6px;
   background: var(--bg-card);
@@ -9140,6 +9452,13 @@ html, body {
 .leftnav-btn.active { color: var(--accent); background: var(--bg-elevated); }
 .leftnav-icon { flex: 0 0 auto; font-size: 15px; line-height: 1; width: 16px; text-align: center; }
 .leftnav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leftnav-caret { flex: 0 0 auto; font-size: 9px; color: var(--text-dim); }
+
+/* "Playlists" is a dropdown (#navPlaylistsMenu), not a plain toggle — see
+   the leftnav-dropdown wrapper in the HTML and its wiring in bindEvents(). */
+.leftnav-dropdown { position: relative; width: 100%; }
+.leftnav-menu { min-width: 170px; max-height: 320px; overflow-y: auto; }
+.leftnav-menu button { text-align: left; }
 
 /* The two swappable views inside the thumbnail-browser column
    (#leftPanel) — #musicBrowserView (Albums/Artists/Genres, unchanged) and
@@ -9215,6 +9534,7 @@ html, body {
   .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   .viewbar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .viewbar[hidden] { display: none; }
   .size-control { display: flex; align-items: center; gap: 8px; }
   .size-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
   #sizeSlider { width: 100px; accent-color: var(--accent); cursor: pointer; }
@@ -9647,8 +9967,27 @@ html, body {
   .playlist-item-view-btn:hover { color: var(--accent); }
   .playlist-item-remove-btn:hover { color: #d9534f; }
 
+  /* Playlist "Tracks" flat table — mirrors the library's .track-row look but
+     with an extra Album column, since a playlist mixes tracks from many
+     releases. See renderPlaylistTracksView(). */
+  .playlist-track-table { max-width: none; }
+  .playlist-track-row {
+    display: grid; grid-template-columns: 32px minmax(0, 1fr) minmax(0, 260px) 56px;
+    gap: 12px; align-items: center; padding: 7px 8px; font-size: 13px; border-radius: 4px;
+  }
+  .playlist-track-row:not(.playlist-track-table-header) { cursor: pointer; }
+  .playlist-track-row:not(.playlist-track-table-header):hover { background: var(--bg-elevated); }
+  .playlist-track-table-header {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-dim);
+    border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px; margin-bottom: 4px;
+    position: sticky; top: 0; background: var(--bg-panel, var(--bg));
+  }
+  .track-album { color: var(--text-dim); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
   @media (max-width: 620px) {
     .playlist-detail-header { flex-direction: column; }
+    .playlist-track-row { grid-template-columns: 24px minmax(0, 1fr) 48px; }
+    .playlist-track-row .track-album { display: none; }
   }
 
   @media (max-width: 620px) {
