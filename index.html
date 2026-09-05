@@ -13,7 +13,51 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.15.2
+  CURRENT_VERSION: 1.16.0
+
+  1.16.0 — 2026-09-05 — Manually-added albums can now get a typed-in
+          tracklist with a YouTube link per track, plus a way to actually
+          play those links. The Add-album form (and Edit-album, so it's not
+          a one-time-only thing) got a new "Tracklist (optional)" section:
+          repeatable rows of Title + YouTube link, "+ Add track" to append
+          another, a per-row ✕ to remove one, and pressing Enter in the last
+          row auto-adds the next so a whole tracklist can be typed without
+          reaching for the mouse. Saved as manualTracks: [{trackNumber,
+          title, youtubeLink}] on the item (see showAddForm()/
+          saveNewAlbum()/openEditModal()/saveEditAlbum() and the new
+          tracklistBuilder* helpers). In the deck, an album with a manual
+          tracklist shows those tracks instead of running the iTunes/
+          MusicBrainz auto-lookup (loadTracklist() checks item.manualTracks
+          first) — ratings/notes/"mark as listened" all still work per
+          track exactly as before, keyed the same way by track number. Any
+          track with a YouTube link gets a small "▶ YT" button next to the
+          existing Spotify play button; clicking it opens a new lightweight
+          overlay (#youtubePlayerOverlay) with an embedded YouTube iframe
+          and autoplays that video, closing (and stopping playback) via its
+          ✕, clicking outside it, or Escape. This is deliberately a
+          separate, simple overlay rather than being folded into the
+          existing Spotify Web Playback SDK mini player (spotifyPlayer/
+          showMiniPlayer()) — YouTube's IFrame API and Spotify's SDK are
+          different playback engines with their own queue/seek/device
+          models, and unifying them wasn't worth the complexity for what's
+          fundamentally a fallback for albums Spotify doesn't have.
+          SCOPE NOTE: only the deck's tracklist view knows about
+          manualTracks right now — the "Album and Tracks" grid view and the
+          flat Tracks table (buildAlbumTrackGroup() / loadTracksForList())
+          are a separate rendering path that still only does the iTunes/
+          MusicBrainz auto-lookup, so a manually-typed tracklist won't show
+          up there yet. Say the word if that's needed too.
+          REQUIRES A BACKEND CHANGE THIS FILE CAN'T MAKE: apps-script-
+          backend.gs needs a new "ManualTracks" column read in doGet() and
+          written in doPost()'s addAlbum/editAlbum handlers, same JSON-
+          blob-in-a-column pattern as the existing Catalog/TrackData
+          columns (exact spelling: ManualTracks). The Sheet itself needs
+          that column header added too. Until that's done, tracklists
+          typed into the Add/Edit forms will appear to save (the toast says
+          "Added"/"Changes saved") but won't actually persist anywhere —
+          they'll vanish on the next fetchCatalog(), the same failure mode
+          the SecondaryGenre/RymLink columns had in 1.9.0 before their
+          matching backend change was made.
 
   1.15.2 — 2026-09-05 — Fixed catalog-number search in the Add-album modal
           not showing catalog numbers on its own results. doAddSearch()'s
@@ -959,12 +1003,33 @@
         <label class="add-field">Link <input type="text" id="addLink" placeholder="https://…"></label>
         <label class="add-field">RYM Link <input type="text" id="addRymLink" placeholder="https://rateyourmusic.com/release/…"></label>
         <label class="add-field">Cover Art URL <input type="text" id="addCover" placeholder="https://…"></label>
+        <div class="add-field tracklist-builder-field">
+          <div class="tracklist-builder-label-row">
+            <span>Tracklist (optional)</span>
+            <button type="button" id="addTracksAddRowBtn" class="chip-btn">+ Add track</button>
+          </div>
+          <div id="addTracksRows" class="tracklist-builder-rows"></div>
+          <p class="tracklist-builder-hint">Add a YouTube link per track to be able to play it from the album later.</p>
+        </div>
         <div class="log-form-actions">
           <button id="addSaveBtn" class="save-btn">Add to crate</button>
           <button id="addCancelBtn" class="cancel-btn">Cancel</button>
         </div>
         <span id="addToast" class="toast"></span>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- YouTube track player -->
+<div id="youtubePlayerOverlay" class="arrange-overlay" hidden>
+  <div class="arrange-modal youtube-player-modal">
+    <div class="arrange-header">
+      <h2 id="youtubePlayerTitle">Now playing</h2>
+      <button id="youtubePlayerClose" class="modal-x" aria-label="Close">✕</button>
+    </div>
+    <div class="arrange-body youtube-player-body">
+      <div id="youtubePlayerFrameWrap" class="youtube-player-frame-wrap"></div>
     </div>
   </div>
 </div>
@@ -998,6 +1063,14 @@
         <label class="add-field">Link <input type="text" id="editLink" placeholder="https://…"></label>
         <label class="add-field">RYM Link <input type="text" id="editRymLink" placeholder="https://rateyourmusic.com/release/…"></label>
         <label class="add-field">Cover Art URL <input type="text" id="editCover" placeholder="https://…"></label>
+        <div class="add-field tracklist-builder-field">
+          <div class="tracklist-builder-label-row">
+            <span>Tracklist (optional)</span>
+            <button type="button" id="editTracksAddRowBtn" class="chip-btn">+ Add track</button>
+          </div>
+          <div id="editTracksRows" class="tracklist-builder-rows"></div>
+          <p class="tracklist-builder-hint">Add a YouTube link per track to be able to play it from the album later.</p>
+        </div>
         <div class="log-form-actions">
           <button id="editSaveBtn" class="save-btn">Save changes</button>
           <button id="editCancelBtn" class="cancel-btn">Cancel</button>
@@ -1100,7 +1173,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.15.2';
+const APP_VERSION = '1.16.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -1294,9 +1367,12 @@ const el = {};
   'listenedFilterBtn',
   'addAlbumBtn','addOverlay','addClose','addSearchInput','addResults','addForm',
   'addArtist','addTitle','addType','addReleaseDate','addGenre','addGenre2','addRegion','addLabel','addCatalog','addLink','addRymLink','addCover','addSaveBtn','addCancelBtn','addToast',
+  'addTracksRows','addTracksAddRowBtn',
   'deckOverlay','deckClose','deckImg','deckCatalog','deckTitle','deckArtist','deckMeta','deckAdded','deckScrobbleCount','deckLink','deckRatingNum',
   'deckSpotifyLink','deckSoundcloudLink','deckRymLink','deckPlayBtn',
   'deckEditBtn','editOverlay','editClose','editArtist','editTitle','editType','editReleaseDate','editGenre','editGenre2','editRegion','editLabel','editCatalog','editLink','editRymLink','editCover','editSaveBtn','editCancelBtn','editToast',
+  'editTracksRows','editTracksAddRowBtn',
+  'youtubePlayerOverlay','youtubePlayerTitle','youtubePlayerClose','youtubePlayerFrameWrap',
   'deckTracklist','deckStars','deckReview','deckSaveReview','deckToast','deckRemoveBtn','deckPlaylistBtn',
   'logListenBtn','logForm','logDate','logStars','logEntryTitle','logDescription','logSaveBtn','logCancelBtn','deckDiaryList',
   'logTrackSummary','logSelectAllBtn','logClearSelectionBtn',
@@ -1907,10 +1983,15 @@ function bindEvents() {
     if (e.key === 'Enter') { e.preventDefault(); doAddSearch(); }
   });
   el.addSaveBtn.addEventListener('click', saveNewAlbum);
+  el.addTracksAddRowBtn.addEventListener('click', () => addTracklistBuilderRow(el.addTracksRows));
+  wireTracklistBuilderContainer(el.addTracksRows);
   el.deckEditBtn.addEventListener('click', openEditModal);
   el.editClose.addEventListener('click', closeEditModal);
   el.editCancelBtn.addEventListener('click', closeEditModal);
   el.editSaveBtn.addEventListener('click', saveEditAlbum);
+  el.editTracksAddRowBtn.addEventListener('click', () => addTracklistBuilderRow(el.editTracksRows));
+  wireTracklistBuilderContainer(el.editTracksRows);
+  el.youtubePlayerClose.addEventListener('click', closeYoutubePlayer);
 
   // 9. Deck (Detail Modal) Actions
   el.deckClose.addEventListener('click', closeDeck);
@@ -2092,6 +2173,12 @@ function bindEvents() {
       return;
     }
 
+    const ytPlayBtn = e.target.closest('.track-play-yt-btn');
+    if (ytPlayBtn) {
+      openYoutubePlayer(ytPlayBtn.dataset.youtubeLink, ytPlayBtn.dataset.trackName);
+      return;
+    }
+
     // Track star ratings (hover-preview + drag-to-rate) are handled by
     // setupTrackStarInteraction(), wired up separately — see init.
 
@@ -2193,18 +2280,20 @@ function bindEvents() {
     }
     if (e.key !== 'Escape') return;
     closeDeck(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal();
+    closeYoutubePlayer();
     el.albumsViewMenu.hidden = true; el.leftModeMenu.hidden = true; el.layoutMenu.hidden = true;
     document.getElementById('groupByMenuItem').classList.remove('submenu-open');
   });
 
   // Full-screen overlay backdrop clicks
-  [el.deckOverlay, el.addOverlay, el.editOverlay, el.lastfmOverlay, el.playlistModalOverlay].forEach(overlay => {
+  [el.deckOverlay, el.addOverlay, el.editOverlay, el.lastfmOverlay, el.playlistModalOverlay, el.youtubePlayerOverlay].forEach(overlay => {
     overlay.addEventListener('click', (e) => { 
       if (e.target === overlay) {
         if (overlay === el.deckOverlay) closeDeck();
         else if (overlay === el.addOverlay) closeAddModal();
         else if (overlay === el.lastfmOverlay) closeLastfmModal();
         else if (overlay === el.playlistModalOverlay) closePlaylistModal();
+        else if (overlay === el.youtubePlayerOverlay) closeYoutubePlayer();
         else closeEditModal();
       }
     });
@@ -2434,8 +2523,15 @@ async function fetchCatalog() {
           rymLink: r.RymLink ? String(r.RymLink).trim() : '',
           dateAdded: r.DateAdded || '',
           catalog: r.Catalog ? String(r.Catalog).trim() : 'CRT-' + String(i + 1).padStart(3, '0'),
-          // 👇 ADD THIS LINE 👇
-          trackData: (function(){ try { return r.TrackData ? JSON.parse(String(r.TrackData)) : {}; } catch(e) { return {}; } })()
+          trackData: (function(){ try { return r.TrackData ? JSON.parse(String(r.TrackData)) : {}; } catch(e) { return {}; } })(),
+          // Manually-typed tracklist (title + optional YouTube link per
+          // track), entered via the Add/Edit forms — see showAddForm()'s
+          // tracklist-builder rows and saveNewAlbum()/saveEditForm(). Same
+          // JSON-in-a-column pattern as TrackData above. REQUIRES A BACKEND
+          // CHANGE THIS FILE CAN'T MAKE: apps-script-backend.gs needs a new
+          // "ManualTracks" column read here and written on addAlbum/editAlbum,
+          // same as Catalog/TrackData were added before.
+          manualTracks: (function(){ try { const arr = r.ManualTracks ? JSON.parse(String(r.ManualTracks)) : []; return Array.isArray(arr) ? arr : []; } catch(e) { return []; } })()
         }));
 
     state.diary = (data.diary || []).map(d => ({
@@ -7786,7 +7882,26 @@ let currentTracklistTracks = [];
 
 async function loadTracklist(item) {
   el.deckTracklist.innerHTML = '<p class="tracklist-status">Looking up tracklist\u2026</p>';
-  
+
+  // A manually-typed tracklist (see the Add/Edit forms' tracklist builder)
+  // always wins over the iTunes/MusicBrainz auto-lookup below — it exists
+  // specifically for albums that lookup can't find, or where you want your
+  // own YouTube links attached per track.
+  if (item.manualTracks && item.manualTracks.length) {
+    const tracks = item.manualTracks.map(t => ({
+      trackNumber: t.trackNumber,
+      trackName: t.title,
+      trackTimeMillis: null,
+      youtubeLink: t.youtubeLink || ''
+    }));
+    const year = dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getFullYear() : '';
+    const metaParts = [year, genreDisplayStr(item), item.region, item.label].filter(Boolean);
+    el.deckMeta.textContent = metaParts.join(' \u00b7 ');
+    currentTracklistTracks = tracks;
+    renderTracklistBody(item, tracks);
+    return;
+  }
+
   try {
     const tracks = await getTracksFor(item);
     if (activeItem !== item) return;
@@ -7837,6 +7952,7 @@ function renderTracklistBody(item, tracks) {
           <span class="track-num">${tNum}</span>
           <div class="track-info-main">
              <button type="button" class="track-play-btn" data-track-name="${escapeHtml(t.trackName || '')}" title="Play on Spotify" aria-label="Play ${escapeHtml(t.trackName || '')} on Spotify">\u25b6</button>
+             ${t.youtubeLink ? `<button type="button" class="track-play-yt-btn" data-youtube-link="${escapeHtml(t.youtubeLink)}" data-track-name="${escapeHtml(t.trackName || '')}" title="Play on YouTube" aria-label="Play ${escapeHtml(t.trackName || '')} on YouTube">▶ YT</button>` : ''}
              <span class="track-name">${escapeHtml(t.trackName || '')}</span>
              ${scrobbleCount > 0 ? `<span class="track-scrobble-count" title="Last.fm plays">${scrobbleCount} play${scrobbleCount === 1 ? '' : 's'}</span>` : ''}
              ${note ? `<span class="track-note-preview">${escapeHtml(note)}</span>` : ''}
@@ -8344,6 +8460,78 @@ async function doAddSearch() {
   }
 }
 
+/* ---------- Tracklist builder (Add/Edit forms) ----------
+   A small, dependency-free row editor for manually typing in an album's
+   tracklist plus an optional YouTube link per track — used when an album
+   has no iTunes/MusicBrainz match to auto-fetch a tracklist from. Shared
+   between #addTracksRows and #editTracksRows via the container param.
+   Saved as manualTracks: [{trackNumber, title, youtubeLink}] — see
+   collectTracklistBuilderRows() / renderTracklistBuilderRows() and the
+   ManualTracks column comment in fetchCatalog(). */
+function tracklistBuilderRowHtml(track, idx) {
+  return `
+    <div class="tracklist-builder-row" data-idx="${idx}">
+      <span class="tracklist-builder-num">${idx + 1}</span>
+      <input type="text" class="tracklist-builder-title" placeholder="Track title" value="${escapeHtml(track?.title || '')}">
+      <input type="text" class="tracklist-builder-yt" placeholder="YouTube link (optional)" value="${escapeHtml(track?.youtubeLink || '')}">
+      <button type="button" class="tracklist-builder-remove" aria-label="Remove track" title="Remove track">✕</button>
+    </div>
+  `;
+}
+function renderTracklistBuilderRows(container, tracks) {
+  const list = (tracks && tracks.length) ? tracks : [{}]; // always start with at least one blank row
+  container.innerHTML = list.map((t, i) => tracklistBuilderRowHtml(t, i)).join('');
+}
+function addTracklistBuilderRow(container) {
+  const idx = container.children.length;
+  container.insertAdjacentHTML('beforeend', tracklistBuilderRowHtml({}, idx));
+}
+function collectTracklistBuilderRows(container) {
+  return [...container.querySelectorAll('.tracklist-builder-row')]
+    .map(row => ({
+      title: row.querySelector('.tracklist-builder-title').value.trim(),
+      youtubeLink: row.querySelector('.tracklist-builder-yt').value.trim()
+    }))
+    .filter(t => t.title) // drop rows nobody filled in
+    .map((t, i) => ({ trackNumber: i + 1, title: t.title, youtubeLink: t.youtubeLink }));
+}
+// Renumbers the visible "1. 2. 3…" labels after a row is removed — purely
+// cosmetic, collectTracklistBuilderRows() renumbers again on save regardless.
+function renumberTracklistBuilderRows(container) {
+  [...container.querySelectorAll('.tracklist-builder-row')].forEach((row, i) => {
+    row.dataset.idx = i;
+    row.querySelector('.tracklist-builder-num').textContent = i + 1;
+  });
+}
+// One delegated listener per container (add/edit) covers: remove-row
+// buttons, and (Enter key in the last row) auto-adding a fresh blank row so
+// entering a tracklist doesn't require reaching for the mouse between every
+// track. wireTracklistBuilderContainer() is called once per container at
+// init — see bindEvents().
+function wireTracklistBuilderContainer(container) {
+  container.addEventListener('click', (e) => {
+    const removeBtn = e.target.closest('.tracklist-builder-remove');
+    if (!removeBtn) return;
+    const rows = container.querySelectorAll('.tracklist-builder-row');
+    if (rows.length <= 1) { // keep at least one row so the section never looks broken/empty
+      removeBtn.closest('.tracklist-builder-row').querySelectorAll('input').forEach(i => i.value = '');
+      return;
+    }
+    removeBtn.closest('.tracklist-builder-row').remove();
+    renumberTracklistBuilderRows(container);
+  });
+  container.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    if (!e.target.matches('.tracklist-builder-title, .tracklist-builder-yt')) return;
+    const row = e.target.closest('.tracklist-builder-row');
+    if (row === container.lastElementChild) {
+      e.preventDefault();
+      addTracklistBuilderRow(container);
+      container.lastElementChild.querySelector('.tracklist-builder-title').focus();
+    }
+  });
+}
+
 function showAddForm(prefill) {
   el.addForm.hidden = false;
   el.addArtist.value = prefill.artist || '';
@@ -8360,6 +8548,7 @@ function showAddForm(prefill) {
   el.addRymLink.value = prefill.rymLink || '';
   el.addCover.value = prefill.cover || '';
   el.addToast.textContent = '';
+  renderTracklistBuilderRows(el.addTracksRows, prefill.manualTracks || []);
 }
 
 async function saveNewAlbum() {
@@ -8373,7 +8562,8 @@ async function saveNewAlbum() {
     SecondaryGenre: el.addGenre2.value.trim(),
     Region: el.addRegion.value.trim(),
     Label: el.addLabel.value.trim(), Catalog: el.addCatalog.value.trim(), // 👈 ADD CATALOG
-    Link: el.addLink.value.trim(), RymLink: el.addRymLink.value.trim(), Cover: el.addCover.value.trim()
+    Link: el.addLink.value.trim(), RymLink: el.addRymLink.value.trim(), Cover: el.addCover.value.trim(),
+    ManualTracks: JSON.stringify(collectTracklistBuilderRows(el.addTracksRows))
   };
   try {
     await postUpdate(payload);
@@ -8404,6 +8594,7 @@ function openEditModal() {
   el.editRymLink.value = activeItem.rymLink || '';
   el.editCover.value = activeItem.cover || '';
   el.editToast.textContent = '';
+  renderTracklistBuilderRows(el.editTracksRows, activeItem.manualTracks || []);
 }
 
 function closeEditModal() { el.editOverlay.hidden = true; }
@@ -8413,6 +8604,8 @@ async function saveEditAlbum() {
   const artist = el.editArtist.value.trim();
   const title = el.editTitle.value.trim();
   if (!artist || !title) { flashToast(el.editToast, 'Artist and title are required'); return; }
+
+  const manualTracks = collectTracklistBuilderRows(el.editTracksRows);
 
   // Update the payload to include Catalog
   const payload = {
@@ -8429,7 +8622,8 @@ async function saveEditAlbum() {
     Catalog: el.editCatalog.value.trim(), // 👈 ADD THIS
     Link: el.editLink.value.trim(),
     RymLink: el.editRymLink.value.trim(),
-    Cover: el.editCover.value.trim()
+    Cover: el.editCover.value.trim(),
+    ManualTracks: JSON.stringify(manualTracks)
   };
 
   const oldKey = artKey(activeItem);
@@ -8450,6 +8644,7 @@ async function saveEditAlbum() {
     activeItem.link = payload.Link;
     activeItem.rymLink = payload.RymLink;
     activeItem.cover = payload.Cover;
+    activeItem.manualTracks = manualTracks;
     
     const newKey = artKey(activeItem);
 
@@ -8587,6 +8782,38 @@ async function fetchRymFromWikidata(item, releaseGroupId) {
 
 function youtubeSearchUrl(item) {
   return 'https://www.youtube.com/results?search_query=' + encodeURIComponent(item.artist + ' ' + item.title);
+}
+
+/* ---------- YouTube track player ----------
+   A small embedded-iframe player for tracks that have a manually-attached
+   YouTube link (see the tracklist builder / manualTracks). Deliberately
+   separate from the Spotify Web Playback SDK setup elsewhere in this file
+   (spotifyPlayer, showMiniPlayer(), the docked mini player UI) rather than
+   trying to unify the two into one transport — YouTube's IFrame API and
+   Spotify's SDK are different playback engines with different queue/seek
+   models, and manually-added albums are the one case that needs YouTube at
+   all, so a lightweight standalone overlay keeps this simple. */
+function youtubeVideoIdFromUrl(url) {
+  if (!url) return '';
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtube\.com\/embed\/|youtu\.be\/|youtube\.com\/shorts\/)([\w-]{11})/
+  ];
+  for (const re of patterns) {
+    const m = String(url).match(re);
+    if (m) return m[1];
+  }
+  return '';
+}
+function openYoutubePlayer(url, trackName) {
+  const videoId = youtubeVideoIdFromUrl(url);
+  if (!videoId) { flashGlobalToast('That doesn\u2019t look like a valid YouTube link'); return; }
+  el.youtubePlayerTitle.textContent = trackName || 'Now playing';
+  el.youtubePlayerFrameWrap.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1" title="${escapeHtml(trackName || 'YouTube video player')}" frameborder="0" allow="accelerate-motion; autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
+  el.youtubePlayerOverlay.hidden = false;
+}
+function closeYoutubePlayer() {
+  el.youtubePlayerOverlay.hidden = true;
+  el.youtubePlayerFrameWrap.innerHTML = ''; // removing the iframe (rather than just hiding it) stops playback
 }
 
 /* ---- Discogs API (personal access token) ----
@@ -10684,6 +10911,14 @@ html, body {
   }
   .track-play-btn:hover { color: var(--accent); border-color: var(--accent); }
   .track-play-btn:disabled { cursor: default; opacity: 0.6; }
+  .track-play-yt-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 2px;
+    height: 20px; margin-right: 6px; padding: 0 6px; vertical-align: middle;
+    background: none; border: 1px solid var(--line); border-radius: 10px;
+    color: var(--text-dim); font-size: 9px; font-weight: 600; line-height: 1; cursor: pointer;
+    flex-shrink: 0; transition: color 0.15s, border-color 0.15s;
+  }
+  .track-play-yt-btn:hover { color: #FF4D4D; border-color: #FF4D4D; }
   .track-num { color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; }
   .track-time { color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; font-size: 12px; margin-left: 4px; }
   .tracklist-status { color: var(--text-dim); font-size: 12px; margin: 0; }
@@ -10951,6 +11186,42 @@ html, body {
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
   }
+
+  /* ---------- Tracklist builder (Add/Edit forms) ---------- */
+  .tracklist-builder-field { display: flex; flex-direction: column; gap: 6px; }
+  .tracklist-builder-label-row {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 13px; color: var(--text-dim);
+  }
+  .tracklist-builder-rows { display: flex; flex-direction: column; gap: 6px; }
+  .tracklist-builder-row {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tracklist-builder-num {
+    flex: 0 0 18px; text-align: right; color: var(--text-dim);
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+  }
+  .tracklist-builder-title { flex: 1 1 55%; min-width: 0; }
+  .tracklist-builder-yt { flex: 1 1 40%; min-width: 0; }
+  .tracklist-builder-title, .tracklist-builder-yt {
+    background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 6px;
+    color: var(--text); padding: 6px 8px; font-size: 13px;
+  }
+  .tracklist-builder-title:focus, .tracklist-builder-yt:focus { outline: none; border-color: var(--accent); }
+  .tracklist-builder-remove {
+    flex: 0 0 auto; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+    background: none; border: 1px solid var(--line); border-radius: 50%;
+    color: var(--text-dim); font-size: 11px; cursor: pointer; transition: color 0.15s, border-color 0.15s;
+  }
+  .tracklist-builder-remove:hover { color: #E5734A; border-color: #E5734A; }
+  .tracklist-builder-hint { font-size: 11.5px; color: var(--text-dim); margin: 0; }
+
+  /* ---------- YouTube track player ---------- */
+  .youtube-player-modal { max-width: 720px; width: 92vw; }
+  .youtube-player-body { padding: 0; }
+  .youtube-player-frame-wrap { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; }
+  .youtube-player-frame-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
   
   
 </style>
