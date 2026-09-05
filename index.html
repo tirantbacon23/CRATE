@@ -13,7 +13,48 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.15.0
+  CURRENT_VERSION: 1.15.1
+
+  1.15.1 — 2026-09-05 — The prior 1.15.0 entry below described a Playlist
+          Explorer folder feature that was never actually finished — it
+          left the UI half-wired (a "New folder" button and drag-and-drop
+          targets that called openFolderModal()/movePlaylistToFolder()/
+          createPlaylistFolder(), none of which existed anywhere in this
+          file, so using them would throw) and renderPlaylistSidebar() had
+          silently been left as the old flat, folderless list, with no
+          folder rows ever actually rendered. It also assumed backend
+          support (data.playlistFolders, a FolderId column) that
+          apps-script-backend.gs doesn't have, so even the parts that
+          "worked" would've been wiped on the next refresh. This entry
+          replaces that with a real, working implementation: since a
+          backend change isn't possible from this file, folders are now
+          kept entirely client-side in localStorage (state.playlistFolders
+          + state.playlistFolderMap, both persisted via loadPrefs()/
+          savePrefs() next to the existing playlistFoldersCollapsed) rather
+          than round-tripping through the sheet. renderPlaylistSidebar()
+          now genuinely builds folder rows (caret, name, count) each
+          containing their filed playlists, with unfiled playlists listed
+          below; folders collapse/expand and persist that state. Playlist
+          rows are real HTML5 drag sources (draggable="true" + dragstart
+          setting the dataTransfer payload the existing drop handlers
+          already expected), droppable onto a folder row or its child list
+          to file them, or anywhere else in the explorer to un-file them.
+          Right-clicking a playlist row opens a menu (Rename/Edit → the
+          existing playlist modal; Move to folder ▸ listing every folder
+          plus "No folder" and "+ New folder…"; Delete, which now confirms
+          first); right-clicking a folder row offers Rename folder / Delete
+          folder (un-files its playlists, doesn't touch them). The
+          create/rename folder modal (#folderModalOverlay) is now backed by
+          real openFolderModal()/closeFolderModal()/saveFolderModalClick()
+          functions. Also removed the leftover dead renderNavPlaylistsMenu()
+          function and its orphaned el.navPlaylistsMenu reference — both
+          referred to a #navPlaylistsMenu dropdown that no longer exists in
+          the HTML (removed when the plain button replaced it), so they
+          were silent no-ops; the stale comment describing that dropdown
+          in the CSS section is corrected too. The always-visible
+          "Playlist Explorer" button itself (vs. the old popup) and the
+          per-playlist view modes (Tracks/Album and Tracks/Album covers/
+          Artists/List) were already genuinely working and are unchanged.
 
   1.15.0 — 2026-09-05 — Playlist Explorer reworked per reference screenshot
           (MusicBee's Playlist Explorer): "Playlist Explorer" is no longer
@@ -1039,7 +1080,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.15.0';
+const APP_VERSION = '1.15.1';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -1115,10 +1156,17 @@ const state = {
   // position} — see fetchCatalog() for how this is built from data.playlists
   // / data.playlistItems, and the "Playlists tab" section below for the UI.
   playlists: [],
-  // Playlist Explorer folders: array of {id, name}. Each playlist optionally
-  // carries a matching folderId (null/absent = listed at the top level) —
-  // see fetchCatalog() and renderPlaylistSidebar().
+  // Playlist Explorer folders: array of {id, name}. Purely a client-side
+  // organizing layer — the backend (apps-script-backend.gs) has no concept
+  // of folders, so this lives in localStorage via prefs (see loadPrefs() /
+  // savePrefs()) rather than coming from fetchCatalog()'s data at all.
   playlistFolders: [],
+  // {playlistId: folderId} — which folder (if any) each playlist is filed
+  // under. Also localStorage-only; applied onto each playlist's folderId
+  // every time fetchCatalog() rebuilds state.playlists, since the playlist
+  // rows themselves come fresh from the backend on every fetch and carry
+  // no folder info of their own.
+  playlistFolderMap: {},
   // Ids of folders currently collapsed in the Playlist Explorer tree,
   // persisted via prefs so it survives a reload.
   playlistFoldersCollapsed: [],
@@ -1541,11 +1589,11 @@ function bindEvents() {
   el.navPlaylistsBtn.addEventListener('click', () => setLeftNavView('playlists'));
   setLeftNavView(state.leftNavView);
 
-  // Drop target for un-filing a playlist back to the top level of the
-  // Playlist Explorer — dropping directly on a folder row is handled per-row
-  // in renderPlaylistSidebar(); this container-level listener only fires
-  // when the drop lands anywhere else in the list (empty space, a
-  // top-level playlist row, etc.), see wirePlaylistSidebarEvents().
+  // Drop target for filing a playlist into whichever folder it lands in
+  // (matched via the closest .playlist-folder ancestor, so drops inside a
+  // folder's child list still count as long as they don't land on the
+  // folder's own header row, which is handled separately in
+  // renderPlaylistSidebar()); dropping outside any folder un-files it.
   if (el.playlistSidebarList) {
     el.playlistSidebarList.addEventListener('dragover', (e) => e.preventDefault());
     el.playlistSidebarList.addEventListener('drop', (e) => {
@@ -2126,7 +2174,6 @@ function bindEvents() {
     if (e.key !== 'Escape') return;
     closeDeck(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal();
     el.albumsViewMenu.hidden = true; el.leftModeMenu.hidden = true; el.layoutMenu.hidden = true;
-    if (el.navPlaylistsMenu) el.navPlaylistsMenu.hidden = true;
     document.getElementById('groupByMenuItem').classList.remove('submenu-open');
   });
 
@@ -2279,6 +2326,8 @@ function loadPrefs() {
     if (p.fields) state.fields = Object.assign(state.fields, p.fields);
     if (p.trackColWidths) state.trackColWidths = p.trackColWidths;
     if (Array.isArray(p.playlistFoldersCollapsed)) state.playlistFoldersCollapsed = p.playlistFoldersCollapsed;
+    if (Array.isArray(p.playlistFolders)) state.playlistFolders = p.playlistFolders;
+    if (p.playlistFolderMap && typeof p.playlistFolderMap === 'object') state.playlistFolderMap = p.playlistFolderMap;
   } catch (e) { /* localStorage unavailable — safe to ignore */ }
 }
 
@@ -2288,7 +2337,9 @@ function savePrefs() {
       viewMode: state.viewMode, mainViewMode: state.mainViewMode, playlistViewMode: state.playlistViewMode, cardSize: state.cardSize, sort: state.sort, groupBy: state.groupBy,
       activeType: state.activeType, leftMode: state.leftMode, leftSort: state.leftSort, leftThumbSize: state.leftThumbSize, // 👈 UPDATED HERE
       showLeft: state.showLeft, showRight: state.showRight, showCoverLinks: state.showCoverLinks, fitArtwork: state.fitArtwork, fieldPlacement: state.fieldPlacement, closeGaps: state.closeGaps, panelWidths: state.panelWidths, fields: state.fields, trackColWidths: state.trackColWidths,
-      playlistFoldersCollapsed: state.playlistFoldersCollapsed
+      playlistFoldersCollapsed: state.playlistFoldersCollapsed,
+      playlistFolders: state.playlistFolders,
+      playlistFolderMap: state.playlistFolderMap
     }));
   } catch (e) { /* localStorage unavailable — safe to ignore */ }
 }
@@ -2410,10 +2461,9 @@ async function fetchCatalog() {
     });
     Object.values(itemsByPlaylist).forEach(arr => arr.sort((a, b) => a.position - b.position));
 
-    state.playlistFolders = (data.playlistFolders || [])
-      .filter(f => f.Id)
-      .map(f => ({ id: f.Id, name: f.Name ? String(f.Name).trim() : 'Untitled Folder' }));
-
+    // Folders are client-side only (see state.playlistFolders /
+    // playlistFolderMap comments) — not touched here, just applied onto
+    // each fresh playlist row below.
     state.playlists = (data.playlists || [])
       .filter(p => p.Id)
       .map(p => ({
@@ -2422,10 +2472,17 @@ async function fetchCatalog() {
         description: p.Description || '',
         createdAt: p.CreatedAt || '',
         updatedAt: p.UpdatedAt || '',
-        folderId: p.FolderId || null,
+        folderId: state.playlistFolderMap[p.Id] || null,
         items: itemsByPlaylist[p.Id] || []
       }))
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0)); // newest first
+
+    // Drop map entries for playlists that no longer exist (deleted elsewhere)
+    // so the map doesn't grow stale forever.
+    const livePlaylistIds = new Set(state.playlists.map(p => p.id));
+    Object.keys(state.playlistFolderMap).forEach(pid => {
+      if (!livePlaylistIds.has(pid)) delete state.playlistFolderMap[pid];
+    });
 
     buildLeftList();
     renderPlaylistSidebar();
@@ -4496,6 +4553,7 @@ function closeNowPlayingAddMenu() {
   document.removeEventListener('click', closeNowPlayingAddMenuOnOutsideClick);
   closeAlbumSearchSubmenu();
   closeAddToPlaylistSubmenu();
+  if (typeof closePlaylistMoveSubmenu === 'function') closePlaylistMoveSubmenu();
 }
 
 // Right-click menu on an individual track row — in the flat Tracks table,
@@ -6122,6 +6180,9 @@ let playlistModalMode = 'create'; // 'create' | 'rename'
 let playlistModalEditingId = null;
 let pendingPlaylistAddItems = null; // items to add once a brand-new playlist is created from the "+ New playlist…" flow
 let playlistDeleteConfirmTimeout = null;
+let folderModalMode = 'create'; // 'create' | 'rename'
+let folderModalEditingId = null;
+let playlistSidebarDragId = null; // playlist id currently being dragged in the Explorer tree
 
 function playlistAlbumFor(playlistItem) {
   return state.raw.find(r => r.row === playlistItem.row) || null;
@@ -6180,40 +6241,274 @@ function setLeftNavView(view) {
   }
 }
 
-// Renders the flat list of playlists in #playlistsBrowserView.
-function renderPlaylistSidebar() {
-  renderNavPlaylistsMenu();
-  if (!el.playlistSidebarList) return;
-  if (!state.playlists.length) {
-    el.playlistSidebarList.innerHTML = '<p class="playlist-empty">No playlists yet.</p>';
-    return;
-  }
-  el.playlistSidebarList.innerHTML = state.playlists.map(p => `
-    <div class="left-row playlist-sidebar-row ${p.id === state.activePlaylistId ? 'active' : ''}" data-id="${escapeHtml(p.id)}" tabindex="0">
+// Renders the Playlist Explorer tree in #playlistsBrowserView: folders
+// (collapsible, each holding the playlists filed under it) followed by any
+// unfiled playlists at the top level. Playlist rows are draggable onto a
+// folder row (or back onto empty space / an unfiled row to un-file them);
+// right-clicking either kind of row opens a small context menu.
+function playlistRowHtml(p) {
+  return `
+    <div class="left-row playlist-sidebar-row ${p.id === state.activePlaylistId ? 'active' : ''}" data-id="${escapeHtml(p.id)}" draggable="true" tabindex="0">
       <div class="left-row-text"><p class="left-row-title">${escapeHtml(p.name)}</p></div>
       <span class="left-row-count">${p.items.length}</span>
     </div>
-  `).join('');
-  [...el.playlistSidebarList.children].forEach((rowEl, i) => {
-    rowEl.addEventListener('click', () => openPlaylist(state.playlists[i].id));
+  `;
+}
+
+function renderPlaylistSidebar() {
+  if (!el.playlistSidebarList) return;
+  if (!state.playlists.length && !state.playlistFolders.length) {
+    el.playlistSidebarList.innerHTML = '<p class="playlist-empty">No playlists yet.</p>';
+    return;
+  }
+
+  const byFolder = {};
+  const topLevel = [];
+  state.playlists.forEach(p => {
+    if (p.folderId && state.playlistFolders.some(f => f.id === p.folderId)) {
+      (byFolder[p.folderId] || (byFolder[p.folderId] = [])).push(p);
+    } else {
+      topLevel.push(p);
+    }
+  });
+
+  const folderHtml = state.playlistFolders.map(f => {
+    const collapsed = state.playlistFoldersCollapsed.includes(f.id);
+    const kids = byFolder[f.id] || [];
+    return `
+      <div class="playlist-folder" data-folder-id="${escapeHtml(f.id)}">
+        <div class="left-row playlist-folder-row" data-folder-id="${escapeHtml(f.id)}" tabindex="0">
+          <span class="playlist-folder-caret ${collapsed ? 'collapsed' : ''}">▾</span>
+          <span class="playlist-folder-icon">📁</span>
+          <div class="left-row-text"><p class="left-row-title">${escapeHtml(f.name)}</p></div>
+          <span class="left-row-count">${kids.length}</span>
+        </div>
+        <div class="playlist-folder-children" ${collapsed ? 'hidden' : ''}>
+          ${kids.map(playlistRowHtml).join('') || '<p class="playlist-empty playlist-folder-empty">Drop a playlist here</p>'}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  el.playlistSidebarList.innerHTML = folderHtml + topLevel.map(playlistRowHtml).join('');
+
+  // Folder rows: click toggles collapse, right-click opens the folder menu,
+  // and each is a drop target for filing a dragged playlist into it.
+  el.playlistSidebarList.querySelectorAll('.playlist-folder-row').forEach(rowEl => {
+    const folder = state.playlistFolders.find(f => f.id === rowEl.dataset.folderId);
+    if (!folder) return;
+    rowEl.addEventListener('click', () => toggleFolderCollapsed(folder.id));
+    rowEl.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      openFolderRowContextMenu(folder, e.clientX, e.clientY);
+    });
+    rowEl.addEventListener('dragover', (e) => { e.preventDefault(); rowEl.classList.add('drag-over'); });
+    rowEl.addEventListener('dragleave', () => rowEl.classList.remove('drag-over'));
+    rowEl.addEventListener('drop', (e) => {
+      e.preventDefault();
+      rowEl.classList.remove('drag-over');
+      const playlistId = e.dataTransfer.getData('text/plain');
+      const playlist = state.playlists.find(p => p.id === playlistId);
+      if (playlist && playlist.folderId !== folder.id) movePlaylistToFolder(playlist, folder.id);
+    });
+  });
+
+  // Playlist rows: click opens it, drag files it into a folder, right-click
+  // opens Rename/Move to folder/Delete.
+  el.playlistSidebarList.querySelectorAll('.playlist-sidebar-row').forEach(rowEl => {
+    const playlist = state.playlists.find(p => p.id === rowEl.dataset.id);
+    if (!playlist) return;
+    rowEl.addEventListener('click', () => openPlaylist(playlist.id));
+    rowEl.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      openPlaylistRowContextMenu(playlist, e.clientX, e.clientY);
+    });
+    rowEl.addEventListener('dragstart', (e) => {
+      playlistSidebarDragId = playlist.id;
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/plain', playlist.id); } catch (err) {}
+    });
+    rowEl.addEventListener('dragend', () => { playlistSidebarDragId = null; });
   });
 }
 
-// Keeps the "Playlists ▾" nav dropdown's quick-jump list (#navPlaylistsMenuList)
-// in sync with state.playlists — called from renderPlaylistSidebar() so the
-// two playlist listings (dropdown and Explorer sidebar) never drift apart.
-function renderNavPlaylistsMenu() {
-  if (!el.navPlaylistsMenuList) return;
-  el.navPlaylistsMenuList.innerHTML = state.playlists.map(p =>
-    `<button type="button" data-open-playlist-id="${escapeHtml(p.id)}">${escapeHtml(p.name)}</button>`
+// Toggles a folder's collapsed state and persists it (see
+// state.playlistFoldersCollapsed / savePrefs()).
+function toggleFolderCollapsed(folderId) {
+  const idx = state.playlistFoldersCollapsed.indexOf(folderId);
+  if (idx === -1) state.playlistFoldersCollapsed.push(folderId);
+  else state.playlistFoldersCollapsed.splice(idx, 1);
+  savePrefs();
+  renderPlaylistSidebar();
+}
+
+// Files (or un-files, if folderId is null) a playlist and persists the
+// change — folders are client-side only, so this just updates
+// state.playlistFolderMap / prefs, no backend call.
+function movePlaylistToFolder(playlist, folderId) {
+  playlist.folderId = folderId || null;
+  if (folderId) state.playlistFolderMap[playlist.id] = folderId;
+  else delete state.playlistFolderMap[playlist.id];
+  savePrefs();
+  renderPlaylistSidebar();
+}
+
+/* Playlist row context menu — Rename/Edit, Move to folder ▸, Delete. Reuses
+   the same floating-menu pattern as the album/track context menus
+   (.now-playing-add-menu). */
+function openPlaylistRowContextMenu(playlist, x, y) {
+  closeNowPlayingAddMenu();
+  const menu = document.createElement('div');
+  menu.className = 'panel-mode-menu now-playing-add-menu';
+  menu.innerHTML = `
+    <div class="menu-section-title">${escapeHtml(playlist.name)}</div>
+    <button type="button" data-action="rename">Rename / Edit</button>
+    <button type="button" data-action="move" class="playlist-ctx-move">Move to folder ▸</button>
+    <div class="menu-divider"></div>
+    <button type="button" data-action="delete" class="danger-item">Delete playlist</button>
+  `;
+  document.body.appendChild(menu);
+  positionFloatingMenu(menu, x, y);
+
+  menu.querySelector('[data-action="rename"]').addEventListener('click', () => {
+    closeNowPlayingAddMenu();
+    openPlaylistModal('rename', playlist);
+  });
+  menu.querySelector('[data-action="delete"]').addEventListener('click', () => {
+    closeNowPlayingAddMenu();
+    if (confirm(`Delete "${playlist.name}"? This can\u2019t be undone.`)) deletePlaylistDirect(playlist);
+  });
+  const moveBtn = menu.querySelector('.playlist-ctx-move');
+  moveBtn.addEventListener('mouseenter', () => openMoveToFolderSubmenu(moveBtn, playlist));
+  moveBtn.addEventListener('click', (e) => { e.stopPropagation(); openMoveToFolderSubmenu(moveBtn, playlist); });
+
+  nowPlayingAddMenuEl = menu;
+  setTimeout(() => document.addEventListener('click', closeNowPlayingAddMenuOnOutsideClick), 0);
+}
+
+// "Move to folder ▸" submenu off the playlist context menu: existing
+// folders, "No folder", and "+ New folder…".
+let playlistMoveSubmenuEl = null;
+function closePlaylistMoveSubmenu() {
+  if (playlistMoveSubmenuEl) { playlistMoveSubmenuEl.remove(); playlistMoveSubmenuEl = null; }
+}
+function openMoveToFolderSubmenu(anchorEl, playlist) {
+  closePlaylistMoveSubmenu();
+
+  const menu = document.createElement('div');
+  menu.className = 'panel-mode-menu now-playing-add-menu album-search-submenu playlist-move-submenu';
+  const folderButtons = state.playlistFolders.map(f =>
+    `<button type="button" data-folder-id="${escapeHtml(f.id)}">${f.id === playlist.folderId ? '✓ ' : ''}${escapeHtml(f.name)}</button>`
   ).join('');
-  [...el.navPlaylistsMenuList.children].forEach((btn, i) => {
-    btn.addEventListener('click', () => {
-      el.navPlaylistsMenu.hidden = true;
-      openPlaylist(state.playlists[i].id);
-    });
+  menu.innerHTML = `
+    ${folderButtons}
+    ${state.playlistFolders.length ? '<div class="menu-divider"></div>' : ''}
+    <button type="button" data-folder-id="__none__">${!playlist.folderId ? '✓ ' : ''}No folder</button>
+    <div class="menu-divider"></div>
+    <button type="button" data-folder-id="__new__">+ New folder\u2026</button>
+  `;
+  document.body.appendChild(menu);
+  playlistMoveSubmenuEl = menu;
+  const rect = anchorEl.getBoundingClientRect();
+  menu.style.position = 'fixed';
+  menu.style.left = `${rect.right + 2}px`;
+  menu.style.top = `${rect.top}px`;
+  requestAnimationFrame(() => {
+    const menuRect = menu.getBoundingClientRect();
+    if (menuRect.right > window.innerWidth) menu.style.left = `${Math.max(4, rect.left - menuRect.width - 2)}px`;
+    if (menuRect.bottom > window.innerHeight) menu.style.top = `${Math.max(4, window.innerHeight - menuRect.height - 4)}px`;
+  });
+
+  menu.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-folder-id]');
+    if (!btn) return;
+    const fid = btn.dataset.folderId;
+    closeNowPlayingAddMenu();
+    closePlaylistMoveSubmenu();
+    if (fid === '__new__') {
+      openFolderModal('create', null, playlist);
+    } else if (fid === '__none__') {
+      movePlaylistToFolder(playlist, null);
+    } else {
+      movePlaylistToFolder(playlist, fid);
+    }
   });
 }
+
+/* Folder row context menu — Rename folder, Delete folder (un-files its
+   playlists rather than deleting them). */
+function openFolderRowContextMenu(folder, x, y) {
+  closeNowPlayingAddMenu();
+  const menu = document.createElement('div');
+  menu.className = 'panel-mode-menu now-playing-add-menu';
+  menu.innerHTML = `
+    <div class="menu-section-title">${escapeHtml(folder.name)}</div>
+    <button type="button" data-action="rename">Rename folder</button>
+    <div class="menu-divider"></div>
+    <button type="button" data-action="delete" class="danger-item">Delete folder</button>
+  `;
+  document.body.appendChild(menu);
+  positionFloatingMenu(menu, x, y);
+
+  menu.querySelector('[data-action="rename"]').addEventListener('click', () => {
+    closeNowPlayingAddMenu();
+    openFolderModal('rename', folder);
+  });
+  menu.querySelector('[data-action="delete"]').addEventListener('click', () => {
+    closeNowPlayingAddMenu();
+    if (confirm(`Delete folder "${folder.name}"? Its playlists won\u2019t be deleted \u2014 just un-filed.`)) deleteFolderDirect(folder);
+  });
+
+  nowPlayingAddMenuEl = menu;
+  setTimeout(() => document.addEventListener('click', closeNowPlayingAddMenuOnOutsideClick), 0);
+}
+
+function deleteFolderDirect(folder) {
+  state.playlists.forEach(p => { if (p.folderId === folder.id) p.folderId = null; });
+  Object.keys(state.playlistFolderMap).forEach(pid => {
+    if (state.playlistFolderMap[pid] === folder.id) delete state.playlistFolderMap[pid];
+  });
+  state.playlistFolders = state.playlistFolders.filter(f => f.id !== folder.id);
+  const ci = state.playlistFoldersCollapsed.indexOf(folder.id);
+  if (ci !== -1) state.playlistFoldersCollapsed.splice(ci, 1);
+  savePrefs();
+  renderPlaylistSidebar();
+}
+
+/* Create/rename-folder modal — same simple overlay pattern as the playlist
+   modal, but fully client-side (no postUpdate/backend call: folders live
+   only in localStorage, see state.playlistFolders). */
+function openFolderModal(mode, folder, pendingPlaylist) {
+  folderModalMode = mode;
+  folderModalEditingId = folder ? folder.id : null;
+  pendingFolderMovePlaylist = pendingPlaylist || null;
+  el.folderModalHeading.textContent = mode === 'rename' ? 'Rename folder' : 'New folder';
+  el.folderNameInput.value = folder ? folder.name : '';
+  el.folderModalToast.textContent = '';
+  el.folderModalOverlay.hidden = false;
+  setTimeout(() => el.folderNameInput.focus(), 0);
+}
+function closeFolderModal() {
+  el.folderModalOverlay.hidden = true;
+  pendingFolderMovePlaylist = null;
+}
+function saveFolderModalClick() {
+  const name = el.folderNameInput.value.trim();
+  if (!name) { el.folderModalToast.textContent = 'Give it a name first'; return; }
+
+  if (folderModalMode === 'rename' && folderModalEditingId) {
+    const folder = state.playlistFolders.find(f => f.id === folderModalEditingId);
+    if (folder) folder.name = name;
+  } else {
+    const folder = { id: 'folder_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), name };
+    state.playlistFolders.push(folder);
+    if (pendingFolderMovePlaylist) movePlaylistToFolder(pendingFolderMovePlaylist, folder.id);
+  }
+  savePrefs();
+  closeFolderModal();
+  renderPlaylistSidebar();
+}
+let pendingFolderMovePlaylist = null; // playlist to file into a brand-new folder once it's created
 
 // Renders the currently-open playlist into the main panel (el.gridContainer)
 // — called from renderGrid() when state.activePlaylistId is set. With no
@@ -9528,8 +9823,9 @@ html, body {
 .leftnav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .leftnav-caret { flex: 0 0 auto; font-size: 9px; color: var(--text-dim); }
 
-/* "Playlists" is a dropdown (#navPlaylistsMenu), not a plain toggle — see
-   the leftnav-dropdown wrapper in the HTML and its wiring in bindEvents(). */
+/* "Playlist Explorer" is a plain always-visible button (#navPlaylistsBtn),
+   not a dropdown — see the leftnav-btn styling above and its wiring in
+   bindEvents() / setLeftNavView(). */
 .leftnav-dropdown { position: relative; width: 100%; }
 .leftnav-menu { min-width: 170px; max-height: 320px; overflow-y: auto; }
 .leftnav-menu button { text-align: left; }
@@ -9544,6 +9840,34 @@ html, body {
 .playlist-sidebar-list { flex: 1; }
 .playlist-sidebar-row .left-row-title { font-size: 13px; }
 .playlist-empty { font-size: 12px; color: var(--text-dim); padding: 6px; margin: 0; }
+
+/* Playlist Explorer folders: a collapsible row (caret + folder icon) with
+   its filed playlists indented underneath. Client-side only — see
+   state.playlistFolders / playlistFolderMap and renderPlaylistSidebar(). */
+.playlist-folder { margin-bottom: 2px; }
+.playlist-folder-row { cursor: pointer; user-select: none; }
+.playlist-folder-caret {
+  flex: 0 0 auto; font-size: 9px; color: var(--text-dim); width: 10px; text-align: center;
+  transition: transform 0.15s ease;
+}
+.playlist-folder-caret.collapsed { transform: rotate(-90deg); }
+.playlist-folder-icon { flex: 0 0 auto; font-size: 12px; line-height: 1; }
+.playlist-folder-children { padding-left: 22px; }
+.playlist-folder-children .playlist-sidebar-row { padding-left: 6px; }
+.playlist-folder-empty { padding: 4px 6px; font-size: 11.5px; font-style: italic; }
+.playlist-folder-row.drag-over,
+.playlist-sidebar-list > .playlist-folder-row.drag-over {
+  background: var(--bg-card); outline: 1px dashed var(--accent); outline-offset: -1px;
+}
+.playlist-sidebar-row[draggable="true"] { cursor: grab; }
+.playlist-sidebar-row[draggable="true"]:active { cursor: grabbing; }
+
+/* Right-click context menus for playlist/folder rows (Rename, Move to
+   folder, Delete) reuse .now-playing-add-menu; danger-item just tints the
+   Delete entry red so it doesn't blend in with the rest of the list. */
+.now-playing-add-menu .danger-item { color: #E5734A; }
+.now-playing-add-menu .danger-item:hover { background: rgba(229, 115, 74, 0.12); color: #E5734A; }
+
 .left-row {
     display: flex; align-items: center; gap: 10px; padding: 7px 6px; border-radius: 6px; cursor: pointer;
   }
