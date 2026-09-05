@@ -13,7 +13,47 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.14.0
+  CURRENT_VERSION: 1.15.0
+
+  1.15.0 — 2026-09-05 — Playlist Explorer reworked per reference screenshot
+          (MusicBee's Playlist Explorer): "Playlist Explorer" is no longer
+          buried inside the "Playlists ▾" dropdown popup you had to open
+          first — the far-left rail now has a plain, always-visible
+          "Playlist Explorer" button right next to "Music" (same as
+          navMusicBtn), and clicking it swaps the browser column straight
+          to the explorer via the existing setLeftNavView('playlists') —
+          no popup involved. The old #navPlaylistsMenu dropdown (and its
+          quick-jump list + "+ New playlist…" entry) is gone entirely;
+          renderNavPlaylistsMenu() and its call site are removed along with
+          it, since the explorer panel itself already lists every playlist.
+          Also added folders: new state.playlistFolders (array of
+          {id, name}) and a folderId on each playlist, with a folder-icon
+          "New folder" button next to the existing "+" in the explorer's
+          panel bar. renderPlaylistSidebar() now builds folders (each with
+          a collapse caret — collapsed state persisted in
+          state.playlistFoldersCollapsed via prefs) containing their
+          playlists, with any playlist that has no folderId listed at the
+          top level below them. Playlists can be dragged onto a folder row
+          to file them there (dragging elsewhere in the list files them
+          back to the top level) via the existing native-HTML5-drag
+          pattern already used for in-playlist reordering. Right-clicking a
+          playlist row opens a small floating menu (same
+          .now-playing-add-menu pattern as the album/track context menus)
+          with Rename/Edit, a "Move to folder ▸" submenu (existing folders,
+          "No folder", "+ New folder…"), and Delete; right-clicking a
+          folder row offers Rename folder / Delete folder (deleting a
+          folder just un-files its playlists rather than deleting them).
+          New create/rename folder modal (#folderModalOverlay) mirrors the
+          existing playlist modal. REQUIRES A BACKEND CHANGE THIS FILE
+          CAN'T MAKE: apps-script-backend.gs needs a new PlaylistFolders
+          sheet (Id, Name, CreatedAt), a FolderId column added to the
+          Playlists sheet, and doPost() handling four new actions —
+          createPlaylistFolder, renamePlaylistFolder, deletePlaylistFolder
+          (clears FolderId on any playlists that had it, doesn't touch the
+          playlists themselves), and movePlaylistToFolder ({playlistId,
+          folderId}, folderId may be blank/null to un-file it) — plus
+          doGet() needs to return the new sheet as data.playlistFolders and
+          include FolderId on each row of data.playlists.
 
   1.14.0 — 2026-09-05 — Playlists gained real view modes. Opening a playlist
           used to always show the same fixed drag-to-reorder list no matter
@@ -313,31 +353,20 @@
   <div id="panels" class="panels">
     <section id="leftNavPanel" class="panel panel-leftnav" aria-label="Sections">
       <!-- Genuine far-left nav column, its own narrow strip to the left of
-           the thumbnail browser: just "Music" and "Playlists". "Music"
-           keeps today's Albums/Artists/Genres browser + main grid.
-           "Playlists" is a dropdown (see #navPlaylistsMenu below) — "Playlist
-           Explorer" swaps the browser column (#leftPanel) over to show the
-           flat list of playlists (see setLeftNavView()); the rest of the
-           menu is a quick-jump straight to one playlist (openPlaylist()) or
-           to creating a new one. -->
+           the thumbnail browser: just "Music" and "Playlist Explorer", both
+           plain always-visible buttons — no dropdown/popup to open first.
+           "Music" keeps today's Albums/Artists/Genres browser + main grid.
+           "Playlist Explorer" swaps the browser column (#leftPanel) over to
+           show the playlist tree (folders + playlists — see
+           setLeftNavView() and renderPlaylistSidebar()). -->
       <button type="button" id="navMusicBtn" class="leftnav-btn active" aria-current="page">
         <span class="leftnav-icon">♪</span>
         <span class="leftnav-label">Music</span>
       </button>
-      <div class="leftnav-dropdown">
-        <button type="button" id="navPlaylistsBtn" class="leftnav-btn">
-          <span class="leftnav-icon">☰</span>
-          <span class="leftnav-label">Playlists</span>
-          <span class="leftnav-caret">▾</span>
-        </button>
-        <div id="navPlaylistsMenu" class="panel-mode-menu nav-view-menu leftnav-menu" hidden>
-          <button type="button" data-playlist-nav-action="explorer">Playlist Explorer</button>
-          <div class="menu-divider"></div>
-          <div id="navPlaylistsMenuList"></div>
-          <div class="menu-divider"></div>
-          <button type="button" data-playlist-nav-action="new">+ New playlist…</button>
-        </div>
-      </div>
+      <button type="button" id="navPlaylistsBtn" class="leftnav-btn">
+        <span class="leftnav-icon">☰</span>
+        <span class="leftnav-label">Playlist Explorer</span>
+      </button>
     </section>
 
     <div class="resizer" id="resizerLeftNav" aria-hidden="true"></div>
@@ -381,8 +410,11 @@
 
       <div id="playlistsBrowserView" class="left-browser-view" hidden>
         <div class="panel-bar">
-          <span class="panel-label">Playlists</span>
-          <button type="button" id="newPlaylistBtn" class="icon-btn" title="New playlist" aria-label="New playlist">+</button>
+          <span class="panel-label">Playlist Explorer</span>
+          <div class="playlist-explorer-actions">
+            <button type="button" id="newPlaylistFolderBtn" class="icon-btn" title="New folder" aria-label="New folder">📁</button>
+            <button type="button" id="newPlaylistBtn" class="icon-btn" title="New playlist" aria-label="New playlist">+</button>
+          </div>
         </div>
         <div id="playlistSidebarList" class="playlist-sidebar-list"></div>
       </div>
@@ -530,6 +562,23 @@
           <button id="playlistModalCancelBtn" class="cancel-btn">Cancel</button>
         </div>
         <span id="playlistModalToast" class="toast"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create / rename playlist folder modal (Playlist Explorer) -->
+<div id="folderModalOverlay" class="arrange-overlay" hidden>
+  <div class="arrange-modal add-modal">
+    <div class="arrange-header"><h2 id="folderModalHeading">New folder</h2><button id="folderModalClose" class="modal-x" aria-label="Close">✕</button></div>
+    <div class="arrange-body">
+      <div class="add-form">
+        <label class="add-field">Name <input type="text" id="folderNameInput" placeholder="e.g. Favorites" maxlength="120"></label>
+        <div class="log-form-actions">
+          <button id="folderModalSaveBtn" class="save-btn">Save</button>
+          <button id="folderModalCancelBtn" class="cancel-btn">Cancel</button>
+        </div>
+        <span id="folderModalToast" class="toast"></span>
       </div>
     </div>
   </div>
@@ -990,7 +1039,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.14.0';
+const APP_VERSION = '1.15.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -1066,6 +1115,13 @@ const state = {
   // position} — see fetchCatalog() for how this is built from data.playlists
   // / data.playlistItems, and the "Playlists tab" section below for the UI.
   playlists: [],
+  // Playlist Explorer folders: array of {id, name}. Each playlist optionally
+  // carries a matching folderId (null/absent = listed at the top level) —
+  // see fetchCatalog() and renderPlaylistSidebar().
+  playlistFolders: [],
+  // Ids of folders currently collapsed in the Playlist Explorer tree,
+  // persisted via prefs so it survives a reload.
+  playlistFoldersCollapsed: [],
   activePlaylistId: null,
   // Which layout the main panel uses for whichever playlist is currently
   // open — same idea as mainViewMode but scoped to playlists, so browsing
@@ -1200,8 +1256,9 @@ const el = {};
   'spotifyRedirectUriDisplay','spotifyConnectBtn','spotifyDisconnectBtn','spotifyConnectStatus',
   'authGate','authGateStatus','menuSignOut','menuAppVersion','app',
   'playlistModalOverlay','playlistModalHeading','playlistModalClose','playlistNameInput','playlistDescInput',
-  'playlistModalSaveBtn','playlistModalCancelBtn','playlistModalToast','newPlaylistBtn','playlistSidebarList',
-  'leftNavPanel','navMusicBtn','navPlaylistsBtn','navPlaylistsMenu','navPlaylistsMenuList','musicBrowserView','playlistsBrowserView','resizerLeftNav'
+  'playlistModalSaveBtn','playlistModalCancelBtn','playlistModalToast','newPlaylistBtn','newPlaylistFolderBtn','playlistSidebarList',
+  'folderModalOverlay','folderModalHeading','folderModalClose','folderNameInput','folderModalSaveBtn','folderModalCancelBtn','folderModalToast',
+  'leftNavPanel','navMusicBtn','navPlaylistsBtn','musicBrowserView','playlistsBrowserView','resizerLeftNav'
 ].forEach(id => { el[id] = document.getElementById(id); });
 
 let activeItem = null;
@@ -1471,25 +1528,36 @@ function bindEvents() {
   el.playlistModalCancelBtn.addEventListener('click', closePlaylistModal);
   el.playlistModalSaveBtn.addEventListener('click', savePlaylistModalClick);
   el.newPlaylistBtn.addEventListener('click', (e) => { e.stopPropagation(); openPlaylistModal('create'); });
+  el.newPlaylistFolderBtn.addEventListener('click', (e) => { e.stopPropagation(); openFolderModal('create'); });
+  el.folderModalClose.addEventListener('click', closeFolderModal);
+  el.folderModalCancelBtn.addEventListener('click', closeFolderModal);
+  el.folderModalSaveBtn.addEventListener('click', saveFolderModalClick);
 
-  // Far-left nav rail: "Music" swaps the browser column back to Albums/
-  // Artists/Genres (and leaves playlist view, same as before); "Playlists"
-  // is a dropdown (see #navPlaylistsMenu) rather than a plain toggle now —
-  // "Playlist Explorer" does what clicking it used to do, the rest is a
-  // quick-jump to one playlist or to creating a new one.
+  // Far-left nav rail: two plain, always-visible buttons, no dropdown/popup
+  // to open first. "Music" swaps the browser column back to Albums/
+  // Artists/Genres (and leaves playlist view); "Playlist Explorer" swaps it
+  // to the playlist/folder tree (see setLeftNavView()).
   el.navMusicBtn.addEventListener('click', () => setLeftNavView('music'));
-  el.navPlaylistsBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    el.navPlaylistsMenu.hidden = !el.navPlaylistsMenu.hidden;
-  });
-  el.navPlaylistsMenu.addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-playlist-nav-action]');
-    if (!btn) return;
-    el.navPlaylistsMenu.hidden = true;
-    if (btn.dataset.playlistNavAction === 'explorer') setLeftNavView('playlists');
-    else if (btn.dataset.playlistNavAction === 'new') openPlaylistModal('create', null, null);
-  });
+  el.navPlaylistsBtn.addEventListener('click', () => setLeftNavView('playlists'));
   setLeftNavView(state.leftNavView);
+
+  // Drop target for un-filing a playlist back to the top level of the
+  // Playlist Explorer — dropping directly on a folder row is handled per-row
+  // in renderPlaylistSidebar(); this container-level listener only fires
+  // when the drop lands anywhere else in the list (empty space, a
+  // top-level playlist row, etc.), see wirePlaylistSidebarEvents().
+  if (el.playlistSidebarList) {
+    el.playlistSidebarList.addEventListener('dragover', (e) => e.preventDefault());
+    el.playlistSidebarList.addEventListener('drop', (e) => {
+      if (e.target.closest('.playlist-folder-row')) return; // handled by the row's own drop listener
+      e.preventDefault();
+      const playlistId = e.dataTransfer.getData('text/plain');
+      const playlist = state.playlists.find(p => p.id === playlistId);
+      const folderWrap = e.target.closest('.playlist-folder');
+      const targetFolderId = folderWrap ? folderWrap.dataset.folderId : null;
+      if (playlist && playlist.folderId !== (targetFolderId || null)) movePlaylistToFolder(playlist, targetFolderId || null);
+    });
+  }
 
   // Stats tab: back button collapses the expanded year detail.
   el.statsDetailBack.addEventListener('click', () => {
@@ -2042,7 +2110,6 @@ function bindEvents() {
     if (!el.layoutMenu.hidden && !el.layoutMenu.contains(e.target) && !el.layoutBtn.contains(e.target)) el.layoutMenu.hidden = true;
     if (!el.arrangeModal.hidden && !el.arrangeModal.contains(e.target) && !el.menuArrangePanels.contains(e.target)) el.arrangeModal.hidden = true;
     if (!el.mainConfigModal.hidden && !el.mainConfigModal.contains(e.target) && !el.configureMainBtn.contains(e.target) && !el.menuCustomizeMain.contains(e.target)) el.mainConfigModal.hidden = true;
-    if (el.navPlaylistsMenu && !el.navPlaylistsMenu.hidden && !el.navPlaylistsMenu.contains(e.target) && !el.navPlaylistsBtn.contains(e.target)) el.navPlaylistsMenu.hidden = true;
   });
 
   // Global Key Listeners (Escape key to close, Ctrl/Cmd+A to select all diary entries)
@@ -2211,6 +2278,7 @@ function loadPrefs() {
     if (p.panelWidths) state.panelWidths = Object.assign({}, state.panelWidths, p.panelWidths);
     if (p.fields) state.fields = Object.assign(state.fields, p.fields);
     if (p.trackColWidths) state.trackColWidths = p.trackColWidths;
+    if (Array.isArray(p.playlistFoldersCollapsed)) state.playlistFoldersCollapsed = p.playlistFoldersCollapsed;
   } catch (e) { /* localStorage unavailable — safe to ignore */ }
 }
 
@@ -2219,7 +2287,8 @@ function savePrefs() {
 	localStorage.setItem(PREF_KEY, JSON.stringify({
       viewMode: state.viewMode, mainViewMode: state.mainViewMode, playlistViewMode: state.playlistViewMode, cardSize: state.cardSize, sort: state.sort, groupBy: state.groupBy,
       activeType: state.activeType, leftMode: state.leftMode, leftSort: state.leftSort, leftThumbSize: state.leftThumbSize, // 👈 UPDATED HERE
-      showLeft: state.showLeft, showRight: state.showRight, showCoverLinks: state.showCoverLinks, fitArtwork: state.fitArtwork, fieldPlacement: state.fieldPlacement, closeGaps: state.closeGaps, panelWidths: state.panelWidths, fields: state.fields, trackColWidths: state.trackColWidths
+      showLeft: state.showLeft, showRight: state.showRight, showCoverLinks: state.showCoverLinks, fitArtwork: state.fitArtwork, fieldPlacement: state.fieldPlacement, closeGaps: state.closeGaps, panelWidths: state.panelWidths, fields: state.fields, trackColWidths: state.trackColWidths,
+      playlistFoldersCollapsed: state.playlistFoldersCollapsed
     }));
   } catch (e) { /* localStorage unavailable — safe to ignore */ }
 }
@@ -2341,6 +2410,10 @@ async function fetchCatalog() {
     });
     Object.values(itemsByPlaylist).forEach(arr => arr.sort((a, b) => a.position - b.position));
 
+    state.playlistFolders = (data.playlistFolders || [])
+      .filter(f => f.Id)
+      .map(f => ({ id: f.Id, name: f.Name ? String(f.Name).trim() : 'Untitled Folder' }));
+
     state.playlists = (data.playlists || [])
       .filter(p => p.Id)
       .map(p => ({
@@ -2349,6 +2422,7 @@ async function fetchCatalog() {
         description: p.Description || '',
         createdAt: p.CreatedAt || '',
         updatedAt: p.UpdatedAt || '',
+        folderId: p.FolderId || null,
         items: itemsByPlaylist[p.Id] || []
       }))
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0)); // newest first
