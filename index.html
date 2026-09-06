@@ -13,7 +13,46 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.18.1
+  CURRENT_VERSION: 1.20.0
+
+  1.20.0 — 2026-09-06 — Right-click "Remove from playlist" added to both
+          the track context menu (openTrackContextMenu, acts on the whole
+          selection) and the album card context menu
+          (openAlbumCardContextMenu) — shown only while a playlist is open.
+          Removing a track that's part of a whole-album playlist entry
+          removes that whole entry, since there's no such thing as a
+          partial-album removal (see activePlaylistItemIdsForTracks). The
+          album header row in the "Album and Tracks" view
+          (buildAlbumTrackGroup) now has a right-click menu too (it was
+          click-to-open-deck only before), so removal reaches that view as
+          well as Album covers/Artists. removePlaylistItem's single-item
+          logic was factored out into removePlaylistItemsByIds() so both
+          the existing ✕ button and these new bulk actions share it. Also:
+          a new "Release Date" field option sits alongside the existing
+          "Release Year" everywhere a field can be picked — grid slots,
+          cover tags, list/Tracks columns (see FIELD_OPTIONS / keyToVal /
+          new formatReleaseDate()) — and "Edit track properties…"
+          (openTrackPropertiesModal) is now a real .arrange-overlay/
+          .arrange-modal window like the app's other modals (Add album,
+          Edit details, …) instead of a small floating popup; same Genre
+          field, same trackData storage, no backend change.
+
+  1.19.0 — 2026-09-06 — The playlist's own "Tracks" view now reuses the
+          library's flat Tracks table wholesale (buildTrackTableHeader() /
+          renderFlatTrackTable(), see renderPlaylistTracksView) instead of
+          its previous bespoke version: identical customizable/resizable/
+          reorderable columns (state.fields.tracks/state.trackColWidths are
+          shared with the library view, since only one is ever on screen at
+          once), identical click-to-select and double-click-to-play-on-
+          Spotify row behavior, and a row click no longer opens the album
+          deck. The "Customize panel…" menu item is now available while a
+          playlist's Tracks view is open too (refreshViewMenuForContext()
+          and the menu's click handler are now playlist-aware, reading
+          state.playlistViewMode instead of assuming state.mainViewMode).
+          New loadPlaylistFlatTrackTable() feeds state.flatTrackRows the
+          same way the library's own loadFlatTrackTable() does, just built
+          from playlist.items (standalone tracks flattened in place, whole
+          albums expanded via getTracksFor()) instead of state.filtered.
 
   1.18.1 — 2026-09-05 — Track rows in the tracklist (deck, flat Tracks
           table, and "Album and Tracks" view) no longer let plain text
@@ -1274,7 +1313,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.18.1';
+const APP_VERSION = '1.20.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -1327,6 +1366,7 @@ const FIELD_OPTIONS = {
   title: 'Title',
   artist: 'Artist',
   year: 'Release Year',
+  releaseDate: 'Release Date',
   rating: 'Rating (Stars)',
   type: 'Media Type (LP/EP)',
   catalog: 'Catalog Number',
@@ -3313,6 +3353,15 @@ function dateVal(d) {
   return isNaN(t) ? -Infinity : t;
 }
 
+// Full release date for the "Release Date" field option (see FIELD_OPTIONS)
+// — an alternative to the plain "Release Year" field, for anywhere a field
+// can be picked (grid slots, cover tags, list/Tracks columns). Same
+// day-month-year style used elsewhere in the app (diary dates, stats).
+function formatReleaseDate(item) {
+  if (!item.releaseDate || dateVal(item.releaseDate) === -Infinity) return '';
+  return new Date(item.releaseDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
 function groupItems(items, by) {
   const map = new Map();
   items.forEach(item => {
@@ -3829,7 +3878,7 @@ function trackSortValue(row, key) {
     const cache = state.trackCache[artKey(row.item)];
     return (cache || []).reduce((s, t) => s + (t.trackTimeMillis || 0), 0);
   }
-  if (key === 'year') return dateVal(row.item.releaseDate) === -Infinity ? -Infinity : dateVal(row.item.releaseDate);
+  if (key === 'year' || key === 'releaseDate') return dateVal(row.item.releaseDate) === -Infinity ? -Infinity : dateVal(row.item.releaseDate);
   if (key === 'rating') return row.item.rating || 0;
   return String(keyToVal(key, row.item) || '').toLowerCase();
 }
@@ -3984,6 +4033,10 @@ function buildAlbumTrackGroup(item) {
     <div class="track-group-rating">${starRatingHtml(item.rating)}</div>
   `;
   header.addEventListener('click', () => openDeck(item));
+  header.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    openAlbumCardContextMenu(item, e.clientX, e.clientY);
+  });
   group.appendChild(header);
 
   const tracksWrap = document.createElement('div');
@@ -4864,6 +4917,7 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
     ${!isMultiSelect ? '<button type="button" data-track-menu-action="editProps">Edit track properties\u2026</button>' : ''}
     <button type="button" data-track-menu-action="view">View album</button>
     <button type="button" class="menu-parent-btn" data-track-menu-action="search">Search <span class="submenu-caret">▸</span></button>
+    ${state.activePlaylistId ? '<div class="menu-divider"></div><button type="button" class="remove-menu-btn" data-track-menu-action="removeFromPlaylist">Remove from playlist</button>' : ''}
   `;
   document.body.appendChild(menu);
   positionFloatingMenu(menu, x, y);
@@ -4890,6 +4944,7 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
     else if (action === 'queue') queueTracksNow(trackPlaylistItems);
     else if (action === 'entry') addTracksToEntry(trackPlaylistItems);
     else if (action === 'editProps') openTrackPropertiesModal(item, trackNum, trackName);
+    else if (action === 'removeFromPlaylist') removeTracksFromActivePlaylist(trackPlaylistItems);
   });
 
   nowPlayingAddMenuEl = menu;
@@ -5001,35 +5056,46 @@ async function addTracksToEntry(trackPlaylistItems) {
   if (activeItem && !el.logForm.hidden) renderLogTrackSummary();
 }
 
-// "Edit track properties…" — a small floating form (single-track only, see
-// openTrackContextMenu) for per-track fields that don't belong on the
-// album-level Edit modal. Currently just Genre, saved into the same
+// "Edit track properties…" — a real modal window (single-track only, see
+// openTrackContextMenu), using the same .arrange-overlay/.arrange-modal
+// pattern as the app's other modals (Add album, Edit details, etc.) instead
+// of a small floating popup. For per-track fields that don't belong on the
+// album-level Edit modal — currently just Genre, saved into the same
 // trackData JSON blob rating/note/listened already live in via
-// updateTrackData(), so it needs no backend change.
-let trackPropsMenuEl = null;
+// updateTrackData(), so it needs no backend change. Reachable from every
+// place a track can be right-clicked — the flat Tracks table (library and
+// playlist), the per-album "Album and Tracks" view (library and playlist),
+// and the album deck's own tracklist — since they all funnel through
+// openTrackContextMenu()'s "Edit track properties…" action.
+let trackPropsOverlayEl = null;
 function openTrackPropertiesModal(item, trackNum, trackName) {
-  closeNowPlayingAddMenu();
   closeTrackPropertiesModal();
 
   const tData = (item.trackData && item.trackData[trackNum]) || {};
 
-  const menu = document.createElement('div');
-  menu.className = 'panel-mode-menu now-playing-add-menu track-props-menu';
-  menu.innerHTML = `
-    <div class="menu-section-title">${escapeHtml(trackName || 'Track properties')}</div>
-    <div class="track-props-field">
-      <label for="trackPropsGenre">Genre</label>
-      <input type="text" id="trackPropsGenre" placeholder="e.g. Dream Pop" value="${escapeHtml(tData.genre || '')}">
-    </div>
-    <div class="track-props-actions">
-      <button type="button" class="chip-btn" data-track-props-action="cancel">Cancel</button>
-      <button type="button" class="save-btn" data-track-props-action="save">Save</button>
+  const overlay = document.createElement('div');
+  overlay.className = 'arrange-overlay track-props-overlay';
+  overlay.innerHTML = `
+    <div class="arrange-modal track-props-modal">
+      <div class="arrange-header">
+        <h2>${escapeHtml(trackName || 'Track properties')}</h2>
+        <button type="button" class="modal-x" data-track-props-action="cancel" aria-label="Close">✕</button>
+      </div>
+      <div class="arrange-body">
+        <div class="track-props-field">
+          <label for="trackPropsGenre">Genre</label>
+          <input type="text" id="trackPropsGenre" placeholder="e.g. Dream Pop" value="${escapeHtml(tData.genre || '')}">
+        </div>
+        <div class="track-props-actions">
+          <button type="button" class="chip-btn" data-track-props-action="cancel">Cancel</button>
+          <button type="button" class="save-btn" data-track-props-action="save">Save</button>
+        </div>
+      </div>
     </div>
   `;
-  document.body.appendChild(menu);
-  positionFloatingMenu(menu, Math.round(window.innerWidth / 2 - 130), Math.round(window.innerHeight / 2 - 90));
+  document.body.appendChild(overlay);
 
-  const genreInput = menu.querySelector('#trackPropsGenre');
+  const genreInput = overlay.querySelector('#trackPropsGenre');
   genreInput.focus();
   genreInput.select();
 
@@ -5039,7 +5105,10 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
     closeTrackPropertiesModal();
   };
 
-  menu.addEventListener('click', (e) => {
+  // Backdrop click closes it, same as the app's other overlay modals (see
+  // the "Full-screen overlay backdrop clicks" wiring for Add/Edit/etc.).
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) { closeTrackPropertiesModal(); return; }
     const btn = e.target.closest('button[data-track-props-action]');
     if (!btn) return;
     if (btn.dataset.trackPropsAction === 'save') doSave();
@@ -5050,15 +5119,10 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
     else if (e.key === 'Escape') { e.preventDefault(); closeTrackPropertiesModal(); }
   });
 
-  trackPropsMenuEl = menu;
-  setTimeout(() => document.addEventListener('click', closeTrackPropertiesModalOnOutsideClick), 0);
-}
-function closeTrackPropertiesModalOnOutsideClick(e) {
-  if (trackPropsMenuEl && !trackPropsMenuEl.contains(e.target)) closeTrackPropertiesModal();
+  trackPropsOverlayEl = overlay;
 }
 function closeTrackPropertiesModal() {
-  if (trackPropsMenuEl) { trackPropsMenuEl.remove(); trackPropsMenuEl = null; }
-  document.removeEventListener('click', closeTrackPropertiesModalOnOutsideClick);
+  if (trackPropsOverlayEl) { trackPropsOverlayEl.remove(); trackPropsOverlayEl = null; }
 }
 
 // Right-click menu on an album card in the grid/list/covers views (see
@@ -5081,6 +5145,7 @@ function openAlbumCardContextMenu(item, x, y) {
     <button type="button" class="menu-parent-btn" data-card-action="search">Search <span class="submenu-caret">▸</span></button>
     <div class="menu-divider"></div>
     <button type="button" data-card-action="spotify">Open on Spotify ↗</button>
+    ${state.activePlaylistId ? '<div class="menu-divider"></div><button type="button" class="remove-menu-btn" data-card-action="removeFromPlaylist">Remove from playlist</button>' : ''}
   `;
   document.body.appendChild(menu);
   positionFloatingMenu(menu, x, y);
@@ -5114,6 +5179,7 @@ function openAlbumCardContextMenu(item, x, y) {
     else if (action === 'play') playAlbumNow(item);
     else if (action === 'queue') queueAlbumTracks(item);
     else if (action === 'spotify') openAlbumOnSpotify(item);
+    else if (action === 'removeFromPlaylist') removeAlbumFromActivePlaylist(item);
   });
 
   nowPlayingAddMenuEl = menu;
@@ -5634,6 +5700,7 @@ function keyToVal(key, item) {
     catalog: item.catalog,
     type: typeAbbrev(item.type),
     year: year,
+    releaseDate: formatReleaseDate(item),
     genre: item.genre,
     label: item.label,
     region: item.region,
@@ -7256,15 +7323,64 @@ function setupPlaylistItemDrag(listEl, playlist) {
 }
 
 async function removePlaylistItem(playlist, itemId) {
-  playlist.items = playlist.items.filter(it => it.id !== itemId);
+  return removePlaylistItemsByIds(playlist, [itemId]);
+}
+
+// Shared bulk remove — used by the single ✕ button in the default List
+// view above, and by the "Remove from playlist" track/album context-menu
+// actions below (see removeTracksFromActivePlaylist /
+// removeAlbumFromActivePlaylist).
+async function removePlaylistItemsByIds(playlist, itemIds) {
+  if (!itemIds || !itemIds.length) return;
+  playlist.items = playlist.items.filter(it => !itemIds.includes(it.id));
   renderPlaylistMainPanel();
   renderPlaylistSidebar();
   try {
-    await postUpdate({ action: 'removePlaylistItems', itemIds: [itemId] });
+    await postUpdate({ action: 'removePlaylistItems', itemIds });
   } catch (e) {
-    flashGlobalToast('Couldn\u2019t remove that item \u2014 try again');
+    flashGlobalToast('Couldn\u2019t remove \u2014 try again');
     await fetchCatalog();
   }
+}
+
+// Resolves which of the *active* playlist's own items correspond to a set
+// of right-clicked track rows (row + track number pairs, same shape
+// openTrackContextMenu already builds for "Add to playlist"/"Add to
+// queue"). A standalone 'track' playlist item matches by row+trackNum; a
+// whole 'album' item has no track number of its own, so any track selected
+// from that release resolves to (and removes) the whole album entry —
+// there's no such thing as partially removing one track from a whole-album
+// playlist entry.
+function activePlaylistItemIdsForTracks(trackPlaylistItems) {
+  const playlist = state.playlists.find(p => p.id === state.activePlaylistId);
+  if (!playlist || !trackPlaylistItems || !trackPlaylistItems.length) return [];
+  const rowsWanted = new Map();
+  trackPlaylistItems.forEach(t => {
+    if (!rowsWanted.has(t.row)) rowsWanted.set(t.row, new Set());
+    rowsWanted.get(t.row).add(String(t.trackNum));
+  });
+  return playlist.items.filter(it => {
+    if (!rowsWanted.has(it.row)) return false;
+    if (it.type === 'album') return true;
+    return rowsWanted.get(it.row).has(String(it.trackNum));
+  }).map(it => it.id);
+}
+
+async function removeTracksFromActivePlaylist(trackPlaylistItems) {
+  const playlist = state.playlists.find(p => p.id === state.activePlaylistId);
+  const ids = activePlaylistItemIdsForTracks(trackPlaylistItems);
+  if (!playlist || !ids.length) return;
+  await removePlaylistItemsByIds(playlist, ids);
+}
+
+// Removes an entire release from the active playlist — whether it's there
+// as a whole-album entry, one or more standalone tracks off it, or both.
+async function removeAlbumFromActivePlaylist(item) {
+  const playlist = state.playlists.find(p => p.id === state.activePlaylistId);
+  if (!playlist) return;
+  const ids = playlist.items.filter(it => it.row === item.row).map(it => it.id);
+  if (!ids.length) return;
+  await removePlaylistItemsByIds(playlist, ids);
 }
 
 function onPlaylistDeleteClick(btn, playlist) {
@@ -10717,6 +10833,9 @@ html, body {
     font-family: 'IBM Plex Mono', monospace; font-size: 12px; padding: 8px 14px; cursor: pointer;
   }
   .panel-mode-menu button:hover { background: var(--bg-card); color: var(--accent); }
+  /* Destructive context-menu action ("Remove from playlist") — same red as .remove-btn */
+  .panel-mode-menu button.remove-menu-btn { color: #E5646B; }
+  .panel-mode-menu button.remove-menu-btn:hover { background: var(--bg-card); color: #E5646B; opacity: 0.85; }
 
   /* #albumsViewMenu needs to let its Group-by flyout render outside the menu's own box */
   #albumsViewMenu { overflow: visible; }
@@ -11219,9 +11338,11 @@ html, body {
   .log-track-summary { font-size: 12px; color: var(--text-dim); line-height: 1.5; margin-bottom: 8px; }
   .log-track-summary-actions { display: flex; gap: 8px; }
 
-  /* "Edit track properties…" floating form — see openTrackPropertiesModal */
-  .track-props-menu { width: 260px; padding-bottom: 10px; }
-  .track-props-field { padding: 6px 16px 4px; display: flex; flex-direction: column; gap: 6px; }
+  /* "Edit track properties…" modal — see openTrackPropertiesModal. Uses the
+     same .arrange-overlay/.arrange-modal shell as the app's other modals
+     (Add album, Edit details, …), just narrower. */
+  .track-props-modal { max-width: 360px; }
+  .track-props-field { padding: 6px 0 4px; display: flex; flex-direction: column; gap: 6px; }
   .track-props-field label {
     font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-dim);
     text-transform: uppercase; letter-spacing: 0.5px;
@@ -11231,7 +11352,7 @@ html, body {
     padding: 8px 10px; font-family: 'Inter', sans-serif; font-size: 13px; outline: none;
   }
   .track-props-field input:focus { border-color: var(--accent); }
-  .track-props-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 16px 0; }
+  .track-props-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 0 0; }
   .track-props-actions button { width: auto; }
   .track-props-actions .chip-btn { border-radius: 6px; }
   .track-props-actions .save-btn { margin-top: 0; padding: 7px 14px; font-size: 12px; }
