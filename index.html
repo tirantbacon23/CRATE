@@ -13,7 +13,46 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.21.1
+  CURRENT_VERSION: 1.22.1
+
+  1.22.1 — 2026-09-06 — #leftNavPanel (the far-left "Music"/"Playlists" rail,
+          .panel-leftnav) no longer has its own var(--bg-card) fill —
+          dropped that declaration (and its border-radius) so it sits flush
+          against the app's base background like the rest of the layout
+          instead of standing out as a visibly different-colored panel.
+          Added in 1.12.1 to keep the rail from reading as two buttons
+          floating in empty space; the full-width rows/hover states already
+          do that job on their own.
+
+  1.22.0 — 2026-09-06 — Two changes:
+          (1) Double-clicking a playlist's name in the sidebar now plays it
+          straight away (opens it and calls playPlaylistFromStart), in
+          addition to the existing "▶ Play" button on the detail header.
+          (2) "Add to queue" (both the track context menu's queueTracksNow
+          and the album card menu's queueAlbumTracks) is now cross-platform:
+          previously each pushed straight onto Spotify's own remote device
+          queue via the Web API, which has no way to hold a manually-
+          tracklisted album's track (see isManualAlbum()) — a mixed
+          selection of Spotify and YouTube-only tracks silently dropped the
+          latter. The "Play playlist" queue (1.21.0) already knows how to
+          sequence a mix of Spotify tracks and YouTube-only ones and hand
+          off between them, so that machinery — renamed from
+          playlistQueue*/playPlaylistQueueIndex/playPlaylistTrackOnYoutube
+          to crateQueue*/playCrateQueueIndex/playCrateTrackOnYoutube since
+          it's no longer playlist-specific — is now the one queue everything
+          feeds into. New addToCrateQueue(entries) is the shared entry
+          point: if a crate queue is already driving playback (a "Play
+          playlist" run, or an earlier "Add to queue") the new entries are
+          just appended to the tail; if something is playing outside any
+          queue (a direct "Play" on a single track/album/video), that's
+          folded in as the current entry first so the existing end-of-track
+          handoff carries on into what's being queued once it finishes;
+          otherwise queuing starts playback immediately. queueTracksNow and
+          queueAlbumTracks now just build { item, track } entries (the
+          latter via getTracksFor(), matching how playPlaylistFromStart
+          already builds a whole album's entries) and hand them to
+          addToCrateQueue instead of resolving/POSTing to Spotify's queue
+          endpoint themselves.
 
   1.21.1 — 2026-09-06 — Spotify and the floating YouTube player are now
           mutually exclusive: playSpotifyUri() closes the YouTube player
@@ -36,12 +75,12 @@
           search. When one track finishes, the next one in the queue
           starts automatically regardless of which engine either one
           needs. See the new "Playlist "▶ Play" queue" section
-          (playPlaylistFromStart/playPlaylistQueueIndex/
-          playPlaylistTrackOnYoutube) — the Spotify Web Playback SDK has
+          (playPlaylistFromStart/playCrateQueueIndex/
+          playCrateTrackOnYoutube) — the Spotify Web Playback SDK has
           no real "track ended" event, so that half is a heuristic (went
-          from playing to paused within PLAYLIST_QUEUE_END_THRESHOLD_MS of
+          from playing to paused within CRATE_QUEUE_END_THRESHOLD_MS of
           the track's own duration); the YouTube half uses the player's
-          real ENDED event via a new ytPlayingForPlaylistQueue flag on top
+          real ENDED event via a new ytPlayingForCrateQueue flag on top
           of the existing per-album queue system from 1.17.0. A track this
           can't play (not found on Spotify, or a manual track with no
           YouTube link saved) is skipped with a toast rather than stalling
@@ -1384,7 +1423,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.21.1';
+const APP_VERSION = '1.22.1';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -4546,17 +4585,17 @@ function onSpotifyPlayerStateChanged(state) {
   const track = state.track_window && state.track_window.current_track;
   if (!track) return;
 
-  // Playlist "▶ Play" auto-advance — see playPlaylistQueueIndex and the
+  // Playlist "▶ Play" auto-advance — see playCrateQueueIndex and the
   // caveat above it about this being a heuristic, not a real ended event.
-  // Gated on playlistQueueExpectedSpotifyTrackId so an unrelated track the
+  // Gated on crateQueueExpectedSpotifyTrackId so an unrelated track the
   // person plays manually elsewhere can't be mistaken for this queue's
   // current entry finishing.
-  if (isPlayingPlaylistQueue() && playlistQueueExpectedSpotifyTrackId && track.id === playlistQueueExpectedSpotifyTrackId &&
+  if (isPlayingCrateQueue() && crateQueueExpectedSpotifyTrackId && track.id === crateQueueExpectedSpotifyTrackId &&
       spotifyLastState && !spotifyLastState.paused && state.paused &&
-      spotifyLastState.duration > 0 && spotifyLastState.duration - spotifyLastState.position <= PLAYLIST_QUEUE_END_THRESHOLD_MS) {
-    const endedQueueId = playlistQueueId, endedIndex = playlistQueueIndex;
+      spotifyLastState.duration > 0 && spotifyLastState.duration - spotifyLastState.position <= CRATE_QUEUE_END_THRESHOLD_MS) {
+    const endedQueueId = crateQueueId, endedIndex = crateQueueIndex;
     renderMiniPlayerTrack(track, state.paused, state.position, state.duration, { announceNowPlaying: true });
-    if (endedQueueId === playlistQueueId && endedIndex === playlistQueueIndex) playPlaylistQueueIndex(endedQueueId, endedIndex + 1);
+    if (endedQueueId === crateQueueId && endedIndex === crateQueueIndex) playCrateQueueIndex(endedQueueId, endedIndex + 1);
     return;
   }
 
@@ -5127,55 +5166,24 @@ async function playTrackNow(item, trackName) {
   }
 }
 
-// "Add to queue" from a track's context menu — resolves each selected
-// track's Spotify ID by artist+name (looking its owning album up in
-// state.raw by row, since a multi-selection in the flat table/"Album and
-// Tracks" view can span more than one album) and pushes it onto the real
-// Spotify queue via the Web API, same endpoint queueAlbumTracks() already
-// uses for a whole album.
-async function queueTracksNow(trackPlaylistItems) {
+// "Add to queue" from a track's context menu — cross-platform (see
+// addToCrateQueue): builds an { item, track } entry per selected track,
+// looking its owning album up in state.raw by row (a multi-selection in the
+// flat table/"Album and Tracks" view can span more than one album), the
+// same shape playPlaylistFromStart builds for a standalone playlist track.
+// Manual albums are no longer skipped here — addToCrateQueue/
+// playCrateQueueIndex resolve each entry (Spotify search or saved YouTube
+// link) only once playback actually reaches it.
+function queueTracksNow(trackPlaylistItems) {
   if (!trackPlaylistItems || !trackPlaylistItems.length) return;
-  const userToken = await getSpotifyUserAccessToken();
-  if (!userToken) {
-    flashGlobalToast('Connect your Spotify Premium account to queue tracks', {
-      onClick: () => { el.menuSpotifyApi.click(); }
-    });
-    return;
-  }
-  flashGlobalToast(trackPlaylistItems.length > 1 ? `Queuing ${trackPlaylistItems.length} tracks…` : `Queuing "${trackPlaylistItems[0].trackName}"…`);
-
-  let queued = 0;
+  const entries = [];
   for (const t of trackPlaylistItems) {
     if (!t.trackName) continue;
     const owner = (activeItem && activeItem.row === t.row) ? activeItem : state.raw.find(r => r.row === t.row);
     if (!owner) continue;
-    // Manually-added albums can't be reliably queued on Spotify — see
-    // isManualAlbum() — skip rather than fuzzy-search and risk queueing
-    // an unrelated track (there's no YouTube queue to fall back to here).
-    if (isManualAlbum(owner)) continue;
-    try {
-      const trackId = await spotifyTrackId(owner.artist, t.trackName);
-      if (!trackId) continue;
-      const res = await fetch(`https://api.spotify.com/v1/me/player/queue?uri=${encodeURIComponent('spotify:track:' + trackId)}`, {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + userToken }
-      });
-      if (res.ok || res.status === 204) {
-        queued++;
-      } else if (res.status === 403) {
-        flashGlobalToast('Queueing needs a Spotify Premium account.');
-        return;
-      } else if (res.status === 404) {
-        flashGlobalToast('Open Spotify on a device first, then try again.');
-        return;
-      }
-    } catch (e) { console.warn('Queue add failed', e); }
+    entries.push({ item: owner, track: { trackNumber: t.trackNum, trackName: t.trackName, youtubeLink: manualYoutubeLinkFor(owner, t.trackNum, t.trackName) } });
   }
-
-  flashGlobalToast(queued
-    ? `Queued ${queued} track${queued === 1 ? '' : 's'}`
-    : 'Couldn\u2019t queue \u2014 try again.');
-  if (!el.queuePanel.hidden) refreshQueuePanel();
+  addToCrateQueue(entries);
 }
 
 // "Add to entry" from a track's context menu — flags the given track(s)
@@ -5433,71 +5441,21 @@ async function playAlbumNow(item) {
   await showMiniPlayer(uri, intent);
 }
 
-// Adds every track on the album to the account's real Spotify queue (via
-// the Web API — works no matter which device is currently playing). Needs
-// the listener to be connected with Premium; the album's full Spotify
-// tracklist is pulled once by ID rather than searching per track, since we
-// already have (or can resolve) the exact album match.
+// Adds every track on the album to the shared crate queue (see
+// addToCrateQueue) — cross-platform, same as queueTracksNow, using
+// getTracksFor()'s existing tracklist loader (manual tracklist, or the
+// iTunes/MusicBrainz auto-lookup) instead of resolving one Spotify album
+// URI and bulk-queuing via the Web API, which only ever worked for albums
+// Spotify itself has — a manually-tracklisted album (the whole reason it
+// was added manually) had no album URI at all and nothing got queued.
 async function queueAlbumTracks(item) {
-  const userToken = await getSpotifyUserAccessToken();
-  if (!userToken) {
-    flashGlobalToast('Connect your Spotify Premium account to queue tracks', {
-      onClick: () => { el.menuSpotifyApi.click(); }
-    });
+  flashGlobalToast(`Queuing "${item.title}"\u2026`);
+  const tracks = await getTracksFor(item);
+  if (!tracks || !tracks.length) {
+    flashGlobalToast('No tracklist found for this album.');
     return;
   }
-  flashGlobalToast(`Queuing "${item.title}"…`);
-
-  const links = await getExternalLinksFor(item);
-  const uri = links.spotify && spotifyUri(links.spotify);
-  if (!uri || !uri.startsWith('spotify:album:')) {
-    flashGlobalToast('Couldn\u2019t find this album on Spotify.');
-    return;
-  }
-  const albumId = uri.split(':')[2];
-
-  let trackUris = [];
-  try {
-    const catalogToken = await getSpotifyToken();
-    if (catalogToken) {
-      const res = await fetch(`https://api.spotify.com/v1/albums/${albumId}/tracks?limit=50`, {
-        headers: { 'Authorization': 'Bearer ' + catalogToken }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        trackUris = (data.items || []).map(t => t.uri).filter(Boolean);
-      }
-    }
-  } catch (e) { console.warn('Album tracks fetch failed', e); }
-
-  if (!trackUris.length) {
-    flashGlobalToast('Couldn\u2019t load this album\u2019s tracks from Spotify.');
-    return;
-  }
-
-  let queued = 0;
-  for (const trackUri of trackUris) {
-    try {
-      const res = await fetch(`https://api.spotify.com/v1/me/player/queue?uri=${encodeURIComponent(trackUri)}`, {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + userToken }
-      });
-      if (res.ok || res.status === 204) {
-        queued++;
-      } else if (res.status === 403) {
-        flashGlobalToast('Queueing needs a Spotify Premium account.');
-        return;
-      } else if (res.status === 404) {
-        flashGlobalToast('Open Spotify on a device first, then try again.');
-        return;
-      }
-    } catch (e) { console.warn('Queue add failed', e); }
-  }
-
-  flashGlobalToast(queued
-    ? `Queued ${queued} track${queued === 1 ? '' : 's'} from "${item.title}"`
-    : 'Couldn\u2019t queue this album — try again.');
-  if (!el.queuePanel.hidden) refreshQueuePanel();
+  addToCrateQueue(tracks.map(t => ({ item, track: t })));
 }
 
 // Every action that can start Spotify playback (album Play Now, a track's
@@ -6996,12 +6954,14 @@ function renderPlaylistSidebar() {
     });
   });
 
-  // Playlist rows: click opens it, drag files it into a folder, right-click
-  // opens Rename/Move to folder/Delete.
+  // Playlist rows: click opens it, double-click plays it straight away,
+  // drag files it into a folder, right-click opens Rename/Move to
+  // folder/Delete.
   el.playlistSidebarList.querySelectorAll('.playlist-sidebar-row').forEach(rowEl => {
     const playlist = state.playlists.find(p => p.id === rowEl.dataset.id);
     if (!playlist) return;
     rowEl.addEventListener('click', () => openPlaylist(playlist.id));
+    rowEl.addEventListener('dblclick', () => { openPlaylist(playlist.id); playPlaylistFromStart(playlist); });
     rowEl.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       openPlaylistRowContextMenu(playlist, e.clientX, e.clientY);
@@ -7388,18 +7348,18 @@ function loadPlaylistFlatTrackTable(playlist) {
    event, only discrete player_state_changed snapshots (see
    onSpotifyPlayerStateChanged), so "ended" there is inferred as "went
    from playing to paused while the previous snapshot's position was
-   within PLAYLIST_QUEUE_END_THRESHOLD_MS of the track's duration". That's
+   within CRATE_QUEUE_END_THRESHOLD_MS of the track's duration". That's
    a heuristic — the same one most third-party Spotify Connect clients
    use in the absence of a real ended event — not a guarantee. */
-const PLAYLIST_QUEUE_END_THRESHOLD_MS = 1500;
-let playlistQueueId = 0;              // bumped on every new "Play" run (or reset), so stale lookups/advances no-op
-let playlistQueueList = [];           // ordered [{ item, track }]
-let playlistQueueIndex = -1;
-let playlistQueueExpectedSpotifyTrackId = null; // the Spotify track ID this queue is currently waiting to hear "ended" for
-let ytPlayingForPlaylistQueue = false;          // true while the floating YT player is standing in for the current queue entry, see playPlaylistTrackOnYoutube
+const CRATE_QUEUE_END_THRESHOLD_MS = 1500;
+let crateQueueId = 0;              // bumped on every new "Play" run (or reset), so stale lookups/advances no-op
+let crateQueueList = [];           // ordered [{ item, track }]
+let crateQueueIndex = -1;
+let crateQueueExpectedSpotifyTrackId = null; // the Spotify track ID this queue is currently waiting to hear "ended" for
+let ytPlayingForCrateQueue = false;          // true while the floating YT player is standing in for the current queue entry, see playCrateTrackOnYoutube
 
-function isPlayingPlaylistQueue() {
-  return playlistQueueIndex >= 0 && playlistQueueIndex < playlistQueueList.length;
+function isPlayingCrateQueue() {
+  return crateQueueIndex >= 0 && crateQueueIndex < crateQueueList.length;
 }
 
 // Looks up the YouTube link for a *standalone* track playlist item — these
@@ -7414,7 +7374,7 @@ function manualYoutubeLinkFor(album, trackNum, trackName) {
 
 async function playPlaylistFromStart(playlist) {
   if (!playlist.items.length) { flashGlobalToast('Nothing to play \u2014 this playlist is empty.'); return; }
-  const myId = ++playlistQueueId;
+  const myId = ++crateQueueId;
   flashGlobalToast(`Loading "${playlist.name}"\u2026`);
 
   const albums = [...new Map(
@@ -7424,7 +7384,7 @@ async function playPlaylistFromStart(playlist) {
       .map(a => [a.row, a])
   ).values()];
   await Promise.all(albums.map(a => getTracksFor(a)));
-  if (myId !== playlistQueueId) return; // a different "Play" run (or reset) started while tracklists were loading
+  if (myId !== crateQueueId) return; // a different "Play" run (or reset) started while tracklists were loading
 
   const list = [];
   playlist.items.forEach(it => {
@@ -7439,33 +7399,33 @@ async function playPlaylistFromStart(playlist) {
 
   if (!list.length) { flashGlobalToast('Nothing playable in this playlist.'); return; }
 
-  playlistQueueList = list;
-  playlistQueueIndex = -1;
-  playPlaylistQueueIndex(myId, 0);
+  crateQueueList = list;
+  crateQueueIndex = -1;
+  playCrateQueueIndex(myId, 0);
 }
 
-async function playPlaylistQueueIndex(myId, index) {
-  if (myId !== playlistQueueId) return;
-  if (index < 0 || index >= playlistQueueList.length) {
-    playlistQueueIndex = -1; // reached the end of the queue
-    playlistQueueExpectedSpotifyTrackId = null;
+async function playCrateQueueIndex(myId, index) {
+  if (myId !== crateQueueId) return;
+  if (index < 0 || index >= crateQueueList.length) {
+    crateQueueIndex = -1; // reached the end of the queue
+    crateQueueExpectedSpotifyTrackId = null;
     return;
   }
-  playlistQueueIndex = index;
-  const { item, track } = playlistQueueList[index];
+  crateQueueIndex = index;
+  const { item, track } = crateQueueList[index];
   const trackName = track.trackName || '';
-  if (!trackName) { playPlaylistQueueIndex(myId, index + 1); return; }
+  if (!trackName) { playCrateQueueIndex(myId, index + 1); return; }
 
   // Manual albums never get the automatic Spotify search — see
   // isManualAlbum() — so a track with no YouTube link saved has no
   // reliable way to play here and is skipped rather than guessed at.
   if (isManualAlbum(item)) {
-    playlistQueueExpectedSpotifyTrackId = null;
+    crateQueueExpectedSpotifyTrackId = null;
     if (track.youtubeLink) {
-      playPlaylistTrackOnYoutube(myId, index, track.youtubeLink, trackName);
+      playCrateTrackOnYoutube(myId, index, track.youtubeLink, trackName);
     } else {
       flashGlobalToast(`Skipping "${trackName}" \u2014 no YouTube link saved.`);
-      playPlaylistQueueIndex(myId, index + 1);
+      playCrateQueueIndex(myId, index + 1);
     }
     return;
   }
@@ -7473,16 +7433,16 @@ async function playPlaylistQueueIndex(myId, index) {
   const intent = beginPlayIntent();
   try {
     const trackId = await spotifyTrackId(item.artist, trackName);
-    if (myId !== playlistQueueId || playlistQueueIndex !== index) return; // queue moved on while this lookup was in flight
+    if (myId !== crateQueueId || crateQueueIndex !== index) return; // queue moved on while this lookup was in flight
     if (trackId) {
-      playlistQueueExpectedSpotifyTrackId = trackId;
+      crateQueueExpectedSpotifyTrackId = trackId;
       showMiniPlayer(`spotify:track:${trackId}`, intent);
     } else {
       flashGlobalToast(`Skipping "${trackName}" \u2014 not found on Spotify.`);
-      playPlaylistQueueIndex(myId, index + 1);
+      playCrateQueueIndex(myId, index + 1);
     }
   } catch (e) {
-    if (myId === playlistQueueId && playlistQueueIndex === index) playPlaylistQueueIndex(myId, index + 1);
+    if (myId === crateQueueId && crateQueueIndex === index) playCrateQueueIndex(myId, index + 1);
   }
 }
 
@@ -7490,18 +7450,70 @@ async function playPlaylistQueueIndex(myId, index) {
 // playlist" run, bypassing openYoutubePlayer()'s own "queue the rest of
 // this album" behavior — this master queue is what decides what plays
 // next, since that could mean handing off back to Spotify partway through.
-function playPlaylistTrackOnYoutube(myId, index, url, trackName) {
+function playCrateTrackOnYoutube(myId, index, url, trackName) {
   const videoId = youtubeVideoIdFromUrl(url);
   if (!videoId) {
     flashGlobalToast(`Skipping "${trackName}" \u2014 that YouTube link looks invalid.`);
-    playPlaylistQueueIndex(myId, index + 1);
+    playCrateQueueIndex(myId, index + 1);
     return;
   }
-  ytPlayingForPlaylistQueue = true;
+  ytPlayingForCrateQueue = true;
   ytQueue = [{ videoId, trackName }];
   ytQueueIndex = 0;
   showYtPlayer();
   playYtQueueIndex(0);
+}
+
+// Cross-platform "Add to queue" — the single entry point both the track
+// context menu (queueTracksNow) and the album card menu (queueAlbumTracks)
+// funnel into. Everything is pushed onto this same crate queue rather than
+// Spotify's own remote device queue, since a Spotify-only queue has nowhere
+// to put a manually-tracklisted album's track (see isManualAlbum()) — that
+// used to mean a mixed selection silently dropped every non-Spotify track.
+// Building on the crate queue means Spotify and YouTube-only tracks can sit
+// in the same queue and playCrateQueueIndex's existing handoff logic — the
+// same logic "Play playlist" already relies on — carries them through in
+// order regardless of which engine each one needs.
+function addToCrateQueue(entries) {
+  entries = (entries || []).filter(e => e && e.track && e.track.trackName);
+  if (!entries.length) return;
+  const label = entries.length > 1 ? `Added ${entries.length} tracks to queue` : `Added "${entries[0].track.trackName}" to queue`;
+
+  // A crate queue is already driving playback (either "Play playlist" or an
+  // earlier "Add to queue" run) — just extend the tail, the existing
+  // end-of-track handoff naturally reaches these once it gets there.
+  if (isPlayingCrateQueue() || ytPlayingForCrateQueue) {
+    crateQueueList.push(...entries);
+    flashGlobalToast(label);
+    return;
+  }
+
+  const myId = ++crateQueueId;
+  const spotifyIsPlaying = !!(spotifyLastState && !spotifyLastState.paused && spotifyCurrentTrackId);
+  const youtubeIsPlaying = !el.ytPlayer.hidden && !ytIsPaused && ytQueue.length > 0;
+
+  if (spotifyIsPlaying || youtubeIsPlaying) {
+    // Something is already playing outside of any queue (a direct "Play" on
+    // a single track/album/video) — fold it in as the current entry so
+    // when IT ends, the usual heuristic hands off into what's being queued
+    // instead of just stopping. The placeholder's `item`/`track` fields are
+    // never read (index 0 is already playing, never re-resolved), only its
+    // presence in the list matters for isPlayingCrateQueue()'s bounds check.
+    crateQueueList = [{ item: null, track: { trackName: '(already playing)' } }, ...entries];
+    crateQueueIndex = 0;
+    if (spotifyIsPlaying) {
+      crateQueueExpectedSpotifyTrackId = spotifyCurrentTrackId;
+    } else {
+      ytPlayingForCrateQueue = true;
+    }
+    flashGlobalToast(label);
+    return;
+  }
+
+  // Nothing else playing anywhere — queuing starts it right away.
+  crateQueueList = entries;
+  crateQueueIndex = -1;
+  playCrateQueueIndex(myId, 0);
 }
 
 
@@ -9646,11 +9658,11 @@ function onYtPlayerStateChange(e) {
     if (ytQueueIndex < ytQueue.length - 1) { playYtQueueIndex(ytQueueIndex + 1); return; }
     setYtPlayPauseUI(true);
     // This video standing in for the current entry of a "Play playlist"
-    // run (see playPlaylistTrackOnYoutube) just finished with nothing left
+    // run (see playCrateTrackOnYoutube) just finished with nothing left
     // in its own local queue — hand control back to the playlist queue
     // instead of just stopping here.
-    if (ytPlayingForPlaylistQueue && isPlayingPlaylistQueue()) {
-      playPlaylistQueueIndex(playlistQueueId, playlistQueueIndex + 1);
+    if (ytPlayingForCrateQueue && isPlayingCrateQueue()) {
+      playCrateQueueIndex(crateQueueId, crateQueueIndex + 1);
     }
     return;
   }
@@ -9672,7 +9684,7 @@ function setYtPlayPauseUI(paused) {
 // single-track queue when there's no tracklist context (or nothing else in
 // it has a YouTube link).
 function openYoutubePlayer(url, trackName) {
-  ytPlayingForPlaylistQueue = false; // manual play, not the "Play playlist" queue — see playPlaylistTrackOnYoutube
+  ytPlayingForCrateQueue = false; // manual play, not the "Play playlist" queue — see playCrateTrackOnYoutube
   const videoId = youtubeVideoIdFromUrl(url);
   if (!videoId) { flashGlobalToast('That doesn\u2019t look like a valid YouTube link'); return; }
 
@@ -9730,7 +9742,7 @@ function closeYoutubePlayer() {
   el.ytPlayerQueuePanel.hidden = true;
   if (ytPlayer && ytPlayer.stopVideo) { try { ytPlayer.stopVideo(); } catch (e) { /* not ready yet — nothing to stop */ } }
   ytQueue = []; ytQueueIndex = -1;
-  ytPlayingForPlaylistQueue = false; // person closed it manually — don't let a stray advance land on the playlist queue later
+  ytPlayingForCrateQueue = false; // person closed it manually — don't let a stray advance land on the playlist queue later
 }
 
 /* ---- Seek / progress ---- */
@@ -11112,8 +11124,6 @@ html, body {
   flex: 0 0 148px;
   gap: 3px;
   padding: 10px 6px;
-  background: var(--bg-card);
-  border-radius: 8px;
 }
 .panel-left { flex: 0 0 220px; 
 }
@@ -11201,11 +11211,11 @@ html, body {
 /* Far-left nav rail (#leftNavPanel): its own narrow column, separate from
    the thumbnail-browser column, holding just the "Music" and "Playlists"
    buttons that pick which view #leftPanel shows (see .left-browser-view
-   below and setLeftNavView() in the script). Given its own filled
-   background (see .panel-leftnav) and full-width rows so it reads as a
-   real sidebar rather than a couple of small buttons floating in empty
-   space, and it's drag-resizable via #resizerLeftNav same as the other
-   panels. */
+   below and setLeftNavView() in the script). No background of its own (see
+   .panel-leftnav) — it sits flush against the app's base background like
+   the other panels — but keeps full-width rows so it still reads as a real
+   sidebar rather than a couple of small buttons floating in empty space,
+   and it's drag-resizable via #resizerLeftNav same as the other panels. */
 .leftnav-btn {
   display: flex; align-items: center; gap: 10px;
   width: 100%; flex: 0 0 auto; padding: 10px 8px; border-radius: 6px; border: none;
