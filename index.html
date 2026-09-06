@@ -13,7 +13,16 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.18.0
+  CURRENT_VERSION: 1.18.1
+
+  1.18.1 — 2026-09-05 — Track rows in the tracklist (deck, flat Tracks
+          table, and "Album and Tracks" view) no longer let plain text
+          selection happen on click/shift-click — user-select: none on
+          .track-row/.main-track-row — since shift-click for range-select
+          (added in 1.18.0) was otherwise also highlighting the track name
+          text like a normal text drag-select. The deck's note editor is a
+          sibling of .track-row, not a child, so it's unaffected and stays
+          normally selectable/editable.
 
   1.18.0 — 2026-09-05 — The deck's own tracklist (the "main release view")
           gets real click-to-select, matching the flat Tracks table and
@@ -1265,7 +1274,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.18.0';
+const APP_VERSION = '1.18.1';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -11021,6 +11030,7 @@ html, body {
   .main-track-row {
     display: grid; grid-template-columns: 28px 1fr auto; gap: 12px; align-items: center;
     padding: 8px 10px; border-radius: 6px; font-size: 13px; cursor: default;
+    user-select: none; -webkit-user-select: none;
   }
   .main-track-row:hover { background: var(--bg-elevated); }
   .main-track-row.selected { background: var(--bg-elevated); outline: 1px solid var(--accent); outline-offset: -1px; }
@@ -11590,15 +11600,19 @@ html, body {
   /* Deck tracklist rows are now click-selectable too (see handleTrackRowClick
      call in the deckTracklist click listener) — scoped to .track-row itself
      (not the whole .track-row-wrap, which also contains the expandable note
-     editor) so hover/selection styling never bleeds into that area. */
-  .track-row-wrap .track-row { cursor: pointer; border-radius: 4px; }
+     editor) so hover/selection styling never bleeds into that area. Also
+     disables plain text selection on the row (shift-click for range-select
+     would otherwise select track-name text in most browsers); the note
+     editor is a sibling of .track-row, not a child, so it's unaffected and
+     stays normally selectable/editable. */
+  .track-row-wrap .track-row { cursor: pointer; border-radius: 4px; user-select: none; -webkit-user-select: none; }
   .track-row-wrap:hover .track-row { background: var(--bg-elevated); }
   .track-row-wrap.selected .track-row { background: var(--bg-elevated); outline: 1px solid var(--accent); outline-offset: -1px; }
   /* Only the per-album "Album and Tracks" view's rows are click-selectable
      (see loadTracksForList) — scoped via .track-group-tracks so the deck's
      own .track-row (star ratings/listened-toggle/notes UI, no selection)
      doesn't pick up a misleading pointer cursor/hover it can't act on. */
-  .track-group-tracks .track-row { cursor: pointer; border-radius: 4px; }
+  .track-group-tracks .track-row { cursor: pointer; border-radius: 4px; user-select: none; -webkit-user-select: none; }
   .track-group-tracks .track-row:hover { background: var(--bg-elevated); }
   .track-group-tracks .track-row.selected { background: var(--bg-elevated); outline: 1px solid var(--accent); outline-offset: -1px; }
   .track-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
