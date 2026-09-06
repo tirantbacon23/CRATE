@@ -13,7 +13,41 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.17.0
+  CURRENT_VERSION: 1.18.0
+
+  1.18.0 — 2026-09-05 — The deck's own tracklist (the "main release view")
+          gets real click-to-select, matching the flat Tracks table and
+          "Album and Tracks" view: clicking a track row highlights it
+          (plain/ctrl/shift, same handleTrackRowClick() the other two views
+          already share via state.selectedTracks), and its right-click menu
+          — openTrackContextMenu() — now offers ▶ Play, Add to queue, Add
+          to playlist, Add to entry, and (single-track only) Edit track
+          properties…, alongside the existing View album/Search. "Add to
+          entry" (new addTracksToEntry()) flags the selected track(s)
+          listened for the current album — the same flag the per-track
+          checkmark/"Select all" already use — so they show up ready to go
+          the next time "+ Log a listen" is opened; opening the log form
+          with more than one track already highlighted now folds them in
+          automatically for the same reason, so highlight several tracks
+          then hit "+ Log a listen" and they're already selected. "Add to
+          queue" (new queueTracksNow()) resolves each selected track's
+          Spotify ID by name and pushes it to the real Spotify queue,
+          reusing the same Web API call queueAlbumTracks() already makes
+          for a whole album. "Edit track properties…" (new
+          openTrackPropertiesModal()) is a small floating form — currently
+          just a Genre field — saved into that track's existing trackData
+          blob via updateTrackData(), same column/JSON-blob this file
+          already uses for per-track rating/note/listened, so no backend
+          change is needed; a filled-in track genre now shows as a small
+          badge next to the track name. All three new track-level actions
+          (queue/entry/edit) work off state.raw-resolved items, not just
+          activeItem, so right-clicking a multi-selected set in the flat
+          table or "Album and Tracks" view can span more than one album's
+          tracks too. Tracklist cleanup checks (updateTrackData,
+          toggleTrackListened, clearTrackSelection) now also check for a
+          saved genre before deleting a track's trackData entry, so
+          clearing a listen-selection or unrating a track no longer
+          silently wipes out a saved genre alongside it.
 
   1.17.0 — 2026-09-05 — The YouTube track player (added in 1.16.0) is no
           longer a centered modal overlay — it's now a small floating
@@ -1231,7 +1265,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.17.0';
+const APP_VERSION = '1.18.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -2180,6 +2214,17 @@ function bindEvents() {
     el.logDescription.value = '';
     el.logSelectAllBtn.disabled = false;
     renderLogStars(0);
+
+    // If several tracks were already highlighted (clicked) in the tracklist
+    // before hitting "+ Log a listen", fold them straight into the entry —
+    // same effect as right-clicking them and choosing "Add to entry", just
+    // automatic so highlight-then-log is a two-click flow instead of three.
+    if (activeItem) {
+      const highlighted = currentTracklistTracks
+        .filter(t => state.selectedTracks.has(`${activeItem.row}::${t.trackNumber || 0}`))
+        .map(t => ({ itemType: 'track', row: activeItem.row, trackNum: t.trackNumber || '', trackName: t.trackName || '' }));
+      if (highlighted.length > 1) { addTracksToEntry(highlighted); return; } // addTracksToEntry re-renders the summary itself
+    }
     renderLogTrackSummary();
   });
   el.logCancelBtn.addEventListener('click', () => { resetLogForm(); });
@@ -2284,7 +2329,18 @@ function bindEvents() {
       wrapWrap.querySelector('.track-note-toggle').classList.toggle('has-note', !!noteVal);
       setTimeout(() => { wrapWrap.querySelector('.track-note-wrap').classList.remove('open'); }, 300);
       updateTrackData(activeItem, trackNum, { note: noteVal }).then(() => { setTimeout(() => { saveBtn.textContent = 'Save track note'; }, 500); });
+      return;
     }
+
+    // Row highlight (plain/ctrl/shift click) — same handleTrackRowClick()
+    // the flat Tracks table and "Album and Tracks" view use, scoped to this
+    // tracklist's own rows. Excludes the interactive column (listen-toggle/
+    // stars/note-toggle/time — stars use their own pointer handlers, see
+    // setupTrackStarInteraction, so a plain click there still bubbles here)
+    // and the expandable note editor, both handled above/elsewhere.
+    if (e.target.closest('.track-interactive') || e.target.closest('.track-note-wrap')) return;
+    const rowWrap = e.target.closest('.track-row-wrap');
+    if (rowWrap) handleTrackRowClick(e, rowWrap, el.deckTracklist, '.track-row-wrap');
   });
 
   el.deckTracklist.addEventListener('contextmenu', (e) => {
@@ -2294,7 +2350,23 @@ function bindEvents() {
     e.preventDefault();
     const trackNum = rowEl.dataset.track;
     const track = currentTracklistTracks.find(t => String(t.trackNumber || 0) === String(trackNum));
-    openTrackContextMenu(activeItem, track ? track.trackName : '', e.clientX, e.clientY, track ? track.trackNumber : '');
+    const rowKey = rowEl.dataset.trackKey;
+
+    // Right-clicking a row outside the current highlight selects it first
+    // (standard behavior, same as the flat Tracks table/"Album and Tracks"
+    // view) so the menu always acts on whatever ends up highlighted.
+    if (rowKey && !state.selectedTracks.has(rowKey)) {
+      state.selectedTracks.clear();
+      state.selectedTracks.add(rowKey);
+      state.lastSelectedTrackKey = rowKey;
+      Array.from(el.deckTracklist.querySelectorAll('.track-row-wrap')).forEach(r => r.classList.toggle('selected', r.dataset.trackKey === rowKey));
+    }
+    const selectedItems = currentTracklistTracks
+      .map(t => ({ t, key: `${activeItem.row}::${t.trackNumber || 0}` }))
+      .filter(x => state.selectedTracks.has(x.key))
+      .map(x => ({ itemType: 'track', row: activeItem.row, trackNum: x.t.trackNumber || '', trackName: x.t.trackName || '' }));
+
+    openTrackContextMenu(activeItem, track ? track.trackName : '', e.clientX, e.clientY, track ? track.trackNumber : '', selectedItems);
   });
 
   // 11b. Play buttons in the "Album and Tracks" list (each row carries its
@@ -2343,7 +2415,7 @@ function bindEvents() {
       }
     }
     if (e.key !== 'Escape') return;
-    closeDeck(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal();
+    closeDeck(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal(); closeTrackPropertiesModal();
     // Deliberately NOT closing the YouTube floating player here — like the
     // Spotify mini player, it's a persistent background player now, not a
     // modal, so Escape (used to dismiss whatever modal/menu is open) leaves
@@ -2374,7 +2446,7 @@ async function updateTrackData(item, trackNum, updates) {
   Object.assign(item.trackData[trackNum], updates);
   
   // Cleanup empty objects so we don't save useless bloat
-  if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened) {
+  if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre) {
     delete item.trackData[trackNum];
   }
 
@@ -4761,8 +4833,13 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
   menu.className = 'panel-mode-menu now-playing-add-menu';
   menu.innerHTML = `
     <div class="menu-section-title">${escapeHtml(menuTitle)}</div>
-    <button type="button" data-track-menu-action="view">View album</button>
+    <button type="button" data-track-menu-action="play">▶ Play</button>
+    <button type="button" data-track-menu-action="queue">Add to queue</button>
     <button type="button" class="menu-parent-btn" data-track-menu-action="playlist">Add to playlist <span class="submenu-caret">▸</span></button>
+    <button type="button" data-track-menu-action="entry">Add to entry</button>
+    <div class="menu-divider"></div>
+    ${!isMultiSelect ? '<button type="button" data-track-menu-action="editProps">Edit track properties\u2026</button>' : ''}
+    <button type="button" data-track-menu-action="view">View album</button>
     <button type="button" class="menu-parent-btn" data-track-menu-action="search">Search <span class="submenu-caret">▸</span></button>
   `;
   document.body.appendChild(menu);
@@ -4786,10 +4863,179 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
 
     closeNowPlayingAddMenu();
     if (action === 'view') openDeck(item);
+    else if (action === 'play') playTrackNow(item, trackName);
+    else if (action === 'queue') queueTracksNow(trackPlaylistItems);
+    else if (action === 'entry') addTracksToEntry(trackPlaylistItems);
+    else if (action === 'editProps') openTrackPropertiesModal(item, trackNum, trackName);
   });
 
   nowPlayingAddMenuEl = menu;
   setTimeout(() => document.addEventListener('click', closeNowPlayingAddMenuOnOutsideClick), 0);
+}
+
+// ▶ Play from a track's context menu — same lookup+playback the deck's own
+// per-track play button uses (spotifyTrackId + showMiniPlayer), just
+// factored out so it can be called from the menu regardless of which view
+// (deck/flat table/"Album and Tracks") it was opened from.
+async function playTrackNow(item, trackName) {
+  if (!trackName) return;
+  const intent = beginPlayIntent();
+  flashGlobalToast(`Looking up "${trackName}" on Spotify…`);
+  try {
+    const trackId = await spotifyTrackId(item.artist, trackName);
+    if (!isPlayIntentCurrent(intent)) return; // a newer play action started while this was looking up
+    if (trackId) {
+      showMiniPlayer(`spotify:track:${trackId}`, intent);
+    } else {
+      flashGlobalToast('Couldn\u2019t find that track on Spotify' + (loadSpotifyCreds().clientId ? '' : ' — set up the Spotify API in \u2699 first'));
+    }
+  } catch (err) {
+    flashGlobalToast('Couldn\u2019t find that track on Spotify');
+  }
+}
+
+// "Add to queue" from a track's context menu — resolves each selected
+// track's Spotify ID by artist+name (looking its owning album up in
+// state.raw by row, since a multi-selection in the flat table/"Album and
+// Tracks" view can span more than one album) and pushes it onto the real
+// Spotify queue via the Web API, same endpoint queueAlbumTracks() already
+// uses for a whole album.
+async function queueTracksNow(trackPlaylistItems) {
+  if (!trackPlaylistItems || !trackPlaylistItems.length) return;
+  const userToken = await getSpotifyUserAccessToken();
+  if (!userToken) {
+    flashGlobalToast('Connect your Spotify Premium account to queue tracks', {
+      onClick: () => { el.menuSpotifyApi.click(); }
+    });
+    return;
+  }
+  flashGlobalToast(trackPlaylistItems.length > 1 ? `Queuing ${trackPlaylistItems.length} tracks…` : `Queuing "${trackPlaylistItems[0].trackName}"…`);
+
+  let queued = 0;
+  for (const t of trackPlaylistItems) {
+    if (!t.trackName) continue;
+    const owner = (activeItem && activeItem.row === t.row) ? activeItem : state.raw.find(r => r.row === t.row);
+    if (!owner) continue;
+    try {
+      const trackId = await spotifyTrackId(owner.artist, t.trackName);
+      if (!trackId) continue;
+      const res = await fetch(`https://api.spotify.com/v1/me/player/queue?uri=${encodeURIComponent('spotify:track:' + trackId)}`, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + userToken }
+      });
+      if (res.ok || res.status === 204) {
+        queued++;
+      } else if (res.status === 403) {
+        flashGlobalToast('Queueing needs a Spotify Premium account.');
+        return;
+      } else if (res.status === 404) {
+        flashGlobalToast('Open Spotify on a device first, then try again.');
+        return;
+      }
+    } catch (e) { console.warn('Queue add failed', e); }
+  }
+
+  flashGlobalToast(queued
+    ? `Queued ${queued} track${queued === 1 ? '' : 's'}`
+    : 'Couldn\u2019t queue \u2014 try again.');
+  if (!el.queuePanel.hidden) refreshQueuePanel();
+}
+
+// "Add to entry" from a track's context menu — flags the given track(s)
+// listened for their owning album, the same flag the per-track checkmark/
+// "Select all" already use (see toggleTrackListened/selectAllTracks), so
+// they're already picked out the next time "+ Log a listen" is opened for
+// that album. Groups by album row so each album's trackData is only saved
+// once even if several of its tracks were selected together.
+async function addTracksToEntry(trackPlaylistItems) {
+  if (!trackPlaylistItems || !trackPlaylistItems.length) return;
+  const byRow = new Map();
+  for (const t of trackPlaylistItems) {
+    if (!t.trackNum && t.trackNum !== 0) continue; // no track number to key off — skip
+    if (!byRow.has(t.row)) byRow.set(t.row, []);
+    byRow.get(t.row).push(t.trackNum);
+  }
+  if (!byRow.size) return;
+
+  let total = 0;
+  for (const [row, trackNums] of byRow) {
+    const owner = (activeItem && activeItem.row === row) ? activeItem : state.raw.find(r => r.row === row);
+    if (!owner) continue;
+    if (!owner.trackData) owner.trackData = {};
+    for (const tNum of trackNums) {
+      if (!owner.trackData[tNum]) owner.trackData[tNum] = {};
+      owner.trackData[tNum].listened = true;
+      total++;
+    }
+    if (activeItem === owner) renderTracklistBody(owner, currentTracklistTracks);
+    try {
+      await postUpdate({ row: owner.row, trackData: JSON.stringify(owner.trackData) });
+    } catch (err) {
+      flashGlobalToast('Couldn\u2019t save \u2014 try again');
+    }
+  }
+  flashGlobalToast(`Added ${total} track${total === 1 ? '' : 's'} to entry`);
+  if (activeItem && !el.logForm.hidden) renderLogTrackSummary();
+}
+
+// "Edit track properties…" — a small floating form (single-track only, see
+// openTrackContextMenu) for per-track fields that don't belong on the
+// album-level Edit modal. Currently just Genre, saved into the same
+// trackData JSON blob rating/note/listened already live in via
+// updateTrackData(), so it needs no backend change.
+let trackPropsMenuEl = null;
+function openTrackPropertiesModal(item, trackNum, trackName) {
+  closeNowPlayingAddMenu();
+  closeTrackPropertiesModal();
+
+  const tData = (item.trackData && item.trackData[trackNum]) || {};
+
+  const menu = document.createElement('div');
+  menu.className = 'panel-mode-menu now-playing-add-menu track-props-menu';
+  menu.innerHTML = `
+    <div class="menu-section-title">${escapeHtml(trackName || 'Track properties')}</div>
+    <div class="track-props-field">
+      <label for="trackPropsGenre">Genre</label>
+      <input type="text" id="trackPropsGenre" placeholder="e.g. Dream Pop" value="${escapeHtml(tData.genre || '')}">
+    </div>
+    <div class="track-props-actions">
+      <button type="button" class="chip-btn" data-track-props-action="cancel">Cancel</button>
+      <button type="button" class="save-btn" data-track-props-action="save">Save</button>
+    </div>
+  `;
+  document.body.appendChild(menu);
+  positionFloatingMenu(menu, Math.round(window.innerWidth / 2 - 130), Math.round(window.innerHeight / 2 - 90));
+
+  const genreInput = menu.querySelector('#trackPropsGenre');
+  genreInput.focus();
+  genreInput.select();
+
+  const doSave = async () => {
+    await updateTrackData(item, trackNum, { genre: genreInput.value.trim() });
+    if (activeItem === item) renderTracklistBody(item, currentTracklistTracks);
+    closeTrackPropertiesModal();
+  };
+
+  menu.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-track-props-action]');
+    if (!btn) return;
+    if (btn.dataset.trackPropsAction === 'save') doSave();
+    else closeTrackPropertiesModal();
+  });
+  genreInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); doSave(); }
+    else if (e.key === 'Escape') { e.preventDefault(); closeTrackPropertiesModal(); }
+  });
+
+  trackPropsMenuEl = menu;
+  setTimeout(() => document.addEventListener('click', closeTrackPropertiesModalOnOutsideClick), 0);
+}
+function closeTrackPropertiesModalOnOutsideClick(e) {
+  if (trackPropsMenuEl && !trackPropsMenuEl.contains(e.target)) closeTrackPropertiesModal();
+}
+function closeTrackPropertiesModal() {
+  if (trackPropsMenuEl) { trackPropsMenuEl.remove(); trackPropsMenuEl = null; }
+  document.removeEventListener('click', closeTrackPropertiesModalOnOutsideClick);
 }
 
 // Right-click menu on an album card in the grid/list/covers views (see
@@ -8003,9 +8249,12 @@ function renderTracklistBody(item, tracks) {
     const tData = (item.trackData && item.trackData[tNum]) ? item.trackData[tNum] : {};
     const rating = tData.rating || 0;
     const note = tData.note || '';
+    const genre = tData.genre || '';
     const listened = !!tData.listened;
     if (listened) listenedCount++;
     const scrobbleCount = trackScrobbleCountFor(item.artist, item.title, t.trackName);
+    const rowKey = `${item.row}::${tNum}`;
+    const selected = state.selectedTracks.has(rowKey);
 
     let starsHtml = '';
     for (let i = 1; i <= 5; i++) {
@@ -8014,7 +8263,7 @@ function renderTracklistBody(item, tracks) {
     }
 
     return `
-      <div class="track-row-wrap" data-track="${tNum}">
+      <div class="track-row-wrap${selected ? ' selected' : ''}" data-track="${tNum}" data-track-key="${rowKey}">
         <div class="track-row">
           <span class="track-num">${tNum}</span>
           <div class="track-info-main">
@@ -8022,6 +8271,7 @@ function renderTracklistBody(item, tracks) {
              ${t.youtubeLink ? `<button type="button" class="track-play-yt-btn" data-youtube-link="${escapeHtml(t.youtubeLink)}" data-track-name="${escapeHtml(t.trackName || '')}" title="Play on YouTube" aria-label="Play ${escapeHtml(t.trackName || '')} on YouTube">▶ YT</button>` : ''}
              <span class="track-name">${escapeHtml(t.trackName || '')}</span>
              ${scrobbleCount > 0 ? `<span class="track-scrobble-count" title="Last.fm plays">${scrobbleCount} play${scrobbleCount === 1 ? '' : 's'}</span>` : ''}
+             ${genre ? `<span class="track-genre-preview" title="Track genre">${escapeHtml(genre)}</span>` : ''}
              ${note ? `<span class="track-note-preview">${escapeHtml(note)}</span>` : ''}
           </div>
           <div class="track-interactive">
@@ -8083,7 +8333,7 @@ async function toggleTrackListened(item, trackNum) {
   if (!item.trackData[trackNum]) item.trackData[trackNum] = {};
   if (nowListened) item.trackData[trackNum].listened = true;
   else delete item.trackData[trackNum].listened;
-  if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened) {
+  if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre) {
     delete item.trackData[trackNum];
   }
 
@@ -8105,7 +8355,7 @@ async function toggleTrackListened(item, trackNum) {
     if (!item.trackData[trackNum]) item.trackData[trackNum] = {};
     if (wasListened) item.trackData[trackNum].listened = true;
     else delete item.trackData[trackNum].listened;
-    if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened) {
+    if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre) {
       delete item.trackData[trackNum];
     }
     if (activeItem === item) renderTracklistBody(item, currentTracklistTracks);
@@ -8146,7 +8396,7 @@ async function clearTrackSelection(item) {
     const tNum = t.trackNumber || 0;
     if (item.trackData[tNum]) {
       delete item.trackData[tNum].listened;
-      if (!item.trackData[tNum].rating && !item.trackData[tNum].note) delete item.trackData[tNum];
+      if (!item.trackData[tNum].rating && !item.trackData[tNum].note && !item.trackData[tNum].genre) delete item.trackData[tNum];
     }
   }
   if (activeItem === item) renderTracklistBody(item, currentTracklistTracks);
@@ -10060,6 +10310,21 @@ async function getCaaJsonUrls(endpoint) {
   max-width: 300px;
 }
 
+/* Per-track genre badge (set via the track context menu's "Edit track
+   properties…" — see openTrackPropertiesModal) */
+.track-genre-preview {
+  display: inline-block;
+  font-size: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--accent);
+  background: rgba(255,255,255,0.06);
+  border-radius: 3px;
+  padding: 1px 6px;
+  margin-top: 3px;
+  margin-left: 6px;
+  letter-spacing: 0.02em;
+}
+
 /* Per-track Last.fm play count badge (deck tracklist + flat Tracks/Album+Tracks views) */
 .track-scrobble-count {
   display: inline-block;
@@ -10930,6 +11195,27 @@ html, body {
   .log-track-summary { font-size: 12px; color: var(--text-dim); line-height: 1.5; margin-bottom: 8px; }
   .log-track-summary-actions { display: flex; gap: 8px; }
 
+  /* "Edit track properties…" floating form — see openTrackPropertiesModal */
+  .track-props-menu { width: 260px; padding-bottom: 10px; }
+  .track-props-field { padding: 6px 16px 4px; display: flex; flex-direction: column; gap: 6px; }
+  .track-props-field label {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .track-props-field input {
+    background: var(--bg-card); border: 1px solid var(--line); color: var(--text); border-radius: 6px;
+    padding: 8px 10px; font-family: 'Inter', sans-serif; font-size: 13px; outline: none;
+  }
+  .track-props-field input:focus { border-color: var(--accent); }
+  .track-props-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 16px 0; }
+  .track-props-actions button { width: auto; }
+  .track-props-actions .chip-btn { border-radius: 6px; }
+  .track-props-actions .save-btn { margin-top: 0; padding: 7px 14px; font-size: 12px; }
+  /* Higher specificity than the generic .panel-mode-menu button:hover rule,
+     which would otherwise strip the Save button's filled accent background
+     on hover and make it look disabled. */
+  .track-props-actions .save-btn:hover { background: var(--accent); color: #12161C; opacity: 0.9; }
+
   /* ---- Stats tab ---- */
   .stats-wrap { max-width: 760px; margin: 0 auto; }
   .stats-header h2 { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 0.5px; margin: 0 0 4px; }
@@ -11301,6 +11587,13 @@ html, body {
   .track-row-wrap:last-child { border-bottom: none; }
   
   .track-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; font-size: 13px; padding: 8px 0; color: var(--text); align-items: center; }
+  /* Deck tracklist rows are now click-selectable too (see handleTrackRowClick
+     call in the deckTracklist click listener) — scoped to .track-row itself
+     (not the whole .track-row-wrap, which also contains the expandable note
+     editor) so hover/selection styling never bleeds into that area. */
+  .track-row-wrap .track-row { cursor: pointer; border-radius: 4px; }
+  .track-row-wrap:hover .track-row { background: var(--bg-elevated); }
+  .track-row-wrap.selected .track-row { background: var(--bg-elevated); outline: 1px solid var(--accent); outline-offset: -1px; }
   /* Only the per-album "Album and Tracks" view's rows are click-selectable
      (see loadTracksForList) — scoped via .track-group-tracks so the deck's
      own .track-row (star ratings/listened-toggle/notes UI, no selection)
