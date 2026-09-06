@@ -1831,8 +1831,13 @@ function bindEvents() {
   // Open Customize Panel - Shows different slots based on current view
   el.menuCustomizeMain.addEventListener('click', (e) => {
     e.stopPropagation();
-    const mode = (state.mainViewMode === 'covers') ? 'covers' : 
-                 (state.mainViewMode === 'tracks' || state.mainViewMode === 'albumTracks' ? 'tracks' : 'grid');
+    // While a playlist is open this menu is scoped to state.playlistViewMode
+    // instead of the library's state.mainViewMode (see
+    // refreshViewMenuForContext()) — only its Tracks view is customizable
+    // for now, which is the only case the menu item is shown in that case.
+    const effectiveMode = state.activePlaylistId ? state.playlistViewMode : state.mainViewMode;
+    const mode = (effectiveMode === 'covers') ? 'covers' : 
+                 (effectiveMode === 'tracks' || effectiveMode === 'albumTracks' ? 'tracks' : 'grid');
     
     renderConfigSlots(mode); 
     el.mainConfigModal.hidden = false;
@@ -2820,9 +2825,16 @@ function refreshViewMenuForContext() {
   if (listDivider) listDivider.hidden = !isPlaylist;
   if (groupByItem) groupByItem.hidden = isPlaylist;
   if (el.menuCustomizeMain) {
-    el.menuCustomizeMain.hidden = isPlaylist;
+    // Playlists reuse the library's own Tracks table (see
+    // renderPlaylistTracksView), columns and all — so Customize should stay
+    // available whenever that's the view showing, same as in the library.
+    // The other playlist views (List/Album and Tracks/Covers/Artists) have
+    // nothing configurable, so it's hidden there like it always was.
+    const currentMode = isPlaylist ? state.playlistViewMode : state.mainViewMode;
+    const canCustomize = !isPlaylist || currentMode === 'tracks';
+    el.menuCustomizeMain.hidden = !canCustomize;
     const divider = el.menuCustomizeMain.previousElementSibling;
-    if (divider && divider.classList.contains('menu-divider')) divider.hidden = isPlaylist;
+    if (divider && divider.classList.contains('menu-divider')) divider.hidden = !canCustomize;
   }
   updateMainLabel();
   refreshViewMenuHighlight();
@@ -3465,7 +3477,9 @@ function trackTableRowOverhead(numCols) {
 // dragging a side panel, or showing/hiding a side panel), so the table
 // re-fits instead of silently drifting out of sync.
 function refitTrackTable() {
-  if (state.mainViewMode !== 'tracks') return;
+  const inLibraryTracks = !state.activePlaylistId && state.mainViewMode === 'tracks';
+  const inPlaylistTracks = !!state.activePlaylistId && state.playlistViewMode === 'tracks';
+  if (!inLibraryTracks && !inPlaylistTracks) return;
   const header = document.getElementById('trackTableHeader');
   if (!header) return;
   const template = trackTableGridTemplate();
@@ -7046,82 +7060,82 @@ function renderPlaylistListView(playlist, body) {
   setupPlaylistItemDrag(listEl, playlist);
 }
 
-// "Tracks" view: flattens every album in the playlist down to its individual
-// tracks (standalone track items need no lookup — they already know their
-// own trackNum/trackName) and lists everything as one flat table, in
-// playlist order. Whole albums get their tracklist fetched via getTracksFor()
-// the same way the library's flat Tracks view does, just without touching
-// state.mainViewMode/state.flatTrackRows (those belong to the library).
-let playlistTrackViewToken = 0;
+// "Tracks" view: reuses the library's own flat Tracks table wholesale —
+// same buildTrackTableHeader()/renderFlatTrackTable() as renderTrackView(),
+// so it gets identical sortable/resizable/reorderable/customizable columns,
+// identical click-to-select and double-click-to-play-on-Spotify row
+// behavior, and clicking a row never opens the album deck (see
+// handleTrackRowClick / trackHeaderColumns — none of that is playlist- or
+// library-specific). The only playlist-specific part is building the row
+// list: standalone track items need no lookup (they already know their own
+// trackNum/trackName), whole albums get their tracklist fetched via
+// getTracksFor() same as the library. Shares state.flatTrackRows/
+// state.trackSort/state.fields.tracks/state.trackColWidths with the library
+// view — safe since only one of the two is ever on screen at a time — so
+// column choices, widths and sort persist the same way in both places.
 function renderPlaylistTracksView(playlist, body) {
-  const token = ++playlistTrackViewToken;
   if (!playlist.items.length) {
     body.innerHTML = '<p class="playlist-empty">Nothing here yet \u2014 right-click an album or track and choose \u201cAdd to playlist\u201d.</p>';
     return;
   }
-  body.innerHTML = '<p class="tracklist-status">Loading tracks\u2026</p>';
+  body.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'track-view track-view-table';
+  wrap.appendChild(buildTrackTableHeader());
+  const tbody = document.createElement('div');
+  tbody.id = 'trackTableBody';
+  tbody.innerHTML = '<p class="tracklist-status">Loading tracks\u2026</p>';
+  wrap.appendChild(tbody);
+  body.appendChild(wrap);
+  loadPlaylistFlatTrackTable(playlist);
+}
 
-  const albumsNeedingFetch = [...new Map(
+// Builds this playlist's flattened track rows (fetching any album
+// tracklists it needs first) and hands them to the shared
+// state.flatTrackRows / renderFlatTrackTable() pipeline — the same one
+// loadFlatTrackTable() feeds for the library's Tracks view. Guarded so a
+// slow fetch can't stomp on the table after the person has switched away
+// (closed the playlist, opened a different one, or picked another view).
+let playlistFlatTrackLoadToken = 0;
+function loadPlaylistFlatTrackTable(playlist) {
+  const token = ++playlistFlatTrackLoadToken;
+
+  const albums = [...new Map(
     playlist.items.filter(it => it.type !== 'track')
       .map(it => playlistAlbumFor(it))
       .filter(Boolean)
       .map(a => [a.row, a])
   ).values()];
 
-  function render() {
-    if (token !== playlistTrackViewToken) return;
-    const out = [];
-    playlist.items.forEach(it => {
-      const album = playlistAlbumFor(it);
-      if (it.type === 'track') {
-        out.push({ album, trackNumber: it.trackNum, trackName: it.trackName, trackTimeMillis: null });
-        return;
-      }
-      if (!album) return;
-      const tracks = state.trackCache[artKey(album)] || [];
-      if (!tracks.length) { out.push({ album, trackNumber: '', trackName: '(no tracklist found)', trackTimeMillis: null }); return; }
-      tracks.forEach(t => out.push({ album, trackNumber: t.trackNumber, trackName: t.trackName, trackTimeMillis: t.trackTimeMillis }));
-    });
-
-    body.innerHTML = out.length ? `
-      <div class="track-view track-view-table playlist-track-table">
-        <div class="playlist-track-row playlist-track-table-header">
-          <span class="track-num">#</span>
-          <span class="track-name">Track</span>
-          <span class="track-album">Album</span>
-          <span class="track-time">Time</span>
-        </div>
-        <div id="playlistTrackTableBody">
-          ${out.map((r, i) => `
-            <div class="playlist-track-row" data-idx="${i}">
-              <span class="track-num">${r.trackNumber || ''}</span>
-              <span class="track-name">${escapeHtml(r.trackName || '')}</span>
-              <span class="track-album">${r.album ? escapeHtml(r.album.title) + ' \u2014 ' + escapeHtml(r.album.artist) : '(album removed from crate)'}</span>
-              <span class="track-time">${r.trackTimeMillis ? formatDuration(r.trackTimeMillis) : ''}</span>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    ` : '<p class="playlist-empty">No tracks found.</p>';
-
-    const tableBody = document.getElementById('playlistTrackTableBody');
-    if (tableBody) {
-      tableBody.addEventListener('click', (e) => {
-        const rowEl = e.target.closest('.playlist-track-row');
-        if (!rowEl) return;
-        const r = out[parseInt(rowEl.dataset.idx, 10)];
-        if (r && r.album) openDeck(r.album);
-      });
-    }
+  function stale() {
+    return token !== playlistFlatTrackLoadToken ||
+      state.activePlaylistId !== playlist.id ||
+      state.playlistViewMode !== 'tracks';
   }
 
-  if (!albumsNeedingFetch.length) { render(); return; }
-  let remaining = albumsNeedingFetch.length;
-  albumsNeedingFetch.forEach(album => {
+  function settle() {
+    if (stale()) return;
+    const rows = [];
+    playlist.items.forEach((it, idx) => {
+      const album = playlistAlbumFor(it) || { row: it.row, artist: '', title: '(album removed from crate)' };
+      if (it.type === 'track') {
+        rows.push({ item: album, track: { trackNumber: it.trackNum, trackName: it.trackName, trackTimeMillis: null }, idx });
+        return;
+      }
+      const tracks = state.trackCache[artKey(album)] || [];
+      tracks.forEach((t, ti) => rows.push({ item: album, track: t, idx: ti }));
+    });
+    state.flatTrackRows = rows;
+    renderFlatTrackTable();
+  }
+
+  if (!albums.length) { settle(); return; }
+  let remaining = albums.length;
+  albums.forEach(album => {
     getTracksFor(album).then(() => {
-      if (token !== playlistTrackViewToken) return;
+      if (stale()) return;
       remaining--;
-      if (remaining === 0) render();
+      if (remaining === 0) settle();
     });
   });
 }
