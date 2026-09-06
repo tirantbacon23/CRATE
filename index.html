@@ -13,7 +13,46 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.23.0
+  CURRENT_VERSION: 1.23.1
+
+  1.23.1 — 2026-09-06 — Three fixes:
+          (1) The "Up Next" panel (1.23.0) was display-only — rowHtml() in
+          renderCrateQueuePanel() had no click handler at all, so there was
+          no way to jump to a track in the queue. Upcoming rows are now
+          real buttons (data-queue-index) wired to a new click handler that
+          calls playCrateQueueIndex(crateQueueId, index) for the row's
+          actual position in crateQueueList — the "Now playing" row (when
+          item is non-null) is clickable too, replaying that same entry.
+          (2) openYoutubePlayer(url, trackName) built its "queue the rest
+          of the album" list from the global currentTracklistTracks, which
+          only reflects whichever album happens to be open in the deck —
+          not necessarily the album the clicked track belongs to. Calling
+          it from the deck's own tracklist (the original use case) always
+          matched, but the "Album and Tracks" view's ▶ YT button, the flat
+          Tracks table's double-click, and playTrackNow()'s manual-album
+          branch all called it with no such guarantee: with a different
+          album's tracklist loaded in the (possibly closed) deck, the
+          clicked video's ID wouldn't be found in that stale list and
+          playback silently fell back to ytQueue[0] — an unrelated track.
+          This read as "playing a YouTube track after a Spotify track was
+          on screen doesn't work," since the reverse direction always did
+          a fresh Spotify API search and had no equivalent stale-cache
+          path. openYoutubePlayer now takes an explicit third `tracks`
+          argument — the correct owning album's track list — and each of
+          those three call sites passes it (from state.trackCache, already
+          populated for exactly this reason) instead of relying on the
+          global; the deck's own call site still omits it and falls back
+          to currentTracklistTracks, which remains correct there.
+          (3) Hardened "Add to playlist" against duplicate adds: the
+          submenu's playlist buttons are now disabled the instant one is
+          clicked (re-enabled/removed right after), so a fast double-click
+          or a click landing while the menu is already mid-close can't
+          fire addPlaylistItems twice for the same selection. items is also
+          deduped by (row, trackNum) before the request goes out, in case
+          a selection ever ends up listing the same track more than once.
+          This is a client-side safeguard — if duplicates are still showing
+          up after this, the cause is most likely in apps-script-backend.gs's
+          addPlaylistItems handler, which this file can't inspect or edit.
 
   1.23.0 — 2026-09-06 — New "Up Next" panel: #rightPanel (previously an
           unused "reserved for something later" placeholder) now shows the
@@ -1463,7 +1502,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.23.0';
+const APP_VERSION = '1.23.1';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -2580,7 +2619,12 @@ function bindEvents() {
   el.gridContainer.addEventListener('click', async (e) => {
     const ytPlayBtn = e.target.closest('.track-play-yt-btn');
     if (ytPlayBtn) {
-      openYoutubePlayer(ytPlayBtn.dataset.youtubeLink, ytPlayBtn.dataset.trackName);
+      // data-row identifies which album this row belongs to (this view can
+      // show several albums at once) — used to pass that album's own
+      // cached tracklist rather than whatever's open in the deck, if
+      // anything. See openYoutubePlayer's comment for why that matters.
+      const rowItem = state.raw.find(r => String(r.row) === ytPlayBtn.dataset.row);
+      openYoutubePlayer(ytPlayBtn.dataset.youtubeLink, ytPlayBtn.dataset.trackName, rowItem ? state.trackCache[artKey(rowItem)] : undefined);
       return;
     }
     const playBtn = e.target.closest('.track-play-btn');
@@ -4109,7 +4153,7 @@ function renderFlatTrackTable() {
     // unrelated track instead of admitting it isn't there.
     if (isManualAlbum(match.item)) {
       if (match.track.youtubeLink) {
-        openYoutubePlayer(match.track.youtubeLink, match.track.trackName);
+        openYoutubePlayer(match.track.youtubeLink, match.track.trackName, state.trackCache[artKey(match.item)]);
       } else {
         flashGlobalToast('No YouTube link saved for this track — add one from Edit album.');
       }
@@ -4256,7 +4300,7 @@ function loadTracksForList(list, mode) {
             <span class="track-num">${t.trackNumber || ''}</span>
             <span class="track-name">
               ${manual ? '' : `<button type="button" class="track-play-btn" data-artist="${escapeHtml(item.artist)}" data-track-name="${escapeHtml(trackName)}" title="Play on Spotify" aria-label="Play ${escapeHtml(trackName)} on Spotify">▶</button>`}
-              ${t.youtubeLink ? `<button type="button" class="track-play-yt-btn" data-youtube-link="${escapeHtml(t.youtubeLink)}" data-track-name="${escapeHtml(trackName)}" title="Play on YouTube" aria-label="Play ${escapeHtml(trackName)} on YouTube">▶ YT</button>` : ''}
+              ${t.youtubeLink ? `<button type="button" class="track-play-yt-btn" data-youtube-link="${escapeHtml(t.youtubeLink)}" data-track-name="${escapeHtml(trackName)}" data-row="${escapeHtml(String(item.row))}" title="Play on YouTube" aria-label="Play ${escapeHtml(trackName)} on YouTube">▶ YT</button>` : ''}
               ${escapeHtml(trackName)}${scrobbleCount > 0 ? `<span class="track-scrobble-count" title="Last.fm plays">${scrobbleCount} play${scrobbleCount === 1 ? '' : 's'}</span>` : ''}
             </span>
             <span class="track-time">${formatDuration(t.trackTimeMillis)}</span>
@@ -5185,7 +5229,7 @@ async function playTrackNow(item, trackName) {
   if (isManualAlbum(item)) {
     const manualTrack = item.manualTracks.find(t => t.title === trackName);
     if (manualTrack && manualTrack.youtubeLink) {
-      openYoutubePlayer(manualTrack.youtubeLink, trackName);
+      openYoutubePlayer(manualTrack.youtubeLink, trackName, state.trackCache[artKey(item)]);
     } else {
       flashGlobalToast('No YouTube link saved for this track — add one from Edit album.');
     }
@@ -7607,13 +7651,24 @@ function renderCrateQueuePanel() {
     return;
   }
 
-  const rowHtml = (entry, isCurrent) => {
+  // rowHtml renders each entry as a clickable row (data-queue-index is the
+  // entry's actual position in crateQueueList) — same role="button"/
+  // tabindex="0" + .queue-row-clickable pattern the mini player's own
+  // queue popover already uses (see queueRowHtml above), so it picks up
+  // that existing styling/keyboard handling for free. Previously this was
+  // static markup with no way to act on it at all. The "Now playing" row
+  // is clickable too (replays that same entry from the top); the one
+  // exception is the folded-in "something already playing" placeholder
+  // (see addToCrateQueue) which has no real queue index behind it and so
+  // isn't made clickable.
+  const rowHtml = (entry, isCurrent, index) => {
     // A manual album's track plays via its saved YouTube link (see
     // isManualAlbum()); the folded-in "now playing" placeholder (item is
     // null, only ever at index 0) reports its own source via
     // ytPlayingForCrateQueue instead, since it has no item to check.
     const isYoutube = entry.item ? isManualAlbum(entry.item) : (isCurrent && ytPlayingForCrateQueue);
-    return `<div class="queue-row${isCurrent ? ' queue-row-current' : ''}">
+    const clickable = index !== null;
+    return `<div class="queue-row${isCurrent ? ' queue-row-current' : ''}${clickable ? ' queue-row-clickable' : ''}" ${clickable ? `data-queue-index="${index}" role="button" tabindex="0" title="Play this track"` : ''}>
       <span class="crate-queue-source" title="${isYoutube ? 'Plays on YouTube' : 'Plays on Spotify'}">${isYoutube ? '▶' : '♫'}</span>
       <div class="queue-row-meta">
         <p class="queue-track-title">${escapeHtml(entry.track.trackName || '')}</p>
@@ -7622,11 +7677,34 @@ function renderCrateQueuePanel() {
     </div>`;
   };
 
+  // The folded-in "something already playing" placeholder (see
+  // addToCrateQueue) sits at crateQueueIndex 0 with item === null — it has
+  // no real lookup behind it, so it's rendered but not made clickable.
+  const currentIndex = current && current.item !== null ? crateQueueIndex : null;
+
   el.crateQueuePanelBody.innerHTML =
-    (current ? `<p class="queue-panel-subheading">Now playing</p>${rowHtml(current, true)}` : '') +
+    (current ? `<p class="queue-panel-subheading">Now playing</p>${rowHtml(current, true, currentIndex)}` : '') +
     (upcoming.length
-      ? `<p class="queue-panel-subheading">${current ? 'Up next' : 'Queued'}</p><div class="queue-list">${upcoming.map(e => rowHtml(e, false)).join('')}</div>`
+      ? `<p class="queue-panel-subheading">${current ? 'Up next' : 'Queued'}</p><div class="queue-list">${upcoming.map((e, i) => rowHtml(e, false, crateQueueIndex + 1 + i)).join('')}</div>`
       : '');
+
+  if (!el.crateQueuePanelBody.dataset.clickBound) {
+    el.crateQueuePanelBody.dataset.clickBound = '1';
+    const jumpToRow = (e) => {
+      const row = e.target.closest('.queue-row-clickable');
+      if (!row) return;
+      const index = parseInt(row.dataset.queueIndex, 10);
+      if (Number.isNaN(index)) return;
+      playCrateQueueIndex(crateQueueId, index);
+    };
+    el.crateQueuePanelBody.addEventListener('click', jumpToRow);
+    el.crateQueuePanelBody.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (!e.target.closest('.queue-row-clickable')) return;
+      e.preventDefault();
+      jumpToRow(e);
+    });
+  }
 }
 
 // "Clear" button on the Up Next panel — stops the crate queue from
@@ -7877,7 +7955,16 @@ async function savePlaylistModalClick() {
       const res = await postUpdate({ action: 'createPlaylist', name, description });
       const newId = res && res.id;
       if (newId && pendingPlaylistAddItems && pendingPlaylistAddItems.length) {
-        await postUpdate({ action: 'addPlaylistItems', playlistId: newId, items: pendingPlaylistAddItems });
+        // Same (row, trackNum) dedupe as openAddToPlaylistSubmenu — see its
+        // comment for why.
+        const seen = new Set();
+        const dedupedItems = pendingPlaylistAddItems.filter(it => {
+          const key = `${it.itemType}::${it.row}::${it.trackNum}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        await postUpdate({ action: 'addPlaylistItems', playlistId: newId, items: dedupedItems });
       }
       closePlaylistModal();
       await fetchCatalog();
@@ -7929,9 +8016,13 @@ function openAddToPlaylistSubmenu(anchorEl, items) {
   menu.addEventListener('mouseenter', () => clearTimeout(addToPlaylistSubmenuCloseTimer));
   menu.addEventListener('mouseleave', scheduleCloseAddToPlaylistSubmenu);
 
+  let submenuActionTaken = false; // guards against a fast double-click (or a click landing while
+                                   // this menu is already mid-close) firing addPlaylistItems twice
   menu.addEventListener('click', async (e) => {
     const btn = e.target.closest('button[data-playlist-id]');
     if (!btn) return;
+    if (submenuActionTaken) return;
+    submenuActionTaken = true;
     const playlistId = btn.dataset.playlistId;
 
     if (playlistId === '__new__') {
@@ -7941,7 +8032,19 @@ function openAddToPlaylistSubmenu(anchorEl, items) {
     }
     closeNowPlayingAddMenu();
     try {
-      await postUpdate({ action: 'addPlaylistItems', playlistId, items });
+      // Deduped by (row, trackNum) in case a selection ever ends up
+      // listing the same track more than once — belt-and-braces alongside
+      // submenuActionTaken above, both there to keep a single "Add to
+      // playlist" action from ever resulting in more than one item per
+      // track server-side.
+      const seen = new Set();
+      const dedupedItems = (items || []).filter(it => {
+        const key = `${it.itemType}::${it.row}::${it.trackNum}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      await postUpdate({ action: 'addPlaylistItems', playlistId, items: dedupedItems });
       flashGlobalToast('Added to playlist');
       if (state.activeTab === 'albums') await fetchCatalog();
     } catch (err) {
@@ -9802,19 +9905,28 @@ function setYtPlayPauseUI(paused) {
   el.ytPlayerPlayPauseBtn.title = paused ? 'Play' : 'Pause';
 }
 
-// Clicking a track's "▶ YT" button builds a queue out of every track in the
-// currently-open deck's tracklist that has a YouTube link attached (not
-// just the one clicked) — see currentTracklistTracks, populated by
-// loadTracklist()/renderTracklistBody() — so Prev/Next and the queue panel
-// below have the rest of the album to work with. Falls back to a
-// single-track queue when there's no tracklist context (or nothing else in
-// it has a YouTube link).
-function openYoutubePlayer(url, trackName) {
+// Clicking a track's "▶ YT" button builds a queue out of every track in its
+// own album that has a YouTube link attached (not just the one clicked), so
+// Prev/Next and the queue panel below have the rest of the album to work
+// with. `tracks` should be that album's track list; the deck's own tracklist
+// click handler omits it and falls back to currentTracklistTracks (populated
+// by loadTracklist()/renderTracklistBody() for whatever's open in the deck),
+// which is correct there since the two always match. Every OTHER call site
+// (the "Album and Tracks" view, the flat Tracks table's double-click,
+// playTrackNow()'s manual-album branch) now passes its own album's tracks
+// explicitly instead of relying on that global — it used to fall back to
+// currentTracklistTracks there too, but that reflects whatever album
+// happens to be open in the deck, not necessarily the one being played, so
+// a mismatch meant the clicked video's ID wasn't found in the (wrong) list
+// and playback silently landed on ytQueue[0] instead — some other, unrelated
+// track. Falls back to a single-track queue when there's no tracklist
+// context at all (or nothing else in it has a YouTube link).
+function openYoutubePlayer(url, trackName, tracks) {
   ytPlayingForCrateQueue = false; // manual play, not the "Play playlist" queue — see playCrateTrackOnYoutube
   const videoId = youtubeVideoIdFromUrl(url);
   if (!videoId) { flashGlobalToast('That doesn\u2019t look like a valid YouTube link'); return; }
 
-  const ytTracks = (currentTracklistTracks || []).filter(t => t.youtubeLink && youtubeVideoIdFromUrl(t.youtubeLink));
+  const ytTracks = (tracks || currentTracklistTracks || []).filter(t => t.youtubeLink && youtubeVideoIdFromUrl(t.youtubeLink));
   if (ytTracks.length) {
     ytQueue = ytTracks.map(t => ({ videoId: youtubeVideoIdFromUrl(t.youtubeLink), trackName: t.trackName || 'Untitled track' }));
     const idx = ytQueue.findIndex(q => q.videoId === videoId);
