@@ -13,7 +13,25 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.28.0
+  CURRENT_VERSION: 1.29.0
+
+  1.29.0 — 2026-09-08 — New "Recorded" date property alongside Release
+          date, for when a release's recording date differs from when it
+          came out (e.g. a live album, or a reissue of older sessions).
+          Same year/month/day precision fields and storage rules as
+          1.28.0's release date rework — new addRecordedYear/Month/Day and
+          editRecordedYear/Month/Day fields in the Add/Edit modals, backed
+          by recordedDate-specific mirrors of that version's helpers
+          (splitRecordedDate/combineRecordedDate/recordedDatePrecision/
+          formatRecordedDateStr/formatRecordedDate/initRecordedDateFields/
+          setRecordedDateFields/getRecordedDateFields — kept separate from
+          their release-date counterparts rather than generalized, so this
+          doesn't touch that already-working code path). Stored/sent as
+          item.recordedDate / payload+column "Recorded", same "YYYY" /
+          "YYYY-MM" / "YYYY-MM-DD" precision string as releaseDate. Also
+          wired into FIELD_OPTIONS/keyToVal (so it can be picked for grid
+          slots and cover tags, same as Release Date) and appended to the
+          deck's meta line as "Recorded <date>" whenever it's set.
 
   1.28.0 — 2026-09-08 — Release date now supports year-only and
           year+month precision, not just a full day. The Add/Edit forms'
@@ -1539,6 +1557,13 @@
             <select id="addReleaseDay"><option value="">Day</option></select>
           </div>
         </label>
+        <label class="add-field">Recorded
+          <div class="release-date-fields">
+            <input type="number" id="addRecordedYear" placeholder="Year" inputmode="numeric" min="0" max="2100">
+            <select id="addRecordedMonth"><option value="">Month</option></select>
+            <select id="addRecordedDay"><option value="">Day</option></select>
+          </div>
+        </label>
         <label class="add-field">Genre <input type="text" id="addGenre"></label>
         <label class="add-field">Secondary Genre <input type="text" id="addGenre2" placeholder="e.g. Shoegaze, Dream Pop"></label>
         <label class="add-field">Region / Language <input type="text" id="addRegion" placeholder="e.g. Japan, JP, 日本語"></label>
@@ -1584,6 +1609,13 @@
             <input type="number" id="editReleaseYear" placeholder="Year" inputmode="numeric" min="0" max="2100">
             <select id="editReleaseMonth"><option value="">Month</option></select>
             <select id="editReleaseDay"><option value="">Day</option></select>
+          </div>
+        </label>
+        <label class="add-field">Recorded
+          <div class="release-date-fields">
+            <input type="number" id="editRecordedYear" placeholder="Year" inputmode="numeric" min="0" max="2100">
+            <select id="editRecordedMonth"><option value="">Month</option></select>
+            <select id="editRecordedDay"><option value="">Day</option></select>
           </div>
         </label>
         <label class="add-field">Genre
@@ -1713,7 +1745,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.28.0';
+const APP_VERSION = '1.29.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -1767,6 +1799,7 @@ const FIELD_OPTIONS = {
   artist: 'Artist',
   year: 'Release Year',
   releaseDate: 'Release Date',
+  recordedDate: 'Recorded',
   rating: 'Rating (Stars)',
   type: 'Media Type (LP/EP)',
   catalog: 'Catalog Number',
@@ -1908,11 +1941,11 @@ const el = {};
   'fldTitle','fldArtist','fldYear','fldRating','fldType','fldCatalog','fldGenre','fldLabel','fldDuration','menuCustomizeMain',
   'listenedFilterBtn',
   'addAlbumBtn','addOverlay','addClose','addSearchInput','addManualEntryBtn','addResults','addForm',
-  'addArtist','addTitle','addType','addReleaseYear','addReleaseMonth','addReleaseDay','addGenre','addGenre2','addRegion','addLabel','addCatalog','addLink','addRymLink','addCover','addSaveBtn','addCancelBtn','addToast',
+  'addArtist','addTitle','addType','addReleaseYear','addReleaseMonth','addReleaseDay','addRecordedYear','addRecordedMonth','addRecordedDay','addGenre','addGenre2','addRegion','addLabel','addCatalog','addLink','addRymLink','addCover','addSaveBtn','addCancelBtn','addToast',
   'addTracksRows','addTracksAddRowBtn',
   'deckOverlay','deckClose','deckImg','deckCatalog','deckTitle','deckArtist','deckMeta','deckAdded','deckScrobbleCount','deckLink','deckRatingNum',
   'deckSpotifyLink','deckSoundcloudLink','deckRymLink','deckPlayBtn',
-  'deckEditBtn','editOverlay','editClose','editArtist','editTitle','editType','editReleaseYear','editReleaseMonth','editReleaseDay','editGenre','editGenre2','editRegion','editLabel','editCatalog','editLink','editRymLink','editCover','editSaveBtn','editCancelBtn','editToast',
+  'deckEditBtn','editOverlay','editClose','editArtist','editTitle','editType','editReleaseYear','editReleaseMonth','editReleaseDay','editRecordedYear','editRecordedMonth','editRecordedDay','editGenre','editGenre2','editRegion','editLabel','editCatalog','editLink','editRymLink','editCover','editSaveBtn','editCancelBtn','editToast',
   'editTracksRows','editTracksAddRowBtn','editTracksLoadBtn',
   'ytPlayerMount',
   'deckTracklist','deckStars','deckReview','deckSaveReview','deckToast','deckRemoveBtn','deckPlaylistBtn',
@@ -3144,6 +3177,7 @@ async function fetchCatalog() {
           title: String(r.Title).trim(),
           type: (r.Type ? String(r.Type).trim() : 'Unknown'),
           releaseDate: r.ReleaseDate || '',
+          recordedDate: r.Recorded || '',
           genre: r.Genre || '',
           genre2: r.SecondaryGenre || '',
           label: r.Label ? String(r.Label).trim() : '',
@@ -3901,6 +3935,95 @@ function getReleaseDateFields(prefix) {
   return combineReleaseDate(el[`${prefix}ReleaseYear`].value, el[`${prefix}ReleaseMonth`].value, el[`${prefix}ReleaseDay`].value);
 }
 
+// ---------- Recorded date (1.29.0) ----------
+// Mirrors the releaseDate helpers immediately above, field for field —
+// same "YYYY"/"YYYY-MM"/"YYYY-MM-DD" precision string, same Year/Month/Day
+// form fields, kept as its own set of functions rather than generalized
+// alongside releaseDate so this doesn't touch that already-working path.
+// This is when the release was RECORDED, as distinct from releaseDate
+// (when it came out) — the two commonly differ, e.g. a live album, or a
+// reissue of older sessions.
+function formatRecordedDate(item) {
+  if (!item.recordedDate || dateVal(item.recordedDate) === -Infinity) return '';
+  return formatRecordedDateStr(item.recordedDate);
+}
+function recordedDatePrecision(str) {
+  if (!str) return null;
+  const s = String(str);
+  if (/^\d{4}$/.test(s)) return 'year';
+  if (/^\d{4}-\d{2}$/.test(s)) return 'month';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return 'day';
+  return 'day';
+}
+function formatRecordedDateStr(str) {
+  const precision = recordedDatePrecision(str);
+  if (!precision) return '';
+  const d = new Date(str);
+  if (precision === 'year') return String(d.getUTCFullYear());
+  if (precision === 'month') return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', timeZone: 'UTC' });
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+function splitRecordedDate(str) {
+  const s = (str || '').trim();
+  const m = /^(\d{1,4})(?:-(\d{2}))?(?:-(\d{2}))?$/.exec(s);
+  if (!m) return { year: '', month: '', day: '' };
+  return { year: m[1] || '', month: m[2] || '', day: m[3] || '' };
+}
+function combineRecordedDate(year, month, day) {
+  const y = String(year || '').trim();
+  if (!y) return '';
+  const m = String(month || '').trim();
+  if (!m) return y;
+  const d = String(day || '').trim();
+  if (!d) return `${y}-${m}`;
+  return `${y}-${m}-${d}`;
+}
+function initRecordedDateFields(prefix) {
+  const monthSel = el[`${prefix}RecordedMonth`];
+  const daySel = el[`${prefix}RecordedDay`];
+  if (monthSel && !monthSel.dataset.built) {
+    const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    monthNames.forEach((name, i) => {
+      const opt = document.createElement('option');
+      opt.value = String(i + 1).padStart(2, '0');
+      opt.textContent = name;
+      monthSel.appendChild(opt);
+    });
+    monthSel.dataset.built = '1';
+  }
+  if (daySel && !daySel.dataset.built) {
+    for (let i = 1; i <= 31; i++) {
+      const opt = document.createElement('option');
+      opt.value = String(i).padStart(2, '0');
+      opt.textContent = String(i);
+      daySel.appendChild(opt);
+    }
+    daySel.dataset.built = '1';
+  }
+  if (monthSel && daySel) {
+    const syncDayEnabled = () => {
+      daySel.disabled = !monthSel.value;
+      if (!monthSel.value) daySel.value = '';
+    };
+    if (!monthSel.dataset.dayWired) {
+      monthSel.addEventListener('change', syncDayEnabled);
+      monthSel.dataset.dayWired = '1';
+    }
+    syncDayEnabled();
+  }
+}
+function setRecordedDateFields(prefix, value) {
+  initRecordedDateFields(prefix);
+  const { year, month, day } = splitRecordedDate(value);
+  el[`${prefix}RecordedYear`].value = year;
+  el[`${prefix}RecordedMonth`].value = month;
+  el[`${prefix}RecordedDay`].value = day;
+  el[`${prefix}RecordedDay`].disabled = !month;
+}
+function getRecordedDateFields(prefix) {
+  return combineRecordedDate(el[`${prefix}RecordedYear`].value, el[`${prefix}RecordedMonth`].value, el[`${prefix}RecordedDay`].value);
+}
+
 function groupItems(items, by) {
   const map = new Map();
   items.forEach(item => {
@@ -4422,6 +4545,7 @@ function trackSortValue(row, key) {
     return (cache || []).reduce((s, t) => s + (t.trackTimeMillis || 0), 0);
   }
   if (key === 'year' || key === 'releaseDate') return dateVal(row.item.releaseDate) === -Infinity ? -Infinity : dateVal(row.item.releaseDate);
+  if (key === 'recordedDate') return dateVal(row.item.recordedDate) === -Infinity ? -Infinity : dateVal(row.item.recordedDate);
   if (key === 'rating') return row.item.rating || 0;
   return String(keyToVal(key, row.item) || '').toLowerCase();
 }
@@ -6422,6 +6546,7 @@ function keyToVal(key, item) {
     type: typeAbbrev(item.type),
     year: year,
     releaseDate: formatReleaseDate(item),
+    recordedDate: formatRecordedDate(item),
     genre: item.genre,
     label: item.label,
     region: item.region,
@@ -8821,6 +8946,8 @@ function openDeck(item) {
 
   const year = dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getUTCFullYear() : '';
   const metaParts = [year, genreDisplayStr(item), item.region, item.label].filter(Boolean);
+  const recordedMeta = formatRecordedDate(item);
+  if (recordedMeta) metaParts.push('Recorded ' + recordedMeta);
   el.deckMeta.textContent = metaParts.join(' · ');
 
   if (dateVal(item.dateAdded) !== -Infinity) {
@@ -9627,6 +9754,8 @@ async function loadTracklist(item) {
     mergeTrackLinkOverrides(item, tracks);
     const year = dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getUTCFullYear() : '';
     const metaParts = [year, genreDisplayStr(item), item.region, item.label].filter(Boolean);
+    const recordedMeta = formatRecordedDate(item);
+    if (recordedMeta) metaParts.push('Recorded ' + recordedMeta);
     el.deckMeta.textContent = metaParts.join(' \u00b7 ');
     currentTracklistTracks = tracks;
     renderTracklistBody(item, tracks);
@@ -9644,6 +9773,8 @@ async function loadTracklist(item) {
 
     const year = dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getUTCFullYear() : '';
     const metaParts = [year, genreDisplayStr(item), item.region, item.label].filter(Boolean);
+    const recordedMeta = formatRecordedDate(item);
+    if (recordedMeta) metaParts.push('Recorded ' + recordedMeta);
     el.deckMeta.textContent = metaParts.join(' \u00b7 ');
 
     currentTracklistTracks = tracks;
@@ -10293,6 +10424,7 @@ function showAddForm(prefill) {
   const validTypes = ['Album', 'EP', 'Single', 'Compilation', 'Live', 'Mixtape'];
   el.addType.value = validTypes.includes(prefill.type) ? prefill.type : 'Album';
   setReleaseDateFields('add', prefill.releaseDate || '');
+  setRecordedDateFields('add', prefill.recordedDate || '');
   el.addGenre.value = prefill.genre || '';
   el.addGenre2.value = prefill.genre2 || '';
   el.addRegion.value = prefill.region || '';
@@ -10312,7 +10444,7 @@ async function saveNewAlbum() {
 
   const payload = {
     action: 'addAlbum', Artist: artist, Title: title, Type: el.addType.value,
-    ReleaseDate: getReleaseDateFields('add'), Genre: el.addGenre.value.trim(), 
+    ReleaseDate: getReleaseDateFields('add'), Recorded: getRecordedDateFields('add'), Genre: el.addGenre.value.trim(), 
     SecondaryGenre: el.addGenre2.value.trim(),
     Region: el.addRegion.value.trim(),
     Label: el.addLabel.value.trim(), Catalog: el.addCatalog.value.trim(), // 👈 ADD CATALOG
@@ -10339,6 +10471,7 @@ function openEditModal() {
   const validTypes = ['Album', 'EP', 'Single', 'Compilation', 'Live', 'Mixtape'];
   el.editType.value = validTypes.includes(activeItem.type) ? activeItem.type : 'Album';
   setReleaseDateFields('edit', activeItem.releaseDate || '');
+  setRecordedDateFields('edit', activeItem.recordedDate || '');
   el.editGenre.value = activeItem.genre || '';
   el.editGenre2.value = activeItem.genre2 || '';
   el.editRegion.value = activeItem.region || '';
@@ -10369,6 +10502,7 @@ async function saveEditAlbum() {
     Title: title,
     Type: el.editType.value,
     ReleaseDate: getReleaseDateFields('edit'),
+    Recorded: getRecordedDateFields('edit'),
     Genre: el.editGenre.value.trim(),
     SecondaryGenre: el.editGenre2.value.trim(),
     Region: el.editRegion.value.trim(),
@@ -10390,6 +10524,7 @@ async function saveEditAlbum() {
     activeItem.title = title;
     activeItem.type = el.editType.value;
     activeItem.releaseDate = payload.ReleaseDate;
+    activeItem.recordedDate = payload.Recorded;
     activeItem.genre = payload.Genre;
     activeItem.genre2 = payload.SecondaryGenre;
     activeItem.region = payload.Region;
