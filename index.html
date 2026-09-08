@@ -13,7 +13,45 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.27.2
+  CURRENT_VERSION: 1.28.0
+
+  1.28.0 — 2026-09-08 — Release date now supports year-only and
+          year+month precision, not just a full day. The Add/Edit forms'
+          single `<input type="date">` (which silently rejects/blanks
+          anything but a complete YYYY-MM-DD — a real problem, since
+          MusicBrainz/Spotify both commonly report only a year or
+          year+month for older or obscure releases, and that precision was
+          getting thrown away the moment such a search result landed in
+          the form) is replaced with separate Year/Month/Day fields; Day is
+          disabled until a Month is picked, and the value saved is whichever
+          of "YYYY" / "YYYY-MM" / "YYYY-MM-DD" the filled-in fields support
+          (new splitReleaseDate/combineReleaseDate, wired up by
+          setReleaseDateFields/getReleaseDateFields in showAddForm/
+          saveNewAlbum and openEditModal/saveEditAlbum). Every place a
+          release date is displayed now goes through the stored string's
+          own precision (new releaseDatePrecision/formatReleaseDateStr)
+          instead of assuming a full date — a year-only release shows just
+          "1977", not a fabricated "Jan 1, 1977". Also fixed the
+          MusicBrainz "+ Add" fallback that was turning a discography row's
+          year-only info into a fake "YYYY-01-01" before this even existed.
+          Bonus fix bundled in since it directly affects this: every
+          `new Date(releaseDate).getFullYear()` (and the MusicBrainz search
+          row's own year display) switched to getUTCFullYear() — a
+          date-only string like "2026" or "2026-09" parses as UTC midnight,
+          so plain getFullYear() was rolling the displayed year back by one
+          for anyone in a negative-UTC-offset timezone the moment local
+          time crossed into the previous day.
+
+  1.27.3 — 2026-09-08 — Add-album modal now has a "Skip search — enter
+          everything manually" link right under the search box, visible as
+          soon as the modal opens. Previously the only way to the blank
+          manual-entry form was to type a query into the MusicBrainz search
+          and either wait for it to fail or click "Enter it manually" among
+          the results (doAddSearch) — fine when the album just doesn't
+          match, but there was no way to skip straight past search for
+          someone who already knows they want to type every field by hand.
+          New button goes straight to the same showAddForm({}) the existing
+          "enter manually" links use, just reachable with no search first.
 
   1.27.2 — 2026-09-08 — Fixed a specific playlist's Tracks tab getting stuck
           on "Loading tracks…" forever (others unaffected). 1.26.2/1.26.3
@@ -1482,6 +1520,7 @@
       <div class="add-search-row">
         <input type="text" id="addSearchInput" placeholder="Search artist or album…">
       </div>
+      <button type="button" id="addManualEntryBtn" class="add-manual-link">Skip search — enter everything manually</button>
       <div id="addResults" class="add-results"></div>
       <div id="addForm" class="add-form" hidden>
         <p class="arrange-hint">Confirm the details, then add it to your crate.</p>
@@ -1493,7 +1532,13 @@
             <option>Compilation</option><option>Live</option><option>Mixtape</option>
           </select>
         </label>
-        <label class="add-field">Release date <input type="date" id="addReleaseDate"></label>
+        <label class="add-field">Release date
+          <div class="release-date-fields">
+            <input type="number" id="addReleaseYear" placeholder="Year" inputmode="numeric" min="0" max="2100">
+            <select id="addReleaseMonth"><option value="">Month</option></select>
+            <select id="addReleaseDay"><option value="">Day</option></select>
+          </div>
+        </label>
         <label class="add-field">Genre <input type="text" id="addGenre"></label>
         <label class="add-field">Secondary Genre <input type="text" id="addGenre2" placeholder="e.g. Shoegaze, Dream Pop"></label>
         <label class="add-field">Region / Language <input type="text" id="addRegion" placeholder="e.g. Japan, JP, 日本語"></label>
@@ -1534,7 +1579,13 @@
             <option>Compilation</option><option>Live</option><option>Mixtape</option>
           </select>
         </label>
-        <label class="add-field">Release date <input type="date" id="editReleaseDate"></label>
+        <label class="add-field">Release date
+          <div class="release-date-fields">
+            <input type="number" id="editReleaseYear" placeholder="Year" inputmode="numeric" min="0" max="2100">
+            <select id="editReleaseMonth"><option value="">Month</option></select>
+            <select id="editReleaseDay"><option value="">Day</option></select>
+          </div>
+        </label>
         <label class="add-field">Genre
           <div class="field-with-button">
             <input type="text" id="editGenre">
@@ -1662,7 +1713,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.27.2';
+const APP_VERSION = '1.28.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -1856,12 +1907,12 @@ const el = {};
   'mainConfigModal','mainConfigClose',
   'fldTitle','fldArtist','fldYear','fldRating','fldType','fldCatalog','fldGenre','fldLabel','fldDuration','menuCustomizeMain',
   'listenedFilterBtn',
-  'addAlbumBtn','addOverlay','addClose','addSearchInput','addResults','addForm',
-  'addArtist','addTitle','addType','addReleaseDate','addGenre','addGenre2','addRegion','addLabel','addCatalog','addLink','addRymLink','addCover','addSaveBtn','addCancelBtn','addToast',
+  'addAlbumBtn','addOverlay','addClose','addSearchInput','addManualEntryBtn','addResults','addForm',
+  'addArtist','addTitle','addType','addReleaseYear','addReleaseMonth','addReleaseDay','addGenre','addGenre2','addRegion','addLabel','addCatalog','addLink','addRymLink','addCover','addSaveBtn','addCancelBtn','addToast',
   'addTracksRows','addTracksAddRowBtn',
   'deckOverlay','deckClose','deckImg','deckCatalog','deckTitle','deckArtist','deckMeta','deckAdded','deckScrobbleCount','deckLink','deckRatingNum',
   'deckSpotifyLink','deckSoundcloudLink','deckRymLink','deckPlayBtn',
-  'deckEditBtn','editOverlay','editClose','editArtist','editTitle','editType','editReleaseDate','editGenre','editGenre2','editRegion','editLabel','editCatalog','editLink','editRymLink','editCover','editSaveBtn','editCancelBtn','editToast',
+  'deckEditBtn','editOverlay','editClose','editArtist','editTitle','editType','editReleaseYear','editReleaseMonth','editReleaseDay','editGenre','editGenre2','editRegion','editLabel','editCatalog','editLink','editRymLink','editCover','editSaveBtn','editCancelBtn','editToast',
   'editTracksRows','editTracksAddRowBtn','editTracksLoadBtn',
   'ytPlayerMount',
   'deckTracklist','deckStars','deckReview','deckSaveReview','deckToast','deckRemoveBtn','deckPlaylistBtn',
@@ -2490,6 +2541,16 @@ function bindEvents() {
   }, 450));
   el.addSearchInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); doAddSearch(); }
+  });
+  // Lets someone skip the MusicBrainz search entirely and go straight to a
+  // blank manual-entry form — previously the only way there was to type a
+  // query, wait for (or fail) a search, then hit "Enter it manually" inside
+  // the results list. Same destination (showAddForm with no prefill) as
+  // that existing link, just reachable without searching first.
+  el.addManualEntryBtn.addEventListener('click', () => {
+    addSearchSeq++; // invalidate any in-flight/pending search
+    el.addResults.innerHTML = '';
+    showAddForm({});
   });
   el.addSaveBtn.addEventListener('click', saveNewAlbum);
   el.addTracksAddRowBtn.addEventListener('click', () => addTracklistBuilderRow(el.addTracksRows));
@@ -3327,7 +3388,7 @@ if (mode === 'artist') {
     entries = groupCountWithSample(sourceRaw, r => r.artist);
   } else if (mode === 'year') {
     entries = groupCountWithSample(sourceRaw, r => {
-      const y = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getFullYear() : null;
+      const y = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getUTCFullYear() : null;
       return y ? String(y) : 'Unknown';
     });
   } else if (mode === 'genre') {
@@ -3673,7 +3734,7 @@ function getSearchTerms() {
 // artists/genre rows derived from them) tagged with that genre.
 function matchesSearchTerms(r, searchTerms) {
   if (searchTerms.length === 0) return true;
-  const year = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getFullYear() : '';
+  const year = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getUTCFullYear() : '';
   const genres = getGenreList(combinedGenreStr(r)).join(' ');
   const combinedText = `${r.artist} ${r.title} ${year} ${r.catalog} ${genres}`.toLowerCase();
   return searchTerms.every(term => combinedText.includes(term));
@@ -3737,7 +3798,107 @@ function dateVal(d) {
 // day-month-year style used elsewhere in the app (diary dates, stats).
 function formatReleaseDate(item) {
   if (!item.releaseDate || dateVal(item.releaseDate) === -Infinity) return '';
-  return new Date(item.releaseDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  return formatReleaseDateStr(item.releaseDate);
+}
+
+// Release dates can be known to year, year+month, or full day precision —
+// same three levels MusicBrainz/Spotify themselves distinguish (a lot of
+// older/obscure releases genuinely only have a year on record). Rather than
+// force a fake Jan 1 onto a year-only release, the stored string's own
+// length ("YYYY" / "YYYY-MM" / "YYYY-MM-DD") records exactly how much is
+// known, and every place that displays a release date reads that precision
+// back out instead of assuming it's always a full date.
+function releaseDatePrecision(str) {
+  if (!str) return null;
+  const s = String(str);
+  if (/^\d{4}$/.test(s)) return 'year';
+  if (/^\d{4}-\d{2}$/.test(s)) return 'month';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return 'day';
+  return 'day'; // anything else (e.g. a full ISO timestamp) — treat as fully known
+}
+function formatReleaseDateStr(str) {
+  const precision = releaseDatePrecision(str);
+  if (!precision) return '';
+  const d = new Date(str);
+  if (precision === 'year') return String(d.getUTCFullYear());
+  if (precision === 'month') return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', timeZone: 'UTC' });
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
+// Splits a stored "YYYY"/"YYYY-MM"/"YYYY-MM-DD" release date into the three
+// parts the Add/Edit form's Year/Month/Day fields work with.
+function splitReleaseDate(str) {
+  const s = (str || '').trim();
+  const m = /^(\d{1,4})(?:-(\d{2}))?(?:-(\d{2}))?$/.exec(s);
+  if (!m) return { year: '', month: '', day: '' };
+  return { year: m[1] || '', month: m[2] || '', day: m[3] || '' };
+}
+
+// Inverse of splitReleaseDate — builds the most-precise string the given
+// parts support. A day with no month, or a month with no year, is dropped
+// rather than guessed at (the UI itself also disables those fields, this is
+// just the same rule enforced on the way out).
+function combineReleaseDate(year, month, day) {
+  const y = String(year || '').trim();
+  if (!y) return '';
+  const m = String(month || '').trim();
+  if (!m) return y;
+  const d = String(day || '').trim();
+  if (!d) return `${y}-${m}`;
+  return `${y}-${m}-${d}`;
+}
+
+// Populates a Year/Month/Day field trio from a stored release date string,
+// and wires the Month→Day enable/disable relationship. prefix is 'add' or
+// 'edit'. Safe to call repeatedly (e.g. every time the Add/Edit modal
+// opens) — options are only built once per select via its data-built flag.
+function initReleaseDateFields(prefix) {
+  const monthSel = el[`${prefix}ReleaseMonth`];
+  const daySel = el[`${prefix}ReleaseDay`];
+  if (monthSel && !monthSel.dataset.built) {
+    const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    monthNames.forEach((name, i) => {
+      const opt = document.createElement('option');
+      opt.value = String(i + 1).padStart(2, '0');
+      opt.textContent = name;
+      monthSel.appendChild(opt);
+    });
+    monthSel.dataset.built = '1';
+  }
+  if (daySel && !daySel.dataset.built) {
+    for (let i = 1; i <= 31; i++) {
+      const opt = document.createElement('option');
+      opt.value = String(i).padStart(2, '0');
+      opt.textContent = String(i);
+      daySel.appendChild(opt);
+    }
+    daySel.dataset.built = '1';
+  }
+  // A day only means anything alongside a month — keep it disabled (and
+  // cleared) until a month is actually picked, same relationship enforced
+  // in combineReleaseDate on the way out.
+  if (monthSel && daySel) {
+    const syncDayEnabled = () => {
+      daySel.disabled = !monthSel.value;
+      if (!monthSel.value) daySel.value = '';
+    };
+    if (!monthSel.dataset.dayWired) {
+      monthSel.addEventListener('change', syncDayEnabled);
+      monthSel.dataset.dayWired = '1';
+    }
+    syncDayEnabled();
+  }
+}
+function setReleaseDateFields(prefix, value) {
+  initReleaseDateFields(prefix);
+  const { year, month, day } = splitReleaseDate(value);
+  el[`${prefix}ReleaseYear`].value = year;
+  el[`${prefix}ReleaseMonth`].value = month;
+  el[`${prefix}ReleaseDay`].value = day;
+  el[`${prefix}ReleaseDay`].disabled = !month;
+}
+function getReleaseDateFields(prefix) {
+  return combineReleaseDate(el[`${prefix}ReleaseYear`].value, el[`${prefix}ReleaseMonth`].value, el[`${prefix}ReleaseDay`].value);
 }
 
 function groupItems(items, by) {
@@ -3747,10 +3908,10 @@ function groupItems(items, by) {
     if (by === 'artist') keys = [item.artist];
     else if (by === 'type') keys = [item.type];
     else if (by === 'genre') keys = getGenreList(combinedGenreStr(item)); // Get array of genres (primary + secondary)
-    else if (by === 'year') keys = [dateVal(item.releaseDate) !== -Infinity ? String(new Date(item.releaseDate).getFullYear()) : 'Unknown'];
+    else if (by === 'year') keys = [dateVal(item.releaseDate) !== -Infinity ? String(new Date(item.releaseDate).getUTCFullYear()) : 'Unknown'];
     else if (by === 'decade') {
       if (dateVal(item.releaseDate) === -Infinity) keys = ['Unknown'];
-      else { const y = new Date(item.releaseDate).getFullYear(); keys = [(Math.floor(y / 10) * 10) + 's']; }
+      else { const y = new Date(item.releaseDate).getUTCFullYear(); keys = [(Math.floor(y / 10) * 10) + 's']; }
     }
 
     // This loop ensures multi-genre albums appear in every relevant group
@@ -4398,7 +4559,7 @@ function buildAlbumTrackGroup(item) {
   const group = document.createElement('div');
   group.className = 'track-group';
 
-  const year = dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getFullYear() : '';
+  const year = dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getUTCFullYear() : '';
   const header = document.createElement('div');
   header.className = 'track-group-header';
   header.innerHTML = `
@@ -6254,7 +6415,7 @@ function keyToVal(key, item) {
   if (!key || key === 'none') return "";
   
   const year = (item.releaseDate && dateVal(item.releaseDate) !== -Infinity) 
-               ? new Date(item.releaseDate).getFullYear() : '';
+               ? new Date(item.releaseDate).getUTCFullYear() : '';
 
   const map = {
     catalog: item.catalog,
@@ -7108,7 +7269,7 @@ async function renderArtistDetail() {
         artist: name,
         title: btn.dataset.title,
         type: btn.dataset.type,
-        releaseDate: btn.dataset.year ? `${btn.dataset.year}-01-01` : '',
+        releaseDate: btn.dataset.year || '',
         rgId: btn.dataset.rgid || ''
       });
     });
@@ -8658,7 +8819,7 @@ function openDeck(item) {
     switchTab('artist');
   };
 
-  const year = dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getFullYear() : '';
+  const year = dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getUTCFullYear() : '';
   const metaParts = [year, genreDisplayStr(item), item.region, item.label].filter(Boolean);
   el.deckMeta.textContent = metaParts.join(' · ');
 
@@ -9464,7 +9625,7 @@ async function loadTracklist(item) {
       youtubeLink: t.youtubeLink || ''
     }));
     mergeTrackLinkOverrides(item, tracks);
-    const year = dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getFullYear() : '';
+    const year = dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getUTCFullYear() : '';
     const metaParts = [year, genreDisplayStr(item), item.region, item.label].filter(Boolean);
     el.deckMeta.textContent = metaParts.join(' \u00b7 ');
     currentTracklistTracks = tracks;
@@ -9481,7 +9642,7 @@ async function loadTracklist(item) {
       return;
     }
 
-    const year = dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getFullYear() : '';
+    const year = dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getUTCFullYear() : '';
     const metaParts = [year, genreDisplayStr(item), item.region, item.label].filter(Boolean);
     el.deckMeta.textContent = metaParts.join(' \u00b7 ');
 
@@ -9752,7 +9913,7 @@ function buildReleaseResultRow(hit, opts = {}) {
   const row = document.createElement('div');
   row.className = 'add-result-row';
 
-  const year = hit.date ? new Date(hit.date).getFullYear() : '';
+  const year = hit.date ? new Date(hit.date).getUTCFullYear() : '';
   const artistName = hit['artist-credit'] ? hit['artist-credit'].map(a => a.name + (a.joinphrase || '')).join('') : (opts.fallbackArtist || 'Unknown Artist');
   // A release can carry more than one label/catalog-number pair (e.g. a
   // joint release on two labels, or a reissue that kept the original cat#
@@ -10131,7 +10292,7 @@ function showAddForm(prefill) {
   el.addTitle.value = prefill.title || '';
   const validTypes = ['Album', 'EP', 'Single', 'Compilation', 'Live', 'Mixtape'];
   el.addType.value = validTypes.includes(prefill.type) ? prefill.type : 'Album';
-  el.addReleaseDate.value = prefill.releaseDate || '';
+  setReleaseDateFields('add', prefill.releaseDate || '');
   el.addGenre.value = prefill.genre || '';
   el.addGenre2.value = prefill.genre2 || '';
   el.addRegion.value = prefill.region || '';
@@ -10151,7 +10312,7 @@ async function saveNewAlbum() {
 
   const payload = {
     action: 'addAlbum', Artist: artist, Title: title, Type: el.addType.value,
-    ReleaseDate: el.addReleaseDate.value, Genre: el.addGenre.value.trim(), 
+    ReleaseDate: getReleaseDateFields('add'), Genre: el.addGenre.value.trim(), 
     SecondaryGenre: el.addGenre2.value.trim(),
     Region: el.addRegion.value.trim(),
     Label: el.addLabel.value.trim(), Catalog: el.addCatalog.value.trim(), // 👈 ADD CATALOG
@@ -10177,7 +10338,7 @@ function openEditModal() {
   el.editTitle.value = activeItem.title || '';
   const validTypes = ['Album', 'EP', 'Single', 'Compilation', 'Live', 'Mixtape'];
   el.editType.value = validTypes.includes(activeItem.type) ? activeItem.type : 'Album';
-  el.editReleaseDate.value = activeItem.releaseDate || '';
+  setReleaseDateFields('edit', activeItem.releaseDate || '');
   el.editGenre.value = activeItem.genre || '';
   el.editGenre2.value = activeItem.genre2 || '';
   el.editRegion.value = activeItem.region || '';
@@ -10207,7 +10368,7 @@ async function saveEditAlbum() {
     Artist: artist,
     Title: title,
     Type: el.editType.value,
-    ReleaseDate: el.editReleaseDate.value,
+    ReleaseDate: getReleaseDateFields('edit'),
     Genre: el.editGenre.value.trim(),
     SecondaryGenre: el.editGenre2.value.trim(),
     Region: el.editRegion.value.trim(),
@@ -12987,6 +13148,12 @@ html, body {
   .field-with-button { display: flex; gap: 8px; align-items: center; margin-top: 5px; }
   .field-with-button input { flex: 1; margin-top: 0; }
   .field-with-button .config-btn { flex: 0 0 auto; white-space: nowrap; padding: 8px 10px; font-size: 11px; }
+
+  .release-date-fields { display: flex; gap: 8px; margin-top: 5px; }
+  .release-date-fields input, .release-date-fields select { width: auto; margin-top: 0; }
+  .release-date-fields input { flex: 1 1 0; min-width: 0; }
+  .release-date-fields select { flex: 1.4 1 0; min-width: 0; }
+  .release-date-fields select:disabled { opacity: 0.5; cursor: not-allowed; }
 
   @media (max-width: 900px) {
     .panel-left, .panel-leftnav, .panel-right, .resizer { display: none !important; }
