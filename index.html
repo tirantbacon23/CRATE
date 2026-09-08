@@ -15,35 +15,35 @@
 
   CURRENT_VERSION: 1.26.2
 
-  1.26.2 — 2026-09-07 — Fixed some playlists getting stuck on "Loading
-          tracks…" forever in the playlist Tracks view. loadPlaylistFlatTrackTable's
-          per-album getTracksFor() calls had no .catch(), so if any single
-          album's promise ever rejected, that album's slot in the
-          remaining-count never decremented and settle() (which swaps the
-          placeholder for the actual table) never ran — one bad album could
-          hang the whole playlist. Switched to .catch()+.finally() so every
-          album's slot always gets counted exactly once, matching the
-          pattern loadTracksForList/loadTracksForPlaylistGroups already
-          used correctly. Also hardened mergeTrackLinkOverrides (added
-          alongside the per-track link overrides in 1.25.0) to wrap each
-          track individually in try/catch — getTracksFor is documented as
-          never rejecting, and this was the most likely thing to have
-          quietly broken that contract for some tracklists.
+  1.26.2 — 2026-09-08 — Fixed playlists occasionally getting stuck on
+          "Loading tracks…" forever. loadPlaylistFlatTrackTable() counts
+          down a `remaining` counter as each album's getTracksFor() call
+          resolves, only rendering once it hits 0 — but it only chained
+          .then(), so an album whose lookup rejected (mergeTrackLinkOverrides
+          or the cache write throwing, outside getTracksFor's own try/
+          catches) silently dropped out of the count and the table never
+          finished loading. Now catches that rejection and falls through
+          with no tracks for that album so the counter always advances,
+          matching the .finally()-based pattern loadFlatTrackTable already
+          uses for the library's own Tracks view.
 
-  1.26.1
-
-  1.26.1 — 2026-09-07 — "Remove from tracklist" now also shows up (and
-          works) when several tracks are selected at once, in the flat
-          Tracks table or "Album and Tracks" view — it was wrongly hidden
-          for any multi-selection, same as "Edit track properties…"
-          (which stays single-track-only; this one didn't need to be). New
-          quickRemoveTracksFromTracklist groups the selection by owning
-          album — a multi-select can span more than one, same as
-          queueTracksNow — so each affected album's saveManualTracklist
-          only runs once, behind a single confirmation covering the whole
-          batch rather than one popup per track.
-
-  1.26.0
+  1.26.1 — 2026-09-07 — Fixed the "Albums ▾" view dropdown (and, less
+          visibly, every other button bound in bindEvents()) intermittently
+          stopping working after signing out and back in, or after any
+          mid-session re-auth bounce, in the same tab. enterApp() only
+          guards against running twice via appEntered, but both signOut()
+          and handleAuthError() reset that flag, so a second entry re-runs
+          init() on the same live DOM. init() called bindEvents() (and the
+          three makeResizable() setups right after it) unconditionally, with
+          no removal step, so a second run double-bound every listener they
+          attach — for a plain click this mostly just fires a handler twice,
+          but for the view dropdown's open/close toggle, two bound listeners
+          on the same click flip it open then immediately shut again, so the
+          menu appeared to do nothing. New module-level eventsBound flag
+          gates that whole block in init() so bindEvents()/makeResizable()
+          only ever run on the first entry; everything else in init() (prefs,
+          catalog fetch, etc.) still re-runs normally on later entries, same
+          as before.
 
   1.26.0 — 2026-09-07 — Tracks can now be added to or removed from any
           album's tracklist, not just fully manual ones. Three new entry
@@ -1857,6 +1857,7 @@ let logRating = 0;
 
 const GOOGLE_ID_TOKEN_KEY = 'crate_google_id_token_v1';
 let appEntered = false; // guards against enterApp() running twice (e.g. GIS auto-select + manual click)
+let eventsBound = false; // guards bindEvents()/makeResizable() against re-running on re-entry (see init())
 
 function getStoredIdToken() {
   try { return localStorage.getItem(GOOGLE_ID_TOKEN_KEY) || null; }
@@ -2001,10 +2002,22 @@ async function init() {
   if (el.leftNavPanel) el.leftNavPanel.style.flexBasis = state.panelWidths.leftNav + 'px';
   applyPanelVisibility();
 
-  bindEvents();
-  makeResizable(el.resizerLeft, el.leftPanel, 'left');
-  makeResizable(el.resizerRight, el.rightPanel, 'right');
-  if (el.resizerLeftNav && el.leftNavPanel) makeResizable(el.resizerLeftNav, el.leftNavPanel, 'leftNav', 64, 220);
+  // bindEvents()/makeResizable() attach listeners with no removal step, so
+  // re-running them on a second init() (signOut() then signing back in, or
+  // handleAuthError() bouncing back to the gate mid-session, both reset
+  // appEntered and lead back here on the same live DOM) would double-bind
+  // every listener they set up. A doubled toggle listener is the visible
+  // symptom — e.g. the "Albums ▾" dropdown's click handler firing twice
+  // opens then immediately closes it again in the same click, so it looks
+  // like the dropdown "stops working" — but every other button bound here
+  // is equally double-bound, just less noticeably. Only do this once.
+  if (!eventsBound) {
+    eventsBound = true;
+    bindEvents();
+    makeResizable(el.resizerLeft, el.leftPanel, 'left');
+    makeResizable(el.resizerRight, el.rightPanel, 'right');
+    if (el.resizerLeftNav && el.leftNavPanel) makeResizable(el.resizerLeftNav, el.leftNavPanel, 'leftNav', 64, 220);
+  }
 
   if (loadSpotifyPlayerPrefs().detached) setPlayerDetached(true); // restore floating-window state (still hidden until playback starts)
 
@@ -5370,7 +5383,7 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
     <button type="button" data-track-menu-action="entry">Add to entry</button>
     <div class="menu-divider"></div>
     ${!isMultiSelect ? '<button type="button" data-track-menu-action="editProps">Edit track properties\u2026</button>' : ''}
-    <button type="button" class="remove-menu-btn" data-track-menu-action="removeTrack">Remove from tracklist</button>
+    ${!isMultiSelect ? '<button type="button" class="remove-menu-btn" data-track-menu-action="removeTrack">Remove from tracklist</button>' : ''}
     <button type="button" data-track-menu-action="view">View album</button>
     <button type="button" class="menu-parent-btn" data-track-menu-action="search">Search <span class="submenu-caret">▸</span></button>
     ${state.activePlaylistId ? '<div class="menu-divider"></div><button type="button" class="remove-menu-btn" data-track-menu-action="removeFromPlaylist">Remove from playlist</button>' : ''}
@@ -5400,7 +5413,7 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
     else if (action === 'queue') queueTracksNow(trackPlaylistItems);
     else if (action === 'entry') addTracksToEntry(trackPlaylistItems);
     else if (action === 'editProps') openTrackPropertiesModal(item, trackNum, trackName);
-    else if (action === 'removeTrack') { if (isMultiSelect) quickRemoveTracksFromTracklist(trackPlaylistItems); else quickRemoveTrackFromTracklist(item, trackNum, trackName); }
+    else if (action === 'removeTrack') quickRemoveTrackFromTracklist(item, trackNum, trackName);
     else if (action === 'removeFromPlaylist') removeTracksFromActivePlaylist(trackPlaylistItems);
   });
 
@@ -7665,17 +7678,14 @@ function loadPlaylistFlatTrackTable(playlist) {
   if (!albums.length) { settle(); return; }
   let remaining = albums.length;
   albums.forEach(album => {
-    // getTracksFor() is designed to never reject (it swallows its own
-    // iTunes/MusicBrainz fetch errors internally) — but this .catch() is a
-    // deliberate belt-and-suspenders backstop: without it, ANY unexpected
-    // rejection here (this album's own promise, not a stale/newer load)
-    // would leave `remaining` permanently above zero and the "Loading
-    // tracks…" placeholder stuck forever, since settle() would never fire.
-    // .finally() rather than putting the countdown inside .then() ensures
-    // this album's slot always gets counted exactly once either way.
     getTracksFor(album).catch(e => {
-      console.warn('Failed to load tracklist for playlist item', album.title, e);
-    }).finally(() => {
+      // A failed lookup shouldn't leave the table stuck on "Loading
+      // tracks…" forever — fall through with no tracks for this album
+      // so the counter below still advances.
+      console.warn('Playlist tracklist lookup failed', album, e);
+      return [];
+    }).then(() => {
+      if (stale()) return;
       remaining--;
       if (remaining === 0) settle();
     });
@@ -7745,22 +7755,12 @@ function trackLinkOverridesFor(item, trackNum, trackName) {
 // cached/rendered (getTracksFor, loadTracklist's manual branch) so every
 // track-rendering view (deck, "Album and Tracks", flat Tracks table) shows
 // and plays the same saved link without each having to resolve it itself.
-// Each track is wrapped individually so one malformed/unexpected entry
-// can't stop the rest of the tracklist from getting its overrides applied
-// — and, more importantly, can't throw back out of getTracksFor(), which
-// is documented (and relied on by loadPlaylistFlatTrackTable's counter) as
-// never rejecting.
 function mergeTrackLinkOverrides(item, tracks) {
   (tracks || []).forEach(t => {
-    try {
-      if (!t) return;
-      const ov = trackLinkOverridesFor(item, t.trackNumber || 0, t.trackName);
-      t.youtubeLink = ov.youtubeLink;
-      if (ov.spotifyLink) t.spotifyLink = ov.spotifyLink;
-      else delete t.spotifyLink;
-    } catch (e) {
-      console.warn('Track link override merge failed for a track', e);
-    }
+    const ov = trackLinkOverridesFor(item, t.trackNumber || 0, t.trackName);
+    t.youtubeLink = ov.youtubeLink;
+    if (ov.spotifyLink) t.spotifyLink = ov.spotifyLink;
+    else delete t.spotifyLink;
   });
   return tracks;
 }
@@ -7841,39 +7841,6 @@ async function quickRemoveTrackFromTracklist(item, trackNum, trackName) {
   if (!confirm(`Remove "${trackName || 'this track'}" from the tracklist? This switches the album to a manually-maintained tracklist \u2014 it\u2019ll stop picking up future automatic tracklist lookups.`)) return;
   const rows = currentTracklistAsManualRows(item).filter(t => !(numTrackNum !== null ? t.trackNumber === numTrackNum : t.title === trackName));
   await saveManualTracklist(item, rows);
-}
-
-// Multi-select version — the track context menu's "Remove from tracklist"
-// when more than one row is selected (a selection can span several
-// albums, same as queueTracksNow/buildCrateQueueEntriesForTracks, since
-// the flat Tracks table and "Album and Tracks" view both allow that).
-// Grouped by owning album so each album's saveManualTracklist only runs
-// once even if several of its tracks were selected together, and one
-// confirmation covers the whole batch rather than one popup per track.
-async function quickRemoveTracksFromTracklist(trackPlaylistItems) {
-  if (!trackPlaylistItems || !trackPlaylistItems.length) return;
-  const byRow = new Map();
-  trackPlaylistItems.forEach(t => {
-    if (!byRow.has(t.row)) byRow.set(t.row, []);
-    byRow.get(t.row).push(t);
-  });
-  const trackCount = trackPlaylistItems.length;
-  const albumCount = byRow.size;
-  const trackLabel = trackCount === 1 ? `"${trackPlaylistItems[0].trackName || 'this track'}"` : `${trackCount} tracks`;
-  const albumLabel = albumCount > 1 ? 'their tracklists' : 'the tracklist';
-  const sideEffectLabel = albumCount > 1 ? 'These albums switch' : 'This album switches';
-  if (!confirm(`Remove ${trackLabel} from ${albumLabel}? ${sideEffectLabel} to a manually-maintained tracklist \u2014 ${albumCount > 1 ? 'they\u2019ll' : 'it\u2019ll'} stop picking up future automatic tracklist lookups.`)) return;
-
-  for (const [row, items] of byRow) {
-    const owner = (activeItem && activeItem.row === row) ? activeItem : state.raw.find(r => r.row === row);
-    if (!owner) continue;
-    let rows = currentTracklistAsManualRows(owner);
-    items.forEach(t => {
-      const numTrackNum = t.trackNum === '' || t.trackNum === undefined ? null : Number(t.trackNum);
-      rows = rows.filter(r => !(numTrackNum !== null ? r.trackNumber === numTrackNum : r.title === t.trackName));
-    });
-    await saveManualTracklist(owner, rows);
-  }
 }
 
 let addTrackOverlayEl = null;
