@@ -13,7 +13,22 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.26.2
+  CURRENT_VERSION: 1.26.3
+
+  1.26.3 — 2026-09-08 — Root-caused the "playlist stuck loading" bug from
+          1.26.2 more fully: 1.26.2 only patched loadPlaylistFlatTrackTable
+          (the playlist Tracks tab), but getTracksFor() could reject from
+          *any* of its 7 call sites, since mergeTrackLinkOverrides() and the
+          cache-write line ran outside its own try/catch blocks — a bad
+          trackData entry there rejected the whole tracklist fetch. The
+          worst-hit caller was playPlaylistFromStart() (the ▶ Play button):
+          `await Promise.all(albums.map(getTracksFor))` had no try/catch at
+          all, so one rejection threw out of an async function nothing was
+          listening on, leaving the "Loading playlist…" toast on screen
+          forever with the queue never starting. getTracksFor() now catches
+          around both of its mergeTrackLinkOverrides() calls so it's
+          guaranteed to always resolve, fixing every caller at once;
+          playPlaylistFromStart() also gets its own try/catch as a backstop.
 
   1.26.2 — 2026-09-08 — Fixed playlists occasionally getting stuck on
           "Loading tracks…" forever. loadPlaylistFlatTrackTable() counts
@@ -1609,7 +1624,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.26.2';
+const APP_VERSION = '1.26.3';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -4481,7 +4496,13 @@ async function getTracksFor(item) {
       trackTimeMillis: null,
       youtubeLink: t.youtubeLink || ''
     }));
-    mergeTrackLinkOverrides(item, tracks);
+    // mergeTrackLinkOverrides reads item.trackData, which can be malformed
+    // on older/hand-edited entries — this function must never reject (every
+    // caller either chains straight into a rendering step or, worse, an
+    // unguarded Promise.all/await — see playPlaylistFromStart), so a failure
+    // here falls back to the un-merged tracks rather than blowing up the
+    // whole tracklist load.
+    try { mergeTrackLinkOverrides(item, tracks); } catch (e) { console.warn('mergeTrackLinkOverrides failed', item, e); }
     state.trackCache[key] = tracks;
     return tracks;
   }
@@ -4557,7 +4578,10 @@ async function getTracksFor(item) {
     }
   }
 
-  mergeTrackLinkOverrides(item, tracks);
+  // Same guarantee as the manual-album branch above: never let a bad
+  // trackData entry turn a resolved tracklist fetch into a rejected
+  // promise this far down the call chain.
+  try { mergeTrackLinkOverrides(item, tracks); } catch (e) { console.warn('mergeTrackLinkOverrides failed', item, e); }
   state.trackCache[key] = tracks;
   return tracks;
 }
@@ -7925,7 +7949,17 @@ async function playPlaylistFromStart(playlist) {
       .filter(Boolean)
       .map(a => [a.row, a])
   ).values()];
-  await Promise.all(albums.map(a => getTracksFor(a)));
+  // getTracksFor() is now guaranteed to resolve (see its own try/catches
+  // around mergeTrackLinkOverrides), but this await used to have nothing
+  // guarding it at all: one rejection here threw out of this async
+  // function with no caller listening for it, leaving the "Loading…"
+  // toast on screen forever with the queue never starting. Keep this
+  // try/catch as a backstop even so — belt and suspenders.
+  try {
+    await Promise.all(albums.map(a => getTracksFor(a)));
+  } catch (e) {
+    console.warn('Playlist play: one or more tracklist lookups failed', e);
+  }
   if (myId !== crateQueueId) return; // a different "Play" run (or reset) started while tracklists were loading
 
   const list = [];
