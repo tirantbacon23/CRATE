@@ -13,7 +13,21 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.0
+  CURRENT_VERSION: 1.29.1
+
+  1.29.1 — 2026-09-08 — Fixed Release date "not always" being saved when
+          adding an album via search. buildReleaseResultRow's prefillData.
+          releaseDate only ever came from the specific MusicBrainz *release*
+          hit's own `date` field (or, for the discography "+ Add" flow
+          only, a release-group-year fallback) — but individual release
+          resources very often have no date of their own, only their
+          release-group's first-release-date reliably does, and the
+          free-text search path (doAddSearch) never supplied any fallback
+          at all. New resolveReleaseGroupFirstDate() looks that up in the
+          background (same inject-after-the-fact pattern the cover art
+          fetch just above it already used) and fills prefillData.
+          releaseDate — and the row's visible year — once it resolves,
+          instead of leaving it silently blank.
 
   1.29.0 — 2026-09-08 — New "Recorded" date property alongside Release
           date, for when a release's recording date differs from when it
@@ -1745,7 +1759,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.0';
+const APP_VERSION = '1.29.1';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -10072,7 +10086,7 @@ function buildReleaseResultRow(hit, opts = {}) {
     <img src="${fallbackImg}" alt="" class="add-thumb" style="transition: opacity 0.2s ease;">
     <div class="add-result-text">
       <p class="add-result-title">${escapeHtml(hit.title || '')} <span style="color:var(--text-dim);font-weight:normal;">${escapeHtml(catStr)}</span></p>
-      <p class="add-result-artist">${escapeHtml(artistName)}${year ? ' · ' + year : ''}${labelName ? ' · ' + escapeHtml(labelName) : ''}${genreStr ? ' · ' + escapeHtml(genreStr) : ''}${regionStr ? ' · ' + escapeHtml(regionStr) : ''}</p>
+      <p class="add-result-artist">${escapeHtml(artistName)}<span class="add-result-year">${year ? ' · ' + year : ''}</span>${labelName ? ' · ' + escapeHtml(labelName) : ''}${genreStr ? ' · ' + escapeHtml(genreStr) : ''}${regionStr ? ' · ' + escapeHtml(regionStr) : ''}</p>
     </div>`;
 
   const prefillData = {
@@ -10117,6 +10131,25 @@ function buildReleaseResultRow(hit, opts = {}) {
       prefillData.cover = artUrls.large; // Injects the resolved URL before you hit Save!
     }
   });
+
+  // 1.29.1 — This specific *release* resource frequently has no `date` of
+  // its own (only the release-group's first-release-date is reliably
+  // present on MusicBrainz) — that's why Release date "doesn't always get
+  // added" when adding an album: hit.date is blank, opts.fallbackReleaseDate
+  // is usually blank too (doAddSearch's free-text results don't pass one),
+  // and prefillData.releaseDate above ends up '' with nothing left to fall
+  // back on. Same background-fill pattern as the cover art fetch just above
+  // — look up the release-group's first-release-date and inject it into
+  // prefillData (and the visible year in the row) once it resolves, rather
+  // than leaving the date silently blank.
+  if (!prefillData.releaseDate && rgId) {
+    resolveReleaseGroupFirstDate(rgId).then(date => {
+      if (!date) return;
+      prefillData.releaseDate = date;
+      const yearSpan = row.querySelector('.add-result-year');
+      if (yearSpan && !yearSpan.textContent) yearSpan.textContent = ' · ' + new Date(date).getUTCFullYear();
+    });
+  }
 
   return row;
 }
@@ -11648,6 +11681,25 @@ async function resolveCoverArt(mbid, rgId) {
     }
   } catch(e) {}
   return null;
+}
+
+// 1.29.1 — Looks up a release-group's first-release-date, for when the
+// specific *release* buildReleaseResultRow is showing has no date of its
+// own (common on MusicBrainz — see the comment where this is called).
+// A plain lookup (no inc= needed) returns first-release-date directly.
+// Routed through mbFetch like every other MusicBrainz call, so it shares
+// the app-wide rate-limit queue/retry instead of risking a 429 of its own.
+async function resolveReleaseGroupFirstDate(rgId) {
+  try {
+    const res = await mbFetch(`https://musicbrainz.org/ws/2/release-group/${rgId}?fmt=json`, {
+      headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data['first-release-date'] || null;
+  } catch (e) {
+    return null;
+  }
 }
 
 async function getCaaJsonUrls(endpoint) {
