@@ -13,7 +13,32 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.1
+  CURRENT_VERSION: 1.29.3
+
+  1.29.3 — 2026-09-08 — Added batch delete to the tracklist builder (Add/
+          Edit album forms): each row now has a checkbox, plus a "Select
+          all" checkbox and "Delete selected" button next to "+ Add
+          track" — clears out a run of unwanted tracks (e.g. after an
+          auto-populated tracklist) in one click instead of hitting each
+          row's ✕ individually. See toggleAllTracklistBuilderRows/
+          deleteSelectedTracklistBuilderRows/syncTracklistBuilderSelectAll.
+
+  1.29.2 — 2026-09-08 — Fixed the Tracks view getting stuck on "Loading
+          tracks…" forever when one album's tracklist lookup hangs (seen
+          with a punk rock genre view where one release's iTunes/
+          MusicBrainz lookup never resolved). Root cause: plain fetch()
+          has no timeout, and loadFlatTrackTable()/loadPlaylistFlatTrackTable()
+          only finish once every item settles — a request that never
+          resolves OR rejects left them waiting forever, and since all
+          MusicBrainz calls share one queue (mbFetch), a hung request also
+          jammed every other MusicBrainz lookup queued behind it. New
+          fetchWithTimeout() (15s, via AbortController) now wraps every
+          iTunes fetch in getTracksFor() and the fetch inside mbFetch's
+          run(); new withHardTimeout() (20s) additionally wraps each
+          getTracksFor() call in loadFlatTrackTable, loadPlaylistFlatTrackTable
+          and loadTracksForList as a second layer, so a stuck item now
+          resolves as an empty tracklist and lets the rest of the queue
+          keep moving instead of freezing it.
 
   1.29.1 — 2026-09-08 — Fixed Release date "not always" being saved when
           adding an album via search. buildReleaseResultRow's prefillData.
@@ -1589,7 +1614,11 @@
         <div class="add-field tracklist-builder-field">
           <div class="tracklist-builder-label-row">
             <span>Tracklist (optional)</span>
-            <button type="button" id="addTracksAddRowBtn" class="chip-btn">+ Add track</button>
+            <span class="tracklist-builder-label-actions">
+              <label class="tracklist-builder-selectall"><input type="checkbox" id="addTracksSelectAllBtn"> Select all</label>
+              <button type="button" id="addTracksDeleteBtn" class="chip-btn chip-btn-danger">Delete selected</button>
+              <button type="button" id="addTracksAddRowBtn" class="chip-btn">+ Add track</button>
+            </span>
           </div>
           <div id="addTracksRows" class="tracklist-builder-rows"></div>
           <p class="tracklist-builder-hint">Add a YouTube and/or Spotify link per track to play it accurately.</p>
@@ -1651,6 +1680,8 @@
             <span>Tracklist (optional)</span>
             <span class="tracklist-builder-label-actions">
               <button type="button" id="editTracksLoadBtn" class="chip-btn">⤓ Load current tracklist</button>
+              <label class="tracklist-builder-selectall"><input type="checkbox" id="editTracksSelectAllBtn"> Select all</label>
+              <button type="button" id="editTracksDeleteBtn" class="chip-btn chip-btn-danger">Delete selected</button>
               <button type="button" id="editTracksAddRowBtn" class="chip-btn">+ Add track</button>
             </span>
           </div>
@@ -1759,7 +1790,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.1';
+const APP_VERSION = '1.29.3';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -1956,11 +1987,11 @@ const el = {};
   'listenedFilterBtn',
   'addAlbumBtn','addOverlay','addClose','addSearchInput','addManualEntryBtn','addResults','addForm',
   'addArtist','addTitle','addType','addReleaseYear','addReleaseMonth','addReleaseDay','addRecordedYear','addRecordedMonth','addRecordedDay','addGenre','addGenre2','addRegion','addLabel','addCatalog','addLink','addRymLink','addCover','addSaveBtn','addCancelBtn','addToast',
-  'addTracksRows','addTracksAddRowBtn',
+  'addTracksRows','addTracksAddRowBtn','addTracksSelectAllBtn','addTracksDeleteBtn',
   'deckOverlay','deckClose','deckImg','deckCatalog','deckTitle','deckArtist','deckMeta','deckAdded','deckScrobbleCount','deckLink','deckRatingNum',
   'deckSpotifyLink','deckSoundcloudLink','deckRymLink','deckPlayBtn',
   'deckEditBtn','editOverlay','editClose','editArtist','editTitle','editType','editReleaseYear','editReleaseMonth','editReleaseDay','editRecordedYear','editRecordedMonth','editRecordedDay','editGenre','editGenre2','editRegion','editLabel','editCatalog','editLink','editRymLink','editCover','editSaveBtn','editCancelBtn','editToast',
-  'editTracksRows','editTracksAddRowBtn','editTracksLoadBtn',
+  'editTracksRows','editTracksAddRowBtn','editTracksLoadBtn','editTracksSelectAllBtn','editTracksDeleteBtn',
   'ytPlayerMount',
   'deckTracklist','deckStars','deckReview','deckSaveReview','deckToast','deckRemoveBtn','deckPlaylistBtn',
   'logListenBtn','logForm','logDate','logStars','logEntryTitle','logDescription','logSaveBtn','logCancelBtn','deckDiaryList',
@@ -2601,14 +2632,18 @@ function bindEvents() {
   });
   el.addSaveBtn.addEventListener('click', saveNewAlbum);
   el.addTracksAddRowBtn.addEventListener('click', () => addTracklistBuilderRow(el.addTracksRows));
-  wireTracklistBuilderContainer(el.addTracksRows);
+  el.addTracksSelectAllBtn.addEventListener('change', () => toggleAllTracklistBuilderRows(el.addTracksRows, el.addTracksSelectAllBtn.checked));
+  el.addTracksDeleteBtn.addEventListener('click', () => deleteSelectedTracklistBuilderRows(el.addTracksRows, el.addTracksSelectAllBtn));
+  wireTracklistBuilderContainer(el.addTracksRows, el.addTracksSelectAllBtn);
   el.deckEditBtn.addEventListener('click', openEditModal);
   el.editClose.addEventListener('click', closeEditModal);
   el.editCancelBtn.addEventListener('click', closeEditModal);
   el.editSaveBtn.addEventListener('click', saveEditAlbum);
   el.editTracksAddRowBtn.addEventListener('click', () => addTracklistBuilderRow(el.editTracksRows));
   el.editTracksLoadBtn.addEventListener('click', () => loadCurrentTracklistIntoBuilder());
-  wireTracklistBuilderContainer(el.editTracksRows);
+  el.editTracksSelectAllBtn.addEventListener('change', () => toggleAllTracklistBuilderRows(el.editTracksRows, el.editTracksSelectAllBtn.checked));
+  el.editTracksDeleteBtn.addEventListener('click', () => deleteSelectedTracklistBuilderRows(el.editTracksRows, el.editTracksSelectAllBtn));
+  wireTracklistBuilderContainer(el.editTracksRows, el.editTracksSelectAllBtn);
 
   // 9. Deck (Detail Modal) Actions
   el.deckClose.addEventListener('click', closeDeck);
@@ -3190,8 +3225,8 @@ async function fetchCatalog() {
           artist: String(r.Artist).trim(),
           title: String(r.Title).trim(),
           type: (r.Type ? String(r.Type).trim() : 'Unknown'),
-          releaseDate: r.ReleaseDate || '',
-          recordedDate: r.Recorded || '',
+          releaseDate: r.ReleaseDate != null ? String(r.ReleaseDate) : '',
+          recordedDate: r.Recorded != null ? String(r.Recorded) : '',
           genre: r.Genre || '',
           genre2: r.SecondaryGenre || '',
           label: r.Label ? String(r.Label).trim() : '',
@@ -3592,12 +3627,33 @@ let mbLastRequestAt = 0;
 const MB_MIN_INTERVAL_MS = 1100;
 const MB_MAX_RETRIES = 3;
 
+// Wraps fetch() with a hard timeout via AbortController. Plain fetch() has
+// no default timeout — if a request just never gets a response (dead
+// connection, server hang, etc.) the returned promise sits pending
+// forever. That's fatal here specifically because mbFetch chains every
+// MusicBrainz request onto one shared queue (mbQueueTail): a single
+// never-settling request doesn't just fail its own caller, it permanently
+// jams every other MusicBrainz lookup queued behind it, from any feature,
+// for the rest of the session. Same risk applies to the iTunes fetches in
+// getTracksFor, which feed loadFlatTrackTable()'s "wait for every item to
+// settle" loop — one hung fetch there freezes the whole Tracks table on
+// "Loading tracks…" forever, even though every other album loaded fine.
+// Rejecting after a timeout turns a silent hang into an ordinary caught
+// error, which all the existing try/catch blocks around these calls
+// already handle.
+function fetchWithTimeout(url, opts = {}, timeoutMs = 15000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const mergedOpts = Object.assign({}, opts, { signal: controller.signal });
+  return fetch(url, mergedOpts).finally(() => clearTimeout(timer));
+}
+
 function mbFetch(url, opts, attempt = 0) {
   const run = async () => {
     const wait = Math.max(0, mbLastRequestAt + MB_MIN_INTERVAL_MS - Date.now());
     if (wait > 0) await new Promise(r => setTimeout(r, wait));
     mbLastRequestAt = Date.now();
-    return fetch(url, opts);
+    return fetchWithTimeout(url, opts);
   };
   // Chain onto the shared queue so this request waits for whatever else is
   // already pending, regardless of which feature queued it. The .catch on
@@ -3867,7 +3923,7 @@ function releaseDatePrecision(str) {
 function formatReleaseDateStr(str) {
   const precision = releaseDatePrecision(str);
   if (!precision) return '';
-  const d = new Date(str);
+  const d = new Date(String(str));
   if (precision === 'year') return String(d.getUTCFullYear());
   if (precision === 'month') return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', timeZone: 'UTC' });
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
@@ -3876,7 +3932,7 @@ function formatReleaseDateStr(str) {
 // Splits a stored "YYYY"/"YYYY-MM"/"YYYY-MM-DD" release date into the three
 // parts the Add/Edit form's Year/Month/Day fields work with.
 function splitReleaseDate(str) {
-  const s = (str || '').trim();
+  const s = String(str || '').trim();
   const m = /^(\d{1,4})(?:-(\d{2}))?(?:-(\d{2}))?$/.exec(s);
   if (!m) return { year: '', month: '', day: '' };
   return { year: m[1] || '', month: m[2] || '', day: m[3] || '' };
@@ -4500,6 +4556,24 @@ function closeTrackColumnMenu() {
   document.removeEventListener('click', closeTrackColumnMenuOnOutsideClick);
 }
 
+// Belt-and-suspenders guard for loadFlatTrackTable/loadPlaylistFlatTrackTable
+// below. fetchWithTimeout (see mbFetch above) already stops the individual
+// iTunes/MusicBrainz requests inside getTracksFor() from hanging forever,
+// but this wraps the per-item CALL as well, so any future unguarded async
+// step added to that lookup chain can't reintroduce the same "one stuck
+// album freezes the whole Tracks table forever" failure — a wedged item
+// just resolves as `fallback` once the timeout passes, instead of leaving
+// loadFlatTrackTable's "wait for every item" loop stuck at non-zero forever.
+function withHardTimeout(promise, ms, fallback) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), ms);
+    promise.then(
+      (val) => { clearTimeout(timer); resolve(val); },
+      () => { clearTimeout(timer); resolve(fallback); }
+    );
+  });
+}
+
 // Loads every album's tracklist (concurrently, using the same cache as the
 // other track views) and flattens them into one array so the Tracks table
 // behaves like a real sortable file-list rather than per-album chunks.
@@ -4529,7 +4603,7 @@ function loadFlatTrackTable(list) {
     if (active >= concurrency) return;
     const item = queue.shift();
     active++;
-    getTracksFor(item).then(tracks => {
+    withHardTimeout(getTracksFor(item), 20000, []).then(tracks => {
       tracks.forEach((t, i) => rows.push({ item, track: t, idx: i }));
     }).finally(() => {
       active--; remaining--;
@@ -4734,7 +4808,7 @@ function loadTracksForList(list, mode) {
     if (active >= concurrency) return;
     const item = queue.shift();
     active++;
-    getTracksFor(item).then(tracks => {
+    withHardTimeout(getTracksFor(item), 20000, []).then(tracks => {
       if (state.mainViewMode !== mode) return; // view changed since — don't touch stale DOM
       // 'tracks' mode is handled by loadFlatTrackTable() instead — this loader
       // now only serves the per-album "Album and Tracks" view.
@@ -4853,14 +4927,14 @@ async function getTracksFor(item) {
       // Clean up the title by removing text in brackets (e.g. "(Remastered)", "[Deluxe]")
       const cleanTitle = item.title.replace(/\s*\[.*?\]|\s*\(.*?\)/g, '');
       const q = encodeURIComponent(item.artist + ' ' + cleanTitle);
-      const searchRes = await fetch(`https://itunes.apple.com/search?term=${q}&entity=album&limit=1`);
+      const searchRes = await fetchWithTimeout(`https://itunes.apple.com/search?term=${q}&entity=album&limit=1`);
       const searchData = await searchRes.json();
       const hit = searchData.results && searchData.results[0];
       collectionId = hit && hit.collectionId;
     }
 
     if (collectionId) {
-      const lookupRes = await fetch(`https://itunes.apple.com/lookup?id=${collectionId}&entity=song&limit=200`);
+      const lookupRes = await fetchWithTimeout(`https://itunes.apple.com/lookup?id=${collectionId}&entity=song&limit=200`);
       const lookupData = await lookupRes.json();
       // iTunes' own trackNumber is only unique WITHIN a disc — for multi-disc
       // releases, disc 2 track 1 collides with disc 1 track 1. Sort by disc
@@ -8094,7 +8168,12 @@ function loadPlaylistFlatTrackTable(playlist) {
   if (!albums.length) { settle(); return; }
   let remaining = albums.length;
   albums.forEach(album => {
-    getTracksFor(album).catch(e => {
+    // withHardTimeout (see loadFlatTrackTable above) covers the case this
+    // .catch() alone can't: a lookup that never resolves OR rejects (a
+    // hung fetch), which would otherwise leave `remaining` stuck above
+    // zero and this playlist's Tracks view stuck on "Loading tracks…"
+    // forever, same failure mode as the library's own Tracks view.
+    withHardTimeout(getTracksFor(album), 20000, []).catch(e => {
       // A failed lookup shouldn't leave the table stuck on "Loading
       // tracks…" forever — fall through with no tracks for this album
       // so the counter below still advances.
@@ -10373,10 +10452,16 @@ async function doAddSearch() {
    between #addTracksRows and #editTracksRows via the container param.
    Saved as manualTracks: [{trackNumber, title, youtubeLink}] — see
    collectTracklistBuilderRows() / renderTracklistBuilderRows() and the
-   ManualTracks column comment in fetchCatalog(). */
+   ManualTracks column comment in fetchCatalog().
+   Each row also carries a select checkbox (.tracklist-builder-check) for
+   batch delete — see toggleAllTracklistBuilderRows/
+   deleteSelectedTracklistBuilderRows below — handy when an auto-populated
+   tracklist pulls in a run of tracks you want to clear out at once instead
+   of clicking the ✕ one at a time. */
 function tracklistBuilderRowHtml(track, idx) {
   return `
     <div class="tracklist-builder-row" data-idx="${idx}" data-track-number="${track?.trackNumber ?? ''}">
+      <input type="checkbox" class="tracklist-builder-check" aria-label="Select track ${idx + 1} for batch delete">
       <span class="tracklist-builder-num">${idx + 1}</span>
       <input type="text" class="tracklist-builder-title" placeholder="Track title" value="${escapeHtml(track?.title || '')}">
       <input type="text" class="tracklist-builder-yt" placeholder="YouTube link (optional)" value="${escapeHtml(track?.youtubeLink || '')}">
@@ -10388,6 +10473,13 @@ function tracklistBuilderRowHtml(track, idx) {
 function renderTracklistBuilderRows(container, tracks) {
   const list = (tracks && tracks.length) ? tracks : [{}]; // always start with at least one blank row
   container.innerHTML = list.map((t, i) => tracklistBuilderRowHtml(t, i)).join('');
+  // Full re-render (opening the Add/Edit form, or "Load current tracklist")
+  // always starts with nothing checked, so keep the header "Select all"
+  // checkbox in sync rather than leaving it stuck checked from a previous
+  // batch-delete pass.
+  const selectAllEl = container === el.addTracksRows ? el.addTracksSelectAllBtn
+    : container === el.editTracksRows ? el.editTracksSelectAllBtn : null;
+  if (selectAllEl) selectAllEl.checked = false;
 }
 function addTracklistBuilderRow(container) {
   const idx = container.children.length;
@@ -10421,22 +10513,57 @@ function renumberTracklistBuilderRows(container) {
     row.querySelector('.tracklist-builder-num').textContent = i + 1;
   });
 }
+// Batch-select helpers for the tracklist builder's "Select all" checkbox +
+// "Delete selected" button (wired in bindEvents, next to each container's
+// existing "+ Add track" button).
+function toggleAllTracklistBuilderRows(container, checked) {
+  container.querySelectorAll('.tracklist-builder-check').forEach(cb => { cb.checked = checked; });
+}
+function syncTracklistBuilderSelectAll(container, selectAllEl) {
+  if (!selectAllEl) return;
+  const boxes = [...container.querySelectorAll('.tracklist-builder-check')];
+  selectAllEl.checked = boxes.length > 0 && boxes.every(cb => cb.checked);
+}
+// Deletes every checked row. If that's every row, one blank row is kept
+// (same "never leave the section looking broken/empty" rule the single-row
+// ✕ remove button already follows) rather than emptying the list entirely.
+function deleteSelectedTracklistBuilderRows(container, selectAllEl) {
+  const rows = [...container.querySelectorAll('.tracklist-builder-row')];
+  const checkedRows = rows.filter(row => row.querySelector('.tracklist-builder-check').checked);
+  if (!checkedRows.length) return;
+  if (checkedRows.length >= rows.length) {
+    renderTracklistBuilderRows(container, []);
+  } else {
+    checkedRows.forEach(row => row.remove());
+    renumberTracklistBuilderRows(container);
+  }
+  if (selectAllEl) selectAllEl.checked = false;
+}
 // One delegated listener per container (add/edit) covers: remove-row
-// buttons, and (Enter key in the last row) auto-adding a fresh blank row so
-// entering a tracklist doesn't require reaching for the mouse between every
-// track. wireTracklistBuilderContainer() is called once per container at
-// init — see bindEvents().
-function wireTracklistBuilderContainer(container) {
+// buttons, batch-select checkbox changes (keeps the header "Select all"
+// checkbox in sync), and (Enter key in the last row) auto-adding a fresh
+// blank row so entering a tracklist doesn't require reaching for the mouse
+// between every track. wireTracklistBuilderContainer() is called once per
+// container at init — see bindEvents().
+function wireTracklistBuilderContainer(container, selectAllEl) {
   container.addEventListener('click', (e) => {
     const removeBtn = e.target.closest('.tracklist-builder-remove');
     if (!removeBtn) return;
     const rows = container.querySelectorAll('.tracklist-builder-row');
     if (rows.length <= 1) { // keep at least one row so the section never looks broken/empty
-      removeBtn.closest('.tracklist-builder-row').querySelectorAll('input').forEach(i => i.value = '');
+      const onlyRow = removeBtn.closest('.tracklist-builder-row');
+      onlyRow.querySelectorAll('input[type="text"]').forEach(i => i.value = '');
+      onlyRow.querySelector('.tracklist-builder-check').checked = false;
+      syncTracklistBuilderSelectAll(container, selectAllEl);
       return;
     }
     removeBtn.closest('.tracklist-builder-row').remove();
     renumberTracklistBuilderRows(container);
+    syncTracklistBuilderSelectAll(container, selectAllEl);
+  });
+  container.addEventListener('change', (e) => {
+    if (!e.target.matches('.tracklist-builder-check')) return;
+    syncTracklistBuilderSelectAll(container, selectAllEl);
   });
   container.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
@@ -13365,13 +13492,18 @@ html, body {
   .tracklist-builder-field { display: flex; flex-direction: column; gap: 6px; }
   .tracklist-builder-label-row {
     display: flex; align-items: center; justify-content: space-between;
-    font-size: 13px; color: var(--text-dim);
+    font-size: 13px; color: var(--text-dim); flex-wrap: wrap; gap: 6px;
   }
-  .tracklist-builder-label-actions { display: flex; gap: 6px; }
+  .tracklist-builder-label-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .tracklist-builder-selectall {
+    display: flex; align-items: center; gap: 4px; font-size: 12px;
+    color: var(--text-dim); cursor: pointer; user-select: none;
+  }
   .tracklist-builder-rows { display: flex; flex-direction: column; gap: 6px; }
   .tracklist-builder-row {
     display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
   }
+  .tracklist-builder-check { flex: 0 0 auto; cursor: pointer; }
   .tracklist-builder-num {
     flex: 0 0 18px; text-align: right; color: var(--text-dim);
     font-family: 'IBM Plex Mono', monospace; font-size: 12px;
@@ -13390,6 +13522,8 @@ html, body {
   }
   .tracklist-builder-remove:hover { color: #E5734A; border-color: #E5734A; }
   .tracklist-builder-hint { font-size: 11.5px; color: var(--text-dim); margin: 0; }
+  .chip-btn-danger { color: #E5734A; border-color: #E5734A; }
+  .chip-btn-danger:hover { background: #E5734A; color: #fff; }
 
   /* ---------- Master player: inline YouTube video (1.24.0) ----------
      Swapped in for .mini-player-art whenever activePlayerEngine is
