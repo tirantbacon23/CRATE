@@ -13,7 +13,33 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.13
+  CURRENT_VERSION: 1.29.14
+
+  1.29.14 — 2026-09-09 — Added a Map viewer: new 🗺 toolbar button opens a
+          modal with a dark-themed Leaflet/OpenStreetMap map showing pins
+          for every place a "Location" has been entered on an album (where
+          the band was formed, the studio it was recorded at, a venue it
+          played — whatever's most relevant; free text, same idea as the
+          existing Region field but for a specific place rather than a
+          country/language). New optional "Location" field on the Add/Edit
+          album forms, next to Region. Locations are geocoded client-side
+          via OpenStreetMap's Nominatim search API and cached in
+          localStorage (crate_geocode_cache_v1) so the same place string is
+          never looked up twice; requests are queued through one shared,
+          1.1s-spaced queue (geoFetch, modeled on the existing mbFetch
+          MusicBrainz queue) to respect Nominatim's rate-limit policy.
+          Albums sharing the same location text are grouped under one pin;
+          clicking a pin's popup opens straight through to that release,
+          same click-through pattern as the Timeline viewer's album list.
+          New state: none persisted beyond the geocode cache itself (the
+          map re-groups from state.raw's `location` field on every open).
+          New functions: openMapModal/closeMapModal/buildMapMarkers/
+          renderMapMarkers/geocodeLocation/geoFetch/ensureLeafletMap.
+          REQUIRES A BACKEND CHANGE THIS FILE CAN'T MAKE: apps-script-
+          backend.gs needs a new "Location" column read on fetch and
+          written on addAlbum/editAlbum, same as Catalog/ManualTracks were
+          added before — until then the field will save into local state
+          for the current session but won't survive a refresh.
 
   1.29.13 — 2026-09-09 — Added a Timeline viewer: new ◷ toolbar button
           opens a modal with a year scrubber (slider + a per-year density
@@ -1059,6 +1085,11 @@
      and the auth-gate code near the bottom of the main script). Not async/defer:
      loaded synchronously so it's guaranteed ready before the app's own script runs. -->
 <script src="https://accounts.google.com/gsi/client"></script>
+<!-- Leaflet — powers the Map viewer (◇/🗺 toolbar button). Loaded here
+     rather than lazily on first open since it's small and the map modal
+     needs both the CSS and JS ready before ensureLeafletMap() runs. -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
 
@@ -1110,6 +1141,7 @@
 	  <button id="refreshBtn" class="icon-btn" title="Refresh from sheet" aria-label="Refresh">⟳</button>
 	  <button id="lastfmBtn" class="icon-btn" title="Import from Last.fm" aria-label="Import from Last.fm">◑</button>
 	  <button id="timelineBtn" class="icon-btn" title="Timeline viewer — see what was released when" aria-label="Timeline viewer">◷</button>
+	  <button id="mapBtn" class="icon-btn" title="Map viewer — see where albums were formed, recorded, or played" aria-label="Map viewer">🗺</button>
       
       <!-- 👇 REPLACE THE OLD ARRANGE BUTTON WITH THIS 👇 -->
       <div style="position: relative;">
@@ -1743,6 +1775,20 @@
   </div>
 </div>
 
+<!-- Map viewer modal -->
+<div id="mapOverlay" class="arrange-overlay" hidden>
+  <div class="arrange-modal map-modal">
+    <div class="arrange-header"><h2>Map</h2><button id="mapClose" class="modal-x" aria-label="Close">✕</button></div>
+    <div class="arrange-body">
+      <p class="arrange-hint">Where it all happened — formed, recorded, played. Set a Location from the Add/Edit form to place an album here.</p>
+      <div id="mapStatus" class="map-status" hidden></div>
+      <div id="mapContainer" class="map-container"></div>
+      <div id="mapCount" class="map-count"></div>
+      <p class="timeline-empty" id="mapEmpty" hidden>No albums in your crate have a Location yet — add one from the Edit form (e.g. where the band formed, its studio, or a venue it played) to see it here.</p>
+    </div>
+  </div>
+</div>
+
 <!-- Add album modal -->
 <div id="addOverlay" class="arrange-overlay" hidden>
   <div class="arrange-modal add-modal">
@@ -1780,6 +1826,7 @@
         <label class="add-field">Genre <input type="text" id="addGenre"></label>
         <label class="add-field">Secondary Genre <input type="text" id="addGenre2" placeholder="e.g. Shoegaze, Dream Pop"></label>
         <label class="add-field">Region / Language <input type="text" id="addRegion" placeholder="e.g. Japan, JP, 日本語"></label>
+        <label class="add-field">Location (formed / studio / played) <input type="text" id="addLocation" placeholder="e.g. Abbey Road Studios, London"></label>
         <label class="add-field">Label <input type="text" id="addLabel"></label>
 		<label class="add-field">Catalog No. <input type="text" id="addCatalog"></label> <!-- 👈 ADD THIS -->
         <label class="add-field">Link <input type="text" id="addLink" placeholder="https://…"></label>
@@ -1840,6 +1887,7 @@
         <p id="editGenreDiscogsStatus" class="arrange-hint" hidden></p>
         <label class="add-field">Secondary Genre <input type="text" id="editGenre2" placeholder="e.g. Shoegaze, Dream Pop"></label>
         <label class="add-field">Region / Language <input type="text" id="editRegion" placeholder="e.g. Japan, JP, 日本語"></label>
+        <label class="add-field">Location (formed / studio / played) <input type="text" id="editLocation" placeholder="e.g. Abbey Road Studios, London"></label>
         <label class="add-field">Label <input type="text" id="editLabel"></label>
 		<label class="add-field">Catalog No. <input type="text" id="editCatalog"></label> <!-- 👈 ADD THIS -->
         <label class="add-field">Link <input type="text" id="editLink" placeholder="https://…"></label>
@@ -1958,7 +2006,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.13';
+const APP_VERSION = '1.29.14';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -1985,6 +2033,11 @@ const SPOTIFY_PKCE_STATE_KEY = 'crate_spotify_pkce_state';
 const SPOTIFY_CREDS_KEY = 'crate_spotify_creds_v1';
 const DISCOGS_TOKEN_KEY = 'crate_discogs_token_v1';
 const COVERAGE_CACHE_KEY = 'crate_coverage_cache_v1';
+// Map viewer (see openMapModal): resolved lat/lon per Location string,
+// keyed lowercase/trimmed. A cached value of null means that string was
+// already looked up and Nominatim couldn't place it — kept as null (not
+// just omitted) so a bad location doesn't get re-queried on every open.
+const GEOCODE_CACHE_KEY = 'crate_geocode_cache_v1';
 // How long a cached "N of T" lookup stays valid before it's refetched.
 // Long enough that opening the app doesn't re-hit MusicBrainz for
 // everything every time; short enough that a newly-released album/EP
@@ -2176,11 +2229,11 @@ const el = {};
   'fldTitle','fldArtist','fldYear','fldRating','fldType','fldCatalog','fldGenre','fldLabel','fldDuration','menuCustomizeMain',
   'listenedFilterBtn',
   'addAlbumBtn','addOverlay','addClose','addSearchInput','addManualEntryBtn','addResults','addForm',
-  'addArtist','addTitle','addType','addReleaseYear','addReleaseMonth','addReleaseDay','addRecordedYear','addRecordedMonth','addRecordedDay','addGenre','addGenre2','addRegion','addLabel','addCatalog','addLink','addRymLink','addCover','addSaveBtn','addCancelBtn','addToast',
+  'addArtist','addTitle','addType','addReleaseYear','addReleaseMonth','addReleaseDay','addRecordedYear','addRecordedMonth','addRecordedDay','addGenre','addGenre2','addRegion','addLocation','addLabel','addCatalog','addLink','addRymLink','addCover','addSaveBtn','addCancelBtn','addToast',
   'addTracksRows','addTracksAddRowBtn',
   'deckOverlay','deckClose','deckImg','deckCatalog','deckTitle','deckArtist','deckMeta','deckAdded','deckScrobbleCount','deckLink','deckRatingNum',
   'deckSpotifyLink','deckSoundcloudLink','deckRymLink','deckPlayBtn',
-  'deckEditBtn','editOverlay','editClose','editArtist','editTitle','editType','editReleaseYear','editReleaseMonth','editReleaseDay','editRecordedYear','editRecordedMonth','editRecordedDay','editGenre','editGenre2','editRegion','editLabel','editCatalog','editLink','editRymLink','editCover','editSaveBtn','editCancelBtn','editToast',
+  'deckEditBtn','editOverlay','editClose','editArtist','editTitle','editType','editReleaseYear','editReleaseMonth','editReleaseDay','editRecordedYear','editRecordedMonth','editRecordedDay','editGenre','editGenre2','editRegion','editLocation','editLabel','editCatalog','editLink','editRymLink','editCover','editSaveBtn','editCancelBtn','editToast',
   'editTracksRows','editTracksAddRowBtn','editTracksLoadBtn',
   'ytPlayerMount',
   'deckTracklist','deckStars','deckReview','deckSaveReview','deckToast','deckRemoveBtn','deckPlaylistBtn',
@@ -2214,7 +2267,8 @@ const el = {};
   'folderModalOverlay','folderModalHeading','folderModalClose','folderNameInput','folderModalSaveBtn','folderModalCancelBtn','folderModalToast',
   'leftNavPanel','navMusicBtn','navPlaylistsBtn','musicBrowserView','playlistsBrowserView','resizerLeftNav',
   'timelineBtn','timelineOverlay','timelineClose','timelinePrevYear','timelineNextYear','timelineYearLabel',
-  'timelineSlider','timelineTicks','timelineRangeStart','timelineRangeEnd','timelineCount','timelineAlbumList','timelineEmpty'
+  'timelineSlider','timelineTicks','timelineRangeStart','timelineRangeEnd','timelineCount','timelineAlbumList','timelineEmpty',
+  'mapBtn','mapOverlay','mapClose','mapContainer','mapStatus','mapCount','mapEmpty'
 ].forEach(id => { el[id] = document.getElementById(id); });
 
 let activeItem = null;
@@ -2809,6 +2863,8 @@ function bindEvents() {
   el.timelinePrevYear.addEventListener('click', () => timelineStep(-1));
   el.timelineNextYear.addEventListener('click', () => timelineStep(1));
   el.timelineSlider.addEventListener('input', () => setTimelineYear(Number(el.timelineSlider.value)));
+  el.mapBtn.addEventListener('click', openMapModal);
+  el.mapClose.addEventListener('click', closeMapModal);
   el.lastfmClose.addEventListener('click', closeLastfmModal);
   el.lastfmCancelBtn.addEventListener('click', closeLastfmModal);
   el.lastfmFetchBtn.addEventListener('click', runLastfmFetch);
@@ -3195,7 +3251,7 @@ function bindEvents() {
       // — those either have no "select all" concept here, or (the deck)
       // aren't wired up to it, so falling through would otherwise select
       // whatever's in the main panel behind it instead.
-      const modalOpen = !el.deckOverlay.hidden || !el.addOverlay.hidden || !el.editOverlay.hidden || !el.timelineOverlay.hidden;
+      const modalOpen = !el.deckOverlay.hidden || !el.addOverlay.hidden || !el.editOverlay.hidden || !el.timelineOverlay.hidden || !el.mapOverlay.hidden;
       if (!isEditable && !modalOpen) {
         if (state.activeTab === 'diary') {
           e.preventDefault();
@@ -3217,7 +3273,7 @@ function bindEvents() {
       }
     }
     if (e.key !== 'Escape') return;
-    closeDeck(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal(); closeTrackPropertiesModal(); closeTimelineModal();
+    closeDeck(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal(); closeTrackPropertiesModal(); closeTimelineModal(); closeMapModal();
     // Deliberately NOT closing the master player here — whichever engine
     // (Spotify or YouTube) is driving it, it's a persistent background
     // player now, not a modal, so Escape (used to dismiss whatever modal/
@@ -3227,7 +3283,7 @@ function bindEvents() {
   });
 
   // Full-screen overlay backdrop clicks
-  [el.deckOverlay, el.addOverlay, el.editOverlay, el.lastfmOverlay, el.playlistModalOverlay, el.timelineOverlay].forEach(overlay => {
+  [el.deckOverlay, el.addOverlay, el.editOverlay, el.lastfmOverlay, el.playlistModalOverlay, el.timelineOverlay, el.mapOverlay].forEach(overlay => {
     overlay.addEventListener('click', (e) => { 
       if (e.target === overlay) {
         if (overlay === el.deckOverlay) closeDeck();
@@ -3235,6 +3291,7 @@ function bindEvents() {
         else if (overlay === el.lastfmOverlay) closeLastfmModal();
         else if (overlay === el.playlistModalOverlay) closePlaylistModal();
         else if (overlay === el.timelineOverlay) closeTimelineModal();
+        else if (overlay === el.mapOverlay) closeMapModal();
         else closeEditModal();
       }
     });
@@ -3476,6 +3533,13 @@ async function fetchCatalog() {
           genre2: r.SecondaryGenre || '',
           label: r.Label ? String(r.Label).trim() : '',
           region: r.Region ? String(r.Region).trim() : '',
+          // Where it happened — formed, recorded (studio), or played
+          // (venue). Free text, geocoded client-side for the Map viewer
+          // (see openMapModal/geocodeLocation). REQUIRES A BACKEND CHANGE
+          // THIS FILE CAN'T MAKE: apps-script-backend.gs needs a
+          // "Location" column read here and written on addAlbum/editAlbum,
+          // same as Catalog/ManualTracks were added before.
+          location: r.Location ? String(r.Location).trim() : '',
           cover: r.Cover ? String(r.Cover).trim() : '',
           rating: Number(r.Rating) || 0,
           review: r.Review || '',
@@ -3982,6 +4046,61 @@ function mbFetch(url, opts, attempt = 0) {
     }
     return res;
   });
+}
+
+// ---------- Geocoding queue for the Map viewer (Nominatim) ----------
+// Same shared-queue pattern as mbFetch above: OpenStreetMap's Nominatim
+// usage policy caps unauthenticated search requests at roughly 1/sec, so
+// every geocode lookup — regardless of how many locations the map needs to
+// resolve at once — is chained onto one queue with a fixed spacing between
+// requests, rather than firing them all in parallel.
+let geoQueueTail = Promise.resolve();
+let geoLastRequestAt = 0;
+const GEO_MIN_INTERVAL_MS = 1100;
+
+function geoFetch(url) {
+  const run = async () => {
+    const wait = Math.max(0, geoLastRequestAt + GEO_MIN_INTERVAL_MS - Date.now());
+    if (wait > 0) await new Promise(r => setTimeout(r, wait));
+    geoLastRequestAt = Date.now();
+    return fetchWithTimeout(url, {}, 10000);
+  };
+  const queued = geoQueueTail.then(run, run);
+  geoQueueTail = queued.catch(() => {});
+  return queued;
+}
+
+function loadGeocodeCache() {
+  try { return JSON.parse(localStorage.getItem(GEOCODE_CACHE_KEY) || '{}'); }
+  catch (e) { return {}; }
+}
+function saveGeocodeCache(cache) {
+  try { localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(cache)); } catch (e) { /* ignore */ }
+}
+
+// Resolves one Location string to { lat, lon, label } via Nominatim,
+// consulting/populating the shared cache first. Returns null (and caches
+// null) if Nominatim has nothing for it — that's a real answer, not a
+// failure, so it's not retried on every subsequent map open.
+async function geocodeLocation(query, cache) {
+  const key = query.trim().toLowerCase();
+  if (!key) return null;
+  if (Object.prototype.hasOwnProperty.call(cache, key)) return cache[key];
+  try {
+    const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=' + encodeURIComponent(query);
+    const res = await geoFetch(url);
+    if (!res.ok) { cache[key] = null; return null; }
+    const results = await res.json();
+    const hit = results && results[0];
+    const resolved = hit ? { lat: parseFloat(hit.lat), lon: parseFloat(hit.lon), label: hit.display_name } : null;
+    cache[key] = resolved;
+    return resolved;
+  } catch (e) {
+    // A timed-out/failed request is NOT the same as "no such place" — don't
+    // poison the cache with a permanent null for what might just be a
+    // dropped connection, so it gets another try next time the map opens.
+    return null;
+  }
 }
 
 // --- Discography completion badges (left panel, grouped by Artist) ---
@@ -10194,6 +10313,120 @@ function renderTimelineAlbumList(year) {
   });
 }
 
+/* ---------- Map viewer (1.29.14) ----------
+   Groups every album with a non-empty `location` (see state.raw mapping)
+   by that text, geocodes each unique string once via Nominatim (through
+   the geoFetch queue above, cached in localStorage), and drops one Leaflet
+   marker per resolved place — a popup lists every album grouped there and
+   clicking one closes the modal and opens that release, same click-through
+   pattern as the Timeline viewer's album list. */
+
+let leafletMapInstance = null;
+let leafletMarkerLayer = null;
+let mapLoadToken = 0; // race guard: only the latest open's geocoding pass may render
+
+function ensureLeafletMap() {
+  if (leafletMapInstance) return leafletMapInstance;
+  leafletMapInstance = L.map(el.mapContainer, { worldCopyJump: true }).setView([20, 0], 2);
+  // CARTO's dark basemap (free, no API key) so the map reads as part of the
+  // app's own dark theme instead of a bright rectangle dropped into it.
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    maxZoom: 19,
+    subdomains: 'abcd'
+  }).addTo(leafletMapInstance);
+  leafletMarkerLayer = L.layerGroup().addTo(leafletMapInstance);
+  return leafletMapInstance;
+}
+
+// Groups state.raw by trimmed/lowercased `location` text. Returns
+// [{ label, key, items: [item, ...] }, ...] for every non-empty location —
+// geocoding happens later, per unique key, once this grouping is known.
+function buildMapGroups() {
+  const groups = new Map();
+  state.raw.forEach(item => {
+    const loc = (item.location || '').trim();
+    if (!loc) return;
+    const key = loc.toLowerCase();
+    if (!groups.has(key)) groups.set(key, { label: loc, key, items: [] });
+    groups.get(key).items.push(item);
+  });
+  return [...groups.values()];
+}
+
+async function openMapModal() {
+  el.mapOverlay.hidden = false;
+  const token = ++mapLoadToken;
+  const map = ensureLeafletMap();
+  // Leaflet sizes its canvas from the container's dimensions at creation
+  // time — if that happened while the modal was hidden (display:none has
+  // zero size), the tiles render into a collapsed box. invalidateSize()
+  // after the overlay is visible fixes that up.
+  setTimeout(() => map.invalidateSize(), 0);
+
+  const groups = buildMapGroups();
+  el.mapEmpty.hidden = groups.length > 0;
+  leafletMarkerLayer.clearLayers();
+  el.mapCount.textContent = '';
+
+  if (!groups.length) {
+    el.mapStatus.hidden = true;
+    return;
+  }
+
+  el.mapStatus.hidden = false;
+  el.mapStatus.textContent = 'Placing ' + groups.length + ' location' + (groups.length === 1 ? '' : 's') + '…';
+
+  const cache = loadGeocodeCache();
+  let placed = 0, failed = 0;
+  for (const group of groups) {
+    const resolved = await geocodeLocation(group.label, cache);
+    if (token !== mapLoadToken) return; // a newer open superseded this one — stop touching stale state
+    if (resolved) { placed++; addMapMarker(group, resolved); }
+    else failed++;
+    el.mapStatus.textContent = 'Placing locations… (' + (placed + failed) + '/' + groups.length + ')';
+  }
+  saveGeocodeCache(cache);
+
+  el.mapStatus.hidden = true;
+  el.mapCount.textContent = placed + ' location' + (placed === 1 ? '' : 's') + ' mapped'
+    + (failed ? ' · ' + failed + ' couldn\u2019t be found' : '');
+}
+
+function closeMapModal() {
+  el.mapOverlay.hidden = true;
+  mapLoadToken++; // invalidate any geocoding pass still in flight
+}
+
+function addMapMarker(group, resolved) {
+  const marker = L.marker([resolved.lat, resolved.lon]).addTo(leafletMarkerLayer);
+  const popup = document.createElement('div');
+  popup.className = 'map-popup';
+  const title = document.createElement('div');
+  title.className = 'map-popup-title';
+  title.textContent = group.label;
+  popup.appendChild(title);
+  group.items.forEach(item => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'timeline-album-row map-popup-row';
+    row.innerHTML = `
+      <img class="timeline-album-cover art" data-key="${artKey(item)}" src="${item.cover || state.artCache[artKey(item)]?.art || placeholderArt(item)}" alt="">
+      <span class="timeline-album-text">
+        <span class="timeline-album-title">${escapeHtml(item.title)}</span>
+        <span class="timeline-album-sub">${escapeHtml(item.artist)}</span>
+      </span>
+    `;
+    row.addEventListener('click', () => {
+      closeMapModal();
+      switchTab('albums');
+      openDeck(item);
+    });
+    popup.appendChild(row);
+  });
+  marker.bindPopup(popup, { maxWidth: 260 });
+}
+
 el.anniversaryBannerClose.addEventListener('click', () => {
   el.anniversaryBanner.hidden = true;
   try { localStorage.setItem(ANNIV_DISMISS_KEY, todayDateKey()); } catch (e) { /* safe to ignore */ }
@@ -11199,6 +11432,7 @@ function showAddForm(prefill) {
   el.addGenre.value = prefill.genre || '';
   el.addGenre2.value = prefill.genre2 || '';
   el.addRegion.value = prefill.region || '';
+  el.addLocation.value = prefill.location || '';
   el.addLabel.value = prefill.label || '';
   el.addCatalog.value = prefill.catalog || ''; // 👈 ADD THIS
   el.addLink.value = prefill.link || '';
@@ -11220,6 +11454,7 @@ async function saveNewAlbum() {
     ReleaseDate: getReleaseDateFields('add'), Recorded: getRecordedDateFields('add'), Genre: el.addGenre.value.trim(), 
     SecondaryGenre: el.addGenre2.value.trim(),
     Region: el.addRegion.value.trim(),
+    Location: el.addLocation.value.trim(), // 👈 Map viewer — REQUIRES BACKEND COLUMN, see 1.29.14 log entry
     Label: el.addLabel.value.trim(), Catalog: el.addCatalog.value.trim(), // 👈 ADD CATALOG
     Link: el.addLink.value.trim(), RymLink: el.addRymLink.value.trim(), Cover: el.addCover.value.trim()
   };
@@ -11256,6 +11491,7 @@ function openEditModal() {
   el.editGenre.value = activeItem.genre || '';
   el.editGenre2.value = activeItem.genre2 || '';
   el.editRegion.value = activeItem.region || '';
+  el.editLocation.value = activeItem.location || '';
   el.editLabel.value = activeItem.label || '';
   el.editCatalog.value = activeItem.catalog || ''; // 👈 ADD THIS
   el.editLink.value = activeItem.link || '';
@@ -11298,6 +11534,7 @@ async function saveEditAlbum() {
     Genre: el.editGenre.value.trim(),
     SecondaryGenre: el.editGenre2.value.trim(),
     Region: el.editRegion.value.trim(),
+    Location: el.editLocation.value.trim(), // 👈 Map viewer — REQUIRES BACKEND COLUMN, see 1.29.14 log entry
     Label: el.editLabel.value.trim(),
     Catalog: el.editCatalog.value.trim(), // 👈 ADD THIS
     Link: el.editLink.value.trim(),
@@ -11320,6 +11557,7 @@ async function saveEditAlbum() {
     activeItem.genre = payload.Genre;
     activeItem.genre2 = payload.SecondaryGenre;
     activeItem.region = payload.Region;
+    activeItem.location = payload.Location;
     activeItem.label = payload.Label;
 	activeItem.catalog = payload.Catalog || 'CRT-' + String(activeItem.row).padStart(3, '0'); // 👈 ADD THIS
     activeItem.link = payload.Link;
@@ -14156,6 +14394,32 @@ html, body {
   .timeline-album-sub { font-size: 11px; color: var(--text-dim); margin: 2px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .timeline-album-date { flex: 0 0 auto; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--text-dim); }
   .timeline-empty { font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px 0; margin: 0; }
+
+  /* ---------- Map viewer (1.29.14) ---------- */
+  .map-modal { max-width: 620px; }
+  .map-container {
+    width: 100%; height: 420px; border-radius: 8px; overflow: hidden;
+    border: 1px solid var(--line); background: #0b0e14;
+  }
+  .map-status {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 8px; text-align: center;
+  }
+  .map-count {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--text-dim); margin-top: 8px; text-align: center;
+  }
+  /* Theme Leaflet's default white popup chrome to match the app. The popup
+     content itself (.map-popup) reuses .timeline-album-row's row markup. */
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--bg-card); color: var(--text); }
+  .leaflet-popup-content { margin: 10px 12px; }
+  .leaflet-popup-close-button { color: var(--text-dim) !important; }
+  .map-popup { display: flex; flex-direction: column; gap: 4px; min-width: 180px; }
+  .map-popup-title {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 2px;
+  }
+  .map-popup-row { padding: 4px 2px; }
 
   @media (max-width: 900px) {
     .panel-left, .panel-leftnav, .panel-right, .resizer { display: none !important; }
