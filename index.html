@@ -13,7 +13,18 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.11
+  CURRENT_VERSION: 1.29.12
+
+  1.29.12 — 2026-09-09 — Left panel's Albums list can now be grouped —
+          new "Group by" section in the left panel's menu (Albums mode
+          only), same categories/logic as the main grid's own Group by:
+          Artist, Year, Decade, Genre, Type. New state.leftGroupBy, and a
+          shared groupKeysFor() helper factored out of groupItems() so both
+          grids use identical grouping rules. Rows within each group keep
+          whatever Name/Highest Count sort was already chosen. Refactored
+          each row's markup/behavior out into buildLeftRow() so the flat
+          and grouped renders share the exact same row instead of
+          duplicating it.
 
   1.29.11 — 2026-09-09 — Right-clicking an album in the left panel's Albums
           list (or a card in the main grid — same shared menu) now has a
@@ -1159,6 +1170,17 @@
               <button type="button" data-left-sort="name">Name A–Z</button>
               <button type="button" data-left-sort="count">Highest Count</button>
 
+              <div id="leftGroupBySection">
+                <div class="menu-divider"></div>
+                <div class="menu-section-title">Group by</div>
+                <button type="button" data-left-group="none">No grouping</button>
+                <button type="button" data-left-group="artist">Artist</button>
+                <button type="button" data-left-group="year">Year</button>
+                <button type="button" data-left-group="decade">Decade</button>
+                <button type="button" data-left-group="genre">Genre</button>
+                <button type="button" data-left-group="type">Type</button>
+              </div>
+
               <div class="menu-divider"></div>
               <div class="menu-section-title">Thumbnails</div>
               <button type="button" data-left-thumb="none">Disable Thumbnails</button>
@@ -1893,7 +1915,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.11';
+const APP_VERSION = '1.29.12';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -2011,6 +2033,11 @@ const state = {
   leftMode: 'album',
   leftSort: 'name',       // 👈 ADD THIS
   leftThumbSize: 'medium',// 👈 ADD THIS
+  // Clusters the left panel's Albums list under Artist/Genre/Year/Decade/
+  // Type section headers — same categories/logic as the main grid's own
+  // "Group by" (see groupKeysFor). Only meaningful in Albums mode; the
+  // Artists/Genres/Years modes already show one row per category.
+  leftGroupBy: 'none',
   navFilter: null,
   listenedOnly: false,
   showLeft: true,
@@ -2094,7 +2121,7 @@ const el = {};
 [
   'gridContainer','stateMsg','searchInput','sortSelect','refreshBtn',
   'tabAlbums','tabDiary','tabScrobbles','viewGridBtn','viewListBtn','sizeControl','sizeSlider',
-  'leftPanel','leftModeBtn','leftModeLabel','leftModeMenu','leftList',
+  'leftPanel','leftModeBtn','leftModeLabel','leftModeMenu','leftGroupBySection','leftList',
   'mainPanel','mainPanelLabel','rightPanel','crateQueuePanelBody','crateQueueClearBtn','resizerLeft','resizerRight','panels','viewbar',
   'diaryWrap','diaryContainer','diaryStateMsg',
   'scrobblesWrap','scrobblesContainer','scrobblesStateMsg',
@@ -2553,6 +2580,8 @@ function bindEvents() {
         state.navFilter = null;
       } else if (btn.dataset.leftSort) {
         state.leftSort = btn.dataset.leftSort;
+      } else if (btn.dataset.leftGroup) {
+        state.leftGroupBy = btn.dataset.leftGroup;
       } else if (btn.dataset.leftThumb) {
         state.leftThumbSize = btn.dataset.leftThumb;
       }
@@ -3186,8 +3215,12 @@ function updateLeftMenuUI() {
     btn.classList.remove('active-option');
     if (btn.dataset.mode === state.leftMode) btn.classList.add('active-option');
     if (btn.dataset.leftSort === state.leftSort) btn.classList.add('active-option');
+    if (btn.dataset.leftGroup === state.leftGroupBy) btn.classList.add('active-option');
     if (btn.dataset.leftThumb === state.leftThumbSize) btn.classList.add('active-option');
   });
+  // "Group by" only means anything in Albums mode — Artists/Genres/Years
+  // already show one row per category, so there's nothing to cluster there.
+  if (el.leftGroupBySection) el.leftGroupBySection.hidden = state.leftMode !== 'album';
 }
 
 function renderConfigSlots(mode) {
@@ -3299,6 +3332,7 @@ function loadPrefs() {
     if (p.leftMode) state.leftMode = p.leftMode;
 	if (p.leftSort) state.leftSort = p.leftSort;             // 👈 ADD THIS
 	if (p.leftThumbSize) state.leftThumbSize = p.leftThumbSize; // 👈 ADD THIS
+	if (p.leftGroupBy) state.leftGroupBy = p.leftGroupBy;
     if (typeof p.showLeft === 'boolean') state.showLeft = p.showLeft;
     if (typeof p.showRight === 'boolean') state.showRight = p.showRight;
     if (typeof p.showCoverLinks === 'boolean') state.showCoverLinks = p.showCoverLinks;
@@ -3318,7 +3352,7 @@ function savePrefs() {
   try {
 	localStorage.setItem(PREF_KEY, JSON.stringify({
       viewMode: state.viewMode, mainViewMode: state.mainViewMode, playlistViewMode: state.playlistViewMode, cardSize: state.cardSize, sort: state.sort, groupBy: state.groupBy,
-      activeType: state.activeType, leftMode: state.leftMode, leftSort: state.leftSort, leftThumbSize: state.leftThumbSize, // 👈 UPDATED HERE
+      activeType: state.activeType, leftMode: state.leftMode, leftSort: state.leftSort, leftThumbSize: state.leftThumbSize, leftGroupBy: state.leftGroupBy, // 👈 UPDATED HERE
       showLeft: state.showLeft, showRight: state.showRight, showCoverLinks: state.showCoverLinks, fitArtwork: state.fitArtwork, fieldPlacement: state.fieldPlacement, closeGaps: state.closeGaps, panelWidths: state.panelWidths, fields: state.fields, trackColWidths: state.trackColWidths,
       playlistFoldersCollapsed: state.playlistFoldersCollapsed,
       playlistFolders: state.playlistFolders,
@@ -3626,6 +3660,66 @@ function makeResizable(resizerEl, panelEl, side, minWidth = 160, maxWidth = 420)
 
 /* ---------- Left category panel ---------- */
 
+// Builds one clickable row for buildLeftList — factored out so both the
+// flat list and the grouped-by-Artist/Genre/Year/etc. rendering (see
+// state.leftGroupBy below) can share the exact same row markup/behavior.
+function buildLeftRow(entry, mode) {
+  const row = document.createElement('div');
+  row.className = 'left-row';
+  row.tabIndex = 0;
+  const isActive = !state.activePlaylistId && state.navFilter && state.navFilter.mode === mode && state.navFilter.value === entry.key;
+  if (isActive) row.classList.add('active');
+
+  if (mode === 'album') {
+    row.innerHTML = `
+      <img class="left-thumb art" data-key="${entry.artKey}" alt="">
+      <div class="left-row-text">
+        <p class="left-row-title">${escapeHtml(entry.label)}</p>
+        <p class="left-row-sub">${escapeHtml(entry.sub)}</p>
+      </div>`;
+  } else if (mode === 'artist') {
+    const cached = state.artistDiscogCache[entry.label.toLowerCase()];
+    const countText = (cached && cached.total != null) ? formatCoverageBadge(entry.count, cached.total) : entry.count;
+    row.innerHTML = `
+      <img class="left-thumb left-thumb-round art" data-key="${entry.sampleKey}" alt="">
+      <div class="left-row-text"><p class="left-row-title">${escapeHtml(entry.label)}</p></div>
+      <span class="left-row-count" data-artist="${escapeHtml(entry.label)}" data-owned-count="${entry.count}" title="Studio albums logged vs. MusicBrainz's discography for this artist">${countText}</span>`;
+  } else if (mode === 'year') {
+    const cached = state.yearCoverageCache[entry.label];
+    const countText = (cached && cached.total != null) ? formatCoverageBadge(entry.count, cached.total) : entry.count;
+    row.innerHTML = `
+      <div class="left-row-text"><p class="left-row-title">${escapeHtml(entry.label)}</p></div>
+      <span class="left-row-count" data-year="${escapeHtml(entry.label)}" data-owned-count="${entry.count}" title="Albums/EPs/singles logged vs. MusicBrainz's count of releases for this year">${countText}</span>`;
+  } else {
+    row.innerHTML = `
+      <div class="left-row-text"><p class="left-row-title">${escapeHtml(entry.label)}</p></div>
+      <span class="left-row-count">${entry.count}</span>`;
+  }
+
+  row.addEventListener('click', () => {
+    if (state.navFilter && state.navFilter.mode === mode && state.navFilter.value === entry.key) {
+      state.navFilter = null;
+    } else {
+      state.navFilter = { mode, value: entry.key };
+    }
+    exitPlaylistView();
+    buildLeftList();
+    updateMainLabel();
+    applyFiltersSort();
+  });
+  // Right-click an album row for the same menu (Play, queue, add to
+  // playlist, view, search, Spotify/RYM links, Delete…) the main grid's
+  // album cards already have — only wired for mode === 'album' since
+  // artist/genre/year rows represent a group, not one crate item.
+  if (mode === 'album') {
+    row.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      openAlbumCardContextMenu(entry.item, e.clientX, e.clientY);
+    });
+  }
+  return row;
+}
+
 function buildLeftList() {
   const mode = state.leftMode;
   // Apply the chosen thumbnail size CSS class
@@ -3704,62 +3798,43 @@ if (mode === 'artist') {
   });
   el.leftList.appendChild(allRow);
 
-  entries.forEach(entry => {
-    const row = document.createElement('div');
-    row.className = 'left-row';
-    row.tabIndex = 0;
-    const isActive = !state.activePlaylistId && state.navFilter && state.navFilter.mode === mode && state.navFilter.value === entry.key;
-    if (isActive) row.classList.add('active');
-
-    if (mode === 'album') {
-      row.innerHTML = `
-        <img class="left-thumb art" data-key="${entry.artKey}" alt="">
-        <div class="left-row-text">
-          <p class="left-row-title">${escapeHtml(entry.label)}</p>
-          <p class="left-row-sub">${escapeHtml(entry.sub)}</p>
-        </div>`;
-    } else if (mode === 'artist') {
-      const cached = state.artistDiscogCache[entry.label.toLowerCase()];
-      const countText = (cached && cached.total != null) ? formatCoverageBadge(entry.count, cached.total) : entry.count;
-      row.innerHTML = `
-        <img class="left-thumb left-thumb-round art" data-key="${entry.sampleKey}" alt="">
-        <div class="left-row-text"><p class="left-row-title">${escapeHtml(entry.label)}</p></div>
-        <span class="left-row-count" data-artist="${escapeHtml(entry.label)}" data-owned-count="${entry.count}" title="Studio albums logged vs. MusicBrainz's discography for this artist">${countText}</span>`;
-    } else if (mode === 'year') {
-      const cached = state.yearCoverageCache[entry.label];
-      const countText = (cached && cached.total != null) ? formatCoverageBadge(entry.count, cached.total) : entry.count;
-      row.innerHTML = `
-        <div class="left-row-text"><p class="left-row-title">${escapeHtml(entry.label)}</p></div>
-        <span class="left-row-count" data-year="${escapeHtml(entry.label)}" data-owned-count="${entry.count}" title="Albums/EPs/singles logged vs. MusicBrainz's count of releases for this year">${countText}</span>`;
-    } else {
-      row.innerHTML = `
-        <div class="left-row-text"><p class="left-row-title">${escapeHtml(entry.label)}</p></div>
-        <span class="left-row-count">${entry.count}</span>`;
-    }
-
-    row.addEventListener('click', () => {
-      if (state.navFilter && state.navFilter.mode === mode && state.navFilter.value === entry.key) {
-        state.navFilter = null;
-      } else {
-        state.navFilter = { mode, value: entry.key };
-      }
-      exitPlaylistView();
-      buildLeftList();
-      updateMainLabel();
-      applyFiltersSort();
-    });
-    // Right-click an album row for the same menu (Play, queue, add to
-    // playlist, view, search, Spotify/RYM links…) the main grid's album
-    // cards already have — only wired for mode === 'album' since artist/
-    // genre/year rows represent a group, not one crate item.
-    if (mode === 'album') {
-      row.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        openAlbumCardContextMenu(entry.item, e.clientX, e.clientY);
+  // "Group by" (state.leftGroupBy) clusters the Albums list under
+  // collapsible-looking section headers — Artist/Genre/Year/Decade/Type —
+  // same categories and the same groupKeysFor() a release belongs under as
+  // the main grid's own "Group by" (see groupItems). Only meaningful for
+  // mode === 'album': the Artists/Genres/Years modes already show one row
+  // per category, so there's nothing further to cluster there (see the
+  // menu's own visibility toggle in updateLeftMenuUI). Buckets the
+  // already-sorted `entries` array by key rather than re-deriving from
+  // sourceRaw, so rows within each group keep the chosen Name/Count sort.
+  if (mode === 'album' && state.leftGroupBy && state.leftGroupBy !== 'none') {
+    const groupMap = new Map();
+    entries.forEach(entry => {
+      const keys = groupKeysFor(entry.item, state.leftGroupBy);
+      (keys.length ? keys : ['Unknown']).forEach(k => {
+        const gk = k || 'Unknown';
+        if (!groupMap.has(gk)) groupMap.set(gk, []);
+        groupMap.get(gk).push(entry);
       });
-    }
-    el.leftList.appendChild(row);
-  });
+    });
+    let groupKeysSorted = Array.from(groupMap.keys());
+    const numeric = state.leftGroupBy === 'year' || state.leftGroupBy === 'decade';
+    groupKeysSorted.sort((a, b) => {
+      if (a === 'Unknown') return 1;
+      if (b === 'Unknown') return -1;
+      return numeric ? b.localeCompare(a) : a.localeCompare(b);
+    });
+    groupKeysSorted.forEach(gk => {
+      const groupEntries = groupMap.get(gk);
+      const header = document.createElement('div');
+      header.className = 'left-group-header';
+      header.textContent = `${gk} · ${groupEntries.length}`;
+      el.leftList.appendChild(header);
+      groupEntries.forEach(entry => el.leftList.appendChild(buildLeftRow(entry, mode)));
+    });
+  } else {
+    entries.forEach(entry => el.leftList.appendChild(buildLeftRow(entry, mode)));
+  }
 
   applyCachedArt();
   if (mode === 'artist') loadArtistDiscogBadges(entries.map(e => e.label));
@@ -4278,18 +4353,27 @@ function getRecordedDateFields(prefix) {
   return combineRecordedDate(el[`${prefix}RecordedYear`].value, el[`${prefix}RecordedMonth`].value, el[`${prefix}RecordedDay`].value);
 }
 
+// The group key(s) an item belongs under for a given "group by" choice —
+// shared by the main grid's groupItems() below and buildLeftList's own
+// left-panel grouping (state.leftGroupBy). An array since Genre can put
+// one album under more than one heading (primary + secondary genre).
+function groupKeysFor(item, by) {
+  if (by === 'artist') return [item.artist];
+  if (by === 'type') return [item.type];
+  if (by === 'genre') return getGenreList(combinedGenreStr(item));
+  if (by === 'year') return [dateVal(item.releaseDate) !== -Infinity ? String(new Date(item.releaseDate).getUTCFullYear()) : 'Unknown'];
+  if (by === 'decade') {
+    if (dateVal(item.releaseDate) === -Infinity) return ['Unknown'];
+    const y = new Date(item.releaseDate).getUTCFullYear();
+    return [(Math.floor(y / 10) * 10) + 's'];
+  }
+  return [];
+}
+
 function groupItems(items, by) {
   const map = new Map();
   items.forEach(item => {
-    let keys = [];
-    if (by === 'artist') keys = [item.artist];
-    else if (by === 'type') keys = [item.type];
-    else if (by === 'genre') keys = getGenreList(combinedGenreStr(item)); // Get array of genres (primary + secondary)
-    else if (by === 'year') keys = [dateVal(item.releaseDate) !== -Infinity ? String(new Date(item.releaseDate).getUTCFullYear()) : 'Unknown'];
-    else if (by === 'decade') {
-      if (dateVal(item.releaseDate) === -Infinity) keys = ['Unknown'];
-      else { const y = new Date(item.releaseDate).getUTCFullYear(); keys = [(Math.floor(y / 10) * 10) + 's']; }
-    }
+    const keys = groupKeysFor(item, by);
 
     // This loop ensures multi-genre albums appear in every relevant group
     keys.forEach(key => {
@@ -12679,6 +12763,15 @@ html, body {
   padding-right: 10px; /* Space for scrollbar */
   min-height: 0;
 }  
+
+/* Section headers for the left panel's Albums list when "Group by" (state
+   .leftGroupBy) is set to Artist/Genre/Year/Decade/Type — same idea as the
+   main grid's .group-header, just sized down for the narrower column. */
+.left-group-header {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase;
+  color: var(--text-dim); border-bottom: 1px solid var(--line); padding-bottom: 6px; margin: 16px 0 8px;
+}
+.left-group-header:first-child { margin-top: 0; }
 
 /* Far-left nav rail (#leftNavPanel): its own narrow column, separate from
    the thumbnail-browser column, holding just the "Music" and "Playlists"
