@@ -13,7 +13,37 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.14
+  CURRENT_VERSION: 1.29.15
+
+  1.29.15 — 2026-09-09 — Three follow-ups to the Map/Timeline viewers:
+          (1) Map viewer now filters by Artist/Genre/Media Type/Decade (a
+          category + value picker) and sorts by Title/Artist/Year — both
+          the pins' popup lists and a new flat album list under the map
+          respect the current filter+sort. New buildMapGroups(), a
+          mapCategoryFilter()/populateMapCategoryValues()/
+          mapSortComparator() trio, and renderMap() replaces the old
+          inline geocode-and-render body in openMapModal() so filter/sort
+          changes can re-render without reopening the modal.
+          (2) Map geocoding switched from Nominatim to LocationIQ, which
+          needs a free API key (unlike Nominatim) but is far more
+          reliable from a browser — Nominatim's usage policy doesn't
+          really permit this kind of client-side lookup and requests were
+          getting blocked. New mapKeySetup panel (shown until a key is
+          saved, same pattern as the Last.fm setup screen), key stored in
+          localStorage (crate_map_apikey_v1, not synced to the backend —
+          same treatment as the Last.fm/Spotify/Discogs keys), and an
+          "API key" button in the map toolbar to change it later.
+          geocodeLocation()/geoFetch() updated for LocationIQ's endpoint
+          and faster rate limit (550ms spacing vs Nominatim's 1.1s).
+          (3) Timeline viewer now has a Released/Listened toggle. Listened
+          mode builds the year ticks from state.scrobbles (total plays per
+          year) instead of release dates, and the year's album list shows
+          what was actually played that year with a play count per album,
+          sorted by most-played — matched back to the crate by artist+
+          title the same way the Scrobbles tab does. New state.timelineMode,
+          buildListenYearCounts(), renderTimelineListenList(), and
+          setTimelineMode(); buildTimelineYearCounts()/
+          renderTimelineAlbumList() now branch on the mode.
 
   1.29.14 — 2026-09-09 — Added a Map viewer: new 🗺 toolbar button opens a
           modal with a dark-themed Leaflet/OpenStreetMap map showing pins
@@ -1754,7 +1784,11 @@
   <div class="arrange-modal timeline-modal">
     <div class="arrange-header"><h2>Timeline</h2><button id="timelineClose" class="modal-x" aria-label="Close">✕</button></div>
     <div class="arrange-body">
-      <p class="arrange-hint">Scrub through release years to see what was out at that point in time.</p>
+      <p class="arrange-hint" id="timelineHint">Scrub through release years to see what was out at that point in time.</p>
+      <div class="timeline-mode-toggle diary-subtoolbar">
+        <button type="button" id="timelineModeReleaseBtn" class="diary-subtoolbar-btn active" data-timeline-mode="release">Released</button>
+        <button type="button" id="timelineModeListenBtn" class="diary-subtoolbar-btn" data-timeline-mode="listen">Listened</button>
+      </div>
       <div class="timeline-scrubber">
         <button type="button" id="timelinePrevYear" class="config-btn timeline-step-btn" aria-label="Previous year">‹</button>
         <div class="timeline-scrubber-main">
@@ -1780,11 +1814,47 @@
   <div class="arrange-modal map-modal">
     <div class="arrange-header"><h2>Map</h2><button id="mapClose" class="modal-x" aria-label="Close">✕</button></div>
     <div class="arrange-body">
-      <p class="arrange-hint">Where it all happened — formed, recorded, played. Set a Location from the Add/Edit form to place an album here.</p>
-      <div id="mapStatus" class="map-status" hidden></div>
-      <div id="mapContainer" class="map-container"></div>
-      <div id="mapCount" class="map-count"></div>
-      <p class="timeline-empty" id="mapEmpty" hidden>No albums in your crate have a Location yet — add one from the Edit form (e.g. where the band formed, its studio, or a venue it played) to see it here.</p>
+
+      <div id="mapKeySetup" hidden>
+        <p class="arrange-hint">The map needs a free LocationIQ API key to look up locations — Nominatim's usage policy doesn't allow this kind of lookup straight from a browser. Grab a key at locationiq.com/register (no card needed) and paste it below.</p>
+        <label class="add-field">LocationIQ API key <input type="text" id="mapApiKeyInput" autocomplete="off"></label>
+        <div class="log-form-actions">
+          <button id="mapApiKeySaveBtn" class="save-btn">Save &amp; load map</button>
+        </div>
+      </div>
+
+      <div id="mapMain">
+        <p class="arrange-hint">Where it all happened — formed, recorded, played. Set a Location from the Add/Edit form to place an album here.</p>
+        <div class="map-toolbar">
+          <label class="map-toolbar-field">Category
+            <select id="mapCategorySelect">
+              <option value="none">All</option>
+              <option value="artist">Artist</option>
+              <option value="genre">Genre</option>
+              <option value="type">Media Type</option>
+              <option value="decade">Decade</option>
+            </select>
+          </label>
+          <label class="map-toolbar-field" id="mapCategoryValueField" hidden>Value
+            <select id="mapCategoryValueSelect"></select>
+          </label>
+          <label class="map-toolbar-field">Sort
+            <select id="mapSortSelect">
+              <option value="title">Title (A–Z)</option>
+              <option value="artist">Artist (A–Z)</option>
+              <option value="year-new">Year (newest)</option>
+              <option value="year-old">Year (oldest)</option>
+            </select>
+          </label>
+          <button type="button" id="mapKeyEditBtn" class="chip-btn map-toolbar-key-btn" title="Change LocationIQ API key">API key</button>
+        </div>
+        <div id="mapStatus" class="map-status" hidden></div>
+        <div id="mapContainer" class="map-container"></div>
+        <div id="mapCount" class="map-count"></div>
+        <div class="timeline-album-list" id="mapAlbumList"></div>
+        <p class="timeline-empty" id="mapEmpty" hidden>No albums in your crate have a Location yet — add one from the Edit form (e.g. where the band formed, its studio, or a venue it played) to see it here.</p>
+      </div>
+
     </div>
   </div>
 </div>
@@ -2006,7 +2076,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.14';
+const APP_VERSION = '1.29.15';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -2268,7 +2338,10 @@ const el = {};
   'leftNavPanel','navMusicBtn','navPlaylistsBtn','musicBrowserView','playlistsBrowserView','resizerLeftNav',
   'timelineBtn','timelineOverlay','timelineClose','timelinePrevYear','timelineNextYear','timelineYearLabel',
   'timelineSlider','timelineTicks','timelineRangeStart','timelineRangeEnd','timelineCount','timelineAlbumList','timelineEmpty',
-  'mapBtn','mapOverlay','mapClose','mapContainer','mapStatus','mapCount','mapEmpty'
+  'timelineHint','timelineModeReleaseBtn','timelineModeListenBtn',
+  'mapBtn','mapOverlay','mapClose','mapContainer','mapStatus','mapCount','mapEmpty','mapMain',
+  'mapKeySetup','mapApiKeyInput','mapApiKeySaveBtn','mapKeyEditBtn',
+  'mapCategorySelect','mapCategoryValueField','mapCategoryValueSelect','mapSortSelect','mapAlbumList'
 ].forEach(id => { el[id] = document.getElementById(id); });
 
 let activeItem = null;
@@ -2863,8 +2936,21 @@ function bindEvents() {
   el.timelinePrevYear.addEventListener('click', () => timelineStep(-1));
   el.timelineNextYear.addEventListener('click', () => timelineStep(1));
   el.timelineSlider.addEventListener('input', () => setTimelineYear(Number(el.timelineSlider.value)));
+  el.timelineModeReleaseBtn.addEventListener('click', () => setTimelineMode('release'));
+  el.timelineModeListenBtn.addEventListener('click', () => setTimelineMode('listen'));
   el.mapBtn.addEventListener('click', openMapModal);
   el.mapClose.addEventListener('click', closeMapModal);
+  el.mapApiKeySaveBtn.addEventListener('click', saveMapApiKeyAndLoad);
+  el.mapApiKeyInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveMapApiKeyAndLoad(); });
+  el.mapKeyEditBtn.addEventListener('click', () => {
+    el.mapApiKeyInput.value = loadMapApiKey() || '';
+    el.mapMain.hidden = true;
+    el.mapKeySetup.hidden = false;
+    el.mapApiKeyInput.focus();
+  });
+  el.mapCategorySelect.addEventListener('change', () => { populateMapCategoryValues(); renderMap(); });
+  el.mapCategoryValueSelect.addEventListener('change', renderMap);
+  el.mapSortSelect.addEventListener('change', renderMap);
   el.lastfmClose.addEventListener('click', closeLastfmModal);
   el.lastfmCancelBtn.addEventListener('click', closeLastfmModal);
   el.lastfmFetchBtn.addEventListener('click', runLastfmFetch);
@@ -4048,15 +4134,33 @@ function mbFetch(url, opts, attempt = 0) {
   });
 }
 
-// ---------- Geocoding queue for the Map viewer (Nominatim) ----------
-// Same shared-queue pattern as mbFetch above: OpenStreetMap's Nominatim
-// usage policy caps unauthenticated search requests at roughly 1/sec, so
-// every geocode lookup — regardless of how many locations the map needs to
-// resolve at once — is chained onto one queue with a fixed spacing between
-// requests, rather than firing them all in parallel.
+// ---------- Geocoding queue for the Map viewer (LocationIQ) ----------
+// Same shared-queue pattern as mbFetch above. LocationIQ's free tier is
+// good for roughly 2 requests/sec, so every geocode lookup — regardless of
+// how many locations the map needs to resolve at once — is chained onto
+// one queue with a fixed spacing between requests, rather than firing them
+// all in parallel. (Nominatim, used here before 1.29.15, needs no key but
+// its usage policy doesn't really permit this kind of client-side lookup
+// and requests were getting blocked — LocationIQ is the same idea with a
+// key that lets it actually work from a browser.)
 let geoQueueTail = Promise.resolve();
 let geoLastRequestAt = 0;
-const GEO_MIN_INTERVAL_MS = 1100;
+const GEO_MIN_INTERVAL_MS = 550;
+const MAP_APIKEY_KEY = 'crate_map_apikey_v1';
+
+function loadMapApiKey() {
+  try { return (localStorage.getItem(MAP_APIKEY_KEY) || '').trim(); } catch (e) { return ''; }
+}
+function saveMapApiKey(key) {
+  try { localStorage.setItem(MAP_APIKEY_KEY, key); } catch (e) { /* ignore */ }
+}
+
+function saveMapApiKeyAndLoad() {
+  const key = el.mapApiKeyInput.value.trim();
+  if (!key) { el.mapApiKeyInput.focus(); return; }
+  saveMapApiKey(key);
+  openMapModal();
+}
 
 function geoFetch(url) {
   const run = async () => {
@@ -4078,16 +4182,21 @@ function saveGeocodeCache(cache) {
   try { localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(cache)); } catch (e) { /* ignore */ }
 }
 
-// Resolves one Location string to { lat, lon, label } via Nominatim,
+// Resolves one Location string to { lat, lon, label } via LocationIQ,
 // consulting/populating the shared cache first. Returns null (and caches
-// null) if Nominatim has nothing for it — that's a real answer, not a
-// failure, so it's not retried on every subsequent map open.
-async function geocodeLocation(query, cache) {
+// null) if LocationIQ has nothing for it — that's a real answer, not a
+// failure, so it's not retried on every subsequent map open. A bad/expired
+// key (401/403) is also treated as "not found" rather than crashing the
+// whole placement loop; the mapCount "couldn't be found" tally is the only
+// symptom, so a rejected key mostly just looks like nothing geocodes.
+async function geocodeLocation(query, cache, apiKey) {
   const key = query.trim().toLowerCase();
   if (!key) return null;
   if (Object.prototype.hasOwnProperty.call(cache, key)) return cache[key];
+  if (!apiKey) return null;
   try {
-    const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=' + encodeURIComponent(query);
+    const url = 'https://us1.locationiq.com/v1/search?key=' + encodeURIComponent(apiKey)
+      + '&format=json&limit=1&q=' + encodeURIComponent(query);
     const res = await geoFetch(url);
     if (!res.ok) { cache[key] = null; return null; }
     const results = await res.json();
@@ -10191,6 +10300,7 @@ function renderAnniversaryBanner(matches) {
 // prev/next stepping so those only ever land on years that actually have
 // a dated release, rather than stepping one-by-one through empty years.
 state.timelineYear = null;
+state.timelineMode = 'release'; // 'release' (default, by release date) or 'listen' (by scrobble activity) — transient, not persisted
 let timelineYearCounts = []; // [{ year, count }], ascending by year
 
 function timelineYearOf(item) {
@@ -10198,6 +10308,10 @@ function timelineYearOf(item) {
 }
 
 function buildTimelineYearCounts() {
+  return state.timelineMode === 'listen' ? buildListenYearCounts() : buildReleaseYearCounts();
+}
+
+function buildReleaseYearCounts() {
   const counts = new Map();
   state.raw.forEach(item => {
     const y = timelineYearOf(item);
@@ -10205,6 +10319,62 @@ function buildTimelineYearCounts() {
     counts.set(y, (counts.get(y) || 0) + 1);
   });
   return [...counts.entries()].map(([year, count]) => ({ year, count })).sort((a, b) => a.year - b.year);
+}
+
+// Listen-mode ticks: total scrobble plays per year (not distinct albums),
+// so a year you hammered a handful of records shows up as tall as one
+// where you played lots of different things a little each — density of
+// listening activity, same spirit as the release-mode album-count ticks.
+function buildListenYearCounts() {
+  const counts = new Map();
+  state.scrobbles.forEach(s => {
+    if (dateVal(s.day) === -Infinity) return;
+    const y = new Date(s.day).getUTCFullYear();
+    counts.set(y, (counts.get(y) || 0) + (s.playCount || 1));
+  });
+  return [...counts.entries()].map(([year, count]) => ({ year, count })).sort((a, b) => a.year - b.year);
+}
+
+function setTimelineMode(mode) {
+  if (state.timelineMode === mode) return;
+  state.timelineMode = mode;
+  el.timelineModeReleaseBtn.classList.toggle('active', mode === 'release');
+  el.timelineModeListenBtn.classList.toggle('active', mode === 'listen');
+  el.timelineHint.textContent = mode === 'listen'
+    ? 'Scrub through years to see what you actually listened to at that point in time.'
+    : 'Scrub through release years to see what was out at that point in time.';
+
+  timelineYearCounts = buildTimelineYearCounts();
+  const empty = timelineYearCounts.length === 0;
+  el.timelineEmpty.hidden = !empty;
+  el.timelineEmpty.textContent = mode === 'listen'
+    ? 'No scrobbles logged yet — import your Last.fm history to see listening activity here.'
+    : 'No albums in your crate have a release date yet — add one from the Edit form to see it here.';
+
+  if (empty) {
+    el.timelineSlider.disabled = true;
+    el.timelineYearLabel.textContent = '—';
+    el.timelineTicks.innerHTML = '';
+    el.timelineRangeStart.textContent = '';
+    el.timelineRangeEnd.textContent = '';
+    el.timelineCount.textContent = '';
+    el.timelineAlbumList.innerHTML = '';
+    return;
+  }
+
+  el.timelineSlider.disabled = false;
+  const minYear = timelineYearCounts[0].year;
+  const maxYear = timelineYearCounts[timelineYearCounts.length - 1].year;
+  el.timelineSlider.min = minYear;
+  el.timelineSlider.max = maxYear;
+  el.timelineRangeStart.textContent = minYear;
+  el.timelineRangeEnd.textContent = maxYear;
+
+  const startYear = (state.timelineYear != null && state.timelineYear >= minYear && state.timelineYear <= maxYear)
+    ? state.timelineYear : maxYear;
+
+  renderTimelineTicks();
+  setTimelineYear(startYear);
 }
 
 function openTimelineModal() {
@@ -10284,6 +10454,7 @@ function timelineStep(direction) {
 }
 
 function renderTimelineAlbumList(year) {
+  if (state.timelineMode === 'listen') { renderTimelineListenList(year); return; }
   const items = state.raw.filter(item => timelineYearOf(item) === year);
   // Chronological within the year (fuller-precision dates sort correctly
   // against year-only ones since dateVal() falls back to Jan 1 for those),
@@ -10313,13 +10484,61 @@ function renderTimelineAlbumList(year) {
   });
 }
 
-/* ---------- Map viewer (1.29.14) ----------
+// Listen-mode counterpart to renderTimelineAlbumList: rolls state.scrobbles
+// for the given year up into one row per album (total plays that year),
+// sorted most-played first, matched back to the crate by artist+title —
+// same identity match the Scrobbles tab and computeYearStats() use. An
+// album with plays but no crate match still shows (with a placeholder
+// cover) since scrobble history can outlive a since-removed album, but
+// isn't clickable in that case.
+function renderTimelineListenList(year) {
+  const byAlbum = new Map(); // "artist::title" -> { artist, title, plays }
+  state.scrobbles.forEach(s => {
+    if (dateVal(s.day) === -Infinity) return;
+    if (new Date(s.day).getUTCFullYear() !== year) return;
+    const key = s.artist + '::' + s.title;
+    if (!byAlbum.has(key)) byAlbum.set(key, { artist: s.artist, title: s.title, plays: 0 });
+    byAlbum.get(key).plays += (s.playCount || 1);
+  });
+  const items = [...byAlbum.values()].sort((a, b) => b.plays - a.plays || a.title.localeCompare(b.title));
+
+  el.timelineCount.textContent = items.length + ' album' + (items.length === 1 ? '' : 's') + ' played in ' + year;
+
+  el.timelineAlbumList.innerHTML = items.map(it => {
+    const match = state.raw.find(r => r.artist === it.artist && r.title === it.title);
+    const cover = match ? (match.cover || state.artCache[artKey(match)]?.art || placeholderArt(match)) : placeholderArt(it);
+    return `
+    <button type="button" class="timeline-album-row"${match ? '' : ' disabled'}>
+      <img class="timeline-album-cover art" src="${cover}" alt="">
+      <span class="timeline-album-text">
+        <span class="timeline-album-title">${escapeHtml(it.title)}</span>
+        <span class="timeline-album-sub">${escapeHtml(it.artist)}</span>
+      </span>
+      <span class="timeline-album-date">${it.plays} play${it.plays === 1 ? '' : 's'}</span>
+    </button>
+  `;
+  }).join('');
+
+  [...el.timelineAlbumList.querySelectorAll('.timeline-album-row')].forEach((btn, i) => {
+    btn.addEventListener('click', () => {
+      const match = state.raw.find(r => r.artist === items[i].artist && r.title === items[i].title);
+      if (!match) return;
+      closeTimelineModal();
+      switchTab('albums');
+      openDeck(match);
+    });
+  });
+}
+
+/* ---------- Map viewer (1.29.15) ----------
    Groups every album with a non-empty `location` (see state.raw mapping)
-   by that text, geocodes each unique string once via Nominatim (through
+   by that text, geocodes each unique string once via LocationIQ (through
    the geoFetch queue above, cached in localStorage), and drops one Leaflet
    marker per resolved place — a popup lists every album grouped there and
    clicking one closes the modal and opens that release, same click-through
-   pattern as the Timeline viewer's album list. */
+   pattern as the Timeline viewer's album list. A Category+Value picker
+   filters which located albums count, and a Sort picker orders them
+   within each pin's popup and in the flat album list under the map. */
 
 let leafletMapInstance = null;
 let leafletMarkerLayer = null;
@@ -10339,24 +10558,79 @@ function ensureLeafletMap() {
   return leafletMapInstance;
 }
 
-// Groups state.raw by trimmed/lowercased `location` text. Returns
-// [{ label, key, items: [item, ...] }, ...] for every non-empty location —
-// geocoding happens later, per unique key, once this grouping is known.
+// ---- Category filter + sort (toolbar controls above the map) ----
+// Reuses groupKeysFor() (the same Artist/Genre/Type/Decade logic behind
+// the left panel's "Group by") so "Category" on the map means the same
+// thing it does everywhere else in the app.
+
+function mapCategoryFilter(item) {
+  const cat = el.mapCategorySelect.value;
+  if (cat === 'none') return true;
+  const val = el.mapCategoryValueSelect.value;
+  if (!val) return true;
+  return groupKeysFor(item, cat).includes(val);
+}
+
+// Rebuilds the Value <select> whenever Category changes, from the distinct
+// values actually present among *located* albums (no point offering a
+// genre with no pin behind it). Alphabetical, except year/decade which
+// sort numerically.
+function populateMapCategoryValues() {
+  const cat = el.mapCategorySelect.value;
+  el.mapCategoryValueField.hidden = cat === 'none';
+  if (cat === 'none') { el.mapCategoryValueSelect.innerHTML = ''; return; }
+
+  const located = state.raw.filter(item => (item.location || '').trim());
+  const values = new Set();
+  located.forEach(item => groupKeysFor(item, cat).forEach(v => { if (v) values.add(v); }));
+  const sorted = [...values].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+  const prev = el.mapCategoryValueSelect.value;
+  el.mapCategoryValueSelect.innerHTML = sorted.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  if (sorted.includes(prev)) el.mapCategoryValueSelect.value = prev;
+}
+
+function mapSortComparator() {
+  const sortKey = el.mapSortSelect.value;
+  if (sortKey === 'artist') return (a, b) => a.artist.localeCompare(b.artist) || a.title.localeCompare(b.title);
+  if (sortKey === 'year-new') return (a, b) => dateVal(b.releaseDate) - dateVal(a.releaseDate);
+  if (sortKey === 'year-old') return (a, b) => dateVal(a.releaseDate) - dateVal(b.releaseDate);
+  return (a, b) => a.title.localeCompare(b.title); // 'title', the default
+}
+
+// Groups state.raw by trimmed/lowercased `location` text, applying the
+// current Category filter first and the current Sort within each group.
+// Returns [{ label, key, items: [item, ...] }, ...] for every matching
+// non-empty location — geocoding happens later, per unique key, once this
+// grouping is known.
 function buildMapGroups() {
   const groups = new Map();
   state.raw.forEach(item => {
     const loc = (item.location || '').trim();
     if (!loc) return;
+    if (!mapCategoryFilter(item)) return;
     const key = loc.toLowerCase();
     if (!groups.has(key)) groups.set(key, { label: loc, key, items: [] });
     groups.get(key).items.push(item);
   });
+  const sortFn = mapSortComparator();
+  groups.forEach(g => g.items.sort(sortFn));
   return [...groups.values()];
 }
 
 async function openMapModal() {
   el.mapOverlay.hidden = false;
-  const token = ++mapLoadToken;
+  const apiKey = loadMapApiKey();
+  if (!apiKey) {
+    el.mapMain.hidden = true;
+    el.mapKeySetup.hidden = false;
+    el.mapApiKeyInput.value = '';
+    el.mapApiKeyInput.focus();
+    return;
+  }
+  el.mapKeySetup.hidden = true;
+  el.mapMain.hidden = false;
+
   const map = ensureLeafletMap();
   // Leaflet sizes its canvas from the container's dimensions at creation
   // time — if that happened while the modal was hidden (display:none has
@@ -10364,38 +10638,84 @@ async function openMapModal() {
   // after the overlay is visible fixes that up.
   setTimeout(() => map.invalidateSize(), 0);
 
-  const groups = buildMapGroups();
-  el.mapEmpty.hidden = groups.length > 0;
+  populateMapCategoryValues();
+  await renderMap();
+}
+
+// Re-runs the geocode-and-render pass with whatever Category/Value/Sort is
+// currently selected. Called on open, and again whenever a toolbar control
+// changes — cheap on repeat calls since resolved locations are cached, so
+// changing a filter after the initial load doesn't re-hit the network.
+async function renderMap() {
+  const token = ++mapLoadToken;
+  const anyLocated = state.raw.some(item => (item.location || '').trim());
+  el.mapEmpty.hidden = anyLocated;
   leafletMarkerLayer.clearLayers();
   el.mapCount.textContent = '';
+  el.mapAlbumList.innerHTML = '';
 
+  const groups = buildMapGroups();
   if (!groups.length) {
     el.mapStatus.hidden = true;
+    if (anyLocated) el.mapCount.textContent = '0 locations match this filter';
     return;
   }
 
   el.mapStatus.hidden = false;
   el.mapStatus.textContent = 'Placing ' + groups.length + ' location' + (groups.length === 1 ? '' : 's') + '…';
 
+  const apiKey = loadMapApiKey();
   const cache = loadGeocodeCache();
   let placed = 0, failed = 0;
   for (const group of groups) {
-    const resolved = await geocodeLocation(group.label, cache);
-    if (token !== mapLoadToken) return; // a newer open superseded this one — stop touching stale state
+    const resolved = await geocodeLocation(group.label, cache, apiKey);
+    if (token !== mapLoadToken) return; // a newer render superseded this one — stop touching stale state
     if (resolved) { placed++; addMapMarker(group, resolved); }
     else failed++;
     el.mapStatus.textContent = 'Placing locations… (' + (placed + failed) + '/' + groups.length + ')';
   }
   saveGeocodeCache(cache);
 
+  const totalAlbums = groups.reduce((sum, g) => sum + g.items.length, 0);
   el.mapStatus.hidden = true;
-  el.mapCount.textContent = placed + ' location' + (placed === 1 ? '' : 's') + ' mapped'
-    + (failed ? ' · ' + failed + ' couldn\u2019t be found' : '');
+  el.mapCount.textContent = placed + ' location' + (placed === 1 ? '' : 's')
+    + ' \u00b7 ' + totalAlbums + ' album' + (totalAlbums === 1 ? '' : 's')
+    + (failed ? ' \u00b7 ' + failed + ' couldn\u2019t be found' : '');
+
+  renderMapAlbumList(groups);
 }
 
 function closeMapModal() {
   el.mapOverlay.hidden = true;
   mapLoadToken++; // invalidate any geocoding pass still in flight
+}
+
+// Flat, clickable list of every currently-filtered located album under the
+// map, sorted the same way as each pin's popup — a text-first way to
+// browse the same set the pins represent, and the only view of it once
+// several pins overlap at the current zoom.
+function renderMapAlbumList(groups) {
+  const items = groups.flatMap(g => g.items.map(item => ({ item, location: g.label })));
+  items.sort((a, b) => mapSortComparator()(a.item, b.item));
+
+  el.mapAlbumList.innerHTML = items.map(({ item, location }) => `
+    <button type="button" class="timeline-album-row">
+      <img class="timeline-album-cover art" data-key="${artKey(item)}" src="${item.cover || state.artCache[artKey(item)]?.art || placeholderArt(item)}" alt="">
+      <span class="timeline-album-text">
+        <span class="timeline-album-title">${escapeHtml(item.title)}</span>
+        <span class="timeline-album-sub">${escapeHtml(item.artist)}</span>
+      </span>
+      <span class="timeline-album-date">${escapeHtml(location)}</span>
+    </button>
+  `).join('');
+
+  [...el.mapAlbumList.querySelectorAll('.timeline-album-row')].forEach((btn, i) => {
+    btn.addEventListener('click', () => {
+      closeMapModal();
+      switchTab('albums');
+      openDeck(items[i].item);
+    });
+  });
 }
 
 function addMapMarker(group, resolved) {
@@ -14395,8 +14715,21 @@ html, body {
   .timeline-album-date { flex: 0 0 auto; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--text-dim); }
   .timeline-empty { font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px 0; margin: 0; }
 
-  /* ---------- Map viewer (1.29.14) ---------- */
+  /* ---------- Map viewer (1.29.15) ---------- */
   .map-modal { max-width: 620px; }
+  .map-toolbar {
+    display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; margin: -4px 0 10px;
+  }
+  .map-toolbar-field {
+    display: flex; flex-direction: column; gap: 3px; font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .map-toolbar-field select {
+    background: var(--bg-card); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+    padding: 5px 8px; font-family: inherit; font-size: 12px; text-transform: none; letter-spacing: normal;
+  }
+  .map-toolbar-field select:focus { border-color: var(--accent); }
+  .map-toolbar-key-btn { margin-left: auto; align-self: center; }
   .map-container {
     width: 100%; height: 420px; border-radius: 8px; overflow: hidden;
     border: 1px solid var(--line); background: #0b0e14;
