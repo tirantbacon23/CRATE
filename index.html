@@ -13,7 +13,20 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.12
+  CURRENT_VERSION: 1.29.13
+
+  1.29.13 — 2026-09-09 — Added a Timeline viewer: new ◷ toolbar button
+          opens a modal with a year scrubber (slider + a per-year density
+          histogram of ticks built from every dated release) so you can
+          jump to any point in time and see exactly which albums in the
+          crate came out that year, sorted chronologically and clickable
+          straight through to the release view. New state.timelineYear
+          (persists the last-viewed year across opens), timelineYearCounts,
+          and openTimelineModal/closeTimelineModal/renderTimelineTicks/
+          setTimelineYear/timelineStep/renderTimelineAlbumList. Reuses the
+          existing dateVal()/formatReleaseDateStr() date helpers and the
+          anniversary banner's row markup pattern — no backend change
+          needed.
 
   1.29.12 — 2026-09-09 — Left panel's Albums list can now be grouped —
           new "Group by" section in the left panel's menu (Albums mode
@@ -1096,6 +1109,7 @@
       <button id="addAlbumBtn" class="icon-btn" title="Add album" aria-label="Add album">+</button>
 	  <button id="refreshBtn" class="icon-btn" title="Refresh from sheet" aria-label="Refresh">⟳</button>
 	  <button id="lastfmBtn" class="icon-btn" title="Import from Last.fm" aria-label="Import from Last.fm">◑</button>
+	  <button id="timelineBtn" class="icon-btn" title="Timeline viewer — see what was released when" aria-label="Timeline viewer">◷</button>
       
       <!-- 👇 REPLACE THE OLD ARRANGE BUTTON WITH THIS 👇 -->
       <div style="position: relative;">
@@ -1700,6 +1714,35 @@
   </div>
 </div>
 
+<!-- Timeline viewer modal (1.29.13) — scrub through release years and see
+     what was in the crate at that point in time. Reuses the anniversary
+     banner's row markup/pattern (cover + title/artist), and the existing
+     formatReleaseDateStr()/dateVal() helpers for date handling. -->
+<div id="timelineOverlay" class="arrange-overlay" hidden>
+  <div class="arrange-modal timeline-modal">
+    <div class="arrange-header"><h2>Timeline</h2><button id="timelineClose" class="modal-x" aria-label="Close">✕</button></div>
+    <div class="arrange-body">
+      <p class="arrange-hint">Scrub through release years to see what was out at that point in time.</p>
+      <div class="timeline-scrubber">
+        <button type="button" id="timelinePrevYear" class="config-btn timeline-step-btn" aria-label="Previous year">‹</button>
+        <div class="timeline-scrubber-main">
+          <div class="timeline-year-label" id="timelineYearLabel">—</div>
+          <input type="range" id="timelineSlider" class="timeline-slider" step="1" aria-label="Select year">
+          <div class="timeline-ticks" id="timelineTicks"></div>
+          <div class="timeline-range-labels">
+            <span id="timelineRangeStart"></span>
+            <span id="timelineRangeEnd"></span>
+          </div>
+        </div>
+        <button type="button" id="timelineNextYear" class="config-btn timeline-step-btn" aria-label="Next year">›</button>
+      </div>
+      <div class="timeline-count" id="timelineCount"></div>
+      <div class="timeline-album-list" id="timelineAlbumList"></div>
+      <p class="timeline-empty" id="timelineEmpty" hidden>No albums in your crate have a release date yet — add one from the Edit form to see it here.</p>
+    </div>
+  </div>
+</div>
+
 <!-- Add album modal -->
 <div id="addOverlay" class="arrange-overlay" hidden>
   <div class="arrange-modal add-modal">
@@ -1915,7 +1958,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.12';
+const APP_VERSION = '1.29.13';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -2169,7 +2212,9 @@ const el = {};
   'playlistModalOverlay','playlistModalHeading','playlistModalClose','playlistNameInput','playlistDescInput',
   'playlistModalSaveBtn','playlistModalCancelBtn','playlistModalToast','newPlaylistBtn','newPlaylistFolderBtn','playlistSidebarList',
   'folderModalOverlay','folderModalHeading','folderModalClose','folderNameInput','folderModalSaveBtn','folderModalCancelBtn','folderModalToast',
-  'leftNavPanel','navMusicBtn','navPlaylistsBtn','musicBrowserView','playlistsBrowserView','resizerLeftNav'
+  'leftNavPanel','navMusicBtn','navPlaylistsBtn','musicBrowserView','playlistsBrowserView','resizerLeftNav',
+  'timelineBtn','timelineOverlay','timelineClose','timelinePrevYear','timelineNextYear','timelineYearLabel',
+  'timelineSlider','timelineTicks','timelineRangeStart','timelineRangeEnd','timelineCount','timelineAlbumList','timelineEmpty'
 ].forEach(id => { el[id] = document.getElementById(id); });
 
 let activeItem = null;
@@ -2759,6 +2804,11 @@ function bindEvents() {
   // 8. Add / Edit Album Events
   el.addAlbumBtn.addEventListener('click', openAddModal);
   el.lastfmBtn.addEventListener('click', openLastfmModal);
+  el.timelineBtn.addEventListener('click', openTimelineModal);
+  el.timelineClose.addEventListener('click', closeTimelineModal);
+  el.timelinePrevYear.addEventListener('click', () => timelineStep(-1));
+  el.timelineNextYear.addEventListener('click', () => timelineStep(1));
+  el.timelineSlider.addEventListener('input', () => setTimelineYear(Number(el.timelineSlider.value)));
   el.lastfmClose.addEventListener('click', closeLastfmModal);
   el.lastfmCancelBtn.addEventListener('click', closeLastfmModal);
   el.lastfmFetchBtn.addEventListener('click', runLastfmFetch);
@@ -3145,7 +3195,7 @@ function bindEvents() {
       // — those either have no "select all" concept here, or (the deck)
       // aren't wired up to it, so falling through would otherwise select
       // whatever's in the main panel behind it instead.
-      const modalOpen = !el.deckOverlay.hidden || !el.addOverlay.hidden || !el.editOverlay.hidden;
+      const modalOpen = !el.deckOverlay.hidden || !el.addOverlay.hidden || !el.editOverlay.hidden || !el.timelineOverlay.hidden;
       if (!isEditable && !modalOpen) {
         if (state.activeTab === 'diary') {
           e.preventDefault();
@@ -3167,7 +3217,7 @@ function bindEvents() {
       }
     }
     if (e.key !== 'Escape') return;
-    closeDeck(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal(); closeTrackPropertiesModal();
+    closeDeck(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal(); closeTrackPropertiesModal(); closeTimelineModal();
     // Deliberately NOT closing the master player here — whichever engine
     // (Spotify or YouTube) is driving it, it's a persistent background
     // player now, not a modal, so Escape (used to dismiss whatever modal/
@@ -3177,13 +3227,14 @@ function bindEvents() {
   });
 
   // Full-screen overlay backdrop clicks
-  [el.deckOverlay, el.addOverlay, el.editOverlay, el.lastfmOverlay, el.playlistModalOverlay].forEach(overlay => {
+  [el.deckOverlay, el.addOverlay, el.editOverlay, el.lastfmOverlay, el.playlistModalOverlay, el.timelineOverlay].forEach(overlay => {
     overlay.addEventListener('click', (e) => { 
       if (e.target === overlay) {
         if (overlay === el.deckOverlay) closeDeck();
         else if (overlay === el.addOverlay) closeAddModal();
         else if (overlay === el.lastfmOverlay) closeLastfmModal();
         else if (overlay === el.playlistModalOverlay) closePlaylistModal();
+        else if (overlay === el.timelineOverlay) closeTimelineModal();
         else closeEditModal();
       }
     });
@@ -10013,6 +10064,136 @@ function renderAnniversaryBanner(matches) {
   el.anniversaryBanner.hidden = false;
 }
 
+// ---------- Timeline viewer (1.29.13) ----------
+// Lets someone scrub through release years and see what was in the crate
+// at that point in time. state.timelineYear holds the currently-selected
+// year; timelineYearCounts (rebuilt every time the modal opens, since the
+// crate can change between opens) backs both the tick histogram and the
+// prev/next stepping so those only ever land on years that actually have
+// a dated release, rather than stepping one-by-one through empty years.
+state.timelineYear = null;
+let timelineYearCounts = []; // [{ year, count }], ascending by year
+
+function timelineYearOf(item) {
+  return dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getUTCFullYear() : null;
+}
+
+function buildTimelineYearCounts() {
+  const counts = new Map();
+  state.raw.forEach(item => {
+    const y = timelineYearOf(item);
+    if (y == null) return;
+    counts.set(y, (counts.get(y) || 0) + 1);
+  });
+  return [...counts.entries()].map(([year, count]) => ({ year, count })).sort((a, b) => a.year - b.year);
+}
+
+function openTimelineModal() {
+  timelineYearCounts = buildTimelineYearCounts();
+  el.timelineEmpty.hidden = timelineYearCounts.length > 0;
+  el.timelineOverlay.hidden = false;
+
+  if (!timelineYearCounts.length) {
+    el.timelineSlider.disabled = true;
+    el.timelineYearLabel.textContent = '—';
+    el.timelineTicks.innerHTML = '';
+    el.timelineRangeStart.textContent = '';
+    el.timelineRangeEnd.textContent = '';
+    el.timelineCount.textContent = '';
+    el.timelineAlbumList.innerHTML = '';
+    return;
+  }
+  el.timelineSlider.disabled = false;
+
+  const minYear = timelineYearCounts[0].year;
+  const maxYear = timelineYearCounts[timelineYearCounts.length - 1].year;
+  el.timelineSlider.min = minYear;
+  el.timelineSlider.max = maxYear;
+  el.timelineRangeStart.textContent = minYear;
+  el.timelineRangeEnd.textContent = maxYear;
+
+  // Land on whichever year was showing last time if it's still in range,
+  // otherwise the most recent year with a dated release.
+  const startYear = (state.timelineYear != null && state.timelineYear >= minYear && state.timelineYear <= maxYear)
+    ? state.timelineYear : maxYear;
+
+  renderTimelineTicks();
+  setTimelineYear(startYear);
+}
+
+function closeTimelineModal() {
+  el.timelineOverlay.hidden = true;
+}
+
+function renderTimelineTicks() {
+  const minYear = timelineYearCounts[0].year;
+  const maxYear = timelineYearCounts[timelineYearCounts.length - 1].year;
+  const span = Math.max(1, maxYear - minYear);
+  const maxCount = Math.max(...timelineYearCounts.map(y => y.count));
+
+  el.timelineTicks.innerHTML = timelineYearCounts.map(({ year, count }) => {
+    const leftPct = ((year - minYear) / span) * 100;
+    const heightPct = Math.max(15, Math.round((count / maxCount) * 100));
+    return `<div class="timeline-tick" data-year="${year}" title="${year} \u00b7 ${count} album${count === 1 ? '' : 's'}" style="left:${leftPct}%; height:${heightPct}%;"></div>`;
+  }).join('');
+
+  [...el.timelineTicks.querySelectorAll('.timeline-tick')].forEach(tick => {
+    tick.addEventListener('click', () => setTimelineYear(Number(tick.dataset.year)));
+  });
+}
+
+function setTimelineYear(year) {
+  state.timelineYear = year;
+  el.timelineSlider.value = year;
+  el.timelineYearLabel.textContent = year;
+
+  [...el.timelineTicks.querySelectorAll('.timeline-tick')].forEach(tick => {
+    tick.classList.toggle('active', Number(tick.dataset.year) === year);
+  });
+
+  renderTimelineAlbumList(year);
+}
+
+function timelineStep(direction) {
+  if (!timelineYearCounts.length) return;
+  const years = timelineYearCounts.map(y => y.year);
+  const current = state.timelineYear != null ? state.timelineYear : years[years.length - 1];
+  // Step to the nearest year in either direction that actually has a
+  // dated release, rather than every single calendar year.
+  const candidates = direction > 0 ? years.filter(y => y > current) : years.filter(y => y < current).reverse();
+  if (candidates.length) setTimelineYear(candidates[0]);
+}
+
+function renderTimelineAlbumList(year) {
+  const items = state.raw.filter(item => timelineYearOf(item) === year);
+  // Chronological within the year (fuller-precision dates sort correctly
+  // against year-only ones since dateVal() falls back to Jan 1 for those),
+  // then alphabetically by title as a stable tiebreaker.
+  items.sort((a, b) => dateVal(a.releaseDate) - dateVal(b.releaseDate) || a.title.localeCompare(b.title));
+
+  el.timelineCount.textContent = items.length + ' album' + (items.length === 1 ? '' : 's') + ' released in ' + year;
+
+  el.timelineAlbumList.innerHTML = items.map(item => `
+    <button type="button" class="timeline-album-row" data-row="${escapeHtml(String(item.row))}">
+      <img class="timeline-album-cover art" data-key="${artKey(item)}" src="${item.cover || state.artCache[artKey(item)]?.art || placeholderArt(item)}" alt="">
+      <span class="timeline-album-text">
+        <span class="timeline-album-title">${escapeHtml(item.title)}</span>
+        <span class="timeline-album-sub">${escapeHtml(item.artist)}</span>
+      </span>
+      <span class="timeline-album-date">${escapeHtml(formatReleaseDateStr(item.releaseDate))}</span>
+    </button>
+  `).join('');
+
+  [...el.timelineAlbumList.querySelectorAll('.timeline-album-row')].forEach((btn, i) => {
+    btn.addEventListener('click', () => {
+      const item = items[i];
+      closeTimelineModal();
+      switchTab('albums');
+      openDeck(item);
+    });
+  });
+}
+
 el.anniversaryBannerClose.addEventListener('click', () => {
   el.anniversaryBanner.hidden = true;
   try { localStorage.setItem(ANNIV_DISMISS_KEY, todayDateKey()); } catch (e) { /* safe to ignore */ }
@@ -13931,6 +14112,50 @@ html, body {
   .release-date-fields input { flex: 1 1 0; min-width: 0; }
   .release-date-fields select { flex: 1.4 1 0; min-width: 0; }
   .release-date-fields select:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ---------- Timeline viewer (1.29.13) ---------- */
+  .timeline-modal { max-width: 560px; }
+  .timeline-scrubber { display: flex; align-items: center; gap: 10px; margin: 4px 0 10px; }
+  .timeline-step-btn { flex: 0 0 auto; padding: 6px 10px; font-size: 14px; line-height: 1; }
+  .timeline-scrubber-main { flex: 1 1 auto; min-width: 0; text-align: center; }
+  .timeline-year-label {
+    font-family: 'IBM Plex Mono', monospace; font-size: 26px; font-weight: 600;
+    color: var(--text); letter-spacing: 0.5px; margin-bottom: 6px;
+  }
+  .timeline-slider {
+    width: 100%; margin: 0; accent-color: var(--accent); cursor: pointer;
+  }
+  .timeline-ticks {
+    position: relative; height: 20px; margin-top: 2px;
+  }
+  .timeline-tick {
+    position: absolute; bottom: 0; width: 2px; min-height: 3px;
+    background: var(--text-dim); opacity: 0.55; border-radius: 1px;
+    cursor: pointer; transition: background 0.15s, opacity 0.15s;
+  }
+  .timeline-tick:hover { opacity: 1; background: var(--accent); }
+  .timeline-tick.active { background: var(--accent); opacity: 1; }
+  .timeline-range-labels {
+    display: flex; justify-content: space-between; margin-top: 4px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-dim);
+  }
+  .timeline-count {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 8px; text-align: center;
+  }
+  .timeline-album-list { display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow-y: auto; }
+  .timeline-album-row {
+    display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px;
+    background: none; border: 1px solid transparent; border-radius: 6px; cursor: pointer;
+    text-align: left; color: var(--text); font-family: 'Inter', sans-serif;
+  }
+  .timeline-album-row:hover { background: var(--bg-card); border-color: var(--line); }
+  .timeline-album-cover { width: 36px; height: 36px; border-radius: 3px; object-fit: cover; background: var(--bg-card); flex: 0 0 auto; }
+  .timeline-album-text { min-width: 0; flex: 1 1 auto; }
+  .timeline-album-title { font-size: 13px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .timeline-album-sub { font-size: 11px; color: var(--text-dim); margin: 2px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .timeline-album-date { flex: 0 0 auto; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--text-dim); }
+  .timeline-empty { font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px 0; margin: 0; }
 
   @media (max-width: 900px) {
     .panel-left, .panel-leftnav, .panel-right, .resizer { display: none !important; }
