@@ -13,7 +13,18 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.7
+  CURRENT_VERSION: 1.29.8
+
+  1.29.8 — 2026-09-09 — Ctrl/Cmd+A now selects everything visible in the
+          main panel: all rows in the flat Tracks/"Album and Tracks" view,
+          or all cards in the Albums/Album covers grid (new selectAllVisible
+          Tracks/Albums helpers). Also reworked album-card interaction so
+          selecting a release no longer requires opening it: a plain click
+          now selects the card (ctrl/cmd toggles, shift range-selects) the
+          same way track rows already worked, and opening the release view
+          is a deliberate double-click, Enter, or right-click → "View
+          album" instead. New state.selectedAlbums Set (keyed by
+          String(item.row)) backs this, separate from selectedTracks.
 
   1.29.7 — 2026-09-09 — Fixed: batch/single "Remove from tracklist" silently
           failed to remove the last track(s) of a manual tracklist, and a
@@ -1821,7 +1832,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.7';
+const APP_VERSION = '1.29.8';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -1969,6 +1980,14 @@ fields: {
   trackSort: { key: null, dir: 'asc' },
   selectedTracks: new Set(),
   lastSelectedTrackKey: null,
+  // Album-card selection (main "Albums"/"Album covers" grid views) — a
+  // click selects a card instead of opening its release view, same
+  // plain/ctrl/shift semantics as selectedTracks above; opening the deck
+  // is now a deliberate double-click, Enter, or right-click → "View album"
+  // instead. Keyed by String(item.row) since dataset attributes are always
+  // strings and this Set is compared against them directly.
+  selectedAlbums: new Set(),
+  lastSelectedAlbumRow: null,
   // Per-column pixel widths for the flat "Tracks" table, keyed by column
   // sortKey ('num', 'name', 'plays', or a configured field key like 'genre').
   // Missing entries fall back to trackColDefaultWidth().
@@ -3006,15 +3025,34 @@ function bindEvents() {
     if (!el.mainConfigModal.hidden && !el.mainConfigModal.contains(e.target) && !el.configureMainBtn.contains(e.target) && !el.menuCustomizeMain.contains(e.target)) el.mainConfigModal.hidden = true;
   });
 
-  // Global Key Listeners (Escape key to close, Ctrl/Cmd+A to select all diary entries)
+  // Global Key Listeners (Escape key to close, Ctrl/Cmd+A to select all)
   document.addEventListener('keydown', (e) => {
-    if ((e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey) && state.activeTab === 'diary') {
+    if ((e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey)) {
       const tag = (e.target && e.target.tagName || '').toLowerCase();
       const isEditable = tag === 'input' || tag === 'textarea' || (e.target && e.target.isContentEditable);
-      if (!isEditable) {
-        e.preventDefault();
-        selectAllDiaryEntries();
-        return;
+      // Skip entirely while the deck (release view) or a form modal is open
+      // — those either have no "select all" concept here, or (the deck)
+      // aren't wired up to it, so falling through would otherwise select
+      // whatever's in the main panel behind it instead.
+      const modalOpen = !el.deckOverlay.hidden || !el.addOverlay.hidden || !el.editOverlay.hidden;
+      if (!isEditable && !modalOpen) {
+        if (state.activeTab === 'diary') {
+          e.preventDefault();
+          selectAllDiaryEntries();
+          return;
+        }
+        if (state.activeTab === 'albums' && !state.activePlaylistId) {
+          if (state.mainViewMode === 'tracks' || state.mainViewMode === 'albumTracks') {
+            e.preventDefault();
+            selectAllVisibleTracks();
+            return;
+          }
+          if (state.mainViewMode === 'albums' || state.mainViewMode === 'covers') {
+            e.preventDefault();
+            selectAllVisibleAlbums();
+            return;
+          }
+        }
       }
     }
     if (e.key !== 'Escape') return;
@@ -4818,6 +4856,60 @@ function handleTrackRowClick(e, rowEl, containerEl, rowSelector) {
   allRows.forEach(r => r.classList.toggle('selected', state.selectedTracks.has(r.dataset.trackKey)));
 }
 
+// Ctrl/Cmd+A for whichever flat track view is currently on screen (the
+// main "Tracks" table or the per-album "Album and Tracks" view) — both
+// tag their rows with data-track-key, matched against the single shared
+// state.selectedTracks Set, so selecting "everything visible" is just
+// every such row currently in the DOM.
+function selectAllVisibleTracks() {
+  const rowEls = Array.from(el.gridContainer.querySelectorAll('[data-track-key]'));
+  if (!rowEls.length) return;
+  rowEls.forEach(r => state.selectedTracks.add(r.dataset.trackKey));
+  state.lastSelectedTrackKey = rowEls[rowEls.length - 1].dataset.trackKey;
+  rowEls.forEach(r => r.classList.add('selected'));
+}
+
+// Click-select for an album card (main "Albums" grid and "Album covers"
+// view — both render through buildCard) — plain/ctrl/shift semantics
+// mirroring handleTrackRowClick, but selecting a card no longer opens its
+// release view; that's now double-click, Enter, or right-click → "View
+// album" (see buildCard). Range/select-all order follows DOM order, i.e.
+// whatever's currently sorted/grouped into the grid.
+function handleAlbumCardClick(e, item, card) {
+  const rowStr = String(item.row);
+  const cardEls = Array.from(el.gridContainer.querySelectorAll('.card[data-album-row]'));
+  const rows = cardEls.map(c => c.dataset.albumRow);
+
+  if (e.shiftKey && state.lastSelectedAlbumRow && rows.includes(state.lastSelectedAlbumRow)) {
+    const a = rows.indexOf(state.lastSelectedAlbumRow);
+    const b = rows.indexOf(rowStr);
+    const [start, end] = a < b ? [a, b] : [b, a];
+    if (!(e.ctrlKey || e.metaKey)) state.selectedAlbums.clear();
+    for (let i = start; i <= end; i++) state.selectedAlbums.add(rows[i]);
+  } else if (e.ctrlKey || e.metaKey) {
+    if (state.selectedAlbums.has(rowStr)) state.selectedAlbums.delete(rowStr);
+    else state.selectedAlbums.add(rowStr);
+    state.lastSelectedAlbumRow = rowStr;
+  } else {
+    state.selectedAlbums.clear();
+    state.selectedAlbums.add(rowStr);
+    state.lastSelectedAlbumRow = rowStr;
+  }
+
+  cardEls.forEach(c => c.classList.toggle('selected', state.selectedAlbums.has(c.dataset.albumRow)));
+}
+
+// Ctrl/Cmd+A for the "Albums" and "Album covers" grid views — every
+// currently-rendered card (respecting whatever filter/sort/group is
+// active), same DOM-order approach as selectAllVisibleTracks above.
+function selectAllVisibleAlbums() {
+  const cardEls = Array.from(el.gridContainer.querySelectorAll('.card[data-album-row]'));
+  if (!cardEls.length) return;
+  cardEls.forEach(c => state.selectedAlbums.add(c.dataset.albumRow));
+  state.lastSelectedAlbumRow = cardEls[cardEls.length - 1].dataset.albumRow;
+  cardEls.forEach(c => c.classList.add('selected'));
+}
+
 function buildAlbumTrackGroup(item) {
   const group = document.createElement('div');
   group.className = 'track-group';
@@ -5057,8 +5149,9 @@ function buildGridSection(items) {
 
 function buildCard(item) {
   const card = document.createElement('div');
-  card.className = 'card';
+  card.className = 'card' + (state.selectedAlbums.has(String(item.row)) ? ' selected' : '');
   card.tabIndex = 0;
+  card.dataset.albumRow = item.row;
   
   // --- 1. THE TEXT ROWS (underneath the artwork) ---
   // Covers view has its own independent set of fields (coversBelow) so it doesn't
@@ -5130,10 +5223,25 @@ function buildCard(item) {
     </div>
   `;
     
-  card.addEventListener('click', () => openDeck(item));
+  card.addEventListener('click', (e) => handleAlbumCardClick(e, item, card));
+  card.addEventListener('dblclick', () => openDeck(item));
+  card.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    openDeck(item);
+  });
   card.addEventListener('contextmenu', (e) => {
     if (e.target.closest('.cover-links')) return; // let the S/C/R/Y link icons keep their own native right-click menu
     e.preventDefault();
+    // Right-clicking a card outside the current selection selects just it
+    // first, same standard behavior as the track tables' own context menu.
+    const rowStr = String(item.row);
+    if (!state.selectedAlbums.has(rowStr)) {
+      state.selectedAlbums.clear();
+      state.selectedAlbums.add(rowStr);
+      state.lastSelectedAlbumRow = rowStr;
+      el.gridContainer.querySelectorAll('.card[data-album-row]').forEach(c => c.classList.toggle('selected', c.dataset.albumRow === rowStr));
+    }
     openAlbumCardContextMenu(item, e.clientX, e.clientY);
   });
 
@@ -12525,6 +12633,8 @@ html, body {
 
   .card { cursor: pointer; outline: none; }
   .card:focus-visible .art-wrap { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .card.selected .art-wrap { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .card.selected .sleeve { background: var(--bg-elevated); }
   .sleeve { background: var(--bg-card); border-radius: 4px; overflow: hidden; transition: transform 0.18s ease, box-shadow 0.18s ease; }
   .card:hover .sleeve { transform: translateY(-4px); box-shadow: 0 10px 24px rgba(0,0,0,0.4); }
   .art-wrap { position: relative; aspect-ratio: 1 / 1; background: var(--bg-elevated); }
