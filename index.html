@@ -13,7 +13,25 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.8
+  CURRENT_VERSION: 1.29.9
+
+  1.29.9 — 2026-09-09 — Configurable field slots for the right sidebar's
+          Now Playing queue and the bottom player, matching the existing
+          grid/tracks/covers pattern (Panels configuration → "Panel
+          Settings…" on Right Panel / bottom player). New state.fields.queue
+          (default Artist, Year — printed as a second line under each
+          queued track so tracks collectively part of one release read as a
+          group) and state.fields.miniPlayer (default Artist, Album —
+          printed under the mini player's track title, same two lines as
+          before but now customizable to Genre/Year/Rating/etc instead).
+          Also fixed the underlying gap this exposed: a YouTube-sourced
+          track (manual-album/crate playback) showed a hardcoded "YouTube"
+          placeholder instead of its real artist/album, since nothing
+          tracked which crate item was behind whatever's currently playing.
+          New nowPlayingItem, set at every playback entry point that knows
+          it (playTrackNow, playAlbumNow, playCrateQueueIndex, the deck's
+          "▶ Play" button, openYoutubePlayer's new item param), backs both
+          new field groups with real release metadata for both engines.
 
   1.29.8 — 2026-09-09 — Ctrl/Cmd+A now selects everything visible in the
           main panel: all rows in the flat Tracks/"Album and Tracks" view,
@@ -1543,6 +1561,10 @@
     
     <div class="pane-config-group">
       <label class="arrange-row"><input type="checkbox" id="toggleRightPanel" checked> Show Details (Right Panel)</label>
+      <div class="arrange-row arrange-row-btn arrange-row-sub">
+        <label class="arrange-row-label"><input type="checkbox" checked disabled> Now Playing queue</label>
+        <button id="configureQueueBtn" class="config-btn">Panel Settings …</button>
+      </div>
     </div>
     
     <!-- The new boxed Main Panel section -->
@@ -1557,6 +1579,18 @@
         </div>
       </div>
     </div>
+
+    <div class="pane-config-box">
+      <div class="pane-config-box-header">
+        <span class="pane-icon">▶</span> bottom player
+      </div>
+      <div class="pane-config-box-body">
+        <div class="arrange-row arrange-row-btn">
+          <label class="arrange-row-label"><input type="checkbox" checked disabled> now playing</label>
+          <button id="configureMiniPlayerBtn" class="config-btn">Panel Settings …</button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1567,14 +1601,16 @@
     <button id="mainConfigClose" class="modal-x" aria-label="Close">✕</button>
   </div>
   <div class="arrange-body">
-    <label class="arrange-row"><input type="checkbox" id="toggleCoverLinks" checked> Show Spotify / SoundCloud / RYM links on cover art</label>
-    <label class="arrange-row"><input type="checkbox" id="toggleFitArtwork" checked> Fit artwork to panel size</label>
-    <div id="fieldPlacementGroup" class="field-placement-group" hidden>
-      <label class="arrange-row arrange-row-sub"><input type="radio" name="fieldPlacement" id="fieldPlacementOverlay" value="overlay"> Overlay fields inside artwork</label>
-      <label class="arrange-row arrange-row-sub"><input type="radio" name="fieldPlacement" id="fieldPlacementBelow" value="below" checked> Display fields below artwork</label>
+    <div id="mainConfigArtworkOptions">
+      <label class="arrange-row"><input type="checkbox" id="toggleCoverLinks" checked> Show Spotify / SoundCloud / RYM links on cover art</label>
+      <label class="arrange-row"><input type="checkbox" id="toggleFitArtwork" checked> Fit artwork to panel size</label>
+      <div id="fieldPlacementGroup" class="field-placement-group" hidden>
+        <label class="arrange-row arrange-row-sub"><input type="radio" name="fieldPlacement" id="fieldPlacementOverlay" value="overlay"> Overlay fields inside artwork</label>
+        <label class="arrange-row arrange-row-sub"><input type="radio" name="fieldPlacement" id="fieldPlacementBelow" value="below" checked> Display fields below artwork</label>
+      </div>
+      <label class="arrange-row"><input type="checkbox" id="toggleCloseGaps"> Close gaps between artwork</label>
+      <div class="menu-divider"></div>
     </div>
-    <label class="arrange-row"><input type="checkbox" id="toggleCloseGaps"> Close gaps between artwork</label>
-    <div class="menu-divider"></div>
     <p class="arrange-hint">Define the fields and order (Slot 1 = Top).</p>
     <div id="configRowsContainer">
        <!-- JS will inject 5 dropdown rows here -->
@@ -1832,7 +1868,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.8';
+const APP_VERSION = '1.29.9';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -1967,7 +2003,16 @@ fields: {
     // Overlays painted ON TOP of the artwork itself (Slot 1 = Top Left, Slot 2 = Bottom Right, Slot 3 = Bottom Left)
     covers: ['catalog', 'type', 'rating', null, null],
     // Text rows printed UNDERNEATH the artwork in Covers view (independent of the Albums Grid fields)
-    coversBelow: ['title', 'artist', null, null, null]
+    coversBelow: ['title', 'artist', null, null, null],
+    // Right sidebar's "Now Playing"/Up Next queue — printed on a second
+    // line under each queued track's name, one release-grouping line per
+    // row (e.g. artist, year) so tracks that are collectively part of one
+    // release read as a group at a glance.
+    queue: ['artist', 'year', null],
+    // Bottom mini player — printed under the track title, one field per
+    // line (top-to-bottom = slot order). Defaults match the previous
+    // hardcoded artist/album lines so nothing changes until customized.
+    miniPlayer: ['artist', 'title']
   },
   artCache: {},
   trackCache: {},
@@ -2031,8 +2076,8 @@ const el = {};
   'tabStats','tabArtist',
   'statsWrap','statsYearList','statsDetail','statsDetailBack','statsDetailYear','statsDetailBody',
   'artistWrap','artistSearchInput','artistList','artistDetail',
-  'layoutBtn','layoutMenu','menuArrangePanels','arrangeModal','arrangeClose','toggleLeftPanel','toggleRightPanel','configureMainBtn','toggleCoverLinks','toggleFitArtwork','toggleCloseGaps','fieldPlacementGroup','fieldPlacementOverlay','fieldPlacementBelow',
-  'mainConfigModal','mainConfigClose',
+  'layoutBtn','layoutMenu','menuArrangePanels','arrangeModal','arrangeClose','toggleLeftPanel','toggleRightPanel','configureMainBtn','configureQueueBtn','configureMiniPlayerBtn','toggleCoverLinks','toggleFitArtwork','toggleCloseGaps','fieldPlacementGroup','fieldPlacementOverlay','fieldPlacementBelow',
+  'mainConfigModal','mainConfigClose','mainConfigArtworkOptions',
   'fldTitle','fldArtist','fldYear','fldRating','fldType','fldCatalog','fldGenre','fldLabel','fldDuration','menuCustomizeMain',
   'listenedFilterBtn',
   'addAlbumBtn','addOverlay','addClose','addSearchInput','addManualEntryBtn','addResults','addForm',
@@ -2645,6 +2690,18 @@ function bindEvents() {
     el.mainConfigModal.hidden = false; 
   });
 
+  el.configureQueueBtn.addEventListener('click', () => {
+    el.arrangeModal.hidden = true;
+    renderConfigSlots('queue');
+    el.mainConfigModal.hidden = false;
+  });
+
+  el.configureMiniPlayerBtn.addEventListener('click', () => {
+    el.arrangeModal.hidden = true;
+    renderConfigSlots('miniPlayer');
+    el.mainConfigModal.hidden = false;
+  });
+
   // 8. Add / Edit Album Events
   el.addAlbumBtn.addEventListener('click', openAddModal);
   el.lastfmBtn.addEventListener('click', openLastfmModal);
@@ -2721,7 +2778,7 @@ function bindEvents() {
   // the screen that keeps playing even after the deck is closed.
   el.deckPlayBtn.addEventListener('click', () => {
     const uri = el.deckPlayBtn.dataset.uri;
-    if (uri) showMiniPlayer(uri, beginPlayIntent());
+    if (uri) { nowPlayingItem = activeItem; showMiniPlayer(uri, beginPlayIntent()); }
   });
   el.miniPlayerClose.addEventListener('click', () => {
     // Closing the player docks it back to the bottom bar rather than
@@ -2900,7 +2957,7 @@ function bindEvents() {
 
     const ytPlayBtn = e.target.closest('.track-play-yt-btn');
     if (ytPlayBtn) {
-      openYoutubePlayer(ytPlayBtn.dataset.youtubeLink, ytPlayBtn.dataset.trackName);
+      openYoutubePlayer(ytPlayBtn.dataset.youtubeLink, ytPlayBtn.dataset.trackName, undefined, activeItem);
       return;
     }
 
@@ -2997,7 +3054,7 @@ function bindEvents() {
       // cached tracklist rather than whatever's open in the deck, if
       // anything. See openYoutubePlayer's comment for why that matters.
       const rowItem = state.raw.find(r => String(r.row) === ytPlayBtn.dataset.row);
-      openYoutubePlayer(ytPlayBtn.dataset.youtubeLink, ytPlayBtn.dataset.trackName, rowItem ? state.trackCache[artKey(rowItem)] : undefined);
+      openYoutubePlayer(ytPlayBtn.dataset.youtubeLink, ytPlayBtn.dataset.trackName, rowItem ? state.trackCache[artKey(rowItem)] : undefined, rowItem);
       return;
     }
     const playBtn = e.target.closest('.track-play-btn');
@@ -3113,11 +3170,19 @@ function renderConfigSlots(mode) {
   if (!container) return;
   container.innerHTML = '';
 
+  // The artwork-related toggles (cover links, fit-to-panel, field
+  // placement, close gaps) only mean anything for the card-based views —
+  // hide them entirely for the queue/mini-player field pickers, which are
+  // just a plain list of text slots with nothing to do with artwork.
+  if (el.mainConfigArtworkOptions) el.mainConfigArtworkOptions.hidden = (mode === 'queue' || mode === 'miniPlayer');
+
   const labels = {
     grid: ['Slot 1 (Top)', 'Slot 2', 'Slot 3', 'Slot 4', 'Slot 5 (Bottom)'],
     tracks: ['Column 1', 'Column 2', 'Column 3', 'Column 4', 'Column 5'],
     covers: ['Top Left Tag', 'Bottom Right Tag', 'Bottom Left Tag'],
-    coversBelow: ['Row 1', 'Row 2', 'Row 3', 'Row 4', 'Row 5']
+    coversBelow: ['Row 1', 'Row 2', 'Row 3', 'Row 4', 'Row 5'],
+    queue: ['Field 1', 'Field 2', 'Field 3'],
+    miniPlayer: ['Line 1 (under title)', 'Line 2']
   };
 
   function addSubheading(text) {
@@ -3138,7 +3203,7 @@ function renderConfigSlots(mode) {
       row.innerHTML = `
         <span class="config-row-label">${label}</span>
         <select data-index="${i}" data-mode="${fieldKey}" class="config-select">
-          ${Object.entries(fieldKey === 'tracks' ? TRACK_COLUMN_LABELS : FIELD_OPTIONS).map(([val, lbl]) => `<option value="${val}" ${currentFields[i] === val ? 'selected' : ''}>${lbl}</option>`).join('')}
+          ${Object.entries(fieldKey === 'tracks' || fieldKey === 'queue' || fieldKey === 'miniPlayer' ? TRACK_COLUMN_LABELS : FIELD_OPTIONS).map(([val, lbl]) => `<option value="${val}" ${currentFields[i] === val ? 'selected' : ''}>${lbl}</option>`).join('')}
         </select>
       `;
 
@@ -3153,10 +3218,11 @@ function renderConfigSlots(mode) {
 
         savePrefs();
 
-        // Force a full re-render of the grid to show changes instantly
-        if (state.activeTab === 'albums') {
-          renderGrid();
-        }
+        // Force a re-render to show changes instantly, scoped to whichever
+        // panel this field group belongs to.
+        if (m === 'queue') renderCrateQueuePanel();
+        else if (m === 'miniPlayer') refreshMiniPlayerMeta();
+        else if (state.activeTab === 'albums') renderGrid();
       });
       container.appendChild(row);
     });
@@ -3173,12 +3239,16 @@ function renderConfigSlots(mode) {
     addRows(mode, labels[mode]);
   }
 
-  const titles = { grid: 'Albums Grid', tracks: 'Tracks View', covers: 'Album Covers' };
+  const titles = { grid: 'Albums Grid', tracks: 'Tracks View', covers: 'Album Covers', queue: 'Now Playing Queue', miniPlayer: 'Bottom Player' };
   document.getElementById('configModalTitle').textContent = `Configure ${titles[mode]}`;
   const hint = document.querySelector('#mainConfigModal .arrange-hint');
   if (hint) {
     hint.textContent = (mode === 'tracks')
       ? '"#" and "Track" are always shown as columns — pick up to 5 more columns to add (e.g. Album, Genre, Year, Length).'
+      : (mode === 'queue')
+      ? 'Shown on a second line under each queued track — lets tracks that share a release read as a group (e.g. Artist, Year).'
+      : (mode === 'miniPlayer')
+      ? 'Printed under the track title in the bottom player, one field per line.'
       : 'Define the fields and order (Slot 1 = Top).';
   }
 }
@@ -5435,6 +5505,18 @@ function onSpotifyPlayerStateChanged(state) {
 // Spotify-only queue/device/fullscreen buttons to match. Called from
 // renderMiniPlayerTrack (Spotify) and playYtQueueIndex (YouTube).
 let activePlayerEngine = null; // 'spotify' | 'youtube' | null
+// The crate item (release row) behind whatever's currently playing, when
+// known — set at every playback entry point that has one (playTrackNow,
+// playAlbumNow, playCrateQueueIndex, the deck's "▶ Play" button, and the
+// per-row "▶ YT" buttons via openYoutubePlayer's new item param). Backs
+// the configurable mini-player/queue field slots (state.fields.miniPlayer/
+// queue — see "Panel Settings…" on the bottom player and Right Panel in
+// Panels configuration) with real release metadata (year, genre, rating,
+// etc.), not just whatever the raw Spotify track object itself carries.
+// Left stale rather than cleared between tracks — harmless in practice,
+// since every path that starts a new track also sets this before the mini
+// player actually re-renders.
+let nowPlayingItem = null;
 function setMasterPlayerEngine(engine) {
   activePlayerEngine = engine;
   const isYoutube = engine === 'youtube';
@@ -5474,6 +5556,12 @@ function renderMiniPlayerTrack(track, paused, positionMs, durationMs, opts) {
   const announceNowPlaying = !!(opts && opts.announceNowPlaying);
 
   currentSpotifyTrack = track;
+  // nowPlayingItem may be stale — carried over from whatever track this app
+  // itself last started — if this update actually reflects some other,
+  // unrelated Spotify playback the periodic Web API poll picked up (a
+  // different device/app). A loose artist-name check is cheap insurance
+  // against showing another release's metadata under the wrong track.
+  if (nowPlayingItem && !artistsRoughlyMatch(nowPlayingItem.artist, track.artists)) nowPlayingItem = null;
   spotifyLastState = { paused, position: positionMs || 0, duration: durationMs || 0 };
   spotifyLastStateAt = Date.now();
 
@@ -5482,8 +5570,7 @@ function renderMiniPlayerTrack(track, paused, positionMs, durationMs, opts) {
   if (!el.miniPlayer.classList.contains('detached')) document.body.classList.add('has-mini-player');
 
   el.miniPlayerTitle.textContent = track.name;
-  el.miniPlayerArtist.textContent = formatArtistNames(track.artists);
-  el.miniPlayerAlbum.textContent = (track.album && track.album.name) || '';
+  refreshMiniPlayerMeta();
   const smallArt = track.album && track.album.images && track.album.images[track.album.images.length - 1];
   el.miniPlayerArt.src = smallArt ? smallArt.url : NO_ART_FALLBACK;
   el.miniPlayerPlayPause.textContent = paused ? '▶' : '⏸';
@@ -6037,6 +6124,7 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
 // link on a non-manual album's track, which has no other unique key.
 async function playTrackNow(item, trackName, trackNum) {
   if (!trackName) return;
+  nowPlayingItem = item;
 
   // A saved link override (see "Edit track properties…") always wins over
   // the per-album-type default below — Spotify first since that's the
@@ -6048,7 +6136,7 @@ async function playTrackNow(item, trackName, trackNum) {
     return;
   }
   if (links.youtubeLink) {
-    openYoutubePlayer(links.youtubeLink, trackName, state.trackCache[artKey(item)]);
+    openYoutubePlayer(links.youtubeLink, trackName, state.trackCache[artKey(item)], item);
     return;
   }
 
@@ -6402,6 +6490,7 @@ async function openAlbumOnRym(item) {
 // Spotify Connect device — same mechanism as the deck's "▶ Play" button and
 // per-track play buttons, just entered from the right-click menu instead.
 async function playAlbumNow(item) {
+  nowPlayingItem = item;
   const intent = beginPlayIntent();
   flashGlobalToast(`Looking up "${item.title}" on Spotify…`);
   const links = await getExternalLinksFor(item);
@@ -6804,6 +6893,51 @@ function keyToVal(key, item) {
 
   return map[key] || "";
 }
+
+// Loose artist-name match — used only to sanity-check nowPlayingItem
+// against whatever track Spotify just reported (see renderMiniPlayerTrack)
+// before trusting it for display, since nowPlayingItem is left stale
+// between tracks rather than reset on every possible playback path (see
+// its own comment). Not used for anything that needs to be exact.
+function artistsRoughlyMatch(itemArtist, trackArtists) {
+  if (!itemArtist || !trackArtists || !trackArtists.length) return false;
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const a = norm(itemArtist);
+  if (!a) return false;
+  return trackArtists.some(t => { const b = norm(t && t.name); return b && (a.includes(b) || b.includes(a)); });
+}
+
+// Resolves one configured mini-player/queue field slot to displayable text.
+// Prefers the linked crate item (nowPlayingItem) for full metadata; when
+// there isn't one — arbitrary external Spotify playback with no matching
+// crate release — falls back to whatever the raw Spotify track object
+// itself carries, which only ever covers artist/album ("title").
+function miniPlayerFieldVal(key) {
+  if (!key || key === 'none') return '';
+  if (nowPlayingItem) {
+    const val = keyToVal(key, nowPlayingItem);
+    if (val) return val;
+  }
+  if (activePlayerEngine === 'spotify' && currentSpotifyTrack) {
+    if (key === 'artist') return formatArtistNames(currentSpotifyTrack.artists);
+    if (key === 'title') return (currentSpotifyTrack.album && currentSpotifyTrack.album.name) || '';
+  }
+  return '';
+}
+
+// Refreshes the two configurable lines under the mini player's track title
+// (#miniPlayerArtist/#miniPlayerAlbum — reused as generic slots rather than
+// adding new DOM) from state.fields.miniPlayer. Called from both
+// renderMiniPlayerTrack (Spotify) and playYtQueueIndex (YouTube) whenever a
+// track starts, and directly from the "Panel Settings…" field pickers so a
+// change shows up immediately on whatever's already playing.
+function refreshMiniPlayerMeta() {
+  const slots = (state.fields.miniPlayer || []).slice(0, 2);
+  [el.miniPlayerArtist, el.miniPlayerAlbum].forEach((lineEl, i) => {
+    if (lineEl) lineEl.textContent = miniPlayerFieldVal(slots[i]);
+  });
+}
+
 
 
 
@@ -8658,6 +8792,7 @@ async function playCrateQueueIndex(myId, index) {
   crateQueueIndex = index;
   renderCrateQueuePanel();
   const { item, track } = crateQueueList[index];
+  nowPlayingItem = item;
   const trackName = track.trackName || '';
   if (!trackName) { playCrateQueueIndex(myId, index + 1); return; }
 
@@ -8817,11 +8952,18 @@ function renderCrateQueuePanel() {
     // ytPlayingForCrateQueue instead, since it has no item to check.
     const isYoutube = entry.item ? isManualAlbum(entry.item) : (isCurrent && ytPlayingForCrateQueue);
     const clickable = index !== null;
+    // Grouping line (see "Panel Settings…" on the Right Panel in Panels
+    // configuration) — configurable via state.fields.queue, same
+    // FIELD_OPTIONS as the grid/covers views. Default is Artist + Year, so
+    // tracks that are collectively part of one release still read as a
+    // group even without opening each one.
+    const groupingParts = entry.item ? (state.fields.queue || []).map(k => trackColumnVal(k, entry.item, entry.track)).filter(Boolean) : [];
+    const groupingLine = groupingParts.length ? escapeHtml(groupingParts.join(' · ')) : '&nbsp;';
     return `<div class="queue-row${isCurrent ? ' queue-row-current' : ''}${clickable ? ' queue-row-clickable' : ''}" ${clickable ? `data-queue-index="${index}" role="button" tabindex="0" title="Play this track"` : ''}>
       <span class="crate-queue-source" title="${isYoutube ? 'Plays on YouTube' : 'Plays on Spotify'}">${isYoutube ? '▶' : '♫'}</span>
       <div class="queue-row-meta">
         <p class="queue-track-title">${escapeHtml(entry.track.trackName || '')}</p>
-        <p class="queue-track-artist">${entry.item && entry.item.artist ? escapeHtml(entry.item.artist) : '&nbsp;'}</p>
+        <p class="queue-track-artist">${groupingLine}</p>
       </div>
     </div>`;
   };
@@ -11123,8 +11265,9 @@ function setYtPlayPauseUI(paused) {
 // and playback silently landed on ytQueue[0] instead — some other, unrelated
 // track. Falls back to a single-track queue when there's no tracklist
 // context at all (or nothing else in it has a YouTube link).
-function openYoutubePlayer(url, trackName, tracks) {
+function openYoutubePlayer(url, trackName, tracks, item) {
   ytPlayingForCrateQueue = false; // manual play, not the "Play playlist" queue — see playCrateTrackOnYoutube
+  if (item) nowPlayingItem = item;
   const videoId = youtubeVideoIdFromUrl(url);
   if (!videoId) { flashGlobalToast('That doesn\u2019t look like a valid YouTube link'); return; }
 
@@ -11158,8 +11301,7 @@ function playYtQueueIndex(i) {
   if (!el.miniPlayer.classList.contains('detached')) document.body.classList.add('has-mini-player');
   el.miniPlayerTitle.textContent = q.trackName;
   el.miniPlayerTitle.title = q.trackName;
-  el.miniPlayerArtist.textContent = 'YouTube';
-  el.miniPlayerAlbum.textContent = '';
+  refreshMiniPlayerMeta();
 
   ytDuration = 0;
   ensureYtPlayer().then(player => { player.loadVideoById(q.videoId); player.playVideo(); });
