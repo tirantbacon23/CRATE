@@ -13,7 +13,27 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.5
+  CURRENT_VERSION: 1.29.7
+
+  1.29.7 — 2026-09-09 — Fixed: batch/single "Remove from tracklist" silently
+          failed to remove the last track(s) of a manual tracklist, and a
+          release could never be left with zero tracks. Cause: isManualAlbum()
+          judged "is this album manual" by manualTracks.length, so emptying
+          the list to [] made it look like a never-manual album again and
+          loadTracklist()/getTracksFor() fell back to the iTunes/MusicBrainz
+          auto-lookup, silently repopulating the tracks that were just
+          deleted. Added a separate hasManualTracklist flag (derived from
+          whether ManualTracks was ever explicitly written, even as "[]")
+          so an intentionally-emptied manual tracklist stays empty instead
+          of reverting to auto-lookup. No backend change needed.
+
+  1.29.6 — 2026-09-08 — Reverted the 1.29.3 tracklist-builder batch-delete
+          UI (per-row checkbox, "Select all", "Delete selected") on the
+          Add/Edit album forms — it made an already-dense form feel too
+          cluttered. Back to just the individual ✕ per row. Batch-deleting
+          several tracks at once is still available from the release's own
+          Tracks view (added in 1.29.4): select multiple rows there and
+          right-click → Remove from tracklist.
 
   1.29.5 — 2026-09-08 — Right-click an album row in the left panel's Music
           browser (#musicBrowserView, Albums mode) for the same context
@@ -1631,11 +1651,7 @@
         <div class="add-field tracklist-builder-field">
           <div class="tracklist-builder-label-row">
             <span>Tracklist (optional)</span>
-            <span class="tracklist-builder-label-actions">
-              <label class="tracklist-builder-selectall"><input type="checkbox" id="addTracksSelectAllBtn"> Select all</label>
-              <button type="button" id="addTracksDeleteBtn" class="chip-btn chip-btn-danger">Delete selected</button>
-              <button type="button" id="addTracksAddRowBtn" class="chip-btn">+ Add track</button>
-            </span>
+            <button type="button" id="addTracksAddRowBtn" class="chip-btn">+ Add track</button>
           </div>
           <div id="addTracksRows" class="tracklist-builder-rows"></div>
           <p class="tracklist-builder-hint">Add a YouTube and/or Spotify link per track to play it accurately.</p>
@@ -1697,8 +1713,6 @@
             <span>Tracklist (optional)</span>
             <span class="tracklist-builder-label-actions">
               <button type="button" id="editTracksLoadBtn" class="chip-btn">⤓ Load current tracklist</button>
-              <label class="tracklist-builder-selectall"><input type="checkbox" id="editTracksSelectAllBtn"> Select all</label>
-              <button type="button" id="editTracksDeleteBtn" class="chip-btn chip-btn-danger">Delete selected</button>
               <button type="button" id="editTracksAddRowBtn" class="chip-btn">+ Add track</button>
             </span>
           </div>
@@ -1807,7 +1821,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.5';
+const APP_VERSION = '1.29.7';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -2004,11 +2018,11 @@ const el = {};
   'listenedFilterBtn',
   'addAlbumBtn','addOverlay','addClose','addSearchInput','addManualEntryBtn','addResults','addForm',
   'addArtist','addTitle','addType','addReleaseYear','addReleaseMonth','addReleaseDay','addRecordedYear','addRecordedMonth','addRecordedDay','addGenre','addGenre2','addRegion','addLabel','addCatalog','addLink','addRymLink','addCover','addSaveBtn','addCancelBtn','addToast',
-  'addTracksRows','addTracksAddRowBtn','addTracksSelectAllBtn','addTracksDeleteBtn',
+  'addTracksRows','addTracksAddRowBtn',
   'deckOverlay','deckClose','deckImg','deckCatalog','deckTitle','deckArtist','deckMeta','deckAdded','deckScrobbleCount','deckLink','deckRatingNum',
   'deckSpotifyLink','deckSoundcloudLink','deckRymLink','deckPlayBtn',
   'deckEditBtn','editOverlay','editClose','editArtist','editTitle','editType','editReleaseYear','editReleaseMonth','editReleaseDay','editRecordedYear','editRecordedMonth','editRecordedDay','editGenre','editGenre2','editRegion','editLabel','editCatalog','editLink','editRymLink','editCover','editSaveBtn','editCancelBtn','editToast',
-  'editTracksRows','editTracksAddRowBtn','editTracksLoadBtn','editTracksSelectAllBtn','editTracksDeleteBtn',
+  'editTracksRows','editTracksAddRowBtn','editTracksLoadBtn',
   'ytPlayerMount',
   'deckTracklist','deckStars','deckReview','deckSaveReview','deckToast','deckRemoveBtn','deckPlaylistBtn',
   'logListenBtn','logForm','logDate','logStars','logEntryTitle','logDescription','logSaveBtn','logCancelBtn','deckDiaryList',
@@ -2649,18 +2663,14 @@ function bindEvents() {
   });
   el.addSaveBtn.addEventListener('click', saveNewAlbum);
   el.addTracksAddRowBtn.addEventListener('click', () => addTracklistBuilderRow(el.addTracksRows));
-  el.addTracksSelectAllBtn.addEventListener('change', () => toggleAllTracklistBuilderRows(el.addTracksRows, el.addTracksSelectAllBtn.checked));
-  el.addTracksDeleteBtn.addEventListener('click', () => deleteSelectedTracklistBuilderRows(el.addTracksRows, el.addTracksSelectAllBtn));
-  wireTracklistBuilderContainer(el.addTracksRows, el.addTracksSelectAllBtn);
+  wireTracklistBuilderContainer(el.addTracksRows);
   el.deckEditBtn.addEventListener('click', openEditModal);
   el.editClose.addEventListener('click', closeEditModal);
   el.editCancelBtn.addEventListener('click', closeEditModal);
   el.editSaveBtn.addEventListener('click', saveEditAlbum);
   el.editTracksAddRowBtn.addEventListener('click', () => addTracklistBuilderRow(el.editTracksRows));
   el.editTracksLoadBtn.addEventListener('click', () => loadCurrentTracklistIntoBuilder());
-  el.editTracksSelectAllBtn.addEventListener('change', () => toggleAllTracklistBuilderRows(el.editTracksRows, el.editTracksSelectAllBtn.checked));
-  el.editTracksDeleteBtn.addEventListener('click', () => deleteSelectedTracklistBuilderRows(el.editTracksRows, el.editTracksSelectAllBtn));
-  wireTracklistBuilderContainer(el.editTracksRows, el.editTracksSelectAllBtn);
+  wireTracklistBuilderContainer(el.editTracksRows);
 
   // 9. Deck (Detail Modal) Actions
   el.deckClose.addEventListener('click', closeDeck);
@@ -3263,7 +3273,21 @@ async function fetchCatalog() {
           // CHANGE THIS FILE CAN'T MAKE: apps-script-backend.gs needs a new
           // "ManualTracks" column read here and written on addAlbum/editAlbum,
           // same as Catalog/TrackData were added before.
-          manualTracks: (function(){ try { const arr = r.ManualTracks ? JSON.parse(String(r.ManualTracks)) : []; return Array.isArray(arr) ? arr : []; } catch(e) { return []; } })()
+          manualTracks: (function(){ try { const arr = r.ManualTracks ? JSON.parse(String(r.ManualTracks)) : []; return Array.isArray(arr) ? arr : []; } catch(e) { return []; } })(),
+          // Whether this album has EVER had a manual tracklist explicitly
+          // saved against it — including an intentionally emptied one
+          // (ManualTracks: "[]"). Deliberately separate from manualTracks
+          // itself: manualTracks.length reaching 0 (user removed every
+          // track via the tracklist builder / batch "Remove from
+          // tracklist") must NOT be treated the same as an album that never
+          // had a manual tracklist at all, or isManualAlbum() below falls
+          // back to the iTunes/MusicBrainz auto-lookup and silently
+          // repopulates the very tracks that were just deleted — which is
+          // also why a release could never be made to have zero tracks.
+          // r.ManualTracks is a non-empty string ("[]") once anything has
+          // been saved, vs. "" / undefined when the column's never been
+          // touched for that row, so this needs no backend change.
+          hasManualTracklist: !!(r.ManualTracks && String(r.ManualTracks).trim())
         }));
 
     state.diary = (data.diary || []).map(d => ({
@@ -4915,7 +4939,7 @@ function loadTracksForList(list, mode) {
 // skip the automatic Spotify fuzzy-search that would otherwise confidently
 // return an unrelated track for a niche release Spotify doesn't actually have.
 function isManualAlbum(item) {
-  return !!(item && item.manualTracks && item.manualTracks.length);
+  return !!(item && item.hasManualTracklist);
 }
 
 async function getTracksFor(item) {
@@ -8339,6 +8363,7 @@ async function saveManualTracklist(item, rows) {
     }));
   await postUpdate({ row: item.row, ManualTracks: JSON.stringify(manualTracks) });
   item.manualTracks = manualTracks;
+  item.hasManualTracklist = true;
   delete state.trackCache[artKey(item)];
   if (activeItem === item) await loadTracklist(item);
   flashGlobalToast('Tracklist updated');
@@ -9900,7 +9925,7 @@ async function loadTracklist(item) {
   // always wins over the iTunes/MusicBrainz auto-lookup below — it exists
   // specifically for albums that lookup can't find, or where you want your
   // own YouTube links attached per track.
-  if (item.manualTracks && item.manualTracks.length) {
+  if (isManualAlbum(item)) {
     const tracks = item.manualTracks.map(t => ({
       trackNumber: t.trackNumber,
       trackName: t.title,
@@ -10516,15 +10541,14 @@ async function doAddSearch() {
    Saved as manualTracks: [{trackNumber, title, youtubeLink}] — see
    collectTracklistBuilderRows() / renderTracklistBuilderRows() and the
    ManualTracks column comment in fetchCatalog().
-   Each row also carries a select checkbox (.tracklist-builder-check) for
-   batch delete — see toggleAllTracklistBuilderRows/
-   deleteSelectedTracklistBuilderRows below — handy when an auto-populated
-   tracklist pulls in a run of tracks you want to clear out at once instead
-   of clicking the ✕ one at a time. */
+   (A per-row checkbox + "Select all"/"Delete selected" batch-delete UI
+   was tried here in 1.29.3 and pulled back out in 1.29.6 — it made this
+   already-dense form feel too cluttered. Batch-deleting several tracks at
+   once is still available from the release's own Tracks view: select
+   multiple rows there and right-click → Remove from tracklist.) */
 function tracklistBuilderRowHtml(track, idx) {
   return `
     <div class="tracklist-builder-row" data-idx="${idx}" data-track-number="${track?.trackNumber ?? ''}">
-      <input type="checkbox" class="tracklist-builder-check" aria-label="Select track ${idx + 1} for batch delete">
       <span class="tracklist-builder-num">${idx + 1}</span>
       <input type="text" class="tracklist-builder-title" placeholder="Track title" value="${escapeHtml(track?.title || '')}">
       <input type="text" class="tracklist-builder-yt" placeholder="YouTube link (optional)" value="${escapeHtml(track?.youtubeLink || '')}">
@@ -10536,13 +10560,6 @@ function tracklistBuilderRowHtml(track, idx) {
 function renderTracklistBuilderRows(container, tracks) {
   const list = (tracks && tracks.length) ? tracks : [{}]; // always start with at least one blank row
   container.innerHTML = list.map((t, i) => tracklistBuilderRowHtml(t, i)).join('');
-  // Full re-render (opening the Add/Edit form, or "Load current tracklist")
-  // always starts with nothing checked, so keep the header "Select all"
-  // checkbox in sync rather than leaving it stuck checked from a previous
-  // batch-delete pass.
-  const selectAllEl = container === el.addTracksRows ? el.addTracksSelectAllBtn
-    : container === el.editTracksRows ? el.editTracksSelectAllBtn : null;
-  if (selectAllEl) selectAllEl.checked = false;
 }
 function addTracklistBuilderRow(container) {
   const idx = container.children.length;
@@ -10576,57 +10593,22 @@ function renumberTracklistBuilderRows(container) {
     row.querySelector('.tracklist-builder-num').textContent = i + 1;
   });
 }
-// Batch-select helpers for the tracklist builder's "Select all" checkbox +
-// "Delete selected" button (wired in bindEvents, next to each container's
-// existing "+ Add track" button).
-function toggleAllTracklistBuilderRows(container, checked) {
-  container.querySelectorAll('.tracklist-builder-check').forEach(cb => { cb.checked = checked; });
-}
-function syncTracklistBuilderSelectAll(container, selectAllEl) {
-  if (!selectAllEl) return;
-  const boxes = [...container.querySelectorAll('.tracklist-builder-check')];
-  selectAllEl.checked = boxes.length > 0 && boxes.every(cb => cb.checked);
-}
-// Deletes every checked row. If that's every row, one blank row is kept
-// (same "never leave the section looking broken/empty" rule the single-row
-// ✕ remove button already follows) rather than emptying the list entirely.
-function deleteSelectedTracklistBuilderRows(container, selectAllEl) {
-  const rows = [...container.querySelectorAll('.tracklist-builder-row')];
-  const checkedRows = rows.filter(row => row.querySelector('.tracklist-builder-check').checked);
-  if (!checkedRows.length) return;
-  if (checkedRows.length >= rows.length) {
-    renderTracklistBuilderRows(container, []);
-  } else {
-    checkedRows.forEach(row => row.remove());
-    renumberTracklistBuilderRows(container);
-  }
-  if (selectAllEl) selectAllEl.checked = false;
-}
 // One delegated listener per container (add/edit) covers: remove-row
-// buttons, batch-select checkbox changes (keeps the header "Select all"
-// checkbox in sync), and (Enter key in the last row) auto-adding a fresh
-// blank row so entering a tracklist doesn't require reaching for the mouse
-// between every track. wireTracklistBuilderContainer() is called once per
-// container at init — see bindEvents().
-function wireTracklistBuilderContainer(container, selectAllEl) {
+// buttons, and (Enter key in the last row) auto-adding a fresh blank row so
+// entering a tracklist doesn't require reaching for the mouse between every
+// track. wireTracklistBuilderContainer() is called once per container at
+// init — see bindEvents().
+function wireTracklistBuilderContainer(container) {
   container.addEventListener('click', (e) => {
     const removeBtn = e.target.closest('.tracklist-builder-remove');
     if (!removeBtn) return;
     const rows = container.querySelectorAll('.tracklist-builder-row');
     if (rows.length <= 1) { // keep at least one row so the section never looks broken/empty
-      const onlyRow = removeBtn.closest('.tracklist-builder-row');
-      onlyRow.querySelectorAll('input[type="text"]').forEach(i => i.value = '');
-      onlyRow.querySelector('.tracklist-builder-check').checked = false;
-      syncTracklistBuilderSelectAll(container, selectAllEl);
+      removeBtn.closest('.tracklist-builder-row').querySelectorAll('input').forEach(i => i.value = '');
       return;
     }
     removeBtn.closest('.tracklist-builder-row').remove();
     renumberTracklistBuilderRows(container);
-    syncTracklistBuilderSelectAll(container, selectAllEl);
-  });
-  container.addEventListener('change', (e) => {
-    if (!e.target.matches('.tracklist-builder-check')) return;
-    syncTracklistBuilderSelectAll(container, selectAllEl);
   });
   container.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
@@ -10757,6 +10739,7 @@ async function saveEditAlbum() {
     activeItem.rymLink = payload.RymLink;
     activeItem.cover = payload.Cover;
     activeItem.manualTracks = manualTracks;
+    activeItem.hasManualTracklist = true;
     
     const newKey = artKey(activeItem);
 
@@ -13555,18 +13538,13 @@ html, body {
   .tracklist-builder-field { display: flex; flex-direction: column; gap: 6px; }
   .tracklist-builder-label-row {
     display: flex; align-items: center; justify-content: space-between;
-    font-size: 13px; color: var(--text-dim); flex-wrap: wrap; gap: 6px;
+    font-size: 13px; color: var(--text-dim);
   }
-  .tracklist-builder-label-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .tracklist-builder-selectall {
-    display: flex; align-items: center; gap: 4px; font-size: 12px;
-    color: var(--text-dim); cursor: pointer; user-select: none;
-  }
+  .tracklist-builder-label-actions { display: flex; gap: 6px; }
   .tracklist-builder-rows { display: flex; flex-direction: column; gap: 6px; }
   .tracklist-builder-row {
     display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
   }
-  .tracklist-builder-check { flex: 0 0 auto; cursor: pointer; }
   .tracklist-builder-num {
     flex: 0 0 18px; text-align: right; color: var(--text-dim);
     font-family: 'IBM Plex Mono', monospace; font-size: 12px;
@@ -13585,8 +13563,6 @@ html, body {
   }
   .tracklist-builder-remove:hover { color: #E5734A; border-color: #E5734A; }
   .tracklist-builder-hint { font-size: 11.5px; color: var(--text-dim); margin: 0; }
-  .chip-btn-danger { color: #E5734A; border-color: #E5734A; }
-  .chip-btn-danger:hover { background: #E5734A; color: #fff; }
 
   /* ---------- Master player: inline YouTube video (1.24.0) ----------
      Swapped in for .mini-player-art whenever activePlayerEngine is
