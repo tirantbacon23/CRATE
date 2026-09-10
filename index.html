@@ -13,7 +13,28 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.15
+  CURRENT_VERSION: 1.29.16
+
+  1.29.16 — 2026-09-09 — Map viewer: added a "Spread through time" toggle
+          — a scrubber (reusing the Timeline viewer's slider+ticks
+          pattern) that reveals a location the moment any album tied to it
+          was released, so dragging it forward from the earliest release
+          shows how the map's geography actually spread over the crate's
+          history — a genre/scene's footprint unfolding release by
+          release. Year or Month granularity (mapTimeGranYearBtn/
+          mapTimeGranMonthBtn); ticks show how many new locations were
+          reached each period (respecting the Category filter). Uses each
+          album's own Release Date field directly — no scrobble/listen
+          data involved (an earlier same-day version of this used
+          scrobbles; that wasn't what was wanted — this is release history,
+          not listening history). Albums with no release date are excluded
+          while the toggle is on, since there's no date to place them at.
+          New state: mapTimeEnabled/mapTimeGranularity/mapTimeIndex (all
+          transient, not persisted). New functions: periodIndexFor/
+          periodIndexToLabel/itemReleasePeriodIndex/refreshMapTimeScrubber/
+          renderMapTimeTicks/setMapTimeIndex/mapTimeStep/toggleMapTimeMode/
+          setMapTimeGranularity; buildMapGroups() now applies the time
+          cutoff alongside the existing Category filter.
 
   1.29.15 — 2026-09-09 — Three follow-ups to the Map/Timeline viewers:
           (1) Map viewer now filters by Artist/Genre/Media Type/Decade (a
@@ -1848,6 +1869,30 @@
           </label>
           <button type="button" id="mapKeyEditBtn" class="chip-btn map-toolbar-key-btn" title="Change LocationIQ API key">API key</button>
         </div>
+
+        <div class="map-time-toolbar">
+          <button type="button" id="mapTimeToggleBtn" class="chip-btn map-time-toggle-btn">🕓 Spread through time</button>
+          <div class="diary-subtoolbar" id="mapTimeGranularity" hidden>
+            <span class="diary-subtoolbar-label">By</span>
+            <button type="button" id="mapTimeGranYearBtn" class="diary-subtoolbar-btn active" data-gran="year">Year</button>
+            <button type="button" id="mapTimeGranMonthBtn" class="diary-subtoolbar-btn" data-gran="month">Month</button>
+          </div>
+        </div>
+        <p class="arrange-hint map-time-hint" id="mapTimeHint" hidden>Showing every location with a release on or before this point — scrub forward to watch it spread.</p>
+        <div class="timeline-scrubber map-time-scrubber" id="mapTimeScrubber" hidden>
+          <button type="button" id="mapTimePrev" class="config-btn timeline-step-btn" aria-label="Previous period">‹</button>
+          <div class="timeline-scrubber-main">
+            <div class="timeline-year-label" id="mapTimeLabel">—</div>
+            <input type="range" id="mapTimeSlider" class="timeline-slider" step="1" aria-label="Select period">
+            <div class="timeline-ticks" id="mapTimeTicks"></div>
+            <div class="timeline-range-labels">
+              <span id="mapTimeRangeStart"></span>
+              <span id="mapTimeRangeEnd"></span>
+            </div>
+          </div>
+          <button type="button" id="mapTimeNext" class="config-btn timeline-step-btn" aria-label="Next period">›</button>
+        </div>
+
         <div id="mapStatus" class="map-status" hidden></div>
         <div id="mapContainer" class="map-container"></div>
         <div id="mapCount" class="map-count"></div>
@@ -2076,7 +2121,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.15';
+const APP_VERSION = '1.29.16';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -2341,7 +2386,10 @@ const el = {};
   'timelineHint','timelineModeReleaseBtn','timelineModeListenBtn',
   'mapBtn','mapOverlay','mapClose','mapContainer','mapStatus','mapCount','mapEmpty','mapMain',
   'mapKeySetup','mapApiKeyInput','mapApiKeySaveBtn','mapKeyEditBtn',
-  'mapCategorySelect','mapCategoryValueField','mapCategoryValueSelect','mapSortSelect','mapAlbumList'
+  'mapCategorySelect','mapCategoryValueField','mapCategoryValueSelect','mapSortSelect','mapAlbumList',
+  'mapTimeToggleBtn','mapTimeGranularity','mapTimeGranYearBtn','mapTimeGranMonthBtn','mapTimeHint',
+  'mapTimeScrubber','mapTimePrev','mapTimeNext','mapTimeLabel','mapTimeSlider','mapTimeTicks',
+  'mapTimeRangeStart','mapTimeRangeEnd'
 ].forEach(id => { el[id] = document.getElementById(id); });
 
 let activeItem = null;
@@ -2948,9 +2996,22 @@ function bindEvents() {
     el.mapKeySetup.hidden = false;
     el.mapApiKeyInput.focus();
   });
-  el.mapCategorySelect.addEventListener('change', () => { populateMapCategoryValues(); renderMap(); });
-  el.mapCategoryValueSelect.addEventListener('change', renderMap);
+  el.mapCategorySelect.addEventListener('change', () => {
+    populateMapCategoryValues();
+    if (state.mapTimeEnabled) renderMapTimeTicks();
+    renderMap();
+  });
+  el.mapCategoryValueSelect.addEventListener('change', () => {
+    if (state.mapTimeEnabled) renderMapTimeTicks();
+    renderMap();
+  });
   el.mapSortSelect.addEventListener('change', renderMap);
+  el.mapTimeToggleBtn.addEventListener('click', toggleMapTimeMode);
+  el.mapTimeGranYearBtn.addEventListener('click', () => setMapTimeGranularity('year'));
+  el.mapTimeGranMonthBtn.addEventListener('click', () => setMapTimeGranularity('month'));
+  el.mapTimeSlider.addEventListener('input', () => setMapTimeIndex(Number(el.mapTimeSlider.value)));
+  el.mapTimePrev.addEventListener('click', () => mapTimeStep(-1));
+  el.mapTimeNext.addEventListener('click', () => mapTimeStep(1));
   el.lastfmClose.addEventListener('click', closeLastfmModal);
   el.lastfmCancelBtn.addEventListener('click', closeLastfmModal);
   el.lastfmFetchBtn.addEventListener('click', runLastfmFetch);
@@ -10303,6 +10364,10 @@ state.timelineYear = null;
 state.timelineMode = 'release'; // 'release' (default, by release date) or 'listen' (by scrobble activity) — transient, not persisted
 let timelineYearCounts = []; // [{ year, count }], ascending by year
 
+state.mapTimeEnabled = false; // Map's "Spread through time" toggle — off by default, transient
+state.mapTimeGranularity = 'year'; // 'year' or 'month'
+state.mapTimeIndex = null; // absolute period index (year, or year*12+month) currently scrubbed to
+
 function timelineYearOf(item) {
   return dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getUTCFullYear() : null;
 }
@@ -10598,8 +10663,152 @@ function mapSortComparator() {
   return (a, b) => a.title.localeCompare(b.title); // 'title', the default
 }
 
+// ---- "Spread through time" scrubber ----
+// Answers "how did this spread" by revealing a location as soon as ANY
+// album tied to it was released, then letting you scrub forward/back
+// through when new locations joined — a way to watch a genre/scene's
+// geography unfold release by release, using each album's own release
+// date (no scrobble/listen history involved).
+//
+// Granularity ('year' or 'month') is expressed as one absolute integer
+// index so the slider can step across every period in range even where a
+// period has zero activity: plain calendar year for 'year', and
+// (year * 12 + zero-based month) for 'month'.
+let mapTimeMinIdx = 0, mapTimeMaxIdx = 0;
+
+function periodIndexFor(dayStr, granularity) {
+  const d = new Date(dayStr);
+  if (isNaN(d)) return null;
+  return granularity === 'month' ? d.getUTCFullYear() * 12 + d.getUTCMonth() : d.getUTCFullYear();
+}
+
+function periodIndexToLabel(idx, granularity) {
+  if (granularity === 'month') {
+    const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return MONTH_NAMES[((idx % 12) + 12) % 12] + ' ' + Math.floor(idx / 12);
+  }
+  return String(idx);
+}
+
+function itemReleasePeriodIndex(item) {
+  return dateVal(item.releaseDate) !== -Infinity ? periodIndexFor(item.releaseDate, state.mapTimeGranularity) : null;
+}
+
+// Rebuilds the slider's range from current release-date data. Returns
+// false (and leaves everything hidden) if there's no dated, located album
+// at all to scrub through.
+function refreshMapTimeScrubber() {
+  const indices = state.raw
+    .filter(item => (item.location || '').trim())
+    .map(itemReleasePeriodIndex)
+    .filter(v => v != null);
+  if (!indices.length) return false;
+
+  mapTimeMinIdx = Math.min(...indices);
+  mapTimeMaxIdx = Math.max(...indices);
+  el.mapTimeSlider.min = mapTimeMinIdx;
+  el.mapTimeSlider.max = mapTimeMaxIdx;
+  el.mapTimeRangeStart.textContent = periodIndexToLabel(mapTimeMinIdx, state.mapTimeGranularity);
+  el.mapTimeRangeEnd.textContent = periodIndexToLabel(mapTimeMaxIdx, state.mapTimeGranularity);
+  renderMapTimeTicks();
+
+  const startIdx = (state.mapTimeIndex != null && state.mapTimeIndex >= mapTimeMinIdx && state.mapTimeIndex <= mapTimeMaxIdx)
+    ? state.mapTimeIndex : mapTimeMinIdx; // default to the earliest period — "watch it spread" starts from the start
+  state.mapTimeIndex = startIdx;
+  el.mapTimeSlider.value = startIdx;
+  el.mapTimeLabel.textContent = periodIndexToLabel(startIdx, state.mapTimeGranularity);
+  return true;
+}
+
+// Ticks show how many NEW locations were reached each period (respecting
+// the current Category filter, so the ticks match what's actually being
+// scrubbed through) — a density map of how fast the map's geography grew.
+function renderMapTimeTicks() {
+  const firstReachedAt = new Map(); // location key -> earliest period index among its (category-matching, dated) albums
+  state.raw.forEach(item => {
+    const loc = (item.location || '').trim();
+    if (!loc || !mapCategoryFilter(item)) return;
+    const idx = itemReleasePeriodIndex(item);
+    if (idx == null) return;
+    const key = loc.toLowerCase();
+    if (!firstReachedAt.has(key) || idx < firstReachedAt.get(key)) firstReachedAt.set(key, idx);
+  });
+  const counts = new Map();
+  firstReachedAt.forEach(idx => counts.set(idx, (counts.get(idx) || 0) + 1));
+
+  const span = Math.max(1, mapTimeMaxIdx - mapTimeMinIdx);
+  const maxCount = Math.max(1, ...counts.values(), 0);
+  let html = '';
+  counts.forEach((count, idx) => {
+    const leftPct = ((idx - mapTimeMinIdx) / span) * 100;
+    const heightPct = 15 + (count / maxCount) * 85;
+    html += `<div class="timeline-tick" data-idx="${idx}" title="${escapeHtml(periodIndexToLabel(idx, state.mapTimeGranularity))} \u00b7 ${count} new location${count === 1 ? '' : 's'}" style="left:${leftPct}%; height:${heightPct}%;"></div>`;
+  });
+  el.mapTimeTicks.innerHTML = html;
+  [...el.mapTimeTicks.querySelectorAll('.timeline-tick')].forEach(tick => {
+    tick.addEventListener('click', () => setMapTimeIndex(Number(tick.dataset.idx)));
+  });
+  updateMapTimeTickActive();
+}
+
+function updateMapTimeTickActive() {
+  [...el.mapTimeTicks.querySelectorAll('.timeline-tick')].forEach(tick => {
+    tick.classList.toggle('active', Number(tick.dataset.idx) === state.mapTimeIndex);
+  });
+}
+
+function setMapTimeIndex(idx) {
+  state.mapTimeIndex = idx;
+  el.mapTimeSlider.value = idx;
+  el.mapTimeLabel.textContent = periodIndexToLabel(idx, state.mapTimeGranularity);
+  updateMapTimeTickActive();
+  renderMap();
+}
+
+function mapTimeStep(direction) {
+  const next = Math.max(mapTimeMinIdx, Math.min(mapTimeMaxIdx, state.mapTimeIndex + direction));
+  if (next !== state.mapTimeIndex) setMapTimeIndex(next);
+}
+
+function toggleMapTimeMode() {
+  if (state.mapTimeEnabled) {
+    state.mapTimeEnabled = false;
+    el.mapTimeToggleBtn.classList.remove('active');
+    el.mapTimeGranularity.hidden = true;
+    el.mapTimeScrubber.hidden = true;
+    el.mapTimeHint.hidden = true;
+    renderMap();
+    return;
+  }
+  const ok = refreshMapTimeScrubber();
+  if (!ok) {
+    flashGlobalToast('No located albums have a release date yet — add one from the Edit form to scrub through the spread.');
+    return;
+  }
+  state.mapTimeEnabled = true;
+  el.mapTimeToggleBtn.classList.add('active');
+  el.mapTimeGranularity.hidden = false;
+  el.mapTimeScrubber.hidden = false;
+  el.mapTimeHint.hidden = false;
+  renderMap();
+}
+
+function setMapTimeGranularity(granularity) {
+  if (state.mapTimeGranularity === granularity) return;
+  state.mapTimeGranularity = granularity;
+  el.mapTimeGranYearBtn.classList.toggle('active', granularity === 'year');
+  el.mapTimeGranMonthBtn.classList.toggle('active', granularity === 'month');
+  state.mapTimeIndex = null; // old index was in the other granularity's units — re-default
+  if (state.mapTimeEnabled) {
+    refreshMapTimeScrubber();
+    renderMap();
+  }
+}
+
 // Groups state.raw by trimmed/lowercased `location` text, applying the
-// current Category filter first and the current Sort within each group.
+// current Category filter, the "Spread through time" cutoff (if on —
+// albums with no release date are excluded while it's on, since there's
+// no date to place them at), and the current Sort within each group.
 // Returns [{ label, key, items: [item, ...] }, ...] for every matching
 // non-empty location — geocoding happens later, per unique key, once this
 // grouping is known.
@@ -10609,6 +10818,10 @@ function buildMapGroups() {
     const loc = (item.location || '').trim();
     if (!loc) return;
     if (!mapCategoryFilter(item)) return;
+    if (state.mapTimeEnabled) {
+      const idx = itemReleasePeriodIndex(item);
+      if (idx == null || idx > state.mapTimeIndex) return;
+    }
     const key = loc.toLowerCase();
     if (!groups.has(key)) groups.set(key, { label: loc, key, items: [] });
     groups.get(key).items.push(item);
@@ -10639,6 +10852,17 @@ async function openMapModal() {
   setTimeout(() => map.invalidateSize(), 0);
 
   populateMapCategoryValues();
+
+  // Re-sync the time-scrubber UI to state.mapTimeEnabled every open, since
+  // the crate/scrobbles may have changed while the modal was closed.
+  el.mapTimeToggleBtn.classList.toggle('active', state.mapTimeEnabled);
+  el.mapTimeGranYearBtn.classList.toggle('active', state.mapTimeGranularity === 'year');
+  el.mapTimeGranMonthBtn.classList.toggle('active', state.mapTimeGranularity === 'month');
+  if (state.mapTimeEnabled && !refreshMapTimeScrubber()) state.mapTimeEnabled = false; // scrobble history vanished — fall back to off
+  el.mapTimeGranularity.hidden = !state.mapTimeEnabled;
+  el.mapTimeScrubber.hidden = !state.mapTimeEnabled;
+  el.mapTimeHint.hidden = !state.mapTimeEnabled;
+
   await renderMap();
 }
 
@@ -13982,6 +14206,7 @@ html, body {
   }
   .chip-btn:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
   .chip-btn:disabled { opacity: 0.4; cursor: default; }
+  .chip-btn.active { color: var(--accent); border-color: var(--accent); background: var(--bg-card); }
   .log-track-summary-row { margin-bottom: 10px; }
   .log-track-summary { font-size: 12px; color: var(--text-dim); line-height: 1.5; margin-bottom: 8px; }
   .log-track-summary-actions { display: flex; gap: 8px; }
@@ -14730,6 +14955,10 @@ html, body {
   }
   .map-toolbar-field select:focus { border-color: var(--accent); }
   .map-toolbar-key-btn { margin-left: auto; align-self: center; }
+  .map-time-toolbar { display: flex; align-items: center; gap: 12px; margin: 0 0 6px; }
+  .map-time-toggle-btn { flex: 0 0 auto; }
+  .map-time-hint { margin: 0 0 8px; }
+  .map-time-scrubber { margin-bottom: 12px; }
   .map-container {
     width: 100%; height: 420px; border-radius: 8px; overflow: hidden;
     border: 1px solid var(--line); background: #0b0e14;
