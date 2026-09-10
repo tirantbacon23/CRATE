@@ -13,7 +13,30 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.16
+  CURRENT_VERSION: 1.29.17
+
+  1.29.17 — 2026-09-09 — Map viewer is now a floating, resizable window
+          instead of a centered/backdrop modal like the app's other
+          overlays: no dimmed backdrop (.map-overlay is transparent and
+          pointer-events:none so the rest of the app stays usable while
+          it's open), dragged by its header (initMapWindowDrag, same
+          clamp-to-viewport pattern as the Spotify mini player's detached
+          mode), and resized via the browser's native `resize: both`
+          corner handle. Position + size persist to localStorage
+          (crate_map_window_prefs_v1) via a ResizeObserver
+          (observeMapWindowResize), which also calls
+          leafletMapInstance.invalidateSize() on every size change so the
+          tiles actually redraw as the window grows/shrinks. Falls back to
+          a near-fullscreen, non-resizable layout under 700px.
+          Also replaced the flat album list under the map with a proper
+          attribute table — Name/Artist/Location/Year/Genre/Type columns,
+          each resizable by dragging its header edge (wireMapColumnResize,
+          reusing the Tracks table's .ttc-resize-handle styling), widths
+          persisted to crate_map_col_widths_v1. New functions:
+          applyMapWindowPrefs/saveMapWindowPrefs/initMapWindowDrag/
+          observeMapWindowResize/loadMapColWidths/saveMapColWidth/
+          applyMapColumnWidths/wireMapColumnResize/renderMapAttrTable
+          (replaces renderMapAlbumList).
 
   1.29.16 — 2026-09-09 — Map viewer: added a "Spread through time" toggle
           — a scrubber (reusing the Timeline viewer's slider+ticks
@@ -1830,9 +1853,11 @@
   </div>
 </div>
 
-<!-- Map viewer modal -->
-<div id="mapOverlay" class="arrange-overlay" hidden>
-  <div class="arrange-modal map-modal">
+<!-- Map viewer modal — floating, resizable window (see .map-overlay/.map-modal
+     CSS and initMapWindowDrag/observeMapWindowResize below); not a standard
+     centered/backdrop modal like the app's other overlays. -->
+<div id="mapOverlay" class="arrange-overlay map-overlay" hidden>
+  <div class="arrange-modal map-modal" id="mapModal">
     <div class="arrange-header"><h2>Map</h2><button id="mapClose" class="modal-x" aria-label="Close">✕</button></div>
     <div class="arrange-body">
 
@@ -1896,7 +1921,22 @@
         <div id="mapStatus" class="map-status" hidden></div>
         <div id="mapContainer" class="map-container"></div>
         <div id="mapCount" class="map-count"></div>
-        <div class="timeline-album-list" id="mapAlbumList"></div>
+        <div class="map-attr-table-wrap" id="mapAttrTableWrap">
+          <table class="map-attr-table">
+            <thead>
+              <tr id="mapAttrHeadRow">
+                <th class="map-attr-th map-attr-th-cover"></th>
+                <th class="map-attr-th" data-col="title">Name<span class="ttc-resize-handle" data-col="title"></span></th>
+                <th class="map-attr-th" data-col="artist">Artist<span class="ttc-resize-handle" data-col="artist"></span></th>
+                <th class="map-attr-th" data-col="location">Location<span class="ttc-resize-handle" data-col="location"></span></th>
+                <th class="map-attr-th" data-col="year">Year<span class="ttc-resize-handle" data-col="year"></span></th>
+                <th class="map-attr-th" data-col="genre">Genre<span class="ttc-resize-handle" data-col="genre"></span></th>
+                <th class="map-attr-th">Type</th>
+              </tr>
+            </thead>
+            <tbody id="mapAttrBody"></tbody>
+          </table>
+        </div>
         <p class="timeline-empty" id="mapEmpty" hidden>No albums in your crate have a Location yet — add one from the Edit form (e.g. where the band formed, its studio, or a venue it played) to see it here.</p>
       </div>
 
@@ -2121,7 +2161,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.16';
+const APP_VERSION = '1.29.17';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -2384,9 +2424,10 @@ const el = {};
   'timelineBtn','timelineOverlay','timelineClose','timelinePrevYear','timelineNextYear','timelineYearLabel',
   'timelineSlider','timelineTicks','timelineRangeStart','timelineRangeEnd','timelineCount','timelineAlbumList','timelineEmpty',
   'timelineHint','timelineModeReleaseBtn','timelineModeListenBtn',
-  'mapBtn','mapOverlay','mapClose','mapContainer','mapStatus','mapCount','mapEmpty','mapMain',
+  'mapBtn','mapOverlay','mapModal','mapContainer','mapStatus','mapCount','mapEmpty','mapMain','mapClose',
   'mapKeySetup','mapApiKeyInput','mapApiKeySaveBtn','mapKeyEditBtn',
-  'mapCategorySelect','mapCategoryValueField','mapCategoryValueSelect','mapSortSelect','mapAlbumList',
+  'mapCategorySelect','mapCategoryValueField','mapCategoryValueSelect','mapSortSelect',
+  'mapAttrTableWrap','mapAttrHeadRow','mapAttrBody',
   'mapTimeToggleBtn','mapTimeGranularity','mapTimeGranYearBtn','mapTimeGranMonthBtn','mapTimeHint',
   'mapTimeScrubber','mapTimePrev','mapTimeNext','mapTimeLabel','mapTimeSlider','mapTimeTicks',
   'mapTimeRangeStart','mapTimeRangeEnd'
@@ -3012,6 +3053,10 @@ function bindEvents() {
   el.mapTimeSlider.addEventListener('input', () => setMapTimeIndex(Number(el.mapTimeSlider.value)));
   el.mapTimePrev.addEventListener('click', () => mapTimeStep(-1));
   el.mapTimeNext.addEventListener('click', () => mapTimeStep(1));
+  applyMapWindowPrefs();
+  initMapWindowDrag();
+  observeMapWindowResize();
+  wireMapColumnResize();
   el.lastfmClose.addEventListener('click', closeLastfmModal);
   el.lastfmCancelBtn.addEventListener('click', closeLastfmModal);
   el.lastfmFetchBtn.addEventListener('click', runLastfmFetch);
@@ -10623,6 +10668,150 @@ function ensureLeafletMap() {
   return leafletMapInstance;
 }
 
+// ---- Floating window: drag-to-move + resize (1.29.17) ----
+// The Map modal isn't a centered/backdrop dialog like the app's other
+// modals — it's a real floating window (see .map-overlay/.map-modal CSS):
+// dragged by its header the same clamp-to-viewport way the Spotify mini
+// player's detached mode works (initPlayerDrag), and resized via the
+// browser's native `resize: both` corner handle rather than a custom one.
+// Position + size persist to localStorage so the window comes back where
+// you left it.
+const MAP_WINDOW_PREFS_KEY = 'crate_map_window_prefs_v1';
+
+function loadMapWindowPrefs() {
+  try { return JSON.parse(localStorage.getItem(MAP_WINDOW_PREFS_KEY) || '{}'); } catch (e) { return {}; }
+}
+function saveMapWindowPrefs(patch) {
+  try { localStorage.setItem(MAP_WINDOW_PREFS_KEY, JSON.stringify({ ...loadMapWindowPrefs(), ...patch })); }
+  catch (e) { /* localStorage unavailable — safe to ignore */ }
+}
+
+// Applies any remembered position/size before the window is ever shown —
+// only needs to run once at startup since the ResizeObserver + drag
+// handler below keep localStorage in sync as the user moves/resizes it.
+function applyMapWindowPrefs() {
+  const p = loadMapWindowPrefs();
+  if (p.top != null) el.mapModal.style.top = p.top + 'px';
+  if (p.left != null) el.mapModal.style.left = p.left + 'px';
+  if (p.width != null) el.mapModal.style.width = p.width + 'px';
+  if (p.height != null) el.mapModal.style.height = p.height + 'px';
+}
+
+function initMapWindowDrag() {
+  let dragging = false, startX = 0, startY = 0, origX = 0, origY = 0;
+  function onDown(e) {
+    if (e.target.closest('.modal-x')) return; // let the close button's own click through
+    dragging = true;
+    const point = (e.touches && e.touches[0]) || e;
+    startX = point.clientX; startY = point.clientY;
+    const rect = el.mapModal.getBoundingClientRect();
+    origX = rect.left; origY = rect.top;
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onUp);
+    e.preventDefault();
+  }
+  function onMove(e) {
+    if (!dragging) return;
+    const point = (e.touches && e.touches[0]) || e;
+    const w = el.mapModal.offsetWidth, h = el.mapModal.offsetHeight;
+    let nx = origX + (point.clientX - startX);
+    let ny = origY + (point.clientY - startY);
+    nx = Math.max(4, Math.min(window.innerWidth - w - 4, nx));
+    ny = Math.max(4, Math.min(window.innerHeight - h - 4, ny));
+    el.mapModal.style.left = nx + 'px';
+    el.mapModal.style.top = ny + 'px';
+    if (e.cancelable) e.preventDefault();
+  }
+  function onUp() {
+    if (!dragging) return;
+    dragging = false;
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', onUp);
+    const rect = el.mapModal.getBoundingClientRect();
+    saveMapWindowPrefs({ top: rect.top, left: rect.left });
+  }
+  el.mapModal.querySelector('.arrange-header').addEventListener('mousedown', onDown);
+  el.mapModal.querySelector('.arrange-header').addEventListener('touchstart', onDown, { passive: false });
+}
+
+// Watches the window's box for size changes — both from the native corner
+// resize handle and from the browser being resized under it — so Leaflet
+// can re-lay-out its tiles (invalidateSize) and the new size gets
+// remembered. Debounced since ResizeObserver can fire in bursts mid-drag.
+let mapResizeSaveTimer = null;
+function observeMapWindowResize() {
+  new ResizeObserver(() => {
+    if (leafletMapInstance) leafletMapInstance.invalidateSize();
+    clearTimeout(mapResizeSaveTimer);
+    mapResizeSaveTimer = setTimeout(() => {
+      const rect = el.mapModal.getBoundingClientRect();
+      saveMapWindowPrefs({ width: rect.width, height: rect.height });
+    }, 300);
+  }).observe(el.mapModal);
+}
+
+// ---- Attribute table column widths (Name/Artist/Location/Year/Genre) ----
+// Resizable the same way the Tracks table's columns are (drag handle on
+// the right edge of each header), but simpler: just widths, no reordering
+// — the columns here are fixed attributes, not a user-configurable set.
+const MAP_COL_WIDTHS_KEY = 'crate_map_col_widths_v1';
+const MAP_COL_DEFAULT_WIDTHS = { title: 190, artist: 150, location: 170, year: 64, genre: 140 };
+
+function loadMapColWidths() {
+  try { return { ...MAP_COL_DEFAULT_WIDTHS, ...JSON.parse(localStorage.getItem(MAP_COL_WIDTHS_KEY) || '{}') }; }
+  catch (e) { return { ...MAP_COL_DEFAULT_WIDTHS }; }
+}
+function saveMapColWidth(col, width) {
+  const widths = loadMapColWidths();
+  widths[col] = width;
+  try { localStorage.setItem(MAP_COL_WIDTHS_KEY, JSON.stringify(widths)); } catch (e) { /* ignore */ }
+}
+
+function applyMapColumnWidths() {
+  const widths = loadMapColWidths();
+  el.mapAttrHeadRow.querySelectorAll('.map-attr-th[data-col]').forEach(th => {
+    const w = widths[th.dataset.col];
+    if (w) th.style.width = w + 'px';
+  });
+}
+
+function wireMapColumnResize() {
+  let resizeCol = null, startX = 0, startWidth = 0, handleEl = null;
+  function onMove(e) {
+    if (!resizeCol) return;
+    const w = Math.max(48, startWidth + (e.clientX - startX));
+    el.mapAttrHeadRow.querySelector(`.map-attr-th[data-col="${resizeCol}"]`).style.width = w + 'px';
+  }
+  function onUp() {
+    if (!resizeCol) return;
+    const w = parseInt(el.mapAttrHeadRow.querySelector(`.map-attr-th[data-col="${resizeCol}"]`).style.width, 10);
+    saveMapColWidth(resizeCol, w);
+    if (handleEl) handleEl.classList.remove('ttc-resizing');
+    resizeCol = null; handleEl = null;
+    document.body.style.cursor = ''; document.body.style.userSelect = '';
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+  el.mapAttrHeadRow.addEventListener('mousedown', (e) => {
+    const handle = e.target.closest('.ttc-resize-handle');
+    if (!handle) return;
+    e.preventDefault();
+    resizeCol = handle.dataset.col;
+    handleEl = handle;
+    handleEl.classList.add('ttc-resizing');
+    startX = e.clientX;
+    startWidth = handle.closest('.map-attr-th').getBoundingClientRect().width;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
 // ---- Category filter + sort (toolbar controls above the map) ----
 // Reuses groupKeysFor() (the same Artist/Genre/Type/Decade logic behind
 // the left panel's "Group by") so "Category" on the map means the same
@@ -10852,6 +11041,7 @@ async function openMapModal() {
   setTimeout(() => map.invalidateSize(), 0);
 
   populateMapCategoryValues();
+  applyMapColumnWidths();
 
   // Re-sync the time-scrubber UI to state.mapTimeEnabled every open, since
   // the crate/scrobbles may have changed while the modal was closed.
@@ -10876,12 +11066,13 @@ async function renderMap() {
   el.mapEmpty.hidden = anyLocated;
   leafletMarkerLayer.clearLayers();
   el.mapCount.textContent = '';
-  el.mapAlbumList.innerHTML = '';
+  el.mapAttrBody.innerHTML = '';
 
   const groups = buildMapGroups();
   if (!groups.length) {
     el.mapStatus.hidden = true;
     if (anyLocated) el.mapCount.textContent = '0 locations match this filter';
+    renderMapAttrTable(groups);
     return;
   }
 
@@ -10906,7 +11097,7 @@ async function renderMap() {
     + ' \u00b7 ' + totalAlbums + ' album' + (totalAlbums === 1 ? '' : 's')
     + (failed ? ' \u00b7 ' + failed + ' couldn\u2019t be found' : '');
 
-  renderMapAlbumList(groups);
+  renderMapAttrTable(groups);
 }
 
 function closeMapModal() {
@@ -10914,27 +11105,38 @@ function closeMapModal() {
   mapLoadToken++; // invalidate any geocoding pass still in flight
 }
 
-// Flat, clickable list of every currently-filtered located album under the
-// map, sorted the same way as each pin's popup — a text-first way to
+// Attribute table (Name/Artist/Location/Year/Genre/Type) listing every
+// currently-filtered located album, sorted the same way as each pin's
+// popup — a spreadsheet-style, sortable-by-the-same-Sort-control way to
 // browse the same set the pins represent, and the only view of it once
 // several pins overlap at the current zoom.
-function renderMapAlbumList(groups) {
+function renderMapAttrTable(groups) {
   const items = groups.flatMap(g => g.items.map(item => ({ item, location: g.label })));
   items.sort((a, b) => mapSortComparator()(a.item, b.item));
 
-  el.mapAlbumList.innerHTML = items.map(({ item, location }) => `
-    <button type="button" class="timeline-album-row">
-      <img class="timeline-album-cover art" data-key="${artKey(item)}" src="${item.cover || state.artCache[artKey(item)]?.art || placeholderArt(item)}" alt="">
-      <span class="timeline-album-text">
-        <span class="timeline-album-title">${escapeHtml(item.title)}</span>
-        <span class="timeline-album-sub">${escapeHtml(item.artist)}</span>
-      </span>
-      <span class="timeline-album-date">${escapeHtml(location)}</span>
-    </button>
-  `).join('');
+  if (!items.length) {
+    el.mapAttrBody.innerHTML = '<tr class="map-attr-empty-row"><td colspan="7">No albums match this filter.</td></tr>';
+    return;
+  }
 
-  [...el.mapAlbumList.querySelectorAll('.timeline-album-row')].forEach((btn, i) => {
-    btn.addEventListener('click', () => {
+  el.mapAttrBody.innerHTML = items.map(({ item, location }) => {
+    const year = dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getUTCFullYear() : '';
+    const genre = combinedGenreStr(item);
+    return `
+    <tr class="map-attr-row">
+      <td class="map-attr-td map-attr-td-cover"><img class="map-attr-row-cover art" data-key="${artKey(item)}" src="${item.cover || state.artCache[artKey(item)]?.art || placeholderArt(item)}" alt=""></td>
+      <td class="map-attr-td" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</td>
+      <td class="map-attr-td" title="${escapeHtml(item.artist)}">${escapeHtml(item.artist)}</td>
+      <td class="map-attr-td" title="${escapeHtml(location)}">${escapeHtml(location)}</td>
+      <td class="map-attr-td">${year}</td>
+      <td class="map-attr-td" title="${escapeHtml(genre)}">${escapeHtml(genre || '\u2014')}</td>
+      <td class="map-attr-td">${escapeHtml(typeAbbrev(item.type || 'album'))}</td>
+    </tr>
+  `;
+  }).join('');
+
+  [...el.mapAttrBody.querySelectorAll('.map-attr-row')].forEach((row, i) => {
+    row.addEventListener('click', () => {
       closeMapModal();
       switchTab('albums');
       openDeck(items[i].item);
@@ -14940,10 +15142,31 @@ html, body {
   .timeline-album-date { flex: 0 0 auto; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--text-dim); }
   .timeline-empty { font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px 0; margin: 0; }
 
-  /* ---------- Map viewer (1.29.15) ---------- */
-  .map-modal { max-width: 620px; }
+  /* ---------- Map viewer (1.29.17) — floating, resizable window ----------
+     Unlike the app's other modals, the Map is a real floating window: no
+     dimmed backdrop (.map-overlay is transparent + pointer-events:none so
+     the rest of the app stays usable while it's open), dragged by its
+     header (initMapWindowDrag, same drag-and-clamp pattern as the Spotify
+     mini player's detached mode), and resized via the browser's native
+     `resize: both` handle on the bottom-right corner rather than a custom
+     handle — simpler and touch-friendly for free. Position + size persist
+     to localStorage (crate_map_window_prefs_v1) via a ResizeObserver
+     (which also calls leafletMapInstance.invalidateSize() on every size
+     change, or the tiles stay laid out for the old box). */
+  .map-overlay { background: transparent; pointer-events: none; padding: 0; align-items: flex-start; justify-content: flex-start; }
+  .map-modal {
+    position: fixed; top: 72px; left: 72px; pointer-events: auto;
+    display: flex; flex-direction: column;
+    width: 680px; height: 600px; max-width: none; max-height: none;
+    min-width: 460px; min-height: 380px;
+    overflow: hidden; resize: both;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.55);
+  }
+  .map-modal .arrange-header { cursor: move; user-select: none; flex: 0 0 auto; }
+  .map-modal .arrange-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+  #mapMain { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
   .map-toolbar {
-    display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; margin: -4px 0 10px;
+    display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; margin: -4px 0 10px; flex: 0 0 auto;
   }
   .map-toolbar-field {
     display: flex; flex-direction: column; gap: 3px; font-family: 'IBM Plex Mono', monospace;
@@ -14955,21 +15178,21 @@ html, body {
   }
   .map-toolbar-field select:focus { border-color: var(--accent); }
   .map-toolbar-key-btn { margin-left: auto; align-self: center; }
-  .map-time-toolbar { display: flex; align-items: center; gap: 12px; margin: 0 0 6px; }
+  .map-time-toolbar { display: flex; align-items: center; gap: 12px; margin: 0 0 6px; flex: 0 0 auto; }
   .map-time-toggle-btn { flex: 0 0 auto; }
-  .map-time-hint { margin: 0 0 8px; }
-  .map-time-scrubber { margin-bottom: 12px; }
+  .map-time-hint { margin: 0 0 8px; flex: 0 0 auto; }
+  .map-time-scrubber { margin-bottom: 12px; flex: 0 0 auto; }
   .map-container {
-    width: 100%; height: 420px; border-radius: 8px; overflow: hidden;
+    width: 100%; flex: 1 1 160px; min-height: 140px; border-radius: 8px; overflow: hidden;
     border: 1px solid var(--line); background: #0b0e14;
   }
   .map-status {
     font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; text-transform: uppercase;
-    letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 8px; text-align: center;
+    letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 8px; text-align: center; flex: 0 0 auto;
   }
   .map-count {
     font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; text-transform: uppercase;
-    letter-spacing: 0.5px; color: var(--text-dim); margin-top: 8px; text-align: center;
+    letter-spacing: 0.5px; color: var(--text-dim); margin: 8px 0; text-align: center; flex: 0 0 auto;
   }
   /* Theme Leaflet's default white popup chrome to match the app. The popup
      content itself (.map-popup) reuses .timeline-album-row's row markup. */
@@ -14982,6 +15205,36 @@ html, body {
     letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 2px;
   }
   .map-popup-row { padding: 4px 2px; }
+
+  /* ---- Map attribute table (Name/Artist/Location/Year/Genre/Type) ----
+     Column widths are user-resizable (dragging .ttc-resize-handle, same
+     handle styling the Tracks table uses) and persist to localStorage
+     (crate_map_col_widths_v1) via wireMapColumnResize(). */
+  .map-attr-table-wrap {
+    flex: 1 1 140px; min-height: 90px; margin-top: 10px; overflow: auto;
+    border: 1px solid var(--line); border-radius: 6px;
+  }
+  .map-attr-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
+  .map-attr-table thead { position: sticky; top: 0; z-index: 2; background: var(--bg-elevated); }
+  .map-attr-th {
+    position: relative; text-align: left; padding: 6px 8px; overflow: visible;
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--text-dim); border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  .map-attr-th-cover { width: 34px; }
+  .map-attr-td { padding: 5px 8px; border-bottom: 1px solid var(--line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .map-attr-td-cover { padding: 4px 8px; }
+  .map-attr-row-cover { width: 24px; height: 24px; border-radius: 3px; object-fit: cover; display: block; background: var(--bg-card); }
+  .map-attr-row { cursor: pointer; }
+  .map-attr-row:hover .map-attr-td { background: var(--bg-card); }
+  .map-attr-empty-row td { text-align: center; color: var(--text-dim); padding: 16px 8px; }
+
+  @media (max-width: 700px) {
+    .map-modal {
+      top: 8px; left: 8px; right: 8px; bottom: 8px;
+      width: auto; height: auto; resize: none;
+    }
+  }
 
   @media (max-width: 900px) {
     .panel-left, .panel-leftnav, .panel-right, .resizer { display: none !important; }
