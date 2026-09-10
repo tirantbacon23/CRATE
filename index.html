@@ -13,7 +13,62 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.17
+  CURRENT_VERSION: 1.29.19
+
+  1.29.19 — 2026-09-09 — First mobile pass on the rest of the app (the
+          Map got its own pass in 1.29.18; this covers everything else).
+          Biggest gap: below the existing sub-900px breakpoint,
+          .panel-leftnav/.panel-left/.panel-right (Music/Playlist Explorer
+          switch, the Artist/Genre/Decade browse tree, the Up Next queue)
+          were simply display:none with no other way to reach them. Added
+          two off-canvas drawers that reuse those same panel elements
+          in place (no content duplication) — a hamburger button
+          (mobileNavToggleBtn) opens leftNavPanel+leftPanel from the left,
+          a queue button (mobileQueueToggleBtn) opens rightPanel from the
+          right, both via one setMobileDrawer('nav'|'queue'|null) toggling
+          classes on #panels that a new @media(max-width:900px) block
+          turns into fixed, full-height overlays (needs !important to beat
+          the existing display:none !important rule and applyPanelVisibility's
+          inline styles). Shared backdrop (mobileDrawerBackdrop) to tap-
+          close; Escape and growing back past 900px close it too
+          (initMobileDrawers's matchMedia listener).
+          Also: the Tracks view's fixed pixel columns don't reflow, so
+          .grid-wrap gets overflow-x:auto under 900px rather than
+          crushing/overflowing them. Icon buttons and nav tabs get
+          slightly bigger touch targets under 900px. And a generic pass
+          on every .arrange-overlay/.arrange-modal dialog (Add/Edit album,
+          Track properties, Last.fm import, playlist create/rename —
+          everything except the Map, which already has its own floating-
+          window mobile handling and is excluded via :not(.map-modal)/
+          :not(.map-overlay)) goes near-fullscreen under 620px with larger
+          form fields and buttons, matching the treatment the Deck modal
+          already had.
+          Not covered in this pass: the Artist tab's sidebar+detail split
+          and the Diary/Playlist internals already had some responsive
+          handling from before (verified, left alone); anything else not
+          mentioned above hasn't been specifically audited.
+
+  1.29.18 — 2026-09-09 — Map window: added mobile handling. Below a 700px
+          viewport (isMapMobileLayout(), matching the existing CSS
+          breakpoint) the window is pinned full-screen instead of floating
+          — drag-to-move and the resize corner are both disabled there
+          (dragging would otherwise fight the CSS inset, and neither is a
+          great touch interaction anyway), column-resize handles are
+          hidden, and the attribute table drops its Genre/Type columns
+          (still reachable by horizontal scroll right at the breakpoint
+          edge) so Name/Artist/Location/Year stay legible. Touch targets
+          (close button, toolbar buttons, table rows) are sized up.
+          New initMapMobileBreakpointListener() handles the boundary case
+          of the viewport crossing 700px while the map is already open
+          (window resize, device rotation) — clears any stale inline
+          position/size so the CSS full-screen rule can take over, or
+          restores the remembered floating position/size when coming back
+          the other way — and re-applies column widths either way, since
+          mobile uses its own fixed MAP_COL_MOBILE_WIDTHS rather than
+          whatever's persisted from a desktop session. invalidateSize()
+          still always runs on any resize (including mobile), since
+          Leaflet's tiles need to catch up on rotation even though the
+          resize itself isn't persisted there.
 
   1.29.17 — 2026-09-09 — Map viewer is now a floating, resizable window
           instead of a centered/backdrop modal like the app's other
@@ -1183,6 +1238,11 @@
 
 <div id="app" hidden>
   <header class="topbar">
+    <!-- Mobile-only: opens the Music/Playlists nav + browse-tree panels as
+         an off-canvas drawer (see .mobile-nav-open on #panels below) since
+         those panels are display:none under the sub-900px breakpoint
+         otherwise, with no other way to reach them. -->
+    <button type="button" id="mobileNavToggleBtn" class="icon-btn mobile-only-btn" title="Browse" aria-label="Open browse menu">☰</button>
     <div class="brand">
       <h1>CRATE</h1>
       <p class="tagline">a listening log</p>
@@ -1216,6 +1276,9 @@
 	  <button id="lastfmBtn" class="icon-btn" title="Import from Last.fm" aria-label="Import from Last.fm">◑</button>
 	  <button id="timelineBtn" class="icon-btn" title="Timeline viewer — see what was released when" aria-label="Timeline viewer">◷</button>
 	  <button id="mapBtn" class="icon-btn" title="Map viewer — see where albums were formed, recorded, or played" aria-label="Map viewer">🗺</button>
+      <!-- Mobile-only: opens the "Up Next" queue panel as an off-canvas
+           drawer from the right, same mechanism as mobileNavToggleBtn. -->
+      <button type="button" id="mobileQueueToggleBtn" class="icon-btn mobile-only-btn" title="Up next" aria-label="Open queue">▤</button>
       
       <!-- 👇 REPLACE THE OLD ARRANGE BUTTON WITH THIS 👇 -->
       <div style="position: relative;">
@@ -1247,6 +1310,11 @@
   </div>
 
   <!-- Three-pane layout: category browser | main grid | reserved sidebar -->
+  <!-- Shared backdrop for the mobile nav/queue drawers (see #panels'
+       mobile-nav-open/mobile-queue-open classes) — tapping it closes
+       whichever drawer is open. -->
+  <div id="mobileDrawerBackdrop" class="mobile-drawer-backdrop" hidden></div>
+
   <div id="panels" class="panels">
     <section id="leftNavPanel" class="panel panel-leftnav" aria-label="Sections">
       <!-- Genuine far-left nav column, its own narrow strip to the left of
@@ -1930,8 +1998,8 @@
                 <th class="map-attr-th" data-col="artist">Artist<span class="ttc-resize-handle" data-col="artist"></span></th>
                 <th class="map-attr-th" data-col="location">Location<span class="ttc-resize-handle" data-col="location"></span></th>
                 <th class="map-attr-th" data-col="year">Year<span class="ttc-resize-handle" data-col="year"></span></th>
-                <th class="map-attr-th" data-col="genre">Genre<span class="ttc-resize-handle" data-col="genre"></span></th>
-                <th class="map-attr-th">Type</th>
+                <th class="map-attr-th map-attr-th-optional" data-col="genre">Genre<span class="ttc-resize-handle" data-col="genre"></span></th>
+                <th class="map-attr-th map-attr-th-optional">Type</th>
               </tr>
             </thead>
             <tbody id="mapAttrBody"></tbody>
@@ -2161,7 +2229,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.17';
+const APP_VERSION = '1.29.19';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -2374,6 +2442,7 @@ const el = {};
   'tabAlbums','tabDiary','tabScrobbles','viewGridBtn','viewListBtn','sizeControl','sizeSlider',
   'leftPanel','leftModeBtn','leftModeLabel','leftModeMenu','leftGroupBySection','leftList',
   'mainPanel','mainPanelLabel','rightPanel','crateQueuePanelBody','crateQueueClearBtn','resizerLeft','resizerRight','panels','viewbar',
+  'mobileNavToggleBtn','mobileQueueToggleBtn','mobileDrawerBackdrop',
   'diaryWrap','diaryContainer','diaryStateMsg',
   'scrobblesWrap','scrobblesContainer','scrobblesStateMsg',
   'tabStats','tabArtist',
@@ -3056,6 +3125,7 @@ function bindEvents() {
   applyMapWindowPrefs();
   initMapWindowDrag();
   observeMapWindowResize();
+  initMapMobileBreakpointListener();
   wireMapColumnResize();
   el.lastfmClose.addEventListener('click', closeLastfmModal);
   el.lastfmCancelBtn.addEventListener('click', closeLastfmModal);
@@ -3192,6 +3262,7 @@ function bindEvents() {
   el.miniPlayerDetachBtn.addEventListener('click', () => setPlayerDetached(true));
   el.miniPlayerDockBtn.addEventListener('click', () => setPlayerDetached(false));
   initPlayerDrag();
+  initMobileDrawers();
   initSeekDrag();
   el.miniPlayerArt.addEventListener('click', () => {
     if (!currentSpotifyTrack) return;
@@ -3466,6 +3537,7 @@ function bindEvents() {
     }
     if (e.key !== 'Escape') return;
     closeDeck(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal(); closeTrackPropertiesModal(); closeTimelineModal(); closeMapModal();
+    setMobileDrawer(null);
     // Deliberately NOT closing the master player here — whichever engine
     // (Spotify or YouTube) is driving it, it's a persistent background
     // player now, not a modal, so Escape (used to dismiss whatever modal/
@@ -3933,6 +4005,46 @@ function applyPanelVisibility() {
   el.rightPanel.style.display = state.showRight ? 'flex' : 'none';
   el.resizerRight.style.display = state.showRight ? 'block' : 'none';
   refitTrackTable();
+}
+
+// ---- Mobile nav/queue drawers (1.29.19) ----
+// Below the existing sub-900px breakpoint, .panel-leftnav/.panel-left/
+// .panel-right are display:none (see that media query) with nothing to
+// replace them — on a phone there was previously no way to switch Music/
+// Playlist Explorer, browse by Artist/Genre/Decade, or see the queue at
+// all. These two off-canvas drawers reuse those same panel elements
+// (rather than duplicating their content) by toggling a class on #panels
+// that the mobile media query turns into a fixed, full-height overlay —
+// so anything that already renders into #leftNavPanel/#leftPanel/
+// #rightPanel (which is most of the app's browsing/filtering UI) just
+// works inside the drawer with no changes of its own.
+const MOBILE_DRAWER_BREAKPOINT_QUERY = '(max-width: 900px)';
+
+function isMobileDrawerLayout() {
+  return window.matchMedia(MOBILE_DRAWER_BREAKPOINT_QUERY).matches;
+}
+
+// which is 'nav', 'queue', or null (both closed).
+function setMobileDrawer(which) {
+  el.panels.classList.toggle('mobile-nav-open', which === 'nav');
+  el.panels.classList.toggle('mobile-queue-open', which === 'queue');
+  el.mobileDrawerBackdrop.hidden = !which;
+  document.body.classList.toggle('mobile-drawer-open', !!which); // locks background scroll while a drawer covers the screen
+}
+function toggleMobileNavDrawer() {
+  setMobileDrawer(el.panels.classList.contains('mobile-nav-open') ? null : 'nav');
+}
+function toggleMobileQueueDrawer() {
+  setMobileDrawer(el.panels.classList.contains('mobile-queue-open') ? null : 'queue');
+}
+function initMobileDrawers() {
+  el.mobileNavToggleBtn.addEventListener('click', toggleMobileNavDrawer);
+  el.mobileQueueToggleBtn.addEventListener('click', toggleMobileQueueDrawer);
+  el.mobileDrawerBackdrop.addEventListener('click', () => setMobileDrawer(null));
+  // Growing past the breakpoint (rotating a tablet, resizing a browser
+  // window) should drop back to the normal three-pane layout rather than
+  // leaving a "drawer" open that the CSS no longer treats as one.
+  window.matchMedia(MOBILE_DRAWER_BREAKPOINT_QUERY).addEventListener('change', (e) => { if (!e.matches) setMobileDrawer(null); });
 }
 
 // side is also the key into state.panelWidths that the resized width is
@@ -10676,7 +10788,19 @@ function ensureLeafletMap() {
 // browser's native `resize: both` corner handle rather than a custom one.
 // Position + size persist to localStorage so the window comes back where
 // you left it.
+//
+// Below the .map-modal mobile breakpoint (see CSS), the window is forced
+// full-screen instead (drag/resize don't really work with a touch-only,
+// small viewport, and a floating window would just get in its own way) —
+// MAP_MOBILE_BREAKPOINT_QUERY is the single source of truth for that
+// cutoff, shared between the CSS media query and this JS so "are we in
+// mobile layout" never drifts between the two.
 const MAP_WINDOW_PREFS_KEY = 'crate_map_window_prefs_v1';
+const MAP_MOBILE_BREAKPOINT_QUERY = '(max-width: 700px)';
+
+function isMapMobileLayout() {
+  return window.matchMedia(MAP_MOBILE_BREAKPOINT_QUERY).matches;
+}
 
 function loadMapWindowPrefs() {
   try { return JSON.parse(localStorage.getItem(MAP_WINDOW_PREFS_KEY) || '{}'); } catch (e) { return {}; }
@@ -10689,7 +10813,11 @@ function saveMapWindowPrefs(patch) {
 // Applies any remembered position/size before the window is ever shown —
 // only needs to run once at startup since the ResizeObserver + drag
 // handler below keep localStorage in sync as the user moves/resizes it.
+// Skipped entirely in mobile layout so a desktop-sized/positioned window
+// never gets forced onto a phone screen — the CSS breakpoint's full-screen
+// rule is left in sole control there.
 function applyMapWindowPrefs() {
+  if (isMapMobileLayout()) return;
   const p = loadMapWindowPrefs();
   if (p.top != null) el.mapModal.style.top = p.top + 'px';
   if (p.left != null) el.mapModal.style.left = p.left + 'px';
@@ -10700,6 +10828,7 @@ function applyMapWindowPrefs() {
 function initMapWindowDrag() {
   let dragging = false, startX = 0, startY = 0, origX = 0, origY = 0;
   function onDown(e) {
+    if (isMapMobileLayout()) return; // full-screen there — nothing to drag, and dragging would fight the CSS inset
     if (e.target.closest('.modal-x')) return; // let the close button's own click through
     dragging = true;
     const point = (e.touches && e.touches[0]) || e;
@@ -10742,10 +10871,15 @@ function initMapWindowDrag() {
 // resize handle and from the browser being resized under it — so Leaflet
 // can re-lay-out its tiles (invalidateSize) and the new size gets
 // remembered. Debounced since ResizeObserver can fire in bursts mid-drag.
+// invalidateSize() always runs (needed on mobile too — e.g. a phone
+// rotating between portrait/landscape resizes the full-screen window and
+// the map tiles need to catch up) but the mobile full-screen box itself
+// is never persisted as if it were a deliberate resize.
 let mapResizeSaveTimer = null;
 function observeMapWindowResize() {
   new ResizeObserver(() => {
     if (leafletMapInstance) leafletMapInstance.invalidateSize();
+    if (isMapMobileLayout()) return;
     clearTimeout(mapResizeSaveTimer);
     mapResizeSaveTimer = setTimeout(() => {
       const rect = el.mapModal.getBoundingClientRect();
@@ -10754,12 +10888,40 @@ function observeMapWindowResize() {
   }).observe(el.mapModal);
 }
 
+
+// Handles the boundary itself: if the viewport crosses the mobile
+// breakpoint while the map happens to be open (window resized, or a
+// phone/tablet rotated), any inline position/size left over from the
+// other mode needs to get out of the way — inline styles beat the CSS
+// media query's rule, so without this a stale desktop position could
+// pin the "full screen" mobile layout to one corner, or vice versa.
+function clearMapWindowInlineGeometry() {
+  el.mapModal.style.top = '';
+  el.mapModal.style.left = '';
+  el.mapModal.style.width = '';
+  el.mapModal.style.height = '';
+}
+function initMapMobileBreakpointListener() {
+  window.matchMedia(MAP_MOBILE_BREAKPOINT_QUERY).addEventListener('change', (e) => {
+    if (e.matches) clearMapWindowInlineGeometry(); // entering mobile — hand control back to the CSS full-screen rule
+    else applyMapWindowPrefs(); // leaving mobile — restore the remembered floating position/size
+    applyMapColumnWidths(); // mobile/desktop use different fixed-vs-persisted column widths
+    if (leafletMapInstance) leafletMapInstance.invalidateSize();
+  });
+}
+
 // ---- Attribute table column widths (Name/Artist/Location/Year/Genre) ----
 // Resizable the same way the Tracks table's columns are (drag handle on
 // the right edge of each header), but simpler: just widths, no reordering
 // — the columns here are fixed attributes, not a user-configurable set.
+// Column resizing itself is desktop-only (drag handles aren't a great
+// touch interaction on a table this dense) — mobile layout uses its own
+// fixed, narrower widths below instead of whatever's persisted from a
+// desktop session, since inline widths set here would otherwise override
+// the mobile CSS's column-hiding/sizing rules.
 const MAP_COL_WIDTHS_KEY = 'crate_map_col_widths_v1';
 const MAP_COL_DEFAULT_WIDTHS = { title: 190, artist: 150, location: 170, year: 64, genre: 140 };
+const MAP_COL_MOBILE_WIDTHS = { title: 120, artist: 100, location: 120, year: 46 }; // genre/type are hidden on mobile — see .map-attr-th-optional
 
 function loadMapColWidths() {
   try { return { ...MAP_COL_DEFAULT_WIDTHS, ...JSON.parse(localStorage.getItem(MAP_COL_WIDTHS_KEY) || '{}') }; }
@@ -10772,10 +10934,11 @@ function saveMapColWidth(col, width) {
 }
 
 function applyMapColumnWidths() {
-  const widths = loadMapColWidths();
+  const mobile = isMapMobileLayout();
+  const widths = mobile ? MAP_COL_MOBILE_WIDTHS : loadMapColWidths();
   el.mapAttrHeadRow.querySelectorAll('.map-attr-th[data-col]').forEach(th => {
     const w = widths[th.dataset.col];
-    if (w) th.style.width = w + 'px';
+    th.style.width = w ? w + 'px' : '';
   });
 }
 
@@ -11115,7 +11278,7 @@ function renderMapAttrTable(groups) {
   items.sort((a, b) => mapSortComparator()(a.item, b.item));
 
   if (!items.length) {
-    el.mapAttrBody.innerHTML = '<tr class="map-attr-empty-row"><td colspan="7">No albums match this filter.</td></tr>';
+    el.mapAttrBody.innerHTML = '<tr class="map-attr-empty-row"><td colspan="100%">No albums match this filter.</td></tr>';
     return;
   }
 
@@ -11129,8 +11292,8 @@ function renderMapAttrTable(groups) {
       <td class="map-attr-td" title="${escapeHtml(item.artist)}">${escapeHtml(item.artist)}</td>
       <td class="map-attr-td" title="${escapeHtml(location)}">${escapeHtml(location)}</td>
       <td class="map-attr-td">${year}</td>
-      <td class="map-attr-td" title="${escapeHtml(genre)}">${escapeHtml(genre || '\u2014')}</td>
-      <td class="map-attr-td">${escapeHtml(typeAbbrev(item.type || 'album'))}</td>
+      <td class="map-attr-td map-attr-td-optional" title="${escapeHtml(genre)}">${escapeHtml(genre || '\u2014')}</td>
+      <td class="map-attr-td map-attr-td-optional">${escapeHtml(typeAbbrev(item.type || 'album'))}</td>
     </tr>
   `;
   }).join('');
@@ -13826,6 +13989,7 @@ html, body {
   .icon-btn:focus-visible, #searchInput:focus-visible, #sortSelect:focus-visible {
     outline: 2px solid var(--accent); outline-offset: 1px;
   }
+  .mobile-only-btn { display: none; } /* shown only under the mobile drawer breakpoint — see that media query */
 
   /* ---- Three-pane layout ---- */
 .panels { 
@@ -15163,7 +15327,7 @@ html, body {
     box-shadow: 0 16px 48px rgba(0,0,0,0.55);
   }
   .map-modal .arrange-header { cursor: move; user-select: none; flex: 0 0 auto; }
-  .map-modal .arrange-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+  .map-modal .arrange-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; }
   #mapMain { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
   .map-toolbar {
     display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; margin: -4px 0 10px; flex: 0 0 auto;
@@ -15213,6 +15377,7 @@ html, body {
   .map-attr-table-wrap {
     flex: 1 1 140px; min-height: 90px; margin-top: 10px; overflow: auto;
     border: 1px solid var(--line); border-radius: 6px;
+    -webkit-overflow-scrolling: touch;
   }
   .map-attr-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
   .map-attr-table thead { position: sticky; top: 0; z-index: 2; background: var(--bg-elevated); }
@@ -15229,16 +15394,79 @@ html, body {
   .map-attr-row:hover .map-attr-td { background: var(--bg-card); }
   .map-attr-empty-row td { text-align: center; color: var(--text-dim); padding: 16px 8px; }
 
+  /* ---- Mobile (<=700px): full-screen window, touch-sized controls ----
+     Drag/resize are desktop-only interactions (see isMapMobileLayout() in
+     JS, which this breakpoint must match) — under it the window pins to
+     a near-fullscreen inset instead, column resize handles are hidden,
+     Genre/Type drop from the attribute table to keep the remaining
+     columns legible on a narrow screen (still reachable by horizontal
+     scroll if a device sits right at the edge of the breakpoint), and
+     tap targets are sized up throughout. */
   @media (max-width: 700px) {
     .map-modal {
       top: 8px; left: 8px; right: 8px; bottom: 8px;
       width: auto; height: auto; resize: none;
     }
+    .map-modal .arrange-header { cursor: default; }
+    .map-modal .modal-x { min-width: 36px; min-height: 36px; font-size: 16px; }
+    .map-toolbar { gap: 10px 12px; }
+    .map-toolbar-field select { padding: 8px 10px; font-size: 13px; }
+    .map-toolbar-key-btn { padding: 8px 12px; }
+    .map-time-toggle-btn { padding: 8px 12px; }
+    .diary-subtoolbar-btn { padding: 7px 12px; }
+    .timeline-step-btn { min-width: 36px; min-height: 36px; }
+    .ttc-resize-handle { display: none; } /* column resizing is a drag interaction — not offered on touch */
+    .map-attr-th-optional, .map-attr-td-optional { display: none; } /* Genre/Type — Name/Artist/Location/Year stay */
+    .map-attr-table-wrap { -webkit-overflow-scrolling: touch; }
+    .map-attr-th, .map-attr-td { padding: 8px 8px; } /* bigger row targets for tapping through to an album */
+  }
+
+  /* ---- Mobile nav/queue drawers (1.29.19) ----
+     .panel-leftnav/.panel-left/.panel-right are hidden below this
+     breakpoint (next rule down) same as before; #panels.mobile-nav-open /
+     .mobile-queue-open (toggled by setMobileDrawer() in JS, matching this
+     same 900px cutoff via MOBILE_DRAWER_BREAKPOINT_QUERY) turn them back
+     on as fixed, full-height off-canvas panels instead. Needs !important
+     to win over the "display:none !important" rule right below — .panel-
+     leftnav/.panel-left/.panel-right are also toggled inline by
+     applyPanelVisibility() (the desktop show/hide-panel preference),
+     which an !important rule is required to override either way. */
+  @media (max-width: 900px) {
+    .mobile-only-btn { display: inline-flex !important; align-items: center; justify-content: center; }
+
+    #panels.mobile-nav-open .panel-leftnav,
+    #panels.mobile-nav-open .panel-left {
+      display: flex !important;
+      position: fixed; top: 0; bottom: 0; z-index: 70;
+      height: 100vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+      background: var(--bg); box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+    }
+    #panels.mobile-nav-open .panel-leftnav { left: 0; width: 84px; }
+    #panels.mobile-nav-open .panel-left { left: 84px; width: calc(100vw - 84px); max-width: 320px; }
+
+    #panels.mobile-queue-open .panel-right {
+      display: flex !important;
+      position: fixed; top: 0; right: 0; bottom: 0; z-index: 70;
+      height: 100vh; width: min(86vw, 340px); overflow-y: auto; -webkit-overflow-scrolling: touch;
+      background: var(--bg); box-shadow: -4px 0 24px rgba(0,0,0,0.5); padding: 16px;
+    }
+
+    .mobile-drawer-backdrop { position: fixed; inset: 0; background: rgba(8,10,13,0.6); z-index: 65; }
+    .mobile-drawer-backdrop[hidden] { display: none; }
+    body.mobile-drawer-open { overflow: hidden; }
+
+    /* Bigger touch targets for the nav rail and browse-tree rows while
+       they're being used as a drawer, not a narrow permanent sidebar. */
+    #panels.mobile-nav-open .leftnav-btn { padding: 12px 8px; }
+    #panels.mobile-nav-open .left-row { padding: 10px 8px; min-height: 40px; }
   }
 
   @media (max-width: 900px) {
     .panel-left, .panel-leftnav, .panel-right, .resizer { display: none !important; }
     .panel-main { padding: 0; }
+    .grid-wrap { overflow-x: auto; } /* the Tracks view's columns don't reflow — let it scroll sideways instead of crushing/overflowing */
+    .icon-btn { width: 40px; height: 40px; font-size: 17px; } /* slightly bigger tap targets than the 36px desktop size */
+    .nav-tab { padding: 9px 12px; }
   }
 
   @media (max-width: 620px) {
@@ -15249,6 +15477,19 @@ html, body {
     .deck-heading { padding-top: 0; }
     .deck-art { width: 100%; height: auto; aspect-ratio: 1 / 1; flex: none; }
     .diary-entry { grid-template-columns: 1fr; gap: 4px; }
+
+    /* ---- Generic modal pass (Add/Edit album, Track properties,
+       Last.fm import, New/rename playlist) — everything sharing the
+       .arrange-overlay/.arrange-modal shell except the Map (which has its
+       own floating-window rules and mobile handling at a 700px cutoff, so
+       it's excluded here to avoid the two rulesets fighting each other).
+       Near-fullscreen instead of a centered card, and bigger form
+       controls/buttons for touch. ---- */
+    .arrange-overlay:not(.map-overlay) { padding: 0; align-items: stretch; }
+    .arrange-modal:not(.map-modal) { max-width: none; width: 100%; max-height: none; height: 100%; border-radius: 0; }
+    .add-field input, .add-field select, .add-field textarea { padding: 10px 12px; font-size: 14px; }
+    .save-btn, .cancel-btn { padding: 11px 16px; font-size: 14px; }
+    .modal-x { min-width: 40px; min-height: 40px; font-size: 17px; }
   }
 
   @media (prefers-reduced-motion: reduce) {
