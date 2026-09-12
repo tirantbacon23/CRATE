@@ -13,29 +13,67 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.20
+  CURRENT_VERSION: 1.29.21
 
-  1.29.20 — 2026-09-10 — Two mobile fixes. (1) fetchCatalog() was still
-          using plain fetch() with no timeout and no retry (every other
-          external call in this file — mbFetch/geoFetch — already wraps
-          fetchWithTimeout with retry logic, this one was missed). On a
-          flaky mobile connection a hung or dropped request just silently
-          failed straight to the error card. Now wraps fetchWithTimeout
-          and retries transient network failures twice (short backoff)
-          before giving up; also added initRetryOnReconnect(), which
-          listens for the browser's `online` event and the page becoming
-          visible again (covers a locked screen suspending the tab, which
-          `online` won't catch) and retries automatically if the last load
-          had failed (new catalogLoadFailed flag), instead of relying on
-          the person noticing and tapping Refresh. (2) Album grid covers
-          were too large on mobile: the "Cover size" slider is hidden
-          below 620px (no room for it), which left the grid stuck at
-          whatever --card-min a desktop session had last set (190px
-          default) — one huge cover per row on a phone-width screen. Added
-          a mobile-only override that caps --card-min at 108px via CSS
-          min(), independent of the stored slider value, so it fits 3+
-          columns on a typical phone; the slider's own stored value (and
-          desktop/tablet sizing generally) is untouched.
+  1.29.21 — 2026-09-10 — Bugfix: "the catalogue doesn't load" (intermittent).
+          Root cause: fetchCatalog()'s request to the Apps Script backend
+          was a plain fetch() with no timeout, unlike every other network
+          call in the app (mbFetch, geoFetch, etc. all go through
+          fetchWithTimeout). Google Apps Script web apps are known for
+          slow/variable cold-start response times and can occasionally
+          hang well past what the browser's own default socket timeout
+          would catch — with nothing bounding it client-side, that left
+          the UI stuck on "Cataloguing your collection…" indefinitely,
+          with no error and no way to recover short of reloading the page.
+          Now routed through fetchWithTimeout(..., 25000) — long enough to
+          cover a real cold start, bounded enough to actually fail instead
+          of hanging. A timeout is distinguished from other failures
+          (err.name === 'AbortError') and gets its own message rather than
+          the generic "check your Apps Script URL" one, since a slow
+          response isn't a config problem. Both the timeout and the
+          existing generic error state now show an inline Retry button
+          (state-msg-retry-btn) that calls fetchCatalog() again, so
+          recovery doesn't depend on finding the Refresh icon (which,
+          post-1.29.20, may be tucked into the mobile overflow menu).
+          Also added fetchCatalogInFlight, a simple guard against two
+          overlapping fetchCatalog() calls (e.g. tapping Refresh while the
+          initial load is still pending) racing to overwrite state.raw —
+          whichever happened to resolve last previously won regardless of
+          which was actually more recent.
+
+  1.29.20 — 2026-09-10 — Four quick mobile fixes:
+          (1) iOS zoom-on-focus — every text input/select/textarea in the
+          app was under the 16px threshold that stops Safari auto-zooming
+          the page on focus. One `@media (max-width:640px) { input,
+          select, textarea { font-size: 16px !important; } }` rule fixes
+          all of them at once rather than raising each component's
+          font-size individually.
+          (2) Hover-only UI — .cover-links (album card's Spotify/Discogs
+          link icons), .dd-actions (deck diary entry edit/delete buttons),
+          and .mini-player-seek-handle were all opacity:0 until :hover,
+          making them unreachable on touch. `@media (hover:none)` (checks
+          actual pointer capability, not viewport width) makes all three
+          always-visible on genuinely touch-primary devices.
+          (3) Safe-area insets — env(safe-area-inset-*) padding added to
+          the mini player (was sitting right at the bottom edge, under the
+          home indicator on notched phones), #app's mini-player-clearance
+          padding to match, the mobile nav/queue drawers, the Map's
+          full-screen mobile layout, and the generic full-screen modal
+          pass — all now stay clear of notches/home-indicators instead of
+          assuming a rectangular safe viewport.
+          (4) Topbar overflow menu — the six secondary icon buttons
+          (listened filter, add album, refresh, Last.fm import, timeline,
+          map) were crowding the topbar next to search/sort/nav-tabs on a
+          phone. Below the existing 900px drawer breakpoint,
+          applyMobileOverflowMenu() relocates them (moved via appendChild,
+          not cloned, so their existing click handlers keep working with
+          no rewiring) into the gear icon's existing dropdown as a new
+          "Actions" section with text labels added (menu-icon-btn-label),
+          making the gear the "more actions" entry point on mobile; growing
+          back past 900px moves them straight back to their original
+          topbar position via topbarControls.insertBefore(...,
+          mobileQueueToggleBtn). initMobileOverflowMenu() also makes them
+          close the gear menu on tap, matching the menu's other actions.
 
   1.29.19 — 2026-09-09 — First mobile pass on the rest of the app (the
           Map got its own pass in 1.29.18; this covers everything else).
@@ -1278,7 +1316,7 @@
       <button id="tabArtist" class="nav-tab">ARTIST</button>
     </nav>
 
-    <div class="controls">
+    <div class="controls" id="topbarControls">
       <div class="search-wrap">
         <span class="search-icon">⌕</span>
 		<input id="searchInput" type="text" placeholder="Search artist, title, or catalog…" autocomplete="off">
@@ -1306,6 +1344,17 @@
       <div style="position: relative;">
         <button id="layoutBtn" class="icon-btn" title="Configure layout" aria-label="Configure layout">⚙</button>
         <div id="layoutMenu" class="panel-mode-menu nav-view-menu" hidden style="position: absolute; top: calc(100% + 4px); right: 0; left: auto; margin: 0; width: max-content; box-shadow: 0 10px 24px rgba(0,0,0,0.4);">
+          <!-- Mobile-only: the topbar's secondary icon buttons (listened
+               filter, add album, refresh, Last.fm import, timeline, map)
+               get moved in here below the mobile drawer breakpoint —
+               see applyMobileOverflowMenu() — rather than crowding the
+               topbar on a phone. The gear icon becomes the "more actions"
+               entry point on mobile as a result. Buttons are actually
+               relocated (not cloned), so their existing click handlers
+               keep working with no extra wiring. -->
+          <div class="menu-section-title" id="menuMobileActionsLabel" hidden>Actions</div>
+          <div id="menuMobileActionsSlot"></div>
+          <div class="menu-divider" id="menuMobileActionsDivider" hidden></div>
           <div class="menu-section-title">Layout options</div>
           <button type="button" id="menuArrangePanels">Panels configuration…</button>
           <div class="menu-divider"></div>
@@ -2251,7 +2300,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.20';
+const APP_VERSION = '1.29.21';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -2464,7 +2513,8 @@ const el = {};
   'tabAlbums','tabDiary','tabScrobbles','viewGridBtn','viewListBtn','sizeControl','sizeSlider',
   'leftPanel','leftModeBtn','leftModeLabel','leftModeMenu','leftGroupBySection','leftList',
   'mainPanel','mainPanelLabel','rightPanel','crateQueuePanelBody','crateQueueClearBtn','resizerLeft','resizerRight','panels','viewbar',
-  'mobileNavToggleBtn','mobileQueueToggleBtn','mobileDrawerBackdrop',
+  'mobileNavToggleBtn','mobileQueueToggleBtn','mobileDrawerBackdrop','topbarControls',
+  'menuMobileActionsLabel','menuMobileActionsSlot','menuMobileActionsDivider',
   'diaryWrap','diaryContainer','diaryStateMsg',
   'scrobblesWrap','scrobblesContainer','scrobblesStateMsg',
   'tabStats','tabArtist',
@@ -2715,7 +2765,6 @@ async function init() {
   // those changes instead of leaving the mini player stuck on a stale track.
   setInterval(refreshNowPlayingFromWebApi, 6000);
 
-  initRetryOnReconnect();
   await fetchCatalog();
   maybeRunBackgroundLastfmSync(); // fire-and-forget; doesn't block first paint
 }
@@ -3286,6 +3335,7 @@ function bindEvents() {
   el.miniPlayerDockBtn.addEventListener('click', () => setPlayerDetached(false));
   initPlayerDrag();
   initMobileDrawers();
+  initMobileOverflowMenu();
   initSeekDrag();
   el.miniPlayerArt.addEventListener('click', () => {
     if (!currentSpotifyTrack) return;
@@ -3791,22 +3841,8 @@ function saveCoverageCache() {
 
 /* ---------- Fetch ---------- */
 
-// How many times fetchCatalog silently retries a *transient* failure
-// (timeout, dropped connection, flaky mobile network switching wifi/
-// cellular) before giving up and showing the error state. Plain fetch()
-// has no timeout of its own and this call previously used it directly —
-// on a phone that's exactly the request most likely to hang or drop mid-
-// flight (screen lock, tower handoff, a few seconds without signal in a
-// lift/tunnel), and unlike mbFetch/geoFetch elsewhere in this file it had
-// no timeout wrapper and no retry, so a single bad beat on mobile data
-// meant catalog load just silently failed. HTTP error responses (4xx/5xx
-// that *did* come back) and auth errors are not retried — only network-
-// level failures (fetch rejecting/timing out) are, since retrying a real
-// server error just delays the same failure.
-const FETCH_CATALOG_MAX_RETRIES = 2;
-const FETCH_CATALOG_RETRY_DELAY_MS = 1200;
-
-async function fetchCatalog(attempt = 0) {
+let fetchCatalogInFlight = false;
+async function fetchCatalog() {
   if (!CONFIG.SCRIPT_URL || CONFIG.SCRIPT_URL.indexOf('PASTE_YOUR') === 0) {
     showState('setup', 'albums');
     return;
@@ -3814,29 +3850,34 @@ async function fetchCatalog(attempt = 0) {
   const idToken = getStoredIdToken();
   if (!idToken) { handleAuthError(); return; }
 
+  // Guards against the visible symptom of double-tapping Refresh (or the
+  // initial load and a manual refresh landing at the same time): two
+  // in-flight requests racing to overwrite state.raw, where whichever
+  // happens to resolve last wins regardless of which was actually more
+  // recent. A plain boolean is enough since this only needs to block
+  // *overlapping* calls, not queue them — the one already running will
+  // finish and reflect the current data either way.
+  if (fetchCatalogInFlight) return;
+  fetchCatalogInFlight = true;
+
   showState('loading', 'albums');
-  let res;
   try {
-    res = await fetchWithTimeout(CONFIG.SCRIPT_URL + '?id_token=' + encodeURIComponent(idToken), { method: 'GET' });
-  } catch (networkErr) {
-    // Network-level failure (timeout/abort, DNS hiccup, connection dropped
-    // mid-request) rather than a response the server actually sent back —
-    // exactly the flaky-mobile-connection case. Back off briefly and retry
-    // a couple of times before surfacing the error state.
-    if (attempt < FETCH_CATALOG_MAX_RETRIES) {
-      await new Promise(r => setTimeout(r, FETCH_CATALOG_RETRY_DELAY_MS * (attempt + 1)));
-      return fetchCatalog(attempt + 1);
-    }
-    console.error(networkErr);
-    catalogLoadFailed = true;
-    showState('error', 'albums');
-    return;
-  }
-  try {
+    // Previously a plain fetch() with no timeout — Google Apps Script web
+    // apps are notorious for slow/variable cold-start response times, and
+    // occasionally just hang past what a browser's own default socket
+    // timeout catches. With nothing bounding it client-side, that left the
+    // UI stuck on "Cataloguing your collection…" forever with no error and
+    // no way to recover short of reloading the page — which is what "the
+    // catalogue doesn't load" actually was. 25s is generous enough to
+    // cover a real cold start without leaving a genuine hang unbounded.
+    const res = await fetchWithTimeout(
+      CONFIG.SCRIPT_URL + '?id_token=' + encodeURIComponent(idToken),
+      { method: 'GET' },
+      25000
+    );
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     if (isAuthError(data)) { handleAuthError(); return; }
-    catalogLoadFailed = false;
 
     // Inside fetchCatalog(), update the state.raw mapping:
       state.raw = (data.rows || [])
@@ -3966,35 +4007,14 @@ async function fetchCatalog(attempt = 0) {
     checkAlbumAnniversaries();
   } catch (err) {
     console.error(err);
-    catalogLoadFailed = true;
-    showState('error', 'albums');
+    // AbortError is fetchWithTimeout's controller.abort() firing — a real
+    // timeout, not a network/server failure, and worth telling the person
+    // apart from "check your Apps Script URL" (which isn't the problem
+    // when it's just slow).
+    showState(err.name === 'AbortError' ? 'timeout' : 'error', 'albums');
+  } finally {
+    fetchCatalogInFlight = false;
   }
-}
-
-// Set whenever fetchCatalog ends in the error state, cleared on success.
-// Lets initRetryOnReconnect() below know whether it's worth automatically
-// retrying when the device comes back online or the tab is foregrounded
-// again — both common on mobile (losing signal briefly, or the OS
-// suspending the page in the background) and previously the only recovery
-// was the user noticing the error card and tapping "Refresh" by hand.
-let catalogLoadFailed = false;
-
-// Mobile networks drop in and out far more than desktop — a signal gap,
-// switching from wifi to cellular, or the browser suspending the page
-// while the screen is locked can all fail the initial fetchCatalog() call
-// after its own retries are exhausted. Rather than leaving the person
-// staring at the error card until they think to tap Refresh, listen for
-// the two signals that mean "we might be able to load now" and retry
-// automatically: the browser's online event, and the page becoming
-// visible again (covers the locked-screen case, where 'online' may never
-// fire if the connection technically never dropped).
-function initRetryOnReconnect() {
-  window.addEventListener('online', () => {
-    if (catalogLoadFailed) fetchCatalog();
-  });
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && catalogLoadFailed) fetchCatalog();
-  });
 }
 
 /* ---------- Tabs ---------- */
@@ -4126,7 +4146,66 @@ function initMobileDrawers() {
   // Growing past the breakpoint (rotating a tablet, resizing a browser
   // window) should drop back to the normal three-pane layout rather than
   // leaving a "drawer" open that the CSS no longer treats as one.
-  window.matchMedia(MOBILE_DRAWER_BREAKPOINT_QUERY).addEventListener('change', (e) => { if (!e.matches) setMobileDrawer(null); });
+  window.matchMedia(MOBILE_DRAWER_BREAKPOINT_QUERY).addEventListener('change', (e) => {
+    if (!e.matches) setMobileDrawer(null);
+    applyMobileOverflowMenu();
+  });
+}
+
+// ---- Topbar overflow menu (mobile) ----
+// The topbar's secondary icon buttons (everything past search/sort) don't
+// fit comfortably next to the hamburger + nav tabs + search on a phone —
+// below the same breakpoint the nav/queue drawers use, they're relocated
+// (not cloned — actually moved via appendChild, so their existing click
+// handlers just keep working) into the gear icon's existing dropdown menu,
+// which becomes the "more actions" entry point on mobile as a result.
+// Growing back past the breakpoint moves them straight back to their
+// original spot in the topbar, right before the queue-drawer button.
+const MOBILE_OVERFLOW_ACTIONS = [
+  { id: 'listenedFilterBtn', label: 'Listened filter' },
+  { id: 'addAlbumBtn', label: 'Add album' },
+  { id: 'refreshBtn', label: 'Refresh from sheet' },
+  { id: 'lastfmBtn', label: 'Import from Last.fm' },
+  { id: 'timelineBtn', label: 'Timeline viewer' },
+  { id: 'mapBtn', label: 'Map viewer' }
+];
+
+function applyMobileOverflowMenu() {
+  const mobile = isMobileDrawerLayout();
+  MOBILE_OVERFLOW_ACTIONS.forEach(({ id, label }) => {
+    const btn = el[id];
+    if (!btn) return;
+    if (mobile) {
+      if (!btn.querySelector('.menu-icon-btn-label')) {
+        const labelEl = document.createElement('span');
+        labelEl.className = 'menu-icon-btn-label';
+        labelEl.textContent = label;
+        btn.appendChild(labelEl);
+      }
+      el.menuMobileActionsSlot.appendChild(btn);
+    } else {
+      const labelEl = btn.querySelector('.menu-icon-btn-label');
+      if (labelEl) labelEl.remove();
+      el.topbarControls.insertBefore(btn, el.mobileQueueToggleBtn);
+    }
+  });
+  el.menuMobileActionsLabel.hidden = !mobile;
+  el.menuMobileActionsDivider.hidden = !mobile;
+}
+
+// One-time setup: these buttons keep their existing click handlers (which
+// do the actual add-album/refresh/etc. work) — this just additionally
+// closes the gear menu on tap, same as the menu's other action buttons
+// (menuArrangePanels, menuSignOut, ...) already do, so it doesn't linger
+// open behind whatever the tap just opened. Harmless when the button is
+// sitting in its normal desktop topbar spot — the menu's just already
+// closed there.
+function initMobileOverflowMenu() {
+  MOBILE_OVERFLOW_ACTIONS.forEach(({ id }) => {
+    const btn = el[id];
+    if (btn) btn.addEventListener('click', () => { el.layoutMenu.hidden = true; });
+  });
+  applyMobileOverflowMenu();
 }
 
 // side is also the key into state.panelWidths that the resized width is
@@ -7679,15 +7758,24 @@ function showState(kind, which) {
   const msg = which === 'diary' ? el.diaryStateMsg : which === 'scrobbles' ? el.scrobblesStateMsg : el.stateMsg;
   container.innerHTML = '';
   msg.hidden = false;
+  const retryBtnHtml = '<div><button type="button" class="state-msg-retry-btn">Retry</button></div>';
   const messages = {
     loading: 'Cataloguing your collection…',
-    error: 'Couldn\u2019t reach the crate. Check your Apps Script URL and that the sheet is deployed with access set to "Anyone".',
+    error: 'Couldn\u2019t reach the crate. Check your Apps Script URL and that the sheet is deployed with access set to "Anyone".' + retryBtnHtml,
+    // Distinct from plain 'error' (see fetchCatalog's AbortError check) —
+    // a slow response isn't the same problem as a broken URL/deployment,
+    // and telling them apart means not sending someone down the wrong
+    // troubleshooting path for what's usually just a Google Apps Script
+    // cold start.
+    timeout: 'The crate took a while to respond — Google Apps Script can be slow to spin up, especially after it\u2019s been idle. Give it another try.' + retryBtnHtml,
     empty: 'No sleeves match your search.',
     emptyDiary: 'No listens logged yet. Open an album and hit \u201c+ Log a listen\u201d to start your diary.',
     emptyScrobbles: 'No scrobbles imported yet. Use the Last.fm button up top to pull in your listening history.',
     setup: 'CRATE isn\u2019t connected yet. Open index.html, find CONFIG.SCRIPT_URL near the top of the &lt;script&gt;, and paste in your Apps Script Web App URL. See README.md for the full setup.'
   };
   msg.innerHTML = messages[kind] || '';
+  const retryBtn = msg.querySelector('.state-msg-retry-btn');
+  if (retryBtn) retryBtn.addEventListener('click', () => fetchCatalog());
 }
 function hideState(which) {
   (which === 'diary' ? el.diaryStateMsg : which === 'scrobbles' ? el.scrobblesStateMsg : el.stateMsg).hidden = true;
@@ -14137,6 +14225,14 @@ html, body {
   .panel-mode-menu button.remove-menu-btn { color: #E5646B; }
   .panel-mode-menu button.remove-menu-btn:hover { background: var(--bg-card); color: #E5646B; opacity: 0.85; }
 
+  /* Topbar icon buttons relocated here on mobile (applyMobileOverflowMenu) —
+     .panel-mode-menu button's full-width/left-aligned rule above already
+     wins over .icon-btn's fixed 36x36 circle for the properties they share
+     (higher specificity: class+tag beats class alone), so this just cleans
+     up the couple of things that rule doesn't touch. */
+  #menuMobileActionsSlot .icon-btn { display: flex; align-items: center; gap: 10px; border-radius: 0; }
+  .menu-icon-btn-label { font-size: 13px; }
+
   /* #albumsViewMenu needs to let its Group-by flyout render outside the menu's own box */
   #albumsViewMenu { overflow: visible; }
 
@@ -14511,6 +14607,11 @@ html, body {
   .track-group-tracks { padding: 4px 8px 4px 70px; display: flex; flex-direction: column; gap: 2px; }
 
   .state-msg { color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 1.7; max-width: 480px; padding: 60px 4px; }
+  .state-msg-retry-btn {
+    margin-top: 14px; background: var(--bg-elevated); border: 1px solid var(--line); color: var(--text);
+    border-radius: 6px; padding: 8px 16px; font-family: inherit; font-size: 12px; cursor: pointer;
+  }
+  .state-msg-retry-btn:hover { border-color: var(--accent); color: var(--accent); }
 
   .diary-wrap { max-width: 760px; width: 100%; margin: 0 auto; }
   .diary-feed { display: flex; flex-direction: column; gap: 2px; }
@@ -15554,15 +15655,6 @@ html, body {
   @media (max-width: 620px) {
     .brand h1 { font-size: 34px; }
     #searchInput { width: 140px; }
-    /* The size slider itself is hidden below (no room for it in the
-       toolbar), which previously left mobile stuck at whatever --card-min
-       a desktop session had last set (190px default, sometimes bigger) —
-       on a ~360-400px-wide phone that's one huge cover per row. min()
-       caps it here regardless of the stored value, without touching
-       state.cardSize/the slider itself, so desktop/tablet sizing (and the
-       slider, once the viewport is wide enough to show it again) is
-       unaffected. */
-    .grid { grid-template-columns: repeat(auto-fill, minmax(min(var(--card-min, 190px), 108px), 1fr)); gap: 12px; }
     .size-control { display: none; }
     .deck-header { flex-direction: column; align-items: flex-start; }
     .deck-heading { padding-top: 0; }
@@ -15636,6 +15728,68 @@ html, body {
   /* :fullscreen is requested on this element itself (see toggleYtFullscreen)
      so only the video — not the rest of the player bar — fills the screen. */
   .mini-player-video-wrap:fullscreen { width: 100%; height: 100%; aspect-ratio: 16 / 9; background: #000; }
+
+  /* ---------- Mobile quick fixes (1.29.20) ---------- */
+
+  /* iOS Safari auto-zooms the page on focusing any input/select/textarea
+     under 16px — every text field in the app (search, sort, add/edit
+     forms, note/log inputs, the map's API key field, etc.) is smaller than
+     that. One !important rule here is simpler and more reliable than
+     hunting down and raising every individual component's font-size, and
+     !important is warranted since this is a real usability bug, not a
+     style preference to be easily overridden by something more specific
+     added later. */
+  @media (max-width: 640px) {
+    input, select, textarea { font-size: 16px !important; }
+  }
+
+  /* Hover-only UI is unreachable on touch — there's no hover state to
+     trigger it. (hover: none) targets genuinely touch-primary devices
+     (as opposed to a width breakpoint, which would also catch a narrow
+     desktop browser window that has a perfectly good mouse) so these
+     three stay hover-revealed for anyone with a pointer, and become
+     always-visible only where hover can't happen at all. */
+  @media (hover: none) {
+    .cover-links { opacity: 1; pointer-events: auto; } /* album card's Spotify/Discogs/etc link icons */
+    .dd-actions { opacity: 1; } /* deck diary entry's edit/delete buttons */
+    .mini-player-seek-handle { opacity: 1; } /* mini player's seek-bar position dot */
+  }
+
+  /* Safe-area insets — the notch/Dynamic Island and home-indicator strip
+     on modern phones sit on top of the viewport, not outside it, so
+     anything pinned to a screen edge needs padding for them or content
+     ends up under the home indicator (mini player) or clipped by the
+     notch (full-screen drawers/modals). env() falls back to 0 on devices
+     without a notch, so this is a no-op everywhere else. */
+  .mini-player { padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+  body.has-mini-player #app { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+  @media (max-width: 620px) {
+    .mini-player { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
+  }
+  @media (max-width: 900px) {
+    #panels.mobile-nav-open .panel-leftnav,
+    #panels.mobile-nav-open .panel-left,
+    #panels.mobile-queue-open .panel-right {
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    #panels.mobile-nav-open .panel-leftnav { padding-left: env(safe-area-inset-left); }
+    #panels.mobile-queue-open .panel-right { padding-right: env(safe-area-inset-right); }
+  }
+  @media (max-width: 700px) {
+    .map-modal {
+      top: max(8px, env(safe-area-inset-top));
+      left: max(8px, env(safe-area-inset-left));
+      right: max(8px, env(safe-area-inset-right));
+      bottom: max(8px, env(safe-area-inset-bottom));
+    }
+  }
+  @media (max-width: 620px) {
+    .arrange-modal:not(.map-modal) {
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  }
 </style>
 
 </body>
