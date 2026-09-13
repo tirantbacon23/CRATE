@@ -1372,6 +1372,51 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CRATE — a listening log</title>
+<!-- TEMPORARY DIAGNOSTIC OVERLAY — remove once the mobile-only load crash is
+     found and fixed. Installed as the very first script in <head>, before
+     anything else on the page, specifically so it's listening BEFORE any of
+     the app's own startup code runs (that code executes synchronously very
+     early — see the maintenance log's TDZ fixes above — so an error handler
+     added later, e.g. at the bottom of <body>, would already be too late to
+     catch a crash that happens during initial page load). window.onerror
+     catches thrown/uncaught errors; unhandledrejection catches promise
+     rejections that were never caught (relevant since init() is async).
+     Both write directly into a fixed on-screen box instead of console.log,
+     since phone browsers don't have an easily reachable devtools console
+     the way desktop browsers do. -->
+<script>
+(function() {
+  var box = null;
+  function ensureBox() {
+    if (box) return box;
+    box = document.createElement('div');
+    box.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;' +
+      'background:#3a0d0d;color:#fff;font:12px/1.4 monospace;padding:10px;' +
+      'max-height:60vh;overflow:auto;white-space:pre-wrap;border-bottom:3px solid #ff5555;';
+    document.documentElement.appendChild(box);
+    return box;
+  }
+  function report(label, detail) {
+    var el = ensureBox();
+    var line = document.createElement('div');
+    line.style.marginBottom = '8px';
+    line.textContent = '[' + label + '] ' + detail;
+    el.appendChild(line);
+  }
+  window.addEventListener('error', function(e) {
+    report('ERROR', (e.message || 'unknown error') +
+      '\n  at ' + (e.filename || '?') + ':' + e.lineno + ':' + e.colno +
+      (e.error && e.error.stack ? '\n' + e.error.stack : ''));
+  });
+  window.addEventListener('unhandledrejection', function(e) {
+    var reason = e.reason;
+    report('UNHANDLED PROMISE REJECTION',
+      (reason && reason.message ? reason.message : String(reason)) +
+      (reason && reason.stack ? '\n' + reason.stack : ''));
+  });
+})();
+</script>
+<!-- END TEMPORARY DIAGNOSTIC OVERLAY -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
