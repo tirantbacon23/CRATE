@@ -13,7 +13,68 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.35
+  CURRENT_VERSION: 1.29.37
+
+  1.29.37 — 2026-09-13 — Mobile search collapsed down to a single 40x40
+          icon button (matching every other .icon-btn's size/background/
+          border in that row) instead of sitting there as a fixed-width
+          text box next to sort/queue/gear. The old decorative <span
+          class="search-icon"> is now a real <button id="searchIconBtn">
+          (still inert on desktop — pointer-events:none in the base rule,
+          untouched) that focuses #searchInput on tap; :focus-within on
+          #searchWrap does the actual expand/collapse via CSS, no manual
+          open/close state needed for that part. It also stays expanded
+          whenever there's a live query — .mobile-search-has-value, toggled
+          in the existing input handler and in applyAdvSearch() — so
+          walking away from a filtered grid doesn't leave a bare icon with
+          no clue why results are narrowed. Expanding claims the whole
+          utility row (flex-basis:100%) rather than squeezing sideways;
+          since .controls already wraps (flex-wrap:wrap, unchanged), sort/
+          queue/gear just flow onto their own line underneath while it's
+          open and rejoin the icon on one line once it collapses back —
+          same underlying pattern the nav-tabs/brand rows already use, just
+          applied one level down. Scoped entirely to the sub-900px media
+          query; desktop's search bar is untouched.
+
+  1.29.36
+
+  1.29.36 — 2026-09-13 — New feature: advanced search. The search box's
+          matching logic (previously just: lowercase, split on whitespace,
+          require every word as a substring somewhere in artist/title/
+          year/catalog/genres) was replaced with a small query parser:
+            field:value          e.g. artist:sylvie, label:"warp records"
+            year:2022 / year:>=2020 / year:<2020 / year:2020-2022
+            rating:>=4
+            -term / -field:value   (excludes instead of requiring)
+            "exact phrase"
+            plain words             (unchanged old behavior)
+          All tokens still AND together, same as before — just each token
+          can now be a field-scoped or negated or ranged clause instead of
+          only ever a plain substring. Implementation: tokenizeSearchQuery()
+          (manual char-by-char tokenizer — needed to handle an optional
+          leading "-" and an optional "field:" prefix combining with either
+          a bare or quoted value), searchTokenMatches() (field dispatch +
+          parseNumericClause()/numericClauseMatches() for the year/rating
+          operators/ranges), all sitting behind the exact same
+          getSearchTerms()/matchesSearchTerms() call sites as before
+          (searchFilteredRaw + applyFiltersSort), so the left panel and
+          main grid both pick this up automatically with no separate
+          wiring. An unrecognized "field:" prefix (typo, or just not a
+          real field) falls back to literal substring matching on the
+          whole token rather than silently matching everything.
+
+          Also added a small "▾" button next to the search box
+          (#advancedSearchBtn) opening an Advanced Search modal
+          (#advSearchOverlay) with real form fields — Artist, Title, Year
+          from/to, Minimum rating, Genre, Label, Type, Catalog, and a
+          free-text "Additional keywords" field for anything else — for
+          anyone who'd rather fill in boxes than memorize the syntax.
+          Submitting just assembles the same query string into
+          #searchInput (applyAdvSearch/advQuoteIfNeeded) and runs the
+          normal search — there's no separate filtering path to keep in
+          sync with the syntax above.
+
+  1.29.35
 
   1.29.35 — 2026-09-13 — Removed the S/C/R/Y (Spotify/SoundCloud/RYM/
           YouTube) icon row that appeared over album covers on hover.
@@ -1636,9 +1697,10 @@
     </nav>
 
     <div class="controls" id="topbarControls">
-      <div class="search-wrap">
-        <span class="search-icon">⌕</span>
+      <div class="search-wrap" id="searchWrap">
+        <button type="button" class="search-icon" id="searchIconBtn" aria-label="Search" title="Search">⌕</button>
 		<input id="searchInput" type="text" placeholder="Search artist, title, or catalog…" autocomplete="off">
+        <button type="button" id="advancedSearchBtn" class="adv-search-btn" title="Advanced search" aria-label="Advanced search">▾</button>
       </div>
       <select id="sortSelect" aria-label="Sort by">
         <option value="newest">Newest release</option>
@@ -2524,6 +2586,55 @@
   </div>
 </div>
 
+<!-- Advanced search modal — a form-based builder on top of the search
+     box's own field:value syntax (see tokenizeSearchQuery/searchTokenMatches
+     in the script). Filling in fields here just assembles the same query
+     string someone could type directly, and drops it into #searchInput —
+     there's no separate filtering path to keep in sync. -->
+<div id="advSearchOverlay" class="arrange-overlay" hidden>
+  <div class="arrange-modal add-modal">
+    <div class="arrange-header"><h2>Advanced search</h2><button id="advSearchClose" class="modal-x" aria-label="Close">✕</button></div>
+    <div class="arrange-body">
+      <div class="add-form">
+        <label class="add-field">Artist <input type="text" id="advArtist" placeholder="e.g. Radiohead"></label>
+        <label class="add-field">Title <input type="text" id="advTitle" placeholder="e.g. In Rainbows"></label>
+        <label class="add-field">Release year
+          <div class="release-date-fields">
+            <input type="number" id="advYearFrom" placeholder="From" inputmode="numeric" min="0" max="2100">
+            <input type="number" id="advYearTo" placeholder="To" inputmode="numeric" min="0" max="2100">
+          </div>
+        </label>
+        <label class="add-field">Minimum rating
+          <select id="advRatingMin">
+            <option value="">Any</option>
+            <option value="1">★ 1+</option>
+            <option value="2">★★ 2+</option>
+            <option value="3">★★★ 3+</option>
+            <option value="4">★★★★ 4+</option>
+            <option value="5">★★★★★ 5</option>
+          </select>
+        </label>
+        <label class="add-field">Genre <input type="text" id="advGenre" placeholder="e.g. jazz"></label>
+        <label class="add-field">Label <input type="text" id="advLabel" placeholder="e.g. Warp Records"></label>
+        <label class="add-field">Type
+          <select id="advType">
+            <option value="">Any</option>
+            <option>Album</option><option>EP</option><option>Single</option>
+            <option>Compilation</option><option>Live</option><option>Mixtape</option>
+          </select>
+        </label>
+        <label class="add-field">Catalog No. <input type="text" id="advCatalog" placeholder="e.g. CRT-036"></label>
+        <label class="add-field">Additional keywords <input type="text" id="advExtra" placeholder="anything else — same syntax as the search box"></label>
+        <p class="arrange-hint">The search box itself understands this syntax directly too: <code>artist:</code>, <code>year:&gt;=2020</code>, <code>rating:&gt;=4</code>, <code>genre:</code>, <code>label:</code>, <code>type:</code>, <code>catalog:</code>, <code>"exact phrases"</code>, and <code>-word</code> to exclude.</p>
+        <div class="log-form-actions">
+          <button type="button" id="advSearchApplyBtn" class="save-btn">Search</button>
+          <button type="button" id="advSearchClearBtn" class="cancel-btn">Clear</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Edit album modal -->
 <div id="editOverlay" class="arrange-overlay" hidden>
   <div class="arrange-modal add-modal">
@@ -2680,7 +2791,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.35';
+const APP_VERSION = '1.29.37';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -2997,7 +3108,10 @@ const el = {};
   'mapTimeRangeStart','mapTimeRangeEnd',
   'qaOverlay','qaBackdrop','qaHeader','qaTitle','qaSub','qaStars',
   'qaPlayBtn','qaQueueBtn','qaPlaylistBtn','qaViewBtn','qaEditBtn','qaSpotifyBtn','qaRymBtn','qaRemoveBtn','qaDeleteBtn','qaDoneBtn',
-  'qaListenBtn','qaSoundcloudBtn','deckQuickActionsBtn'
+  'qaListenBtn','qaSoundcloudBtn','deckQuickActionsBtn',
+  'advancedSearchBtn','advSearchOverlay','advSearchClose','advArtist','advTitle','advYearFrom','advYearTo',
+  'advRatingMin','advGenre','advLabel','advType','advCatalog','advExtra','advSearchApplyBtn','advSearchClearBtn',
+  'searchWrap','searchIconBtn'
 ].forEach(id => { el[id] = document.getElementById(id); });
 
 let activeItem = null;
@@ -3278,9 +3392,28 @@ function bindEvents() {
   // 1. Search Logic
   el.searchInput.addEventListener('input', debounce(() => {
     state.query = el.searchInput.value.trim().toLowerCase();
+    el.searchWrap.classList.toggle('mobile-search-has-value', !!state.query); // keeps the mobile icon-collapsed search bar expanded while a query is active — see .search-wrap's mobile CSS
     buildLeftList();
     applyFiltersSort();
   }, 150));
+
+  // Mobile: the search icon is now a real button (visually inert on
+  // desktop via pointer-events:none in the base .search-icon rule) so
+  // tapping it can focus the — collapsed-to-invisible-on-mobile — input;
+  // :focus-within in the CSS does the actual expand/collapse.
+  el.searchIconBtn.addEventListener('click', () => el.searchInput.focus());
+
+  // Advanced search modal — see #advSearchOverlay's HTML comment for why
+  // this just assembles a query string into #searchInput rather than
+  // filtering anything itself.
+  el.advancedSearchBtn.addEventListener('click', openAdvSearch);
+  el.advSearchClose.addEventListener('click', closeAdvSearch);
+  el.advSearchOverlay.addEventListener('click', (e) => { if (e.target === el.advSearchOverlay) closeAdvSearch(); });
+  el.advSearchApplyBtn.addEventListener('click', applyAdvSearch);
+  el.advSearchClearBtn.addEventListener('click', () => {
+    [el.advArtist, el.advTitle, el.advYearFrom, el.advYearTo, el.advGenre, el.advLabel, el.advCatalog, el.advExtra].forEach(i => i.value = '');
+    el.advRatingMin.value = ''; el.advType.value = '';
+  });
 
   // 2. Sort logic
   el.sortSelect.addEventListener('change', () => {
@@ -4081,7 +4214,7 @@ function bindEvents() {
       }
     }
     if (e.key !== 'Escape') return;
-    closeDeck(); closeQuickActions(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal(); closeTrackPropertiesModal(); closeTimelineModal(); closeMapModal();
+    closeDeck(); closeQuickActions(); closeAdvSearch(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal(); closeTrackPropertiesModal(); closeTimelineModal(); closeMapModal();
     setMobileDrawer(null);
     // Deliberately NOT closing the master player here — whichever engine
     // (Spotify or YouTube) is driving it, it's a persistent background
@@ -5261,9 +5394,119 @@ function updateMainLabel() {
 
 
 /* ---------- Filter / sort / group ---------- */
+// Advanced search syntax:
+//   field:value            e.g. artist:sylvie, genre:jazz, label:"warp records"
+//   field:"value with spaces"
+//   year:2022 / year:>2020 / year:>=2020 / year:<2020 / year:<=2020 / year:2020-2022
+//   rating:>=4 / rating:4 (same operators as year)
+//   -term / -field:value   excludes matches instead of requiring them
+//   "exact phrase"          a plain quoted phrase, matched as one substring
+//   plain words             same old behavior: substring match against
+//                           artist/title/year/catalog/genres combined
+// All tokens are AND'd together, same as the old space-separated words.
+const SEARCH_FIELD_ALIASES = {
+  artist: 'artist', title: 'title', album: 'title',
+  genre: 'genre', label: 'label',
+  catalog: 'catalog', cat: 'catalog', type: 'type',
+  year: 'year', rating: 'rating',
+  region: 'region', location: 'location'
+};
+
+// Manual tokenizer (rather than one big regex) so quoted phrases, an
+// optional leading "-" (negation), and an optional "field:" prefix can all
+// combine predictably — e.g. -artist:"the beatles" needs all three at once.
+function tokenizeSearchQuery(q) {
+  const tokens = [];
+  let i = 0;
+  const n = q.length;
+  while (i < n) {
+    while (i < n && /\s/.test(q[i])) i++;
+    if (i >= n) break;
+    let negate = false;
+    if (q[i] === '-') { negate = true; i++; }
+    let field = null;
+    const fieldStart = i;
+    while (i < n && /[a-zA-Z]/.test(q[i])) i++;
+    if (i < n && q[i] === ':' && i > fieldStart) {
+      field = q.slice(fieldStart, i);
+      i++; // skip the ':'
+    } else {
+      i = fieldStart; // wasn't actually a "field:" prefix — back up and read it as the value
+    }
+    let value;
+    if (q[i] === '"') {
+      i++;
+      const vs = i;
+      while (i < n && q[i] !== '"') i++;
+      value = q.slice(vs, i);
+      if (i < n) i++; // skip closing quote
+    } else {
+      const vs = i;
+      while (i < n && !/\s/.test(q[i])) i++;
+      value = q.slice(vs, i);
+    }
+    if (field !== null || value) tokens.push({ negate, field, value });
+  }
+  return tokens;
+}
+
+// Parses a numeric clause's value into a comparable shape: a bare number
+// ("4"), a comparison (">=4"), or a range ("2020-2022"). Returns null if
+// the value isn't numeric at all, so the caller can fall back gracefully.
+function parseNumericClause(raw) {
+  const cmp = raw.match(/^(>=|<=|>|<)?(-?\d+(?:\.\d+)?)$/);
+  if (cmp) return { op: cmp[1] || '=', value: parseFloat(cmp[2]) };
+  const range = raw.match(/^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)$/);
+  if (range) return { op: 'range', lo: parseFloat(range[1]), hi: parseFloat(range[2]) };
+  return null;
+}
+
+function numericClauseMatches(actual, clause) {
+  if (actual == null || isNaN(actual) || !clause) return false;
+  switch (clause.op) {
+    case '>': return actual > clause.value;
+    case '<': return actual < clause.value;
+    case '>=': return actual >= clause.value;
+    case '<=': return actual <= clause.value;
+    case 'range': return actual >= clause.lo && actual <= clause.hi;
+    default: return actual === clause.value;
+  }
+}
+
+// Same fields the old plain-word search checked (artist/title/year/catalog/
+// genres) — kept as its own helper since both the free-text-token case and
+// the "field: prefix wasn't actually a real field" fallback below need it.
+function combinedSearchText(r) {
+  const year = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getUTCFullYear() : '';
+  const genres = getGenreList(combinedGenreStr(r)).join(' ');
+  return `${r.artist} ${r.title} ${year} ${r.catalog} ${genres}`.toLowerCase();
+}
+
+function searchTokenMatches(r, token) {
+  const { field, value } = token;
+  if (!field) return combinedSearchText(r).includes(value.toLowerCase());
+
+  const canonicalField = SEARCH_FIELD_ALIASES[field.toLowerCase()];
+  // Not a recognized field name (e.g. someone typed a literal "foo:bar") —
+  // treat the whole thing as a plain substring search rather than silently
+  // matching everything or nothing.
+  if (!canonicalField) return combinedSearchText(r).includes(`${field}:${value}`.toLowerCase());
+
+  if (canonicalField === 'year') {
+    const year = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getUTCFullYear() : null;
+    return numericClauseMatches(year, parseNumericClause(value));
+  }
+  if (canonicalField === 'rating') {
+    return numericClauseMatches(r.rating || 0, parseNumericClause(value));
+  }
+  if (canonicalField === 'genre') {
+    return getGenreList(combinedGenreStr(r)).join(' ').toLowerCase().includes(value.toLowerCase());
+  }
+  return String(r[canonicalField] || '').toLowerCase().includes(value.toLowerCase());
+}
 
 function getSearchTerms() {
-  return state.query ? state.query.toLowerCase().split(/\s+/).filter(Boolean) : [];
+  return state.query ? tokenizeSearchQuery(state.query) : [];
 }
 
 // Shared by the main grid and the left panel (artists/genres/albums) so a
@@ -5272,10 +5515,7 @@ function getSearchTerms() {
 // artists/genre rows derived from them) tagged with that genre.
 function matchesSearchTerms(r, searchTerms) {
   if (searchTerms.length === 0) return true;
-  const year = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getUTCFullYear() : '';
-  const genres = getGenreList(combinedGenreStr(r)).join(' ');
-  const combinedText = `${r.artist} ${r.title} ${year} ${r.catalog} ${genres}`.toLowerCase();
-  return searchTerms.every(term => combinedText.includes(term));
+  return searchTerms.every(token => token.negate ? !searchTokenMatches(r, token) : searchTokenMatches(r, token));
 }
 
 // The raw catalog narrowed down to just what matches the current search
@@ -5285,6 +5525,59 @@ function searchFilteredRaw() {
   const searchTerms = getSearchTerms();
   if (searchTerms.length === 0) return state.raw;
   return state.raw.filter(r => matchesSearchTerms(r, searchTerms));
+}
+
+/* ---------- Advanced search modal ---------- */
+// Quotes a value for the query string only when it actually needs it (has
+// whitespace) — keeps the assembled query readable for the common
+// one-word case instead of quoting everything unconditionally.
+function advQuoteIfNeeded(v) {
+  return /\s/.test(v) ? `"${v.replace(/"/g, '\\"')}"` : v;
+}
+
+function openAdvSearch() {
+  el.advSearchOverlay.hidden = false;
+  el.advArtist.focus();
+}
+
+function closeAdvSearch() {
+  el.advSearchOverlay.hidden = true;
+}
+
+function applyAdvSearch() {
+  const clauses = [];
+  const artist = el.advArtist.value.trim();
+  const title = el.advTitle.value.trim();
+  const genre = el.advGenre.value.trim();
+  const label = el.advLabel.value.trim();
+  const type = el.advType.value.trim();
+  const catalog = el.advCatalog.value.trim();
+  const extra = el.advExtra.value.trim();
+  const yearFrom = el.advYearFrom.value.trim();
+  const yearTo = el.advYearTo.value.trim();
+  const ratingMin = el.advRatingMin.value.trim();
+
+  if (artist) clauses.push(`artist:${advQuoteIfNeeded(artist)}`);
+  if (title) clauses.push(`title:${advQuoteIfNeeded(title)}`);
+  if (genre) clauses.push(`genre:${advQuoteIfNeeded(genre)}`);
+  if (label) clauses.push(`label:${advQuoteIfNeeded(label)}`);
+  if (type) clauses.push(`type:${advQuoteIfNeeded(type)}`);
+  if (catalog) clauses.push(`catalog:${advQuoteIfNeeded(catalog)}`);
+
+  if (yearFrom && yearTo) clauses.push(yearFrom === yearTo ? `year:${yearFrom}` : `year:${yearFrom}-${yearTo}`);
+  else if (yearFrom) clauses.push(`year:>=${yearFrom}`);
+  else if (yearTo) clauses.push(`year:<=${yearTo}`);
+
+  if (ratingMin) clauses.push(`rating:>=${ratingMin}`);
+
+  if (extra) clauses.push(extra);
+
+  el.searchInput.value = clauses.join(' ');
+  state.query = el.searchInput.value.trim().toLowerCase();
+  el.searchWrap.classList.toggle('mobile-search-has-value', !!state.query);
+  buildLeftList();
+  applyFiltersSort();
+  closeAdvSearch();
 }
 
 function applyFiltersSort() {
@@ -14741,10 +15034,19 @@ html, body {
 
   .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .search-wrap { position: relative; }
-  .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 14px; pointer-events: none; }
+  .search-icon {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 14px; pointer-events: none;
+    background: none; border: none; padding: 0; margin: 0; /* reset button chrome — purely decorative on desktop, same as the old <span> */
+  }
+  .adv-search-btn {
+    position: absolute; right: 3px; top: 50%; transform: translateY(-50%);
+    width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+    background: none; border: none; border-radius: 4px; color: var(--text-dim); font-size: 11px; cursor: pointer;
+  }
+  .adv-search-btn:hover, .adv-search-btn.active { color: var(--accent); background: var(--bg-card); }
   #searchInput {
     background: var(--bg-elevated); border: 1px solid var(--line); color: var(--text); border-radius: 6px;
-    padding: 9px 12px 9px 32px; font-family: 'Inter', sans-serif; font-size: 13px; width: 200px; outline: none;
+    padding: 9px 26px 9px 32px; font-family: 'Inter', sans-serif; font-size: 13px; width: 200px; outline: none;
   }
   #searchInput:focus { border-color: var(--accent); }
 
@@ -16346,8 +16648,46 @@ html, body {
     .nav-tab.active { background: var(--accent); color: #12161C; } /* solid pill on the active segment, like Letterboxd's active tab */
 
     .controls { order: 4; flex: 1 1 100%; justify-content: flex-end; }
-    .search-wrap { flex: 0 1 auto; min-width: 0; }
-    #searchInput { width: 100%; max-width: 160px; }
+
+    /* ---- Search collapsed to an icon-only trigger (mobile) ----
+       Balances the utility row: instead of a fixed-width text box sitting
+       next to sort/queue/gear, search now starts as just a 40x40 icon
+       button — the same size/background/border treatment as every other
+       .icon-btn here, so it reads as one of the row's icons rather than a
+       lopsided leftover text field. Tapping the icon focuses the (still
+       present, just invisible) input, which expands it via :focus-within
+       — no manual open/close state to track. It also stays expanded
+       whenever there's a non-empty query (.mobile-search-has-value, set
+       by the existing input handler) so walking away from a filtered grid
+       doesn't leave you looking at an icon with no clue why results are
+       narrowed. Expanding claims the full row (flex-basis:100%) rather
+       than squeezing in sideways; .controls already wraps (flex-wrap:wrap
+       from the base .controls rule), so sort/queue/gear just flow onto
+       their own line underneath while it's open and rejoin the icon on
+       one line again once it collapses. */
+    .search-wrap {
+      position: relative; display: flex; align-items: center; flex: 0 0 auto; order: 1;
+    }
+    .search-icon {
+      position: static; pointer-events: auto; cursor: pointer;
+      width: 40px; height: 40px; font-size: 17px; flex: none;
+      background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 6px; color: var(--text);
+    }
+    .search-icon:hover { border-color: var(--accent); color: var(--accent); }
+    #searchInput {
+      position: static; width: 0; flex: 0 0 auto; opacity: 0; padding: 0; margin-left: 0;
+      border-color: transparent; background: var(--bg-elevated);
+      transition: width 0.18s ease, opacity 0.15s ease, padding 0.18s ease, margin-left 0.18s ease;
+    }
+    .adv-search-btn { opacity: 0; pointer-events: none; transition: opacity 0.15s ease; } /* absolutely positioned (base rule) — width doesn't affect flow, just fade it */
+
+    .search-wrap:focus-within, .search-wrap.mobile-search-has-value { flex: 1 1 100%; order: 0; }
+    .search-wrap:focus-within #searchInput, .search-wrap.mobile-search-has-value #searchInput {
+      width: 100%; max-width: none; opacity: 1; padding: 9px 26px 9px 8px; margin-left: 6px; flex: 1 1 auto;
+    }
+    .search-wrap:focus-within .adv-search-btn, .search-wrap.mobile-search-has-value .adv-search-btn {
+      opacity: 1; pointer-events: auto;
+    }
 
     /* Smaller album covers on mobile so more fit per row. The desktop size
        slider (.size-control) is hidden below 900px with no way to reach
