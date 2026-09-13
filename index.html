@@ -13,7 +13,23 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.28
+  CURRENT_VERSION: 1.29.29
+
+  1.29.29 — 2026-09-13 — Restyled the mobile nav tabs (MUSIC/DIARY/
+          SCROBBLES/STATS/ARTIST) as a Letterboxd-style segmented pill bar
+          per user reference screenshot: the five .nav-tab buttons are now
+          equal-width flex segments (flex: 1 1 0) inside a rounded, bordered
+          .nav-tabs track, with the active tab getting a solid accent-
+          colored pill background instead of the old plain-text underline-
+          style highlight. Also reordered the sub-900px topbar rows —
+          identity row (hamburger + brand) on top, the new segmented tab
+          bar directly below it, then the search/sort/queue/gear utility
+          row last — since the primary section switcher should sit closer
+          to the header than secondary controls do, matching the
+          screenshot's gear/username row -> Profile/Diary/Lists/Watchlist
+          row order. Pure CSS, scoped to the existing sub-900px breakpoint;
+          desktop's .nav-tab styling (untouched, no media query) still
+          gets the old bg-elevated/accent-text active state.
 
   1.29.28 — 2026-09-13 — Mobile topbar decluttering. Under the sub-900px
           breakpoint, .topbar's four direct children (hamburger, brand,
@@ -2492,7 +2508,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.28';
+const APP_VERSION = '1.29.29';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -15942,26 +15958,33 @@ html, body {
     .grid-wrap { overflow-x: auto; } /* the Tracks view's columns don't reflow — let it scroll sideways instead of crushing/overflowing */
     .icon-btn { width: 40px; height: 40px; font-size: 17px; } /* slightly bigger tap targets than the 36px desktop size */
 
-    /* ---- Topbar decluttering (mobile) ----
+    /* ---- Topbar decluttering (mobile, Letterboxd-inspired) ----
        Previously the hamburger, brand, all five nav tabs, and the search/
        sort/queue/gear controls were all direct flex children of .topbar
        wrapping freely — on a narrow phone that produced 3-4 uneven rows,
        with the tabs themselves breaking mid-row. `order` pins each group
-       to its own row instead: brand row on top, controls row (right-
-       aligned) below it, then the nav tabs as a single horizontally-
-       scrollable strip so all five labels stay on one line instead of
-       wrapping. */
+       to its own row instead: a plain identity row up top (hamburger +
+       brand), then the nav tabs restyled as a single equal-width segmented
+       bar with a solid pill on the active tab — the same "Profile / Diary
+       / Lists / Watchlist" pill-tab treatment Letterboxd uses — and the
+       search/sort/queue/gear utility row underneath that, since those are
+       secondary to the primary section switcher. */
     .topbar { flex-wrap: wrap; align-items: center; gap: 8px 10px; padding-bottom: 12px; margin-bottom: 12px; }
     #mobileNavToggleBtn { order: 1; }
     .brand { order: 2; flex: 1 1 auto; }
     .brand .tagline { display: none; } /* redundant under the app name once space is tight */
-    .controls { order: 3; flex: 1 1 100%; justify-content: flex-end; }
+
     .nav-tabs {
-      order: 4; flex: 1 1 100%; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch;
-      gap: 2px; padding-bottom: 2px; scrollbar-width: none;
+      order: 3; flex: 1 1 100%; flex-wrap: nowrap; gap: 2px;
+      background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 8px; padding: 3px;
     }
-    .nav-tabs::-webkit-scrollbar { display: none; } /* scrolls, but no visible scrollbar clutter */
-    .nav-tab { padding: 8px 11px; font-size: 11px; white-space: nowrap; }
+    .nav-tab {
+      flex: 1 1 0; min-width: 0; text-align: center; padding: 8px 2px; border-radius: 6px;
+      font-size: 9.5px; letter-spacing: 0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .nav-tab.active { background: var(--accent); color: #12161C; } /* solid pill on the active segment, like Letterboxd's active tab */
+
+    .controls { order: 4; flex: 1 1 100%; justify-content: flex-end; }
     .search-wrap { flex: 1 1 auto; min-width: 0; }
     #searchInput { width: 100%; }
   }
