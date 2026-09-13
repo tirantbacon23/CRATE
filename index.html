@@ -13,7 +13,30 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.26
+  CURRENT_VERSION: 1.29.27
+
+  1.29.27 — 2026-09-13 — Third instance of the same temporal-dead-zone bug
+          class as 1.29.24/1.29.25, found via an on-page diagnostic overlay
+          on a phone where it was still failing after those two fixes:
+          `let fetchCatalogInFlight = false;` was declared one line above
+          fetchCatalog() itself, but fetchCatalog() is called synchronously
+          during startup (init()'s `await fetchCatalog()` is reached with no
+          preceding await in that function), and its very first real lines
+          check/set that flag — so the declaration, further down the file
+          than the earlier two fixes even needed to move past, was still in
+          its own temporal dead zone at call time: "ReferenceError: Cannot
+          access 'fetchCatalogInFlight' before initialization". This one
+          isn't gated behind a mobile-only media query like the previous two
+          — it likely would have surfaced on desktop too, just later, once
+          those two stopped masking it by crashing first inside bindEvents()
+          before execution ever reached fetchCatalog(). Moved the
+          declaration up next to the other pre-init constants/state. Also
+          ran a full pass cross-referencing every top-level let/const
+          against every reference to it elsewhere in the file, and manually
+          re-traced the entire synchronous startup path (bindEvents() and
+          everything it calls directly, plus fetchCatalog()'s own body up to
+          its first await) to confirm nothing else in that path is at risk
+          the same way.
 
   1.29.26 — 2026-09-13 — Bugfix: the Add-album MusicBrainz search
           ("doAddSearch", the search box in the Add form) failing almost
@@ -2451,7 +2474,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.26';
+const APP_VERSION = '1.29.27';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -2487,6 +2510,20 @@ const SPOTIFY_PKCE_STATE_KEY = 'crate_spotify_pkce_state';
 // Single source of truth shared with the matching CSS media query, so
 // mobile-layout detection here and the stylesheet's cutoff never drift.
 const MAP_MOBILE_BREAKPOINT_QUERY = '(max-width: 700px)';
+// Same reasoning as the two consts above, one more time: fetchCatalog() is
+// called synchronously (via init()'s `await fetchCatalog()`, reached with no
+// preceding await) as part of the exact same startApp() chain, and its very
+// first lines check/set this flag before doing anything else. A `let`
+// declared only right above the function itself further down the file was
+// therefore also in its own temporal dead zone at call time —
+// "ReferenceError: Cannot access 'fetchCatalogInFlight' before
+// initialization" — which, same as the others, aborted init() before
+// fetchCatalog() could do anything, well before this flag would ever
+// meaningfully matter (it only guards against a second, overlapping call).
+// This one isn't gated behind any mobile-only condition like the two above,
+// so it likely would have surfaced on desktop too once the earlier two
+// stopped masking it by crashing first.
+let fetchCatalogInFlight = false;
 // Same reasoning, same fix, one const over: bindEvents() also calls
 // initMobileDrawers()/initMobileOverflowMenu() synchronously, which read
 // MOBILE_DRAWER_BREAKPOINT_QUERY and MOBILE_OVERFLOW_ACTIONS respectively.
@@ -4021,7 +4058,6 @@ function saveCoverageCache() {
 
 /* ---------- Fetch ---------- */
 
-let fetchCatalogInFlight = false;
 async function fetchCatalog() {
   if (!CONFIG.SCRIPT_URL || CONFIG.SCRIPT_URL.indexOf('PASTE_YOUR') === 0) {
     showState('setup', 'albums');
