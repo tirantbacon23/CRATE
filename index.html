@@ -13,7 +13,44 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.37
+  CURRENT_VERSION: 1.29.38
+
+  1.29.38 — 2026-09-13 — Two more mobile layout changes:
+
+          (1) The MUSIC/DIARY/SCROBBLES/STATS/ARTIST tab bar (.nav-tabs) is
+          now a fixed bottom bar instead of sitting under the header —
+          position:fixed takes it out of .topbar's flex flow entirely
+          (so the topbar just has one less row now), docked to the
+          viewport bottom like a native app's tab bar. Its height lives in
+          one place (--mobile-navbar-h: 54px) that #app's bottom padding
+          and the mini player's position both reference, so neither the
+          grid's last row nor the mini player end up hidden underneath it.
+          The mini player now docks just above the tab bar (bottom:
+          var(--mobile-navbar-h) instead of 0) rather than fighting it for
+          the same spot. Getting #app's extra padding right when the mini
+          player is active took two attempts — an unconditional (not
+          media-scoped) `body.has-mini-player #app` rule already existed
+          further down the stylesheet for the safe-area-inset case, and at
+          equal specificity it would've won over a mobile-scoped rule
+          placed earlier in the file purely by coming later in source
+          order, regardless of which one is "more specific" to mobile. Fix
+          was to add the mobile override right after that existing rule
+          instead of back where the rest of the tab-bar CSS lives.
+
+          (2) #sortSelect (the always-visible "Newest release" dropdown)
+          is now hidden on mobile, replaced by a "⇅" icon
+          (#sortFilterBtn) that opens a popover (#sortFilterMenu) listing
+          all sort options plus a "Listened only" checkbox. Deliberately
+          drives the exact same underlying controls rather than
+          duplicating their logic: picking a sort option sets
+          el.sortSelect.value and dispatches its own 'change' event (so
+          the one real change handler still runs), and the checkbox just
+          calls el.listenedFilterBtn.click(). renderSortFilterMenu() syncs
+          the popover's checkmark/checkbox to current state whenever it
+          opens. Same open/close pattern as the existing #layoutMenu
+          (toggle on click, dismiss on outside click or Escape).
+
+  1.29.37
 
   1.29.37 — 2026-09-13 — Mobile search collapsed down to a single 40x40
           icon button (matching every other .icon-btn's size/background/
@@ -1720,7 +1757,29 @@
       <!-- Mobile-only: opens the "Up Next" queue panel as an off-canvas
            drawer from the right, same mechanism as mobileNavToggleBtn. -->
       <button type="button" id="mobileQueueToggleBtn" class="icon-btn mobile-only-btn" title="Up next" aria-label="Open queue">▤</button>
-      
+
+      <!-- Mobile-only: consolidates the always-visible #sortSelect dropdown
+           (hidden on mobile — see the sub-900px CSS) plus a "Listened
+           only" toggle into one icon + popover, instead of a dropdown
+           permanently taking up space in the row. Same open/close pattern
+           as #layoutMenu (toggle on click, close on outside click/Escape —
+           see bindEvents' global click listener and the Escape handler). -->
+      <div class="mobile-only-btn" style="position: relative; display: inline-flex;">
+        <button type="button" id="sortFilterBtn" class="icon-btn" title="Sort &amp; filter" aria-label="Sort and filter">⇅</button>
+        <div id="sortFilterMenu" class="panel-mode-menu nav-view-menu" hidden style="position: absolute; top: calc(100% + 4px); right: 0; left: auto; margin: 0; width: max-content; box-shadow: 0 10px 24px rgba(0,0,0,0.4);">
+          <div class="menu-section-title">Sort by</div>
+          <button type="button" class="sort-filter-option" data-sort="newest">Newest release</button>
+          <button type="button" class="sort-filter-option" data-sort="oldest">Oldest release</button>
+          <button type="button" class="sort-filter-option" data-sort="artist">Artist A–Z</button>
+          <button type="button" class="sort-filter-option" data-sort="title">Title A–Z</button>
+          <button type="button" class="sort-filter-option" data-sort="rating">Top rated</button>
+          <button type="button" class="sort-filter-option" data-sort="unrated">Unrated first</button>
+          <button type="button" class="sort-filter-option" data-sort="added">Recently added</button>
+          <div class="menu-divider"></div>
+          <label class="arrange-row"><input type="checkbox" id="sortFilterListenedToggle"> Listened only</label>
+        </div>
+      </div>
+
       <!-- 👇 REPLACE THE OLD ARRANGE BUTTON WITH THIS 👇 -->
       <div style="position: relative;">
         <button id="layoutBtn" class="icon-btn" title="Configure layout" aria-label="Configure layout">⚙</button>
@@ -2791,7 +2850,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.37';
+const APP_VERSION = '1.29.38';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -3111,7 +3170,7 @@ const el = {};
   'qaListenBtn','qaSoundcloudBtn','deckQuickActionsBtn',
   'advancedSearchBtn','advSearchOverlay','advSearchClose','advArtist','advTitle','advYearFrom','advYearTo',
   'advRatingMin','advGenre','advLabel','advType','advCatalog','advExtra','advSearchApplyBtn','advSearchClearBtn',
-  'searchWrap','searchIconBtn'
+  'searchWrap','searchIconBtn','sortFilterBtn','sortFilterMenu','sortFilterListenedToggle'
 ].forEach(id => { el[id] = document.getElementById(id); });
 
 let activeItem = null;
@@ -3422,6 +3481,30 @@ function bindEvents() {
     applyFiltersSort();
   });
 
+  // Mobile "Sort & filter" popover (#sortFilterMenu) — a stand-in for the
+  // always-visible #sortSelect (hidden on mobile, see CSS) plus a
+  // "Listened only" checkbox mirroring #listenedFilterBtn. Deliberately
+  // drives the SAME underlying controls (el.sortSelect.value,
+  // el.listenedFilterBtn.click()) rather than duplicating their logic, so
+  // there's exactly one place that actually applies a sort or the
+  // listened filter.
+  el.sortFilterBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    el.sortFilterMenu.hidden = !el.sortFilterMenu.hidden;
+    if (!el.sortFilterMenu.hidden) renderSortFilterMenu();
+  });
+  el.sortFilterMenu.querySelectorAll('.sort-filter-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      el.sortSelect.value = btn.dataset.sort;
+      el.sortSelect.dispatchEvent(new Event('change'));
+      renderSortFilterMenu();
+      el.sortFilterMenu.hidden = true;
+    });
+  });
+  el.sortFilterListenedToggle.addEventListener('change', () => {
+    el.listenedFilterBtn.click(); // sets state.listenedOnly + applyFiltersSort(), same as the icon itself
+  });
+
   el.refreshBtn.addEventListener('click', () => fetchCatalog());
 
   el.menuSignOut.addEventListener('click', () => { el.layoutMenu.hidden = true; signOut(); });
@@ -3429,6 +3512,7 @@ function bindEvents() {
   el.listenedFilterBtn.addEventListener('click', () => {
     state.listenedOnly = !state.listenedOnly;
     el.listenedFilterBtn.classList.toggle('active', state.listenedOnly);
+    el.sortFilterListenedToggle.checked = state.listenedOnly; // keep the mobile popover's checkbox in sync regardless of which control toggled it
     applyFiltersSort();
   });
 
@@ -4179,6 +4263,7 @@ function bindEvents() {
     if (!el.leftModeMenu.hidden && !el.leftModeMenu.contains(e.target) && !el.leftModeBtn.contains(e.target)) el.leftModeMenu.hidden = true;
     if (!el.albumsViewMenu.hidden && !el.albumsViewMenu.contains(e.target) && !el.mainViewBtn.contains(e.target)) { el.albumsViewMenu.hidden = true; document.getElementById('groupByMenuItem').classList.remove('submenu-open'); }
     if (!el.layoutMenu.hidden && !el.layoutMenu.contains(e.target) && !el.layoutBtn.contains(e.target)) el.layoutMenu.hidden = true;
+    if (!el.sortFilterMenu.hidden && !el.sortFilterMenu.contains(e.target) && !el.sortFilterBtn.contains(e.target)) el.sortFilterMenu.hidden = true;
     if (!el.arrangeModal.hidden && !el.arrangeModal.contains(e.target) && !el.menuArrangePanels.contains(e.target)) el.arrangeModal.hidden = true;
     if (!el.mainConfigModal.hidden && !el.mainConfigModal.contains(e.target) && !el.configureMainBtn.contains(e.target) && !el.menuCustomizeMain.contains(e.target)) el.mainConfigModal.hidden = true;
   });
@@ -4220,7 +4305,7 @@ function bindEvents() {
     // (Spotify or YouTube) is driving it, it's a persistent background
     // player now, not a modal, so Escape (used to dismiss whatever modal/
     // menu is open) leaves it playing.
-    el.albumsViewMenu.hidden = true; el.leftModeMenu.hidden = true; el.layoutMenu.hidden = true;
+    el.albumsViewMenu.hidden = true; el.leftModeMenu.hidden = true; el.layoutMenu.hidden = true; el.sortFilterMenu.hidden = true;
     document.getElementById('groupByMenuItem').classList.remove('submenu-open');
   });
 
@@ -5612,6 +5697,18 @@ function applyFiltersSort() {
 
   state.filtered = list;
   if (state.activeTab === 'albums') renderGrid();
+}
+
+// Syncs the mobile "Sort & filter" popover's UI (which sort option is
+// highlighted, whether "Listened only" is checked) to current state.
+// Called whenever the popover opens, so it can't go stale from a change
+// made some other way (e.g. desktop's own #sortSelect, if the window was
+// resized down from desktop width without a page reload).
+function renderSortFilterMenu() {
+  el.sortFilterMenu.querySelectorAll('.sort-filter-option').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.sort === state.sort);
+  });
+  el.sortFilterListenedToggle.checked = state.listenedOnly;
 }
 
 function hasLoggedListen(item) {
@@ -15127,6 +15224,9 @@ html, body {
     font-family: 'IBM Plex Mono', monospace; font-size: 12px; padding: 8px 14px; cursor: pointer;
   }
   .panel-mode-menu button:hover { background: var(--bg-card); color: var(--accent); }
+  .panel-mode-menu button.sort-filter-option.active { color: var(--accent); } /* checkmark added via ::before below */
+  .panel-mode-menu button.sort-filter-option.active::before { content: '✓ '; }
+  .panel-mode-menu .arrange-row { padding: 8px 14px; margin: 0; } /* the "Listened only" checkbox row, sitting inside a menu rather than the arrange modal .arrange-row is normally used in */
   /* Destructive context-menu action ("Remove from playlist") — same red as .remove-btn */
   .panel-mode-menu button.remove-menu-btn { color: #E5646B; }
   .panel-mode-menu button.remove-menu-btn:hover { background: var(--bg-card); color: #E5646B; opacity: 0.85; }
@@ -16637,15 +16737,44 @@ html, body {
     .brand { order: 2; flex: 1 1 auto; }
     .brand .tagline { display: none; } /* redundant under the app name once space is tight */
 
+    /* ---- Bottom fixed tab bar (mobile) ----
+       Moved off the top of the page entirely: position:fixed removes it
+       from .topbar's flex flow (so it no longer needs its `order`/flex-
+       basis placement — the topbar just has one less row now), and docks
+       it to the bottom of the viewport instead, like a native app's tab
+       bar. --mobile-navbar-h is the one place its height is defined;
+       #app's bottom padding and the mini player's bottom offset below
+       both reference it so nothing ends up hidden underneath it. */
+    :root { --mobile-navbar-h: 54px; }
     .nav-tabs {
-      order: 3; flex: 1 1 100%; flex-wrap: nowrap; gap: 2px;
-      background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 8px; padding: 3px;
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 45;
+      flex-wrap: nowrap; gap: 2px; height: var(--mobile-navbar-h);
+      background: var(--bg-elevated); border: none; border-top: 1px solid var(--line); border-radius: 0;
+      padding: 4px 6px calc(4px + env(safe-area-inset-bottom, 0px));
+      box-shadow: 0 -6px 16px rgba(0,0,0,0.35);
     }
     .nav-tab {
       flex: 1 1 0; min-width: 0; text-align: center; padding: 8px 2px; border-radius: 6px;
       font-size: 9.5px; letter-spacing: 0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .nav-tab.active { background: var(--accent); color: #12161C; } /* solid pill on the active segment, like Letterboxd's active tab */
+
+    /* Reserve space at the bottom of the app so the fixed bar never covers
+       the last row of cards/tracks/etc. Overrides the base (all-widths)
+       #app rule further down for the non-mini-player case; the
+       mini-player-active case is handled separately right below since
+       that rule is also unconditional and would otherwise win by source
+       order over this one (same specificity, declared later in the file). */
+    #app { padding-bottom: calc(var(--mobile-navbar-h) + env(safe-area-inset-bottom, 0px)); }
+    /* Mini player now docks just above the tab bar instead of at the very
+       bottom (which the tab bar occupies). The extra #app padding for the
+       mini-player-active case is handled in the "safe-area insets" section
+       further down, since an unconditional (non-media-scoped) rule there
+       would otherwise win the cascade over this block by coming later in
+       the file despite being less specific to mobile. */
+    .mini-player { bottom: var(--mobile-navbar-h); }
+
+    #sortSelect { display: none; } /* replaced by the "Sort & filter" icon + popover below */
 
     .controls { order: 4; flex: 1 1 100%; justify-content: flex-end; }
 
@@ -16810,6 +16939,15 @@ html, body {
      without a notch, so this is a no-op everywhere else. */
   .mini-player { padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
   body.has-mini-player #app { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+  /* On mobile the fixed bottom tab bar (see --mobile-navbar-h in the
+     topbar-declutter block above) also needs to be cleared — this has to
+     be re-declared here, after the unconditional rule right above, rather
+     than left in that earlier mobile-only block, since two rules with
+     identical specificity resolve by source order regardless of which one
+     is inside a narrower media query. */
+  @media (max-width: 900px) {
+    body.has-mini-player #app { padding-bottom: calc(var(--mobile-navbar-h) + 96px + env(safe-area-inset-bottom, 0px)); }
+  }
   @media (max-width: 620px) {
     .mini-player { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
   }
