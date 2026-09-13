@@ -13,7 +13,44 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.41
+  CURRENT_VERSION: 1.29.42
+
+  1.29.42 — 2026-09-13 — Requested UI restructuring, four parts:
+
+          (1) Removed the always-visible #sortSelect dropdown entirely —
+          #sortFilterBtn (the "⇅" icon + popover) is now the single sort
+          control at every breakpoint instead of being a mobile-only
+          stand-in for it. Refactored the sort-change logic to set
+          state.sort directly from the popover's option buttons rather than
+          proxying through a hidden <select>'s value/change event.
+
+          (2) Moved #sortFilterBtn/#sortFilterMenu out of the topbar and
+          into #mainPanel's own .panel-bar, on the right next to the
+          grid/list view toggle — grouped with the other controls for
+          what's actually showing in the grid below, rather than sitting in
+          the global topbar.
+
+          (3) "Import from Last.fm" moved out of the topbar and into the
+          settings (⚙) menu permanently, under "Integrations" alongside
+          Spotify API/Discogs API. Removed from MOBILE_OVERFLOW_ACTIONS
+          since it no longer needs runtime relocation between topbar and
+          menu depending on breakpoint — it now lives in exactly one place
+          for every screen size.
+
+          (4) The deck's "⋯ Quick actions" button is now mobile-only.
+          Split the old Listen/Spotify/SoundCloud/RYM/+Playlist/Edit
+          details row (previously hidden, superseded everywhere by Quick
+          Actions — see 1.29.33) out from inside .deck-heading into a new
+          #deckActionsBar: a full-width bar sitting under the whole
+          .deck-header as its own row, visible on desktop, hidden under the
+          900px mobile-drawer breakpoint (where the compact trigger button
+          takes over instead — not enough width there for a full row).
+          Added "+ Queue" and "Remove from playlist" buttons to round it
+          out to match Quick Actions' set, both wired to the deck's own
+          activeItem. Didn't duplicate "Delete from crate" up here since
+          the deck already has that as its own confirm-to-remove control
+          further down (#deckRemoveBtn) — a second delete button in the
+          header would just be confusing.
 
   1.29.41 — 2026-09-13 — Bugfix (screenshot): opening the release/album
           detail view (.deck) on mobile with a track playing showed the
@@ -1813,59 +1850,29 @@
 		<input id="searchInput" type="text" placeholder="Search artist, title, or catalog…" autocomplete="off">
         <button type="button" id="advancedSearchBtn" class="adv-search-btn" title="Advanced search" aria-label="Advanced search">▾</button>
       </div>
-      <select id="sortSelect" aria-label="Sort by">
-        <option value="newest">Newest release</option>
-        <option value="oldest">Oldest release</option>
-        <option value="artist">Artist A–Z</option>
-        <option value="title">Title A–Z</option>
-        <option value="rating">Top rated</option>
-        <option value="unrated">Unrated first</option>
-        <option value="added">Recently added</option>
-      </select>
       <button id="listenedFilterBtn" class="icon-btn" title="Show only albums you've logged a full listen for" aria-label="Toggle listened filter">✓</button>
       <button id="addAlbumBtn" class="icon-btn" title="Add album" aria-label="Add album">+</button>
 	  <button id="refreshBtn" class="icon-btn" title="Refresh from sheet" aria-label="Refresh">⟳</button>
-	  <button id="lastfmBtn" class="icon-btn" title="Import from Last.fm" aria-label="Import from Last.fm">◑</button>
 	  <button id="timelineBtn" class="icon-btn" title="Timeline viewer — see what was released when" aria-label="Timeline viewer">◷</button>
 	  <button id="mapBtn" class="icon-btn" title="Map viewer — see where albums were formed, recorded, or played" aria-label="Map viewer">🗺</button>
       <!-- Mobile-only: opens the "Up Next" queue panel as an off-canvas
            drawer from the right, same mechanism as mobileNavToggleBtn. -->
       <button type="button" id="mobileQueueToggleBtn" class="icon-btn mobile-only-btn" title="Up next" aria-label="Open queue">▤</button>
 
-      <!-- Mobile-only: consolidates the always-visible #sortSelect dropdown
-           (hidden on mobile — see the sub-900px CSS) plus a "Listened
-           only" toggle into one icon + popover, instead of a dropdown
-           permanently taking up space in the row. Same open/close pattern
-           as #layoutMenu (toggle on click, close on outside click/Escape —
-           see bindEvents' global click listener and the Escape handler). -->
-      <div class="mobile-only-btn" style="position: relative; display: inline-flex;">
-        <button type="button" id="sortFilterBtn" class="icon-btn" title="Sort &amp; filter" aria-label="Sort and filter">⇅</button>
-        <div id="sortFilterMenu" class="panel-mode-menu nav-view-menu" hidden style="position: absolute; top: calc(100% + 4px); right: 0; left: auto; margin: 0; width: max-content; box-shadow: 0 10px 24px rgba(0,0,0,0.4);">
-          <div class="menu-section-title">Sort by</div>
-          <button type="button" class="sort-filter-option" data-sort="newest">Newest release</button>
-          <button type="button" class="sort-filter-option" data-sort="oldest">Oldest release</button>
-          <button type="button" class="sort-filter-option" data-sort="artist">Artist A–Z</button>
-          <button type="button" class="sort-filter-option" data-sort="title">Title A–Z</button>
-          <button type="button" class="sort-filter-option" data-sort="rating">Top rated</button>
-          <button type="button" class="sort-filter-option" data-sort="unrated">Unrated first</button>
-          <button type="button" class="sort-filter-option" data-sort="added">Recently added</button>
-          <div class="menu-divider"></div>
-          <label class="arrange-row"><input type="checkbox" id="sortFilterListenedToggle"> Listened only</label>
-        </div>
-      </div>
-
       <!-- 👇 REPLACE THE OLD ARRANGE BUTTON WITH THIS 👇 -->
       <div style="position: relative;">
         <button id="layoutBtn" class="icon-btn" title="Configure layout" aria-label="Configure layout">⚙</button>
         <div id="layoutMenu" class="panel-mode-menu nav-view-menu" hidden style="position: absolute; top: calc(100% + 4px); right: 0; left: auto; margin: 0; width: max-content; box-shadow: 0 10px 24px rgba(0,0,0,0.4);">
           <!-- Mobile-only: the topbar's secondary icon buttons (listened
-               filter, add album, refresh, Last.fm import, timeline, map)
-               get moved in here below the mobile drawer breakpoint —
-               see applyMobileOverflowMenu() — rather than crowding the
-               topbar on a phone. The gear icon becomes the "more actions"
-               entry point on mobile as a result. Buttons are actually
-               relocated (not cloned), so their existing click handlers
-               keep working with no extra wiring. -->
+               filter, add album, refresh, timeline, map) get moved in here
+               below the mobile drawer breakpoint — see
+               applyMobileOverflowMenu() — rather than crowding the topbar
+               on a phone. The gear icon becomes the "more actions" entry
+               point on mobile as a result. Buttons are actually relocated
+               (not cloned), so their existing click handlers keep working
+               with no extra wiring. Import from Last.fm used to be one of
+               these too, but now lives permanently below under
+               "Integrations" for every breakpoint instead. -->
           <div class="menu-section-title" id="menuMobileActionsLabel" hidden>Actions</div>
           <div id="menuMobileActionsSlot"></div>
           <div class="menu-divider" id="menuMobileActionsDivider" hidden></div>
@@ -1873,6 +1880,7 @@
           <button type="button" id="menuArrangePanels">Panels configuration…</button>
           <div class="menu-divider"></div>
           <div class="menu-section-title">Integrations</div>
+          <button type="button" id="lastfmBtn">Import from Last.fm</button>
           <button type="button" id="menuSpotifyApi">Spotify API…</button>
           <button type="button" id="menuDiscogsApi">Discogs API…</button>
           <div class="menu-divider"></div>
@@ -2030,6 +2038,29 @@
           <div class="view-toggle" role="group" aria-label="Layout">
             <button id="viewGridBtn" class="view-btn active" title="Grid view" aria-label="Grid view">⊞</button>
             <button id="viewListBtn" class="view-btn" title="List view" aria-label="List view">☰</button>
+          </div>
+          <!-- Sort & filter — now the single sort control at every
+               breakpoint (previously an always-visible #sortSelect dropdown
+               in the topbar on desktop, plus this same icon+popover
+               mobile-only as a space-saving stand-in for it — see the
+               maintenance log). Living here in the main panel's own bar,
+               next to the grid/list toggle, keeps it with the other
+               controls for what's actually showing in the grid below,
+               rather than up in the global topbar. -->
+          <div style="position: relative; display: inline-flex;">
+            <button type="button" id="sortFilterBtn" class="icon-btn" title="Sort &amp; filter" aria-label="Sort and filter">⇅</button>
+            <div id="sortFilterMenu" class="panel-mode-menu nav-view-menu" hidden style="position: absolute; top: calc(100% + 4px); right: 0; left: auto; margin: 0; width: max-content; box-shadow: 0 10px 24px rgba(0,0,0,0.4);">
+              <div class="menu-section-title">Sort by</div>
+              <button type="button" class="sort-filter-option" data-sort="newest">Newest release</button>
+              <button type="button" class="sort-filter-option" data-sort="oldest">Oldest release</button>
+              <button type="button" class="sort-filter-option" data-sort="artist">Artist A–Z</button>
+              <button type="button" class="sort-filter-option" data-sort="title">Title A–Z</button>
+              <button type="button" class="sort-filter-option" data-sort="rating">Top rated</button>
+              <button type="button" class="sort-filter-option" data-sort="unrated">Unrated first</button>
+              <button type="button" class="sort-filter-option" data-sort="added">Recently added</button>
+              <div class="menu-divider"></div>
+              <label class="arrange-row"><input type="checkbox" id="sortFilterListenedToggle"> Listened only</label>
+            </div>
           </div>
         </div>
       </div>
@@ -2293,27 +2324,45 @@
         <p class="deck-meta" id="deckMeta"></p>
         <p class="deck-added" id="deckAdded"></p>
         <p class="deck-scrobble-count" id="deckScrobbleCount" hidden></p>
-        <!-- Kept in the DOM (all their JS wiring — hrefs, dataset.uri,
-             click handlers, the getExternalLinksFor resolution that
-             upgrades these from search links to direct ones — is
-             untouched) but hidden visually: superseded by the single
-             "Quick actions" button below, which opens the same sheet
-             used from the album grid (#qaOverlay/openQuickActions) and
-             covers all of Listen/Spotify/SoundCloud/RYM/Playlist/Edit
-             in one place. See .deck-actions-legacy in the stylesheet. -->
-        <div class="deck-actions deck-actions-legacy">
-          <a id="deckLink" class="deck-link" target="_blank" rel="noopener noreferrer">Listen ↗</a>
-          <a id="deckSpotifyLink" class="deck-link deck-link-spotify" target="_blank" rel="noopener noreferrer">Spotify ↗</a>
-          <a id="deckSoundcloudLink" class="deck-link deck-link-soundcloud" target="_blank" rel="noopener noreferrer">SoundCloud ↗</a>
-          <a id="deckRymLink" class="deck-link deck-link-rym" target="_blank" rel="noopener noreferrer">RYM ↗</a>
-          <button id="deckPlayBtn" class="deck-btn deck-btn-play" type="button" hidden>▶ Play</button>
-          <button id="deckPlaylistBtn" class="deck-btn" type="button">+ Playlist</button>
-          <button id="deckEditBtn" class="deck-btn" type="button">Edit details</button>
-        </div>
-        <div class="deck-actions">
+        <!-- Mobile only (see .deck-actions-mobile-trigger below the mobile
+             drawer breakpoint) — opens the same #qaOverlay sheet used from
+             the album grid, covering all of Listen/Spotify/SoundCloud/RYM/
+             Queue/Playlist/Remove/Edit in one compact place, since there
+             isn't room for a full row of individual buttons on a phone.
+             Desktop shows those individually instead — see
+             #deckActionsBar, now a sibling bar under the whole header
+             rather than squeezed in here. -->
+        <div class="deck-actions deck-actions-mobile-trigger">
           <button id="deckQuickActionsBtn" class="deck-btn deck-btn-quick" type="button">⋯ Quick actions</button>
         </div>
       </div>
+    </div>
+
+    <!-- Desktop-only action bar (hidden on mobile — see
+         .deck-actions-mobile-trigger above for the phone equivalent). Kept
+         as a full-width bar under the header rather than nested in
+         .deck-heading, so it reads as its own row of actions rather than
+         crowding the title block. deckLink/deckSpotifyLink/
+         deckSoundcloudLink/deckRymLink/deckPlayBtn/deckPlaylistBtn/
+         deckEditBtn keep all their existing JS wiring (hrefs, dataset.uri,
+         click handlers, the getExternalLinksFor upgrade from search links
+         to direct ones) untouched from when this lived inside
+         .deck-heading as .deck-actions-legacy — only deckQueueBtn and
+         deckPlaylistRemoveBtn are new, mirroring the Quick Actions sheet's
+         qaQueueBtn/qaRemoveBtn but acting on the deck's own activeItem.
+         "Delete from crate" isn't duplicated here since the deck already
+         has that lower down as #deckRemoveBtn's own remove/confirm control
+         — a second delete button up here would just be confusing. -->
+    <div class="deck-actions-bar" id="deckActionsBar">
+      <button id="deckPlayBtn" class="deck-btn deck-btn-play" type="button" hidden>▶ Play</button>
+      <button id="deckQueueBtn" class="deck-btn" type="button">+ Queue</button>
+      <button id="deckPlaylistBtn" class="deck-btn" type="button">+ Playlist</button>
+      <a id="deckLink" class="deck-link" target="_blank" rel="noopener noreferrer">Listen ↗</a>
+      <a id="deckSpotifyLink" class="deck-link deck-link-spotify" target="_blank" rel="noopener noreferrer">Spotify ↗</a>
+      <a id="deckSoundcloudLink" class="deck-link deck-link-soundcloud" target="_blank" rel="noopener noreferrer">SoundCloud ↗</a>
+      <a id="deckRymLink" class="deck-link deck-link-rym" target="_blank" rel="noopener noreferrer">RYM ↗</a>
+      <button id="deckEditBtn" class="deck-btn" type="button">Edit details</button>
+      <button id="deckPlaylistRemoveBtn" class="deck-btn" type="button" hidden>Remove from playlist</button>
     </div>
 
     <div class="deck-body">
@@ -2925,7 +2974,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.41';
+const APP_VERSION = '1.29.42';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -2988,7 +3037,6 @@ const MOBILE_OVERFLOW_ACTIONS = [
   { id: 'listenedFilterBtn', label: 'Listened filter' },
   { id: 'addAlbumBtn', label: 'Add album' },
   { id: 'refreshBtn', label: 'Refresh from sheet' },
-  { id: 'lastfmBtn', label: 'Import from Last.fm' },
   { id: 'timelineBtn', label: 'Timeline viewer' },
   { id: 'mapBtn', label: 'Map viewer' }
 ];
@@ -3177,7 +3225,7 @@ const PLAYLIST_VIEW_LABELS = { tracks: 'Tracks', albumTracks: 'Album and Tracks'
 
 const el = {};
 [
-  'gridContainer','stateMsg','searchInput','sortSelect','refreshBtn',
+  'gridContainer','stateMsg','searchInput','refreshBtn',
   'tabAlbums','tabDiary','tabScrobbles','viewGridBtn','viewListBtn','sizeControl','sizeSlider',
   'leftPanel','leftModeBtn','leftModeLabel','leftModeMenu','leftGroupBySection','leftList',
   'mainPanel','mainPanelLabel','rightPanel','crateQueuePanelBody','crateQueueClearBtn','resizerLeft','resizerRight','panels','viewbar',
@@ -3196,7 +3244,7 @@ const el = {};
   'addArtist','addTitle','addType','addReleaseYear','addReleaseMonth','addReleaseDay','addRecordedYear','addRecordedMonth','addRecordedDay','addGenre','addGenre2','addRegion','addLocation','addLabel','addCatalog','addLink','addRymLink','addCover','addSaveBtn','addCancelBtn','addToast',
   'addTracksRows','addTracksAddRowBtn',
   'deckOverlay','deckClose','deckImg','deckCatalog','deckTitle','deckArtist','deckMeta','deckAdded','deckScrobbleCount','deckLink','deckRatingNum',
-  'deckSpotifyLink','deckSoundcloudLink','deckRymLink','deckPlayBtn',
+  'deckSpotifyLink','deckSoundcloudLink','deckRymLink','deckPlayBtn','deckActionsBar','deckQueueBtn','deckPlaylistRemoveBtn',
   'deckEditBtn','editOverlay','editClose','editArtist','editTitle','editType','editReleaseYear','editReleaseMonth','editReleaseDay','editRecordedYear','editRecordedMonth','editRecordedDay','editGenre','editGenre2','editRegion','editLocation','editLabel','editCatalog','editLink','editRymLink','editCover','editSaveBtn','editCancelBtn','editToast',
   'editTracksRows','editTracksAddRowBtn','editTracksLoadBtn',
   'ytPlayerMount',
@@ -3382,7 +3430,6 @@ async function init() {
   el.menuAppVersion.textContent = 'CRATE v' + APP_VERSION;
   loadPrefs();
   loadCoverageCache();
-  el.sortSelect.value = state.sort;
   updateGroupByMenuUI();
   el.sizeSlider.value = state.cardSize;
   setViewMode(state.viewMode);
@@ -3514,13 +3561,12 @@ function bindEvents() {
   el.qaRemoveBtn.addEventListener('click', () => { if (quickActionsItem) removeAlbumFromActivePlaylist(quickActionsItem); closeQuickActions(); });
   el.qaDeleteBtn.addEventListener('click', () => { const item = quickActionsItem; closeQuickActions(); if (item) deleteAlbumFromContextMenu(item); });
 
-  // Deck view's own entry point into the same sheet — replaces the old
-  // Listen/Spotify/SoundCloud/RYM/+Playlist/Edit details button row (still
-  // present in the DOM as .deck-actions-legacy, just hidden — see the HTML
-  // comment above it) now that Quick Actions covers all of those in one
-  // place. Deliberately reads `activeItem`, not a captured closure variable,
-  // since this button lives inside the deck and stays valid across
-  // however many different albums the deck gets opened on.
+  // Deck view's mobile entry point into the same sheet — on desktop the
+  // equivalent actions are laid out directly as #deckActionsBar instead
+  // (see the HTML comments there and above #deckQuickActionsBtn).
+  // Deliberately reads `activeItem`, not a captured closure variable, since
+  // this button lives inside the deck and stays valid across however many
+  // different albums the deck gets opened on.
   el.deckQuickActionsBtn.addEventListener('click', () => { if (activeItem) openQuickActions(activeItem); });
 
   // 1. Search Logic
@@ -3549,20 +3595,12 @@ function bindEvents() {
     el.advRatingMin.value = ''; el.advType.value = '';
   });
 
-  // 2. Sort logic
-  el.sortSelect.addEventListener('change', () => {
-    state.sort = el.sortSelect.value;
-    savePrefs();
-    applyFiltersSort();
-  });
-
-  // Mobile "Sort & filter" popover (#sortFilterMenu) — a stand-in for the
-  // always-visible #sortSelect (hidden on mobile, see CSS) plus a
-  // "Listened only" checkbox mirroring #listenedFilterBtn. Deliberately
-  // drives the SAME underlying controls (el.sortSelect.value,
-  // el.listenedFilterBtn.click()) rather than duplicating their logic, so
-  // there's exactly one place that actually applies a sort or the
-  // listened filter.
+  // 2. Sort logic — now driven entirely by the "Sort & filter" popover
+  // (#sortFilterMenu), the single sort control at every breakpoint. The old
+  // always-visible #sortSelect dropdown (previously desktop-only, with this
+  // popover as a mobile-only stand-in for it) has been removed — see the
+  // maintenance log — so state.sort is set directly here instead of
+  // proxying through a hidden <select>'s value/change event.
   el.sortFilterBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     el.sortFilterMenu.hidden = !el.sortFilterMenu.hidden;
@@ -3570,8 +3608,9 @@ function bindEvents() {
   });
   el.sortFilterMenu.querySelectorAll('.sort-filter-option').forEach(btn => {
     btn.addEventListener('click', () => {
-      el.sortSelect.value = btn.dataset.sort;
-      el.sortSelect.dispatchEvent(new Event('change'));
+      state.sort = btn.dataset.sort;
+      savePrefs();
+      applyFiltersSort();
       renderSortFilterMenu();
       el.sortFilterMenu.hidden = true;
     });
@@ -3924,7 +3963,7 @@ function bindEvents() {
 
   // 8. Add / Edit Album Events
   el.addAlbumBtn.addEventListener('click', openAddModal);
-  el.lastfmBtn.addEventListener('click', openLastfmModal);
+  el.lastfmBtn.addEventListener('click', () => { el.layoutMenu.hidden = true; openLastfmModal(); });
   el.timelineBtn.addEventListener('click', openTimelineModal);
   el.timelineClose.addEventListener('click', closeTimelineModal);
   el.timelinePrevYear.addEventListener('click', () => timelineStep(-1));
@@ -4014,6 +4053,13 @@ function bindEvents() {
     if (!activeItem) return;
     openAddToPlaylistSubmenu(el.deckPlaylistBtn, [{ itemType: 'album', row: activeItem.row, trackNum: '', trackName: '' }]);
   });
+  // Mirrors qaQueueBtn/qaRemoveBtn from the Quick Actions sheet (see
+  // #qaOverlay), just acting on the deck's own activeItem instead of
+  // whichever grid item opened the sheet — deckActionsBar is the desktop
+  // equivalent of that same set of actions, laid out as a full bar instead
+  // of a popover since there's room for it here.
+  el.deckQueueBtn.addEventListener('click', () => { if (activeItem) queueAlbumTracks(activeItem); });
+  el.deckPlaylistRemoveBtn.addEventListener('click', () => { if (activeItem) removeAlbumFromActivePlaylist(activeItem); });
 
   // The deck's Spotify link starts on a search page and gets upgraded to
   // the exact album once MusicBrainz resolution finishes (kicked off in
@@ -5775,11 +5821,10 @@ function applyFiltersSort() {
   if (state.activeTab === 'albums') renderGrid();
 }
 
-// Syncs the mobile "Sort & filter" popover's UI (which sort option is
-// highlighted, whether "Listened only" is checked) to current state.
-// Called whenever the popover opens, so it can't go stale from a change
-// made some other way (e.g. desktop's own #sortSelect, if the window was
-// resized down from desktop width without a page reload).
+// Syncs the "Sort & filter" popover's UI (which sort option is highlighted,
+// whether "Listened only" is checked) to current state. Called whenever the
+// popover opens, so it can't go stale from a change made some other way
+// (e.g. the listened-filter icon button toggled directly).
 function renderSortFilterMenu() {
   el.sortFilterMenu.querySelectorAll('.sort-filter-option').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.sort === state.sort);
@@ -11204,6 +11249,9 @@ function openDeck(item) {
   el.deckRymLink.href = deckRymLinkSet ? item.rymLink.trim() : rymSearchUrl(item);
   el.deckRymLink.classList.toggle('direct-link', deckRymLinkSet);
   el.deckRymLink.title = deckRymLinkSet ? 'Open on RateYourMusic' : 'Search on RateYourMusic';
+  // Same condition as qaRemoveBtn in the Quick Actions sheet — only makes
+  // sense while actually browsing inside a playlist.
+  el.deckPlaylistRemoveBtn.hidden = !state.activePlaylistId;
   getExternalLinksFor(item).then(links => {
     if (activeItem !== item) return; // deck moved on to a different album — don't touch stale DOM
     applyResolvedLinksToDeck(links);
@@ -15270,19 +15318,13 @@ html, body {
   }
   #searchInput:focus { border-color: var(--accent); }
 
-  #sortSelect {
-    background: var(--bg-elevated); border: 1px solid var(--line); color: var(--text); border-radius: 6px;
-    padding: 9px 10px; font-family: 'Inter', sans-serif; font-size: 13px; outline: none;
-  }
-  #sortSelect:focus { border-color: var(--accent); }
-
   .icon-btn {
     background: var(--bg-elevated); border: 1px solid var(--line); color: var(--text); border-radius: 6px;
     width: 36px; height: 36px; font-size: 16px; cursor: pointer;
   }
   .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
   .icon-btn.active { background: var(--accent); color: #12161C; border-color: var(--accent); }
-  .icon-btn:focus-visible, #searchInput:focus-visible, #sortSelect:focus-visible {
+  .icon-btn:focus-visible, #searchInput:focus-visible {
     outline: 2px solid var(--accent); outline-offset: 1px;
   }
   .mobile-only-btn { display: none; } /* shown only under the mobile drawer breakpoint — see that media query */
@@ -16135,7 +16177,14 @@ html, body {
   .deck-scrobble-count { color: var(--accent); font-size: 11px; font-family: 'IBM Plex Mono', monospace; margin: -4px 0 10px; }
   
   .deck-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-  .deck-actions-legacy { display: none; } /* superseded by #deckQuickActionsBtn — see the HTML comment above it */
+  /* Mobile-only trigger (the compact "⋯ Quick actions" button) — hidden by
+     default, shown under the mobile drawer breakpoint below. Desktop uses
+     #deckActionsBar instead, as a full row of individual actions. */
+  .deck-actions-mobile-trigger { display: none; }
+  .deck-actions-bar {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    padding: 0 26px 18px; /* matches .deck-header's own left/right padding so the bar lines up under it */
+  }
   .deck-btn, .deck-link {
     display: none; align-items: center; gap: 4px; width: fit-content; padding: 6px 12px; border: 1px solid var(--accent);
     border-radius: 999px; color: var(--accent); background: transparent; font-family: 'IBM Plex Mono', monospace; font-size: 11px;
@@ -16150,6 +16199,7 @@ html, body {
   #deckPlayBtn.deck-btn-play { border-color: var(--accent); color: var(--accent); }
   #deckPlayBtn.deck-btn-play:hover { background: var(--accent); color: #12161C; }
   #deckPlayBtn[hidden] { display: none; } /* .deck-btn's unconditional display:inline-flex would otherwise win the cascade over [hidden] */
+  #deckPlaylistRemoveBtn[hidden] { display: none; }
   .deck-btn-quick { flex: 1 1 auto; justify-content: center; border-color: var(--accent); color: var(--accent); font-weight: 600; }
   .deck-btn-quick:hover { background: var(--accent); color: #12161C; }
 
@@ -16834,6 +16884,11 @@ html, body {
     .mobile-drawer-backdrop[hidden] { display: none; }
     body.mobile-drawer-open { overflow: hidden; }
 
+    /* Compact "⋯ Quick actions" trigger instead of the full desktop action
+       bar — not enough width here for a whole row of individual buttons. */
+    .deck-actions-mobile-trigger { display: flex; }
+    .deck-actions-bar { display: none; }
+
     /* Bigger touch targets for the nav rail and browse-tree rows while
        they're being used as a drawer, not a narrow permanent sidebar. */
     #panels.mobile-nav-open .leftnav-btn { padding: 12px 8px; }
@@ -16928,8 +16983,6 @@ html, body {
        clear of the same reserved strip instead of capping a max-height. */
     .qa-overlay { padding-bottom: calc(var(--mobile-navbar-h) + env(safe-area-inset-bottom, 0px)); }
     body.has-mini-player .qa-overlay { padding-bottom: calc(var(--mobile-navbar-h) + 96px + env(safe-area-inset-bottom, 0px)); }
-
-    #sortSelect { display: none; } /* replaced by the "Sort & filter" icon + popover below */
 
     .controls { order: 4; flex: 1 1 100%; justify-content: flex-end; }
 
