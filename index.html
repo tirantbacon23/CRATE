@@ -13,7 +13,34 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.31
+  CURRENT_VERSION: 1.29.32
+
+  1.29.32 — 2026-09-13 — New feature: Quick Actions bottom sheet, a
+          touch-friendly stand-in for the existing right-click album card
+          menu (openAlbumCardContextMenu), which needs a mouse and has no
+          equivalent on touch at all. Added a small "⋮" button
+          (.card-quick-btn) to the opposite corner of every card from the
+          S/C/R/Y cover-links row — hover-revealed on a pointer device,
+          forced visible under (hover: none) same as cover-links already
+          were, since touch has no hover to reveal it with otherwise.
+          Tapping it opens #qaOverlay: a bottom sheet (Letterboxd's
+          per-user reference) with a blurred-cover header, Play/Queue/
+          Playlist icon row, an interactive star rating, and text rows for
+          full details/edit/Spotify/RateYourMusic/remove-from-playlist/
+          delete. Deliberately not a rewrite of the context menu — every
+          action calls the exact same function the desktop menu and full
+          deck view already use (playAlbumNow, queueAlbumTracks,
+          openAddToPlaylistSubmenu, setRating via activeItem, openDeck,
+          openEditModal, openAlbumOnSpotify, openAlbumOnRym,
+          removeAlbumFromActivePlaylist, deleteAlbumFromContextMenu), so
+          there's no parallel logic to drift out of sync. Note: Crate's
+          data model has no "Like"/"Watchlist" flags the way Letterboxd's
+          does, so those two icons weren't recreated — Play/Queue/Playlist
+          are Crate's real equivalent quick actions. New star row required
+          its own setupStarInteraction() wiring (separate DOM/container
+          from el.deckStars) but setRating() itself needed no changes,
+          since it already writes to activeItem + the card's own
+          .card-rating regardless of which star row triggered it.
 
   1.29.31 — 2026-09-13 — Smaller album covers under the sub-900px
           breakpoint so more fit per row (.size-control, the only user-
@@ -2374,6 +2401,54 @@
   </div>
 </div>
 
+<!-- Quick Actions bottom sheet — a compact, touch-first alternative to the
+     right-click album card menu (openAlbumCardContextMenu), which needs a
+     mouse and isn't reachable at all on touch devices. Opened via each
+     card's new .card-quick-btn (see buildCard). Reuses the exact same
+     underlying actions/functions as the full deck view and the right-click
+     menu (playAlbumNow, queueAlbumTracks, openAddToPlaylistSubmenu,
+     setRating via activeItem, openDeck, openEditModal, openAlbumOnSpotify,
+     openAlbumOnRym, removeAlbumFromActivePlaylist, deleteAlbumFromContextMenu)
+     rather than re-implementing any of them — see openQuickActions(). -->
+<div id="qaOverlay" class="qa-overlay">
+  <div id="qaBackdrop" class="qa-backdrop"></div>
+  <div class="qa-sheet" role="dialog" aria-modal="true" aria-label="Quick actions">
+    <div class="qa-header" id="qaHeader">
+      <div class="qa-header-scrim"></div>
+      <p class="qa-title" id="qaTitle"></p>
+      <p class="qa-sub" id="qaSub"></p>
+    </div>
+
+    <div class="qa-card">
+      <div class="qa-icon-row">
+        <button type="button" class="qa-icon-btn" id="qaPlayBtn">
+          <span class="qa-icon">▶</span><span>Play</span>
+        </button>
+        <button type="button" class="qa-icon-btn" id="qaQueueBtn">
+          <span class="qa-icon">▤</span><span>Queue</span>
+        </button>
+        <button type="button" class="qa-icon-btn" id="qaPlaylistBtn">
+          <span class="qa-icon">+</span><span>Playlist</span>
+        </button>
+      </div>
+
+      <div class="qa-rate-block">
+        <p class="qa-block-label">Rate</p>
+        <div class="stars qa-stars" id="qaStars"></div>
+      </div>
+
+      <button type="button" class="qa-row-btn" id="qaViewBtn">View full details</button>
+      <button type="button" class="qa-row-btn" id="qaEditBtn">Edit details</button>
+      <button type="button" class="qa-row-btn" id="qaSpotifyBtn">Open on Spotify ↗</button>
+      <button type="button" class="qa-row-btn" id="qaRymBtn">View on RateYourMusic ↗</button>
+      <button type="button" class="qa-row-btn" id="qaRemoveBtn" hidden>Remove from playlist</button>
+      <button type="button" class="qa-row-btn qa-danger" id="qaDeleteBtn">Delete from crate</button>
+    </div>
+
+    <button type="button" class="qa-done-btn" id="qaDoneBtn">Done</button>
+  </div>
+</div>
+
 <!-- Edit album modal -->
 <div id="editOverlay" class="arrange-overlay" hidden>
   <div class="arrange-modal add-modal">
@@ -2530,7 +2605,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.31';
+const APP_VERSION = '1.29.32';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -2844,7 +2919,9 @@ const el = {};
   'mapAttrTableWrap','mapAttrHeadRow','mapAttrBody',
   'mapTimeToggleBtn','mapTimeGranularity','mapTimeGranYearBtn','mapTimeGranMonthBtn','mapTimeHint',
   'mapTimeScrubber','mapTimePrev','mapTimeNext','mapTimeLabel','mapTimeSlider','mapTimeTicks',
-  'mapTimeRangeStart','mapTimeRangeEnd'
+  'mapTimeRangeStart','mapTimeRangeEnd',
+  'qaOverlay','qaBackdrop','qaHeader','qaTitle','qaSub','qaStars',
+  'qaPlayBtn','qaQueueBtn','qaPlaylistBtn','qaViewBtn','qaEditBtn','qaSpotifyBtn','qaRymBtn','qaRemoveBtn','qaDeleteBtn','qaDoneBtn'
 ].forEach(id => { el[id] = document.getElementById(id); });
 
 let activeItem = null;
@@ -3075,6 +3152,41 @@ function bindEvents() {
   setupStarInteraction(el.deckStars, () => activeItem ? (activeItem.rating || 0) : 0, (val) => setRating(val));
   setupStarInteraction(el.logStars, () => logRating, (val) => renderLogStars(val));
   setupTrackStarInteraction(el.deckTracklist);
+  // Quick Actions sheet's own star row — separate DOM/container from
+  // el.deckStars, so it needs its own setupStarInteraction wiring, but
+  // setRating() itself is unchanged: it always writes to activeItem plus
+  // el.deckStars plus the card's own .card-rating, so we just additionally
+  // repaint el.qaStars to match after every commit.
+  setupStarInteraction(el.qaStars, () => quickActionsItem ? (quickActionsItem.rating || 0) : 0, async (val) => {
+    await setRating(val);
+    paintStarButtons(el.qaStars, 5, val);
+  });
+
+  // Quick Actions sheet (see openQuickActions/#qaOverlay) — every button
+  // here delegates to the same functions the full deck view and the
+  // right-click album card menu already use.
+  el.qaBackdrop.addEventListener('click', closeQuickActions);
+  el.qaDoneBtn.addEventListener('click', closeQuickActions);
+  el.qaPlayBtn.addEventListener('click', () => { if (quickActionsItem) playAlbumNow(quickActionsItem); closeQuickActions(); });
+  el.qaQueueBtn.addEventListener('click', () => { if (quickActionsItem) queueAlbumTracks(quickActionsItem); });
+  el.qaPlaylistBtn.addEventListener('click', () => {
+    if (!quickActionsItem) return;
+    openAddToPlaylistSubmenu(el.qaPlaylistBtn, [{ itemType: 'album', row: quickActionsItem.row, trackNum: '', trackName: '' }]);
+  });
+  el.qaViewBtn.addEventListener('click', () => { const item = quickActionsItem; closeQuickActions(); if (item) openDeck(item); });
+  el.qaEditBtn.addEventListener('click', () => {
+    // Hide the sheet but deliberately don't call closeQuickActions() here —
+    // that nulls activeItem, and openEditModal() (like setRating) reads
+    // activeItem to know which album to populate the form from.
+    el.qaOverlay.classList.remove('open');
+    document.body.style.overflow = '';
+    quickActionsItem = null;
+    openEditModal();
+  });
+  el.qaSpotifyBtn.addEventListener('click', () => { if (quickActionsItem) openAlbumOnSpotify(quickActionsItem); });
+  el.qaRymBtn.addEventListener('click', () => { if (quickActionsItem) openAlbumOnRym(quickActionsItem); });
+  el.qaRemoveBtn.addEventListener('click', () => { if (quickActionsItem) removeAlbumFromActivePlaylist(quickActionsItem); closeQuickActions(); });
+  el.qaDeleteBtn.addEventListener('click', () => { const item = quickActionsItem; closeQuickActions(); if (item) deleteAlbumFromContextMenu(item); });
 
   // 1. Search Logic
   el.searchInput.addEventListener('input', debounce(() => {
@@ -3882,7 +3994,7 @@ function bindEvents() {
       }
     }
     if (e.key !== 'Escape') return;
-    closeDeck(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal(); closeTrackPropertiesModal(); closeTimelineModal(); closeMapModal();
+    closeDeck(); closeQuickActions(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal(); closeTrackPropertiesModal(); closeTimelineModal(); closeMapModal();
     setMobileDrawer(null);
     // Deliberately NOT closing the master player here — whichever engine
     // (Spotify or YouTube) is driving it, it's a persistent background
@@ -6367,6 +6479,7 @@ function buildCard(item) {
           <a class="cover-link-btn cover-link-rym${rymLinkSet ? ' direct-link' : ''}" href="${escapeHtml(rymHref)}" target="_blank" rel="noopener noreferrer" title="${rymLinkSet ? 'Open on RateYourMusic' : 'Search on RateYourMusic'}">R</a>
           <a class="cover-link-btn cover-link-youtube" href="${youtubeSearchUrl(item)}" target="_blank" rel="noopener noreferrer" title="Search on YouTube">Y</a>
         </div>
+        <button type="button" class="card-quick-btn" title="Quick actions" aria-label="Quick actions">⋮</button>
       </div>
       ${useOverlayFields ? '' : infoHtml}
     </div>
@@ -6374,6 +6487,13 @@ function buildCard(item) {
     
   card.addEventListener('click', (e) => handleAlbumCardClick(e, item, card));
   card.addEventListener('dblclick', () => openDeck(item));
+  // Touch-friendly equivalent of right-clicking the card (see
+  // openAlbumCardContextMenu) — opens the same set of actions as a bottom
+  // sheet instead of a mouse-positioned floating menu.
+  card.querySelector('.card-quick-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    openQuickActions(item);
+  });
   card.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
@@ -10559,6 +10679,41 @@ function closeDeck() {
   resetRemoveBtn();
   // Note: the mini player is intentionally left alone here — it's meant to
   // keep playing even after the album detail view is closed.
+}
+
+/* ---------- Quick Actions bottom sheet ---------- */
+// Touch-friendly stand-in for the right-click album card menu — see the
+// #qaOverlay markup comment for why this exists and what it reuses.
+let quickActionsItem = null;
+
+function openQuickActions(item) {
+  quickActionsItem = item;
+  // Reusing activeItem (rather than inventing a parallel "current item" for
+  // this sheet) is what lets setRating()/openEditModal() below work
+  // unmodified — both already read activeItem, same as the full deck view.
+  activeItem = item;
+
+  const art = item.cover || state.artCache[artKey(item)]?.art || placeholderArt(item);
+  el.qaHeader.style.backgroundImage = `url("${art}")`;
+  el.qaTitle.textContent = item.title;
+  const year = dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getUTCFullYear() : '';
+  el.qaSub.textContent = [item.artist, year].filter(Boolean).join(' · ');
+
+  paintStarButtons(el.qaStars, 5, item.rating || 0);
+
+  // Only meaningful while browsing an actual playlist's contents — same
+  // condition the right-click menu (openAlbumCardContextMenu) uses.
+  el.qaRemoveBtn.hidden = !state.activePlaylistId;
+
+  el.qaOverlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeQuickActions() {
+  el.qaOverlay.classList.remove('open');
+  document.body.style.overflow = '';
+  quickActionsItem = null;
+  activeItem = null;
 }
 
 /* ---------- Remove album ---------- */
@@ -14813,6 +14968,84 @@ html, body {
   .list-view .cover-links { display: none; }
   .hide-cover-links .cover-links { display: none; }
 
+  /* Album card's Quick Actions trigger — opposite corner from the S/C/R/Y
+     cover-links row, opens #qaOverlay (see openQuickActions in the script).
+     Hover-revealed on a pointer device like .cover-links, but forced
+     visible under (hover: none) since touch has no hover state to reveal
+     it with otherwise — see that media query further down. */
+  .card-quick-btn {
+    position: absolute; top: 6px; right: 6px; z-index: 6;
+    width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    background: rgba(18,22,28,0.85); border: 1px solid var(--line); color: var(--text-dim);
+    font-size: 14px; line-height: 1; cursor: pointer; opacity: 0; transition: opacity 0.15s ease;
+  }
+  .card:hover .card-quick-btn, .card:focus-within .card-quick-btn { opacity: 1; }
+  .card-quick-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--bg-card); }
+  .card-quick-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .list-view .card-quick-btn { display: none; } /* list rows already show their own row-level actions */
+
+  /* ---- Quick Actions bottom sheet ---- */
+  .qa-overlay {
+    display: none; position: fixed; inset: 0; z-index: 55; align-items: flex-end; justify-content: center;
+  }
+  .qa-overlay.open { display: flex; }
+  .qa-backdrop { position: absolute; inset: 0; background: rgba(8,10,13,0.75); }
+  .qa-sheet {
+    position: relative; width: 100%; max-width: 480px; max-height: 88vh; overflow-y: auto;
+    background: var(--bg-elevated); border: 1px solid var(--line); border-bottom: none;
+    border-radius: 14px 14px 0 0; animation: qaSlideUp 0.18s ease;
+  }
+  @keyframes qaSlideUp { from { transform: translateY(16px); opacity: 0.6; } to { transform: translateY(0); opacity: 1; } }
+
+  .qa-header {
+    position: relative; padding: 28px 16px 14px; text-align: center;
+    background-size: cover; background-position: center; border-radius: 14px 14px 0 0; overflow: hidden;
+  }
+  .qa-header-scrim {
+    position: absolute; inset: 0; backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px);
+    background: rgba(10,12,16,0.55);
+  }
+  .qa-title, .qa-sub { position: relative; margin: 0; }
+  .qa-title { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 0.5px; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,0.6); }
+  .qa-sub { font-size: 12.5px; color: rgba(255,255,255,0.75); margin-top: 3px; text-shadow: 0 1px 4px rgba(0,0,0,0.6); }
+
+  .qa-card { padding: 14px 16px 6px; }
+  .qa-icon-row { display: flex; border-bottom: 1px solid var(--line); padding-bottom: 14px; margin-bottom: 14px; }
+  .qa-icon-btn {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px;
+    background: none; border: none; color: var(--text-dim); font-size: 11px; cursor: pointer; padding: 4px;
+  }
+  .qa-icon-btn .qa-icon {
+    width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--text);
+  }
+  .qa-icon-btn:hover, .qa-icon-btn:hover .qa-icon { color: var(--accent); border-color: var(--accent); }
+  .qa-icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .qa-rate-block { text-align: center; padding-bottom: 14px; margin-bottom: 6px; border-bottom: 1px solid var(--line); }
+  .qa-block-label {
+    margin: 0 0 8px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--text-dim);
+  }
+  .qa-stars { display: flex; justify-content: center; gap: 4px; }
+
+  .qa-row-btn {
+    display: block; width: 100%; text-align: center; background: none; border: none; border-bottom: 1px solid var(--line);
+    color: var(--text); font-size: 14.5px; padding: 13px 8px; cursor: pointer;
+  }
+  .qa-row-btn:last-of-type { border-bottom: none; }
+  .qa-row-btn:hover { color: var(--accent); }
+  .qa-row-btn.qa-danger { color: #d9534f; }
+  .qa-row-btn.qa-danger:hover { color: #ff6f66; }
+  .qa-row-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  .qa-done-btn {
+    display: block; width: 100%; margin-top: 8px; padding: 16px 8px;
+    background: var(--bg-card); border: none; border-top: 1px solid var(--line);
+    color: var(--accent); font-weight: 600; font-size: 15px; cursor: pointer;
+  }
+  .qa-done-btn:hover { background: var(--bg-elevated); }
+
 .card-info {
   padding: 8px 6px 10px;
   display: flex;
@@ -16115,12 +16348,13 @@ html, body {
      trigger it. (hover: none) targets genuinely touch-primary devices
      (as opposed to a width breakpoint, which would also catch a narrow
      desktop browser window that has a perfectly good mouse) so these
-     three stay hover-revealed for anyone with a pointer, and become
+     four stay hover-revealed for anyone with a pointer, and become
      always-visible only where hover can't happen at all. */
   @media (hover: none) {
     .cover-links { opacity: 1; pointer-events: auto; } /* album card's Spotify/Discogs/etc link icons */
     .dd-actions { opacity: 1; } /* deck diary entry's edit/delete buttons */
     .mini-player-seek-handle { opacity: 1; } /* mini player's seek-bar position dot */
+    .card-quick-btn { opacity: 1; } /* album card's Quick Actions (⋮) button — its only entry point on touch */
   }
 
   /* Safe-area insets — the notch/Dynamic Island and home-indicator strip
