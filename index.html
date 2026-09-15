@@ -13,7 +13,23 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.46
+  CURRENT_VERSION: 1.29.47
+
+  1.29.47 — 2026-09-15 — Playlist Explorer no longer swaps #leftPanel's
+          Albums/Artists/Genres browser away (#musicBrowserView is now
+          permanently visible). Instead the playlist/folder tree is nested
+          directly under #navPlaylistsBtn in the #leftNavPanel rail itself,
+          and clicking the button expands it there in place — widening the
+          rail (via a new setPlaylistsExpanded(), replacing setLeftNavView())
+          rather than floating a popup over the album grid. "Music" button
+          now just resets out of playlist view (exitPlaylistView() +
+          buildLeftList(), same reset the leftList rows already did) instead
+          of swapping a view back in. state.leftNavView replaced by
+          state.playlistsExpanded; openPlaylist() now calls
+          setPlaylistsExpanded(true) instead of setLeftNavView('playlists').
+          Resizer's max width (makeResizable('leftNav', ...)) raised
+          64–220 → 64–320 so the rail can be dragged wide enough for the
+          tree by hand too.
 
   1.29.46 — 2026-09-15 — Bugfix: the Spotify tracklist-match banner
           (addSpotifyMatchBanner, 1.29.45) showed up blank on every Add-
@@ -2013,27 +2029,49 @@
   <div id="panels" class="panels">
     <section id="leftNavPanel" class="panel panel-leftnav" aria-label="Sections">
       <!-- Genuine far-left nav column, its own narrow strip to the left of
-           the thumbnail browser: just "Music" and "Playlist Explorer", both
-           plain always-visible buttons — no dropdown/popup to open first.
-           "Music" keeps today's Albums/Artists/Genres browser + main grid.
-           "Playlist Explorer" swaps the browser column (#leftPanel) over to
-           show the playlist tree (folders + playlists — see
-           setLeftNavView() and renderPlaylistSidebar()). -->
+           the thumbnail browser. "Music" always shows today's Albums/
+           Artists/Genres browser + main grid in #leftPanel (see below) — it
+           no longer swaps away. "Playlist Explorer" is now nested under its
+           own button right here in the rail: clicking it expands the rail
+           in place (see setPlaylistsExpanded()) to reveal the playlist tree
+           (folders + playlists — see renderPlaylistSidebar()) directly
+           beneath the button, rather than taking over the browser column. -->
       <button type="button" id="navMusicBtn" class="leftnav-btn active" aria-current="page">
         <span class="leftnav-icon">♪</span>
         <span class="leftnav-label">Music</span>
       </button>
-      <button type="button" id="navPlaylistsBtn" class="leftnav-btn">
-        <span class="leftnav-icon">☰</span>
-        <span class="leftnav-label">Playlist Explorer</span>
-      </button>
+
+      <div class="leftnav-playlists-group">
+        <button type="button" id="navPlaylistsBtn" class="leftnav-btn" aria-expanded="false">
+          <span class="leftnav-icon">☰</span>
+          <span class="leftnav-label">Playlist Explorer</span>
+          <span class="leftnav-caret">▾</span>
+        </button>
+
+        <!-- Nested playlist tree — hidden/shown in place by
+             setPlaylistsExpanded(), not swapped in over #leftPanel.
+             Structure/behavior (rows, folders, drag-to-file) borrowed
+             unchanged from the Albums/Artists/Genres browser's own
+             .left-row/.left-list patterns below. -->
+        <div id="playlistsBrowserView" class="playlists-nested-tree" hidden>
+          <div class="panel-bar playlists-nested-bar">
+            <span class="panel-label">Playlists</span>
+            <div class="playlist-explorer-actions">
+              <button type="button" id="newPlaylistFolderBtn" class="icon-btn" title="New folder" aria-label="New folder">📁</button>
+              <button type="button" id="newPlaylistBtn" class="icon-btn" title="New playlist" aria-label="New playlist">+</button>
+            </div>
+          </div>
+          <div id="playlistSidebarList" class="playlist-sidebar-list"></div>
+        </div>
+      </div>
     </section>
 
     <div class="resizer" id="resizerLeftNav" aria-hidden="true"></div>
 
     <section id="leftPanel" class="panel panel-left">
-      <!-- Two swappable views — exactly one visible at a time, toggled by
-           the #leftNavPanel rail via setLeftNavView(). -->
+      <!-- Always-visible Albums/Artists/Genres browser — no longer one of
+           two swappable views now that Playlist Explorer lives in the nav
+           rail (see #leftNavPanel above). -->
       <div id="musicBrowserView" class="left-browser-view">
         <div class="panel-bar">
           <div style="position: relative;">
@@ -2077,17 +2115,6 @@
         </div>
 
         <div id="leftList" class="left-list"></div>
-      </div>
-
-      <div id="playlistsBrowserView" class="left-browser-view" hidden>
-        <div class="panel-bar">
-          <span class="panel-label">Playlist Explorer</span>
-          <div class="playlist-explorer-actions">
-            <button type="button" id="newPlaylistFolderBtn" class="icon-btn" title="New folder" aria-label="New folder">📁</button>
-            <button type="button" id="newPlaylistBtn" class="icon-btn" title="New playlist" aria-label="New playlist">+</button>
-          </div>
-        </div>
-        <div id="playlistSidebarList" class="playlist-sidebar-list"></div>
       </div>
     </section>
 
@@ -3084,7 +3111,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.46';
+const APP_VERSION = '1.29.47';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -3234,7 +3261,7 @@ const state = {
   // Which view the far-left Music/Playlists nav rail has selected for the
   // thumbnail-browser column (#leftPanel): 'music' shows the Albums/
   // Artists/Genres browser, 'playlists' shows the flat playlist list.
-  leftNavView: 'music',
+  playlistsExpanded: false,
   activeTab: 'albums',
   activeType: 'All',
   query: '',
@@ -3579,7 +3606,7 @@ async function init() {
     bindEvents();
     makeResizable(el.resizerLeft, el.leftPanel, 'left');
     makeResizable(el.resizerRight, el.rightPanel, 'right');
-    if (el.resizerLeftNav && el.leftNavPanel) makeResizable(el.resizerLeftNav, el.leftNavPanel, 'leftNav', 64, 220);
+    if (el.resizerLeftNav && el.leftNavPanel) makeResizable(el.resizerLeftNav, el.leftNavPanel, 'leftNav', 64, 320);
   }
 
   if (loadSpotifyPlayerPrefs().detached) setPlayerDetached(true); // restore floating-window state (still hidden until playback starts)
@@ -3786,13 +3813,18 @@ function bindEvents() {
   el.folderModalCancelBtn.addEventListener('click', closeFolderModal);
   el.folderModalSaveBtn.addEventListener('click', saveFolderModalClick);
 
-  // Far-left nav rail: two plain, always-visible buttons, no dropdown/popup
-  // to open first. "Music" swaps the browser column back to Albums/
-  // Artists/Genres (and leaves playlist view); "Playlist Explorer" swaps it
-  // to the playlist/folder tree (see setLeftNavView()).
-  el.navMusicBtn.addEventListener('click', () => setLeftNavView('music'));
-  el.navPlaylistsBtn.addEventListener('click', () => setLeftNavView('playlists'));
-  setLeftNavView(state.leftNavView);
+  // Far-left nav rail: "Music" always shows Albums/Artists/Genres in
+  // #leftPanel and just leaves playlist view (same reset the leftList row
+  // clicks already do — see buildLeftList()); "Playlist Explorer" expands/
+  // collapses its own nested tree in place (see setPlaylistsExpanded()).
+  el.navMusicBtn.addEventListener('click', () => {
+    exitPlaylistView();
+    buildLeftList();
+    updateMainLabel();
+    applyFiltersSort();
+  });
+  el.navPlaylistsBtn.addEventListener('click', () => setPlaylistsExpanded(!state.playlistsExpanded));
+  setPlaylistsExpanded(state.playlistsExpanded);
 
   // Drop target for filing a playlist into whichever folder it lands in
   // (matched via the closest .playlist-folder ancestor, so drops inside a
@@ -9959,47 +9991,43 @@ function playlistItemArtUrl(album) {
 // whatever category was showing is still there when you leave the playlist.
 function openPlaylist(id) {
   state.activePlaylistId = id;
-  setLeftNavView('playlists'); // opening a playlist always swaps the browser column to the playlist list
+  setPlaylistsExpanded(true); // reveal the nested tree so the now-active playlist is visible in it
   updateMainLabel();
   renderGrid();
 }
 
-// Leaves playlist view without touching navFilter/leftMode/leftNavView —
-// used when the person switches back into the regular Albums/Artists/
-// Genres list while a playlist happened to be open.
+// Leaves playlist view without touching navFilter/leftMode/playlistsExpanded
+// — used when the person switches back into the regular Albums/Artists/
+// Genres list while a playlist happened to be open. The nested playlist
+// tree, if open, is left open; it's independent of which playlist (if any)
+// is active now.
 function exitPlaylistView() {
   if (!state.activePlaylistId) return;
   state.activePlaylistId = null;
   renderPlaylistSidebar();
 }
 
-// Swaps the thumbnail-browser column (#leftPanel) between the Albums/
-// Artists/Genres browser (#musicBrowserView) and the flat playlist list
-// (#playlistsBrowserView), per the Music/Playlists buttons in the far-left
-// #leftNavPanel rail. Switching to "Music" also exits playlist view
-// (closing whatever playlist was open), same as clicking back into Albums/
-// Artists/Genres always did.
-function setLeftNavView(view) {
-  state.leftNavView = view;
-  if (el.navMusicBtn) {
-    el.navMusicBtn.classList.toggle('active', view === 'music');
-    el.navMusicBtn.setAttribute('aria-current', view === 'music' ? 'page' : 'false');
+// Expands/collapses the playlist tree nested under #navPlaylistsBtn in the
+// #leftNavPanel rail, in place — #leftPanel's Albums/Artists/Genres browser
+// (#musicBrowserView) is always visible now and is untouched by this.
+// Widens the rail itself to fit the tree (capped by the same resizer drag
+// range — see makeResizable('leftNav', ...)) rather than floating the tree
+// over anything, and restores the person's own resized width on collapse.
+const PLAYLISTS_EXPANDED_MIN_WIDTH = 240;
+function setPlaylistsExpanded(expanded) {
+  state.playlistsExpanded = expanded;
+  if (el.leftNavPanel) {
+    el.leftNavPanel.classList.toggle('playlists-expanded', expanded);
+    el.leftNavPanel.style.flexBasis = (expanded
+      ? Math.max(state.panelWidths.leftNav, PLAYLISTS_EXPANDED_MIN_WIDTH)
+      : state.panelWidths.leftNav) + 'px';
   }
   if (el.navPlaylistsBtn) {
-    el.navPlaylistsBtn.classList.toggle('active', view === 'playlists');
-    el.navPlaylistsBtn.setAttribute('aria-current', view === 'playlists' ? 'page' : 'false');
+    el.navPlaylistsBtn.classList.toggle('active', expanded);
+    el.navPlaylistsBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
   }
-  if (el.musicBrowserView) el.musicBrowserView.hidden = view !== 'music';
-  if (el.playlistsBrowserView) el.playlistsBrowserView.hidden = view !== 'playlists';
-
-  if (view === 'music') {
-    exitPlaylistView();
-    buildLeftList();
-    updateMainLabel();
-    applyFiltersSort();
-  } else {
-    renderPlaylistSidebar();
-  }
+  if (el.playlistsBrowserView) el.playlistsBrowserView.hidden = !expanded;
+  if (expanded) renderPlaylistSidebar();
 }
 
 // Renders the Playlist Explorer tree in #playlistsBrowserView: folders
@@ -15647,6 +15675,7 @@ html, body {
   flex: 0 0 148px;
   gap: 3px;
   padding: 10px 6px;
+  overflow-y: auto;
 }
 .panel-left { flex: 0 0 220px; 
 }
@@ -15752,13 +15781,15 @@ html, body {
 .left-group-header:first-child { margin-top: 0; }
 
 /* Far-left nav rail (#leftNavPanel): its own narrow column, separate from
-   the thumbnail-browser column, holding just the "Music" and "Playlists"
-   buttons that pick which view #leftPanel shows (see .left-browser-view
-   below and setLeftNavView() in the script). No background of its own (see
-   .panel-leftnav) — it sits flush against the app's base background like
-   the other panels — but keeps full-width rows so it still reads as a real
-   sidebar rather than a couple of small buttons floating in empty space,
-   and it's drag-resizable via #resizerLeftNav same as the other panels. */
+   the thumbnail-browser column. "Music" just resets #leftPanel's always-
+   visible Albums/Artists/Genres browser (see .left-browser-view below);
+   "Playlist Explorer" expands its own nested tree in place right here in
+   the rail (see setPlaylistsExpanded() in the script) rather than swapping
+   #leftPanel's content. No background of its own (see .panel-leftnav) — it
+   sits flush against the app's base background like the other panels —
+   but keeps full-width rows so it still reads as a real sidebar rather
+   than a couple of small buttons floating in empty space, and it's drag-
+   resizable via #resizerLeftNav same as the other panels. */
 .leftnav-btn {
   display: flex; align-items: center; gap: 10px;
   width: 100%; flex: 0 0 auto; padding: 10px 8px; border-radius: 6px; border: none;
@@ -15769,19 +15800,34 @@ html, body {
 .leftnav-btn.active { color: var(--accent); background: var(--bg-elevated); }
 .leftnav-icon { flex: 0 0 auto; font-size: 15px; line-height: 1; width: 16px; text-align: center; }
 .leftnav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.leftnav-caret { flex: 0 0 auto; font-size: 9px; color: var(--text-dim); }
+.leftnav-caret {
+  flex: 0 0 auto; font-size: 9px; color: var(--text-dim);
+  transition: transform 0.15s ease;
+}
+/* #navPlaylistsBtn's own caret — rotated via setPlaylistsExpanded() toggling
+   #leftNavPanel.playlists-expanded, same rotate-on-collapse idea as
+   .playlist-folder-caret uses for individual folders below. */
+#leftNavPanel:not(.playlists-expanded) #navPlaylistsBtn .leftnav-caret { transform: rotate(-90deg); }
 
-/* "Playlist Explorer" is a plain always-visible button (#navPlaylistsBtn),
-   not a dropdown — see the leftnav-btn styling above and its wiring in
-   bindEvents() / setLeftNavView(). */
-.leftnav-dropdown { position: relative; width: 100%; }
-.leftnav-menu { min-width: 170px; max-height: 320px; overflow-y: auto; }
-.leftnav-menu button { text-align: left; }
+/* Playlist Explorer's tree, nested directly under #navPlaylistsBtn in the
+   rail (see setPlaylistsExpanded()) rather than swapped into #leftPanel —
+   an in-place accordion, not a popup/dropdown. #leftNavPanel itself widens
+   (via its flexBasis, set in setPlaylistsExpanded()) while this is open so
+   the tree has room; .panel-leftnav's own overflow-y below keeps a long
+   tree scrollable within the rail's normal height instead of pushing the
+   page. Row/folder structure and styling (.left-row, .playlist-folder-*)
+   is unchanged from the Albums/Artists/Genres browser's own patterns. */
+.leftnav-playlists-group { display: flex; flex-direction: column; flex: 0 0 auto; min-height: 0; width: 100%; }
+#leftNavPanel.playlists-expanded .leftnav-playlists-group { flex: 1 1 auto; min-height: 0; }
+.playlists-nested-tree {
+  display: flex; flex-direction: column; flex: 1; min-height: 0;
+  margin: 4px 0 0 8px; padding-left: 8px; border-left: 1.5px solid var(--line);
+}
+.playlists-nested-tree[hidden] { display: none; }
+.playlists-nested-bar { min-height: 0; padding-bottom: 6px; margin-bottom: 6px; }
 
-/* The two swappable views inside the thumbnail-browser column
-   (#leftPanel) — #musicBrowserView (Albums/Artists/Genres, unchanged) and
-   #playlistsBrowserView (flat playlist list). Exactly one is un-hidden at
-   a time. */
+/* #musicBrowserView is the only view left in #leftPanel now that Playlist
+   Explorer lives in the nav rail — always visible, never hidden. */
 .left-browser-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .left-browser-view[hidden] { display: none; }
 
@@ -17182,6 +17228,7 @@ html, body {
       background: var(--bg); box-shadow: 4px 0 24px rgba(0,0,0,0.5);
     }
     #panels.mobile-nav-open .panel-leftnav { left: 0; width: 84px; }
+    #panels.mobile-nav-open .panel-leftnav.playlists-expanded { width: 220px; }
     #panels.mobile-nav-open .panel-left { left: 84px; width: calc(100vw - 84px); max-width: 320px; }
 
     #panels.mobile-queue-open .panel-right {
