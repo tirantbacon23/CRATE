@@ -13,7 +13,55 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.42
+  CURRENT_VERSION: 1.29.43
+
+  1.29.43 — 2026-09-13 — Two requested changes, mobile mini player and
+          desktop tracklist selection:
+
+          (1) Mobile mini player is now a single compact row instead of
+          wrapping onto three (track info, then transport/options, then
+          the seek/progress row) — the wrap behavior in the existing
+          `@media (max-width: 620px)` rules for .mini-player-row/.mini-
+          player-track is what made it so tall. .mini-player-progress-row
+          and .mini-player-options (volume, queue, device, detach,
+          fullscreen) are now hidden under that same breakpoint, and the
+          row stays nowrap with the track info truncating instead of
+          claiming a full line, leaving just art + title/artist + the
+          transport (prev/play/next) on one short line. Tapping anywhere
+          on the mini player other than an actual control (transport
+          buttons, seek bar, volume, close, drag handle) now opens the
+          Quick Actions sheet for whatever's currently playing
+          (nowPlayingItem) — see the new el.miniPlayer click listener and
+          isMiniPlayerMobileLayout(). The four click handlers that used to
+          fire on tapping the art/title/artist/album directly
+          (goToTrackPage etc.) now bail out early under this same
+          breakpoint so the tap reaches that new listener instead of also
+          navigating; unaffected on desktop. The reduced height meant the
+          existing hardcoded 96px mini-player-clearance figure (#app/.deck
+          /.qa-overlay padding, see 1.29.38/1.29.41) was leaving a big
+          empty gap under the compact bar, so a `max-width: 620px`
+          override lowers it to 64px there — placed after the existing
+          900px-scoped rules (same source-order reasoning already noted
+          next to those) so it actually wins at this narrower width.
+
+          (2) The per-track "mark as listened" checkmark toggle
+          (.track-listen-toggle) in the deck's own tracklist is now
+          hidden on desktop (`min-width: 621px`) — selecting tracks there
+          now goes exclusively through the click-to-select/right-click
+          "Add to entry" flow already added in 1.18.0, rather than two
+          overlapping ways to do the same thing. Still shown on mobile,
+          where that's the easier target. "Add to entry" (addTracksToEntry)
+          previously only flagged the track(s) and toasted — it now also
+          opens the actual log-a-listen form afterward (opening the deck
+          first via openDeck() if it wasn't already showing that album,
+          e.g. triggered from the flat Tracks table), same form "+ Log a
+          listen" opens, since flagging tracks with no visible way to
+          finish logging them was a dead end once the checkmark UI (the
+          other path into that same form) is gone on desktop. Left alone
+          for a multi-album selection — nothing single form to open there
+          — and doesn't reopen/re-toggle a form that's already open for
+          that exact album (that case already just refreshes the summary,
+          unchanged from before).
 
   1.29.42 — 2026-09-13 — Requested UI restructuring, four parts:
 
@@ -2756,6 +2804,7 @@
       </div>
 
       <button type="button" class="qa-row-btn" id="qaViewBtn">View full details</button>
+      <button type="button" class="qa-row-btn" id="qaLogListenBtn">+ Log a listen</button>
       <button type="button" class="qa-row-btn" id="qaEditBtn">Edit details</button>
       <button type="button" class="qa-row-btn" id="qaListenBtn" hidden>Listen ↗</button>
       <button type="button" class="qa-row-btn" id="qaSpotifyBtn">Open on Spotify ↗</button>
@@ -2974,7 +3023,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.42';
+const APP_VERSION = '1.29.43';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -3289,7 +3338,7 @@ const el = {};
   'mapTimeScrubber','mapTimePrev','mapTimeNext','mapTimeLabel','mapTimeSlider','mapTimeTicks',
   'mapTimeRangeStart','mapTimeRangeEnd',
   'qaOverlay','qaBackdrop','qaHeader','qaTitle','qaSub','qaStars',
-  'qaPlayBtn','qaQueueBtn','qaPlaylistBtn','qaViewBtn','qaEditBtn','qaSpotifyBtn','qaRymBtn','qaRemoveBtn','qaDeleteBtn','qaDoneBtn',
+  'qaPlayBtn','qaQueueBtn','qaPlaylistBtn','qaViewBtn','qaLogListenBtn','qaEditBtn','qaSpotifyBtn','qaRymBtn','qaRemoveBtn','qaDeleteBtn','qaDoneBtn',
   'qaListenBtn','qaSoundcloudBtn','deckQuickActionsBtn',
   'advancedSearchBtn','advSearchOverlay','advSearchClose','advArtist','advTitle','advYearFrom','advYearTo',
   'advRatingMin','advGenre','advLabel','advType','advCatalog','advExtra','advSearchApplyBtn','advSearchClearBtn',
@@ -3545,6 +3594,19 @@ function bindEvents() {
     openAddToPlaylistSubmenu(el.qaPlaylistBtn, [{ itemType: 'album', row: quickActionsItem.row, trackNum: '', trackName: '' }]);
   });
   el.qaViewBtn.addEventListener('click', () => { const item = quickActionsItem; closeQuickActions(); if (item) openDeck(item); });
+  // "+ Log a listen" from Quick Actions — opens the deck for this item (so
+  // its diary history is visible to review too, not just the add form)
+  // and immediately shows the log form, same as pressing the deck's own
+  // "+ Log a listen" button. openDeck() already resets/hides the log form
+  // before this runs, so clicking logListenBtn here always opens it fresh
+  // rather than risking the toggle-closed branch in its own handler.
+  el.qaLogListenBtn.addEventListener('click', () => {
+    const item = quickActionsItem;
+    closeQuickActions();
+    if (!item) return;
+    openDeck(item);
+    el.logListenBtn.click();
+  });
   el.qaEditBtn.addEventListener('click', () => {
     // Hide the sheet but deliberately don't call closeQuickActions() here —
     // that nulls activeItem, and openEditModal() (like setRating) reads
@@ -4148,6 +4210,11 @@ function bindEvents() {
   initMobileOverflowMenu();
   initSeekDrag();
   el.miniPlayerArt.addEventListener('click', () => {
+    // On the compact mobile layout, tapping anywhere on the bar (including
+    // the art) opens Quick Actions instead — see the el.miniPlayer listener
+    // below. Bail out here so this click bubbles up to that one rather than
+    // also opening the add-menu underneath it.
+    if (isMiniPlayerMobileLayout()) return;
     if (!currentSpotifyTrack) return;
     const rect = el.miniPlayerArt.getBoundingClientRect();
     openNowPlayingAddMenu(currentSpotifyTrack, rect.left, rect.bottom + 6);
@@ -4155,13 +4222,29 @@ function bindEvents() {
   // Title/artist/album click-throughs only make sense for a Spotify track
   // (they navigate using currentSpotifyTrack) — a no-op while a YouTube
   // track is showing in the same slot, guarded via activePlayerEngine.
-  el.miniPlayerTitle.addEventListener('click', () => { if (activePlayerEngine === 'spotify') goToTrackPage(currentSpotifyTrack); });
-  el.miniPlayerArtist.addEventListener('click', () => { if (activePlayerEngine === 'spotify') goToArtistTracks(currentSpotifyTrack); });
-  el.miniPlayerAlbum.addEventListener('click', () => { if (activePlayerEngine === 'spotify') goToTrackPage(currentSpotifyTrack); });
+  // Same mobile bail-out as the art click above, same reasoning.
+  el.miniPlayerTitle.addEventListener('click', () => { if (isMiniPlayerMobileLayout()) return; if (activePlayerEngine === 'spotify') goToTrackPage(currentSpotifyTrack); });
+  el.miniPlayerArtist.addEventListener('click', () => { if (isMiniPlayerMobileLayout()) return; if (activePlayerEngine === 'spotify') goToArtistTracks(currentSpotifyTrack); });
+  el.miniPlayerAlbum.addEventListener('click', () => { if (isMiniPlayerMobileLayout()) return; if (activePlayerEngine === 'spotify') goToTrackPage(currentSpotifyTrack); });
   el.miniPlayerAlbum.addEventListener('contextmenu', (e) => {
     if (activePlayerEngine !== 'spotify' || !currentSpotifyTrack) return;
     e.preventDefault();
     openAlbumContextMenu(currentSpotifyTrack, e.clientX, e.clientY);
+  });
+  // Whole-bar tap-to-open, mobile only: the compact mobile mini player drops
+  // most of its buttons (see .mini-player-options/.mini-player-progress-row
+  // in the stylesheet) to stay short, so tapping the bar itself is now how
+  // you reach everything else — reuses the exact same Quick Actions sheet
+  // the album grid's card menu opens, just pointed at whatever's currently
+  // playing (nowPlayingItem) instead of a grid card. Excludes anything that
+  // still has its own control on the compact bar (transport buttons, the
+  // seek track, volume, close, drag handle) so those keep working normally;
+  // everything else (art/title/artist/album/background) falls through to
+  // here since their own click handlers above already bail out on mobile.
+  el.miniPlayer.addEventListener('click', (e) => {
+    if (!isMiniPlayerMobileLayout()) return;
+    if (e.target.closest('.mini-player-btn, .mini-player-seek-track, .mini-player-volume, .mini-player-close, .mini-player-drag-handle')) return;
+    if (nowPlayingItem) openQuickActions(nowPlayingItem);
   });
   el.nowPlayingBox.addEventListener('click', () => {
     if (!currentSpotifyTrack) return;
@@ -8003,9 +8086,15 @@ function playTracksNow(trackPlaylistItems) {
 // "Add to entry" from a track's context menu — flags the given track(s)
 // listened for their owning album, the same flag the per-track checkmark/
 // "Select all" already use (see toggleTrackListened/selectAllTracks), so
-// they're already picked out the next time "+ Log a listen" is opened for
-// that album. Groups by album row so each album's trackData is only saved
-// once even if several of its tracks were selected together.
+// they're picked out as soon as the log form below opens. Groups by album
+// row so each album's trackData is only saved once even if several of its
+// tracks were selected together. For a single-album selection this also
+// opens (or refreshes) the actual "+ Log a listen" form afterward — see
+// the block at the end — since flagging tracks with no visible way to
+// finish logging them would otherwise be a dead end now that the desktop
+// checkmark UI (the toggle's other entry point into that same form) is
+// hidden (see .track-listen-toggle, 1.29.43). Left alone for a selection
+// spanning more than one album — there's no single form to open there.
 async function addTracksToEntry(trackPlaylistItems) {
   if (!trackPlaylistItems || !trackPlaylistItems.length) return;
   const byRow = new Map();
@@ -8034,7 +8123,22 @@ async function addTracksToEntry(trackPlaylistItems) {
     }
   }
   flashGlobalToast(`Added ${total} track${total === 1 ? '' : 's'} to entry`);
-  if (activeItem && !el.logForm.hidden) renderLogTrackSummary();
+  if (activeItem && !el.logForm.hidden) { renderLogTrackSummary(); return; }
+
+  // Single album, form not already open: open (or switch) the deck to it
+  // and pop the log form open, same as pressing "+ Log a listen" directly
+  // — openDeck() resets/hides the log form itself first, so the click
+  // below always opens it fresh rather than risking its own toggle-closed
+  // branch. Skipped for a multi-album selection, and skipped if the form
+  // was already open for this exact album (handled by the branch above).
+  if (byRow.size === 1) {
+    const onlyRow = byRow.keys().next().value;
+    const owner = (activeItem && activeItem.row === onlyRow) ? activeItem : state.raw.find(r => r.row === onlyRow);
+    if (owner) {
+      if (activeItem !== owner) openDeck(owner);
+      el.logListenBtn.click();
+    }
+  }
 }
 
 // "Edit track properties…" — a real modal window (single-track only, see
@@ -12065,6 +12169,16 @@ function isMapMobileLayout() {
   return window.matchMedia(MAP_MOBILE_BREAKPOINT_QUERY).matches;
 }
 
+// Matches the compact single-row mini player CSS (`@media (max-width:
+// 620px)`, same cutoff the rest of the app's phone-only rules use — see
+// .deck-header/.deck-art etc. in that block). A plain function (not a
+// const, unlike MAP_MOBILE_BREAKPOINT_QUERY above) since it's only ever
+// called from inside click-handler callbacks, well after the whole script
+// has finished loading — no temporal-dead-zone risk to guard against here.
+function isMiniPlayerMobileLayout() {
+  return window.matchMedia('(max-width: 620px)').matches;
+}
+
 function loadMapWindowPrefs() {
   try { return JSON.parse(localStorage.getItem(MAP_WINDOW_PREFS_KEY) || '{}'); } catch (e) { return {}; }
 }
@@ -15061,6 +15175,14 @@ async function getCaaJsonUrls(endpoint) {
   border-color: var(--accent);
   color: var(--bg, #12161C);
 }
+/* Desktop now selects tracks exclusively via click-to-select + right-click
+   "Add to entry" (see openTrackContextMenu/addTracksToEntry, 1.18.0) —
+   this checkmark duplicated that as a second way to do the same thing, so
+   it's hidden above the mobile breakpoint. Left visible on mobile, where
+   there's no right-click and this is still the easier target. */
+@media (min-width: 621px) {
+  .track-listen-toggle { display: none; }
+}
 
 /* Album-wide "how many tracks marked listened this pass" progress bar,
    shown under the tracklist footer. Fills up and gets a checkmark label
@@ -16268,10 +16390,21 @@ html, body {
   .mini-player-row { display: flex; align-items: center; gap: 16px; width: 100%; }
 
   @media (max-width: 620px) {
-    .mini-player { padding: 8px 40px 8px 10px; gap: 6px; }
-    .mini-player-row { flex-wrap: wrap; gap: 8px; }
-    .mini-player-track { flex-basis: 100%; }
-    .mini-player-options { flex: 1 1 auto; }
+    /* Compact single-row bar: art + title/artist + transport only. The
+       previous rules here (flex-wrap + track flex-basis:100%) stacked the
+       track info, transport/options, and the progress row into three
+       separate lines — that's what made this so tall. .mini-player-options
+       (volume/queue/device/detach/fullscreen) and the seek/time row are
+       dropped entirely on this breakpoint; tapping the bar now opens Quick
+       Actions instead (see the el.miniPlayer click listener), which covers
+       queue/device/etc. through its own actions, and playback controls
+       stay reachable straight from the bar via the transport row. */
+    .mini-player { padding: 6px 40px 6px 10px; gap: 0; }
+    .mini-player-row { flex-wrap: nowrap; gap: 8px; }
+    .mini-player-track { flex-basis: auto; flex: 1 1 auto; min-width: 0; cursor: pointer; }
+    .mini-player-art, .mini-player-video-wrap { width: 34px; height: 34px; }
+    .mini-player-options, .mini-player-progress-row { display: none; }
+    .mini-player-transport { flex: 0 0 auto; }
   }
 
   /* ---- Timeline / scrubber ---- */
@@ -17182,6 +17315,22 @@ html, body {
       padding-top: env(safe-area-inset-top);
       padding-bottom: env(safe-area-inset-bottom);
     }
+  }
+
+  @media (max-width: 620px) {
+    /* The compact single-row mini player (.mini-player-options and
+       .mini-player-progress-row hidden above) is noticeably shorter than
+       the 96px the three rules above assume — override each down here so
+       #app/.deck/.qa-overlay don't reserve a big empty gap under the
+       shorter bar. Deliberately placed last in the stylesheet, after
+       every other rule targeting these same selectors, since identical-
+       specificity rules resolve by source order regardless of which one
+       sits inside a narrower media query — see the comment above the
+       900px-scoped #app rule earlier in this file for the same reasoning
+       applied there first. */
+    body.has-mini-player #app { padding-bottom: calc(var(--mobile-navbar-h) + 64px + env(safe-area-inset-bottom, 0px)); }
+    body.has-mini-player .deck { max-height: calc(88vh - var(--mobile-navbar-h) - 64px - env(safe-area-inset-bottom, 0px)); }
+    body.has-mini-player .qa-overlay { padding-bottom: calc(var(--mobile-navbar-h) + 64px + env(safe-area-inset-bottom, 0px)); }
   }
 </style>
 
