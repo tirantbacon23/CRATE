@@ -3503,6 +3503,8 @@ function showAuthGate(message) {
   initGoogleSignIn();
 }
 
+let gisInitialized = false; // guards against re-calling initialize()/prompt() on every failed auth check
+
 function initGoogleSignIn() {
   if (!CONFIG.GOOGLE_CLIENT_ID || CONFIG.GOOGLE_CLIENT_ID.indexOf('PASTE_YOUR') === 0) {
     el.authGateStatus.textContent = 'Google sign-in isn\u2019t configured yet — set CONFIG.GOOGLE_CLIENT_ID.';
@@ -3515,15 +3517,22 @@ function initGoogleSignIn() {
     setTimeout(initGoogleSignIn, 200);
     return;
   }
-  google.accounts.id.initialize({
-    client_id: CONFIG.GOOGLE_CLIENT_ID,
-    callback: handleGoogleCredential,
-    auto_select: true
-  });
   const btnHost = document.getElementById('googleSignInButton');
+  if (!gisInitialized) {
+    google.accounts.id.initialize({
+      client_id: CONFIG.GOOGLE_CLIENT_ID,
+      callback: handleGoogleCredential
+      // auto_select + prompt() removed: One Tap's auto re-authn has a 10-minute
+      // cooldown per browser session, and re-triggering it on every failed
+      // request (via handleAuthError -> showAuthGate) was causing repeated
+      // initialize() calls and FedCM aborts, which looked like a login loop.
+      // The rendered button below is a reliable manual fallback that doesn't
+      // hit that cooldown.
+    });
+    gisInitialized = true;
+  }
   btnHost.innerHTML = '';
   google.accounts.id.renderButton(btnHost, { theme: 'outline', size: 'large', shape: 'pill' });
-  google.accounts.id.prompt(); // offers One Tap if there's already a Google session in this browser
 }
 
 function handleGoogleCredential(response) {
