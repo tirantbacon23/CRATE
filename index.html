@@ -4892,9 +4892,24 @@ async function fetchCatalog() {
     // the genuinely-hung case it was meant to catch. 90s is long enough to
     // clear a legitimately heavy load; the slowNotice above is what
     // actually addresses "is this frozen?" now, not an aggressive timeout.
+    //
+    // This used to be a GET with the id_token in the query string. Apps
+    // Script web apps serve GET requests through an internal redirect
+    // (/exec -> script.googleusercontent.com/macros/echo?...), and a
+    // Google ID token is long enough (1000+ chars) that it was getting
+    // dropped somewhere in that hop — the backend's Executions log showed
+    // "no idToken received" even though the client had one, which is what
+    // produced the sign-in loop. postUpdate() below already sends its
+    // idToken via a POST body instead and doesn't hit this, so the catalog
+    // fetch now does the same (matched by the 'getCatalog' action added to
+    // apps-script-backend.gs's doPost).
     const res = await fetchWithTimeout(
-      CONFIG.SCRIPT_URL + '?id_token=' + encodeURIComponent(idToken),
-      { method: 'GET' },
+      CONFIG.SCRIPT_URL,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight against Apps Script
+        body: JSON.stringify({ action: 'getCatalog', idToken })
+      },
       90000
     );
     if (!res.ok) throw new Error('HTTP ' + res.status);
