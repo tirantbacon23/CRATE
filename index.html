@@ -13,7 +13,55 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.54
+  CURRENT_VERSION: 1.29.56
+
+  1.29.56 — 2026-09-16 — Feature: the tracklist builder (Add album, Edit
+          album, and "\u2913 Load current tracklist") now has a small \u25b8
+          button next to each row's YouTube and Spotify link fields.
+          YouTube has no search API wired up, so its button just opens a
+          real YouTube search in a new tab (artist + this row's title) to
+          eyeball and paste back. Spotify's opens the same inline candidate
+          picker "Edit track properties\u2026" got in 1.29.54 — preview with \u25b6,
+          "Use this" to fill the row's Spotify field — scoped to that one
+          row via a new .tracklist-builder-match-panel that only appears
+          under the row whose button was clicked (only one open at a time).
+          Reuses spotifyTrackCandidatesLive() and the .track-props-match-*
+          rendering from the Track Properties picker rather than
+          duplicating it. wireTracklistBuilderContainer() now takes a
+          getArtist callback (read fresh at click time, since the artist
+          field can still change after the form's shown) — the two existing
+          call sites (Add/Edit forms) were updated, so anything calling it
+          directly elsewhere would need the same. Also hit and fixed the
+          same [hidden]-vs-unconditional-display:flex cascade bug already
+          seen twice before (#deckPlayBtn, .spotify-match-banner) for the
+          new match panel.
+
+  1.29.55 — 2026-09-16 — Feature: "Edit track properties…" now has "Track
+          name" and "Track length" fields, alongside genre/YouTube/Spotify.
+          Both are per-track overrides stored in trackData (same object
+          genre/links already live in), applied via mergeTrackLinkOverrides
+          so every view (deck, flat Tracks table, "Album and Tracks",
+          playlists) shows the corrected name/length everywhere at once,
+          same as a saved link already did. Track length accepts "m:ss",
+          "h:mm:ss", or a bare number of seconds (new parseLengthToMs(),
+          inverse of the existing formatMs()) and prefills from whatever's
+          already showing (currentTracklistTracks/state.trackCache) so the
+          field starts populated instead of blank. Name only gets written
+          as an override when it's actually different from the track's real
+          title, so opening and closing the modal unchanged never creates
+          one. Caveat noted in the field's own hint text: with no Spotify/
+          YouTube link pinned, a renamed track's automatic Spotify search
+          now searches using the NEW title, not the original — usually an
+          improvement (the rename is often fixing a wrong/malformed source
+          title) but worth knowing.
+
+          Also fixed a latent bug this surfaced: the "is this track's
+          trackData now completely empty, delete it" cleanup check
+          (4 near-identical copies, in updateTrackData/clearTrackSelection/
+          etc.) never knew about genre/youtubeLink/spotifyLink's newer
+          siblings-to-be — adding name/lengthMs without updating all four
+          would have meant a track with ONLY a name or length override got
+          silently deleted the moment any of those other code paths ran.
 
   1.29.54 — 2026-09-16 — Two additions, both about trusting/fixing what the
           app matched a release to:
@@ -3228,7 +3276,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.54';
+const APP_VERSION = '1.29.56';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -4305,7 +4353,7 @@ function bindEvents() {
   });
   el.addSaveBtn.addEventListener('click', saveNewAlbum);
   el.addTracksAddRowBtn.addEventListener('click', () => addTracklistBuilderRow(el.addTracksRows));
-  wireTracklistBuilderContainer(el.addTracksRows);
+  wireTracklistBuilderContainer(el.addTracksRows, () => el.addArtist.value);
   el.addSpotifyMatchAddBtn.addEventListener('click', () => {
     if (!pendingAddSpotifyTracklist) return;
     renderTracklistBuilderRows(el.addTracksRows, pendingAddSpotifyTracklist);
@@ -4326,7 +4374,7 @@ function bindEvents() {
   el.editSaveBtn.addEventListener('click', saveEditAlbum);
   el.editTracksAddRowBtn.addEventListener('click', () => addTracklistBuilderRow(el.editTracksRows));
   el.editTracksLoadBtn.addEventListener('click', () => loadCurrentTracklistIntoBuilder());
-  wireTracklistBuilderContainer(el.editTracksRows);
+  wireTracklistBuilderContainer(el.editTracksRows, () => el.editArtist.value);
 
   // 9. Deck (Detail Modal) Actions
   el.deckClose.addEventListener('click', closeDeck);
@@ -4781,7 +4829,7 @@ async function updateTrackData(item, trackNum, updates) {
   Object.assign(item.trackData[trackNum], updates);
   
   // Cleanup empty objects so we don't save useless bloat
-  if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink) {
+  if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink && !item.trackData[trackNum].name && !item.trackData[trackNum].lengthMs) {
     delete item.trackData[trackNum];
   }
 
@@ -7814,6 +7862,22 @@ function formatMs(ms) {
     : `${m}:${String(s).padStart(2, '0')}`;
 }
 
+// Inverse of formatMs — used by "Edit track properties…" to parse a typed
+// track length back into milliseconds for trackData.lengthMs. Accepts
+// "m:ss", "h:mm:ss", or a bare number of seconds; returns 0 (meaning "no
+// override") for anything empty or unparseable, rather than throwing —
+// this is user-typed free text, not a trusted format.
+function parseLengthToMs(str) {
+  const trimmed = String(str || '').trim();
+  if (!trimmed) return 0;
+  if (/^\d+$/.test(trimmed)) return Number(trimmed) * 1000; // bare seconds
+  const parts = trimmed.split(':').map(p => Number(p.trim()));
+  if (!parts.length || parts.some(p => !isFinite(p) || p < 0)) return 0;
+  let sec = 0;
+  for (const p of parts) sec = sec * 60 + p;
+  return Math.round(sec * 1000);
+}
+
 // getEstimatedPosition/getCurrentDurationMs read from whichever engine is
 // active (see activePlayerEngine) so the one shared progress bar/seek drag
 // below works for both — Spotify's SDK only fires discrete state-changed
@@ -8463,6 +8527,14 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
   // Spotify has no such fallback to prefill from, so it comes straight
   // from trackData.
   const links = trackLinkOverridesFor(item, trackNum, trackName);
+  // The currently-known length for this track, so the field starts
+  // prefilled with what's already showing rather than blank when there's
+  // no override yet — pulled from whichever tracklist is actually loaded
+  // right now (the deck's currentTracklistTracks if this album's is open,
+  // else whatever's cached from a prior getTracksFor() call).
+  const knownTracks = (activeItem === item && currentTracklistTracks.length) ? currentTracklistTracks : (state.trackCache[artKey(item)] || []);
+  const knownTrack = knownTracks.find(t => (t.trackNumber || 0) === trackNum);
+  const currentLengthMs = (knownTrack && knownTrack.trackTimeMillis) || 0;
 
   const overlay = document.createElement('div');
   overlay.className = 'arrange-overlay track-props-overlay';
@@ -8473,6 +8545,15 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
         <button type="button" class="modal-x" data-track-props-action="cancel" aria-label="Close">✕</button>
       </div>
       <div class="arrange-body">
+        <div class="track-props-field">
+          <label for="trackPropsName">Track name</label>
+          <input type="text" id="trackPropsName" placeholder="Track title" value="${escapeHtml(trackName || '')}">
+          <p class="tracklist-builder-hint">Only renames it here in CRATE \u2014 doesn't touch the source (Spotify/MusicBrainz/manual tracklist). If no Spotify/YouTube link is pinned below, playback also searches using this renamed title from now on.</p>
+        </div>
+        <div class="track-props-field">
+          <label for="trackPropsLength">Track length</label>
+          <input type="text" id="trackPropsLength" placeholder="m:ss" value="${links.lengthMs ? formatMs(links.lengthMs) : (currentLengthMs ? formatMs(currentLengthMs) : '')}">
+        </div>
         <div class="track-props-field">
           <label for="trackPropsGenre">Genre</label>
           <input type="text" id="trackPropsGenre" placeholder="e.g. Dream Pop" value="${escapeHtml(tData.genre || '')}">
@@ -8506,11 +8587,13 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
   `;
   document.body.appendChild(overlay);
 
+  const nameInput = overlay.querySelector('#trackPropsName');
+  const lengthInput = overlay.querySelector('#trackPropsLength');
   const genreInput = overlay.querySelector('#trackPropsGenre');
   const youtubeInput = overlay.querySelector('#trackPropsYoutube');
   const spotifyInput = overlay.querySelector('#trackPropsSpotify');
-  genreInput.focus();
-  genreInput.select();
+  nameInput.focus();
+  nameInput.select();
 
   // ---- Spotify match troubleshoot list (skipped entirely for manual
   // albums — see isManualAlbum/playTrackNow, they never use the automatic
@@ -8587,7 +8670,14 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
   }
 
   const doSave = async () => {
+    // name is only written when it actually differs from the track's real
+    // title — typing into the field and leaving it unchanged (or blanking
+    // it back out) shouldn't create a permanent override that then has to
+    // be noticed and cleared later.
+    const typedName = nameInput.value.trim();
     await updateTrackData(item, trackNum, {
+      name: (typedName && typedName !== (trackName || '').trim()) ? typedName : '',
+      lengthMs: parseLengthToMs(lengthInput.value),
       genre: genreInput.value.trim(),
       youtubeLink: youtubeInput.value.trim(),
       spotifyLink: spotifyInput.value.trim()
@@ -10855,25 +10945,32 @@ function manualSpotifyLinkFor(album, trackNum, trackName) {
 // wins; both links additionally fall back to a manually-tracklisted album's
 // own manualTracks entry (the tracklist builder's YouTube/Spotify columns)
 // so a link typed in there shows up here too without needing to be
-// re-entered via "Edit track properties…".
+// re-entered via "Edit track properties…". name/lengthMs have no such
+// manualTracks fallback (those are edited directly in the tracklist
+// builder itself for a manual album) — they only ever come from trackData.
 function trackLinkOverridesFor(item, trackNum, trackName) {
   const tData = (item && item.trackData && item.trackData[trackNum]) || {};
   const youtubeLink = tData.youtubeLink || manualYoutubeLinkFor(item, trackNum, trackName);
   const spotifyLink = tData.spotifyLink || manualSpotifyLinkFor(item, trackNum, trackName);
-  return { youtubeLink, spotifyLink };
+  return { youtubeLink, spotifyLink, name: tData.name || '', lengthMs: tData.lengthMs || 0 };
 }
 
 // Layers trackLinkOverridesFor() onto every track in an already-built
 // tracklist array (mutates in place) — used right before a tracklist is
 // cached/rendered (getTracksFor, loadTracklist's manual branch) so every
 // track-rendering view (deck, "Album and Tracks", flat Tracks table) shows
-// and plays the same saved link without each having to resolve it itself.
+// and plays the same saved link/name/length without each having to resolve
+// it itself. IMPORTANT: name/length are looked up by t.trackNumber, which
+// is read BEFORE t.trackName is overwritten below, so a rename never
+// breaks the trackData lookup for that same track on a later pass.
 function mergeTrackLinkOverrides(item, tracks) {
   (tracks || []).forEach(t => {
     const ov = trackLinkOverridesFor(item, t.trackNumber || 0, t.trackName);
     t.youtubeLink = ov.youtubeLink;
     if (ov.spotifyLink) t.spotifyLink = ov.spotifyLink;
     else delete t.spotifyLink;
+    if (ov.name) t.trackName = ov.name;
+    if (ov.lengthMs) t.trackTimeMillis = ov.lengthMs;
   });
   return tracks;
 }
@@ -13550,7 +13647,7 @@ async function toggleTrackListened(item, trackNum) {
   if (!item.trackData[trackNum]) item.trackData[trackNum] = {};
   if (nowListened) item.trackData[trackNum].listened = true;
   else delete item.trackData[trackNum].listened;
-  if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink) {
+  if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink && !item.trackData[trackNum].name && !item.trackData[trackNum].lengthMs) {
     delete item.trackData[trackNum];
   }
 
@@ -13572,7 +13669,7 @@ async function toggleTrackListened(item, trackNum) {
     if (!item.trackData[trackNum]) item.trackData[trackNum] = {};
     if (wasListened) item.trackData[trackNum].listened = true;
     else delete item.trackData[trackNum].listened;
-    if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink) {
+    if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink && !item.trackData[trackNum].name && !item.trackData[trackNum].lengthMs) {
       delete item.trackData[trackNum];
     }
     if (activeItem === item) renderTracklistBody(item, currentTracklistTracks);
@@ -13613,7 +13710,7 @@ async function clearTrackSelection(item) {
     const tNum = t.trackNumber || 0;
     if (item.trackData[tNum]) {
       delete item.trackData[tNum].listened;
-      if (!item.trackData[tNum].rating && !item.trackData[tNum].note && !item.trackData[tNum].genre && !item.trackData[tNum].youtubeLink && !item.trackData[tNum].spotifyLink) delete item.trackData[tNum];
+      if (!item.trackData[tNum].rating && !item.trackData[tNum].note && !item.trackData[tNum].genre && !item.trackData[tNum].youtubeLink && !item.trackData[tNum].spotifyLink && !item.trackData[tNum].name && !item.trackData[tNum].lengthMs) delete item.trackData[tNum];
     }
   }
   if (activeItem === item) renderTracklistBody(item, currentTracklistTracks);
@@ -14104,9 +14201,16 @@ function tracklistBuilderRowHtml(track, idx) {
     <div class="tracklist-builder-row" data-idx="${idx}" data-track-number="${track?.trackNumber ?? ''}">
       <span class="tracklist-builder-num">${idx + 1}</span>
       <input type="text" class="tracklist-builder-title" placeholder="Track title" value="${escapeHtml(track?.title || '')}">
-      <input type="text" class="tracklist-builder-yt" placeholder="YouTube link (optional)" value="${escapeHtml(track?.youtubeLink || '')}">
-      <input type="text" class="tracklist-builder-sp" placeholder="Spotify link (optional)" value="${escapeHtml(track?.spotifyLink || '')}">
+      <div class="tracklist-builder-link-group">
+        <input type="text" class="tracklist-builder-yt" placeholder="YouTube link (optional)" value="${escapeHtml(track?.youtubeLink || '')}">
+        <button type="button" class="tracklist-builder-match-btn" data-match-kind="youtube" title="Search YouTube for this track" aria-label="Search YouTube for this track">\u25b8</button>
+      </div>
+      <div class="tracklist-builder-link-group">
+        <input type="text" class="tracklist-builder-sp" placeholder="Spotify link (optional)" value="${escapeHtml(track?.spotifyLink || '')}">
+        <button type="button" class="tracklist-builder-match-btn" data-match-kind="spotify" title="Find a Spotify match for this track" aria-label="Find a Spotify match for this track">\u25b8</button>
+      </div>
       <button type="button" class="tracklist-builder-remove" aria-label="Remove track" title="Remove track">✕</button>
+      <div class="tracklist-builder-match-panel" hidden></div>
     </div>
   `;
 }
@@ -14147,31 +14251,108 @@ function renumberTracklistBuilderRows(container) {
   });
 }
 // One delegated listener per container (add/edit) covers: remove-row
-// buttons, and (Enter key in the last row) auto-adding a fresh blank row so
+// buttons, (Enter key in the last row) auto-adding a fresh blank row so
 // entering a tracklist doesn't require reaching for the mouse between every
-// track. wireTracklistBuilderContainer() is called once per container at
-// init — see bindEvents().
-function wireTracklistBuilderContainer(container) {
+// track, and now the per-row YouTube/Spotify match buttons (see
+// handleTracklistMatchBtnClick). wireTracklistBuilderContainer() is called
+// once per container at init — see bindEvents(). getArtist is a callback
+// (not a fixed string) since the artist field can change after the form is
+// first shown — always read fresh at click time.
+function wireTracklistBuilderContainer(container, getArtist) {
   container.addEventListener('click', (e) => {
     const removeBtn = e.target.closest('.tracklist-builder-remove');
-    if (!removeBtn) return;
-    const rows = container.querySelectorAll('.tracklist-builder-row');
-    if (rows.length <= 1) { // keep at least one row so the section never looks broken/empty
-      removeBtn.closest('.tracklist-builder-row').querySelectorAll('input').forEach(i => i.value = '');
+    if (removeBtn) {
+      const rows = container.querySelectorAll('.tracklist-builder-row');
+      if (rows.length <= 1) { // keep at least one row so the section never looks broken/empty
+        removeBtn.closest('.tracklist-builder-row').querySelectorAll('input').forEach(i => i.value = '');
+        return;
+      }
+      removeBtn.closest('.tracklist-builder-row').remove();
+      renumberTracklistBuilderRows(container);
       return;
     }
-    removeBtn.closest('.tracklist-builder-row').remove();
-    renumberTracklistBuilderRows(container);
+    const matchBtn = e.target.closest('.tracklist-builder-match-btn');
+    if (matchBtn) { handleTracklistMatchBtnClick(matchBtn, getArtist || (() => '')); return; }
   });
   container.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
-    if (!e.target.matches('.tracklist-builder-title, .tracklist-builder-yt')) return;
+    if (!e.target.matches('.tracklist-builder-title, .tracklist-builder-yt, .tracklist-builder-sp')) return;
     const row = e.target.closest('.tracklist-builder-row');
     if (row === container.lastElementChild) {
       e.preventDefault();
       addTracklistBuilderRow(container);
       container.lastElementChild.querySelector('.tracklist-builder-title').focus();
     }
+  });
+}
+
+// YouTube has no search API wired up (unlike Spotify — see
+// spotifyTrackCandidatesLive), so its match button just opens a real
+// YouTube search in a new tab for the person to eyeball and paste the
+// right link back manually. Spotify opens the same kind of inline
+// candidate picker "Edit track properties…" has, scoped to this one row —
+// see loadTracklistRowMatches. Only one row's picker is open at a time.
+function handleTracklistMatchBtnClick(btn, getArtist) {
+  const kind = btn.dataset.matchKind;
+  const row = btn.closest('.tracklist-builder-row');
+  const container = row.parentElement;
+  const title = row.querySelector('.tracklist-builder-title').value.trim();
+  if (!title) { flashGlobalToast('Type a track title first.'); return; }
+
+  if (kind === 'youtube') {
+    const artist = (getArtist() || '').trim();
+    window.open('https://www.youtube.com/results?search_query=' + encodeURIComponent(artist + ' ' + title), '_blank');
+    return;
+  }
+
+  const panel = row.querySelector('.tracklist-builder-match-panel');
+  const alreadyOpenHere = !panel.hidden;
+  closeAllTracklistMatchPanels(container);
+  if (alreadyOpenHere) return; // clicking the same row's button again just closes it
+
+  panel.hidden = false;
+  loadTracklistRowMatches(panel, row, getArtist, title);
+}
+
+function closeAllTracklistMatchPanels(container) {
+  container.querySelectorAll('.tracklist-builder-match-panel').forEach(p => { p.hidden = true; p.innerHTML = ''; });
+}
+
+async function loadTracklistRowMatches(panel, row, getArtist, title) {
+  const spInput = row.querySelector('.tracklist-builder-sp');
+  panel.innerHTML = '<p class="tracklist-builder-hint">Looking up matches on Spotify\u2026</p>';
+  const artist = (getArtist() || '').trim();
+  const candidates = await spotifyTrackCandidatesLive(artist, title);
+  if (panel.hidden) return; // closed while this was in flight
+  if (!candidates.length) { panel.innerHTML = '<p class="tracklist-builder-hint">No Spotify matches found.</p>'; return; }
+  const uri = trackSpotifyUriFromLink(spInput.value.trim());
+  const currentId = uri && uri.startsWith('spotify:track:') ? uri.slice('spotify:track:'.length) : null;
+  renderTracklistMatchList(panel, candidates, currentId, spInput);
+}
+
+function renderTracklistMatchList(panel, candidates, selectedId, spInput) {
+  panel.innerHTML = candidates.map(c => `
+    <div class="track-props-match-row${c.id === selectedId ? ' selected' : ''}" data-candidate-id="${escapeHtml(c.id)}">
+      <button type="button" class="track-props-match-preview" title="Preview" aria-label="Preview ${escapeHtml(c.name)}">▶</button>
+      <div class="track-props-match-info">
+        <span class="track-props-match-name">${escapeHtml(c.name)}</span>
+        <span class="track-props-match-sub">${escapeHtml(c.artists)}${c.album ? ' \u2014 ' + escapeHtml(c.album) : ''}</span>
+      </div>
+      <button type="button" class="track-props-match-use chip-btn">${c.id === selectedId ? 'Selected' : 'Use this'}</button>
+    </div>
+  `).join('');
+  panel.querySelectorAll('.track-props-match-row').forEach(rowEl => {
+    const candidate = candidates.find(c => c.id === rowEl.dataset.candidateId);
+    if (!candidate) return;
+    rowEl.querySelector('.track-props-match-preview').addEventListener('click', (e) => {
+      e.stopPropagation();
+      showMiniPlayer(`spotify:track:${candidate.id}`, beginPlayIntent());
+    });
+    rowEl.querySelector('.track-props-match-use').addEventListener('click', (e) => {
+      e.stopPropagation();
+      spInput.value = `https://open.spotify.com/track/${candidate.id}`;
+      renderTracklistMatchList(panel, candidates, candidate.id, spInput);
+    });
   });
 }
 
@@ -17854,12 +18035,31 @@ html, body {
     font-family: 'IBM Plex Mono', monospace; font-size: 12px;
   }
   .tracklist-builder-title { flex: 1 1 100%; min-width: 0; }
-  .tracklist-builder-yt, .tracklist-builder-sp { flex: 1 1 40%; min-width: 120px; }
+  .tracklist-builder-link-group { flex: 1 1 40%; min-width: 140px; display: flex; align-items: center; gap: 4px; }
+  .tracklist-builder-yt, .tracklist-builder-sp { flex: 1 1 auto; min-width: 0; }
   .tracklist-builder-title, .tracklist-builder-yt, .tracklist-builder-sp {
     background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 6px;
     color: var(--text); padding: 6px 8px; font-size: 13px;
   }
   .tracklist-builder-title:focus, .tracklist-builder-yt:focus, .tracklist-builder-sp:focus { outline: none; border-color: var(--accent); }
+  .tracklist-builder-match-btn {
+    flex: 0 0 auto; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+    background: none; border: 1px solid var(--line); border-radius: 50%;
+    color: var(--text-dim); font-size: 10px; cursor: pointer; transition: color 0.15s, border-color 0.15s;
+  }
+  .tracklist-builder-match-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .tracklist-builder-match-panel {
+    flex: 1 1 100%; display: flex; flex-direction: column; gap: 4px;
+    background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 6px;
+    padding: 6px; margin-left: 24px; /* roughly lines up under the title field, past the num column */
+  }
+  .tracklist-builder-match-panel:empty { display: none; }
+  /* Same cascade gotcha already hit and fixed for #deckPlayBtn and
+     .spotify-match-banner: this class's own unconditional display:flex
+     is equal specificity to the browser's [hidden]{display:none} rule,
+     so without this override, setting .hidden = true on the panel via JS
+     would do nothing visible. */
+  .tracklist-builder-match-panel[hidden] { display: none; }
   .tracklist-builder-remove {
     flex: 0 0 auto; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
     background: none; border: 1px solid var(--line); border-radius: 50%;
