@@ -13,7 +13,19 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.50
+  CURRENT_VERSION: 1.29.51
+
+  1.29.51 — 2026-09-16 — Bugfix: Ctrl/Cmd+A while viewing an album's deck
+          (release view) did nothing but trigger the browser's own native
+          "select all text on the page" — the global select-all keydown
+          handler explicitly skips its work whenever the deck is open
+          (it uses a different selection model there, per-track "listened"
+          flags rather than state.selectedTracks), but had no replacement
+          behavior for that case, so it just fell through with no
+          preventDefault. The deck already has its own "select all tracks"
+          affordance (#tlSelectAllBtn / selectAllTracks()) — Ctrl/Cmd+A now
+          calls that directly when the deck is open, ahead of the existing
+          modalOpen skip.
 
   1.29.50 — 2026-09-16 — Feature: Ctrl/Cmd+A now selects all tracks while
           viewing a playlist's own "Tracks" sub-view. The global select-all
@@ -3144,7 +3156,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.50';
+const APP_VERSION = '1.29.51';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -4610,6 +4622,19 @@ function bindEvents() {
       // — those either have no "select all" concept here, or (the deck)
       // aren't wired up to it, so falling through would otherwise select
       // whatever's in the main panel behind it instead.
+      // Skip the flat-view/album-grid branches below while the deck
+      // (release view) or a form modal is open — those use a different
+      // selection model. The deck itself DOES have a "select all tracks"
+      // concept already (the #tlSelectAllBtn button / selectAllTracks()),
+      // it just wasn't wired to Ctrl/Cmd+A — so pressing it there fell
+      // all the way through with no preventDefault and the browser
+      // selected all page text instead. Handled as its own branch below,
+      // ahead of the generic modalOpen skip.
+      if (!el.deckOverlay.hidden && !isEditable && activeItem) {
+        e.preventDefault();
+        selectAllTracks(activeItem);
+        return;
+      }
       const modalOpen = !el.deckOverlay.hidden || !el.addOverlay.hidden || !el.editOverlay.hidden || !el.timelineOverlay.hidden || !el.mapOverlay.hidden;
       if (!isEditable && !modalOpen) {
         if (state.activeTab === 'diary') {
