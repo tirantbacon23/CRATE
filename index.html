@@ -13,7 +13,27 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.57
+  CURRENT_VERSION: 1.29.58
+
+  1.29.58 — 2026-09-16 — Bugfix: adding a release could offer ("Found a
+          matching tracklist on Spotify") and fill in a tracklist for a
+          COMPLETELY UNRELATED ALBUM — seen in the wild: a downtempo/dream
+          pop release on Low Lying Records got offered a KC and the
+          Sunshine Band disco tracklist. Cause: spotifyFindAlbumTracklist
+          (and its sibling spotifySearchDirect, used for the plain Spotify
+          link shown on an album) both took Spotify's #1 search hit with
+          zero validation — "album:X artist:Y" is a fuzzy relevance hint to
+          Spotify's search, not a strict filter, so a short/generic title
+          can out-rank the real match with something from an entirely
+          different artist. New spotifyResultArtistMatches() checks the
+          hit's actual artist credit against what was searched for
+          (normalized via the existing trackNormKey()) and both functions
+          now return null — "no match", same as finding nothing at all —
+          rather than confidently offering a wrong result when it fails.
+          Concretely, this also means the new MusicBrainz tracklist offer
+          (1.29.54) actually gets its chance to run in cases like this one:
+          it was never reached before because Spotify's (wrong) match was
+          "found" first.
 
   1.29.57 — 2026-09-16 — Bugfix: queue auto-advance (1.29.49) still wasn't
           firing reliably even after unifying the check across both
@@ -3294,7 +3314,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.57';
+const APP_VERSION = '1.29.58';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -15069,6 +15089,24 @@ async function getSpotifyToken() {
   }
 }
 
+// Spotify's /search endpoint is a fuzzy relevance ranking, not a strict
+// filter — "album:X artist:Y" is a scoring hint, not a guarantee the top
+// hit is actually by Y. A short or generic title can easily out-rank the
+// real match with something from a totally unrelated artist (seen in the
+// wild: a downtempo/dream pop release's tracklist offer landed on a KC and
+// the Sunshine Band compilation). Used by both spotifySearchDirect and
+// spotifyFindAlbumTracklist below to reject a hit whose artist credit
+// doesn't reasonably match, rather than confidently returning it anyway.
+// Deliberately doesn't also check the album title — an artist-name
+// mismatch is the failure mode actually seen (wrong artist entirely); a
+// same-artist wrong-edition mismatch is rarer and lower-impact.
+function spotifyResultArtistMatches(albumOrTrack, wantArtist) {
+  const want = trackNormKey(wantArtist);
+  if (!want) return true; // nothing to check against — don't block on empty input
+  const names = ((albumOrTrack && albumOrTrack.artists) || []).map(a => trackNormKey(a.name));
+  return names.some(n => n && (n === want || n.includes(want) || want.includes(n)));
+}
+
 // Searches Spotify's real catalog for this artist/title and returns the
 // exact album page URL for the best match — a genuine album page, not a
 // search results page.
@@ -15087,7 +15125,8 @@ async function spotifySearchDirect(item) {
     if (!res.ok) return null;
     const data = await res.json();
     const hit = data.albums && data.albums.items && data.albums.items[0];
-    return (hit && hit.external_urls && hit.external_urls.spotify) || null;
+    if (!hit || !spotifyResultArtistMatches(hit, item.artist)) return null;
+    return (hit.external_urls && hit.external_urls.spotify) || null;
   } catch (e) {
     console.warn('Spotify search failed', e);
     return null;
@@ -15115,7 +15154,7 @@ async function spotifyFindAlbumTracklist(artist, title) {
     if (!res.ok) return null;
     const data = await res.json();
     const album = data.albums && data.albums.items && data.albums.items[0];
-    if (!album) return null;
+    if (!album || !spotifyResultArtistMatches(album, artist)) return null;
 
     let items = [];
     let url = `https://api.spotify.com/v1/albums/${album.id}/tracks?limit=50`;
