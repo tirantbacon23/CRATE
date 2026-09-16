@@ -13,7 +13,26 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.52
+  CURRENT_VERSION: 1.29.53
+
+  1.29.53 — 2026-09-16 — Feature: right-clicking a track (deck tracklist,
+          flat Tracks table, or "Album and Tracks" view — all three already
+          funnel into openTrackContextMenu) now offers "\u2713 Confirm Spotify
+          match" and "\u21bb Try next Spotify match", for when the automatic
+          fuzzy search (spotifyTrackId) lands on the wrong recording — a
+          cover, a live/remix take, or a same-titled different song.
+          spotifyTrackId now caches the FULL list of search candidates
+          (spotifyTrackCandidates, limit=10, up from the old limit=1) rather
+          than just the top hit, and resolves through a per-track in-memory
+          index (spotifyMatchAttemptIndex) so "Try next match" can step
+          through real alternatives and immediately replay the track to
+          preview each one. "Confirm match" pins whichever recording is
+          currently resolved into trackData.spotifyLink — the exact same
+          field/precedence "Edit track properties…" already writes to — so
+          it survives a reload and always wins over the fuzzy search from
+          then on, the same way a manually-pasted link always has. Hidden
+          for multi-selections and manual albums (isManualAlbum tracks skip
+          the automatic search entirely and have nothing here to confirm).
 
   1.29.52 — 2026-09-16 — Bugfix (supersedes 1.29.51 below, which was correct
           in spirit but didn't actually fix anything): the REAL reason
@@ -3170,7 +3189,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.52';
+const APP_VERSION = '1.29.53';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -8170,6 +8189,11 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
 
   const menu = document.createElement('div');
   menu.className = 'panel-mode-menu now-playing-add-menu';
+  // "Confirm"/"Try next match" only make sense for a single, non-manual
+  // track — a manual album's tracks skip the automatic Spotify search
+  // entirely (see isManualAlbum/playTrackNow) and use their own saved
+  // YouTube/Spotify link instead, so there's no fuzzy match here to fix.
+  const showMatchTools = !isMultiSelect && !isManualAlbum(item);
   menu.innerHTML = `
     <div class="menu-section-title">${escapeHtml(menuTitle)}</div>
     <button type="button" data-track-menu-action="play">▶ Play</button>
@@ -8178,6 +8202,8 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
     <button type="button" data-track-menu-action="entry">Add to entry</button>
     <div class="menu-divider"></div>
     ${!isMultiSelect ? '<button type="button" data-track-menu-action="editProps">Edit track properties\u2026</button>' : ''}
+    ${showMatchTools ? '<button type="button" data-track-menu-action="confirmMatch">\u2713 Confirm Spotify match</button>' : ''}
+    ${showMatchTools ? '<button type="button" data-track-menu-action="nextMatch">\u21bb Try next Spotify match</button>' : ''}
     <button type="button" class="remove-menu-btn" data-track-menu-action="removeTrack">Remove from tracklist</button>
     <button type="button" data-track-menu-action="view">View album</button>
     <button type="button" class="menu-parent-btn" data-track-menu-action="search">Search <span class="submenu-caret">▸</span></button>
@@ -8208,6 +8234,8 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
     else if (action === 'queue') queueTracksNow(trackPlaylistItems);
     else if (action === 'entry') addTracksToEntry(trackPlaylistItems);
     else if (action === 'editProps') openTrackPropertiesModal(item, trackNum, trackName);
+    else if (action === 'confirmMatch') confirmSpotifyMatch(item, trackName, trackNum);
+    else if (action === 'nextMatch') tryNextSpotifyMatch(item, trackName, trackNum);
     else if (action === 'removeTrack') { if (isMultiSelect) quickRemoveTracksFromTracklist(trackPlaylistItems); else quickRemoveTrackFromTracklist(item, trackNum, trackName); }
     else if (action === 'removeFromPlaylist') removeTracksFromActivePlaylist(trackPlaylistItems);
   });
@@ -14704,30 +14732,92 @@ async function spotifyFindAlbumTracklist(artist, title) {
 
 // Same idea as spotifySearchDirect but for a single track, so each row in
 // the tracklist can be played on its own rather than only the whole album.
-const spotifyTrackCache = {}; // "artist::track" (lowercase) -> track id or null
-async function spotifyTrackId(artist, trackName) {
-  const cacheKey = (artist + '::' + trackName).toLowerCase();
-  if (cacheKey in spotifyTrackCache) return spotifyTrackCache[cacheKey];
+// Caches the full list of candidates (not just the top hit) so "Try next
+// Spotify match" (see tryNextSpotifyMatch) can step through real
+// alternatives instead of re-searching blind every time the fuzzy match is
+// wrong — a cover version, a live/remix take, or an entirely different
+// song with the same title are all common enough that "just search again"
+// alone wasn't a real fix.
+const spotifyTrackCandidatesCache = {}; // "artist::track" (lowercase) -> [{id, name, artists, album}]
+// Which candidate index each track currently resolves to — in-memory only
+// (not persisted; a confirmed match is saved via confirmSpotifyMatch into
+// trackData.spotifyLink instead, same field/precedence Track Properties
+// already uses, so it survives a reload — this index is just for stepping
+// through options in the moment).
+const spotifyMatchAttemptIndex = {};
+function trackMatchCacheKey(artist, trackName) {
+  return (artist + '::' + trackName).toLowerCase();
+}
+async function spotifyTrackCandidates(artist, trackName) {
+  const cacheKey = trackMatchCacheKey(artist, trackName);
+  if (spotifyTrackCandidatesCache[cacheKey]) return spotifyTrackCandidatesCache[cacheKey];
 
   const token = await getSpotifyToken();
-  if (!token) return null;
+  if (!token) return [];
 
   const q = `track:${trackName} artist:${artist}`;
   try {
-    const res = await fetch(`https://api.spotify.com/v1/search?type=track&limit=1&q=${encodeURIComponent(q)}`, {
+    const res = await fetch(`https://api.spotify.com/v1/search?type=track&limit=10&q=${encodeURIComponent(q)}`, {
       headers: { 'Authorization': 'Bearer ' + token }
     });
-    if (res.status === 401) { spotifyToken = null; return null; }
-    if (!res.ok) return null;
+    if (res.status === 401) { spotifyToken = null; return []; }
+    if (!res.ok) return [];
     const data = await res.json();
-    const hit = data.tracks && data.tracks.items && data.tracks.items[0];
-    const id = (hit && hit.id) || null;
-    spotifyTrackCache[cacheKey] = id;
-    return id;
+    const items = (data.tracks && data.tracks.items) || [];
+    const candidates = items.map(t => ({
+      id: t.id,
+      name: t.name,
+      artists: (t.artists || []).map(a => a.name).join(', '),
+      album: (t.album && t.album.name) || ''
+    }));
+    spotifyTrackCandidatesCache[cacheKey] = candidates;
+    return candidates;
   } catch (e) {
-    console.warn('Spotify track search failed', e);
-    return null;
+    console.warn('Spotify track candidates search failed', e);
+    return [];
   }
+}
+async function spotifyTrackId(artist, trackName) {
+  const candidates = await spotifyTrackCandidates(artist, trackName);
+  if (!candidates.length) return null;
+  const cacheKey = trackMatchCacheKey(artist, trackName);
+  const idx = Math.min(spotifyMatchAttemptIndex[cacheKey] || 0, candidates.length - 1);
+  return candidates[idx].id;
+}
+
+// "Try next Spotify match" — steps to the next search result for this
+// track (wrapping back to the first after the last) and immediately plays
+// it, so the person can hear whether it's the right recording without
+// leaving the moment. Nothing is saved yet — see confirmSpotifyMatch for
+// that — so reloading the page resets back to the top match.
+async function tryNextSpotifyMatch(item, trackName, trackNum) {
+  const candidates = await spotifyTrackCandidates(item.artist, trackName);
+  if (!candidates.length) { flashGlobalToast('No Spotify matches found for this track.'); return; }
+  if (candidates.length === 1) { flashGlobalToast('Only one Spotify match found for this track.'); return; }
+  const key = trackMatchCacheKey(item.artist, trackName);
+  const next = ((spotifyMatchAttemptIndex[key] || 0) + 1) % candidates.length;
+  spotifyMatchAttemptIndex[key] = next;
+  const candidate = candidates[next];
+  flashGlobalToast(`Trying "${candidate.name}" \u2014 ${candidate.artists}`);
+  await playTrackNow(item, trackName, trackNum);
+}
+
+// "Confirm Spotify match" — pins whichever recording is CURRENTLY resolved
+// for this track (the default top match, or wherever "Try next match"
+// landed) as a permanent per-track override. Writes to the same
+// trackData.spotifyLink field Track Properties already uses, so from now
+// on this track always plays that exact recording instead of depending on
+// the fuzzy search (or the in-memory attempt index above, which resets on
+// reload) to land on it again.
+async function confirmSpotifyMatch(item, trackName, trackNum) {
+  const id = await spotifyTrackId(item.artist, trackName);
+  if (!id) { flashGlobalToast('No Spotify match to confirm yet.'); return; }
+  await updateTrackData(item, trackNum, { spotifyLink: `https://open.spotify.com/track/${id}` });
+  if (currentTracklistTracks.length) mergeTrackLinkOverrides(item, currentTracklistTracks);
+  const cached = state.trackCache[artKey(item)];
+  if (cached && cached !== currentTracklistTracks) mergeTrackLinkOverrides(item, cached);
+  if (activeItem === item) renderTracklistBody(item, currentTracklistTracks);
+  flashGlobalToast('Match confirmed \u2014 pinned for this track.');
 }
 
 async function getExternalLinksFor(item) {
