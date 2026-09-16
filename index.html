@@ -13,7 +13,21 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.51
+  CURRENT_VERSION: 1.29.52
+
+  1.29.52 — 2026-09-16 — Bugfix (supersedes 1.29.51 below, which was correct
+          in spirit but didn't actually fix anything): the REAL reason
+          Ctrl/Cmd+A never worked, in ANY context — main Tracks view, album
+          grid, playlist Tracks view, deck — is that el.deckOverlay is
+          shown/hidden via a CSS class (.open), never the `hidden`
+          attribute, unlike every other overlay this handler checks.
+          el.deckOverlay.hidden was therefore always false, so `modalOpen`
+          was permanently stuck at true and every branch below it (deck,
+          playlist, main Tracks/Albums view, Diary) has been dead code since
+          this shortcut was first written — completely independent of the
+          1.29.50/1.29.51 fixes above, which were real gaps but never even
+          reachable to test. Now checks el.deckOverlay.classList.contains
+          ('open') instead.
 
   1.29.51 — 2026-09-16 — Bugfix: Ctrl/Cmd+A while viewing an album's deck
           (release view) did nothing but trigger the browser's own native
@@ -3156,7 +3170,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.51';
+const APP_VERSION = '1.29.52';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -4622,20 +4636,20 @@ function bindEvents() {
       // — those either have no "select all" concept here, or (the deck)
       // aren't wired up to it, so falling through would otherwise select
       // whatever's in the main panel behind it instead.
-      // Skip the flat-view/album-grid branches below while the deck
-      // (release view) or a form modal is open — those use a different
-      // selection model. The deck itself DOES have a "select all tracks"
-      // concept already (the #tlSelectAllBtn button / selectAllTracks()),
-      // it just wasn't wired to Ctrl/Cmd+A — so pressing it there fell
-      // all the way through with no preventDefault and the browser
-      // selected all page text instead. Handled as its own branch below,
-      // ahead of the generic modalOpen skip.
-      if (!el.deckOverlay.hidden && !isEditable && activeItem) {
+      // The deck (release view) is shown/hidden via a CSS class
+      // (.open), NOT the `hidden` attribute — unlike every other overlay
+      // checked below, which does use `hidden`. el.deckOverlay.hidden is
+      // therefore always false, deck open or not, which meant modalOpen
+      // below was permanently stuck at true and this entire Ctrl/Cmd+A
+      // handler — every branch, in every context — has never actually
+      // run. Checking the real open state instead.
+      const deckIsOpen = el.deckOverlay.classList.contains('open');
+      if (deckIsOpen && !isEditable && activeItem) {
         e.preventDefault();
         selectAllTracks(activeItem);
         return;
       }
-      const modalOpen = !el.deckOverlay.hidden || !el.addOverlay.hidden || !el.editOverlay.hidden || !el.timelineOverlay.hidden || !el.mapOverlay.hidden;
+      const modalOpen = deckIsOpen || !el.addOverlay.hidden || !el.editOverlay.hidden || !el.timelineOverlay.hidden || !el.mapOverlay.hidden;
       if (!isEditable && !modalOpen) {
         if (state.activeTab === 'diary') {
           e.preventDefault();
