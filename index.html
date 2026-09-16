@@ -13,7 +13,25 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.56
+  CURRENT_VERSION: 1.29.57
+
+  1.29.57 — 2026-09-16 — Bugfix: queue auto-advance (1.29.49) still wasn't
+          firing reliably even after unifying the check across both
+          callers. Real cause was in the check itself, not which caller ran
+          it: maybeAdvanceCrateQueueOnEnd compared duration against the
+          RAW STORED spotifyLastState.position — but that value only
+          updates when a player_state_changed event fires (not
+          continuously) or every ~6s via the refreshNowPlayingFromWebApi
+          poll, so by the time a track actually ended, the stored position
+          could be several seconds stale — nowhere near the 1500ms window
+          the check required, independent of the earlier race. Now compares
+          against the EXTRAPOLATED position (stored position + real time
+          elapsed since spotifyLastStateAt — the same math
+          getEstimatedPosition() already does), which reflects where
+          playback actually is right now regardless of when the last event
+          landed. Bumped CRATE_QUEUE_END_THRESHOLD_MS 1500 \u2192 2500ms for
+          event/poll delivery latency now that the comparison itself is
+          accurate.
 
   1.29.56 — 2026-09-16 — Feature: the tracklist builder (Add album, Edit
           album, and "\u2913 Load current tracklist") now has a small \u25b8
@@ -3276,7 +3294,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.56';
+const APP_VERSION = '1.29.57';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -7678,10 +7696,21 @@ function isStaleSpotifyPauseWhileYoutubePlaying(paused) {
 function maybeAdvanceCrateQueueOnEnd(track, paused, position, duration) {
   if (!track) return false;
   if (!(isPlayingCrateQueue() && crateQueueExpectedSpotifyTrackId && track.id === crateQueueExpectedSpotifyTrackId &&
-      spotifyLastState && !spotifyLastState.paused && paused &&
-      spotifyLastState.duration > 0 && spotifyLastState.duration - spotifyLastState.position <= CRATE_QUEUE_END_THRESHOLD_MS)) {
+      spotifyLastState && !spotifyLastState.paused && paused && spotifyLastState.duration > 0)) {
     return false;
   }
+  // Compare against the EXTRAPOLATED position (last known position + real
+  // time elapsed since then — same math as getEstimatedPosition()), not
+  // the raw stored spotifyLastState.position. The SDK doesn't re-fire
+  // player_state_changed just because time is passing, and the fallback
+  // Web API poll (refreshNowPlayingFromWebApi) only refreshes it every
+  // ~6s, so the raw stored position can be several seconds stale by the
+  // time a track actually ends — comparing it directly against duration
+  // made this heuristic miss far more often than it hit, independent of
+  // which of the two callers noticed the pause first.
+  const estimatedPosition = spotifyLastState.position + (Date.now() - spotifyLastStateAt);
+  if (spotifyLastState.duration - estimatedPosition > CRATE_QUEUE_END_THRESHOLD_MS) return false;
+
   const endedQueueId = crateQueueId, endedIndex = crateQueueIndex;
   renderMiniPlayerTrack(track, paused, position, duration, { announceNowPlaying: true });
   if (endedQueueId === crateQueueId && endedIndex === crateQueueIndex) playCrateQueueIndex(endedQueueId, endedIndex + 1);
@@ -10913,7 +10942,7 @@ function loadPlaylistFlatTrackTable(playlist) {
    within CRATE_QUEUE_END_THRESHOLD_MS of the track's duration". That's
    a heuristic — the same one most third-party Spotify Connect clients
    use in the absence of a real ended event — not a guarantee. */
-const CRATE_QUEUE_END_THRESHOLD_MS = 1500;
+const CRATE_QUEUE_END_THRESHOLD_MS = 2500; // was 1500 — a little extra room for event/poll delivery latency now that the comparison itself (see maybeAdvanceCrateQueueOnEnd) is accurate instead of comparing against a stale stored position
 let crateQueueId = 0;              // bumped on every new "Play" run (or reset), so stale lookups/advances no-op
 let crateQueueList = [];           // ordered [{ item, track }]
 let crateQueueIndex = -1;
