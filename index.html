@@ -13,7 +13,37 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.48
+  CURRENT_VERSION: 1.29.50
+
+  1.29.50 — 2026-09-16 — Feature: Ctrl/Cmd+A now selects all tracks while
+          viewing a playlist's own "Tracks" sub-view. The global select-all
+          keydown handler only ever checked state.mainViewMode (the main
+          library's view), and explicitly skipped everything while a
+          playlist was open — but renderPlaylistTracksView reuses the exact
+          same flat-table rows/data-track-key/state.selectedTracks setup as
+          the library's Tracks view, so selectAllVisibleTracks() already
+          worked for it; it just needed a branch that checks
+          state.playlistViewMode === 'tracks' instead of bailing out
+          whenever state.activePlaylistId is set.
+
+  1.29.49 — 2026-09-16 — Bugfix: queuing multiple tracks (or "Play playlist")
+          would sometimes just stop dead when the first track finished,
+          instead of advancing — reproducible-but-not-always, which pointed
+          to a race rather than a straightforward logic error. Cause: TWO
+          places notice "Spotify just went from playing to paused" —
+          onSpotifyPlayerStateChanged (the real-time Web Playback SDK
+          listener) and refreshNowPlayingFromWebApi (the 6s poll that also
+          catches playback happening on another Connect device, e.g. a TV).
+          Only the SDK listener had the "was this the crate queue's current
+          track ending naturally?" check that calls playCrateQueueIndex for
+          the next entry — the poll just re-rendered the paused state
+          directly. Whichever of the two happened to notice the transition
+          first won: if the poll's own interval landed on or narrowly beat
+          the SDK event, the render happened with no advance at all, and
+          nothing else was ever going to call playCrateQueueIndex for it.
+          Pulled the check out into a new shared maybeAdvanceCrateQueueOnEnd(),
+          called from both places before either one renders the paused
+          state — whichever notices first now correctly advances the queue.
 
   1.29.48 — 2026-09-16 — Bugfix: a playlist containing an individual track
           whose title is purely numeric (e.g. "21", "1989") crashed the
@@ -3114,7 +3144,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.48';
+const APP_VERSION = '1.29.50';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -4598,6 +4628,17 @@ function bindEvents() {
             selectAllVisibleAlbums();
             return;
           }
+        }
+        // A playlist's own "Tracks" sub-view (renderPlaylistTracksView)
+        // reuses the exact same flat-table rows/data-track-key/
+        // state.selectedTracks setup as the main library's Tracks view —
+        // selectAllVisibleTracks() already works for it unchanged. This
+        // branch was simply missing before, so Ctrl/Cmd+A did nothing at
+        // all while a playlist was open, even in its Tracks view.
+        if (state.activeTab === 'albums' && state.activePlaylistId && state.playlistViewMode === 'tracks') {
+          e.preventDefault();
+          selectAllVisibleTracks();
+          return;
         }
       }
     }
@@ -7467,25 +7508,43 @@ function isStaleSpotifyPauseWhileYoutubePlaying(paused) {
   return activePlayerEngine === 'youtube' && paused;
 }
 
+// Shared by onSpotifyPlayerStateChanged (the real-time SDK listener) and
+// refreshNowPlayingFromWebApi (the 6s poll that also catches playback on
+// other Connect devices, e.g. a TV) — both can be the one to first notice
+// "this was playing, now it's paused", and both need to trigger the crate
+// queue's auto-advance when that transition looks like the track ending
+// naturally. Previously only the SDK listener checked for this; the poll
+// just re-rendered the paused state directly. That meant whichever of the
+// two happened to notice the transition first won a silent race: if the
+// poll's own interval landed on (or narrowly beat) the SDK event, the crate
+// queue just stopped instead of advancing, since nothing else ever calls
+// playCrateQueueIndex for a same-device natural end. Returns true if it
+// handled the advance (caller should skip its own render — the advance's
+// own showMiniPlayer call re-renders for the next track), false if the
+// caller should render normally (nothing queue-related happened here).
+function maybeAdvanceCrateQueueOnEnd(track, paused, position, duration) {
+  if (!track) return false;
+  if (!(isPlayingCrateQueue() && crateQueueExpectedSpotifyTrackId && track.id === crateQueueExpectedSpotifyTrackId &&
+      spotifyLastState && !spotifyLastState.paused && paused &&
+      spotifyLastState.duration > 0 && spotifyLastState.duration - spotifyLastState.position <= CRATE_QUEUE_END_THRESHOLD_MS)) {
+    return false;
+  }
+  const endedQueueId = crateQueueId, endedIndex = crateQueueIndex;
+  renderMiniPlayerTrack(track, paused, position, duration, { announceNowPlaying: true });
+  if (endedQueueId === crateQueueId && endedIndex === crateQueueIndex) playCrateQueueIndex(endedQueueId, endedIndex + 1);
+  return true;
+}
+
 function onSpotifyPlayerStateChanged(state) {
   if (!state) return;
   const track = state.track_window && state.track_window.current_track;
   if (!track) return;
   if (isStaleSpotifyPauseWhileYoutubePlaying(state.paused)) return;
 
-  // Playlist "▶ Play" auto-advance — see playCrateQueueIndex and the
-  // caveat above it about this being a heuristic, not a real ended event.
-  // Gated on crateQueueExpectedSpotifyTrackId so an unrelated track the
-  // person plays manually elsewhere can't be mistaken for this queue's
-  // current entry finishing.
-  if (isPlayingCrateQueue() && crateQueueExpectedSpotifyTrackId && track.id === crateQueueExpectedSpotifyTrackId &&
-      spotifyLastState && !spotifyLastState.paused && state.paused &&
-      spotifyLastState.duration > 0 && spotifyLastState.duration - spotifyLastState.position <= CRATE_QUEUE_END_THRESHOLD_MS) {
-    const endedQueueId = crateQueueId, endedIndex = crateQueueIndex;
-    renderMiniPlayerTrack(track, state.paused, state.position, state.duration, { announceNowPlaying: true });
-    if (endedQueueId === crateQueueId && endedIndex === crateQueueIndex) playCrateQueueIndex(endedQueueId, endedIndex + 1);
-    return;
-  }
+  // Playlist "▶ Play" / "Add to queue" auto-advance — see
+  // maybeAdvanceCrateQueueOnEnd and the caveat above CRATE_QUEUE_END_THRESHOLD_MS
+  // about this being a heuristic, not a real ended event.
+  if (maybeAdvanceCrateQueueOnEnd(track, state.paused, state.position, state.duration)) return;
 
   renderMiniPlayerTrack(track, state.paused, state.position, state.duration, { announceNowPlaying: true });
 }
@@ -7617,7 +7676,11 @@ async function refreshNowPlayingFromWebApi() {
     const pauseChanged = !!spotifyLastState && spotifyLastState.paused !== !data.is_playing;
     if (!spotifyLastState || trackChanged || pauseChanged) {
       // Something actually changed since our last known state (or we don't
-      // have one yet) — this is the case a TV-driven track change lands in.
+      // have one yet). Before just repainting it, give the crate queue a
+      // chance to treat this as its current track ending naturally — see
+      // maybeAdvanceCrateQueueOnEnd for why this poll needs the same check
+      // the real-time SDK listener does, not just its own render.
+      if (maybeAdvanceCrateQueueOnEnd(data.item, !data.is_playing, data.progress_ms, data.item.duration_ms)) return;
       renderMiniPlayerTrack(data.item, !data.is_playing, data.progress_ms, data.item.duration_ms, {
         announceNowPlaying: nowPlayingHasBooted && trackChanged
       });
