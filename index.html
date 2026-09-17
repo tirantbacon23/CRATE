@@ -13,7 +13,62 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.66
+  CURRENT_VERSION: 1.29.68
+
+  1.29.68 — 2026-09-16 — Feature: mobile mini player redesign, first of the
+          three mobile-UI directions sketched out in chat. Two additions:
+
+          (1) An explicit "more" chevron (#miniPlayerExpandBtn) next to the
+          transport buttons on the compact mobile bar. Previously the ONLY
+          way to reach Quick Actions / the add-to-crate menu on mobile was
+          tapping the bare bar itself, with zero visual hint that it did
+          anything (see 1.29.64/1.29.65's fixes to that same flow) — this
+          makes the same action (now factored into a shared
+          openMiniPlayerMoreSheet(), called from both the bar tap and this
+          button) visibly discoverable instead of a hidden gesture. Has its
+          own click handler since .mini-player-btn is excluded from the
+          bar's delegated tap handler, same as every other transport/option
+          button already is.
+
+          (2) A thin 2px progress line along the bottom edge of the compact
+          bar (#miniPlayerMobileProgress), non-interactive, since the full
+          seek/time row is dropped entirely at this breakpoint to stay
+          short — previously there was no sense of playback position on
+          mobile at all. Kept in sync inside the existing updateProgressUI()
+          alongside the desktop seek fill.
+
+          Both are hidden outside the ≤620px breakpoint (desktop already
+          has the full .mini-player-options / .mini-player-progress-row).
+
+  1.29.67 — 2026-09-16 — Feature: New Release Radar. New ⚙ → "New
+          Releases" panel checks Spotify for recent releases (last ~9
+          months, NEW_RELEASE_WINDOW_DAYS) by every distinct artist already
+          in the crate — a multi-artist row's credit is split the same way
+          the rest of the app already treats it — and filters out anything
+          that looks already owned (crateHasRelease, same normMatchKey
+          normalization the mini player's "find crate item for this track"
+          lookup already uses) or previously dismissed. Each result shows
+          cover/artist/title/date with "+ Add" (opens the Add form
+          prefilled, same shape as the existing quick-add-from-track flow)
+          and "✕ Dismiss" (permanent, keyed by Spotify album id).
+
+          A silent background check runs once after the catalog loads
+          (maybeAutoScanNewReleases, called alongside the existing
+          maybeRunBackgroundLastfmSync in init()), throttled to roughly
+          once a day (NEW_RELEASE_AUTO_INTERVAL_MS) — it only ever updates
+          the menu's badge count, never pops the panel open on its own.
+          "Check now" in the panel bypasses that throttle. Needs Spotify
+          Client ID/Secret already configured (⚙ → Spotify API…) — no
+          separate setup.
+
+          Cost-control notes for a big crate: an artist's resolved Spotify
+          ID (or confirmed absence of one) is cached indefinitely in
+          localStorage (crate_new_releases_artist_cache_v1) and only
+          re-attempted after 30 days if it previously failed, and artist
+          checks run with limited concurrency (NEW_RELEASE_CONCURRENCY = 4)
+          rather than fully sequential (slow) or fully parallel (hammers
+          Spotify's API) — a scan is still one request per artist, so it
+          can take a while the first time through a large crate.
 
   1.29.66 — 2026-09-16 — Bugfix: opening Edit/Add for an album whose
           ReleaseDate (or Recorded) cell had been auto-converted to a real
@@ -2318,6 +2373,9 @@
           <div class="menu-section-title">Layout options</div>
           <button type="button" id="menuArrangePanels">Panels configuration…</button>
           <div class="menu-divider"></div>
+          <div class="menu-section-title">Discovery</div>
+          <button type="button" id="menuNewReleases">New Releases <span id="newReleasesBadge" class="menu-badge" hidden>0</span></button>
+          <div class="menu-divider"></div>
           <div class="menu-section-title">Integrations</div>
           <button type="button" id="lastfmBtn">Import from Last.fm</button>
           <button type="button" id="menuSpotifyApi">Spotify API…</button>
@@ -2685,6 +2743,15 @@
       <button id="miniPlayerDeviceBtn" class="mini-player-btn" title="Change playback device" aria-label="Change playback device">⇄</button>
       <button id="miniPlayerDetachBtn" class="mini-player-btn mini-player-detach-btn" title="Detach player into a floating window" aria-label="Detach player">⧉</button>
     </div>
+    <!-- Mobile-only (see .mini-player-expand-btn's media query) — an
+         explicit "there's more here" affordance for openMiniPlayerMoreSheet()
+         (Quick Actions, or the add-to-crate menu for an unmatched track),
+         which the compact bar previously only offered via tapping the bare
+         bar itself with no visual hint that it did anything. Has its own
+         click handler rather than relying on the bar's own delegated one,
+         since it's excluded from that handler by the same ".mini-player-btn"
+         selector every other transport/option button already is. -->
+    <button id="miniPlayerExpandBtn" class="mini-player-btn mini-player-expand-btn" title="More" aria-label="Show more options">⌄</button>
   </div>
 
   <!-- Timeline / scrubber — shows elapsed and total track length, and lets
@@ -2696,6 +2763,15 @@
       <div id="miniPlayerSeekHandle" class="mini-player-seek-handle"></div>
     </div>
     <span id="miniPlayerTimeTotal" class="mini-player-time">0:00</span>
+  </div>
+
+  <!-- Mobile-only compact stand-in for the full seek row above (hidden at
+       the same breakpoint) — a thin, non-interactive progress line along
+       the bottom edge of the bar, so there's at least some sense of
+       playback position without the full scrubber's height cost. Updated
+       alongside it in updateProgressUI(). -->
+  <div id="miniPlayerMobileProgress" class="mini-player-mobile-progress">
+    <div id="miniPlayerMobileProgressFill" class="mini-player-mobile-progress-fill"></div>
   </div>
 
   <button id="miniPlayerClose" class="mini-player-close" aria-label="Dock player" title="Dock player">✕</button>
@@ -3439,12 +3515,27 @@
   </div>
 </div>
 
+<div id="newReleasesOverlay" class="arrange-overlay" hidden>
+  <div class="arrange-modal add-modal new-releases-modal">
+    <div class="arrange-header"><h2>New Releases</h2><button id="newReleasesClose" class="modal-x" aria-label="Close">✕</button></div>
+    <div class="arrange-body">
+      <p class="arrange-hint">Checks Spotify for recent releases by artists already in your crate, and skips anything that looks like you already have it. Needs a Spotify Client ID/Secret saved (⚙ → Spotify API…) — the same one that powers tracklist lookups elsewhere, no extra setup. A full check can take a little while for a big crate, since it's one request per artist.</p>
+      <div class="new-releases-actions">
+        <button type="button" id="newReleasesCheckBtn" class="save-btn">Check now</button>
+        <span id="newReleasesLastChecked" class="arrange-hint"></span>
+      </div>
+      <p id="newReleasesStatus" class="arrange-hint" hidden></p>
+      <div id="newReleasesList" class="new-releases-list"></div>
+    </div>
+  </div>
+</div>
+
 <script>
 /* Bump this with every deploy — it's what actually gets printed to the
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.66';
+const APP_VERSION = '1.29.68';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -3737,7 +3828,7 @@ const el = {};
   'lastfmImportBtn','lastfmBackBtn','lastfmImportStatus','globalToast',
   'miniPlayer','miniPlayerClose','miniPlayerArt','miniPlayerVideoWrap','miniPlayerTitle','miniPlayerArtist','miniPlayerAlbum','miniPlayerTrackInfo',
   'miniPlayerPrev','miniPlayerPlayPause','miniPlayerNext','miniPlayerVolume','miniPlayerQueueBtn','miniPlayerFullscreenBtn',
-  'miniPlayerDetachBtn','miniPlayerDragHandle','miniPlayerDockBtn',
+  'miniPlayerDetachBtn','miniPlayerDragHandle','miniPlayerDockBtn','miniPlayerExpandBtn','miniPlayerMobileProgress','miniPlayerMobileProgressFill',
   'miniPlayerSeekTrack','miniPlayerSeekFill','miniPlayerSeekHandle','miniPlayerTimeCurrent','miniPlayerTimeTotal',
   'queuePanel','queuePanelClose','queuePanelNowPlaying','queuePanelList',
   'miniPlayerDeviceBtn','devicePanel','devicePanelClose','devicePanelList',
@@ -3745,6 +3836,7 @@ const el = {};
   'menuSpotifyApi','spotifyOverlay','spotifyClose','spotifyClientId','spotifyClientSecret','spotifySaveBtn','spotifyCancelBtn','spotifyStatus',
   'menuDiscogsApi','discogsOverlay','discogsClose','discogsToken','discogsSaveBtn','discogsCancelBtn','discogsStatus',
   'menuYoutubeApi','youtubeApiOverlay','youtubeApiClose','youtubeApiKey','youtubeApiSaveBtn','youtubeApiCancelBtn','youtubeApiStatus',
+  'menuNewReleases','newReleasesBadge','newReleasesOverlay','newReleasesClose','newReleasesCheckBtn','newReleasesLastChecked','newReleasesStatus','newReleasesList',
   'editGenreDiscogsBtn','editGenreDiscogsStatus',
   'spotifyRedirectUriDisplay','spotifyConnectBtn','spotifyDisconnectBtn','spotifyConnectStatus',
   'authGate','authGateStatus','menuSignOut','menuAppVersion','app',
@@ -3962,6 +4054,7 @@ async function init() {
 
   await fetchCatalog();
   maybeRunBackgroundLastfmSync(); // fire-and-forget; doesn't block first paint
+  maybeAutoScanNewReleases(); // same — see its own comment for the throttling
 }
 
 function getGenreList(genreStr) {
@@ -4347,6 +4440,47 @@ function bindEvents() {
     setTimeout(() => { el.youtubeApiOverlay.hidden = true; }, 900);
   });
 
+  el.menuNewReleases.addEventListener('click', () => {
+    el.layoutMenu.hidden = true;
+    el.newReleasesOverlay.hidden = false;
+    el.newReleasesStatus.hidden = true;
+    renderNewReleasesList(loadNewReleaseResults());
+    updateNewReleasesLastChecked();
+  });
+  el.newReleasesClose.addEventListener('click', () => { el.newReleasesOverlay.hidden = true; });
+  el.newReleasesCheckBtn.addEventListener('click', triggerNewReleaseScan);
+  el.newReleasesList.addEventListener('click', (e) => {
+    const row = e.target.closest('.new-release-row');
+    if (!row) return;
+    const id = row.dataset.releaseId;
+    const results = loadNewReleaseResults();
+    const release = results.find(r => r.id === id);
+    if (!release) return;
+
+    if (e.target.closest('.new-release-add-btn')) {
+      el.newReleasesOverlay.hidden = true;
+      openAddModal();
+      showAddForm({
+        artist: release.artist,
+        title: release.title,
+        type: release.type === 'single' ? 'Single' : 'Album',
+        releaseDate: release.releaseDate || '',
+        link: release.spotifyUrl,
+        cover: release.image
+      });
+      return;
+    }
+    if (e.target.closest('.new-release-dismiss-btn')) {
+      const dismissed = loadNewReleaseDismissed();
+      dismissed[id] = Date.now();
+      saveNewReleaseDismissed(dismissed);
+      const remaining = results.filter(r => r.id !== id);
+      saveNewReleaseResults(remaining);
+      renderNewReleasesList(remaining);
+      updateNewReleasesBadge();
+    }
+  });
+
   el.editGenreDiscogsBtn.addEventListener('click', async () => {
     const artist = el.editArtist.value.trim();
     const title = el.editTitle.value.trim();
@@ -4686,19 +4820,10 @@ function bindEvents() {
     e.preventDefault();
     openAlbumContextMenu(currentSpotifyTrack, e.clientX, e.clientY);
   });
-  // Whole-bar tap-to-open, mobile only: the compact mobile mini player drops
-  // most of its buttons (see .mini-player-options/.mini-player-progress-row
-  // in the stylesheet) to stay short, so tapping the bar itself is now how
-  // you reach everything else — reuses the exact same Quick Actions sheet
-  // the album grid's card menu opens, just pointed at whatever's currently
-  // playing (nowPlayingItem) instead of a grid card. Excludes anything that
-  // still has its own control on the compact bar (transport buttons, the
-  // seek track, volume, close, drag handle) so those keep working normally;
-  // everything else (art/title/artist/album/background) falls through to
-  // here since their own click handlers above already bail out on mobile.
-  el.miniPlayer.addEventListener('click', (e) => {
-    if (!isMiniPlayerMobileLayout()) return;
-    if (e.target.closest('.mini-player-btn, .mini-player-seek-track, .mini-player-volume, .mini-player-close, .mini-player-drag-handle')) return;
+  // Shared by the whole-bar tap (below) and miniPlayerExpandBtn's own
+  // click handler — the mobile mini player's "there's more here" action,
+  // pointed at whatever's currently playing.
+  function openMiniPlayerMoreSheet() {
     if (nowPlayingItem) { openQuickActions(nowPlayingItem); return; }
     // Nothing playing that's already matched to a crate item (e.g. a track
     // found via search, or reviewing a Last.fm scrobble) — this is exactly
@@ -4711,6 +4836,27 @@ function bindEvents() {
       const rect = el.miniPlayer.getBoundingClientRect();
       openNowPlayingAddMenu(currentSpotifyTrack, rect.left, rect.top - 6);
     }
+  }
+  // Whole-bar tap-to-open, mobile only: the compact mobile mini player drops
+  // most of its buttons (see .mini-player-options/.mini-player-progress-row
+  // in the stylesheet) to stay short, so tapping the bar itself is now how
+  // you reach everything else. Excludes anything that still has its own
+  // control on the compact bar (transport buttons, the expand button, the
+  // seek track, volume, close, drag handle) so those keep working normally;
+  // everything else (art/title/artist/album/background) falls through to
+  // here since their own click handlers above already bail out on mobile.
+  el.miniPlayer.addEventListener('click', (e) => {
+    if (!isMiniPlayerMobileLayout()) return;
+    if (e.target.closest('.mini-player-btn, .mini-player-seek-track, .mini-player-volume, .mini-player-close, .mini-player-drag-handle')) return;
+    openMiniPlayerMoreSheet();
+  });
+  // The expand chevron is the explicit, visible version of the same
+  // action — .mini-player-btn is excluded from the delegated handler
+  // above (same as every transport/option button), so this needs its own
+  // listener rather than just relying on that one.
+  el.miniPlayerExpandBtn.addEventListener('click', () => {
+    if (!isMiniPlayerMobileLayout()) return;
+    openMiniPlayerMoreSheet();
   });
   el.nowPlayingBox.addEventListener('click', () => {
     if (!currentSpotifyTrack) return;
@@ -8134,6 +8280,7 @@ function updateProgressUI() {
   const pct = duration ? (pos / duration) * 100 : 0;
   el.miniPlayerSeekFill.style.width = pct + '%';
   el.miniPlayerSeekHandle.style.left = pct + '%';
+  el.miniPlayerMobileProgressFill.style.width = pct + '%';
   el.miniPlayerSeekTrack.setAttribute('aria-valuenow', String(Math.round(pct)));
   el.miniPlayerTimeCurrent.textContent = formatMs(pos);
   el.miniPlayerTimeTotal.textContent = formatMs(duration);
@@ -15370,6 +15517,270 @@ async function getSpotifyToken() {
   }
 }
 
+/* ===========================================================
+   NEW RELEASE RADAR
+   ===========================================================
+   Checks Spotify for recent releases by artists already in the crate, and
+   skips anything that looks already owned. Everything here is per-browser
+   (localStorage) — nothing round-trips through the Apps Script backend,
+   since this is discovery scaffolding on top of the existing Spotify
+   client-credentials setup (getSpotifyToken), not crate data itself.
+
+   Two costs kept deliberately small, since a big crate can mean a LOT of
+   distinct artists and this has no server-side cron to spread the work
+   over: (1) an artist's resolved Spotify ID (or confirmed absence of one)
+   is cached indefinitely (artists don't change), so only genuinely new
+   artists or ones that previously failed to resolve get re-searched; (2)
+   album fetches only look back NEW_RELEASE_WINDOW_DAYS, and a background
+   scan only runs once every NEW_RELEASE_AUTO_INTERVAL_MS at most — see
+   maybeAutoScanNewReleases(). "Check now" in the modal bypasses that
+   interval (but still uses the artist-ID cache) since that's an explicit
+   ask, not a background nicety. */
+
+const NEW_RELEASES_ARTIST_CACHE_KEY = 'crate_new_releases_artist_cache_v1'; // normKey -> {id: string|null, checkedAt}
+const NEW_RELEASES_DISMISSED_KEY = 'crate_new_releases_dismissed_v1';       // spotify album id -> dismissedAt
+const NEW_RELEASES_RESULTS_KEY = 'crate_new_releases_results_v1';          // last scan's surfaced results, so reopening the modal is instant
+const NEW_RELEASES_LAST_SCAN_KEY = 'crate_new_releases_last_scan_v1';      // timestamp of the last completed scan (any trigger)
+const NEW_RELEASE_WINDOW_DAYS = 270; // ~9 months — catches things released while you weren't looking without dredging up an artist's whole back catalog every time
+const NEW_RELEASE_ARTIST_RETRY_MS = 30 * 24 * 60 * 60 * 1000; // re-attempt an artist we previously couldn't find on Spotify after 30 days, in case they're on it now
+const NEW_RELEASE_AUTO_INTERVAL_MS = 20 * 60 * 60 * 1000; // ~20h — how often the silent background check (maybeAutoScanNewReleases) is allowed to run
+const NEW_RELEASE_CONCURRENCY = 4; // how many artists to check in parallel — enough to not take forever on a big crate, low enough to not hammer Spotify's API
+
+function loadNewReleaseArtistCache() {
+  try { return JSON.parse(localStorage.getItem(NEW_RELEASES_ARTIST_CACHE_KEY) || '{}'); }
+  catch (e) { return {}; }
+}
+function saveNewReleaseArtistCache(cache) {
+  try { localStorage.setItem(NEW_RELEASES_ARTIST_CACHE_KEY, JSON.stringify(cache)); }
+  catch (e) { /* ignore */ }
+}
+function loadNewReleaseDismissed() {
+  try { return JSON.parse(localStorage.getItem(NEW_RELEASES_DISMISSED_KEY) || '{}'); }
+  catch (e) { return {}; }
+}
+function saveNewReleaseDismissed(obj) {
+  try { localStorage.setItem(NEW_RELEASES_DISMISSED_KEY, JSON.stringify(obj)); }
+  catch (e) { /* ignore */ }
+}
+function loadNewReleaseResults() {
+  try { return JSON.parse(localStorage.getItem(NEW_RELEASES_RESULTS_KEY) || '[]'); }
+  catch (e) { return []; }
+}
+function saveNewReleaseResults(results) {
+  try { localStorage.setItem(NEW_RELEASES_RESULTS_KEY, JSON.stringify(results)); }
+  catch (e) { /* ignore */ }
+}
+
+// Every distinct artist name across the crate, individually — a multi-
+// artist row ("Jazzbois, Telemakus, Tristan Cappel") is split the same way
+// the rest of the app already treats comma-joined artist credits, so each
+// name gets checked for new releases on its own rather than only as that
+// exact combined credit. "Various Artists"-style rows are excluded since
+// there's no one specific artist to track new releases FOR.
+function getDistinctCrateArtists() {
+  const byKey = new Map(); // normMatchKey -> display name (first casing seen)
+  state.raw.forEach(r => {
+    (r.artist || '').split(',').forEach(part => {
+      const name = part.trim();
+      if (!name) return;
+      const key = normMatchKey(name);
+      if (!key || key === 'various artists' || key === 'va') return;
+      if (!byKey.has(key)) byKey.set(key, name);
+    });
+  });
+  return [...byKey.values()];
+}
+
+// Resolves (and caches) one artist's Spotify artist ID. Returns null, not
+// an error, for an artist Spotify doesn't have — that's an expected,
+// common outcome (see the a.s.o./Match-button saga elsewhere in this
+// file's history for how often small/DIY artists just aren't on Spotify),
+// not a failure worth retrying every single scan.
+async function resolveSpotifyArtistId(name, cache) {
+  const key = normMatchKey(name);
+  const cached = cache[key];
+  if (cached && (cached.id || (Date.now() - cached.checkedAt < NEW_RELEASE_ARTIST_RETRY_MS))) {
+    return cached.id;
+  }
+  const token = await getSpotifyToken();
+  if (!token) return null;
+  try {
+    const res = await fetch(`https://api.spotify.com/v1/search?type=artist&limit=1&q=${encodeURIComponent('artist:' + name)}`, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) { cache[key] = { id: null, checkedAt: Date.now() }; return null; }
+    const data = await res.json();
+    const hit = data.artists && data.artists.items && data.artists.items[0];
+    // Same reasoning as spotifyResultArtistMatches elsewhere — Spotify's
+    // search is fuzzy, so confirm the name actually matches before trusting it.
+    const id = (hit && normMatchKey(hit.name) === key) ? hit.id : null;
+    cache[key] = { id, checkedAt: Date.now() };
+    return id;
+  } catch (e) {
+    cache[key] = { id: null, checkedAt: Date.now() };
+    return null;
+  }
+}
+
+function spotifyReleaseDateToMs(dateStr, precision) {
+  if (!dateStr) return 0;
+  if (precision === 'year') return Date.parse(dateStr + '-01-01') || 0;
+  if (precision === 'month') return Date.parse(dateStr + '-01') || 0;
+  return Date.parse(dateStr) || 0;
+}
+
+// True if this artist+title combo already looks present in the crate —
+// checked against every row whose Artist field CONTAINS this individual
+// artist name (since a crate row's Artist can itself be a comma-joined
+// multi-artist credit), not just an exact whole-field match.
+function crateHasRelease(artist, title) {
+  const artistKey = normMatchKey(artist);
+  const titleKey = normMatchKey(title);
+  if (!artistKey || !titleKey) return false;
+  return state.raw.some(r => normMatchKey(r.artist).includes(artistKey) && normMatchKey(r.title) === titleKey);
+}
+
+// Runs a small worker over `items` with at most `limit` running at once —
+// used here so checking dozens/hundreds of artists doesn't run fully
+// sequentially (slow) or fully in parallel (hammers Spotify's API).
+async function runWithConcurrency(items, limit, worker) {
+  let i = 0;
+  async function lane() {
+    while (i < items.length) {
+      const idx = i++;
+      await worker(items[idx], idx);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, lane));
+}
+
+let newReleaseScanInFlight = null; // the in-progress scan's promise, so concurrent triggers (auto + manual) share one run instead of doubling up
+async function runNewReleaseScan(onProgress) {
+  if (newReleaseScanInFlight) return newReleaseScanInFlight;
+  newReleaseScanInFlight = (async () => {
+    const artists = getDistinctCrateArtists();
+    const artistCache = loadNewReleaseArtistCache();
+    const dismissed = loadNewReleaseDismissed();
+    const cutoff = Date.now() - NEW_RELEASE_WINDOW_DAYS * 86400000;
+    const found = [];
+
+    let done = 0;
+    await runWithConcurrency(artists, NEW_RELEASE_CONCURRENCY, async (artist) => {
+      const id = await resolveSpotifyArtistId(artist, artistCache);
+      if (id) {
+        const token = await getSpotifyToken();
+        if (token) {
+          try {
+            const res = await fetch(`https://api.spotify.com/v1/artists/${id}/albums?include_groups=album,single&limit=20`, {
+              headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (res.ok) {
+              const data = await res.json();
+              (data.items || []).forEach(a => {
+                if (spotifyReleaseDateToMs(a.release_date, a.release_date_precision) < cutoff) return;
+                if (dismissed[a.id]) return;
+                if (crateHasRelease(artist, a.name)) return;
+                found.push({
+                  id: a.id,
+                  artist,
+                  title: a.name,
+                  releaseDate: a.release_date,
+                  type: a.album_type,
+                  image: ((a.images && (a.images[1] || a.images[0])) || {}).url || '',
+                  spotifyUrl: (a.external_urls && a.external_urls.spotify) || ''
+                });
+              });
+            }
+          } catch (e) { /* one artist failing shouldn't sink the whole scan */ }
+        }
+      }
+      done++;
+      if (onProgress) onProgress(done, artists.length);
+    });
+
+    found.sort((a, b) => (b.releaseDate || '').localeCompare(a.releaseDate || ''));
+    const seenIds = new Set();
+    const deduped = found.filter(r => { if (seenIds.has(r.id)) return false; seenIds.add(r.id); return true; }); // same album can surface once per artist you have on it
+
+    saveNewReleaseArtistCache(artistCache);
+    saveNewReleaseResults(deduped);
+    localStorage.setItem(NEW_RELEASES_LAST_SCAN_KEY, String(Date.now()));
+    return deduped;
+  })();
+  try { return await newReleaseScanInFlight; } finally { newReleaseScanInFlight = null; }
+}
+
+function updateNewReleasesBadge() {
+  const count = loadNewReleaseResults().length;
+  if (!el.newReleasesBadge) return;
+  el.newReleasesBadge.textContent = String(count);
+  el.newReleasesBadge.hidden = count === 0;
+}
+
+function renderNewReleasesList(results) {
+  if (!el.newReleasesList) return;
+  if (!results.length) {
+    el.newReleasesList.innerHTML = '<p class="tracklist-status">No new releases found from artists in your crate.</p>';
+    return;
+  }
+  el.newReleasesList.innerHTML = results.map(r => `
+    <div class="new-release-row" data-release-id="${escapeHtml(r.id)}">
+      ${r.image ? `<img class="new-release-thumb" src="${escapeHtml(r.image)}" alt="">` : '<div class="new-release-thumb new-release-thumb-empty"></div>'}
+      <div class="new-release-info">
+        <span class="new-release-title">${escapeHtml(r.title)}</span>
+        <span class="new-release-sub">${escapeHtml(r.artist)} \u00b7 ${escapeHtml(r.releaseDate || '')} \u00b7 ${escapeHtml(r.type || '')}</span>
+      </div>
+      <button type="button" class="chip-btn new-release-add-btn">+ Add</button>
+      <button type="button" class="chip-btn new-release-dismiss-btn" title="Dismiss" aria-label="Dismiss this release">✕</button>
+    </div>
+  `).join('');
+}
+
+function updateNewReleasesLastChecked() {
+  if (!el.newReleasesLastChecked) return;
+  const t = Number(localStorage.getItem(NEW_RELEASES_LAST_SCAN_KEY) || 0);
+  el.newReleasesLastChecked.textContent = t ? `Last checked ${new Date(t).toLocaleString()}` : 'Never checked yet';
+}
+
+async function triggerNewReleaseScan() {
+  if (!loadSpotifyCreds().clientId) {
+    el.newReleasesStatus.hidden = false;
+    el.newReleasesStatus.textContent = 'Add a Spotify Client ID/Secret first (\u2699 \u2192 Spotify API\u2026).';
+    return;
+  }
+  el.newReleasesCheckBtn.disabled = true;
+  el.newReleasesStatus.hidden = false;
+  el.newReleasesStatus.textContent = 'Checking your artists\u2026';
+  try {
+    const results = await runNewReleaseScan((done, total) => {
+      el.newReleasesStatus.textContent = `Checking your artists\u2026 (${done}/${total})`;
+    });
+    el.newReleasesStatus.hidden = true;
+    renderNewReleasesList(results);
+    updateNewReleasesLastChecked();
+    updateNewReleasesBadge();
+  } catch (e) {
+    console.warn('New release scan failed', e);
+    el.newReleasesStatus.textContent = 'Something went wrong checking for new releases.';
+  } finally {
+    el.newReleasesCheckBtn.disabled = false;
+  }
+}
+
+// Fire-and-forget, called once after the catalog first loads (see init()) —
+// silently refreshes the cached results (and therefore the menu badge)
+// roughly once a day, without ever popping the modal open on its own.
+// Does nothing if Spotify isn't configured or the crate is completely empty.
+function maybeAutoScanNewReleases() {
+  updateNewReleasesBadge(); // reflect whatever's already cached immediately, before any network call
+  const last = Number(localStorage.getItem(NEW_RELEASES_LAST_SCAN_KEY) || 0);
+  if (Date.now() - last < NEW_RELEASE_AUTO_INTERVAL_MS) return;
+  if (!loadSpotifyCreds().clientId) return;
+  if (!state.raw.length) return;
+  runNewReleaseScan().then(updateNewReleasesBadge).catch(() => {});
+}
+
+
 // Spotify's /search endpoint is a fuzzy relevance ranking, not a strict
 // filter — "album:X artist:Y" is a scoring hint, not a guarantee the top
 // hit is actually by Y. A short or generic title can easily out-rank the
@@ -17326,6 +17737,27 @@ html, body {
   .track-props-match-use { flex: 0 0 auto; font-size: 11px; padding: 5px 10px; }
   .track-props-match-row.selected .track-props-match-use { border-color: var(--accent); color: var(--accent); }
   .track-props-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 0 0; }
+
+  /* New Release Radar */
+  .menu-badge {
+    display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px;
+    padding: 0 4px; margin-left: 6px; border-radius: 8px; background: var(--accent); color: #000;
+    font-size: 10px; font-weight: 700; line-height: 16px; vertical-align: middle;
+  }
+  .menu-badge[hidden] { display: none; } /* same cascade gotcha as .tracklist-builder-match-panel etc. — an unconditional display on the class beats the browser's own [hidden] rule at equal specificity */
+  .new-releases-modal { max-width: 480px; }
+  .new-releases-actions { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+  .new-releases-list { display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow-y: auto; margin-top: 8px; }
+  .new-release-row {
+    display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--bg-card);
+  }
+  .new-release-thumb { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 6px; object-fit: cover; }
+  .new-release-thumb-empty { background: var(--bg-elevated); }
+  .new-release-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .new-release-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .new-release-sub { font-size: 11.5px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .new-release-add-btn, .new-release-dismiss-btn { flex: 0 0 auto; font-size: 11px; padding: 5px 10px; }
   .track-props-actions button { width: auto; }
   .track-props-actions .chip-btn { border-radius: 6px; }
   .track-props-actions .save-btn { margin-top: 0; padding: 7px 14px; font-size: 12px; }
@@ -17584,6 +18016,8 @@ html, body {
   /* Base layout is now a column: main row on top, timeline strip below. */
   .mini-player { flex-direction: column; align-items: stretch; gap: 6px; padding: 8px 44px 10px 12px; }
   .mini-player-row { display: flex; align-items: center; gap: 16px; width: 100%; }
+  .mini-player-expand-btn { display: none; } /* desktop already has the full .mini-player-options row — this is a mobile-only stand-in for it, see the media query below */
+  .mini-player-mobile-progress { display: none; } /* desktop already has the full .mini-player-progress-row — see the media query below */
 
   @media (max-width: 620px) {
     /* Compact single-row bar: art + title/artist + transport only. The
@@ -17591,16 +18025,23 @@ html, body {
        track info, transport/options, and the progress row into three
        separate lines — that's what made this so tall. .mini-player-options
        (volume/queue/device/detach/fullscreen) and the seek/time row are
-       dropped entirely on this breakpoint; tapping the bar now opens Quick
-       Actions instead (see the el.miniPlayer click listener), which covers
-       queue/device/etc. through its own actions, and playback controls
-       stay reachable straight from the bar via the transport row. */
+       dropped entirely on this breakpoint; tapping the bar (or the
+       explicit .mini-player-expand-btn chevron) opens Quick Actions
+       instead (see openMiniPlayerMoreSheet()), which covers queue/device/
+       etc. through its own actions, and playback controls stay reachable
+       straight from the bar via the transport row. */
     .mini-player { padding: 6px 40px 6px 10px; gap: 0; }
     .mini-player-row { flex-wrap: nowrap; gap: 8px; }
     .mini-player-track { flex-basis: auto; flex: 1 1 auto; min-width: 0; cursor: pointer; }
     .mini-player-art, .mini-player-video-wrap { width: 34px; height: 34px; }
     .mini-player-options, .mini-player-progress-row { display: none; }
     .mini-player-transport { flex: 0 0 auto; }
+    .mini-player-expand-btn { display: flex; flex: 0 0 auto; font-size: 12px; }
+    .mini-player-mobile-progress {
+      display: block; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+      background: var(--line); overflow: hidden;
+    }
+    .mini-player-mobile-progress-fill { height: 100%; width: 0%; background: var(--accent); }
   }
 
   /* ---- Timeline / scrubber ---- */
