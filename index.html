@@ -13,7 +13,42 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.61
+  CURRENT_VERSION: 1.29.64
+
+  1.29.64 — 2026-09-16 — Bugfix: on mobile, tapping the mini player for a
+          track NOT yet in the crate did nothing at all — no way to add it.
+          Cause: the "Add to your crate" option only ever existed as
+          openAlbumContextMenu, wired to the album name's contextmenu
+          (right-click) event — no mobile equivalent for that gesture. The
+          mobile whole-bar tap fallback (1.29.something, "reuses the exact
+          same Quick Actions sheet") only handled the case where
+          nowPlayingItem already pointed at a real crate item
+          (if (nowPlayingItem) openQuickActions(...)) and silently did
+          nothing otherwise. It now falls back to the same add flow
+          (openAddModal + showAddForm(crateAlbumPrefillFromTrack(...)))
+          openAlbumContextMenu's "Add to your crate" already used, when
+          there's a Spotify track playing with no crate match.
+
+  1.29.63 — 2026-09-16 — Tweak: the tracklist builder's match panel now
+          always shows a "None of these right? Search {platform} yourself"
+          link — results found or not. Root issue this addresses: an
+          unusual/short/generic artist name (e.g. "a.s.o.", which reads as
+          the common "and so on" abbreviation to a search engine) can make
+          YouTube's or Spotify's own relevance ranking return confidently
+          WRONG results rather than none at all — "no matches found"
+          doesn't cover that case, and there was previously no way back to
+          manual search without closing the panel and hunting for it.
+
+  1.29.62 — 2026-09-16 — Tweaks to the tracklist builder's per-row match
+          panel: (1) capped its height (max-height: 240px, scrolling) —
+          previously unbounded, so a full 10-result list just pushed every
+          row below it down the page instead of staying contained, unlike
+          the already-scrolling Track Properties picker. (2) Picking a
+          result ("Use this") now closes/collapses the panel immediately
+          instead of leaving the list open with a "Selected" marker —
+          renderMatchCandidateList gained an optional onAfterUse callback
+          for this (Track Properties omits it and keeps the old
+          re-render-in-place behavior, since it has no panel to close).
 
   1.29.61 — 2026-09-16 — Bugfix: Spotify's per-track and per-album search
           (spotifyTrackCandidatesLive, spotifySearchDirect,
@@ -3377,7 +3412,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.61';
+const APP_VERSION = '1.29.64';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -4632,7 +4667,18 @@ function bindEvents() {
   el.miniPlayer.addEventListener('click', (e) => {
     if (!isMiniPlayerMobileLayout()) return;
     if (e.target.closest('.mini-player-btn, .mini-player-seek-track, .mini-player-volume, .mini-player-close, .mini-player-drag-handle')) return;
-    if (nowPlayingItem) openQuickActions(nowPlayingItem);
+    if (nowPlayingItem) { openQuickActions(nowPlayingItem); return; }
+    // Nothing playing that's already matched to a crate item (e.g. a track
+    // found via search, or reviewing a Last.fm scrobble) — this is exactly
+    // the case openAlbumContextMenu's desktop right-click on the album name
+    // covers ("Add to your crate"), but contextmenu has no mobile
+    // equivalent, so on mobile this previously just did nothing at all.
+    // Fall back to the same add flow directly rather than leave mobile
+    // with no way to add it.
+    if (activePlayerEngine === 'spotify' && currentSpotifyTrack) {
+      openAddModal();
+      showAddForm(crateAlbumPrefillFromTrack(currentSpotifyTrack));
+    }
   });
   el.nowPlayingBox.addEventListener('click', () => {
     if (!currentSpotifyTrack) return;
@@ -14468,15 +14514,33 @@ function closeAllTracklistMatchPanels(container) {
 async function loadTracklistRowMatches(panel, row, kind, artist, title) {
   const targetInput = row.querySelector(kind === 'spotify' ? '.tracklist-builder-sp' : '.tracklist-builder-yt');
   const label = kind === 'spotify' ? 'Spotify' : 'YouTube';
+  const manualSearchUrl = kind === 'spotify'
+    ? `https://open.spotify.com/search/${encodeURIComponent(artist + ' ' + title)}`
+    : `https://www.youtube.com/results?search_query=${encodeURIComponent(artist + ' ' + title)}`;
+  // Always present, results or not — an unusual/short artist name (an
+  // abbreviation, a common word, etc.) can make the API's own relevance
+  // ranking return confidently wrong results rather than nothing at all,
+  // which "no matches found" wouldn't cover. This is a fast way out
+  // without closing the panel and hunting for a way to search manually.
+  const manualSearchLinkHtml = `<a href="${escapeHtml(manualSearchUrl)}" target="_blank" rel="noopener" class="tracklist-builder-hint tracklist-builder-match-manual-link">None of these right? Search ${label} yourself \u2197</a>`;
   panel.innerHTML = `<p class="tracklist-builder-hint">Looking up matches on ${label}\u2026</p>`;
   const raw = kind === 'spotify' ? await spotifyTrackCandidatesLive(artist, title) : await youtubeSearchCandidates(artist, title);
   if (panel.hidden || panel.dataset.openKind !== kind) return; // closed, or switched to the other platform, while this was in flight
-  if (!raw.length) { panel.innerHTML = `<p class="tracklist-builder-hint">No ${label} matches found.</p>`; return; }
+  if (!raw.length) { panel.innerHTML = `<p class="tracklist-builder-hint">No ${label} matches found.</p>${manualSearchLinkHtml}`; return; }
   const candidates = toMatchCandidates(kind, raw);
   const currentId = kind === 'spotify'
     ? (() => { const uri = trackSpotifyUriFromLink(targetInput.value.trim()); return uri && uri.startsWith('spotify:track:') ? uri.slice('spotify:track:'.length) : null; })()
     : (targetInput.value.match(/(?:v=|youtu\.be\/)([a-zA-Z0-9_-]{6,})/) || [])[1] || null;
-  renderMatchCandidateList(panel, candidates, currentId, kind, targetInput);
+  renderMatchCandidateList(panel, candidates, currentId, kind, targetInput, () => {
+    // Collapse the panel the moment a pick is made, rather than leaving a
+    // (possibly long) results list sitting open — see the comment on
+    // renderMatchCandidateList's onAfterUse param.
+    panel.hidden = true;
+    panel.innerHTML = '';
+    delete panel.dataset.openKind;
+    flashGlobalToast(`${label} link set \u2014 click Match again to change it.`);
+  });
+  panel.insertAdjacentHTML('beforeend', manualSearchLinkHtml);
 }
 
 function showAddForm(prefill) {
@@ -15148,8 +15212,16 @@ function matchCandidateLink(kind, candidate) {
 }
 // Renders one platform's candidate list into `container` and wires each
 // row's preview/use buttons — targetInput is whichever link field ("Use
-// this" should fill) for the picker this call belongs to.
-function renderMatchCandidateList(container, candidates, selectedId, kind, targetInput) {
+// this" should fill) for the picker this call belongs to. onAfterUse is
+// optional: when given, it's called instead of re-rendering the list with
+// a "Selected" marker — used by the tracklist builder to close/collapse
+// its expandable match panel the moment a pick is made (see
+// loadTracklistRowMatches), since leaving a long results list sitting
+// open after the person's already chosen just pushes every row below it
+// down the page for no reason. The Track Properties picker has no such
+// panel to close, so it omits this and keeps the old re-render-in-place
+// behavior.
+function renderMatchCandidateList(container, candidates, selectedId, kind, targetInput, onAfterUse) {
   container.innerHTML = candidates.map(c => `
     <div class="track-props-match-row${c.id === selectedId ? ' selected' : ''}" data-candidate-id="${escapeHtml(c.id)}">
       ${c.thumbnail ? `<img class="track-props-match-thumb" src="${escapeHtml(c.thumbnail)}" alt="">` : ''}
@@ -15171,7 +15243,8 @@ function renderMatchCandidateList(container, candidates, selectedId, kind, targe
     rowEl.querySelector('.track-props-match-use').addEventListener('click', (e) => {
       e.stopPropagation();
       targetInput.value = matchCandidateLink(kind, candidate);
-      renderMatchCandidateList(container, candidates, candidate.id, kind, targetInput);
+      if (onAfterUse) onAfterUse(candidate);
+      else renderMatchCandidateList(container, candidates, candidate.id, kind, targetInput);
     });
   });
 }
@@ -18307,8 +18380,11 @@ html, body {
     flex: 1 1 100%; display: flex; flex-direction: column; gap: 4px;
     background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 6px;
     padding: 6px; margin-left: 24px; /* roughly lines up under the title field, past the num column */
+    max-height: 240px; overflow-y: auto; /* was unbounded — a full 10-result list just pushed every row below it down the page instead of staying contained, unlike the Track Properties modal's picker which already scrolled */
   }
   .tracklist-builder-match-panel:empty { display: none; }
+  .tracklist-builder-match-manual-link { display: block; text-align: center; color: var(--accent); text-decoration: none; padding-top: 4px; }
+  .tracklist-builder-match-manual-link:hover { text-decoration: underline; }
   /* Same cascade gotcha already hit and fixed for #deckPlayBtn and
      .spotify-match-banner: this class's own unconditional display:flex
      is equal specificity to the browser's [hidden]{display:none} rule,
