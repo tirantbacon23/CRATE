@@ -13,7 +13,68 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.68
+  CURRENT_VERSION: 1.29.73
+
+  1.29.73 — 2026-09-16 — Bugfix: Quick Actions opened with its header/title
+          cut off above the visible screen, plus a stray empty gap and odd
+          mini-player spacing near the bottom — reported right after
+          1.29.70/1.29.72's long-press-on-cover added a new way to reach it
+          directly, without the deck open first. Cause: iOS Safari's
+          dynamic toolbar — .qa-overlay's `position:fixed; inset:0` can
+          still size against the LARGER viewport (toolbar collapsed) even
+          while the toolbar is actively showing, so a bottom-aligned sheet
+          taller than the currently-visible area gets pushed with its top
+          portion above what's actually on screen, unreachable since the
+          fixed container itself doesn't scroll with the page. Almost
+          certainly a latent bug that predates the long-press feature —
+          reaching Quick Actions via the deck usually involves scrolling
+          first, which collapses the toolbar and happened to avoid
+          triggering it. .qa-overlay and .qa-sheet now size against
+          100dvh/88dvh (falling back to vh first for anything without dvh
+          support) instead, which tracks the actually-visible viewport.
+
+  1.29.72 — 2026-09-16 — Follow-up to 1.29.70: long-pressing a cover now
+          opens openQuickActions() (the mobile-native bottom sheet — same
+          one the deck's own "Quick Actions" button and the mini player's
+          mobile fallback already use), not openAlbumCardContextMenu() (the
+          desktop-style floating dropdown positioned at the cursor) — a
+          small anchored menu isn't the right shape for a touch hold the
+          way it is for a mouse right-click.
+
+  1.29.71 — 2026-09-16 — Tweak: mini player transport buttons (prev/play-
+          pause/next) are now inline SVG icons instead of unicode glyphs
+          (⏮ ▶ ⏸ ⏭) — those render inconsistently across devices/fonts
+          and looked crude. New setMiniPlayerPlayPauseIcon() consolidates
+          the play/pause swap (previously duplicated between
+          renderMiniPlayerTrack for Spotify and setYtPlayPauseUI for
+          YouTube — both now call it) into one place. Scoped to just the
+          mini player's transport row, not a wholesale icon-system change
+          across the rest of the app, which still uses its existing
+          unicode glyphs (⚙, ▶, ⤓, etc.) elsewhere.
+
+  1.29.70 — 2026-09-16 — Feature: holding down on an album card (Albums or
+          Covers grid) now opens the same quick menu a right-click does —
+          touch has no native contextmenu equivalent, so this never worked
+          on mobile before. New attachLongPress() helper (touchstart/move/
+          end, 500ms hold, 10px move tolerance before it's treated as a
+          scroll instead) is written generically, not album-card-specific,
+          so the same "give this element a right-click equivalent on
+          touch" behavior can be reused elsewhere later without re-deriving
+          the timing logic. Also suppresses the click/dblclick the same
+          touch would otherwise still fire afterward (so holding a card
+          doesn't ALSO open its deck), and gives a brief opacity dip
+          (.long-press-active) while the hold is registering, as feedback
+          that something's about to happen.
+
+  1.29.69 — 2026-09-16 — Follow-up to 1.29.68: removed the expand chevron
+          (#miniPlayerExpandBtn) — pointed out that it was pure redundancy,
+          since tapping the title/artist/album text already fell through to
+          the exact same openMiniPlayerMoreSheet() action on mobile (their
+          own click handlers just bail out there and let it bubble up to
+          the bar's delegated listener). The progress line from 1.29.68
+          stays; openMiniPlayerMoreSheet() stays as a named function since
+          the bar-tap listener alone still benefits from having the logic
+          factored out.
 
   1.29.68 — 2026-09-16 — Feature: mobile mini player redesign, first of the
           three mobile-UI directions sketched out in chat. Two additions:
@@ -2726,9 +2787,9 @@
       </div>
     </div>
     <div class="mini-player-transport">
-      <button id="miniPlayerPrev" class="mini-player-btn" title="Previous track" aria-label="Previous track">⏮</button>
-      <button id="miniPlayerPlayPause" class="mini-player-btn mini-player-btn-play" title="Play" aria-label="Play/pause">▶</button>
-      <button id="miniPlayerNext" class="mini-player-btn" title="Next track" aria-label="Next track">⏭</button>
+      <button id="miniPlayerPrev" class="mini-player-btn" title="Previous track" aria-label="Previous track"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M6 5h2v14H6zM19 5v14l-11-7 11-7z"/></svg></button>
+      <button id="miniPlayerPlayPause" class="mini-player-btn mini-player-btn-play" title="Play" aria-label="Play/pause"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M6 4.5v15l13-7.5-13-7.5z"/></svg></button>
+      <button id="miniPlayerNext" class="mini-player-btn" title="Next track" aria-label="Next track"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M5 5l11 7-11 7V5zM16 5h2v14h-2z"/></svg></button>
     </div>
     <div class="mini-player-options">
       <div class="mini-player-volume">
@@ -2743,15 +2804,9 @@
       <button id="miniPlayerDeviceBtn" class="mini-player-btn" title="Change playback device" aria-label="Change playback device">⇄</button>
       <button id="miniPlayerDetachBtn" class="mini-player-btn mini-player-detach-btn" title="Detach player into a floating window" aria-label="Detach player">⧉</button>
     </div>
-    <!-- Mobile-only (see .mini-player-expand-btn's media query) — an
-         explicit "there's more here" affordance for openMiniPlayerMoreSheet()
-         (Quick Actions, or the add-to-crate menu for an unmatched track),
-         which the compact bar previously only offered via tapping the bare
-         bar itself with no visual hint that it did anything. Has its own
-         click handler rather than relying on the bar's own delegated one,
-         since it's excluded from that handler by the same ".mini-player-btn"
-         selector every other transport/option button already is. -->
-    <button id="miniPlayerExpandBtn" class="mini-player-btn mini-player-expand-btn" title="More" aria-label="Show more options">⌄</button>
+    <!-- Mobile-only stand-in for the full seek row above (hidden at the
+         same breakpoint) — a thin, non-interactive progress line along the
+         bottom edge of the bar. Updated alongside it in updateProgressUI(). -->
   </div>
 
   <!-- Timeline / scrubber — shows elapsed and total track length, and lets
@@ -3535,7 +3590,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.68';
+const APP_VERSION = '1.29.73';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -3828,7 +3883,7 @@ const el = {};
   'lastfmImportBtn','lastfmBackBtn','lastfmImportStatus','globalToast',
   'miniPlayer','miniPlayerClose','miniPlayerArt','miniPlayerVideoWrap','miniPlayerTitle','miniPlayerArtist','miniPlayerAlbum','miniPlayerTrackInfo',
   'miniPlayerPrev','miniPlayerPlayPause','miniPlayerNext','miniPlayerVolume','miniPlayerQueueBtn','miniPlayerFullscreenBtn',
-  'miniPlayerDetachBtn','miniPlayerDragHandle','miniPlayerDockBtn','miniPlayerExpandBtn','miniPlayerMobileProgress','miniPlayerMobileProgressFill',
+  'miniPlayerDetachBtn','miniPlayerDragHandle','miniPlayerDockBtn','miniPlayerMobileProgress','miniPlayerMobileProgressFill',
   'miniPlayerSeekTrack','miniPlayerSeekFill','miniPlayerSeekHandle','miniPlayerTimeCurrent','miniPlayerTimeTotal',
   'queuePanel','queuePanelClose','queuePanelNowPlaying','queuePanelList',
   'miniPlayerDeviceBtn','devicePanel','devicePanelClose','devicePanelList',
@@ -4841,21 +4896,13 @@ function bindEvents() {
   // most of its buttons (see .mini-player-options/.mini-player-progress-row
   // in the stylesheet) to stay short, so tapping the bar itself is now how
   // you reach everything else. Excludes anything that still has its own
-  // control on the compact bar (transport buttons, the expand button, the
-  // seek track, volume, close, drag handle) so those keep working normally;
-  // everything else (art/title/artist/album/background) falls through to
-  // here since their own click handlers above already bail out on mobile.
+  // control on the compact bar (transport buttons, the seek track, volume,
+  // close, drag handle) so those keep working normally; everything else
+  // (art/title/artist/album/background) falls through to here since their
+  // own click handlers above already bail out on mobile.
   el.miniPlayer.addEventListener('click', (e) => {
     if (!isMiniPlayerMobileLayout()) return;
     if (e.target.closest('.mini-player-btn, .mini-player-seek-track, .mini-player-volume, .mini-player-close, .mini-player-drag-handle')) return;
-    openMiniPlayerMoreSheet();
-  });
-  // The expand chevron is the explicit, visible version of the same
-  // action — .mini-player-btn is excluded from the delegated handler
-  // above (same as every transport/option button), so this needs its own
-  // listener rather than just relying on that one.
-  el.miniPlayerExpandBtn.addEventListener('click', () => {
-    if (!isMiniPlayerMobileLayout()) return;
     openMiniPlayerMoreSheet();
   });
   el.nowPlayingBox.addEventListener('click', () => {
@@ -7865,6 +7912,24 @@ function buildCard(item) {
     }
     openAlbumCardContextMenu(item, e.clientX, e.clientY);
   });
+  // Touch has no equivalent of a right-click — attachLongPress() is the
+  // touch stand-in, but opens openQuickActions() (the mobile-native bottom
+  // sheet, same one the deck's own "Quick Actions" button and the mini
+  // player's mobile fallback use) rather than openAlbumCardContextMenu()
+  // (the desktop-style floating dropdown the actual right-click opens) —
+  // a small menu positioned at a touch point isn't the right shape for
+  // touch the way it is for a mouse cursor.
+  attachLongPress(card, (x, y, targetEl) => {
+    if (targetEl && targetEl.closest && targetEl.closest('.cover-links')) return;
+    const rowStr = String(item.row);
+    if (!state.selectedAlbums.has(rowStr)) {
+      state.selectedAlbums.clear();
+      state.selectedAlbums.add(rowStr);
+      state.lastSelectedAlbumRow = rowStr;
+      el.gridContainer.querySelectorAll('.card[data-album-row]').forEach(c => c.classList.toggle('selected', c.dataset.albumRow === rowStr));
+    }
+    openQuickActions(item);
+  });
 
   // Cover-art quick links start out pointing at a search page (instant, always
   // works) and get upgraded to the exact page the first time this card is
@@ -8153,8 +8218,7 @@ function renderMiniPlayerTrack(track, paused, positionMs, durationMs, opts) {
   refreshMiniPlayerMeta();
   const smallArt = track.album && track.album.images && track.album.images[track.album.images.length - 1];
   el.miniPlayerArt.src = smallArt ? smallArt.url : NO_ART_FALLBACK;
-  el.miniPlayerPlayPause.textContent = paused ? '▶' : '⏸';
-  el.miniPlayerPlayPause.title = paused ? 'Play' : 'Pause';
+  setMiniPlayerPlayPauseIcon(paused);
 
   updateProgressUI();
 
@@ -8465,6 +8529,69 @@ function spotifyAlbumTypeToOurType(t) {
 
 // Shared "float this menu near (x, y), clamped to the viewport" positioning
 // used by both the now-playing add menu and the album right-click menu.
+// Touch has no native equivalent of a right-click, so this is the touch
+// stand-in wherever a contextmenu handler needs one — holds the shape of
+// "touch and hold this element, get the same menu a right-click would" for
+// any element, not just album cards, so it can be reused elsewhere without
+// re-deriving the timing/tolerance logic each time.
+// onLongPress(x, y, targetEl) fires once the hold clears LONG_PRESS_MS
+// without the finger moving past LONG_PRESS_MOVE_TOLERANCE px (a real
+// press, not the start of a scroll) — x/y are the touch point (for
+// positioning the menu, same as a contextmenu event's clientX/clientY),
+// targetEl is the exact element under the finger (so callers can still
+// exclude sub-elements the way a contextmenu handler checks e.target).
+// Also suppresses the click/dblclick the same touch would otherwise still
+// fire afterward, so a long-press doesn't ALSO open the item it was
+// holding down on.
+const LONG_PRESS_MS = 500;
+const LONG_PRESS_MOVE_TOLERANCE = 10;
+function attachLongPress(el, onLongPress) {
+  let timer = null;
+  let startX = 0, startY = 0;
+  let startTarget = null;
+  let fired = false;
+
+  function clearTimer() {
+    if (timer) { clearTimeout(timer); timer = null; }
+    el.classList.remove('long-press-active');
+  }
+  el.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) { clearTimer(); return; }
+    const t = e.touches[0];
+    startX = t.clientX; startY = t.clientY;
+    startTarget = e.target;
+    fired = false;
+    el.classList.add('long-press-active');
+    timer = setTimeout(() => {
+      fired = true;
+      el.classList.remove('long-press-active');
+      if (navigator.vibrate) navigator.vibrate(15); // no-op where unsupported (notably iOS Safari) — harmless either way
+      onLongPress(startX, startY, startTarget);
+    }, LONG_PRESS_MS);
+  }, { passive: true });
+  el.addEventListener('touchmove', (e) => {
+    const t = e.touches[0];
+    if (!t) return;
+    if (Math.abs(t.clientX - startX) > LONG_PRESS_MOVE_TOLERANCE || Math.abs(t.clientY - startY) > LONG_PRESS_MOVE_TOLERANCE) clearTimer();
+  }, { passive: true });
+  el.addEventListener('touchend', (e) => {
+    if (fired) e.preventDefault(); // block the click/dblclick this same touch would otherwise still fire
+    clearTimer();
+  });
+  el.addEventListener('touchcancel', clearTimer);
+}
+
+// Swaps the mini player's play/pause button between the two SVG icons
+// (inline, not a font glyph — see 1.29.71) — shared by both engines'
+// paused-state handlers (renderMiniPlayerTrack for Spotify,
+// setYtPlayPauseUI for YouTube) so the icon markup only lives in one place.
+const MINI_PLAYER_PLAY_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M6 4.5v15l13-7.5-13-7.5z"/></svg>';
+const MINI_PLAYER_PAUSE_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>';
+function setMiniPlayerPlayPauseIcon(paused) {
+  el.miniPlayerPlayPause.innerHTML = paused ? MINI_PLAYER_PLAY_ICON : MINI_PLAYER_PAUSE_ICON;
+  el.miniPlayerPlayPause.title = paused ? 'Play' : 'Pause';
+}
+
 function positionFloatingMenu(menu, x, y) {
   const rect = menu.getBoundingClientRect();
   const left = Math.min(x, window.innerWidth - rect.width - 8);
@@ -15249,8 +15376,7 @@ function onYtPlayerStateChange(e) {
 function setYtPlayPauseUI(paused) {
   ytIsPaused = paused;
   if (activePlayerEngine !== 'youtube') return; // stale event from a video no longer on screen — Spotify owns the shared button now
-  el.miniPlayerPlayPause.textContent = paused ? '▶' : '⏸';
-  el.miniPlayerPlayPause.title = paused ? 'Play' : 'Pause';
+  setMiniPlayerPlayPauseIcon(paused);
 }
 
 // Clicking a track's "▶ YT" button builds a queue out of every track in its
@@ -17324,6 +17450,7 @@ html, body {
   #gridContainer.close-gaps .grid { column-gap: 6px; }
 
   .card { cursor: pointer; outline: none; }
+  .card.long-press-active { opacity: 0.75; transition: opacity 0.1s; } /* brief feedback while attachLongPress's hold timer is running, mobile only in practice (touch-only event) */
   .card:focus-visible .art-wrap { outline: 2px solid var(--accent); outline-offset: 2px; }
   .card.selected .art-wrap { outline: 2px solid var(--accent); outline-offset: -2px; }
   .card.selected .sleeve { background: var(--bg-elevated); }
@@ -17364,11 +17491,20 @@ html, body {
   /* ---- Quick Actions bottom sheet ---- */
   .qa-overlay {
     display: none; position: fixed; inset: 0; z-index: 55; align-items: flex-end; justify-content: center;
+    /* iOS Safari's dynamic toolbar: `inset:0` on a fixed element can still
+       size against the LARGER viewport (toolbar collapsed) even while the
+       toolbar is currently showing, pushing the sheet's own top (the
+       header/title) above what's actually visible on screen — with no way
+       to scroll to it, since this container itself is fixed, not part of
+       the page's own scroll. dvh tracks the actually-visible viewport
+       instead. 100vh first as a fallback for anything without dvh support. */
+    height: 100vh; height: 100dvh;
   }
   .qa-overlay.open { display: flex; }
   .qa-backdrop { position: absolute; inset: 0; background: rgba(8,10,13,0.75); }
   .qa-sheet {
-    position: relative; width: 100%; max-width: 480px; max-height: 88vh; overflow-y: auto;
+    position: relative; width: 100%; max-width: 480px; overflow-y: auto;
+    max-height: 88vh; max-height: 88dvh; /* same dvh reasoning as .qa-overlay just above — keeps this relative to the actually-visible viewport, not the toolbar-collapsed one */
     background: var(--bg-elevated); border: 1px solid var(--line); border-bottom: none;
     border-radius: 14px 14px 0 0; animation: qaSlideUp 0.18s ease;
   }
@@ -18016,7 +18152,6 @@ html, body {
   /* Base layout is now a column: main row on top, timeline strip below. */
   .mini-player { flex-direction: column; align-items: stretch; gap: 6px; padding: 8px 44px 10px 12px; }
   .mini-player-row { display: flex; align-items: center; gap: 16px; width: 100%; }
-  .mini-player-expand-btn { display: none; } /* desktop already has the full .mini-player-options row — this is a mobile-only stand-in for it, see the media query below */
   .mini-player-mobile-progress { display: none; } /* desktop already has the full .mini-player-progress-row — see the media query below */
 
   @media (max-width: 620px) {
@@ -18025,18 +18160,17 @@ html, body {
        track info, transport/options, and the progress row into three
        separate lines — that's what made this so tall. .mini-player-options
        (volume/queue/device/detach/fullscreen) and the seek/time row are
-       dropped entirely on this breakpoint; tapping the bar (or the
-       explicit .mini-player-expand-btn chevron) opens Quick Actions
-       instead (see openMiniPlayerMoreSheet()), which covers queue/device/
-       etc. through its own actions, and playback controls stay reachable
-       straight from the bar via the transport row. */
+       dropped entirely on this breakpoint; tapping the bar (art, title,
+       artist, album — anywhere without its own control) opens Quick
+       Actions instead (see openMiniPlayerMoreSheet()), which covers
+       queue/device/etc. through its own actions, and playback controls
+       stay reachable straight from the bar via the transport row. */
     .mini-player { padding: 6px 40px 6px 10px; gap: 0; }
     .mini-player-row { flex-wrap: nowrap; gap: 8px; }
     .mini-player-track { flex-basis: auto; flex: 1 1 auto; min-width: 0; cursor: pointer; }
     .mini-player-art, .mini-player-video-wrap { width: 34px; height: 34px; }
     .mini-player-options, .mini-player-progress-row { display: none; }
     .mini-player-transport { flex: 0 0 auto; }
-    .mini-player-expand-btn { display: flex; flex: 0 0 auto; font-size: 12px; }
     .mini-player-mobile-progress {
       display: block; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
       background: var(--line); overflow: hidden;
