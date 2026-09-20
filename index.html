@@ -13,7 +13,52 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.78
+  CURRENT_VERSION: 1.29.80
+
+  1.29.80 — 2026-09-16 — Feature: Genre Taxonomy. Genres can now belong
+          under a broader one (Shoegaze under Alternative Rock, itself
+          under Rock) — filtering by a parent genre in the left panel's
+          Genres list now also surfaces everything beneath it in the
+          hierarchy, not just albums tagged with that exact genre string.
+
+          New ⚙ \u2192 "Genre Taxonomy\u2026" editor lists every genre CRATE
+          knows about (tagged on an album, or purely organizational) with
+          a "falls under" field per genre \u2014 blank means top-level.
+          Autocompletes from existing genre names but accepts anything
+          typed, so a parent doesn't need to already be tagged on an
+          album itself. Seeded with a modest starter set of common,
+          widely-known genre relationships (DEFAULT_GENRE_TAXONOMY) on
+          first run only \u2014 fully editable/removable, same as anything
+          added by hand. Per-browser (localStorage,
+          crate_genre_taxonomy_v1), same as Spotify/Discogs/YouTube API
+          settings \u2014 not crate data, doesn't round-trip through the
+          backend.
+
+          Core pieces: genreMatchesFilter() (genre IS the filter, or has
+          it anywhere in its ancestor chain via getGenreAncestors()) now
+          backs the actual navFilter match, replacing a plain string-
+          equality check. The left panel's Genres list (buildGenreTree())
+          is now a real indented tree instead of a flat list, with each
+          genre's count AGGREGATED to include every descendant's \u2014
+          "Rock" shows a count that includes Alternative Rock and
+          Shoegaze tagged albums, consistent with what clicking it now
+          actually surfaces. wouldCreateGenreCycle() blocks an edit that
+          would make a genre its own ancestor.
+
+  1.29.79 — 2026-09-16 — Tweak: mini player looked cramped/unpleasant when
+          a modal (Quick Actions) was open above it — sitting flush against
+          the sheet's bottom edge with no breathing room, and visually
+          poking through the modal's dark backdrop as a bright, undimmed
+          strip rather than reading as part of the same layered UI (can't
+          just lower its z-index — 300, deliberately above every modal —
+          without breaking things like the +Playlist flyout that need to
+          sit above it while a modal's open). Two changes: +14px of extra
+          padding-bottom on .qa-overlay beyond the exact reserved height,
+          so the sheet's own edge has visible separation from the mini
+          player below it; and a new body:has(#qaOverlay.open) .mini-player
+          rule giving it a deeper shadow and an accent-tinted top border
+          while a modal's up, so it reads as an intentional floating layer
+          instead of a stray interruption.
 
   1.29.78 — 2026-09-16 — Bugfix: the actual search icon vertical-alignment
           bug (1.29.76/77 fixed real but different issues along the way —
@@ -2509,6 +2554,7 @@
           <div class="menu-divider"></div>
           <div class="menu-section-title">Discovery</div>
           <button type="button" id="menuNewReleases">New Releases <span id="newReleasesBadge" class="menu-badge" hidden>0</span></button>
+          <button type="button" id="menuGenreTaxonomy">Genre Taxonomy…</button>
           <div class="menu-divider"></div>
           <div class="menu-section-title">Integrations</div>
           <button type="button" id="lastfmBtn">Import from Last.fm</button>
@@ -3658,12 +3704,27 @@
   </div>
 </div>
 
+<div id="genreTaxonomyOverlay" class="arrange-overlay" hidden>
+  <div class="arrange-modal add-modal genre-taxonomy-modal">
+    <div class="arrange-header"><h2>Genre Taxonomy</h2><button id="genreTaxonomyClose" class="modal-x" aria-label="Close">✕</button></div>
+    <div class="arrange-body">
+      <p class="arrange-hint">Set which broader genre each one falls under \u2014 e.g. Shoegaze under Alternative Rock, itself under Rock. Filtering by a parent genre (Rock) then also surfaces everything beneath it (Alternative Rock, Shoegaze, etc.) automatically, and the left panel's Genres list shows the tree with counts that include the whole branch. Leave a genre's field blank for top-level (no parent). Stored only in this browser.</p>
+      <datalist id="genreTaxonomyDatalist"></datalist>
+      <div id="genreTaxonomyList" class="genre-taxonomy-list"></div>
+      <div class="log-form-actions">
+        <button type="button" id="genreTaxonomyAddBtn" class="chip-btn">+ Add a genre</button>
+      </div>
+      <p id="genreTaxonomyStatus" class="arrange-hint" hidden></p>
+    </div>
+  </div>
+</div>
+
 <script>
 /* Bump this with every deploy — it's what actually gets printed to the
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.78';
+const APP_VERSION = '1.29.80';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -3785,6 +3846,11 @@ const state = {
   filtered: [],
   diary: [],
   scrobbles: [],
+  // Genre hierarchy — { [normalizedGenreKey]: { label: "Shoegaze", parent:
+  // "Alternative Rock" } } — see loadGenreTaxonomy()/GENRE TAXONOMY section
+  // below. Loaded once at init() and mutated in place by the taxonomy
+  // editor; saveGenreTaxonomy(state.genreTaxonomy) persists it.
+  genreTaxonomy: {},
   // Playlists: array of {id, name, description, createdAt, updatedAt, items}
   // where each item is {id, type: 'album'|'track', row, trackNum, trackName,
   // position} — see fetchCatalog() for how this is built from data.playlists
@@ -3965,6 +4031,7 @@ const el = {};
   'menuDiscogsApi','discogsOverlay','discogsClose','discogsToken','discogsSaveBtn','discogsCancelBtn','discogsStatus',
   'menuYoutubeApi','youtubeApiOverlay','youtubeApiClose','youtubeApiKey','youtubeApiSaveBtn','youtubeApiCancelBtn','youtubeApiStatus',
   'menuNewReleases','newReleasesBadge','newReleasesOverlay','newReleasesClose','newReleasesCheckBtn','newReleasesLastChecked','newReleasesStatus','newReleasesList',
+  'menuGenreTaxonomy','genreTaxonomyOverlay','genreTaxonomyClose','genreTaxonomyDatalist','genreTaxonomyList','genreTaxonomyAddBtn','genreTaxonomyStatus',
   'editGenreDiscogsBtn','editGenreDiscogsStatus',
   'spotifyRedirectUriDisplay','spotifyConnectBtn','spotifyDisconnectBtn','spotifyConnectStatus',
   'authGate','authGateStatus','menuSignOut','menuAppVersion','app',
@@ -4142,6 +4209,7 @@ function syncMobileChromeGap() {
 }
 
 async function init() {
+  state.genreTaxonomy = loadGenreTaxonomy();
   syncMobileChromeGap();
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', syncMobileChromeGap);
@@ -4226,6 +4294,232 @@ function combinedGenreStr(item) {
   if (!primary) return secondary;
   if (!secondary) return primary;
   return primary + ', ' + secondary;
+}
+
+/* ===========================================================
+   GENRE TAXONOMY
+   ===========================================================
+   Lets a genre belong under a broader one — Shoegaze under Alternative
+   Rock, itself under Rock — so filtering by "Rock" also surfaces every
+   genre beneath it. Per-browser (localStorage), same as Spotify/Discogs/
+   YouTube API settings: this is a personal organizing scheme layered on
+   top of the shared crate data, not crate data itself, so it doesn't
+   round-trip through the Apps Script backend. */
+const GENRE_TAXONOMY_KEY = 'crate_genre_taxonomy_v1';
+
+// A modest starting point covering common, widely-known genre
+// relationships (not any one site's specific/proprietary taxonomy) —
+// exactly as editable and removable as anything added by hand afterward
+// via "Genre Taxonomy…". Only seeded on a genuinely first run (see
+// loadGenreTaxonomy) — an empty {} the person has actually saved (e.g.
+// after removing everything) is respected as-is, not re-seeded.
+const DEFAULT_GENRE_TAXONOMY = {
+  'alternative rock': { label: 'Alternative Rock', parent: 'Rock' },
+  'shoegaze': { label: 'Shoegaze', parent: 'Alternative Rock' },
+  'post-punk': { label: 'Post-Punk', parent: 'Rock' },
+  'punk rock': { label: 'Punk Rock', parent: 'Rock' },
+  'indie rock': { label: 'Indie Rock', parent: 'Rock' },
+  'psychedelic rock': { label: 'Psychedelic Rock', parent: 'Rock' },
+  'progressive rock': { label: 'Progressive Rock', parent: 'Rock' },
+  'metal': { label: 'Metal', parent: 'Rock' },
+  'heavy metal': { label: 'Heavy Metal', parent: 'Metal' },
+  'black metal': { label: 'Black Metal', parent: 'Metal' },
+  'death metal': { label: 'Death Metal', parent: 'Metal' },
+  'doom metal': { label: 'Doom Metal', parent: 'Metal' },
+  'house': { label: 'House', parent: 'Electronic' },
+  'techno': { label: 'Techno', parent: 'Electronic' },
+  'ambient': { label: 'Ambient', parent: 'Electronic' },
+  'idm': { label: 'IDM', parent: 'Electronic' },
+  'drum and bass': { label: 'Drum and Bass', parent: 'Electronic' },
+  'dubstep': { label: 'Dubstep', parent: 'Electronic' },
+  'downtempo': { label: 'Downtempo', parent: 'Electronic' },
+  'trip hop': { label: 'Trip Hop', parent: 'Electronic' },
+  'synth-pop': { label: 'Synth-pop', parent: 'Pop' },
+  'dream pop': { label: 'Dream Pop', parent: 'Pop' },
+  'bebop': { label: 'Bebop', parent: 'Jazz' },
+  'free jazz': { label: 'Free Jazz', parent: 'Jazz' },
+  'fusion': { label: 'Fusion', parent: 'Jazz' },
+  'trap': { label: 'Trap', parent: 'Hip Hop' },
+  'boom bap': { label: 'Boom Bap', parent: 'Hip Hop' },
+  'neo-soul': { label: 'Neo-Soul', parent: 'Soul' },
+  'funk': { label: 'Funk', parent: 'Soul' },
+  'folk rock': { label: 'Folk Rock', parent: 'Folk' },
+};
+
+function genreTaxonomyKey(g) { return (g || '').trim().toLowerCase(); }
+
+function loadGenreTaxonomy() {
+  try {
+    const raw = localStorage.getItem(GENRE_TAXONOMY_KEY);
+    if (raw === null) return JSON.parse(JSON.stringify(DEFAULT_GENRE_TAXONOMY)); // first run ever — seed defaults
+    return JSON.parse(raw) || {};
+  } catch (e) {
+    return JSON.parse(JSON.stringify(DEFAULT_GENRE_TAXONOMY));
+  }
+}
+function saveGenreTaxonomy(taxonomy) {
+  try { localStorage.setItem(GENRE_TAXONOMY_KEY, JSON.stringify(taxonomy)); }
+  catch (e) { /* ignore */ }
+}
+
+function getGenreParent(taxonomy, genre) {
+  const entry = taxonomy[genreTaxonomyKey(genre)];
+  return entry ? entry.parent : null;
+}
+
+// Full ancestor chain (immediate parent first) — guards against a cyclical
+// taxonomy (shouldn't be reachable via the editor's own cycle check, but
+// defends anyway) by bailing the moment a name repeats.
+function getGenreAncestors(taxonomy, genre) {
+  const chain = [];
+  let current = genre;
+  while (true) {
+    const parent = getGenreParent(taxonomy, current);
+    if (!parent || chain.some(a => genreTaxonomyKey(a) === genreTaxonomyKey(parent))) break;
+    chain.push(parent);
+    current = parent;
+  }
+  return chain;
+}
+
+// True if `genre` IS filterGenre, or has filterGenre anywhere above it in
+// the taxonomy — the actual "filtering by Rock also surfaces Shoegaze"
+// behavior, used both by the navFilter match (searchFilteredRaw's
+// matchesNav) and buildGenreTree's aggregated counts below.
+function genreMatchesFilter(taxonomy, genre, filterGenre) {
+  if (genreTaxonomyKey(genre) === genreTaxonomyKey(filterGenre)) return true;
+  return getGenreAncestors(taxonomy, genre).some(a => genreTaxonomyKey(a) === genreTaxonomyKey(filterGenre));
+}
+
+// Would assigning `parent` as genre's parent create a cycle (genre already
+// sits somewhere above parent)? Checked before saving any taxonomy edit.
+function wouldCreateGenreCycle(taxonomy, genre, parent) {
+  if (genreTaxonomyKey(genre) === genreTaxonomyKey(parent)) return true;
+  return getGenreAncestors(taxonomy, parent).some(a => genreTaxonomyKey(a) === genreTaxonomyKey(genre));
+}
+
+// Builds the left panel's genre-mode row list as a hierarchy: every known
+// genre (tagged on some album, OR purely organizational — named in the
+// taxonomy but never itself tagged), each with an AGGREGATED count (its
+// own direct tags plus every descendant's), indented under its parent and
+// alphabetized within each level of siblings. A genre with a 0 aggregated
+// count (organizational, nothing tagged under it yet within the current
+// search-filtered set) is left out — same idea as the old flat list never
+// showing genres with no matches.
+function buildGenreTree(sourceRaw, taxonomy) {
+  const ownCount = new Map(); // normKey -> {label, count}
+  sourceRaw.forEach(item => {
+    getGenreList(combinedGenreStr(item)).forEach(g => {
+      const key = genreTaxonomyKey(g);
+      if (!ownCount.has(key)) ownCount.set(key, { label: g, count: 0 });
+      ownCount.get(key).count++;
+    });
+  });
+
+  const labelByKey = new Map();
+  ownCount.forEach((v, k) => labelByKey.set(k, v.label));
+  Object.entries(taxonomy).forEach(([key, entry]) => {
+    if (!labelByKey.has(key)) labelByKey.set(key, entry.label);
+    const parentKey = genreTaxonomyKey(entry.parent);
+    if (!labelByKey.has(parentKey)) labelByKey.set(parentKey, entry.parent);
+  });
+
+  const childrenOf = new Map(); // parentKey -> [childKey, ...]
+  labelByKey.forEach((label, key) => {
+    const parent = getGenreParent(taxonomy, label);
+    if (!parent) return;
+    const pk = genreTaxonomyKey(parent);
+    if (!childrenOf.has(pk)) childrenOf.set(pk, []);
+    childrenOf.get(pk).push(key);
+  });
+
+  function aggregatedCount(key, seen) {
+    if (seen.has(key)) return 0; // cycle guard
+    seen.add(key);
+    let total = (ownCount.get(key) || { count: 0 }).count;
+    (childrenOf.get(key) || []).forEach(childKey => { total += aggregatedCount(childKey, seen); });
+    return total;
+  }
+
+  const rootKeys = [...labelByKey.keys()].filter(key => !getGenreParent(taxonomy, labelByKey.get(key)));
+  const rows = [];
+  function walk(key, depth) {
+    const count = aggregatedCount(key, new Set());
+    if (count > 0) rows.push({ key: labelByKey.get(key), label: labelByKey.get(key), sub: '', count, depth });
+    (childrenOf.get(key) || [])
+      .slice()
+      .sort((a, b) => labelByKey.get(a).localeCompare(labelByKey.get(b)))
+      .forEach(childKey => walk(childKey, depth + 1));
+  }
+  rootKeys.sort((a, b) => labelByKey.get(a).localeCompare(labelByKey.get(b))).forEach(key => walk(key, 0));
+  return rows;
+}
+
+// Every genre CRATE knows about right now — tagged on some album, or
+// purely organizational (named in the taxonomy but never itself tagged) —
+// as {key, label, parent}, alphabetized. Unlike buildGenreTree above, this
+// includes zero-count genres too (the editor needs to show and let you
+// manage the whole structure, not just what currently has matches), and
+// carries no depth/aggregation — the editor is a flat list, not a tree
+// render, since every row's own parent field already shows its place in
+// the hierarchy.
+function getAllKnownGenres(taxonomy) {
+  const labelByKey = new Map();
+  state.raw.forEach(item => {
+    getGenreList(combinedGenreStr(item)).forEach(g => {
+      const key = genreTaxonomyKey(g);
+      if (!labelByKey.has(key)) labelByKey.set(key, g);
+    });
+  });
+  Object.entries(taxonomy).forEach(([key, entry]) => {
+    if (!labelByKey.has(key)) labelByKey.set(key, entry.label);
+    const parentKey = genreTaxonomyKey(entry.parent);
+    if (!labelByKey.has(parentKey)) labelByKey.set(parentKey, entry.parent);
+  });
+  return [...labelByKey.entries()]
+    .map(([key, label]) => ({ key, label, parent: getGenreParent(taxonomy, label) || '' }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function renderGenreTaxonomyEditor() {
+  const genres = getAllKnownGenres(state.genreTaxonomy);
+  el.genreTaxonomyDatalist.innerHTML = genres.map(g => `<option value="${escapeHtml(g.label)}">`).join('');
+  if (!genres.length) {
+    el.genreTaxonomyList.innerHTML = '<p class="tracklist-status">No genres yet \u2014 add one below, or tag an album with a genre first.</p>';
+    return;
+  }
+  el.genreTaxonomyList.innerHTML = genres.map(g => `
+    <div class="genre-taxonomy-row" data-genre-key="${escapeHtml(g.key)}">
+      <span class="genre-taxonomy-name">${escapeHtml(g.label)}</span>
+      <span class="genre-taxonomy-arrow">under</span>
+      <input type="text" class="genre-taxonomy-parent" list="genreTaxonomyDatalist" placeholder="Top-level" value="${escapeHtml(g.parent)}">
+      <button type="button" class="genre-taxonomy-remove chip-btn" title="Clear this genre's parent" aria-label="Clear this genre's parent">✕</button>
+    </div>
+  `).join('');
+
+  el.genreTaxonomyList.querySelectorAll('.genre-taxonomy-row').forEach(rowEl => {
+    const key = rowEl.dataset.genreKey;
+    const genreInfo = genres.find(g => g.key === key);
+    const parentInput = rowEl.querySelector('.genre-taxonomy-parent');
+    const applyParent = (newParent) => {
+      const trimmed = newParent.trim();
+      if (!trimmed) {
+        delete state.genreTaxonomy[key];
+      } else if (wouldCreateGenreCycle(state.genreTaxonomy, genreInfo.label, trimmed)) {
+        parentInput.value = genreInfo.parent; // revert
+        flashGlobalToast(`Can't set that \u2014 ${trimmed} is already under ${genreInfo.label}.`);
+        return;
+      } else {
+        state.genreTaxonomy[key] = { label: genreInfo.label, parent: trimmed };
+      }
+      saveGenreTaxonomy(state.genreTaxonomy);
+      renderGenreTaxonomyEditor();
+      if (state.leftMode === 'genre') buildLeftList();
+      if (state.navFilter && state.navFilter.mode === 'genre') applyFiltersSort();
+    };
+    parentInput.addEventListener('change', () => applyParent(parentInput.value));
+    rowEl.querySelector('.genre-taxonomy-remove').addEventListener('click', () => applyParent(''));
+  });
 }
 
 // Display form for the deck meta line — primary genre as normal, secondary
@@ -4633,6 +4927,25 @@ function bindEvents() {
       renderNewReleasesList(remaining);
       updateNewReleasesBadge();
     }
+  });
+
+  el.menuGenreTaxonomy.addEventListener('click', () => {
+    el.layoutMenu.hidden = true;
+    el.genreTaxonomyOverlay.hidden = false;
+    el.genreTaxonomyStatus.hidden = true;
+    renderGenreTaxonomyEditor();
+  });
+  el.genreTaxonomyClose.addEventListener('click', () => { el.genreTaxonomyOverlay.hidden = true; });
+  el.genreTaxonomyAddBtn.addEventListener('click', () => {
+    const name = (window.prompt('Genre name:') || '').trim();
+    if (!name) return;
+    const key = genreTaxonomyKey(name);
+    if (state.genreTaxonomy[key]) { flashGlobalToast(`${name} is already in the taxonomy.`); return; }
+    // Blank parent (top-level) until they set one via its own row's field —
+    // adding it here just makes it exist so it can be referenced/edited.
+    state.genreTaxonomy[key] = { label: name, parent: '' };
+    saveGenreTaxonomy(state.genreTaxonomy);
+    renderGenreTaxonomyEditor();
   });
 
   el.editGenreDiscogsBtn.addEventListener('click', async () => {
@@ -5985,6 +6298,10 @@ function buildLeftRow(entry, mode) {
     row.innerHTML = `
       <div class="left-row-text"><p class="left-row-title">${escapeHtml(entry.label)}</p></div>
       <span class="left-row-count">${entry.count}</span>`;
+    // Genre mode is the only one with a real hierarchy (see buildGenreTree)
+    // — indent each row under its parent so the tree structure is visible,
+    // not just implied by aggregated counts.
+    if (mode === 'genre' && entry.depth) row.style.paddingLeft = (6 + entry.depth * 16) + 'px';
   }
 
   row.addEventListener('click', () => {
@@ -6034,27 +6351,21 @@ if (mode === 'artist') {
       return y ? String(y) : 'Unknown';
     });
   } else if (mode === 'genre') {
-    const genreMap = new Map();
-    sourceRaw.forEach(item => {
-      const genres = getGenreList(combinedGenreStr(item));
-      genres.forEach(g => {
-        genreMap.set(g, (genreMap.get(g) || 0) + 1);
-      });
-    });
-    entries = Array.from(genreMap.entries())
-      .map(([name, count]) => ({ 
-        key: name, 
-        label: name, 
-        sub: '', 
-        count: count 
-      }));
+    // Hierarchical, aggregated-count tree (see buildGenreTree/Genre
+    // Taxonomy above) rather than a flat per-genre count — entries come
+    // back already sorted/indented by depth, so the generic sort below is
+    // skipped for this mode (sorting by count wouldn't respect the
+    // hierarchy, and it's already alphabetized within each level).
+    entries = buildGenreTree(sourceRaw, state.genreTaxonomy);
   } else {
     entries = sourceRaw
       .map(r => ({ key: r.row, artKey: artKey(r), label: r.title, sub: r.artist, count: null, item: r }));
   }
 
   // --- APPLY SORTING HERE ---
-  if (state.leftSort === 'count') {
+  if (mode === 'genre') {
+    // already ordered by buildGenreTree — leave as-is
+  } else if (state.leftSort === 'count') {
     // ... rest of your sorting code
     entries.sort((a, b) => {
       const countA = a.count || 0;
@@ -6683,7 +6994,7 @@ function applyFiltersSort() {
     
     const matchesNav = !state.navFilter || (
       state.navFilter.mode === 'artist' ? r.artist === state.navFilter.value :
-      state.navFilter.mode === 'genre' ? getGenreList(combinedGenreStr(r)).includes(state.navFilter.value) : 
+      state.navFilter.mode === 'genre' ? getGenreList(combinedGenreStr(r)).some(g => genreMatchesFilter(state.genreTaxonomy, g, state.navFilter.value)) : 
       r.row === state.navFilter.value
     );
 
@@ -17993,6 +18304,22 @@ html, body {
   .new-release-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .new-release-sub { font-size: 11.5px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .new-release-add-btn, .new-release-dismiss-btn { flex: 0 0 auto; font-size: 11px; padding: 5px 10px; }
+
+  /* Genre Taxonomy editor */
+  .genre-taxonomy-modal { max-width: 480px; }
+  .genre-taxonomy-list { display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow-y: auto; margin-top: 8px; }
+  .genre-taxonomy-row {
+    display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--bg-card);
+  }
+  .genre-taxonomy-name { flex: 1 1 40%; min-width: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .genre-taxonomy-arrow { flex: 0 0 auto; font-size: 11px; color: var(--text-dim); }
+  .genre-taxonomy-parent {
+    flex: 1 1 40%; min-width: 0; background: var(--bg-elevated); border: 1px solid var(--line);
+    border-radius: 6px; color: var(--text); padding: 6px 8px; font-size: 12.5px;
+  }
+  .genre-taxonomy-parent:focus { outline: none; border-color: var(--accent); }
+  .genre-taxonomy-remove { flex: 0 0 auto; font-size: 11px; padding: 5px 9px; }
   .track-props-actions button { width: auto; }
   .track-props-actions .chip-btn { border-radius: 6px; }
   .track-props-actions .save-btn { margin-top: 0; padding: 7px 14px; font-size: 12px; }
@@ -19260,7 +19587,28 @@ html, body {
        applied there first. */
     body.has-mini-player #app { padding-bottom: calc(var(--mobile-navbar-h) + 64px + env(safe-area-inset-bottom, 0px)); }
     body.has-mini-player .deck { max-height: calc(88vh - var(--mobile-navbar-h) - 64px - env(safe-area-inset-bottom, 0px)); }
-    body.has-mini-player .qa-overlay { padding-bottom: calc(var(--mobile-navbar-h) + 64px + env(safe-area-inset-bottom, 0px)); }
+    /* +14px beyond the exact reserved height (mini player + nav bar), so
+       the sheet's own bottom edge has some visible breathing room above
+       the mini player instead of touching it directly — reported as
+       looking cramped/unpleasant, sitting flush with no separation. */
+    body.has-mini-player .qa-overlay { padding-bottom: calc(var(--mobile-navbar-h) + 64px + 14px + env(safe-area-inset-bottom, 0px)); }
+  }
+
+  /* While a modal's dark backdrop is up (Quick Actions here, but written
+     generically enough to extend to others), the mini player's z-index
+     (300, deliberately above every modal — see its own comment) means the
+     backdrop dims everything BEHIND it, but the mini player's own opaque
+     background hides that dimming, so it visually pokes through as a
+     bright, undimmed strip rather than reading as part of the same
+     layered UI. Can't lower its z-index without breaking things that
+     need to sit above it while a modal's open (the +Playlist flyout,
+     etc.), so instead give it more of its own visual weight in that
+     state — a deeper shadow and an accent-tinted top border — so it
+     reads as an intentionally "floating above" layer rather than a stray
+     interruption. */
+  body:has(#qaOverlay.open) .mini-player {
+    box-shadow: 0 -16px 32px rgba(0,0,0,0.6);
+    border-top-color: color-mix(in srgb, var(--accent) 40%, var(--line));
   }
 </style>
 
