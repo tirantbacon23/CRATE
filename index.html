@@ -13,7 +13,39 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.82
+  CURRENT_VERSION: 1.29.84
+
+  1.29.84 — 2026-09-16 — Feature: Release Statistics. The Stats tab now has
+          a "Listening" / "Collection" toggle at the top (state.statsMode,
+          persisted). "Listening" is the existing albums-by-year view
+          (Diary/scrobble activity) unchanged; "Collection" is new — a
+          breakdown of the RELEASES themselves: total releases/artists/
+          average rating, by genre (reuses buildGenreTree's own hierarchy-
+          aware aggregation from the Genre Taxonomy feature, so this
+          naturally respects whatever parent/child structure is set up —
+          a Shoegaze album counts toward Rock here too), by type, by
+          decade (from ReleaseDate), a ratings distribution, by region,
+          and top labels. All rendered as simple bar rows
+          (collectionStatBarRows()) scaled to each section's own max, not
+          a shared cross-section scale.
+
+          Caught and fixed a mistake made while building this: an errant
+          str_replace briefly deleted renderStats()'s own function
+          signature line entirely, leaving its body orphaned under the
+          previous function — caught by the syntax checker before ever
+          reaching a shipped file, not left for a live bug report this time.
+
+  1.29.83 — 2026-09-16 — Bugfix: the "falls under" field's autocomplete
+          stopped suggesting anything after the first comma — typing
+          "Punk Rock, G" doesn't match any real option, since native
+          <datalist> matches the ENTIRE input value, not just whatever's
+          being typed after the last comma. Now rewrites the shared
+          datalist's own options on every keystroke to include what's
+          already typed as a literal prefix ("Punk Rock, Glam Rock"
+          becomes a real option the moment "Glam Rock" matches), so each
+          comma-separated segment gets its own working suggestions —
+          already-used genres for that field are excluded so it won't
+          suggest a duplicate.
 
   1.29.82 — 2026-09-16 — Feature: Genre Taxonomy now supports multiple
           parents per genre, not just one — some genres are a genuine
@@ -2835,17 +2867,34 @@
   <!-- Stats tab: "how many albums did I listen to in a given year", combining
        Diary (logged listens) and Scrobbles (Last.fm play history). -->
   <div id="statsWrap" class="stats-wrap" hidden>
-    <div class="stats-header">
-      <h2>Albums by year</h2>
-      <p class="stats-sub">Distinct albums logged in your Diary or scrobbled via Last.fm, grouped by the year you listened.</p>
+    <div class="stats-mode-toggle">
+      <button type="button" id="statsModeListening" class="chip-btn">Listening</button>
+      <button type="button" id="statsModeCollection" class="chip-btn">Collection</button>
     </div>
-    <div id="statsYearList" class="stats-year-list"></div>
-    <div id="statsDetail" class="stats-detail" hidden>
-      <div class="stats-detail-header">
-        <button id="statsDetailBack" class="config-btn">‹ All years</button>
-        <h3 id="statsDetailYear"></h3>
+    <div id="statsListeningWrap">
+      <div class="stats-header">
+        <h2>Albums by year</h2>
+        <p class="stats-sub">Distinct albums logged in your Diary or scrobbled via Last.fm, grouped by the year you listened.</p>
       </div>
-      <div id="statsDetailBody" class="stats-detail-body"></div>
+      <div id="statsYearList" class="stats-year-list"></div>
+      <div id="statsDetail" class="stats-detail" hidden>
+        <div class="stats-detail-header">
+          <button id="statsDetailBack" class="config-btn">‹ All years</button>
+          <h3 id="statsDetailYear"></h3>
+        </div>
+        <div id="statsDetailBody" class="stats-detail-body"></div>
+      </div>
+    </div>
+    <!-- "Collection" is about the RELEASES themselves (what you own) — type,
+         decade, genre, region, label breakdowns — distinct from
+         "Listening" above, which is about Diary/scrobble activity. See
+         computeCollectionStats()/renderCollectionStats(). -->
+    <div id="statsCollectionWrap" hidden>
+      <div class="stats-header">
+        <h2>Your collection</h2>
+        <p class="stats-sub">A breakdown of every release in your crate — not listening activity.</p>
+      </div>
+      <div id="statsCollectionBody" class="stats-collection-body"></div>
     </div>
   </div>
 
@@ -3762,7 +3811,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.82';
+const APP_VERSION = '1.29.84';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -4000,6 +4049,7 @@ fields: {
   yearCoverageCache: {},
   // Stats tab: which year's detail (if any) is expanded.
   statsSelectedYear: null,
+  statsMode: 'listening', // 'listening' | 'collection' — see setStatsMode()
   // Artist tab: which of your artists is selected, and a cache of their
   // full MusicBrainz discography (title/type/year per release-group) so
   // switching back to an already-viewed artist doesn't re-hit the API.
@@ -4028,7 +4078,7 @@ const el = {};
   'diaryWrap','diaryContainer','diaryStateMsg',
   'scrobblesWrap','scrobblesContainer','scrobblesStateMsg',
   'tabStats','tabArtist',
-  'statsWrap','statsYearList','statsDetail','statsDetailBack','statsDetailYear','statsDetailBody',
+  'statsWrap','statsModeListening','statsModeCollection','statsListeningWrap','statsCollectionWrap','statsCollectionBody','statsYearList','statsDetail','statsDetailBack','statsDetailYear','statsDetailBody',
   'artistWrap','artistSearchInput','artistList','artistDetail',
   'layoutBtn','layoutMenu','menuArrangePanels','arrangeModal','arrangeClose','toggleLeftPanel','toggleRightPanel','configureMainBtn','configureQueueBtn','configureMiniPlayerBtn','toggleCoverLinks','toggleFitArtwork','toggleCloseGaps','fieldPlacementGroup','fieldPlacementOverlay','fieldPlacementBelow',
   'mainConfigModal','mainConfigClose','mainConfigArtworkOptions',
@@ -4607,6 +4657,28 @@ function renderGenreTaxonomyEditor() {
       if (state.navFilter && state.navFilter.mode === 'genre') applyFiltersSort();
     };
     parentInput.addEventListener('change', () => applyParents(parentInput.value));
+    // Native <datalist> matches the ENTIRE input value against its
+    // options, so past the first comma it stops suggesting anything —
+    // "Punk Rock, G" isn't a real option no matter what. Standard
+    // workaround: rewrite the shared datalist's own options to include
+    // whatever's already been typed as a literal prefix, so the browser's
+    // matching sees "Punk Rock, Glam Rock" as a real option and offers it
+    // — the segment after the last comma is what's actually being
+    // completed, already-used genres for THIS field are excluded so it
+    // doesn't suggest a duplicate.
+    parentInput.addEventListener('input', () => {
+      const value = parentInput.value;
+      const lastComma = value.lastIndexOf(',');
+      const prefix = lastComma === -1 ? '' : value.slice(0, lastComma + 1) + ' ';
+      const alreadyUsed = new Set(
+        value.slice(0, lastComma + 1).split(',').map(s => genreTaxonomyKey(s)).filter(Boolean)
+      );
+      el.genreTaxonomyDatalist.innerHTML = genres
+        .filter(g => g.key !== key && !alreadyUsed.has(g.key))
+        .map(g => `<option value="${escapeHtml(prefix + g.label)}">`)
+        .join('');
+    });
+    parentInput.addEventListener('focus', () => parentInput.dispatchEvent(new Event('input'))); // seed the datalist for this field the moment it's focused, not just after the first keystroke
     rowEl.querySelector('.genre-taxonomy-remove').addEventListener('click', () => applyParents(''));
   });
 }
@@ -4769,6 +4841,8 @@ function bindEvents() {
   el.diaryEntryDeleteBtn.addEventListener('click', () => { if (activeDiaryEntry) deleteDiaryEntryDirect(activeDiaryEntry); });
   el.tabScrobbles.addEventListener('click', () => { switchTab('scrobbles'); });
   el.tabStats.addEventListener('click', () => { switchTab('stats'); });
+  el.statsModeListening.addEventListener('click', () => setStatsMode('listening'));
+  el.statsModeCollection.addEventListener('click', () => setStatsMode('collection'));
   el.tabArtist.addEventListener('click', () => { switchTab('artist'); });
   el.playlistModalClose.addEventListener('click', closePlaylistModal);
   el.playlistModalCancelBtn.addEventListener('click', closePlaylistModal);
@@ -5874,6 +5948,7 @@ function loadPrefs() {
     if (Array.isArray(p.playlistFoldersCollapsed)) state.playlistFoldersCollapsed = p.playlistFoldersCollapsed;
     if (Array.isArray(p.playlistFolders)) state.playlistFolders = p.playlistFolders;
     if (p.playlistFolderMap && typeof p.playlistFolderMap === 'object') state.playlistFolderMap = p.playlistFolderMap;
+    if (p.statsMode === 'listening' || p.statsMode === 'collection') state.statsMode = p.statsMode;
   } catch (e) { /* localStorage unavailable — safe to ignore */ }
 }
 
@@ -5885,7 +5960,8 @@ function savePrefs() {
       showLeft: state.showLeft, showRight: state.showRight, showCoverLinks: state.showCoverLinks, fitArtwork: state.fitArtwork, fieldPlacement: state.fieldPlacement, closeGaps: state.closeGaps, panelWidths: state.panelWidths, fields: state.fields, trackColWidths: state.trackColWidths,
       playlistFoldersCollapsed: state.playlistFoldersCollapsed,
       playlistFolders: state.playlistFolders,
-      playlistFolderMap: state.playlistFolderMap
+      playlistFolderMap: state.playlistFolderMap,
+      statsMode: state.statsMode
     }));
   } catch (e) { /* localStorage unavailable — safe to ignore */ }
 }
@@ -10992,7 +11068,115 @@ function computeYearStats() {
 
 let statsRowsCache = [];
 
+// Release-level breakdowns of the crate itself — type, decade, genre
+// (reusing the taxonomy's hierarchy-aware aggregation), region, label,
+// ratings — distinct from renderStats()/computeYearStats() above, which
+// are about listening ACTIVITY (Diary/scrobbles), not the releases
+// themselves.
+function computeCollectionStats() {
+  const raw = state.raw;
+  const total = raw.length;
+  const artistSet = new Set();
+  raw.forEach(r => (r.artist || '').split(',').forEach(a => { const t = a.trim(); if (t) artistSet.add(t); }));
+  const rated = raw.filter(r => Number(r.rating) > 0);
+  const avgRating = rated.length ? (rated.reduce((sum, r) => sum + Number(r.rating), 0) / rated.length) : 0;
+
+  const countBy = (fn, fallback) => {
+    const map = new Map();
+    raw.forEach(r => {
+      const v = (fn(r) || '').toString().trim() || fallback;
+      map.set(v, (map.get(v) || 0) + 1);
+    });
+    return [...map.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
+  };
+
+  const byType = countBy(r => r.type, 'Unknown');
+  const byRegion = countBy(r => r.region, 'Unknown').slice(0, 10);
+  const byLabel = countBy(r => r.label, null).filter(r => r.label).slice(0, 10);
+
+  const decadeCounts = new Map();
+  raw.forEach(r => {
+    const ms = dateVal(r.releaseDate);
+    if (ms === -Infinity) return;
+    const decade = Math.floor(new Date(ms).getUTCFullYear() / 10) * 10 + 's';
+    decadeCounts.set(decade, (decadeCounts.get(decade) || 0) + 1);
+  });
+  const byDecade = [...decadeCounts.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => a.label.localeCompare(b.label));
+
+  // Top-level genre breakdown — reuses the Genre Taxonomy's own hierarchy-
+  // aware aggregation (buildGenreTree) rather than a flat re-count, so
+  // this naturally reflects whatever hierarchy is set up in ⚙ → Genre
+  // Taxonomy… (a Shoegaze album counts toward Rock here too).
+  const byGenreTop = buildGenreTree(raw, state.genreTaxonomy).filter(r => r.depth === 0).sort((a, b) => b.count - a.count);
+
+  const ratingCounts = [0, 0, 0, 0, 0]; // index 0 = 1★ ... index 4 = 5★
+  rated.forEach(r => {
+    const n = Math.round(Number(r.rating));
+    if (n >= 1 && n <= 5) ratingCounts[n - 1]++;
+  });
+
+  return { total, artistCount: artistSet.size, avgRating, ratedCount: rated.length, byType, byRegion, byLabel, byDecade, byGenreTop, ratingCounts };
+}
+
+// One "label — bar — count" row, reused across every breakdown section
+// below so they all share the same visual language (a plain, self-
+// contained bar sized relative to that section's own max, not a shared
+// scale across sections — a "10 albums" bar in By Type and a "10 albums"
+// bar in By Label should each look "full" for their own section).
+function collectionStatBarRows(rows) {
+  const max = Math.max(1, ...rows.map(r => r.count));
+  return rows.map(r => `
+    <div class="stats-bar-row">
+      <span class="stats-bar-label">${escapeHtml(r.label)}</span>
+      <div class="stats-bar-track"><div class="stats-bar-fill" style="width:${Math.round((r.count / max) * 100)}%"></div></div>
+      <span class="stats-bar-count">${r.count}</span>
+    </div>
+  `).join('');
+}
+
+function renderCollectionStats() {
+  const s = computeCollectionStats();
+  if (!s.total) {
+    el.statsCollectionBody.innerHTML = '<p class="diary-empty">Your crate is empty — add a release to see collection statistics.</p>';
+    return;
+  }
+
+  const ratingLabels = ['★', '★★', '★★★', '★★★★', '★★★★★'];
+  const ratingRows = s.ratingCounts.map((count, i) => ({ label: ratingLabels[i], count })).filter(r => r.count > 0).reverse();
+
+  el.statsCollectionBody.innerHTML = `
+    <div class="stats-summary-cards">
+      <div class="stats-summary-card"><span class="stats-summary-value">${s.total}</span><span class="stats-summary-label">Release${s.total === 1 ? '' : 's'}</span></div>
+      <div class="stats-summary-card"><span class="stats-summary-value">${s.artistCount}</span><span class="stats-summary-label">Artist${s.artistCount === 1 ? '' : 's'}</span></div>
+      <div class="stats-summary-card"><span class="stats-summary-value">${s.avgRating ? s.avgRating.toFixed(1) : '\u2014'}</span><span class="stats-summary-label">Avg rating${s.ratedCount ? ` (${s.ratedCount})` : ''}</span></div>
+    </div>
+
+    ${s.byGenreTop.length ? `<div class="stats-section"><h3>By genre</h3>${collectionStatBarRows(s.byGenreTop)}</div>` : ''}
+    <div class="stats-section"><h3>By type</h3>${collectionStatBarRows(s.byType)}</div>
+    ${s.byDecade.length ? `<div class="stats-section"><h3>By decade</h3>${collectionStatBarRows(s.byDecade)}</div>` : ''}
+    ${ratingRows.length ? `<div class="stats-section"><h3>Ratings</h3>${collectionStatBarRows(ratingRows)}</div>` : ''}
+    <div class="stats-section"><h3>By region</h3>${collectionStatBarRows(s.byRegion)}</div>
+    ${s.byLabel.length ? `<div class="stats-section"><h3>Top labels</h3>${collectionStatBarRows(s.byLabel)}</div>` : ''}
+  `;
+}
+
+function setStatsMode(mode) {
+  state.statsMode = mode;
+  savePrefs();
+  el.statsModeListening.classList.toggle('active', mode === 'listening');
+  el.statsModeCollection.classList.toggle('active', mode === 'collection');
+  el.statsListeningWrap.hidden = mode !== 'listening';
+  el.statsCollectionWrap.hidden = mode !== 'collection';
+  if (mode === 'collection') renderCollectionStats();
+}
+
 function renderStats() {
+  el.statsModeListening.classList.toggle('active', state.statsMode !== 'collection');
+  el.statsModeCollection.classList.toggle('active', state.statsMode === 'collection');
+  el.statsListeningWrap.hidden = state.statsMode === 'collection';
+  el.statsCollectionWrap.hidden = state.statsMode !== 'collection';
+  if (state.statsMode === 'collection') { renderCollectionStats(); return; }
+
   statsRowsCache = computeYearStats();
   el.statsDetail.hidden = true;
 
@@ -18441,6 +18625,24 @@ html, body {
   .stats-detail-row.clickable:hover { background: var(--bg-elevated); }
   .stats-detail-title { font-weight: 600; }
   .stats-detail-artist { color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ---- Stats: mode toggle + Collection breakdown ---- */
+  .stats-mode-toggle { display: flex; gap: 8px; margin-bottom: 18px; }
+  .stats-mode-toggle .chip-btn.active { background: var(--accent); color: #12161C; border-color: var(--accent); }
+  .stats-summary-cards { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+  .stats-summary-card {
+    flex: 1 1 140px; display: flex; flex-direction: column; gap: 2px; padding: 14px 16px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--bg-card);
+  }
+  .stats-summary-value { font-family: 'Bebas Neue', sans-serif; font-size: 30px; letter-spacing: 0.5px; color: var(--accent); }
+  .stats-summary-label { font-size: 11.5px; color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: 0.5px; }
+  .stats-section { margin-bottom: 24px; }
+  .stats-section h3 { font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: 0.5px; margin: 0 0 10px; }
+  .stats-bar-row { display: grid; grid-template-columns: 130px 1fr 34px; gap: 10px; align-items: center; padding: 4px 0; }
+  .stats-bar-label { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stats-bar-track { height: 8px; border-radius: 4px; background: var(--bg-elevated); overflow: hidden; }
+  .stats-bar-fill { height: 100%; background: var(--accent); border-radius: 4px; }
+  .stats-bar-count { font-size: 11.5px; color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; text-align: right; }
 
   /* ---- Artist tab ---- */
   .artist-wrap { display: flex; gap: 0; height: calc(100vh - 150px); max-width: 1100px; margin: 0 auto; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
