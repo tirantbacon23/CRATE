@@ -13,7 +13,27 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.81
+  CURRENT_VERSION: 1.29.82
+
+  1.29.82 — 2026-09-16 — Feature: Genre Taxonomy now supports multiple
+          parents per genre, not just one — some genres are a genuine
+          fusion (Glam Punk = Punk Rock + Glam Rock), not a single clean
+          branch. Storage moved from a single `parent` string to a
+          `parents` array per entry (loadGenreTaxonomy migrates any old
+          single-parent entry automatically, no data lost). The editor's
+          "falls under" field now takes a comma-separated list, same
+          convention as the Genre/Secondary Genre fields elsewhere, and
+          autocompletes each one individually. getGenreAncestors is now a
+          real breadth-first walk over what's a DAG rather than a strict
+          tree — collects ancestors reached through EITHER of a genre's
+          parents, so filtering by "Punk Rock" OR "Glam Rock" both
+          correctly surface Glam Punk-tagged albums, and the left panel's
+          tree shows a multi-parent genre as its own row under each
+          applicable parent branch (its count still only reflects real
+          tagged albums either way — no double-counting distinct albums,
+          just appearing in more than one place in the tree). Seeded
+          "Glam Punk" itself into the default starter taxonomy as a
+          working example of this.
 
   1.29.81 — 2026-09-16 — Bugfix: "Cannot access 'DEFAULT_GENRE_TAXONOMY'
           before initialization" thrown on every load. Cause: startApp()
@@ -3726,7 +3746,7 @@
   <div class="arrange-modal add-modal genre-taxonomy-modal">
     <div class="arrange-header"><h2>Genre Taxonomy</h2><button id="genreTaxonomyClose" class="modal-x" aria-label="Close">✕</button></div>
     <div class="arrange-body">
-      <p class="arrange-hint">Set which broader genre each one falls under \u2014 e.g. Shoegaze under Alternative Rock, itself under Rock. Filtering by a parent genre (Rock) then also surfaces everything beneath it (Alternative Rock, Shoegaze, etc.) automatically, and the left panel's Genres list shows the tree with counts that include the whole branch. Leave a genre's field blank for top-level (no parent). Stored only in this browser.</p>
+      <p class="arrange-hint">Set which broader genre each one falls under \u2014 e.g. Shoegaze under Alternative Rock, itself under Rock. A genre can have more than one parent too (Glam Punk under both Punk Rock and Glam Rock \u2014 separate multiple with commas, same as the Genre/Secondary Genre fields elsewhere). Filtering by a parent genre then also surfaces everything beneath it in the hierarchy, and the left panel's Genres list shows the tree with counts that include the whole branch. Leave a genre's field blank for top-level (no parent). Stored only in this browser.</p>
       <datalist id="genreTaxonomyDatalist"></datalist>
       <div id="genreTaxonomyList" class="genre-taxonomy-list"></div>
       <div class="log-form-actions">
@@ -3742,7 +3762,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.81';
+const APP_VERSION = '1.29.82';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -4220,86 +4240,116 @@ const GENRE_TAXONOMY_KEY = 'crate_genre_taxonomy_v1';
 // via "Genre Taxonomy…". Only seeded on a genuinely first run (see
 // loadGenreTaxonomy) — an empty {} the person has actually saved (e.g.
 // after removing everything) is respected as-is, not re-seeded.
+// Each entry can now have MULTIPLE parents — a genre is often a fusion of
+// two others (Glam Punk = Punk Rock + Glam Rock), not always a single
+// clean branch. `parents` is always an array from here on; loadGenreTaxonomy
+// migrates any legacy single-`parent` string entry (from before this
+// supported more than one) into a one-item array automatically.
 const DEFAULT_GENRE_TAXONOMY = {
-  'alternative rock': { label: 'Alternative Rock', parent: 'Rock' },
-  'shoegaze': { label: 'Shoegaze', parent: 'Alternative Rock' },
-  'post-punk': { label: 'Post-Punk', parent: 'Rock' },
-  'punk rock': { label: 'Punk Rock', parent: 'Rock' },
-  'indie rock': { label: 'Indie Rock', parent: 'Rock' },
-  'psychedelic rock': { label: 'Psychedelic Rock', parent: 'Rock' },
-  'progressive rock': { label: 'Progressive Rock', parent: 'Rock' },
-  'metal': { label: 'Metal', parent: 'Rock' },
-  'heavy metal': { label: 'Heavy Metal', parent: 'Metal' },
-  'black metal': { label: 'Black Metal', parent: 'Metal' },
-  'death metal': { label: 'Death Metal', parent: 'Metal' },
-  'doom metal': { label: 'Doom Metal', parent: 'Metal' },
-  'house': { label: 'House', parent: 'Electronic' },
-  'techno': { label: 'Techno', parent: 'Electronic' },
-  'ambient': { label: 'Ambient', parent: 'Electronic' },
-  'idm': { label: 'IDM', parent: 'Electronic' },
-  'drum and bass': { label: 'Drum and Bass', parent: 'Electronic' },
-  'dubstep': { label: 'Dubstep', parent: 'Electronic' },
-  'downtempo': { label: 'Downtempo', parent: 'Electronic' },
-  'trip hop': { label: 'Trip Hop', parent: 'Electronic' },
-  'synth-pop': { label: 'Synth-pop', parent: 'Pop' },
-  'dream pop': { label: 'Dream Pop', parent: 'Pop' },
-  'bebop': { label: 'Bebop', parent: 'Jazz' },
-  'free jazz': { label: 'Free Jazz', parent: 'Jazz' },
-  'fusion': { label: 'Fusion', parent: 'Jazz' },
-  'trap': { label: 'Trap', parent: 'Hip Hop' },
-  'boom bap': { label: 'Boom Bap', parent: 'Hip Hop' },
-  'neo-soul': { label: 'Neo-Soul', parent: 'Soul' },
-  'funk': { label: 'Funk', parent: 'Soul' },
-  'folk rock': { label: 'Folk Rock', parent: 'Folk' },
+  'alternative rock': { label: 'Alternative Rock', parents: ['Rock'] },
+  'shoegaze': { label: 'Shoegaze', parents: ['Alternative Rock'] },
+  'post-punk': { label: 'Post-Punk', parents: ['Rock'] },
+  'punk rock': { label: 'Punk Rock', parents: ['Rock'] },
+  'glam rock': { label: 'Glam Rock', parents: ['Rock'] },
+  'glam punk': { label: 'Glam Punk', parents: ['Punk Rock', 'Glam Rock'] },
+  'indie rock': { label: 'Indie Rock', parents: ['Rock'] },
+  'psychedelic rock': { label: 'Psychedelic Rock', parents: ['Rock'] },
+  'progressive rock': { label: 'Progressive Rock', parents: ['Rock'] },
+  'metal': { label: 'Metal', parents: ['Rock'] },
+  'heavy metal': { label: 'Heavy Metal', parents: ['Metal'] },
+  'black metal': { label: 'Black Metal', parents: ['Metal'] },
+  'death metal': { label: 'Death Metal', parents: ['Metal'] },
+  'doom metal': { label: 'Doom Metal', parents: ['Metal'] },
+  'house': { label: 'House', parents: ['Electronic'] },
+  'techno': { label: 'Techno', parents: ['Electronic'] },
+  'ambient': { label: 'Ambient', parents: ['Electronic'] },
+  'idm': { label: 'IDM', parents: ['Electronic'] },
+  'drum and bass': { label: 'Drum and Bass', parents: ['Electronic'] },
+  'dubstep': { label: 'Dubstep', parents: ['Electronic'] },
+  'downtempo': { label: 'Downtempo', parents: ['Electronic'] },
+  'trip hop': { label: 'Trip Hop', parents: ['Electronic'] },
+  'synth-pop': { label: 'Synth-pop', parents: ['Pop'] },
+  'dream pop': { label: 'Dream Pop', parents: ['Pop'] },
+  'bebop': { label: 'Bebop', parents: ['Jazz'] },
+  'free jazz': { label: 'Free Jazz', parents: ['Jazz'] },
+  'fusion': { label: 'Fusion', parents: ['Jazz'] },
+  'trap': { label: 'Trap', parents: ['Hip Hop'] },
+  'boom bap': { label: 'Boom Bap', parents: ['Hip Hop'] },
+  'neo-soul': { label: 'Neo-Soul', parents: ['Soul'] },
+  'funk': { label: 'Funk', parents: ['Soul'] },
+  'folk rock': { label: 'Folk Rock', parents: ['Folk', 'Rock'] },
 };
 
 function genreTaxonomyKey(g) { return (g || '').trim().toLowerCase(); }
 
 function loadGenreTaxonomy() {
+  let taxonomy;
   try {
     const raw = localStorage.getItem(GENRE_TAXONOMY_KEY);
-    if (raw === null) return JSON.parse(JSON.stringify(DEFAULT_GENRE_TAXONOMY)); // first run ever — seed defaults
-    return JSON.parse(raw) || {};
+    taxonomy = raw === null ? JSON.parse(JSON.stringify(DEFAULT_GENRE_TAXONOMY)) : (JSON.parse(raw) || {}); // null = first run ever — seed defaults
   } catch (e) {
-    return JSON.parse(JSON.stringify(DEFAULT_GENRE_TAXONOMY));
+    taxonomy = JSON.parse(JSON.stringify(DEFAULT_GENRE_TAXONOMY));
   }
+  // Migrate any pre-multi-parent entry (singular `parent: "X"`, from
+  // 1.29.80/81) into the current `parents: ["X"]` array shape.
+  Object.values(taxonomy).forEach(entry => {
+    if (entry && typeof entry.parent === 'string' && !entry.parents) {
+      entry.parents = entry.parent ? [entry.parent] : [];
+      delete entry.parent;
+    } else if (entry && !Array.isArray(entry.parents)) {
+      entry.parents = [];
+    }
+  });
+  return taxonomy;
 }
 function saveGenreTaxonomy(taxonomy) {
   try { localStorage.setItem(GENRE_TAXONOMY_KEY, JSON.stringify(taxonomy)); }
   catch (e) { /* ignore */ }
 }
 
-function getGenreParent(taxonomy, genre) {
+function getGenreParents(taxonomy, genre) {
   const entry = taxonomy[genreTaxonomyKey(genre)];
-  return entry ? entry.parent : null;
+  return (entry && entry.parents) || [];
 }
 
-// Full ancestor chain (immediate parent first) — guards against a cyclical
-// taxonomy (shouldn't be reachable via the editor's own cycle check, but
-// defends anyway) by bailing the moment a name repeats.
+// Every ancestor reachable through ANY parent branch (a genre with two
+// parents pulls in both branches' ancestors) — a breadth-first walk over
+// what's really a DAG now, not a single chain. `visited` guards against a
+// cyclical taxonomy (shouldn't be reachable via wouldCreateGenreCycle's own
+// check, but defends anyway) rather than looping forever.
 function getGenreAncestors(taxonomy, genre) {
-  const chain = [];
-  let current = genre;
-  while (true) {
-    const parent = getGenreParent(taxonomy, current);
-    if (!parent || chain.some(a => genreTaxonomyKey(a) === genreTaxonomyKey(parent))) break;
-    chain.push(parent);
-    current = parent;
+  const result = [];
+  const visited = new Set([genreTaxonomyKey(genre)]);
+  let frontier = [genre];
+  while (frontier.length) {
+    const next = [];
+    frontier.forEach(g => {
+      getGenreParents(taxonomy, g).forEach(parent => {
+        const pk = genreTaxonomyKey(parent);
+        if (visited.has(pk)) return;
+        visited.add(pk);
+        result.push(parent);
+        next.push(parent);
+      });
+    });
+    frontier = next;
   }
-  return chain;
+  return result;
 }
 
 // True if `genre` IS filterGenre, or has filterGenre anywhere above it in
-// the taxonomy — the actual "filtering by Rock also surfaces Shoegaze"
-// behavior, used both by the navFilter match (searchFilteredRaw's
-// matchesNav) and buildGenreTree's aggregated counts below.
+// the taxonomy — the actual "filtering by Rock also surfaces Shoegaze (and
+// Glam Punk, via either of its two parents)" behavior, used both by the
+// navFilter match (searchFilteredRaw's matchesNav) and buildGenreTree's
+// aggregated counts below.
 function genreMatchesFilter(taxonomy, genre, filterGenre) {
   if (genreTaxonomyKey(genre) === genreTaxonomyKey(filterGenre)) return true;
   return getGenreAncestors(taxonomy, genre).some(a => genreTaxonomyKey(a) === genreTaxonomyKey(filterGenre));
 }
 
-// Would assigning `parent` as genre's parent create a cycle (genre already
-// sits somewhere above parent)? Checked before saving any taxonomy edit.
+// Would adding `parent` as one of genre's parents create a cycle (genre
+// already sits somewhere above parent, through any branch)? Checked before
+// saving any taxonomy edit, once per newly-typed parent.
 function wouldCreateGenreCycle(taxonomy, genre, parent) {
   if (genreTaxonomyKey(genre) === genreTaxonomyKey(parent)) return true;
   return getGenreAncestors(taxonomy, parent).some(a => genreTaxonomyKey(a) === genreTaxonomyKey(genre));
@@ -4439,17 +4489,22 @@ function buildGenreTree(sourceRaw, taxonomy) {
   ownCount.forEach((v, k) => labelByKey.set(k, v.label));
   Object.entries(taxonomy).forEach(([key, entry]) => {
     if (!labelByKey.has(key)) labelByKey.set(key, entry.label);
-    const parentKey = genreTaxonomyKey(entry.parent);
-    if (!labelByKey.has(parentKey)) labelByKey.set(parentKey, entry.parent);
+    entry.parents.forEach(parent => {
+      const parentKey = genreTaxonomyKey(parent);
+      if (!labelByKey.has(parentKey)) labelByKey.set(parentKey, parent);
+    });
   });
 
-  const childrenOf = new Map(); // parentKey -> [childKey, ...]
+  // parentKey -> [childKey, ...] — a genre with multiple parents (Glam
+  // Punk) is added under EACH of them, so it appears as its own row in
+  // every applicable branch of the tree, not just one.
+  const childrenOf = new Map();
   labelByKey.forEach((label, key) => {
-    const parent = getGenreParent(taxonomy, label);
-    if (!parent) return;
-    const pk = genreTaxonomyKey(parent);
-    if (!childrenOf.has(pk)) childrenOf.set(pk, []);
-    childrenOf.get(pk).push(key);
+    getGenreParents(taxonomy, label).forEach(parent => {
+      const pk = genreTaxonomyKey(parent);
+      if (!childrenOf.has(pk)) childrenOf.set(pk, []);
+      if (!childrenOf.get(pk).includes(key)) childrenOf.get(pk).push(key);
+    });
   });
 
   function aggregatedCount(key, seen) {
@@ -4460,7 +4515,7 @@ function buildGenreTree(sourceRaw, taxonomy) {
     return total;
   }
 
-  const rootKeys = [...labelByKey.keys()].filter(key => !getGenreParent(taxonomy, labelByKey.get(key)));
+  const rootKeys = [...labelByKey.keys()].filter(key => !getGenreParents(taxonomy, labelByKey.get(key)).length);
   const rows = [];
   function walk(key, depth) {
     const count = aggregatedCount(key, new Set());
@@ -4476,12 +4531,12 @@ function buildGenreTree(sourceRaw, taxonomy) {
 
 // Every genre CRATE knows about right now — tagged on some album, or
 // purely organizational (named in the taxonomy but never itself tagged) —
-// as {key, label, parent}, alphabetized. Unlike buildGenreTree above, this
-// includes zero-count genres too (the editor needs to show and let you
-// manage the whole structure, not just what currently has matches), and
-// carries no depth/aggregation — the editor is a flat list, not a tree
-// render, since every row's own parent field already shows its place in
-// the hierarchy.
+// as {key, label, parents}, alphabetized. Unlike buildGenreTree above,
+// this includes zero-count genres too (the editor needs to show and let
+// you manage the whole structure, not just what currently has matches),
+// and carries no depth/aggregation — the editor is a flat list, not a
+// tree render, since every row's own parents field already shows its
+// place in the hierarchy.
 function getAllKnownGenres(taxonomy) {
   const labelByKey = new Map();
   state.raw.forEach(item => {
@@ -4492,11 +4547,13 @@ function getAllKnownGenres(taxonomy) {
   });
   Object.entries(taxonomy).forEach(([key, entry]) => {
     if (!labelByKey.has(key)) labelByKey.set(key, entry.label);
-    const parentKey = genreTaxonomyKey(entry.parent);
-    if (!labelByKey.has(parentKey)) labelByKey.set(parentKey, entry.parent);
+    entry.parents.forEach(parent => {
+      const parentKey = genreTaxonomyKey(parent);
+      if (!labelByKey.has(parentKey)) labelByKey.set(parentKey, parent);
+    });
   });
   return [...labelByKey.entries()]
-    .map(([key, label]) => ({ key, label, parent: getGenreParent(taxonomy, label) || '' }))
+    .map(([key, label]) => ({ key, label, parents: getGenreParents(taxonomy, label) }))
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
@@ -4511,8 +4568,8 @@ function renderGenreTaxonomyEditor() {
     <div class="genre-taxonomy-row" data-genre-key="${escapeHtml(g.key)}">
       <span class="genre-taxonomy-name">${escapeHtml(g.label)}</span>
       <span class="genre-taxonomy-arrow">under</span>
-      <input type="text" class="genre-taxonomy-parent" list="genreTaxonomyDatalist" placeholder="Top-level" value="${escapeHtml(g.parent)}">
-      <button type="button" class="genre-taxonomy-remove chip-btn" title="Clear this genre's parent" aria-label="Clear this genre's parent">✕</button>
+      <input type="text" class="genre-taxonomy-parent" list="genreTaxonomyDatalist" placeholder="Top-level (or a, b for multiple)" value="${escapeHtml(g.parents.join(', '))}">
+      <button type="button" class="genre-taxonomy-remove chip-btn" title="Clear this genre's parents" aria-label="Clear this genre's parents">✕</button>
     </div>
   `).join('');
 
@@ -4520,24 +4577,37 @@ function renderGenreTaxonomyEditor() {
     const key = rowEl.dataset.genreKey;
     const genreInfo = genres.find(g => g.key === key);
     const parentInput = rowEl.querySelector('.genre-taxonomy-parent');
-    const applyParent = (newParent) => {
-      const trimmed = newParent.trim();
-      if (!trimmed) {
-        delete state.genreTaxonomy[key];
-      } else if (wouldCreateGenreCycle(state.genreTaxonomy, genreInfo.label, trimmed)) {
-        parentInput.value = genreInfo.parent; // revert
-        flashGlobalToast(`Can't set that \u2014 ${trimmed} is already under ${genreInfo.label}.`);
-        return;
-      } else {
-        state.genreTaxonomy[key] = { label: genreInfo.label, parent: trimmed };
+    // Comma-separated, same convention as the Genre/Secondary Genre fields
+    // elsewhere in the app — a genre with two parents (Glam Punk = Punk
+    // Rock + Glam Rock) just types both, rather than needing a second
+    // field or a multi-select.
+    const applyParents = (rawValue) => {
+      const requested = rawValue.split(',').map(s => s.trim()).filter(Boolean);
+      const deduped = [];
+      const dedupedKeys = new Set();
+      const rejected = [];
+      requested.forEach(parent => {
+        const pk = genreTaxonomyKey(parent);
+        if (dedupedKeys.has(pk)) return;
+        if (wouldCreateGenreCycle(state.genreTaxonomy, genreInfo.label, parent)) { rejected.push(parent); return; }
+        dedupedKeys.add(pk);
+        deduped.push(parent);
+      });
+      if (rejected.length) {
+        flashGlobalToast(`Skipped ${rejected.join(', ')} \u2014 would put ${genreInfo.label} under itself.`);
       }
+      if (deduped.length) {
+        state.genreTaxonomy[key] = { label: genreInfo.label, parents: deduped };
+      } else {
+        delete state.genreTaxonomy[key];
+      }
+      parentInput.value = deduped.join(', ');
       saveGenreTaxonomy(state.genreTaxonomy);
-      renderGenreTaxonomyEditor();
       if (state.leftMode === 'genre') buildLeftList();
       if (state.navFilter && state.navFilter.mode === 'genre') applyFiltersSort();
     };
-    parentInput.addEventListener('change', () => applyParent(parentInput.value));
-    rowEl.querySelector('.genre-taxonomy-remove').addEventListener('click', () => applyParent(''));
+    parentInput.addEventListener('change', () => applyParents(parentInput.value));
+    rowEl.querySelector('.genre-taxonomy-remove').addEventListener('click', () => applyParents(''));
   });
 }
 
