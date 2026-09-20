@@ -13,7 +13,17 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.75
+  CURRENT_VERSION: 1.29.76
+
+  1.29.76 — 2026-09-16 — Follow-up to 1.29.75: .search-wrap now has an
+          explicit height: 40px, matching its sibling .icon-btn's (queue,
+          gear) exactly. Without it, the wrapper's height was implicit —
+          sized to whatever's tallest inside it, including the collapsed-
+          but-still-present #searchInput — and if that invisible input's
+          own box ended up even slightly taller than 40px, the wrapper
+          (and therefore how .controls centers it against its plain-button
+          siblings) could land a pixel or two off despite the visible
+          search icon itself sharing identical size/style rules with them.
 
   1.29.75 — 2026-09-16 — Tweak: mobile topbar height reduced by roughly one
           whole row. .controls (search/queue-toggle/gear — the only icons
@@ -3623,7 +3633,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.75';
+const APP_VERSION = '1.29.76';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -18988,6 +18998,7 @@ html, body {
        one line again once it collapses. */
     .search-wrap {
       position: relative; display: flex; align-items: center; flex: 0 0 auto; order: 1;
+      height: 40px; /* pins this to exactly the same height as its sibling .icon-btn's (queue, gear) — without this, the wrapper sizes to whatever's tallest inside it, including the collapsed-but-still-present #searchInput, which could make the wrapper (and therefore its centering within .controls) end up a pixel or two off from its plain-button siblings even though the visible search icon itself is styled identically to them */
     }
     .search-icon {
       position: static; pointer-events: auto; cursor: pointer;
