@@ -13,7 +13,41 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.86
+  CURRENT_VERSION: 1.29.88
+
+  1.29.88 — 2026-09-16 — Feature: right panel is now configurable, not
+          hardcoded to "Up Next". New ⚙ \u2192 Panels configuration\u2026
+          "Right panel shows" dropdown, alongside the existing queue —
+          "Up Next (queue)" (unchanged) or the new "Last.fm History": a
+          chronological feed of every scrobble (state.scrobbles), most
+          recent day first, each row clickable through to that album's
+          deck. DAY-level only, not time-of-day — that's the actual
+          granularity the Scrobbles sheet stores (one row per album/track/
+          day with a play count, not a timestamp per individual play), so
+          this shows what's really there rather than fabricating a time.
+          state.rightPanelView persisted via prefs. Kept in sync after a
+          Last.fm sync (both the manual import modal and the silent
+          background sync) if that view happens to be the one showing.
+
+          Also fixed a bug this surfaced: renderCrateQueuePanel() was
+          unconditionally managing the Clear button's visibility — with
+          the History view now able to be active while the queue still
+          has content in the background, that would have un-hidden Clear
+          on the wrong view. Guarded so only applyRightPanelView() (on an
+          actual view switch) or renderCrateQueuePanel() while the queue
+          view is the one showing touches it.
+
+          Learned from the genre-taxonomy TDZ bug earlier in this file's
+          history: applyRightPanelView() references crateQueueList (a
+          `let` declared later in the file), so its initial call sits
+          after `await fetchCatalog()` in init() rather than earlier,
+          same reasoning as that fix.
+
+  1.29.87 — 2026-09-16 — Tweak: .left-row now has user-select: none —
+          these are clickable nav rows (Albums/Artists/Genres/Years),
+          not text meant to be selected, and a click-drag or a stray
+          double-click (e.g. the new dblclick-to-play on album rows) was
+          leaving text highlighted.
 
   1.29.86 — 2026-09-16 — Follow-up to 1.29.85: double-clicking a second
           album row while one was already queued/playing was just
@@ -2850,12 +2884,19 @@
 
     <section id="rightPanel" class="panel panel-right">
       <div class="panel-bar">
-        <span class="panel-label">Up Next</span>
+        <span class="panel-label" id="rightPanelLabel">Up Next</span>
         <button type="button" id="crateQueueClearBtn" class="chip-btn" title="Clear the queue" hidden>Clear</button>
       </div>
       <div id="crateQueuePanelBody" class="crate-queue-panel-body">
         <p class="queue-empty">Nothing queued — right-click a track or album and choose “Add to queue”, or “▶ Play” a multi-selection, to see upcoming tracks here — Spotify and YouTube-sourced alike.</p>
       </div>
+      <!-- Alternate right-panel content, toggled via state.rightPanelView
+           (see ⚙ → Panels configuration…, applyRightPanelView()) — a
+           chronological Last.fm scrobble feed rather than the upcoming-
+           queue. Day-level only (no time-of-day) since that's the actual
+           granularity the Scrobbles sheet stores — see fetchCatalog's
+           state.scrobbles parsing. -->
+      <div id="rightHistoryPanelBody" class="right-history-panel-body" hidden></div>
     </section>
   </div>
 
@@ -3243,7 +3284,14 @@
     
     <div class="pane-config-group">
       <label class="arrange-row"><input type="checkbox" id="toggleRightPanel" checked> Show Details (Right Panel)</label>
-      <div class="arrange-row arrange-row-btn arrange-row-sub">
+      <div class="arrange-row arrange-row-sub">
+        <label class="arrange-row-label" for="rightPanelViewSelect">Right panel shows</label>
+        <select id="rightPanelViewSelect" class="config-btn">
+          <option value="queue">Up Next (queue)</option>
+          <option value="lastfmHistory">Last.fm History</option>
+        </select>
+      </div>
+      <div class="arrange-row arrange-row-btn arrange-row-sub" id="queuePanelSettingsRow">
         <label class="arrange-row-label"><input type="checkbox" checked disabled> Now Playing queue</label>
         <button id="configureQueueBtn" class="config-btn">Panel Settings …</button>
       </div>
@@ -3836,7 +3884,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.86';
+const APP_VERSION = '1.29.88';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -4075,6 +4123,7 @@ fields: {
   // Stats tab: which year's detail (if any) is expanded.
   statsSelectedYear: null,
   statsMode: 'listening', // 'listening' | 'collection' — see setStatsMode()
+  rightPanelView: 'queue', // 'queue' | 'lastfmHistory' — see applyRightPanelView()
   // Artist tab: which of your artists is selected, and a cache of their
   // full MusicBrainz discography (title/type/year per release-group) so
   // switching back to an already-viewed artist doesn't re-hit the API.
@@ -4105,7 +4154,7 @@ const el = {};
   'tabStats','tabArtist',
   'statsWrap','statsModeListening','statsModeCollection','statsListeningWrap','statsCollectionWrap','statsCollectionBody','statsYearList','statsDetail','statsDetailBack','statsDetailYear','statsDetailBody',
   'artistWrap','artistSearchInput','artistList','artistDetail',
-  'layoutBtn','layoutMenu','menuArrangePanels','arrangeModal','arrangeClose','toggleLeftPanel','toggleRightPanel','configureMainBtn','configureQueueBtn','configureMiniPlayerBtn','toggleCoverLinks','toggleFitArtwork','toggleCloseGaps','fieldPlacementGroup','fieldPlacementOverlay','fieldPlacementBelow',
+  'layoutBtn','layoutMenu','menuArrangePanels','arrangeModal','arrangeClose','toggleLeftPanel','toggleRightPanel','rightPanelViewSelect','queuePanelSettingsRow','rightPanelLabel','rightHistoryPanelBody','configureMainBtn','configureQueueBtn','configureMiniPlayerBtn','toggleCoverLinks','toggleFitArtwork','toggleCloseGaps','fieldPlacementGroup','fieldPlacementOverlay','fieldPlacementBelow',
   'mainConfigModal','mainConfigClose','mainConfigArtworkOptions',
   'fldTitle','fldArtist','fldYear','fldRating','fldType','fldCatalog','fldGenre','fldLabel','fldDuration','menuCustomizeMain',
   'listenedFilterBtn',
@@ -4473,6 +4522,7 @@ async function init() {
   updateLeftMenuUI();
   el.toggleLeftPanel.checked = state.showLeft;
   el.toggleRightPanel.checked = state.showRight;
+  el.rightPanelViewSelect.value = state.rightPanelView;
   el.toggleCoverLinks.checked = state.showCoverLinks;
   el.gridContainer.classList.toggle('hide-cover-links', !state.showCoverLinks);
   el.toggleFitArtwork.checked = state.fitArtwork;
@@ -4521,6 +4571,7 @@ async function init() {
   setInterval(refreshNowPlayingFromWebApi, 6000);
 
   await fetchCatalog();
+  applyRightPanelView(); // after fetchCatalog so state.scrobbles/state.raw are populated if it opens straight into Last.fm History; also this is the earliest safe point for crateQueueList (declared later in the file — see the genre-taxonomy TDZ note above for why that matters)
   maybeRunBackgroundLastfmSync(); // fire-and-forget; doesn't block first paint
   maybeAutoScanNewReleases(); // same — see its own comment for the throttling
 }
@@ -5201,6 +5252,11 @@ function bindEvents() {
     state.showRight = el.toggleRightPanel.checked;
     applyPanelVisibility();
     savePrefs();
+  });
+  el.rightPanelViewSelect.addEventListener('change', () => {
+    state.rightPanelView = el.rightPanelViewSelect.value;
+    savePrefs();
+    applyRightPanelView();
   });
 
   el.toggleCoverLinks.addEventListener('change', () => {
@@ -5974,6 +6030,7 @@ function loadPrefs() {
     if (Array.isArray(p.playlistFolders)) state.playlistFolders = p.playlistFolders;
     if (p.playlistFolderMap && typeof p.playlistFolderMap === 'object') state.playlistFolderMap = p.playlistFolderMap;
     if (p.statsMode === 'listening' || p.statsMode === 'collection') state.statsMode = p.statsMode;
+    if (p.rightPanelView === 'queue' || p.rightPanelView === 'lastfmHistory') state.rightPanelView = p.rightPanelView;
   } catch (e) { /* localStorage unavailable — safe to ignore */ }
 }
 
@@ -5986,7 +6043,8 @@ function savePrefs() {
       playlistFoldersCollapsed: state.playlistFoldersCollapsed,
       playlistFolders: state.playlistFolders,
       playlistFolderMap: state.playlistFolderMap,
-      statsMode: state.statsMode
+      statsMode: state.statsMode,
+      rightPanelView: state.rightPanelView
     }));
   } catch (e) { /* localStorage unavailable — safe to ignore */ }
 }
@@ -12587,7 +12645,65 @@ function addToCrateQueue(entries) {
   playCrateQueueIndex(myId, 0);
 }
 
-// Renders the right panel's "Up Next" view of the crate queue — distinct
+// Switches which content the right panel shows (state.rightPanelView) —
+// the existing "Up Next" queue, or a chronological Last.fm history feed.
+// Called on init, whenever the ⚙ → Panels configuration… select changes,
+// and after fetchCatalog() refreshes state.scrobbles (a Last.fm sync
+// happening while the history view is already open should update it).
+function applyRightPanelView() {
+  const isQueue = state.rightPanelView !== 'lastfmHistory';
+  el.rightPanelLabel.textContent = isQueue ? 'Up Next' : 'Last.fm History';
+  el.crateQueuePanelBody.hidden = !isQueue;
+  el.rightHistoryPanelBody.hidden = isQueue;
+  el.crateQueueClearBtn.hidden = !isQueue || !crateQueueList.length;
+  if (el.queuePanelSettingsRow) el.queuePanelSettingsRow.hidden = !isQueue; // its "Panel Settings…" only applies to the queue's own field display
+  if (!isQueue) renderLastfmHistoryPanel();
+}
+
+// Chronological Last.fm scrobble feed for the right panel — DAY-level only
+// (most recent first), not time-of-day, since that's the actual
+// granularity the Scrobbles sheet stores (one row per album/track/day with
+// a play count — see fetchCatalog's state.scrobbles parsing) rather than a
+// timestamp per individual play. Every scrobble row gets its own entry
+// (not aggregated by album, unlike renderScrobbles()'s all-time totals on
+// the Scrobbles tab) since the point here is a real history to scroll
+// through, not a leaderboard.
+function renderLastfmHistoryPanel() {
+  if (!state.scrobbles.length) {
+    el.rightHistoryPanelBody.innerHTML = '<p class="queue-empty">No Last.fm history yet — import scrobbles via \u2699 \u2192 Import from Last.fm to see your listening history here.</p>';
+    return;
+  }
+  const sorted = [...state.scrobbles].sort((a, b) => {
+    if (a.day !== b.day) return b.day.localeCompare(a.day); // most recent day first
+    return (a.artist + a.title + a.track).localeCompare(b.artist + b.title + b.track); // stable tiebreak — no time-of-day to sort by within the same day
+  });
+  el.rightHistoryPanelBody.innerHTML = sorted.map(s => {
+    const match = state.raw.find(r => r.row === s.row) || state.raw.find(r => r.artist === s.artist && r.title === s.title);
+    const dateLabel = s.day ? new Date(s.day).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'Unknown date';
+    return `
+      <div class="right-history-row"${match ? ` data-row="${escapeHtml(String(match.row))}"` : ''}>
+        <img class="right-history-thumb art" data-key="${match ? artKey(match) : ''}" alt="">
+        <div class="right-history-info">
+          <span class="right-history-title">${escapeHtml(s.track || s.title)}</span>
+          <span class="right-history-sub">${escapeHtml(s.artist)}${s.track ? ' \u2014 ' + escapeHtml(s.title) : ''}</span>
+        </div>
+        <div class="right-history-meta">
+          <span class="right-history-date">${escapeHtml(dateLabel)}</span>
+          ${s.playCount > 1 ? `<span class="right-history-plays">${s.playCount}\u00d7</span>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+  el.rightHistoryPanelBody.querySelectorAll('.right-history-row[data-row]').forEach(rowEl => {
+    const match = state.raw.find(r => String(r.row) === rowEl.dataset.row);
+    if (!match) return;
+    rowEl.classList.add('clickable');
+    rowEl.addEventListener('click', () => { switchTab('albums'); openDeck(match); });
+  });
+  applyCachedArt();
+}
+
+
 // from the Spotify mini player's own queue popover (#queuePanel,
 // refreshQueuePanel/queueRowHtml above), which only ever shows Spotify's
 // native device queue and has no concept of a YouTube-only track. This is
@@ -12600,7 +12716,12 @@ function renderCrateQueuePanel() {
   const current = crateQueueIndex >= 0 ? crateQueueList[crateQueueIndex] : null;
   const upcoming = crateQueueList.slice(crateQueueIndex + 1);
 
-  if (el.crateQueueClearBtn) el.crateQueueClearBtn.hidden = !current && !upcoming.length;
+  // Only touch the Clear button's visibility if the queue view is actually
+  // the one showing right now — otherwise this would un-hide it while the
+  // Last.fm History view is active just because the queue has content in
+  // the background (see applyRightPanelView, which owns that decision
+  // whenever the view itself is switched).
+  if (el.crateQueueClearBtn && state.rightPanelView !== 'lastfmHistory') el.crateQueueClearBtn.hidden = !current && !upcoming.length;
 
   if (!current && !upcoming.length) {
     el.crateQueuePanelBody.innerHTML = '<p class="queue-empty">Nothing queued — right-click a track or album and choose “Add to queue”, or “▶ Play” a multi-selection, to see upcoming tracks here — Spotify and YouTube-sourced alike.</p>';
@@ -17258,6 +17379,7 @@ async function confirmLastfmImport() {
 
     el.lastfmImportStatus.textContent = `Done \u2014 ${totalPlays} plays across ${entries.length} album/day groups saved to Scrobbles.`;
     if (state.activeTab === 'scrobbles') renderScrobbles();
+    if (state.rightPanelView === 'lastfmHistory') renderLastfmHistoryPanel();
     if (activeItem) {
       const scrobbleTotal = scrobbleCountFor(activeItem.artist, activeItem.title);
       if (scrobbleTotal > 0) {
@@ -17351,6 +17473,7 @@ async function maybeRunBackgroundLastfmSync() {
         onClick: openLastfmModal, duration: 8000
       });
     }
+    if (state.rightPanelView === 'lastfmHistory') renderLastfmHistoryPanel(); // keep it current if it's the view actually showing right now
   } catch (err) {
     console.warn('Background Last.fm sync failed:', err); // stays silent in the UI — a failed background sync shouldn't interrupt anyone
   } finally {
@@ -18088,6 +18211,7 @@ html, body {
 
 .left-row {
     display: flex; align-items: center; gap: 10px; padding: 7px 6px; border-radius: 6px; cursor: pointer;
+    user-select: none; /* these are clickable nav rows, not text — a click-drag (or an accidental double-click, e.g. the album-row dblclick-to-play above) shouldn't leave text highlighted */
   }
   .left-row:hover { background: var(--bg-elevated); }
   .left-row.active { background: var(--bg-card); }
@@ -18143,6 +18267,21 @@ html, body {
      the mini player below) so it looks consistent with the existing queue
      popovers; only .crate-queue-source (the ♫/▶ source icon) is new. */
   .crate-queue-panel-body { display: flex; flex-direction: column; }
+
+  /* ---- Right panel: Last.fm History (alternate view — applyRightPanelView) ---- */
+  .right-history-panel-body { display: flex; flex-direction: column; overflow-y: auto; }
+  .right-history-row {
+    display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--line);
+  }
+  .right-history-row.clickable { cursor: pointer; }
+  .right-history-row.clickable:hover { background: var(--bg-elevated); }
+  .right-history-thumb { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 4px; object-fit: cover; background: var(--bg-elevated); }
+  .right-history-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .right-history-title { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .right-history-sub { font-size: 11px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .right-history-meta { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+  .right-history-date { font-size: 10.5px; color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; white-space: nowrap; }
+  .right-history-plays { font-size: 10px; color: var(--accent); font-family: 'IBM Plex Mono', monospace; }
   .crate-queue-source {
     flex: 0 0 auto; width: 20px; text-align: center; font-size: 13px; color: var(--text-dim);
   }
