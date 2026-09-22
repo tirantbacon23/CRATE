@@ -13,7 +13,32 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.84
+  CURRENT_VERSION: 1.29.86
+
+  1.29.86 — 2026-09-16 — Follow-up to 1.29.85: double-clicking a second
+          album row while one was already queued/playing was just
+          appending onto the existing queue (queueAlbumTracks ->
+          addToCrateQueue's normal "extend the tail" behavior) instead of
+          replacing it — not what double-click should do. New
+          playAlbumReplacingQueue() clears crateQueueList outright and
+          starts fresh with just the newly double-clicked release,
+          bumping crateQueueId the same way addToCrateQueue's own
+          fresh-queue branch does so no stale end-of-track heuristic from
+          the old queue can fire against the new one. queueAlbumTracks
+          itself (the album card menu's actual "Add to queue") is
+          untouched — appending is the correct behavior there.
+
+  1.29.85 — 2026-09-16 — Feature: double-clicking an album row in the left
+          panel's Albums list now queues the whole release and starts
+          playing it — queueAlbumTracks() (same as the album card menu's
+          "Add to queue"), which builds a real tracklist via getTracksFor()
+          and hands it to addToCrateQueue(); that already starts playback
+          immediately when nothing else is currently playing, so this
+          reads as "play" for the common case while also populating the Up
+          Next queue. Deliberately not playAlbumNow() (the card menu's
+          "▶ Play") — that just hands Spotify one album URI directly, with
+          no CRATE-queue integration and no way to work at all for a
+          manually-tracklisted (non-Spotify) album.
 
   1.29.84 — 2026-09-16 — Feature: Release Statistics. The Stats tab now has
           a "Listening" / "Collection" toggle at the top (state.statsMode,
@@ -3811,7 +3836,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.84';
+const APP_VERSION = '1.29.86';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -6489,6 +6514,12 @@ function buildLeftRow(entry, mode) {
       e.preventDefault();
       openAlbumCardContextMenu(entry.item, e.clientX, e.clientY);
     });
+    // Double-click replaces whatever's currently queued/playing with this
+    // release and starts it immediately — see playAlbumReplacingQueue for
+    // why that's a different function from queueAlbumTracks/"Add to
+    // queue" (which appends instead), and works for every album, not
+    // just ones on Spotify.
+    row.addEventListener('dblclick', () => playAlbumReplacingQueue(entry.item));
   }
   return row;
 }
@@ -9988,6 +10019,29 @@ async function queueAlbumTracks(item) {
     return;
   }
   addToCrateQueue(tracks.map(t => ({ item, track: t })));
+}
+
+// Unlike queueAlbumTracks/addToCrateQueue above (which always APPENDS —
+// extends the existing queue, or folds in as "play after whatever's
+// currently going"), this unconditionally REPLACES it — clears whatever
+// was queued/playing and starts fresh with just this release. Used for
+// double-clicking an album row in the left panel: the expectation there
+// is "play THIS now", not "add this to what's already lined up".
+// crateQueueId is bumped the same way addToCrateQueue's own fresh-queue
+// branch does, so any in-flight end-of-track heuristic tied to the OLD
+// queue can't fire against this new one.
+async function playAlbumReplacingQueue(item) {
+  flashGlobalToast(`Queuing "${item.title}"\u2026`);
+  const tracks = await getTracksFor(item);
+  if (!tracks || !tracks.length) {
+    flashGlobalToast('No tracklist found for this album.');
+    return;
+  }
+  const myId = ++crateQueueId;
+  crateQueueList = tracks.map(t => ({ item, track: t }));
+  crateQueueIndex = -1;
+  renderCrateQueuePanel();
+  playCrateQueueIndex(myId, 0);
 }
 
 // Every action that can start Spotify playback (album Play Now, a track's
