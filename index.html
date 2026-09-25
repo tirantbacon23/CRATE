@@ -13,7 +13,22 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.106
+  CURRENT_VERSION: 1.29.107
+
+  1.29.107 — 2026-09-25 — Feature: release-level Descriptor field. New
+          free-text field ("e.g. Deluxe Edition, Remastered") alongside
+          Catalog No. in "Add a release" and "Edit release" (addDescriptor/
+          editDescriptor), plumbed the same way Catalog already was —
+          included in saveNewAlbum's/saveEditAlbum's payload, read back off
+          activeItem.descriptor in openEditModal, added to ADD_FORM_FIELD_OPTIONS
+          (so it can be hidden via ⚙ → Panels configuration…) and to
+          FIELD_OPTIONS/keyToVal (so it can be picked as a customizable card
+          tag), and folded into the search-matching string alongside
+          artist/title/catalog. REQUIRES A BACKEND CHANGE THIS FILE CAN'T
+          MAKE: apps-script-backend.gs needs a new "Descriptor" column read
+          in fetchCatalog() and written on addAlbum/editAlbum, same as
+          Catalog/Location were added before — until then the field will
+          save via postUpdate but won't round-trip on reload.
 
   1.29.106 — 2026-09-25 — Feature: in-app SoundCloud playback. A per-track
           SoundCloud link (1.29.104) previously only ever opened in a new
@@ -3935,6 +3950,7 @@
         <label class="add-field" data-add-field="location">Location (formed / studio / played) <input type="text" id="addLocation" placeholder="e.g. Abbey Road Studios, London"></label>
         <label class="add-field" data-add-field="label">Label <input type="text" id="addLabel"></label>
 		<label class="add-field" data-add-field="catalog">Catalog No. <input type="text" id="addCatalog"></label> <!-- 👈 ADD THIS -->
+        <label class="add-field" data-add-field="descriptor">Descriptor <input type="text" id="addDescriptor" placeholder="e.g. Deluxe Edition, Remastered"></label>
         <label class="add-field" data-add-field="link">Link <input type="text" id="addLink" placeholder="https://…"></label>
         <label class="add-field" data-add-field="rymLink">RYM Link <input type="text" id="addRymLink" placeholder="https://rateyourmusic.com/release/…"></label>
         <label class="add-field" data-add-field="cover">Cover Art URL <input type="text" id="addCover" placeholder="https://…"></label>
@@ -4110,6 +4126,7 @@
         <label class="add-field">Location (formed / studio / played) <input type="text" id="editLocation" placeholder="e.g. Abbey Road Studios, London"></label>
         <label class="add-field">Label <input type="text" id="editLabel"></label>
 		<label class="add-field">Catalog No. <input type="text" id="editCatalog"></label> <!-- 👈 ADD THIS -->
+        <label class="add-field">Descriptor <input type="text" id="editDescriptor" placeholder="e.g. Deluxe Edition, Remastered"></label>
         <label class="add-field">Link <input type="text" id="editLink" placeholder="https://…"></label>
         <label class="add-field">RYM Link <input type="text" id="editRymLink" placeholder="https://rateyourmusic.com/release/…"></label>
         <label class="add-field">Cover Art URL <input type="text" id="editCover" placeholder="https://…"></label>
@@ -4273,7 +4290,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.106';
+const APP_VERSION = '1.29.107';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -4387,6 +4404,7 @@ const ADD_FORM_FIELD_OPTIONS = {
   location: 'Location',
   label: 'Label',
   catalog: 'Catalog No.',
+  descriptor: 'Descriptor',
   link: 'Link',
   rymLink: 'RYM link',
   cover: 'Cover art URL',
@@ -4403,6 +4421,7 @@ const FIELD_OPTIONS = {
   rating: 'Rating (Stars)',
   type: 'Media Type (LP/EP)',
   catalog: 'Catalog Number',
+  descriptor: 'Descriptor',
   genre: 'Genre',
   label: 'Label',
   region: 'Region / Language',
@@ -4609,13 +4628,13 @@ const el = {};
   'fldTitle','fldArtist','fldYear','fldRating','fldType','fldCatalog','fldGenre','fldLabel','fldDuration','menuCustomizeMain',
   'listenedFilterBtn',
   'addAlbumBtn','addOverlay','addClose','addSearchInput','addSearchHelpBtn','addSearchHelpPopover','addManualEntryBtn','addResultsListBtn','addResultsGridBtn','addResults','addForm',
-  'addArtist','addTitle','addType','addReleaseYear','addReleaseMonth','addReleaseDay','addRecordedYear','addRecordedMonth','addRecordedDay','addGenre','addGenre2','addRegion','addLocation','addLabel','addCatalog','addLink','addRymLink','addCover','addSaveBtn','addCancelBtn','addToast',
+  'addArtist','addTitle','addType','addReleaseYear','addReleaseMonth','addReleaseDay','addRecordedYear','addRecordedMonth','addRecordedDay','addGenre','addGenre2','addRegion','addLocation','addLabel','addCatalog','addDescriptor','addLink','addRymLink','addCover','addSaveBtn','addCancelBtn','addToast',
   'addTracksRows','addTracksAddRowBtn',
   'addSpotifyMatchBanner','addSpotifyMatchText','addSpotifyMatchAddBtn','addSpotifyMatchDismissBtn',
   'addMusicBrainzMatchBanner','addMusicBrainzMatchText','addMusicBrainzMatchAddBtn','addMusicBrainzMatchDismissBtn',
   'deckOverlay','deckClose','deckImg','deckCatalog','deckTitle','deckArtist','deckMeta','deckAdded','deckScrobbleCount','deckLink','deckRatingNum',
   'deckSpotifyLink','deckSoundcloudLink','deckRymLink','deckPlayBtn','deckActionsBar','deckQueueBtn','deckPlaylistRemoveBtn',
-  'deckEditBtn','editOverlay','editClose','editArtist','editTitle','editType','editReleaseYear','editReleaseMonth','editReleaseDay','editRecordedYear','editRecordedMonth','editRecordedDay','editGenre','editGenre2','editRegion','editLocation','editLabel','editCatalog','editLink','editRymLink','editCover','editSaveBtn','editCancelBtn','editToast',
+  'deckEditBtn','editOverlay','editClose','editArtist','editTitle','editType','editReleaseYear','editReleaseMonth','editReleaseDay','editRecordedYear','editRecordedMonth','editRecordedDay','editGenre','editGenre2','editRegion','editLocation','editLabel','editCatalog','editDescriptor','editLink','editRymLink','editCover','editSaveBtn','editCancelBtn','editToast',
   'editTracksRows','editTracksAddRowBtn','editTracksLoadBtn',
   'ytPlayerMount','scPlayerMount',
   'deckTracklist','deckStars','deckReview','deckSaveReview','deckToast','deckRemoveBtn','deckPlaylistBtn',
@@ -6721,6 +6740,13 @@ async function fetchCatalog() {
           rymLink: r.RymLink ? String(r.RymLink).trim() : '',
           dateAdded: r.DateAdded || '',
           catalog: r.Catalog ? String(r.Catalog).trim() : 'CRT-' + String(i + 1).padStart(3, '0'),
+          // Free-text release descriptor (e.g. "Deluxe Edition", "2024
+          // Remaster") — same simple string-column pattern as Catalog just
+          // above. REQUIRES A BACKEND CHANGE THIS FILE CAN'T MAKE: apps-
+          // script-backend.gs needs a "Descriptor" column read here and
+          // written on addAlbum/editAlbum, same as Catalog/Location were
+          // added before.
+          descriptor: r.Descriptor ? String(r.Descriptor).trim() : '',
           trackData: (function(){ try { return r.TrackData ? JSON.parse(String(r.TrackData)) : {}; } catch(e) { return {}; } })(),
           // Manually-typed tracklist (title + optional YouTube link per
           // track), entered via the Add/Edit forms — see showAddForm()'s
@@ -7678,7 +7704,7 @@ function combinedSearchText(r) {
   const year = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getUTCFullYear() : '';
   const genres = getGenreList(combinedGenreStr(r)).join(' ');
   const tracks = trackTitlesFor(r).join(' ');
-  return `${r.artist} ${r.title} ${year} ${r.catalog} ${genres} ${tracks}`.toLowerCase();
+  return `${r.artist} ${r.title} ${year} ${r.catalog} ${r.descriptor || ''} ${genres} ${tracks}`.toLowerCase();
 }
 
 // Track titles available for search without triggering a network fetch —
@@ -11239,6 +11265,7 @@ function keyToVal(key, item) {
 
   const map = {
     catalog: item.catalog,
+    descriptor: item.descriptor,
     type: typeAbbrev(item.type),
     year: year,
     releaseDate: formatReleaseDate(item),
@@ -16864,6 +16891,7 @@ async function saveNewAlbum() {
     Region: el.addRegion.value.trim(),
     Location: el.addLocation.value.trim(), // 👈 Map viewer — REQUIRES BACKEND COLUMN, see 1.29.14 log entry
     Label: el.addLabel.value.trim(), Catalog: el.addCatalog.value.trim(), // 👈 ADD CATALOG
+    Descriptor: el.addDescriptor.value.trim(),
     Link: el.addLink.value.trim(), RymLink: el.addRymLink.value.trim(), Cover: el.addCover.value.trim()
   };
   // Only write ManualTracks when the tracklist builder actually has rows in
@@ -16903,6 +16931,7 @@ function openEditModal() {
   el.editLocation.value = activeItem.location || '';
   el.editLabel.value = activeItem.label || '';
   el.editCatalog.value = activeItem.catalog || ''; // 👈 ADD THIS
+  el.editDescriptor.value = activeItem.descriptor || '';
   el.editLink.value = activeItem.link || '';
   el.editRymLink.value = activeItem.rymLink || '';
   el.editCover.value = activeItem.cover || '';
@@ -16946,6 +16975,7 @@ async function saveEditAlbum() {
     Location: el.editLocation.value.trim(), // 👈 Map viewer — REQUIRES BACKEND COLUMN, see 1.29.14 log entry
     Label: el.editLabel.value.trim(),
     Catalog: el.editCatalog.value.trim(), // 👈 ADD THIS
+    Descriptor: el.editDescriptor.value.trim(),
     Link: el.editLink.value.trim(),
     RymLink: el.editRymLink.value.trim(),
     Cover: el.editCover.value.trim()
@@ -16969,6 +16999,7 @@ async function saveEditAlbum() {
     activeItem.location = payload.Location;
     activeItem.label = payload.Label;
 	activeItem.catalog = payload.Catalog || 'CRT-' + String(activeItem.row).padStart(3, '0'); // 👈 ADD THIS
+    activeItem.descriptor = payload.Descriptor;
     activeItem.link = payload.Link;
     activeItem.rymLink = payload.RymLink;
     activeItem.cover = payload.Cover;
