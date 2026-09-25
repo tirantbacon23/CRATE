@@ -13,7 +13,29 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.108
+  CURRENT_VERSION: 1.29.109
+
+  1.29.109 — 2026-09-25 — Feature: duplicate-row diagnostic. Root-caused a
+          report of playlist tracks showing a completely different album's
+          title/artist ("Train In Vain" — a Clash song — showing under a
+          different artist entirely) beyond what 1.29.108 already fixed —
+          that fix handled the type-mismatch half of row lookups, but
+          playlistAlbumFor (and anything else that looks an album up by
+          its spreadsheet Row) has no way to disambiguate when two DIFFERENT
+          albums genuinely share the same Row number in the sheet itself —
+          it deterministically returns the first match, which can be the
+          wrong one. That's a data-layer problem this file can't fully fix
+          (playlist items would need to reference something sturdier than
+          a row number — a backend/apps-script-backend.gs change), so
+          instead of leaving it a silent, confusing mismatch: new
+          checkForDuplicateRows(), run once per fetchCatalog() load,
+          scans state.raw for any Row value shared by more than one album
+          and shows a new dismissible banner (#duplicateRowBanner, mirrors
+          the existing anniversary banner's exact markup/dismiss-for-the-
+          day pattern) listing every colliding row and the albums fighting
+          over it, so the actual duplicate can be found and fixed directly
+          in the sheet. Also logs full details to the console for anyone
+          who wants the exact row numbers.
 
   1.29.108 — 2026-09-25 — Bugfix: "Playlist view: details get mixed up
           (artist names appear as albums, titles swapped)". Root cause was
@@ -3063,6 +3085,25 @@
     <div id="anniversaryBannerList" class="anniversary-banner-list"></div>
   </div>
 
+  <!-- Data-integrity check — checked on load, see checkForDuplicateRows().
+       Two crate rows sharing the same spreadsheet Row number is the root
+       cause behind playlist tracks (and anything else that looks an album
+       up by row — see playlistAlbumFor) occasionally showing the wrong
+       album's title/artist next to a track that isn't really theirs. Can't
+       be fixed from this file alone — playlist items would need to
+       reference something sturdier than a row number, which means a
+       backend (apps-script-backend.gs) change — so this just surfaces
+       exactly which rows collide, rather than leaving it as a silent,
+       confusing mismatch. -->
+  <div id="duplicateRowBanner" class="anniversary-banner duplicate-row-banner" hidden>
+    <div class="anniversary-banner-head">
+      <span class="anniversary-banner-title">⚠️ Duplicate rows found in your sheet</span>
+      <button type="button" id="duplicateRowBannerClose" class="modal-x" aria-label="Dismiss">✕</button>
+    </div>
+    <p class="arrange-hint duplicate-row-banner-hint">These rows share the same number in your spreadsheet — playlists (and anything else that looks an album up by its row) can end up showing the wrong one's title/artist next to a track that isn't really theirs. Fix by renumbering or removing the duplicate directly in the sheet.</p>
+    <div id="duplicateRowBannerList" class="anniversary-banner-list"></div>
+  </div>
+
   <!-- Three-pane layout: category browser | main grid | reserved sidebar -->
   <!-- Shared backdrop for the mobile nav/queue drawers (see #panels'
        mobile-nav-open/mobile-queue-open classes) — tapping it closes
@@ -4320,7 +4361,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.108';
+const APP_VERSION = '1.29.109';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -4676,6 +4717,7 @@ const el = {};
   'diaryEntryModal','diaryEntryClose','diaryEntryImg','diaryEntryEntryTitle','diaryEntryTitle','diaryEntryArtist','diaryEntryDate',
   'diaryEntryRating','diaryEntryNote','diaryEntryTracksWrap','diaryEntryOpenAlbumBtn','diaryEntryDeleteBtn','diaryEntryToast',
   'anniversaryBanner','anniversaryBannerClose','anniversaryBannerList',
+  'duplicateRowBanner','duplicateRowBannerClose','duplicateRowBannerList',
   'albumsViewMenu', 'mainViewBtn',
   'lastfmBtn','lastfmOverlay','lastfmClose','lastfmSetup','lastfmUsername','lastfmApiKey','lastfmSinceDate',
   'lastfmLastSync','lastfmFetchBtn','lastfmCancelBtn','lastfmFetchStatus','lastfmPreview','lastfmSummary',
@@ -6882,6 +6924,7 @@ async function fetchCatalog() {
     prefetchArt(state.raw);
     if (state.activeTab === 'artist') { renderArtistList(); renderArtistDetail(); }
     checkAlbumAnniversaries();
+    checkForDuplicateRows();
   } catch (err) {
     console.error(err);
     // AbortError is fetchWithTimeout's controller.abort() firing — a real
@@ -14684,6 +14727,7 @@ function flashToast(node, msg) {
 // (stored in localStorage) rather than nagging on every reload.
 
 const ANNIV_DISMISS_KEY = 'crate_anniversary_dismissed_date';
+const DUPLICATE_ROW_DISMISS_KEY = 'crate_duplicate_row_dismissed_date';
 
 function todayDateKey() {
   const d = new Date();
@@ -14738,6 +14782,73 @@ function renderAnniversaryBanner(matches) {
 
   el.anniversaryBanner.hidden = false;
 }
+
+// Data-integrity check: playlist items (and anything else that looks an
+// album up by row — see playlistAlbumFor) reference an album by its
+// spreadsheet Row number. If two rows in the sheet ever end up sharing the
+// same Row value — a manual edit, a row insertion that didn't renumber
+// correctly, deleting a row without the ones below shifting up — that
+// lookup can silently resolve to the WRONG one of the two, showing one
+// album's track under a completely different album's title/artist. Can't
+// be fixed from this file alone (playlist items would need to reference
+// something sturdier than a row number, which is a backend/
+// apps-script-backend.gs change), so this just surfaces exactly which
+// rows collide rather than leaving it a confusing, silent mismatch.
+// "Dismissed today" follows the exact same one-day-quiet convention as the
+// anniversary banner just above, rather than a permanent dismissal — the
+// underlying duplicate is still there every reload until actually fixed in
+// the sheet, so a gentle daily reminder is more useful than nagging on
+// every single load OR going silent forever after one click.
+function checkForDuplicateRows() {
+  if (!state.raw.length) return;
+  const todayKey = todayDateKey();
+  try {
+    if (localStorage.getItem(DUPLICATE_ROW_DISMISS_KEY) === todayKey) return;
+  } catch (e) { /* localStorage unavailable — just show it every load */ }
+
+  const byRow = new Map();
+  state.raw.forEach(item => {
+    const key = String(item.row);
+    if (!byRow.has(key)) byRow.set(key, []);
+    byRow.get(key).push(item);
+  });
+  const dupeGroups = [...byRow.values()].filter(group => group.length > 1);
+
+  if (!dupeGroups.length) { el.duplicateRowBanner.hidden = true; return; }
+  console.warn('CRATE: duplicate spreadsheet rows detected:', dupeGroups.map(g => ({ row: g[0].row, albums: g.map(a => `${a.artist} \u2013 ${a.title}`) })));
+  renderDuplicateRowBanner(dupeGroups);
+}
+
+function renderDuplicateRowBanner(dupeGroups) {
+  el.duplicateRowBannerList.innerHTML = dupeGroups.map(group => `
+    <div class="duplicate-row-group">
+      <span class="duplicate-row-group-label">Row ${escapeHtml(String(group[0].row))}</span>
+      ${group.map(item => `
+        <button type="button" class="anniversary-item">
+          <img class="anniversary-cover art" data-key="${artKey(item)}" src="${item.cover || state.artCache[artKey(item)]?.art || placeholderArt(item)}" alt="">
+          <span class="anniversary-text">
+            <span class="anniversary-item-title">${escapeHtml(item.title)}</span>
+            <span class="anniversary-item-sub">${escapeHtml(item.artist)}</span>
+          </span>
+        </button>
+      `).join('')}
+    </div>
+  `).join('');
+
+  const items = dupeGroups.flat();
+  [...el.duplicateRowBannerList.querySelectorAll('.anniversary-item')].forEach((btn, i) => {
+    btn.addEventListener('click', () => {
+      const item = items[i];
+      el.duplicateRowBanner.hidden = true;
+      switchTab('albums');
+      openDeck(item);
+    });
+  });
+
+  el.duplicateRowBanner.hidden = false;
+  applyCachedArt();
+}
+
 
 // ---------- Timeline viewer (1.29.13) ----------
 // Lets someone scrub through release years and see what was in the crate
@@ -15578,6 +15689,10 @@ function addMapMarker(group, resolved) {
 el.anniversaryBannerClose.addEventListener('click', () => {
   el.anniversaryBanner.hidden = true;
   try { localStorage.setItem(ANNIV_DISMISS_KEY, todayDateKey()); } catch (e) { /* safe to ignore */ }
+});
+el.duplicateRowBannerClose.addEventListener('click', () => {
+  el.duplicateRowBanner.hidden = true;
+  try { localStorage.setItem(DUPLICATE_ROW_DISMISS_KEY, todayDateKey()); } catch (e) { /* safe to ignore */ }
 });
 
 /* ---------- Diary entry detail modal (compendium view) ---------- */
@@ -19877,6 +19992,16 @@ html, body {
   .anniversary-text { min-width: 0; display: flex; flex-direction: column; }
   .anniversary-item-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .anniversary-item-sub { font-size: 11.5px; color: var(--text-dim); }
+
+  .duplicate-row-banner { border-color: #E5646B; }
+  .duplicate-row-banner .anniversary-banner-title { color: #E5646B; }
+  .duplicate-row-banner-hint { margin: 0 0 10px; }
+  .duplicate-row-group { margin-bottom: 10px; }
+  .duplicate-row-group:last-child { margin-bottom: 0; }
+  .duplicate-row-group-label {
+    display: block; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 4px 6px;
+  }
 
   .diary-toolbar { display: flex; gap: 4px; margin: 0 0 16px; }
   .diary-view-btn {
