@@ -13,7 +13,38 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.88
+  CURRENT_VERSION: 1.29.90
+
+  1.29.90 — 2026-09-16 — Feature: Add Album search results can now switch
+          to a cover-art grid — pick visually by thumbnail, similar to
+          Topster's "Add Items" search. New ☰/▦ toggle above the results
+          (setReleaseSearchGridView(), persisted via
+          state.releaseSearchGridView) switches buildReleaseResultRow's
+          own markup between the existing list row and a new
+          .add-result-card (big thumbnail, title + artist/year underneath,
+          no label/catalog/region detail up front — that's still all in
+          prefillData and lands in the form once picked, same as list
+          mode). Applies to both the free-text search results and the
+          release-group pressing-picker results, since both funnel
+          through the same function. Reuses the exact same prefillData/
+          click-through/cover-art-resolution logic as list mode — this is
+          purely a different rendering of the same underlying data, not a
+          separate code path.
+
+  1.29.89 — 2026-09-16 — Follow-up to 1.29.88: right panel now shows BOTH
+          Up Next and Last.fm History at once (stacked, splitting the
+          available height, each scrolling independently), rather than the
+          previous single-select dropdown that only showed one at a time.
+          state.rightPanelView (a string) replaced with two independent
+          booleans, state.rightPanelShowQueue/rightPanelShowHistory, each
+          with its own checkbox in \u2699 \u2192 Panels configuration\u2026 — rebuilt
+          as a proper boxed "right panel" section (matching "main panel"/
+          "bottom player" below it) instead of the old dropdown-plus-a-
+          disabled-checkbox-with-overlapping-text row. Turning both off
+          shows a plain "nothing enabled" message rather than an empty box.
+          applyRightPanelSections() replaces applyRightPanelView();
+          renderCrateQueuePanel()'s Clear-button guard and both Last.fm
+          sync completion hooks updated to match.
 
   1.29.88 — 2026-09-16 — Feature: right panel is now configurable, not
           hardcoded to "Up Next". New ⚙ \u2192 Panels configuration\u2026
@@ -2883,20 +2914,28 @@
     <div class="resizer" id="resizerRight" aria-hidden="true"></div>
 
     <section id="rightPanel" class="panel panel-right">
-      <div class="panel-bar">
-        <span class="panel-label" id="rightPanelLabel">Up Next</span>
-        <button type="button" id="crateQueueClearBtn" class="chip-btn" title="Clear the queue" hidden>Clear</button>
+      <!-- Both sections below are independently toggleable (⚙ → Panels
+           configuration… → right panel) and can be shown at once, stacked
+           — see applyRightPanelSections(). -->
+      <div id="rightPanelQueueSection" class="right-panel-section">
+        <div class="panel-bar">
+          <span class="panel-label">Up Next</span>
+          <button type="button" id="crateQueueClearBtn" class="chip-btn" title="Clear the queue" hidden>Clear</button>
+        </div>
+        <div id="crateQueuePanelBody" class="crate-queue-panel-body">
+          <p class="queue-empty">Nothing queued — right-click a track or album and choose “Add to queue”, or “▶ Play” a multi-selection, to see upcoming tracks here — Spotify and YouTube-sourced alike.</p>
+        </div>
       </div>
-      <div id="crateQueuePanelBody" class="crate-queue-panel-body">
-        <p class="queue-empty">Nothing queued — right-click a track or album and choose “Add to queue”, or “▶ Play” a multi-selection, to see upcoming tracks here — Spotify and YouTube-sourced alike.</p>
+      <!-- Chronological Last.fm scrobble feed. Day-level only (no time-of-
+           day) since that's the actual granularity the Scrobbles sheet
+           stores — see fetchCatalog's state.scrobbles parsing. -->
+      <div id="rightPanelHistorySection" class="right-panel-section" hidden>
+        <div class="panel-bar">
+          <span class="panel-label">Last.fm History</span>
+        </div>
+        <div id="rightHistoryPanelBody" class="right-history-panel-body"></div>
       </div>
-      <!-- Alternate right-panel content, toggled via state.rightPanelView
-           (see ⚙ → Panels configuration…, applyRightPanelView()) — a
-           chronological Last.fm scrobble feed rather than the upcoming-
-           queue. Day-level only (no time-of-day) since that's the actual
-           granularity the Scrobbles sheet stores — see fetchCatalog's
-           state.scrobbles parsing. -->
-      <div id="rightHistoryPanelBody" class="right-history-panel-body" hidden></div>
+      <p id="rightPanelEmptyMsg" class="diary-empty" hidden>Nothing enabled here \u2014 turn on Up Next or Last.fm History in \u2699 \u2192 Panels configuration\u2026</p>
     </section>
   </div>
 
@@ -3281,22 +3320,29 @@
     <div class="pane-config-group">
       <label class="arrange-row"><input type="checkbox" id="toggleLeftPanel" checked> Show Categories (Left Panel)</label>
     </div>
-    
+
     <div class="pane-config-group">
       <label class="arrange-row"><input type="checkbox" id="toggleRightPanel" checked> Show Details (Right Panel)</label>
-      <div class="arrange-row arrange-row-sub">
-        <label class="arrange-row-label" for="rightPanelViewSelect">Right panel shows</label>
-        <select id="rightPanelViewSelect" class="config-btn">
-          <option value="queue">Up Next (queue)</option>
-          <option value="lastfmHistory">Last.fm History</option>
-        </select>
+    </div>
+
+    <!-- Boxed like "main panel"/"bottom player" below — both sections can
+         be on at once and stack in the actual right panel, rather than
+         the old single-select "shows one or the other" dropdown. -->
+    <div class="pane-config-box">
+      <div class="pane-config-box-header">
+        <span class="pane-icon">▤</span> right panel
       </div>
-      <div class="arrange-row arrange-row-btn arrange-row-sub" id="queuePanelSettingsRow">
-        <label class="arrange-row-label"><input type="checkbox" checked disabled> Now Playing queue</label>
-        <button id="configureQueueBtn" class="config-btn">Panel Settings …</button>
+      <div class="pane-config-box-body">
+        <div class="arrange-row arrange-row-btn">
+          <label class="arrange-row-label"><input type="checkbox" id="rightPanelShowQueue" checked> Up Next (queue)</label>
+          <button id="configureQueueBtn" class="config-btn">Panel Settings …</button>
+        </div>
+        <div class="arrange-row arrange-row-btn">
+          <label class="arrange-row-label"><input type="checkbox" id="rightPanelShowHistory"> Last.fm History</label>
+        </div>
       </div>
     </div>
-    
+
     <!-- The new boxed Main Panel section -->
     <div class="pane-config-box">
       <div class="pane-config-box-header">
@@ -3517,6 +3563,13 @@
       </div>
       <p class="arrange-hint add-search-hint">Advanced: <code>artist:</code>, <code>title:</code>, <code>year:2022</code> (or <code>2020-2022</code>), <code>catalog:</code>, <code>label:</code>, <code>format:</code>, <code>country:</code>, <code>type:</code>, and <code>-word</code> to exclude.</p>
       <button type="button" id="addManualEntryBtn" class="add-manual-link">Skip search — enter everything manually</button>
+      <div class="add-results-toolbar">
+        <span class="add-results-toolbar-label">Results</span>
+        <div class="add-results-view-toggle" role="group" aria-label="Results view">
+          <button type="button" id="addResultsListBtn" class="icon-btn" title="List view" aria-label="List view">☰</button>
+          <button type="button" id="addResultsGridBtn" class="icon-btn" title="Grid view — pick visually by cover art, like Topster's Add Items" aria-label="Grid view">▦</button>
+        </div>
+      </div>
       <div id="addResults" class="add-results"></div>
       <div id="addForm" class="add-form" hidden>
         <p class="arrange-hint">Confirm the details, then add it to your crate.</p>
@@ -3884,7 +3937,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.88';
+const APP_VERSION = '1.29.90';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -4123,7 +4176,9 @@ fields: {
   // Stats tab: which year's detail (if any) is expanded.
   statsSelectedYear: null,
   statsMode: 'listening', // 'listening' | 'collection' — see setStatsMode()
-  rightPanelView: 'queue', // 'queue' | 'lastfmHistory' — see applyRightPanelView()
+  rightPanelShowQueue: true,     // both independently toggleable — see applyRightPanelSections()
+  rightPanelShowHistory: false,
+  releaseSearchGridView: false, // Add-album search results: list (default) or a Topster-style cover-art grid — see setReleaseSearchGridView()
   // Artist tab: which of your artists is selected, and a cache of their
   // full MusicBrainz discography (title/type/year per release-group) so
   // switching back to an already-viewed artist doesn't re-hit the API.
@@ -4154,11 +4209,11 @@ const el = {};
   'tabStats','tabArtist',
   'statsWrap','statsModeListening','statsModeCollection','statsListeningWrap','statsCollectionWrap','statsCollectionBody','statsYearList','statsDetail','statsDetailBack','statsDetailYear','statsDetailBody',
   'artistWrap','artistSearchInput','artistList','artistDetail',
-  'layoutBtn','layoutMenu','menuArrangePanels','arrangeModal','arrangeClose','toggleLeftPanel','toggleRightPanel','rightPanelViewSelect','queuePanelSettingsRow','rightPanelLabel','rightHistoryPanelBody','configureMainBtn','configureQueueBtn','configureMiniPlayerBtn','toggleCoverLinks','toggleFitArtwork','toggleCloseGaps','fieldPlacementGroup','fieldPlacementOverlay','fieldPlacementBelow',
+  'layoutBtn','layoutMenu','menuArrangePanels','arrangeModal','arrangeClose','toggleLeftPanel','toggleRightPanel','rightPanelShowQueue','rightPanelShowHistory','rightPanelQueueSection','rightPanelHistorySection','rightPanelEmptyMsg','rightHistoryPanelBody','configureMainBtn','configureQueueBtn','configureMiniPlayerBtn','toggleCoverLinks','toggleFitArtwork','toggleCloseGaps','fieldPlacementGroup','fieldPlacementOverlay','fieldPlacementBelow',
   'mainConfigModal','mainConfigClose','mainConfigArtworkOptions',
   'fldTitle','fldArtist','fldYear','fldRating','fldType','fldCatalog','fldGenre','fldLabel','fldDuration','menuCustomizeMain',
   'listenedFilterBtn',
-  'addAlbumBtn','addOverlay','addClose','addSearchInput','addManualEntryBtn','addResults','addForm',
+  'addAlbumBtn','addOverlay','addClose','addSearchInput','addManualEntryBtn','addResultsListBtn','addResultsGridBtn','addResults','addForm',
   'addArtist','addTitle','addType','addReleaseYear','addReleaseMonth','addReleaseDay','addRecordedYear','addRecordedMonth','addRecordedDay','addGenre','addGenre2','addRegion','addLocation','addLabel','addCatalog','addLink','addRymLink','addCover','addSaveBtn','addCancelBtn','addToast',
   'addTracksRows','addTracksAddRowBtn',
   'addSpotifyMatchBanner','addSpotifyMatchText','addSpotifyMatchAddBtn','addSpotifyMatchDismissBtn',
@@ -4522,7 +4577,10 @@ async function init() {
   updateLeftMenuUI();
   el.toggleLeftPanel.checked = state.showLeft;
   el.toggleRightPanel.checked = state.showRight;
-  el.rightPanelViewSelect.value = state.rightPanelView;
+  el.rightPanelShowQueue.checked = state.rightPanelShowQueue;
+  el.rightPanelShowHistory.checked = state.rightPanelShowHistory;
+  el.addResultsListBtn.classList.toggle('active', !state.releaseSearchGridView);
+  el.addResultsGridBtn.classList.toggle('active', state.releaseSearchGridView);
   el.toggleCoverLinks.checked = state.showCoverLinks;
   el.gridContainer.classList.toggle('hide-cover-links', !state.showCoverLinks);
   el.toggleFitArtwork.checked = state.fitArtwork;
@@ -4571,7 +4629,7 @@ async function init() {
   setInterval(refreshNowPlayingFromWebApi, 6000);
 
   await fetchCatalog();
-  applyRightPanelView(); // after fetchCatalog so state.scrobbles/state.raw are populated if it opens straight into Last.fm History; also this is the earliest safe point for crateQueueList (declared later in the file — see the genre-taxonomy TDZ note above for why that matters)
+  applyRightPanelSections(); // after fetchCatalog so state.scrobbles/state.raw are populated if History is on; also this is the earliest safe point for crateQueueList (declared later in the file — see the genre-taxonomy TDZ note above for why that matters)
   maybeRunBackgroundLastfmSync(); // fire-and-forget; doesn't block first paint
   maybeAutoScanNewReleases(); // same — see its own comment for the throttling
 }
@@ -5253,10 +5311,15 @@ function bindEvents() {
     applyPanelVisibility();
     savePrefs();
   });
-  el.rightPanelViewSelect.addEventListener('change', () => {
-    state.rightPanelView = el.rightPanelViewSelect.value;
+  el.rightPanelShowQueue.addEventListener('change', () => {
+    state.rightPanelShowQueue = el.rightPanelShowQueue.checked;
     savePrefs();
-    applyRightPanelView();
+    applyRightPanelSections();
+  });
+  el.rightPanelShowHistory.addEventListener('change', () => {
+    state.rightPanelShowHistory = el.rightPanelShowHistory.checked;
+    savePrefs();
+    applyRightPanelSections();
   });
 
   el.toggleCoverLinks.addEventListener('change', () => {
@@ -5377,6 +5440,8 @@ function bindEvents() {
   // query, wait for (or fail) a search, then hit "Enter it manually" inside
   // the results list. Same destination (showAddForm with no prefill) as
   // that existing link, just reachable without searching first.
+  el.addResultsListBtn.addEventListener('click', () => setReleaseSearchGridView(false));
+  el.addResultsGridBtn.addEventListener('click', () => setReleaseSearchGridView(true));
   el.addManualEntryBtn.addEventListener('click', () => {
     addSearchSeq++; // invalidate any in-flight/pending search
     el.addResults.innerHTML = '';
@@ -6030,7 +6095,9 @@ function loadPrefs() {
     if (Array.isArray(p.playlistFolders)) state.playlistFolders = p.playlistFolders;
     if (p.playlistFolderMap && typeof p.playlistFolderMap === 'object') state.playlistFolderMap = p.playlistFolderMap;
     if (p.statsMode === 'listening' || p.statsMode === 'collection') state.statsMode = p.statsMode;
-    if (p.rightPanelView === 'queue' || p.rightPanelView === 'lastfmHistory') state.rightPanelView = p.rightPanelView;
+    if (typeof p.rightPanelShowQueue === 'boolean') state.rightPanelShowQueue = p.rightPanelShowQueue;
+    if (typeof p.rightPanelShowHistory === 'boolean') state.rightPanelShowHistory = p.rightPanelShowHistory;
+    if (typeof p.releaseSearchGridView === 'boolean') state.releaseSearchGridView = p.releaseSearchGridView;
   } catch (e) { /* localStorage unavailable — safe to ignore */ }
 }
 
@@ -6044,7 +6111,9 @@ function savePrefs() {
       playlistFolders: state.playlistFolders,
       playlistFolderMap: state.playlistFolderMap,
       statsMode: state.statsMode,
-      rightPanelView: state.rightPanelView
+      rightPanelShowQueue: state.rightPanelShowQueue,
+      rightPanelShowHistory: state.rightPanelShowHistory,
+      releaseSearchGridView: state.releaseSearchGridView
     }));
   } catch (e) { /* localStorage unavailable — safe to ignore */ }
 }
@@ -12645,19 +12714,17 @@ function addToCrateQueue(entries) {
   playCrateQueueIndex(myId, 0);
 }
 
-// Switches which content the right panel shows (state.rightPanelView) —
-// the existing "Up Next" queue, or a chronological Last.fm history feed.
-// Called on init, whenever the ⚙ → Panels configuration… select changes,
-// and after fetchCatalog() refreshes state.scrobbles (a Last.fm sync
-// happening while the history view is already open should update it).
-function applyRightPanelView() {
-  const isQueue = state.rightPanelView !== 'lastfmHistory';
-  el.rightPanelLabel.textContent = isQueue ? 'Up Next' : 'Last.fm History';
-  el.crateQueuePanelBody.hidden = !isQueue;
-  el.rightHistoryPanelBody.hidden = isQueue;
-  el.crateQueueClearBtn.hidden = !isQueue || !crateQueueList.length;
-  if (el.queuePanelSettingsRow) el.queuePanelSettingsRow.hidden = !isQueue; // its "Panel Settings…" only applies to the queue's own field display
-  if (!isQueue) renderLastfmHistoryPanel();
+// Shows/hides each right-panel section independently — both "Up Next" and
+// "Last.fm History" can be on at once and stack (see ⚙ → Panels
+// configuration… → right panel). Called on init, whenever either checkbox
+// there changes, and after fetchCatalog() refreshes state.scrobbles (a
+// Last.fm sync happening while History is visible should update it).
+function applyRightPanelSections() {
+  el.rightPanelQueueSection.hidden = !state.rightPanelShowQueue;
+  el.rightPanelHistorySection.hidden = !state.rightPanelShowHistory;
+  el.rightPanelEmptyMsg.hidden = state.rightPanelShowQueue || state.rightPanelShowHistory;
+  el.crateQueueClearBtn.hidden = !state.rightPanelShowQueue || !crateQueueList.length;
+  if (state.rightPanelShowHistory) renderLastfmHistoryPanel();
 }
 
 // Chronological Last.fm scrobble feed for the right panel — DAY-level only
@@ -12716,12 +12783,12 @@ function renderCrateQueuePanel() {
   const current = crateQueueIndex >= 0 ? crateQueueList[crateQueueIndex] : null;
   const upcoming = crateQueueList.slice(crateQueueIndex + 1);
 
-  // Only touch the Clear button's visibility if the queue view is actually
-  // the one showing right now — otherwise this would un-hide it while the
-  // Last.fm History view is active just because the queue has content in
-  // the background (see applyRightPanelView, which owns that decision
-  // whenever the view itself is switched).
-  if (el.crateQueueClearBtn && state.rightPanelView !== 'lastfmHistory') el.crateQueueClearBtn.hidden = !current && !upcoming.length;
+  // Only touch the Clear button's visibility if the queue section is
+  // actually visible right now — otherwise this would un-hide it while
+  // the queue is turned off just because it has content in the
+  // background (see applyRightPanelSections, which owns that decision
+  // whenever either checkbox is toggled).
+  if (el.crateQueueClearBtn && state.rightPanelShowQueue) el.crateQueueClearBtn.hidden = !current && !upcoming.length;
 
   if (!current && !upcoming.length) {
     el.crateQueuePanelBody.innerHTML = '<p class="queue-empty">Nothing queued — right-click a track or album and choose “Add to queue”, or “▶ Play” a multi-selection, to see upcoming tracks here — Spotify and YouTube-sourced alike.</p>';
@@ -15170,9 +15237,25 @@ function extractGenreFromHit(hit) {
 // hands the resolved prefill data to showAddForm. `opts` lets callers supply
 // fallbacks (artist/type/releaseDate already known from the discography row) for
 // whichever fields this particular MusicBrainz release resource leaves blank.
+// Add-album search results: list (default, unchanged) vs a Topster-style
+// cover-art grid (buildReleaseResultRow branches on state.releaseSearchGridView
+// itself). Doesn't re-run the search — just toggles the CSS class on
+// whatever's already in el.addResults and updates the two toggle buttons'
+// active state; the NEXT search/pressing-lookup render will use the new
+// mode for its own markup (already-rendered rows don't retroactively
+// change shape until then).
+function setReleaseSearchGridView(gridView) {
+  state.releaseSearchGridView = gridView;
+  savePrefs();
+  el.addResultsListBtn.classList.toggle('active', !gridView);
+  el.addResultsGridBtn.classList.toggle('active', gridView);
+  el.addResults.classList.toggle('add-results-grid-mode', gridView);
+}
+
 function buildReleaseResultRow(hit, opts = {}) {
+  const gridView = state.releaseSearchGridView;
   const row = document.createElement('div');
-  row.className = 'add-result-row';
+  row.className = gridView ? 'add-result-card' : 'add-result-row';
 
   const year = hit.date ? new Date(hit.date).getUTCFullYear() : '';
   const artistName = hit['artist-credit'] ? hit['artist-credit'].map(a => a.name + (a.joinphrase || '')).join('') : (opts.fallbackArtist || 'Unknown Artist');
@@ -15198,12 +15281,26 @@ function buildReleaseResultRow(hit, opts = {}) {
 
   const fallbackImg = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCI+PHJlY3Qgd2lkdGg9IjYwIiBoZWlnaHQ9IjYwIiBmaWxsPSIjMUIyMTJCIi8+PC9zdmc+";
 
-  row.innerHTML = `
-    <img src="${fallbackImg}" alt="" class="add-thumb" style="transition: opacity 0.2s ease;">
-    <div class="add-result-text">
-      <p class="add-result-title">${escapeHtml(hit.title || '')} <span style="color:var(--text-dim);font-weight:normal;">${escapeHtml(catStr)}</span></p>
-      <p class="add-result-artist">${escapeHtml(artistName)}<span class="add-result-year">${year ? ' · ' + year : ''}</span>${labelName ? ' · ' + escapeHtml(labelName) : ''}${genreStr ? ' · ' + escapeHtml(genreStr) : ''}${regionStr ? ' · ' + escapeHtml(regionStr) : ''}</p>
-    </div>`;
+  // Grid mode (⚙-style toggle above the results, see setReleaseSearchGridView)
+  // is a cover-art-forward pick-by-eye layout, closer to Topster's "Add
+  // Items" grid — big thumbnail, minimal text underneath, no label/catalog/
+  // region detail (that's still all in prefillData and lands in the form
+  // once picked, same as list mode — grid mode just doesn't show it up
+  // front). List mode (default) is unchanged.
+  if (gridView) {
+    row.innerHTML = `
+      <img src="${fallbackImg}" alt="" class="add-thumb-grid" style="transition: opacity 0.2s ease;">
+      <p class="add-result-card-title">${escapeHtml(hit.title || '')}</p>
+      <p class="add-result-card-sub">${escapeHtml(artistName)}${year ? ' \u00b7 ' + year : ''}</p>
+    `;
+  } else {
+    row.innerHTML = `
+      <img src="${fallbackImg}" alt="" class="add-thumb" style="transition: opacity 0.2s ease;">
+      <div class="add-result-text">
+        <p class="add-result-title">${escapeHtml(hit.title || '')} <span style="color:var(--text-dim);font-weight:normal;">${escapeHtml(catStr)}</span></p>
+        <p class="add-result-artist">${escapeHtml(artistName)}<span class="add-result-year">${year ? ' · ' + year : ''}</span>${labelName ? ' · ' + escapeHtml(labelName) : ''}${genreStr ? ' · ' + escapeHtml(genreStr) : ''}${regionStr ? ' · ' + escapeHtml(regionStr) : ''}</p>
+      </div>`;
+  }
 
   const prefillData = {
     artist: artistName,
@@ -15327,6 +15424,7 @@ function openAddModalForReleaseGroup(basic) {
 // ends with a fallback link so there's always a way through even when
 // MusicBrainz doesn't have per-release detail for this particular album.
 function renderReleasePickerResults(releases, basic) {
+  el.addResults.classList.toggle('add-results-grid-mode', state.releaseSearchGridView);
   el.addResults.innerHTML = '';
 
   if (!releases.length) {
@@ -15527,6 +15625,7 @@ async function doAddSearch() {
     if (mySeq !== addSearchSeq) return; // a newer keystroke already kicked off another search — drop this stale response
     const hits = data.releases || [];
 
+    el.addResults.classList.toggle('add-results-grid-mode', state.releaseSearchGridView);
     el.addResults.innerHTML = '';
     if (!hits.length) {
       el.addResults.innerHTML = '<p class="tracklist-status">No matches found.</p>';
@@ -17379,7 +17478,7 @@ async function confirmLastfmImport() {
 
     el.lastfmImportStatus.textContent = `Done \u2014 ${totalPlays} plays across ${entries.length} album/day groups saved to Scrobbles.`;
     if (state.activeTab === 'scrobbles') renderScrobbles();
-    if (state.rightPanelView === 'lastfmHistory') renderLastfmHistoryPanel();
+    if (state.rightPanelShowHistory) renderLastfmHistoryPanel();
     if (activeItem) {
       const scrobbleTotal = scrobbleCountFor(activeItem.artist, activeItem.title);
       if (scrobbleTotal > 0) {
@@ -17473,7 +17572,7 @@ async function maybeRunBackgroundLastfmSync() {
         onClick: openLastfmModal, duration: 8000
       });
     }
-    if (state.rightPanelView === 'lastfmHistory') renderLastfmHistoryPanel(); // keep it current if it's the view actually showing right now
+    if (state.rightPanelShowHistory) renderLastfmHistoryPanel(); // keep it current if it's actually visible right now
   } catch (err) {
     console.warn('Background Last.fm sync failed:', err); // stays silent in the UI — a failed background sync shouldn't interrupt anyone
   } finally {
@@ -18266,10 +18365,20 @@ html, body {
      .queue-row/.queue-panel-subheading/.queue-empty styling (defined with
      the mini player below) so it looks consistent with the existing queue
      popovers; only .crate-queue-source (the ♫/▶ source icon) is new. */
-  .crate-queue-panel-body { display: flex; flex-direction: column; }
+  .crate-queue-panel-body { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 
-  /* ---- Right panel: Last.fm History (alternate view — applyRightPanelView) ---- */
-  .right-history-panel-body { display: flex; flex-direction: column; overflow-y: auto; }
+  /* Both right-panel sections can be visible at once and split the
+     available height (flex: 1 1 0 — equal share each; if only one is
+     shown it naturally takes the full height instead, since the hidden
+     one drops out of the flex layout entirely). Each section scrolls
+     independently past its own panel-bar header, rather than one long
+     shared scroll area. */
+  .right-panel-section { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+  .right-panel-section[hidden] { display: none; } /* same cascade note as every other place in this file that's hit this — the unconditional display:flex above would otherwise beat the browser's own [hidden] rule at equal specificity */
+  .right-panel-section + .right-panel-section { border-top: 1px solid var(--line); }
+
+  /* ---- Right panel: Last.fm History ---- */
+  .right-history-panel-body { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
   .right-history-row {
     display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--line);
   }
@@ -19474,6 +19583,21 @@ html, body {
   .add-result-artist { font-size: 11px; color: var(--text-dim); margin: 2px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .add-manual-link { background: none; border: none; color: var(--accent); font-size: 12px; text-align: left; padding: 8px 6px; cursor: pointer; }
   .add-manual-link:hover { text-decoration: underline; }
+
+  /* ---- Add-album search: view toggle + grid mode (Topster-style) ---- */
+  .add-results-toolbar { display: flex; align-items: center; justify-content: space-between; margin: 10px 0 6px; }
+  .add-results-toolbar-label { font-size: 10px; color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: 0.5px; }
+  .add-results-view-toggle { display: flex; gap: 4px; }
+  .add-results-view-toggle .icon-btn { width: 28px; height: 28px; font-size: 13px; }
+  .add-results.add-results-grid-mode {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px;
+    max-height: 360px; /* taller than the list's 260px — cards need more room to read comfortably at this width */
+  }
+  .add-result-card { display: flex; flex-direction: column; gap: 4px; cursor: pointer; border-radius: 6px; padding: 4px; }
+  .add-result-card:hover { background: var(--bg-card); }
+  .add-thumb-grid { width: 100%; aspect-ratio: 1; border-radius: 4px; object-fit: cover; background: var(--bg-card); }
+  .add-result-card-title { font-size: 11.5px; font-weight: 600; margin: 0; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .add-result-card-sub { font-size: 10.5px; color: var(--text-dim); margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   .import-scroll { max-height: 180px; overflow-y: auto; margin-bottom: 4px; }
 
