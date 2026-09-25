@@ -13,7 +13,26 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.97
+  CURRENT_VERSION: 1.29.98
+
+  1.29.98 — 2026-09-16 — Feature: "Edit track properties…" gained three
+          more overridable fields, same pattern as name/length/genre/links
+          already there — Album (only saved when it actually differs from
+          the release it's filed under, same "don't create a needless
+          override" logic as the name field; useful for a track that's
+          really off a different edition/compilation than the one it's
+          catalogued under here), Track date (its own YYYY/YYYY-MM/
+          YYYY-MM-DD, for when it differs from the release's own date —
+          an earlier recording, a reissue bonus track), and a
+          RateYourMusic link. trackLinkOverridesFor/mergeTrackLinkOverrides
+          extended to resolve and carry all three (as t.albumName/
+          t.trackDate/t.rymLink) onto any merged tracklist, same plumbing
+          name/lengthMs already used. The RYM link now actually does
+          something — a new "View on RateYourMusic ↗" action in the track
+          context menu, shown only when that track has one set. All 4
+          "is this track's trackData now completely empty" cleanup checks
+          (the exact class of bug hit once already with name/lengthMs)
+          updated up front this time to know about all three new fields.
 
   1.29.97 — 2026-09-16 — Feature: tracks in the album covers view's quick
           peek can now be selected (click; shift/ctrl for range/toggle,
@@ -4079,7 +4098,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.97';
+const APP_VERSION = '1.29.98';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -6141,7 +6160,7 @@ async function updateTrackData(item, trackNum, updates) {
   Object.assign(item.trackData[trackNum], updates);
   
   // Cleanup empty objects so we don't save useless bloat
-  if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink && !item.trackData[trackNum].name && !item.trackData[trackNum].lengthMs) {
+  if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink && !item.trackData[trackNum].name && !item.trackData[trackNum].lengthMs && !item.trackData[trackNum].album && !item.trackData[trackNum].rymLink && !item.trackData[trackNum].date) {
     delete item.trackData[trackNum];
   }
 
@@ -9843,6 +9862,7 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
   // entirely (see isManualAlbum/playTrackNow) and use their own saved
   // YouTube/Spotify link instead, so there's no fuzzy match here to fix.
   const showMatchTools = !isMultiSelect && !isManualAlbum(item);
+  const trackRymLink = !isMultiSelect && item.trackData && item.trackData[trackNum] && item.trackData[trackNum].rymLink;
   menu.innerHTML = `
     <div class="menu-section-title">${escapeHtml(menuTitle)}</div>
     <button type="button" data-track-menu-action="play">▶ Play</button>
@@ -9853,6 +9873,7 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
     ${!isMultiSelect ? '<button type="button" data-track-menu-action="editProps">Edit track properties\u2026</button>' : ''}
     ${showMatchTools ? '<button type="button" data-track-menu-action="confirmMatch">\u2713 Confirm Spotify match</button>' : ''}
     ${showMatchTools ? '<button type="button" data-track-menu-action="nextMatch">\u21bb Try next Spotify match</button>' : ''}
+    ${trackRymLink ? '<button type="button" data-track-menu-action="rym">View on RateYourMusic \u2197</button>' : ''}
     <button type="button" class="remove-menu-btn" data-track-menu-action="removeTrack">Remove from tracklist</button>
     <button type="button" data-track-menu-action="view">View album</button>
     <button type="button" class="menu-parent-btn" data-track-menu-action="search">Search <span class="submenu-caret">▸</span></button>
@@ -9885,6 +9906,7 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
     else if (action === 'editProps') openTrackPropertiesModal(item, trackNum, trackName);
     else if (action === 'confirmMatch') confirmSpotifyMatch(item, trackName, trackNum);
     else if (action === 'nextMatch') tryNextSpotifyMatch(item, trackName, trackNum);
+    else if (action === 'rym') window.open(trackRymLink, '_blank', 'noopener,noreferrer');
     else if (action === 'removeTrack') { if (isMultiSelect) quickRemoveTracksFromTracklist(trackPlaylistItems); else quickRemoveTrackFromTracklist(item, trackNum, trackName); }
     else if (action === 'removeFromPlaylist') removeTracksFromActivePlaylist(trackPlaylistItems);
   });
@@ -10093,6 +10115,16 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
           <input type="text" id="trackPropsLength" placeholder="m:ss" value="${links.lengthMs ? formatMs(links.lengthMs) : (currentLengthMs ? formatMs(currentLengthMs) : '')}">
         </div>
         <div class="track-props-field">
+          <label for="trackPropsAlbum">Album</label>
+          <input type="text" id="trackPropsAlbum" placeholder="${escapeHtml(item.title || '')}" value="${escapeHtml(links.album || '')}">
+          <p class="tracklist-builder-hint">Only overrides the album name shown/played for THIS track \u2014 useful for a track that's actually from a different release than the one it's filed under here (a compilation cut, a different edition). Leave blank to just use "${escapeHtml(item.title || 'this release')}".</p>
+        </div>
+        <div class="track-props-field">
+          <label for="trackPropsDate">Track date</label>
+          <input type="text" id="trackPropsDate" placeholder="YYYY, YYYY-MM, or YYYY-MM-DD" value="${escapeHtml(links.date || '')}">
+          <p class="tracklist-builder-hint">This track's own date, if different from the release's \u2014 e.g. an earlier recording, or a bonus track added on a later reissue.</p>
+        </div>
+        <div class="track-props-field">
           <label for="trackPropsGenre">Genre</label>
           <input type="text" id="trackPropsGenre" placeholder="e.g. Dream Pop" value="${escapeHtml(tData.genre || '')}">
         </div>
@@ -10104,6 +10136,10 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
           <label for="trackPropsSpotify">Spotify link</label>
           <input type="text" id="trackPropsSpotify" placeholder="https://open.spotify.com/track/..." value="${escapeHtml(links.spotifyLink || '')}">
           <p class="tracklist-builder-hint">Pin either (or both) to make sure ▶ plays the right recording — otherwise this track falls back to the automatic tracklist/search match.</p>
+        </div>
+        <div class="track-props-field">
+          <label for="trackPropsRym">RateYourMusic link</label>
+          <input type="text" id="trackPropsRym" placeholder="https://rateyourmusic.com/release/..." value="${escapeHtml(links.rymLink || '')}">
         </div>
         ${!isManualAlbum(item) ? `
         <div class="track-props-field track-props-match-field">
@@ -10137,9 +10173,12 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
 
   const nameInput = overlay.querySelector('#trackPropsName');
   const lengthInput = overlay.querySelector('#trackPropsLength');
+  const albumInput = overlay.querySelector('#trackPropsAlbum');
+  const dateInput = overlay.querySelector('#trackPropsDate');
   const genreInput = overlay.querySelector('#trackPropsGenre');
   const youtubeInput = overlay.querySelector('#trackPropsYoutube');
   const spotifyInput = overlay.querySelector('#trackPropsSpotify');
+  const rymInput = overlay.querySelector('#trackPropsRym');
   nameInput.focus();
   nameInput.select();
 
@@ -10225,17 +10264,21 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
   }
 
   const doSave = async () => {
-    // name is only written when it actually differs from the track's real
-    // title — typing into the field and leaving it unchanged (or blanking
-    // it back out) shouldn't create a permanent override that then has to
-    // be noticed and cleared later.
+    // name/album are only written when they actually differ from the
+    // track's/release's real values — typing into the field and leaving
+    // it unchanged (or blanking it back out) shouldn't create a permanent
+    // override that then has to be noticed and cleared later.
     const typedName = nameInput.value.trim();
+    const typedAlbum = albumInput.value.trim();
     await updateTrackData(item, trackNum, {
       name: (typedName && typedName !== (trackName || '').trim()) ? typedName : '',
       lengthMs: parseLengthToMs(lengthInput.value),
+      album: (typedAlbum && typedAlbum !== (item.title || '').trim()) ? typedAlbum : '',
+      date: dateInput.value.trim(),
       genre: genreInput.value.trim(),
       youtubeLink: youtubeInput.value.trim(),
-      spotifyLink: spotifyInput.value.trim()
+      spotifyLink: spotifyInput.value.trim(),
+      rymLink: rymInput.value.trim()
     });
     // Refresh whichever cached tracklist(s) this track lives in so every
     // view (deck, "Album and Tracks", flat Tracks table) reflects the new
@@ -12638,17 +12681,26 @@ function trackLinkOverridesFor(item, trackNum, trackName) {
   const tData = (item && item.trackData && item.trackData[trackNum]) || {};
   const youtubeLink = tData.youtubeLink || manualYoutubeLinkFor(item, trackNum, trackName);
   const spotifyLink = tData.spotifyLink || manualSpotifyLinkFor(item, trackNum, trackName);
-  return { youtubeLink, spotifyLink, name: tData.name || '', lengthMs: tData.lengthMs || 0 };
+  return {
+    youtubeLink, spotifyLink, name: tData.name || '', lengthMs: tData.lengthMs || 0,
+    album: tData.album || '', rymLink: tData.rymLink || '', date: tData.date || ''
+  };
 }
 
 // Layers trackLinkOverridesFor() onto every track in an already-built
 // tracklist array (mutates in place) — used right before a tracklist is
 // cached/rendered (getTracksFor, loadTracklist's manual branch) so every
 // track-rendering view (deck, "Album and Tracks", flat Tracks table) shows
-// and plays the same saved link/name/length without each having to resolve
-// it itself. IMPORTANT: name/length are looked up by t.trackNumber, which
-// is read BEFORE t.trackName is overwritten below, so a rename never
-// breaks the trackData lookup for that same track on a later pass.
+// and plays the same saved link/name/length/album/date without each having
+// to resolve it itself. IMPORTANT: everything here is looked up by
+// t.trackNumber, which is read BEFORE t.trackName is overwritten below, so
+// a rename never breaks the trackData lookup for that same track on a
+// later pass. rymLink/album/date are carried onto the track object as
+// t.rymLink/t.albumName/t.trackDate for whatever wants to read them (the
+// track context menu's "View on RateYourMusic ↗" action, for one) — none
+// of the existing track-rendering views print album/date per-track yet,
+// so setting them here is the plumbing; a display surface for them can
+// follow once there's a specific view that wants one.
 function mergeTrackLinkOverrides(item, tracks) {
   (tracks || []).forEach(t => {
     const ov = trackLinkOverridesFor(item, t.trackNumber || 0, t.trackName);
@@ -12657,6 +12709,9 @@ function mergeTrackLinkOverrides(item, tracks) {
     else delete t.spotifyLink;
     if (ov.name) t.trackName = ov.name;
     if (ov.lengthMs) t.trackTimeMillis = ov.lengthMs;
+    if (ov.album) t.albumName = ov.album;
+    if (ov.rymLink) t.rymLink = ov.rymLink;
+    if (ov.date) t.trackDate = ov.date;
   });
   return tracks;
 }
@@ -15487,7 +15542,7 @@ async function toggleTrackListened(item, trackNum) {
   if (!item.trackData[trackNum]) item.trackData[trackNum] = {};
   if (nowListened) item.trackData[trackNum].listened = true;
   else delete item.trackData[trackNum].listened;
-  if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink && !item.trackData[trackNum].name && !item.trackData[trackNum].lengthMs) {
+  if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink && !item.trackData[trackNum].name && !item.trackData[trackNum].lengthMs && !item.trackData[trackNum].album && !item.trackData[trackNum].rymLink && !item.trackData[trackNum].date) {
     delete item.trackData[trackNum];
   }
 
@@ -15509,7 +15564,7 @@ async function toggleTrackListened(item, trackNum) {
     if (!item.trackData[trackNum]) item.trackData[trackNum] = {};
     if (wasListened) item.trackData[trackNum].listened = true;
     else delete item.trackData[trackNum].listened;
-    if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink && !item.trackData[trackNum].name && !item.trackData[trackNum].lengthMs) {
+    if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink && !item.trackData[trackNum].name && !item.trackData[trackNum].lengthMs && !item.trackData[trackNum].album && !item.trackData[trackNum].rymLink && !item.trackData[trackNum].date) {
       delete item.trackData[trackNum];
     }
     if (activeItem === item) renderTracklistBody(item, currentTracklistTracks);
@@ -15550,7 +15605,7 @@ async function clearTrackSelection(item) {
     const tNum = t.trackNumber || 0;
     if (item.trackData[tNum]) {
       delete item.trackData[tNum].listened;
-      if (!item.trackData[tNum].rating && !item.trackData[tNum].note && !item.trackData[tNum].genre && !item.trackData[tNum].youtubeLink && !item.trackData[tNum].spotifyLink && !item.trackData[tNum].name && !item.trackData[tNum].lengthMs) delete item.trackData[tNum];
+      if (!item.trackData[tNum].rating && !item.trackData[tNum].note && !item.trackData[tNum].genre && !item.trackData[tNum].youtubeLink && !item.trackData[tNum].spotifyLink && !item.trackData[tNum].name && !item.trackData[tNum].lengthMs && !item.trackData[tNum].album && !item.trackData[tNum].rymLink && !item.trackData[tNum].date) delete item.trackData[tNum];
     }
   }
   if (activeItem === item) renderTracklistBody(item, currentTracklistTracks);
