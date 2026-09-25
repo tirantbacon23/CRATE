@@ -13,7 +13,52 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.100
+  CURRENT_VERSION: 1.29.103
+
+  1.29.103 — 2026-09-16 — Bugfix: "Cannot access 'quickPeekItem' before
+          initialization" on every load — the exact same TDZ trap as the
+          genre-taxonomy bug earlier in this file's history, just with a
+          new victim. closeAlbumQuickPeek() got a defensive call added to
+          renderGrid()/renderPlaylistBody() in 1.29.99 (protecting against
+          an inline peek getting destroyed by those functions' own
+          innerHTML wipe) — but those two functions run synchronously very
+          early via the startApp() cascade, before the script's own
+          execution pointer had reached the later `let quickPeekItem`
+          (and its five sibling `let`s) declared alongside openAlbumQuickPeek
+          much further down the file. Moved all six declarations to
+          directly above the startApp() call, same fix shape as before —
+          the functions themselves (openAlbumQuickPeek/closeAlbumQuickPeek)
+          stayed exactly where they were, since function declarations are
+          hoisted and safe regardless of position; only the `let` bindings
+          needed to move.
+
+  1.29.102 — 2026-09-16 — Tweak: the advanced search operators text (was
+          an always-visible line under the search box) is now behind a
+          "?" button next to the search input — click to toggle a small
+          popover with the same content, click anywhere outside to close
+          it. Less permanent clutter for something most people only need
+          to check once in a while.
+
+  1.29.101 — 2026-09-16 — Feature: renamed the Add Album modal to "Add a
+          release" (title, the + button's title/aria-label, "+ Add a
+          release manually" on the artist-works empty state) — the schema
+          already covers Albums/EPs/Singles/Compilations/etc., so "album"
+          undersold what it actually handles. Internal identifiers
+          (addAlbumBtn, openAddModal, doAddSearch, etc.) left alone — pure
+          user-facing text change, not a code rename.
+
+          New setting: ⚙ → Panels configuration… → "add a release" lists
+          every field in the form (Artist, Release name, Type, Release
+          date, Recorded, Genre, Secondary genre, Region/Language,
+          Location, Label, Catalog No., Link, RYM link, Cover art URL,
+          Tracklist) as its own checkbox — unchecking one hides it from the
+          form entirely. Purely declarative: every field wrapper in the
+          actual HTML carries a matching data-add-field attribute,
+          applyAddFormFieldVisibility() just walks them and toggles
+          .hidden against state.addFormVisibleFields, so there's no
+          per-field show/hide logic to maintain as fields get added later.
+          A hidden field's underlying value is left completely alone
+          either way — this only controls whether it's shown for editing.
 
   1.29.100 — 2026-09-16 — Feature + cleanup: "Edit track properties…"
           reordered to Track title, Artist, Album artist, Album, Date,
@@ -2859,7 +2904,7 @@
         <button type="button" id="advancedSearchBtn" class="adv-search-btn" title="Advanced search" aria-label="Advanced search">▾</button>
       </div>
       <button id="listenedFilterBtn" class="icon-btn" title="Show only albums you've logged a full listen for" aria-label="Toggle listened filter">✓</button>
-      <button id="addAlbumBtn" class="icon-btn" title="Add album" aria-label="Add album">+</button>
+      <button id="addAlbumBtn" class="icon-btn" title="Add release" aria-label="Add release">+</button>
 	  <button id="refreshBtn" class="icon-btn" title="Refresh from sheet" aria-label="Refresh">⟳</button>
 	  <button id="timelineBtn" class="icon-btn" title="Timeline viewer — see what was released when" aria-label="Timeline viewer">◷</button>
 	  <button id="mapBtn" class="icon-btn" title="Map viewer — see where albums were formed, recorded, or played" aria-label="Map viewer">🗺</button>
@@ -3578,6 +3623,16 @@
         </div>
       </div>
     </div>
+
+    <div class="pane-config-box">
+      <div class="pane-config-box-header">
+        <span class="pane-icon">✚</span> add a release
+      </div>
+      <div class="pane-config-box-body">
+        <p class="arrange-hint">Choose which fields show in the "Add a release" form.</p>
+        <div id="addFieldsChecklist" class="add-fields-checklist"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -3767,12 +3822,15 @@
 <!-- Add album modal -->
 <div id="addOverlay" class="arrange-overlay" hidden>
   <div class="arrange-modal add-modal">
-    <div class="arrange-header"><h2>Add an album</h2><button id="addClose" class="modal-x" aria-label="Close">✕</button></div>
+    <div class="arrange-header"><h2>Add a release</h2><button id="addClose" class="modal-x" aria-label="Close">✕</button></div>
     <div class="arrange-body">
       <div class="add-search-row">
         <input type="text" id="addSearchInput" placeholder="Search artist or album…">
+        <button type="button" id="addSearchHelpBtn" class="icon-btn add-search-help-btn" title="Advanced search operators" aria-label="Advanced search operators">?</button>
       </div>
-      <p class="arrange-hint add-search-hint">Advanced: <code>artist:</code>, <code>title:</code>, <code>year:2022</code> (or <code>2020-2022</code>), <code>catalog:</code>, <code>label:</code>, <code>format:</code>, <code>country:</code>, <code>type:</code>, and <code>-word</code> to exclude.</p>
+      <div id="addSearchHelpPopover" class="add-search-help-popover" hidden>
+        <p class="arrange-hint add-search-hint">Advanced: <code>artist:</code>, <code>title:</code>, <code>year:2022</code> (or <code>2020-2022</code>), <code>catalog:</code>, <code>label:</code>, <code>format:</code>, <code>country:</code>, <code>type:</code>, and <code>-word</code> to exclude.</p>
+      </div>
       <button type="button" id="addManualEntryBtn" class="add-manual-link">Skip search — enter everything manually</button>
       <div class="add-results-toolbar">
         <span class="add-results-toolbar-label">Results</span>
@@ -3784,38 +3842,38 @@
       <div id="addResults" class="add-results"></div>
       <div id="addForm" class="add-form" hidden>
         <p class="arrange-hint">Confirm the details, then add it to your crate.</p>
-        <label class="add-field">Artist <input type="text" id="addArtist"></label>
-        <label class="add-field">Title <input type="text" id="addTitle"></label>
-        <label class="add-field">Type
+        <label class="add-field" data-add-field="artist">Artist <input type="text" id="addArtist"></label>
+        <label class="add-field" data-add-field="title">Release name <input type="text" id="addTitle"></label>
+        <label class="add-field" data-add-field="type">Type
           <select id="addType">
             <option>Album</option><option>EP</option><option>Single</option>
             <option>Compilation</option><option>Live</option><option>Mixtape</option>
           </select>
         </label>
-        <label class="add-field">Release date
+        <label class="add-field" data-add-field="releaseDate">Release date
           <div class="release-date-fields">
             <input type="number" id="addReleaseYear" placeholder="Year" inputmode="numeric" min="0" max="2100">
             <select id="addReleaseMonth"><option value="">Month</option></select>
             <select id="addReleaseDay"><option value="">Day</option></select>
           </div>
         </label>
-        <label class="add-field">Recorded
+        <label class="add-field" data-add-field="recorded">Recorded
           <div class="release-date-fields">
             <input type="number" id="addRecordedYear" placeholder="Year" inputmode="numeric" min="0" max="2100">
             <select id="addRecordedMonth"><option value="">Month</option></select>
             <select id="addRecordedDay"><option value="">Day</option></select>
           </div>
         </label>
-        <label class="add-field">Genre <input type="text" id="addGenre"></label>
-        <label class="add-field">Secondary Genre <input type="text" id="addGenre2" placeholder="e.g. Shoegaze, Dream Pop"></label>
-        <label class="add-field">Region / Language <input type="text" id="addRegion" placeholder="e.g. Japan, JP, 日本語"></label>
-        <label class="add-field">Location (formed / studio / played) <input type="text" id="addLocation" placeholder="e.g. Abbey Road Studios, London"></label>
-        <label class="add-field">Label <input type="text" id="addLabel"></label>
-		<label class="add-field">Catalog No. <input type="text" id="addCatalog"></label> <!-- 👈 ADD THIS -->
-        <label class="add-field">Link <input type="text" id="addLink" placeholder="https://…"></label>
-        <label class="add-field">RYM Link <input type="text" id="addRymLink" placeholder="https://rateyourmusic.com/release/…"></label>
-        <label class="add-field">Cover Art URL <input type="text" id="addCover" placeholder="https://…"></label>
-        <div class="add-field tracklist-builder-field">
+        <label class="add-field" data-add-field="genre">Genre <input type="text" id="addGenre"></label>
+        <label class="add-field" data-add-field="genre2">Secondary Genre <input type="text" id="addGenre2" placeholder="e.g. Shoegaze, Dream Pop"></label>
+        <label class="add-field" data-add-field="region">Region / Language <input type="text" id="addRegion" placeholder="e.g. Japan, JP, 日本語"></label>
+        <label class="add-field" data-add-field="location">Location (formed / studio / played) <input type="text" id="addLocation" placeholder="e.g. Abbey Road Studios, London"></label>
+        <label class="add-field" data-add-field="label">Label <input type="text" id="addLabel"></label>
+		<label class="add-field" data-add-field="catalog">Catalog No. <input type="text" id="addCatalog"></label> <!-- 👈 ADD THIS -->
+        <label class="add-field" data-add-field="link">Link <input type="text" id="addLink" placeholder="https://…"></label>
+        <label class="add-field" data-add-field="rymLink">RYM Link <input type="text" id="addRymLink" placeholder="https://rateyourmusic.com/release/…"></label>
+        <label class="add-field" data-add-field="cover">Cover Art URL <input type="text" id="addCover" placeholder="https://…"></label>
+        <div class="add-field tracklist-builder-field" data-add-field="tracklist">
           <div class="tracklist-builder-label-row">
             <span>Tracklist (optional)</span>
             <button type="button" id="addTracksAddRowBtn" class="chip-btn">+ Add track</button>
@@ -4148,7 +4206,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.100';
+const APP_VERSION = '1.29.103';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -4243,6 +4301,29 @@ const CONFIG = {
 /* ============================================ */
 
 const PREF_KEY = 'crate_prefs_slot_v1';
+
+// Which fields show in the "Add a release" form — see ⚙ → Panels
+// configuration… → "add a release", applyAddFormFieldVisibility(). Every
+// field wrapper in the form itself carries a matching data-add-field
+// attribute (see the HTML) so this stays purely declarative — no per-field
+// show/hide code to maintain as fields get added or removed.
+const ADD_FORM_FIELD_OPTIONS = {
+  artist: 'Artist',
+  title: 'Release name',
+  type: 'Type',
+  releaseDate: 'Release date',
+  recorded: 'Recorded',
+  genre: 'Genre',
+  genre2: 'Secondary genre',
+  region: 'Region / Language',
+  location: 'Location',
+  label: 'Label',
+  catalog: 'Catalog No.',
+  link: 'Link',
+  rymLink: 'RYM link',
+  cover: 'Cover art URL',
+  tracklist: 'Tracklist'
+};
 
 const FIELD_OPTIONS = {
   none: '— Empty —',
@@ -4386,6 +4467,7 @@ fields: {
   lastfmHistoryLayout: 'chronological', // 'chronological' | 'byDay' — see renderLastfmHistoryPanel()
   lastfmHistoryViewMode: 'list', // 'list' | 'grid' — see renderLastfmHistoryPanel()
   albumQuickPeekStyle: 'floating', // 'floating' | 'inline' — see openAlbumQuickPeek()
+  addFormVisibleFields: {}, // { [ADD_FORM_FIELD_OPTIONS key]: false } for anything hidden — absent/true = visible (default). See applyAddFormFieldVisibility()
   artCache: {},
   trackCache: {},
   linkCache: {},
@@ -4454,11 +4536,11 @@ const el = {};
   'tabStats','tabArtist',
   'statsWrap','statsModeListening','statsModeCollection','statsListeningWrap','statsCollectionWrap','statsCollectionBody','statsYearList','statsDetail','statsDetailBack','statsDetailYear','statsDetailBody',
   'artistWrap','artistSearchInput','artistList','artistDetail',
-  'layoutBtn','layoutMenu','menuArrangePanels','arrangeModal','arrangeClose','toggleLeftPanel','toggleRightPanel','albumQuickPeekStyleSelect','rightPanelShowQueue','rightPanelShowHistory','rightPanelQueueSection','rightPanelHistorySection','rightPanelEmptyMsg','rightHistoryPanelBody','historyViewListBtn','historyViewGridBtn','configureMainBtn','configureQueueBtn','configureHistoryBtn','historyLayoutChronoBtn','historyLayoutByDayBtn','configureMiniPlayerBtn','toggleCoverLinks','toggleFitArtwork','toggleCloseGaps','fieldPlacementGroup','fieldPlacementOverlay','fieldPlacementBelow',
+  'layoutBtn','layoutMenu','menuArrangePanels','arrangeModal','arrangeClose','toggleLeftPanel','toggleRightPanel','albumQuickPeekStyleSelect','addFieldsChecklist','rightPanelShowQueue','rightPanelShowHistory','rightPanelQueueSection','rightPanelHistorySection','rightPanelEmptyMsg','rightHistoryPanelBody','historyViewListBtn','historyViewGridBtn','configureMainBtn','configureQueueBtn','configureHistoryBtn','historyLayoutChronoBtn','historyLayoutByDayBtn','configureMiniPlayerBtn','toggleCoverLinks','toggleFitArtwork','toggleCloseGaps','fieldPlacementGroup','fieldPlacementOverlay','fieldPlacementBelow',
   'mainConfigModal','mainConfigClose','mainConfigArtworkOptions',
   'fldTitle','fldArtist','fldYear','fldRating','fldType','fldCatalog','fldGenre','fldLabel','fldDuration','menuCustomizeMain',
   'listenedFilterBtn',
-  'addAlbumBtn','addOverlay','addClose','addSearchInput','addManualEntryBtn','addResultsListBtn','addResultsGridBtn','addResults','addForm',
+  'addAlbumBtn','addOverlay','addClose','addSearchInput','addSearchHelpBtn','addSearchHelpPopover','addManualEntryBtn','addResultsListBtn','addResultsGridBtn','addResults','addForm',
   'addArtist','addTitle','addType','addReleaseYear','addReleaseMonth','addReleaseDay','addRecordedYear','addRecordedMonth','addRecordedDay','addGenre','addGenre2','addRegion','addLocation','addLabel','addCatalog','addLink','addRymLink','addCover','addSaveBtn','addCancelBtn','addToast',
   'addTracksRows','addTracksAddRowBtn',
   'addSpotifyMatchBanner','addSpotifyMatchText','addSpotifyMatchAddBtn','addSpotifyMatchDismissBtn',
@@ -4781,6 +4863,13 @@ function wouldCreateGenreCycle(taxonomy, genre, parent) {
 }
 
 
+let quickPeekItem = null;
+let quickPeekSeq = 0;
+let quickPeekSelectedTracks = new Set(); // trackNum::trackName keys — reset each time the peek opens for a (possibly different) album
+let quickPeekLastSelectedKey = null;
+let quickPeekOriginalParent = null; // where #albumQuickPeek normally lives in the DOM — captured once, restored on every close
+let quickPeekOriginalNextSibling = null;
+
 startApp();
 
 // iOS Safari's own dynamic toolbar (address bar + bottom bar) can leave
@@ -4881,6 +4970,7 @@ async function init() {
 
   await fetchCatalog();
   applyRightPanelSections(); // after fetchCatalog so state.scrobbles/state.raw are populated if History is on; also this is the earliest safe point for crateQueueList (declared later in the file — see the genre-taxonomy TDZ note above for why that matters)
+  applyAddFormFieldVisibility();
   maybeRunBackgroundLastfmSync(); // fire-and-forget; doesn't block first paint
   maybeAutoScanNewReleases(); // same — see its own comment for the throttling
 }
@@ -5377,7 +5467,7 @@ function bindEvents() {
 
   // 7. Configuration & Layout Popovers
   el.layoutBtn.addEventListener('click', (e) => { e.stopPropagation(); el.layoutMenu.hidden = !el.layoutMenu.hidden; });
-  el.menuArrangePanels.addEventListener('click', () => { el.arrangeModal.hidden = false; el.layoutMenu.hidden = true; });
+  el.menuArrangePanels.addEventListener('click', () => { el.arrangeModal.hidden = false; el.layoutMenu.hidden = true; renderAddFieldsChecklist(); });
   el.arrangeClose.addEventListener('click', () => { el.arrangeModal.hidden = true; });
   el.mainConfigClose.addEventListener('click', () => { el.mainConfigModal.hidden = true; });
 
@@ -5709,6 +5799,15 @@ function bindEvents() {
   // that existing link, just reachable without searching first.
   el.addResultsListBtn.addEventListener('click', () => setReleaseSearchGridView(false));
   el.addResultsGridBtn.addEventListener('click', () => setReleaseSearchGridView(true));
+  el.addSearchHelpBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    el.addSearchHelpPopover.hidden = !el.addSearchHelpPopover.hidden;
+  });
+  document.addEventListener('click', (e) => {
+    if (el.addSearchHelpPopover.hidden) return;
+    if (el.addSearchHelpPopover.contains(e.target) || e.target === el.addSearchHelpBtn) return;
+    el.addSearchHelpPopover.hidden = true;
+  });
   el.addManualEntryBtn.addEventListener('click', () => {
     addSearchSeq++; // invalidate any in-flight/pending search
     el.addResults.innerHTML = '';
@@ -6382,6 +6481,7 @@ function loadPrefs() {
     if (p.lastfmHistoryLayout === 'chronological' || p.lastfmHistoryLayout === 'byDay') state.lastfmHistoryLayout = p.lastfmHistoryLayout;
     if (p.lastfmHistoryViewMode === 'list' || p.lastfmHistoryViewMode === 'grid') state.lastfmHistoryViewMode = p.lastfmHistoryViewMode;
     if (p.albumQuickPeekStyle === 'floating' || p.albumQuickPeekStyle === 'inline') state.albumQuickPeekStyle = p.albumQuickPeekStyle;
+    if (p.addFormVisibleFields && typeof p.addFormVisibleFields === 'object') state.addFormVisibleFields = p.addFormVisibleFields;
   } catch (e) { /* localStorage unavailable — safe to ignore */ }
 }
 
@@ -6400,7 +6500,8 @@ function savePrefs() {
       releaseSearchGridView: state.releaseSearchGridView,
       lastfmHistoryLayout: state.lastfmHistoryLayout,
       lastfmHistoryViewMode: state.lastfmHistoryViewMode,
-      albumQuickPeekStyle: state.albumQuickPeekStyle
+      albumQuickPeekStyle: state.albumQuickPeekStyle,
+      addFormVisibleFields: state.addFormVisibleFields
     }));
   } catch (e) { /* localStorage unavailable — safe to ignore */ }
 }
@@ -9642,12 +9743,6 @@ function setMiniPlayerPlayPauseIcon(paused) {
 // positionFloatingMenu's viewport-clamping). Clicking the cover or title
 // inside here is the way back to the full deck, since double-click plays
 // instead of opening it in this view now.
-let quickPeekItem = null;
-let quickPeekSeq = 0;
-let quickPeekSelectedTracks = new Set(); // trackNum::trackName keys — reset each time the peek opens for a (possibly different) album
-let quickPeekLastSelectedKey = null;
-let quickPeekOriginalParent = null; // where #albumQuickPeek normally lives in the DOM — captured once, restored on every close
-let quickPeekOriginalNextSibling = null;
 function openAlbumQuickPeek(item, cardEl) {
   quickPeekItem = item;
   const mySeq = ++quickPeekSeq;
@@ -11983,7 +12078,7 @@ async function renderArtistDetail() {
   }
 
   if (!result.items.length) {
-    list.innerHTML = `<p class="tracklist-status">No albums or EPs found on MusicBrainz for this artist.</p><button type="button" id="artistWorksManualAddBtn" class="config-btn">+ Add an album manually</button>`;
+    list.innerHTML = `<p class="tracklist-status">No albums or EPs found on MusicBrainz for this artist.</p><button type="button" id="artistWorksManualAddBtn" class="config-btn">+ Add a release manually</button>`;
     document.getElementById('artistWorksManualAddBtn')?.addEventListener('click', () => {
       openAddModal();
       showAddForm({ artist: name });
@@ -15791,6 +15886,40 @@ function formatDuration(ms) {
 
 /* ---------- Add album (search iTunes, disambiguate, confirm, save) ---------- */
 
+// Renders the checklist in ⚙ → Panels configuration… → "add a release" —
+// one checkbox per ADD_FORM_FIELD_OPTIONS entry, reflecting/updating
+// state.addFormVisibleFields directly. Called once at init and again each
+// time the Panels configuration modal opens, so it always reflects
+// whatever's actually current.
+function renderAddFieldsChecklist() {
+  if (!el.addFieldsChecklist) return;
+  el.addFieldsChecklist.innerHTML = Object.entries(ADD_FORM_FIELD_OPTIONS).map(([key, label]) => `
+    <label class="add-fields-checklist-item">
+      <input type="checkbox" data-add-field-key="${key}" ${state.addFormVisibleFields[key] === false ? '' : 'checked'}>
+      ${escapeHtml(label)}
+    </label>
+  `).join('');
+  el.addFieldsChecklist.querySelectorAll('input[data-add-field-key]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      state.addFormVisibleFields[cb.dataset.addFieldKey] = cb.checked;
+      savePrefs();
+      applyAddFormFieldVisibility();
+    });
+  });
+}
+
+// Shows/hides each field wrapper in the actual "Add a release" form to
+// match state.addFormVisibleFields — every wrapper carries a matching
+// data-add-field attribute (see the HTML), so this is purely declarative.
+// A hidden field's value is left completely alone (still submitted if it
+// somehow has one, e.g. from a search prefill) — this only controls
+// whether it's shown for editing, not whether it's part of the release.
+function applyAddFormFieldVisibility() {
+  document.querySelectorAll('#addForm [data-add-field]').forEach(fieldEl => {
+    fieldEl.hidden = state.addFormVisibleFields[fieldEl.dataset.addField] === false;
+  });
+}
+
 function openAddModal() {
   el.addOverlay.hidden = false;
   el.addSearchInput.value = '';
@@ -15800,7 +15929,7 @@ function openAddModal() {
   hideAddSpotifyMatchBanner(); // also invalidates any in-flight Spotify tracklist lookup from a previous open
   el.addSearchInput.focus();
 }
-function closeAddModal() { el.addOverlay.hidden = true; hideAddSpotifyMatchBanner(); }
+function closeAddModal() { el.addOverlay.hidden = true; hideAddSpotifyMatchBanner(); el.addSearchHelpPopover.hidden = true; }
 
 let addSearchSeq = 0; // race-condition guard: only the latest search may render its results
 
@@ -20151,6 +20280,8 @@ html, body {
   .pane-config-box-body {
     padding: 4px 12px 10px;
   }
+  .add-fields-checklist { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 12px; margin-top: 6px; }
+  .add-fields-checklist-item { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-dim); cursor: pointer; }
   .arrange-row-label {
     display: flex;
     align-items: center;
@@ -20209,12 +20340,20 @@ html, body {
   .config-select:focus { border-color: var(--accent); }
 
   .add-modal { max-width: 480px; }
-  .add-search-row { display: flex; gap: 8px; margin-bottom: 14px; }
+  .add-search-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; position: relative; }
   .add-search-row input {
     flex: 1; background: var(--bg); border: 1px solid var(--line); color: var(--text); border-radius: 6px;
     padding: 9px 10px; font-family: 'Inter', sans-serif; font-size: 13px; outline: none;
   }
   .add-search-row input:focus { border-color: var(--accent); }
+  .add-search-help-btn { flex: 0 0 auto; font-weight: 700; font-size: 13px; }
+  .add-search-help-popover {
+    position: absolute; top: calc(100% + 6px); right: 0; z-index: 20; width: 320px;
+    background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px 12px; box-shadow: 0 10px 24px rgba(0,0,0,0.4);
+  }
+  .add-search-help-popover[hidden] { display: none; } /* same cascade note as elsewhere in this file — belt and suspenders against an unconditional display rule beating [hidden] at equal specificity, even though this rule has no such competing sibling right now */
+  .add-search-help-popover .add-search-hint { margin: 0; }
   .add-results { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; max-height: 260px; overflow-y: auto; }
   .add-result-row { display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 6px; cursor: pointer; }
   .add-result-row:hover { background: var(--bg-card); }
