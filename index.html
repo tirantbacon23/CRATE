@@ -13,7 +13,33 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.92
+  CURRENT_VERSION: 1.29.93
+
+  1.29.93 — 2026-09-16 — Bugfix + feature. Bugfix: the "covers are too
+          large" report was a real CSS cascade bug, not a preference gap —
+          #rightHistoryPanelBody's thumbnails carry the shared .art class
+          (for cached-art loading, same as album cards elsewhere), and
+          .art's own width:100%/height:100% is declared LATER in the
+          stylesheet with equal specificity to .right-history-thumb's
+          34x34 sizing, so it silently won and stretched every thumbnail
+          to fill the whole row. Fixed with a combined-class override
+          (.right-history-thumb.art) that outranks it regardless of source
+          order — likely what actually made the whole panel feel "doesn't
+          work", not a genuine settings-modal bug (nothing wrong was found
+          in configureHistoryBtn/renderConfigSlots('lastfmHistory') on
+          review — flag specifics if Panel Settings itself still misbehaves
+          after this).
+
+          Feature: full List/Covers parity with the library, per request —
+          new ☰/▦ toggle (state.lastfmHistoryViewMode) next to the existing
+          ≡/⊟ grouping toggle (renamed from ☰/⊟ to avoid two identical
+          glyphs sitting side by side) in the History section's panel-bar.
+          Grid mode (new .right-history-grid, properly sized 72px cells
+          this time, not the buggy 100%-of-row-width from before) shows
+          only the first configured field as a caption under each cover —
+          a 3-line layout doesn't fit under a small thumbnail the way it
+          does in a full-width row, same reasoning as the Add-album search
+          grid cards.
 
   1.29.92 — 2026-09-16 — Feature: full parity between the playlist view
           menu and the library's — Group by and Customize panel… are no
@@ -2974,8 +3000,12 @@
       <div id="rightPanelHistorySection" class="right-panel-section" hidden>
         <div class="panel-bar">
           <span class="panel-label">Last.fm History</span>
-          <div class="add-results-view-toggle" role="group" aria-label="History layout">
-            <button type="button" id="historyLayoutChronoBtn" class="icon-btn" title="Chronological list" aria-label="Chronological list">☰</button>
+          <div class="add-results-view-toggle" role="group" aria-label="History view">
+            <button type="button" id="historyViewListBtn" class="icon-btn" title="List view" aria-label="List view">☰</button>
+            <button type="button" id="historyViewGridBtn" class="icon-btn" title="Cover grid view" aria-label="Cover grid view">▦</button>
+          </div>
+          <div class="add-results-view-toggle" role="group" aria-label="History grouping">
+            <button type="button" id="historyLayoutChronoBtn" class="icon-btn" title="Chronological list" aria-label="Chronological list">≡</button>
             <button type="button" id="historyLayoutByDayBtn" class="icon-btn" title="Grouped by day" aria-label="Grouped by day">⊟</button>
           </div>
         </div>
@@ -3984,7 +4014,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.92';
+const APP_VERSION = '1.29.93';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -4220,6 +4250,7 @@ fields: {
     lastfmHistory: ['track', 'artist', 'date']
   },
   lastfmHistoryLayout: 'chronological', // 'chronological' | 'byDay' — see renderLastfmHistoryPanel()
+  lastfmHistoryViewMode: 'list', // 'list' | 'grid' — see renderLastfmHistoryPanel()
   artCache: {},
   trackCache: {},
   linkCache: {},
@@ -4288,7 +4319,7 @@ const el = {};
   'tabStats','tabArtist',
   'statsWrap','statsModeListening','statsModeCollection','statsListeningWrap','statsCollectionWrap','statsCollectionBody','statsYearList','statsDetail','statsDetailBack','statsDetailYear','statsDetailBody',
   'artistWrap','artistSearchInput','artistList','artistDetail',
-  'layoutBtn','layoutMenu','menuArrangePanels','arrangeModal','arrangeClose','toggleLeftPanel','toggleRightPanel','rightPanelShowQueue','rightPanelShowHistory','rightPanelQueueSection','rightPanelHistorySection','rightPanelEmptyMsg','rightHistoryPanelBody','configureMainBtn','configureQueueBtn','configureHistoryBtn','historyLayoutChronoBtn','historyLayoutByDayBtn','configureMiniPlayerBtn','toggleCoverLinks','toggleFitArtwork','toggleCloseGaps','fieldPlacementGroup','fieldPlacementOverlay','fieldPlacementBelow',
+  'layoutBtn','layoutMenu','menuArrangePanels','arrangeModal','arrangeClose','toggleLeftPanel','toggleRightPanel','rightPanelShowQueue','rightPanelShowHistory','rightPanelQueueSection','rightPanelHistorySection','rightPanelEmptyMsg','rightHistoryPanelBody','historyViewListBtn','historyViewGridBtn','configureMainBtn','configureQueueBtn','configureHistoryBtn','historyLayoutChronoBtn','historyLayoutByDayBtn','configureMiniPlayerBtn','toggleCoverLinks','toggleFitArtwork','toggleCloseGaps','fieldPlacementGroup','fieldPlacementOverlay','fieldPlacementBelow',
   'mainConfigModal','mainConfigClose','mainConfigArtworkOptions',
   'fldTitle','fldArtist','fldYear','fldRating','fldType','fldCatalog','fldGenre','fldLabel','fldDuration','menuCustomizeMain',
   'listenedFilterBtn',
@@ -4662,6 +4693,8 @@ async function init() {
   el.addResultsGridBtn.classList.toggle('active', state.releaseSearchGridView);
   el.historyLayoutChronoBtn.classList.toggle('active', state.lastfmHistoryLayout !== 'byDay');
   el.historyLayoutByDayBtn.classList.toggle('active', state.lastfmHistoryLayout === 'byDay');
+  el.historyViewListBtn.classList.toggle('active', state.lastfmHistoryViewMode !== 'grid');
+  el.historyViewGridBtn.classList.toggle('active', state.lastfmHistoryViewMode === 'grid');
   el.toggleCoverLinks.checked = state.showCoverLinks;
   el.gridContainer.classList.toggle('hide-cover-links', !state.showCoverLinks);
   el.toggleFitArtwork.checked = state.fitArtwork;
@@ -5455,6 +5488,8 @@ function bindEvents() {
 
   el.historyLayoutChronoBtn.addEventListener('click', () => setLastfmHistoryLayout('chronological'));
   el.historyLayoutByDayBtn.addEventListener('click', () => setLastfmHistoryLayout('byDay'));
+  el.historyViewListBtn.addEventListener('click', () => setLastfmHistoryViewMode('list'));
+  el.historyViewGridBtn.addEventListener('click', () => setLastfmHistoryViewMode('grid'));
 
   el.configureMiniPlayerBtn.addEventListener('click', () => {
     el.arrangeModal.hidden = true;
@@ -6193,6 +6228,7 @@ function loadPrefs() {
     if (typeof p.rightPanelShowHistory === 'boolean') state.rightPanelShowHistory = p.rightPanelShowHistory;
     if (typeof p.releaseSearchGridView === 'boolean') state.releaseSearchGridView = p.releaseSearchGridView;
     if (p.lastfmHistoryLayout === 'chronological' || p.lastfmHistoryLayout === 'byDay') state.lastfmHistoryLayout = p.lastfmHistoryLayout;
+    if (p.lastfmHistoryViewMode === 'list' || p.lastfmHistoryViewMode === 'grid') state.lastfmHistoryViewMode = p.lastfmHistoryViewMode;
   } catch (e) { /* localStorage unavailable — safe to ignore */ }
 }
 
@@ -6209,7 +6245,8 @@ function savePrefs() {
       rightPanelShowQueue: state.rightPanelShowQueue,
       rightPanelShowHistory: state.rightPanelShowHistory,
       releaseSearchGridView: state.releaseSearchGridView,
-      lastfmHistoryLayout: state.lastfmHistoryLayout
+      lastfmHistoryLayout: state.lastfmHistoryLayout,
+      lastfmHistoryViewMode: state.lastfmHistoryViewMode
     }));
   } catch (e) { /* localStorage unavailable — safe to ignore */ }
 }
@@ -12839,9 +12876,33 @@ function setLastfmHistoryLayout(layout) {
   if (state.rightPanelShowHistory) renderLastfmHistoryPanel();
 }
 
+// Switches between a compact row list and a cover-art grid — full parity
+// with the library's own List/Covers view concept, per request. Grid mode
+// only ever shows the first configured field (state.fields.lastfmHistory[0])
+// as its caption, same as the Add-album search grid cards — a 3-line
+// layout doesn't fit under a small cover the way it does in a full-width row.
+function setLastfmHistoryViewMode(viewMode) {
+  state.lastfmHistoryViewMode = viewMode;
+  savePrefs();
+  el.historyViewListBtn.classList.toggle('active', viewMode !== 'grid');
+  el.historyViewGridBtn.classList.toggle('active', viewMode === 'grid');
+  if (state.rightPanelShowHistory) renderLastfmHistoryPanel();
+}
+
 function lastfmHistoryRowHtml(s) {
   const match = state.raw.find(r => r.row === s.row) || state.raw.find(r => r.artist === s.artist && r.title === s.title);
   const fields = state.fields.lastfmHistory || [];
+  if (state.lastfmHistoryViewMode === 'grid') {
+    const caption = fields[0] ? lastfmHistoryFieldVal(fields[0], s, match) : '';
+    const sub = fields[1] ? lastfmHistoryFieldVal(fields[1], s, match) : '';
+    return `
+      <div class="right-history-grid-card"${match ? ` data-row="${escapeHtml(String(match.row))}"` : ''}>
+        <img class="right-history-grid-thumb art" data-key="${match ? artKey(match) : ''}" alt="">
+        <p class="right-history-grid-caption">${escapeHtml(caption)}</p>
+        ${sub ? `<p class="right-history-grid-sub">${escapeHtml(sub)}</p>` : ''}
+      </div>
+    `;
+  }
   const line1 = fields[0] ? lastfmHistoryFieldVal(fields[0], s, match) : '';
   const line2 = fields[1] ? lastfmHistoryFieldVal(fields[1], s, match) : '';
   const line3 = fields[2] ? lastfmHistoryFieldVal(fields[2], s, match) : '';
@@ -12866,11 +12927,11 @@ function lastfmHistoryRowHtml(s) {
 // timestamp per individual play. Every scrobble row gets its own entry
 // (not aggregated by album, unlike renderScrobbles()'s all-time totals on
 // the Scrobbles tab) since the point here is a real history to scroll
-// through, not a leaderboard. Two independently-customizable things here:
-// state.fields.lastfmHistory (which 3 fields show per row — Panel
-// Settings…, same mechanism as the queue/mini-player field pickers) and
-// state.lastfmHistoryLayout (flat chronological list vs grouped under a
-// day header — the \u2261/\u2637 toggle in this section's own panel-bar).
+// through, not a leaderboard. Three independently-customizable things:
+// state.fields.lastfmHistory (which fields show — Panel Settings…),
+// state.lastfmHistoryLayout (flat vs grouped-by-day — the ≡/⊟ toggle),
+// and state.lastfmHistoryViewMode (list rows vs a cover grid — the ☰/▦
+// toggle, full parity with the library's own List/Covers concept).
 function renderLastfmHistoryPanel() {
   if (!state.scrobbles.length) {
     el.rightHistoryPanelBody.innerHTML = '<p class="queue-empty">No Last.fm history yet — import scrobbles via \u2699 \u2192 Import from Last.fm to see your listening history here.</p>';
@@ -12880,6 +12941,8 @@ function renderLastfmHistoryPanel() {
     if (a.day !== b.day) return b.day.localeCompare(a.day); // most recent day first
     return (a.artist + a.title + a.track).localeCompare(b.artist + b.title + b.track); // stable tiebreak — no time-of-day to sort by within the same day
   });
+  const isGrid = state.lastfmHistoryViewMode === 'grid';
+  const wrapGroup = items => isGrid ? `<div class="right-history-grid">${items.map(lastfmHistoryRowHtml).join('')}</div>` : items.map(lastfmHistoryRowHtml).join('');
 
   if (state.lastfmHistoryLayout === 'byDay') {
     const groups = [];
@@ -12890,13 +12953,13 @@ function renderLastfmHistoryPanel() {
     });
     el.rightHistoryPanelBody.innerHTML = groups.map(g => `
       <div class="right-history-day-header">${escapeHtml(g.day ? new Date(g.day).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'Unknown date')}</div>
-      ${g.items.map(lastfmHistoryRowHtml).join('')}
+      ${wrapGroup(g.items)}
     `).join('');
   } else {
-    el.rightHistoryPanelBody.innerHTML = sorted.map(lastfmHistoryRowHtml).join('');
+    el.rightHistoryPanelBody.innerHTML = wrapGroup(sorted);
   }
 
-  el.rightHistoryPanelBody.querySelectorAll('.right-history-row[data-row]').forEach(rowEl => {
+  el.rightHistoryPanelBody.querySelectorAll('.right-history-row[data-row], .right-history-grid-card[data-row]').forEach(rowEl => {
     const match = state.raw.find(r => String(r.row) === rowEl.dataset.row);
     if (!match) return;
     rowEl.classList.add('clickable');
@@ -18535,6 +18598,7 @@ html, body {
   .right-history-row.clickable { cursor: pointer; }
   .right-history-row.clickable:hover { background: var(--bg-elevated); }
   .right-history-thumb { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 4px; object-fit: cover; background: var(--bg-elevated); }
+  .right-history-thumb.art { width: 34px; height: 34px; } /* .art's own width:100%/height:100% (shared with album-card art elsewhere) is declared later in the stylesheet with equal specificity to the plain rule just above, so it silently won and stretched this to fill the whole row — this combined-class rule outranks it regardless of source order */
   .right-history-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
   .right-history-title { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .right-history-sub { font-size: 11px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -18545,6 +18609,13 @@ html, body {
     padding: 6px 10px 4px; font-size: 10px; color: var(--text-dim); font-family: 'IBM Plex Mono', monospace;
     text-transform: uppercase; letter-spacing: 0.5px; background: var(--bg-elevated);
   }
+  .right-history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 8px; padding: 8px; }
+  .right-history-grid-card { display: flex; flex-direction: column; gap: 3px; cursor: pointer; border-radius: 6px; padding: 3px; }
+  .right-history-grid-card:hover { background: var(--bg-elevated); }
+  .right-history-grid-thumb { width: 100%; aspect-ratio: 1; border-radius: 4px; object-fit: cover; background: var(--bg-elevated); }
+  .right-history-grid-thumb.art { width: 100%; height: auto; aspect-ratio: 1; } /* same .art cascade issue as the list thumbnail above — pin this explicitly rather than trust .art's own height:100% to behave inside a flex column with no fixed height */
+  .right-history-grid-caption { font-size: 10.5px; font-weight: 600; margin: 0; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .right-history-grid-sub { font-size: 9.5px; color: var(--text-dim); margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .crate-queue-source {
     flex: 0 0 auto; width: 20px; text-align: center; font-size: 13px; color: var(--text-dim);
   }
