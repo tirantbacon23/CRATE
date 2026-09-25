@@ -13,7 +13,100 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.109
+  CURRENT_VERSION: 1.29.112
+
+  1.29.112 — 2026-09-25 — Feature: Group by now supports a second, nested
+          variable — a new "Then by ▸" flyout inside the existing "Group
+          by ▸" menu (Artist/Year/Decade/Genre/Type, same options as the
+          primary), e.g. group by Year, then within each year sub-group by
+          Type. state.groupBy2, persisted, default 'none' (unchanged
+          behavior until set). renderGrid() and renderPlaylistCoversView()
+          both recurse groupItems() a second time onto each primary
+          group's own items when groupBy2 isn't 'none', rendering a
+          visually-subordinate sub-header (new .group-header-sub — smaller,
+          no border, indented) before each sub-section rather than a second
+          peer-level heading. A multi-genre album that already appears
+          under two primary groups can land under different secondary
+          sub-groups within each, same multi-membership behavior the
+          primary grouping already had.
+
+          One real bug caught and fixed while wiring the menu: the existing
+          "#groupBySubmenu button" selector (both the click handler and
+          updateGroupByMenuUI's highlighting) matched ALL descendant
+          buttons, which would have included the new nested "Then by"
+          flyout's own parent button and options too — clicking "Then by"
+          would have stomped state.groupBy with undefined. Scoped both to
+          "#groupBySubmenu > button[data-group]" (direct children only)
+          before it ever shipped.
+
+  1.29.111 — 2026-09-25 — Feature: a track's own genre (set via "Edit track
+          properties…") now actually propagates through the app instead of
+          sitting stored but unused. New allGenresForItem(item) — a
+          release's own genre/secondary genre PLUS every distinct genre
+          found across its trackData overrides — cheap to compute since
+          trackData lives on the crate item itself, no tracklist fetch
+          needed. Replaces the plain getGenreList(combinedGenreStr(item))
+          call at every place genre actually drives behavior: the Genre
+          Taxonomy tree/editor (buildGenreTree/getAllKnownGenres, and by
+          extension Release Statistics' "By genre" breakdown, which already
+          reuses buildGenreTree), the left panel's Genre filter
+          (searchFilteredRaw's matchesNav), "Group by Genre"
+          (groupKeysFor), the free-text search index, and the genre:
+          search operator — so an album with one Ambient-tagged track
+          surfaces under Ambient in all of those without needing the whole
+          release tagged Ambient. Left combinedGenreStr's plain-text
+          display callers alone on purpose (the Map viewer's attribute
+          table, and keyToVal's own 'genre' resolution used by grid/cover
+          card fields) — folding every track's genre into a single
+          summary column would misrepresent an album as being a genre
+          only one of its tracks actually is.
+
+          Also fixed the one place genre is displayed per-track already —
+          the flat Tracks table's Genre column (trackColumnVal) now checks
+          that specific track's own override first, falling back to the
+          album's genre exactly as before when it has none; trackSortValue
+          updated to match so sorting by Genre there doesn't disagree with
+          what's actually shown.
+
+  1.29.110 — 2026-09-25 — Feature: the real fix for the row-identity bug
+          1.29.109's duplicate-row banner could only detect and surface,
+          not fix. REQUIRES THE UPDATED apps-script-backend.gs (paste it in
+          and run backfillAlbumIds() once) — every album now gets a
+          permanent AlbumId (a UUID, generated server-side in addAlbum so
+          it can't be spoofed/duplicated by a stale client payload) that
+          never changes and is never reused, unlike a spreadsheet row
+          number. New playlist items now reference that instead of a row
+          number wherever the crate item they're built from has one:
+          openTrackContextMenu's single-track case, both multiselect
+          selectedItems builders (deck tracklist and the flat Tracks
+          table), the album card/deck/quick-actions "Add to playlist"
+          entry points — all 7 payload construction sites now send
+          albumId alongside row.
+
+          playlistAlbumFor (the actual function that resolves a playlist
+          item back to its album, and the site of 1.29.108's earlier
+          type-coercion fix) now checks albumId FIRST when the item has
+          one, and — importantly — does NOT fall back to a row-based guess
+          if an albumId is present but matches nothing, since that would
+          risk resurrecting the exact wrong-album bug this exists to
+          prevent. Falls back to the legacy row-based lookup only for
+          items that predate this change and never got one.
+          removeAlbumFromActivePlaylist and activePlaylistItemIdsForTracks
+          (the other two spots 1.29.108 patched) got the same albumId-
+          first treatment for consistency, though most of their own
+          call sites weren't updated to actually supply one — see the
+          per-site comments.
+
+          Old playlist items with no albumId keep working exactly as
+          before (row-based lookup, including its known duplicate-row
+          limitation) — this only closes the door on the bug for anything
+          added FROM NOW ON. A specific already-wrong playlist entry needs
+          to be removed and re-added to actually pick up a real albumId.
+
+          NOT done in this pass: Diary entries reference albums by Row the
+          same way playlist items used to, and are theoretically exposed
+          to the identical bug — out of scope here since it wasn't the
+          reported symptom, but worth the same treatment eventually.
 
   1.29.109 — 2026-09-25 — Feature: duplicate-row diagnostic. Root-caused a
           report of playlist tracks showing a completely different album's
@@ -3225,6 +3318,18 @@
 			    <button type="button" data-group="decade">Decade</button>
 			    <button type="button" data-group="genre">Genre</button>
 			    <button type="button" data-group="type">Type</button>
+			    <div class="menu-divider"></div>
+			    <div class="menu-item-submenu" id="groupBy2MenuItem">
+			      <button type="button" class="menu-parent-btn">Then by <span class="submenu-caret">▸</span></button>
+			      <div class="submenu-panel" id="groupBy2Submenu">
+			        <button type="button" data-group2="none">No secondary grouping</button>
+			        <button type="button" data-group2="artist">Artist</button>
+			        <button type="button" data-group2="year">Year</button>
+			        <button type="button" data-group2="decade">Decade</button>
+			        <button type="button" data-group2="genre">Genre</button>
+			        <button type="button" data-group2="type">Type</button>
+			      </div>
+			    </div>
 			  </div>
 			</div>
 			<div class="menu-divider"></div>
@@ -4361,7 +4466,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.109';
+const APP_VERSION = '1.29.112';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -4576,6 +4681,7 @@ const state = {
   query: '',
   sort: 'newest',
   groupBy: 'none',
+  groupBy2: 'none', // secondary "then by" grouping, nested within each primary group — see renderGrid/groupItems
   viewMode: 'grid',
   mainViewMode: 'albums', // 'albums' | 'tracks' | 'albumTracks' | 'covers'
   diaryViewMode: 'feed', // 'feed' | 'grid' | 'tracks'
@@ -5152,6 +5258,37 @@ function combinedGenreStr(item) {
   return primary + ', ' + secondary;
 }
 
+// Every genre that applies to this release — its own genre/secondary
+// genre, PLUS any per-track genre override set via "Edit track
+// properties…" (item.trackData[trackNum].genre). A track-level genre is
+// cheap to check here: trackData lives on the crate item itself (loaded
+// eagerly with everything else in fetchCatalog), not inside a tracklist
+// that would need fetching. Used everywhere a release's genre is
+// determined for taxonomy/filtering/grouping purposes (buildGenreTree,
+// the left panel's Genre filter, "Group by Genre", the search index) so a
+// track tagged with a genre the album itself isn't makes that release
+// show up under that genre too — e.g. one Ambient interlude on an
+// otherwise Rock album surfaces the album when filtering by Ambient,
+// without needing to also tag the whole release Ambient. Doesn't touch
+// combinedGenreStr's own callers that are just displaying the album's own
+// genre as plain text (the Map viewer's attribute table) — those stay
+// album-only on purpose, since folding in every track's genre there would
+// clutter a single summary column rather than aid filtering.
+function allGenresForItem(item) {
+  const albumGenres = getGenreList(combinedGenreStr(item));
+  const trackGenres = new Set();
+  if (item.trackData) {
+    Object.values(item.trackData).forEach(td => {
+      const g = (td && td.genre || '').trim();
+      if (g) trackGenres.add(g);
+    });
+  }
+  if (!trackGenres.size) return albumGenres;
+  const merged = new Set(albumGenres.filter(g => g !== 'Unknown'));
+  trackGenres.forEach(g => merged.add(g));
+  return merged.size ? [...merged] : ['Unknown'];
+}
+
 // Builds the left panel's genre-mode row list as a hierarchy: every known
 // genre (tagged on some album, OR purely organizational — named in the
 // taxonomy but never itself tagged), each with an AGGREGATED count (its
@@ -5163,7 +5300,7 @@ function combinedGenreStr(item) {
 function buildGenreTree(sourceRaw, taxonomy) {
   const ownCount = new Map(); // normKey -> {label, count}
   sourceRaw.forEach(item => {
-    getGenreList(combinedGenreStr(item)).forEach(g => {
+    allGenresForItem(item).forEach(g => {
       const key = genreTaxonomyKey(g);
       if (!ownCount.has(key)) ownCount.set(key, { label: g, count: 0 });
       ownCount.get(key).count++;
@@ -5225,7 +5362,7 @@ function buildGenreTree(sourceRaw, taxonomy) {
 function getAllKnownGenres(taxonomy) {
   const labelByKey = new Map();
   state.raw.forEach(item => {
-    getGenreList(combinedGenreStr(item)).forEach(g => {
+    allGenresForItem(item).forEach(g => {
       const key = genreTaxonomyKey(g);
       if (!labelByKey.has(key)) labelByKey.set(key, g);
     });
@@ -5365,7 +5502,7 @@ function bindEvents() {
   el.qaQueueBtn.addEventListener('click', () => { if (quickActionsItem) queueAlbumTracks(quickActionsItem); });
   el.qaPlaylistBtn.addEventListener('click', () => {
     if (!quickActionsItem) return;
-    openAddToPlaylistSubmenu(el.qaPlaylistBtn, [{ itemType: 'album', row: quickActionsItem.row, trackNum: '', trackName: '' }]);
+    openAddToPlaylistSubmenu(el.qaPlaylistBtn, [{ itemType: 'album', row: quickActionsItem.row, albumId: quickActionsItem.albumId || '', trackNum: '', trackName: '' }]);
   });
   el.qaViewBtn.addEventListener('click', () => { const item = quickActionsItem; closeQuickActions(); if (item) openDeck(item); });
   // "+ Log a listen" from Quick Actions — opens the deck for this item (so
@@ -5588,13 +5725,37 @@ function bindEvents() {
     e.stopPropagation();
     groupByMenuItem.classList.toggle('submenu-open');
   });
-  [...document.querySelectorAll('#groupBySubmenu button')].forEach(btn => {
+  [...document.querySelectorAll('#groupBySubmenu > button[data-group]')].forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       state.groupBy = btn.dataset.group;
       updateGroupByMenuUI();
       savePrefs();
       renderGrid();
+      groupByMenuItem.classList.remove('submenu-open');
+      el.albumsViewMenu.hidden = true;
+    });
+  });
+
+  // "Then by" nested flyout — same open/close pattern as "Group by" itself,
+  // one level deeper. Note the `> button[data-group]` scoping just above:
+  // without it, this nested flyout's own buttons (being descendants of
+  // #groupBySubmenu too) would ALSO match that handler and stomp
+  // state.groupBy with undefined the moment "Then by" was clicked.
+  const groupBy2MenuItem = document.getElementById('groupBy2MenuItem');
+  const groupBy2ParentBtn = groupBy2MenuItem.querySelector('.menu-parent-btn');
+  groupBy2ParentBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    groupBy2MenuItem.classList.toggle('submenu-open');
+  });
+  [...document.querySelectorAll('#groupBy2Submenu > button[data-group2]')].forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.groupBy2 = btn.dataset.group2;
+      updateGroupByMenuUI();
+      savePrefs();
+      renderGrid();
+      groupBy2MenuItem.classList.remove('submenu-open');
       groupByMenuItem.classList.remove('submenu-open');
       el.albumsViewMenu.hidden = true;
     });
@@ -6016,7 +6177,7 @@ function bindEvents() {
   el.deckRemoveBtn.addEventListener('click', onRemoveBtnClick);
   el.deckPlaylistBtn.addEventListener('click', () => {
     if (!activeItem) return;
-    openAddToPlaylistSubmenu(el.deckPlaylistBtn, [{ itemType: 'album', row: activeItem.row, trackNum: '', trackName: '' }]);
+    openAddToPlaylistSubmenu(el.deckPlaylistBtn, [{ itemType: 'album', row: activeItem.row, albumId: activeItem.albumId || '', trackNum: '', trackName: '' }]);
   });
   // Mirrors qaQueueBtn/qaRemoveBtn from the Quick Actions sheet (see
   // #qaOverlay), just acting on the deck's own activeItem instead of
@@ -6362,7 +6523,7 @@ function bindEvents() {
     const selectedItems = currentTracklistTracks
       .map(t => ({ t, key: `${activeItem.row}::${t.trackNumber || 0}` }))
       .filter(x => state.selectedTracks.has(x.key))
-      .map(x => ({ itemType: 'track', row: activeItem.row, trackNum: x.t.trackNumber || '', trackName: x.t.trackName || '' }));
+      .map(x => ({ itemType: 'track', row: activeItem.row, albumId: activeItem.albumId || '', trackNum: x.t.trackNumber || '', trackName: x.t.trackName || '' }));
 
     openTrackContextMenu(activeItem, track ? track.trackName : '', e.clientX, e.clientY, track ? track.trackNumber : '', selectedItems);
   });
@@ -6630,6 +6791,7 @@ function loadPrefs() {
     if (p.cardSize) state.cardSize = p.cardSize;
     if (p.sort) state.sort = p.sort;
     if (p.groupBy) state.groupBy = p.groupBy;
+    if (p.groupBy2) state.groupBy2 = p.groupBy2;
     if (p.activeType) state.activeType = p.activeType;
     if (p.leftMode) state.leftMode = p.leftMode;
 	if (p.leftSort) state.leftSort = p.leftSort;             // 👈 ADD THIS
@@ -6667,7 +6829,7 @@ function loadPrefs() {
 function savePrefs() {
   try {
 	localStorage.setItem(PREF_KEY, JSON.stringify({
-      viewMode: state.viewMode, mainViewMode: state.mainViewMode, playlistViewMode: state.playlistViewMode, cardSize: state.cardSize, sort: state.sort, groupBy: state.groupBy,
+      viewMode: state.viewMode, mainViewMode: state.mainViewMode, playlistViewMode: state.playlistViewMode, cardSize: state.cardSize, sort: state.sort, groupBy: state.groupBy, groupBy2: state.groupBy2,
       activeType: state.activeType, leftMode: state.leftMode, leftSort: state.leftSort, leftThumbSize: state.leftThumbSize, leftGroupBy: state.leftGroupBy, // 👈 UPDATED HERE
       showLeft: state.showLeft, showRight: state.showRight, showCoverLinks: state.showCoverLinks, fitArtwork: state.fitArtwork, fieldPlacement: state.fieldPlacement, closeGaps: state.closeGaps, panelWidths: state.panelWidths, fields: state.fields, trackColWidths: state.trackColWidths,
       playlistFoldersCollapsed: state.playlistFoldersCollapsed,
@@ -6789,6 +6951,17 @@ async function fetchCatalog() {
         .filter(r => r.Artist && r.Title)
         .map((r, i) => ({
           row: r._row,
+          // Permanent, stable identifier — see apps-script-backend.gs's
+          // AlbumId column/backfillAlbumIds(). Preferred over `row` by
+          // playlistAlbumFor and friends wherever available, since `row`
+          // itself shifts whenever an earlier row is deleted/inserted and
+          // can even collide across two different albums after enough
+          // sheet edits (the actual root cause of a playlist showing one
+          // album's track under a completely different album's title/
+          // artist). Blank for any album added before that backend change
+          // and not yet backfilled — those fall back to the old row-based
+          // lookup exactly as before.
+          albumId: r.AlbumId ? String(r.AlbumId).trim() : '',
           artist: String(r.Artist).trim(),
           title: String(r.Title).trim(),
           type: (r.Type ? String(r.Type).trim() : 'Unknown'),
@@ -6879,6 +7052,10 @@ async function fetchCatalog() {
       itemsByPlaylist[pid].push({
         id: it.Id,
         type: it.ItemType === 'track' ? 'track' : 'album',
+        // Preferred way to resolve which album this item belongs to — see
+        // state.raw's own albumId field and playlistAlbumFor. Blank for any
+        // item added before this backend change (falls back to `row`).
+        albumId: it.AlbumId ? String(it.AlbumId).trim() : '',
         row: it.Row,
         trackNum: it.TrackNum || '',
         // String(...) here, not just `|| ''` — a purely-numeric track title
@@ -7017,8 +7194,11 @@ function refreshViewMenuForContext() {
 }
 
 function updateGroupByMenuUI() {
-  document.querySelectorAll('#groupBySubmenu button').forEach(btn => {
+  document.querySelectorAll('#groupBySubmenu > button[data-group]').forEach(btn => {
     btn.classList.toggle('active-option', btn.dataset.group === state.groupBy);
+  });
+  document.querySelectorAll('#groupBy2Submenu > button[data-group2]').forEach(btn => {
+    btn.classList.toggle('active-option', btn.dataset.group2 === state.groupBy2);
   });
 }
 
@@ -7775,7 +7955,7 @@ function numericClauseMatches(actual, clause) {
 // lazily when the album's deck is opened and isn't available to search here.
 function combinedSearchText(r) {
   const year = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getUTCFullYear() : '';
-  const genres = getGenreList(combinedGenreStr(r)).join(' ');
+  const genres = allGenresForItem(r).join(' ');
   const tracks = trackTitlesFor(r).join(' ');
   return `${r.artist} ${r.title} ${year} ${r.catalog} ${r.descriptor || ''} ${genres} ${tracks}`.toLowerCase();
 }
@@ -7805,7 +7985,7 @@ function searchTokenMatches(r, token) {
     return numericClauseMatches(r.rating || 0, parseNumericClause(value));
   }
   if (canonicalField === 'genre') {
-    return getGenreList(combinedGenreStr(r)).join(' ').toLowerCase().includes(value.toLowerCase());
+    return allGenresForItem(r).join(' ').toLowerCase().includes(value.toLowerCase());
   }
   if (canonicalField === 'track') {
     return trackTitlesFor(r).some(t => t.toLowerCase().includes(value.toLowerCase()));
@@ -7896,7 +8076,7 @@ function applyFiltersSort() {
     
     const matchesNav = !state.navFilter || (
       state.navFilter.mode === 'artist' ? r.artist === state.navFilter.value :
-      state.navFilter.mode === 'genre' ? getGenreList(combinedGenreStr(r)).some(g => genreMatchesFilter(state.genreTaxonomy, g, state.navFilter.value)) : 
+      state.navFilter.mode === 'genre' ? allGenresForItem(r).some(g => genreMatchesFilter(state.genreTaxonomy, g, state.navFilter.value)) : 
       r.row === state.navFilter.value
     );
 
@@ -8161,7 +8341,7 @@ function getRecordedDateFields(prefix) {
 function groupKeysFor(item, by) {
   if (by === 'artist') return [item.artist];
   if (by === 'type') return [item.type];
-  if (by === 'genre') return getGenreList(combinedGenreStr(item));
+  if (by === 'genre') return allGenresForItem(item);
   if (by === 'year') return [dateVal(item.releaseDate) !== -Infinity ? String(new Date(item.releaseDate).getUTCFullYear()) : 'Unknown'];
   if (by === 'decade') {
     if (dateVal(item.releaseDate) === -Infinity) return ['Unknown'];
@@ -8228,7 +8408,23 @@ function renderGrid() {
       header.className = 'group-header';
       header.textContent = g.label + ' · ' + g.items.length;
       el.gridContainer.appendChild(header);
-      el.gridContainer.appendChild(buildGridSection(g.items));
+      // "Then by" — a second grouping variable nested within each primary
+      // group (e.g. Year, then within each year, Type). Same groupItems()
+      // call recursed onto just this group's own items, so a multi-genre
+      // album that already appears under two primary groups can ALSO land
+      // under two different secondary sub-groups within each, exactly
+      // consistent with how the primary grouping already handles that.
+      if (state.groupBy2 !== 'none') {
+        groupItems(g.items, state.groupBy2).forEach(g2 => {
+          const subHeader = document.createElement('h4');
+          subHeader.className = 'group-header group-header-sub';
+          subHeader.textContent = g2.label + ' · ' + g2.items.length;
+          el.gridContainer.appendChild(subHeader);
+          el.gridContainer.appendChild(buildGridSection(g2.items));
+        });
+      } else {
+        el.gridContainer.appendChild(buildGridSection(g.items));
+      }
     });
   }
   applyCachedArt();
@@ -8351,12 +8547,21 @@ function activeTrackColumns() {
 
 // Resolves a configured column's value for one specific track row. Most
 // keys are album-level (artist, genre, year, ...) and come from keyToVal;
-// 'trackLength' and 'duration' need the individual track / cached tracklist.
+// 'trackLength' and 'duration' need the individual track / cached tracklist;
+// 'genre' checks this specific track's own override (set via "Edit track
+// properties…", item.trackData[trackNum].genre) first, falling back to the
+// album's genre exactly as before when the track has none — so populating
+// a track's own genre actually shows up here instead of being stored but
+// never displayed.
 function trackColumnVal(key, item, track) {
   if (key === 'trackLength') return formatDuration(track.trackTimeMillis);
   if (key === 'duration') {
     const cache = state.trackCache[artKey(item)];
     return (cache && cache.length > 0) ? formatDuration(cache.reduce((s, t) => s + (t.trackTimeMillis || 0), 0)) : '---';
+  }
+  if (key === 'genre') {
+    const tGenre = item.trackData && item.trackData[track.trackNumber] && item.trackData[track.trackNumber].genre;
+    if (tGenre) return tGenre;
   }
   return keyToVal(key, item);
 }
@@ -8711,7 +8916,7 @@ function trackSortValue(row, key) {
   if (key === 'year' || key === 'releaseDate') return dateVal(row.item.releaseDate) === -Infinity ? -Infinity : dateVal(row.item.releaseDate);
   if (key === 'recordedDate') return dateVal(row.item.recordedDate) === -Infinity ? -Infinity : dateVal(row.item.recordedDate);
   if (key === 'rating') return row.item.rating || 0;
-  return String(keyToVal(key, row.item) || '').toLowerCase();
+  return String(trackColumnVal(key, row.item, row.track) || '').toLowerCase();
 }
 
 function renderFlatTrackTable() {
@@ -8805,7 +9010,7 @@ function renderFlatTrackTable() {
     }
     const selectedItems = rows
       .filter(r => state.selectedTracks.has(trackRowKey(r)))
-      .map(r => ({ itemType: 'track', row: r.item.row, trackNum: r.track.trackNumber || '', trackName: r.track.trackName || '' }));
+      .map(r => ({ itemType: 'track', row: r.item.row, albumId: r.item.albumId || '', trackNum: r.track.trackNumber || '', trackName: r.track.trackName || '' }));
 
     openTrackContextMenu(match.item, match.track.trackName, e.clientX, e.clientY, match.track.trackNumber, selectedItems);
   };
@@ -9003,7 +9208,7 @@ function loadTracksForList(list, mode) {
         const selectedItems = tracks
           .map((t, i) => ({ t, key: `${item.row}::${t.trackNumber || i}` }))
           .filter(x => state.selectedTracks.has(x.key))
-          .map(x => ({ itemType: 'track', row: item.row, trackNum: x.t.trackNumber || '', trackName: x.t.trackName || '' }));
+          .map(x => ({ itemType: 'track', row: item.row, albumId: item.albumId || '', trackNum: x.t.trackNumber || '', trackName: x.t.trackName || '' }));
 
         openTrackContextMenu(item, track.trackName, e.clientX, e.clientY, track.trackNumber, selectedItems);
       };
@@ -10278,7 +10483,7 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
   const isMultiSelect = selectedItems && selectedItems.length > 1;
   const trackPlaylistItems = isMultiSelect
     ? selectedItems
-    : [{ itemType: 'track', row: item.row, trackNum: trackNum || '', trackName: trackName || '' }];
+    : [{ itemType: 'track', row: item.row, albumId: item.albumId || '', trackNum: trackNum || '', trackName: trackName || '' }];
   const menuTitle = isMultiSelect ? `${trackPlaylistItems.length} tracks selected` : (trackName || item.title);
 
   const menu = document.createElement('div');
@@ -10796,7 +11001,7 @@ function openAlbumCardContextMenu(item, x, y) {
   // (max-height/overflow-y from .now-playing-add-menu), which would clip an
   // absolutely-positioned child flyout. "Add to playlist" is the same
   // flyout pattern — see openAddToPlaylistSubmenu.
-  const albumPlaylistItems = [{ itemType: 'album', row: item.row, trackNum: '', trackName: '' }];
+  const albumPlaylistItems = [{ itemType: 'album', row: item.row, albumId: item.albumId || '', trackNum: '', trackName: '' }];
   const playlistBtn = menu.querySelector('[data-card-action="playlist"]');
   playlistBtn.addEventListener('mouseenter', () => openAddToPlaylistSubmenu(playlistBtn, albumPlaylistItems));
   playlistBtn.addEventListener('mouseleave', scheduleCloseAddToPlaylistSubmenu);
@@ -12528,21 +12733,41 @@ let folderModalMode = 'create'; // 'create' | 'rename'
 let folderModalEditingId = null;
 let playlistSidebarDragId = null; // playlist id currently being dragged in the Explorer tree
 
-// Resolves a playlist item back to its live crate album by row. String()
-// on both sides is deliberate, not decoration — see loadTracksForPlaylistGroups
-// just below and the TrackName note further up: PlaylistItems' Row column
-// can round-trip from the sheet as either a real number or a numeric string
+// Resolves a playlist item back to its live crate album — preferring the
+// stable albumId (see apps-script-backend.gs's AlbumId column) when the
+// item has one, since that's immune to the actual root cause below. Falls
+// back to the legacy row-based lookup for any item saved before that
+// backend change. String() on both sides of the row fallback is
+// deliberate, not decoration — see loadTracksForPlaylistGroups just below
+// and the TrackName note further up: PlaylistItems' Row column can
+// round-trip from the sheet as either a real number or a numeric string
 // depending on how it was written, while state.raw's own row (r._row) is
 // whatever fetchCatalog set it to. A bare === between the two silently
-// failed (or — worse, on a crate with recycled/duplicate row numbers, see
-// the "Duplicate album" bug — silently matched the WRONG album) whenever
-// the two sides didn't happen to already be the same type, which is exactly
-// what made playlist views intermittently show one album's tracklist next
-// to a different album's title/artist. Every other row-comparison in this
-// file that does this same lookup (loadTracksForPlaylistGroups, the mini
-// player's data-row lookups, etc.) already coerces both sides — this one
-// was the odd one out.
+// failed (or — worse, on a crate with recycled/duplicate row numbers —
+// silently matched the WRONG album) whenever the two sides didn't happen
+// to already be the same type. That type-coercion fix closed HALF of what
+// caused a playlist to intermittently show one album's tracklist next to a
+// different album's title/artist; the other half — two DIFFERENT albums
+// genuinely sharing the same row number after enough sheet edits — can't
+// be fixed by coercion at all, since there's nothing wrong to coerce; the
+// row lookup is just inherently ambiguous. albumId is the actual fix for
+// that half. Every other row-comparison in this file doing this same
+// lookup (loadTracksForPlaylistGroups, removeAlbumFromActivePlaylist,
+// activePlaylistItemIdsForTracks, the mini player's data-row lookups,
+// etc.) still only has the row-based fallback — albumId doesn't help them
+// unless/until they're updated to check it too.
 function playlistAlbumFor(playlistItem) {
+  if (playlistItem.albumId) {
+    const byId = state.raw.find(r => r.albumId && r.albumId === playlistItem.albumId);
+    if (byId) return byId;
+    // Has an albumId but nothing in the crate matches it — the album was
+    // genuinely deleted, not a lookup failure. Don't fall through to the
+    // row-based guess below; row 12560's original type-coercion fix
+    // treated "no album" and "wrong album" as the same failure, but they
+    // aren't — falling back here would risk resurrecting the exact
+    // wrong-album bug this field exists to prevent.
+    return null;
+  }
   return state.raw.find(r => String(r.row) === String(playlistItem.row)) || null;
 }
 function playlistItemArtUrl(album) {
@@ -13903,7 +14128,18 @@ function renderPlaylistCoversView(playlist, body) {
       header.className = 'group-header';
       header.textContent = g.label + ' · ' + g.items.length;
       body.appendChild(header);
-      body.appendChild(buildGridSection(g.items));
+      // "Then by" secondary grouping — same nested pattern as renderGrid().
+      if (state.groupBy2 !== 'none') {
+        groupItems(g.items, state.groupBy2).forEach(g2 => {
+          const subHeader = document.createElement('h4');
+          subHeader.className = 'group-header group-header-sub';
+          subHeader.textContent = g2.label + ' · ' + g2.items.length;
+          body.appendChild(subHeader);
+          body.appendChild(buildGridSection(g2.items));
+        });
+      } else {
+        body.appendChild(buildGridSection(g.items));
+      }
     });
   }
   applyCachedArt();
@@ -13988,21 +14224,34 @@ async function removePlaylistItemsByIds(playlist, itemIds) {
 // whole 'album' item has no track number of its own, so any track selected
 // from that release resolves to (and removes) the whole album entry —
 // there's no such thing as partially removing one track from a whole-album
-// playlist entry.
+// playlist entry. Prefers matching by albumId when both the crate item and
+// the playlist item being compared have one (see playlistAlbumFor for why
+// row alone isn't reliable) — degrades to the row-based match wherever
+// either side predates that field, exactly as it always worked before.
 function activePlaylistItemIdsForTracks(trackPlaylistItems) {
   const playlist = state.playlists.find(p => p.id === state.activePlaylistId);
   if (!playlist || !trackPlaylistItems || !trackPlaylistItems.length) return [];
-  const rowsWanted = new Map();
+  const wantedByRow = new Map();
+  const wantedByAlbumId = new Map();
   trackPlaylistItems.forEach(t => {
+    const trackNumKey = String(t.trackNum);
+    if (t.albumId) {
+      if (!wantedByAlbumId.has(t.albumId)) wantedByAlbumId.set(t.albumId, new Set());
+      wantedByAlbumId.get(t.albumId).add(trackNumKey);
+    }
     const rowKey = String(t.row);
-    if (!rowsWanted.has(rowKey)) rowsWanted.set(rowKey, new Set());
-    rowsWanted.get(rowKey).add(String(t.trackNum));
+    if (!wantedByRow.has(rowKey)) wantedByRow.set(rowKey, new Set());
+    wantedByRow.get(rowKey).add(trackNumKey);
   });
   return playlist.items.filter(it => {
+    if (it.albumId && wantedByAlbumId.has(it.albumId)) {
+      if (it.type === 'album') return true;
+      return wantedByAlbumId.get(it.albumId).has(String(it.trackNum));
+    }
     const rowKey = String(it.row);
-    if (!rowsWanted.has(rowKey)) return false;
+    if (!wantedByRow.has(rowKey)) return false;
     if (it.type === 'album') return true;
-    return rowsWanted.get(rowKey).has(String(it.trackNum));
+    return wantedByRow.get(rowKey).has(String(it.trackNum));
   }).map(it => it.id);
 }
 
@@ -14015,10 +14264,14 @@ async function removeTracksFromActivePlaylist(trackPlaylistItems) {
 
 // Removes an entire release from the active playlist — whether it's there
 // as a whole-album entry, one or more standalone tracks off it, or both.
+// Prefers matching by albumId when both sides have one, same reasoning as
+// activePlaylistItemIdsForTracks above.
 async function removeAlbumFromActivePlaylist(item) {
   const playlist = state.playlists.find(p => p.id === state.activePlaylistId);
   if (!playlist) return;
-  const ids = playlist.items.filter(it => String(it.row) === String(item.row)).map(it => it.id);
+  const ids = playlist.items.filter(it =>
+    (item.albumId && it.albumId) ? it.albumId === item.albumId : String(it.row) === String(item.row)
+  ).map(it => it.id);
   if (!ids.length) return;
   await removePlaylistItemsByIds(playlist, ids);
 }
@@ -19705,6 +19958,13 @@ html, body {
     color: var(--text-dim); border-bottom: 1px solid var(--line); padding-bottom: 8px; margin: 28px 0 16px;
   }
   .group-header:first-child { margin-top: 0; }
+  /* "Then by" secondary grouping — nested under a primary .group-header,
+     visually subordinate to it (smaller, no border, indented, tighter
+     margins) rather than looking like a second peer-level section. */
+  .group-header-sub {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; letter-spacing: 0.5px; text-transform: uppercase;
+    color: var(--text-dim); opacity: 0.75; border-bottom: none; padding-left: 4px; margin: 18px 0 10px;
+  }
 
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--card-min, 190px), 1fr)); gap: 20px; }
 
