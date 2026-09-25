@@ -13,7 +13,30 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.93
+  CURRENT_VERSION: 1.29.94
+
+  1.29.94 — 2026-09-16 — Feature: reworked the click model for the Album
+          covers view specifically (Albums grid in Covers mode, and
+          playlists' own Covers view) — a plain click now opens a quick
+          tracklist peek (new #albumQuickPeek: cover, title/artist, full
+          tracklist with durations, positioned next to whichever card was
+          clicked) instead of just selecting the card; double-click plays
+          the release immediately (playAlbumReplacingQueue, same as the
+          left panel's Albums-mode double-click) instead of opening the
+          full deck. The deck is reached from inside the peek now — click
+          its cover or title. Shift/Ctrl/Cmd-click still do the existing
+          multi-select range/toggle unchanged, and every other view
+          (Albums grid, Tracks, Album and Tracks) keeps its original
+          click-to-select/double-click-to-open-deck behavior — this is
+          scoped to Covers specifically, matching how the request itself
+          was scoped ("for the album cover view"). Touch's existing long-
+          press still opens the fuller Quick Actions sheet, which is a
+          distinct, complementary interaction to a short tap's new peek.
+
+          Learned from 1.29.93's bug earlier this session: the peek's own
+          cover art also carries the shared .art class, so it got the same
+          defensive .album-quick-peek-art.art override applied up front
+          rather than waiting to discover the same cascade conflict again.
 
   1.29.93 — 2026-09-16 — Bugfix + feature. Bugfix: the "covers are too
           large" report was a real CSS cascade bug, not a preference gap —
@@ -3242,6 +3265,23 @@
   </div>
 </div>
 
+<!-- Album covers view: clicking a cover opens this instead of the full
+     deck — a quick tracklist peek without leaving the grid (double-click
+     plays the release instead; the deck is reached from inside here) —
+     see openAlbumQuickPeek(). Positioned dynamically next to whichever
+     card was clicked. -->
+<div id="albumQuickPeek" class="album-quick-peek" hidden>
+  <button type="button" id="albumQuickPeekClose" class="modal-x" aria-label="Close">✕</button>
+  <div class="album-quick-peek-header">
+    <img id="albumQuickPeekArt" class="art album-quick-peek-art" alt="" title="Open full release view">
+    <div class="album-quick-peek-text">
+      <p id="albumQuickPeekTitle" class="album-quick-peek-title" title="Open full release view">Title <span class="album-quick-peek-arrow">▸</span></p>
+      <p id="albumQuickPeekSub" class="album-quick-peek-sub"></p>
+    </div>
+  </div>
+  <div id="albumQuickPeekTracks" class="album-quick-peek-tracks"></div>
+</div>
+
 <!-- Transient "now playing" card — pops up whenever a new track starts,
      independent of whether the mini player bar itself is being watched. -->
 <div id="nowPlayingBox" class="now-playing-box" hidden>
@@ -4014,7 +4054,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.93';
+const APP_VERSION = '1.29.94';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -4353,6 +4393,7 @@ const el = {};
   'miniPlayerSeekTrack','miniPlayerSeekFill','miniPlayerSeekHandle','miniPlayerTimeCurrent','miniPlayerTimeTotal',
   'queuePanel','queuePanelClose','queuePanelNowPlaying','queuePanelList',
   'miniPlayerDeviceBtn','devicePanel','devicePanelClose','devicePanelList',
+  'albumQuickPeek','albumQuickPeekClose','albumQuickPeekArt','albumQuickPeekTitle','albumQuickPeekSub','albumQuickPeekTracks',
   'nowPlayingBox','nowPlayingArt','nowPlayingTitle','nowPlayingArtist',
   'menuSpotifyApi','spotifyOverlay','spotifyClose','spotifyClientId','spotifyClientSecret','spotifySaveBtn','spotifyCancelBtn','spotifyStatus',
   'menuDiscogsApi','discogsOverlay','discogsClose','discogsToken','discogsSaveBtn','discogsCancelBtn','discogsStatus',
@@ -5681,6 +5722,16 @@ function bindEvents() {
     refreshDevicePanel();
   });
   el.devicePanelClose.addEventListener('click', () => { el.devicePanel.hidden = true; });
+
+  el.albumQuickPeekClose.addEventListener('click', closeAlbumQuickPeek);
+  el.albumQuickPeekArt.addEventListener('click', () => { if (quickPeekItem) { const it = quickPeekItem; closeAlbumQuickPeek(); openDeck(it); } });
+  el.albumQuickPeekTitle.addEventListener('click', () => { if (quickPeekItem) { const it = quickPeekItem; closeAlbumQuickPeek(); openDeck(it); } });
+  document.addEventListener('click', (e) => {
+    if (el.albumQuickPeek.hidden) return;
+    if (el.albumQuickPeek.contains(e.target)) return;
+    if (e.target.closest('.card[data-album-row]')) return; // let a click on another card open its own peek instead of just closing this one
+    closeAlbumQuickPeek();
+  });
   el.devicePanelList.addEventListener('click', (e) => {
     const row = e.target.closest('.device-row-clickable');
     if (!row) return;
@@ -8761,8 +8812,21 @@ function buildCard(item) {
     </div>
   `;
     
-  card.addEventListener('click', (e) => handleAlbumCardClick(e, item, card));
-  card.addEventListener('dblclick', () => openDeck(item));
+  // Album covers view specifically (not the regular Albums grid): a plain
+  // click opens a quick tracklist peek instead of just selecting, and
+  // double-click plays the release directly instead of opening the deck —
+  // the peek popover is now the way back to the full deck (click its
+  // cover/title), since double-click no longer goes there in this view.
+  card.addEventListener('click', (e) => {
+    const isCoversView = (state.activePlaylistId ? state.playlistViewMode : state.mainViewMode) === 'covers';
+    handleAlbumCardClick(e, item, card); // keeps selection in sync either way
+    if (isCoversView && !e.shiftKey && !e.ctrlKey && !e.metaKey) openAlbumQuickPeek(item, card);
+  });
+  card.addEventListener('dblclick', () => {
+    const isCoversView = (state.activePlaylistId ? state.playlistViewMode : state.mainViewMode) === 'covers';
+    if (isCoversView) { closeAlbumQuickPeek(); playAlbumReplacingQueue(item); }
+    else openDeck(item);
+  });
   card.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
@@ -9460,6 +9524,47 @@ const MINI_PLAYER_PAUSE_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" 
 function setMiniPlayerPlayPauseIcon(paused) {
   el.miniPlayerPlayPause.innerHTML = paused ? MINI_PLAYER_PLAY_ICON : MINI_PLAYER_PAUSE_ICON;
   el.miniPlayerPlayPause.title = paused ? 'Play' : 'Pause';
+}
+
+// Album covers view: a plain click opens this instead of the full deck —
+// see the card click/dblclick wiring in the card-building function above
+// for why. Positioned next to whichever card was clicked (reusing
+// positionFloatingMenu's viewport-clamping). Clicking the cover or title
+// inside here is the way back to the full deck, since double-click plays
+// instead of opening it in this view now.
+let quickPeekItem = null;
+let quickPeekSeq = 0;
+function openAlbumQuickPeek(item, cardEl) {
+  quickPeekItem = item;
+  const mySeq = ++quickPeekSeq;
+
+  el.albumQuickPeekArt.src = item.cover || state.artCache[artKey(item)]?.art || placeholderArt(item);
+  el.albumQuickPeekArt.dataset.key = artKey(item);
+  el.albumQuickPeekTitle.innerHTML = `${escapeHtml(item.title)} <span class="album-quick-peek-arrow">▸</span>`;
+  const year = dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getUTCFullYear() : '';
+  el.albumQuickPeekSub.textContent = item.artist + (year ? ' \u00b7 ' + year : '');
+  el.albumQuickPeekTracks.innerHTML = '<p class="tracklist-status">Loading tracklist\u2026</p>';
+
+  el.albumQuickPeek.hidden = false;
+  const rect = cardEl.getBoundingClientRect();
+  positionFloatingMenu(el.albumQuickPeek, rect.left, rect.bottom + 6);
+  applyCachedArt();
+
+  getTracksFor(item).then(tracks => {
+    if (mySeq !== quickPeekSeq) return; // closed, or replaced by a different card, while this was loading
+    el.albumQuickPeekTracks.innerHTML = tracks.length ? tracks.map(t => `
+      <div class="album-quick-peek-track">
+        <span class="album-quick-peek-track-num">${t.trackNumber || ''}</span>
+        <span class="album-quick-peek-track-name">${escapeHtml(t.trackName || '')}</span>
+        <span class="album-quick-peek-track-time">${formatDuration(t.trackTimeMillis)}</span>
+      </div>
+    `).join('') : '<p class="tracklist-status">No tracklist found for this release.</p>';
+  });
+}
+function closeAlbumQuickPeek() {
+  el.albumQuickPeek.hidden = true;
+  quickPeekItem = null;
+  quickPeekSeq++; // invalidate any in-flight tracklist fetch so it can't populate a closed/reused popover
 }
 
 function positionFloatingMenu(menu, x, y) {
@@ -19513,6 +19618,29 @@ html, body {
 
   /* Device popover (Spotify Connect device picker) — reuses .queue-panel layout */
   .device-panel { max-height: min(320px, calc(100vh - 190px)); }
+
+  /* ---- Album covers view: quick tracklist peek (openAlbumQuickPeek) ---- */
+  .album-quick-peek {
+    position: fixed; z-index: 60; width: 320px; max-height: min(420px, calc(100vh - 40px));
+    display: flex; flex-direction: column; background: var(--bg-elevated); border: 1px solid var(--line);
+    border-radius: 10px; box-shadow: 0 14px 32px rgba(0,0,0,0.5); overflow: hidden;
+  }
+  .album-quick-peek .modal-x { position: absolute; top: 6px; right: 6px; z-index: 1; }
+  .album-quick-peek-header { display: flex; align-items: center; gap: 10px; padding: 14px 30px 12px 14px; }
+  .album-quick-peek-art { width: 56px; height: 56px; border-radius: 6px; object-fit: cover; flex: 0 0 auto; cursor: pointer; }
+  .album-quick-peek-art.art { width: 56px; height: 56px; } /* same .art cascade issue hit twice already this session — .art's own width:100%/height:100% is declared later with equal specificity and would otherwise win */
+  .album-quick-peek-text { min-width: 0; }
+  .album-quick-peek-title {
+    margin: 0; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .album-quick-peek-title:hover { color: var(--accent); }
+  .album-quick-peek-arrow { color: var(--text-dim); font-size: 11px; }
+  .album-quick-peek-sub { margin: 2px 0 0; font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .album-quick-peek-tracks { overflow-y: auto; border-top: 1px solid var(--line); padding: 6px 0; }
+  .album-quick-peek-track { display: flex; align-items: center; gap: 8px; padding: 5px 14px; font-size: 12.5px; }
+  .album-quick-peek-track-num { flex: 0 0 auto; width: 18px; color: var(--text-dim); text-align: right; }
+  .album-quick-peek-track-name { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .album-quick-peek-track-time { flex: 0 0 auto; color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; font-size: 11px; }
   .device-row-clickable { cursor: pointer; }
   .device-row-clickable:hover, .device-row-clickable:focus-visible { background: var(--bg-card); }
   .device-row-icon { font-size: 16px; flex: 0 0 auto; width: 20px; text-align: center; }
