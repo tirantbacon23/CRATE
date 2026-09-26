@@ -13,7 +13,28 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.118
+  CURRENT_VERSION: 1.29.119
+
+  1.29.119 — 2026-09-26 — Feature: Compact left nav (icons only) — new
+          checkbox in \u2699 \u2192 Panels configuration…, under Show Categories.
+          Shrinks the far-left Music/Playlist Explorer rail down to just
+          fit its icons (148px \u2192 52px) and hides the text labels, which
+          stay available as native tooltips via a new `title` attribute on
+          each button. state.leftNavCompact, persisted.
+
+          Handled a real conflict rather than shipping something that'd
+          silently do nothing for some users: applyLeftNavCompact() sets
+          the panel's flexBasis directly rather than trusting the
+          .leftnav-compact CSS class alone, because makeResizable's manual
+          drag-resize handle (and the saved state.panelWidths.leftNav width
+          restored at init) ALSO set that same property as an inline style
+          — which beats a CSS class at equal specificity regardless of
+          source order, the same class of bug that's bitten .art a few
+          times already this session. Also fixed the init call ORDER
+          itself (compact now applies after the manual-width restore, not
+          before) so turning compact mode back off correctly restores
+          whatever width the user had manually dragged it to, rather than
+          leaving it stuck at 52px.
 
   1.29.118 — 2026-09-26 — Tweak: Map view felt cramped/cluttered — the map
           itself (.map-container, flex: 1 1 160px) and the location table
@@ -3378,11 +3399,11 @@
            "Playlist Explorer" swaps the browser column (#leftPanel) over to
            show the playlist tree (folders + playlists — see
            setLeftNavView() and renderPlaylistSidebar()). -->
-      <button type="button" id="navMusicBtn" class="leftnav-btn active" aria-current="page">
+      <button type="button" id="navMusicBtn" class="leftnav-btn active" aria-current="page" title="Music">
         <span class="leftnav-icon">♪</span>
         <span class="leftnav-label">Music</span>
       </button>
-      <button type="button" id="navPlaylistsBtn" class="leftnav-btn">
+      <button type="button" id="navPlaylistsBtn" class="leftnav-btn" title="Playlist Explorer">
         <span class="leftnav-icon">☰</span>
         <span class="leftnav-label">Playlist Explorer</span>
       </button>
@@ -3986,6 +4007,7 @@
     
     <div class="pane-config-group">
       <label class="arrange-row"><input type="checkbox" id="toggleLeftPanel" checked> Show Categories (Left Panel)</label>
+      <label class="arrange-row arrange-row-sub"><input type="checkbox" id="toggleLeftNavCompact"> Compact left nav (icons only)</label>
     </div>
 
     <div class="pane-config-group">
@@ -4632,7 +4654,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.118';
+const APP_VERSION = '1.29.119';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -4870,6 +4892,7 @@ const state = {
   fitArtwork: true,
   fieldPlacement: 'below', // 'below' | 'overlay' — only relevant when fitArtwork is true
   closeGaps: false,
+  leftNavCompact: false, // icons-only mode for the far-left Music/Playlist Explorer rail — see applyLeftNavCompact()
   panelWidths: { leftNav: 148, left: 220, right: 260 },
 fields: { 
     // Ordered slots for the Albums Grid
@@ -4966,7 +4989,7 @@ const el = {};
   'tabStats','tabArtist',
   'statsWrap','statsModeListening','statsModeCollection','statsListeningWrap','statsCollectionWrap','statsCollectionBody','statsYearList','statsDetail','statsDetailBack','statsDetailYear','statsDetailBody',
   'artistWrap','artistSearchInput','artistList','artistDetail',
-  'layoutBtn','layoutMenu','menuArrangePanels','arrangeModal','arrangeClose','toggleLeftPanel','toggleRightPanel','albumQuickPeekStyleSelect','addFieldsChecklist','rightPanelShowQueue','rightPanelShowHistory','rightPanelQueueSection','rightPanelHistorySection','rightPanelEmptyMsg','rightHistoryPanelBody','historyViewListBtn','historyViewGridBtn','configureMainBtn','configureQueueBtn','configureHistoryBtn','historyLayoutChronoBtn','historyLayoutByDayBtn','configureMiniPlayerBtn','toggleCoverLinks','toggleFitArtwork','toggleCloseGaps','fieldPlacementGroup','fieldPlacementOverlay','fieldPlacementBelow',
+  'layoutBtn','layoutMenu','menuArrangePanels','arrangeModal','arrangeClose','toggleLeftPanel','toggleLeftNavCompact','toggleRightPanel','albumQuickPeekStyleSelect','addFieldsChecklist','rightPanelShowQueue','rightPanelShowHistory','rightPanelQueueSection','rightPanelHistorySection','rightPanelEmptyMsg','rightHistoryPanelBody','historyViewListBtn','historyViewGridBtn','configureMainBtn','configureQueueBtn','configureHistoryBtn','historyLayoutChronoBtn','historyLayoutByDayBtn','configureMiniPlayerBtn','toggleCoverLinks','toggleFitArtwork','toggleCloseGaps','fieldPlacementGroup','fieldPlacementOverlay','fieldPlacementBelow',
   'mainConfigModal','mainConfigClose','mainConfigArtworkOptions',
   'fldTitle','fldArtist','fldYear','fldRating','fldType','fldCatalog','fldGenre','fldLabel','fldDuration','menuCustomizeMain',
   'listenedFilterBtn',
@@ -5365,10 +5388,12 @@ async function init() {
   el.fieldPlacementBelow.checked = state.fieldPlacement !== 'overlay';
   el.gridContainer.classList.toggle('overlay-fields', state.fitArtwork && state.fieldPlacement === 'overlay');
   el.toggleCloseGaps.checked = state.closeGaps;
+  el.toggleLeftNavCompact.checked = state.leftNavCompact;
   el.gridContainer.classList.toggle('close-gaps', state.closeGaps);
   el.leftPanel.style.flexBasis = state.panelWidths.left + 'px';
   el.rightPanel.style.flexBasis = state.panelWidths.right + 'px';
   if (el.leftNavPanel) el.leftNavPanel.style.flexBasis = state.panelWidths.leftNav + 'px';
+  applyLeftNavCompact(); // after the manual-width restore just above, since compact mode needs to win over whatever inline flexBasis that (or a manual drag-resize) sets — see its own comment for why
   applyPanelVisibility();
 
   // bindEvents()/makeResizable() attach listeners with no removal step, so
@@ -6229,6 +6254,11 @@ function bindEvents() {
     el.gridContainer.classList.toggle('close-gaps', state.closeGaps);
     savePrefs();
   });
+  el.toggleLeftNavCompact.addEventListener('change', () => {
+    state.leftNavCompact = el.toggleLeftNavCompact.checked;
+    applyLeftNavCompact();
+    savePrefs();
+  });
 
   el.configureMainBtn.addEventListener('click', () => { 
     el.arrangeModal.hidden = true; 
@@ -7008,6 +7038,7 @@ function loadPrefs() {
     if (typeof p.fitArtwork === 'boolean') state.fitArtwork = p.fitArtwork;
     if (p.fieldPlacement === 'overlay' || p.fieldPlacement === 'below') state.fieldPlacement = p.fieldPlacement;
     if (typeof p.closeGaps === 'boolean') state.closeGaps = p.closeGaps;
+    if (typeof p.leftNavCompact === 'boolean') state.leftNavCompact = p.leftNavCompact;
     if (p.panelWidths) state.panelWidths = Object.assign({}, state.panelWidths, p.panelWidths);
     if (p.fields) state.fields = Object.assign(state.fields, p.fields);
     if (p.trackColWidths) state.trackColWidths = p.trackColWidths;
@@ -7030,7 +7061,7 @@ function savePrefs() {
 	localStorage.setItem(PREF_KEY, JSON.stringify({
       viewMode: state.viewMode, mainViewMode: state.mainViewMode, playlistViewMode: state.playlistViewMode, cardSize: state.cardSize, sort: state.sort, groupBy: state.groupBy, groupBy2: state.groupBy2,
       activeType: state.activeType, leftMode: state.leftMode, leftSort: state.leftSort, leftThumbSize: state.leftThumbSize, leftGroupBy: state.leftGroupBy, // 👈 UPDATED HERE
-      showLeft: state.showLeft, showRight: state.showRight, showCoverLinks: state.showCoverLinks, fitArtwork: state.fitArtwork, fieldPlacement: state.fieldPlacement, closeGaps: state.closeGaps, panelWidths: state.panelWidths, fields: state.fields, trackColWidths: state.trackColWidths,
+      showLeft: state.showLeft, showRight: state.showRight, showCoverLinks: state.showCoverLinks, fitArtwork: state.fitArtwork, fieldPlacement: state.fieldPlacement, closeGaps: state.closeGaps, leftNavCompact: state.leftNavCompact, panelWidths: state.panelWidths, fields: state.fields, trackColWidths: state.trackColWidths,
       playlistFoldersCollapsed: state.playlistFoldersCollapsed,
       playlistFolders: state.playlistFolders,
       playlistFolderMap: state.playlistFolderMap,
@@ -7402,6 +7433,22 @@ function updateGroupByMenuUI() {
 }
 
 /* ---------- Panel visibility & resizing ---------- */
+
+// Icons-only mode for the far-left Music/Playlist Explorer rail. Both
+// buttons already carry a `title` attribute so the label is still
+// available as a native tooltip once the visible text is hidden. Sets the
+// inline flexBasis directly rather than relying purely on the
+// .leftnav-compact CSS class's own flex-basis — makeResizable's manual
+// drag-resize (and its restored state.panelWidths.leftNav width at init)
+// ALSO sets this same inline style, which would otherwise beat a CSS
+// class rule at equal/lower specificity and silently make this toggle do
+// nothing for anyone who's ever manually resized that panel. Restores the
+// user's own saved width when turning compact mode back off, rather than
+// just clearing it back to the CSS default.
+function applyLeftNavCompact() {
+  el.leftNavPanel.classList.toggle('leftnav-compact', state.leftNavCompact);
+  el.leftNavPanel.style.flexBasis = state.leftNavCompact ? '52px' : (state.panelWidths.leftNav + 'px');
+}
 
 function applyPanelVisibility() {
   el.leftPanel.style.display = state.showLeft ? 'flex' : 'none';
@@ -20036,6 +20083,14 @@ html, body {
   gap: 3px;
   padding: 10px 6px;
 }
+/* Icons-only mode — see applyLeftNavCompact()/⚙ → Panels configuration…
+   → "Compact left nav". Shrinks the rail down to just fit an icon, hides
+   the text label (still available as a native tooltip via each button's
+   title attribute), and centers the icon since there's no label to its
+   right anymore. */
+.panel-leftnav.leftnav-compact { flex-basis: 52px; padding: 10px 4px; }
+.panel-leftnav.leftnav-compact .leftnav-label { display: none; }
+.panel-leftnav.leftnav-compact .leftnav-btn { justify-content: center; padding: 10px 4px; }
 .panel-left { flex: 0 0 220px; 
 }
 .panel-main { 
