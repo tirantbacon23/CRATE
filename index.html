@@ -13,7 +13,15 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.120
+  CURRENT_VERSION: 1.29.121
+
+  1.29.121 — 2026-09-26 — Tweak: Playlist Explorer rows made noticeably
+          denser (padding 7px/6px \u2192 4px/6px, gap 10px \u2192 7px, title font
+          13px \u2192 12px, smaller folder caret/icon, tighter folder indent
+          22px \u2192 18px) to fit more rows on screen at once, matching a
+          reference screenshot's tighter list density. Scoped specifically
+          to .playlist-sidebar-row/.playlist-folder-row — the base
+          .left-row rules (Albums/Artists/Genres list) are untouched.
 
   1.29.120 — 2026-09-26 — Bugfix: Map view's basemap showed "API KEY
           REQUIRED" watermarked across every tile, even with a LocationIQ
@@ -20258,23 +20266,29 @@ html, body {
 .left-browser-view[hidden] { display: none; }
 
 .playlist-sidebar-list { flex: 1; }
-.playlist-sidebar-row .left-row-title { font-size: 13px; }
+/* Denser than the base .left-row (used for Albums/Artists/Genres too,
+   left alone) — matches the tighter, more list-like density of a
+   reference screenshot, since a playlist tree with folders benefits from
+   fitting more rows on screen at once more than the main browser list
+   does. */
+.playlist-sidebar-row, .playlist-folder-row { padding: 4px 6px; gap: 7px; }
+.playlist-sidebar-row .left-row-title, .playlist-folder-row .left-row-title { font-size: 12px; }
 .playlist-empty { font-size: 12px; color: var(--text-dim); padding: 6px; margin: 0; }
 
 /* Playlist Explorer folders: a collapsible row (caret + folder icon) with
    its filed playlists indented underneath. Client-side only — see
    state.playlistFolders / playlistFolderMap and renderPlaylistSidebar(). */
-.playlist-folder { margin-bottom: 2px; }
+.playlist-folder { margin-bottom: 1px; }
 .playlist-folder-row { cursor: pointer; user-select: none; }
 .playlist-folder-caret {
-  flex: 0 0 auto; font-size: 9px; color: var(--text-dim); width: 10px; text-align: center;
+  flex: 0 0 auto; font-size: 8px; color: var(--text-dim); width: 9px; text-align: center;
   transition: transform 0.15s ease;
 }
 .playlist-folder-caret.collapsed { transform: rotate(-90deg); }
-.playlist-folder-icon { flex: 0 0 auto; font-size: 12px; line-height: 1; }
-.playlist-folder-children { padding-left: 22px; }
+.playlist-folder-icon { flex: 0 0 auto; font-size: 11px; line-height: 1; }
+.playlist-folder-children { padding-left: 18px; }
 .playlist-folder-children .playlist-sidebar-row { padding-left: 6px; }
-.playlist-folder-empty { padding: 4px 6px; font-size: 11.5px; font-style: italic; }
+.playlist-folder-empty { padding: 3px 6px; font-size: 11px; font-style: italic; }
 .playlist-folder-row.drag-over,
 .playlist-sidebar-list > .playlist-folder-row.drag-over {
   background: var(--bg-card); outline: 1px dashed var(--accent); outline-offset: -1px;
