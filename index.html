@@ -13,7 +13,22 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.130
+  CURRENT_VERSION: 1.29.131
+
+  1.29.131 — 2026-09-26 — Feature: "Closest genre match" sort option (⇅
+          Sort & filter), only shown while a genre nav-filter is actually
+          active (hidden otherwise — meaningless without one). Reuses
+          genreFilterWeight() as-is (1.29.128's existing 0-1 harmonic-decay
+          weight already driving the genre-match strip on cards) rather
+          than inventing a separate distance metric, so the sort order and
+          the visual cue agree with each other by construction — sorts
+          descending by weight, so a release whose PRIMARY genre is the
+          filtered one sorts above one where it's only a secondary/further
+          tag. Falls back to the normal default sort if the genre filter
+          ever gets cleared/changed while this is selected, checked at the
+          one guaranteed choke point every filter/sort pass runs through
+          rather than needing to track down and patch every place
+          state.navFilter can change elsewhere in the file.
 
   1.29.130 — 2026-09-26 — Bugfix: genre-match bar (see genreFilterWeight)
           could be nearly invisible for a secondary/tertiary genre match
@@ -3759,6 +3774,7 @@
               <button type="button" class="sort-filter-option" data-sort="rating">Top rated</button>
               <button type="button" class="sort-filter-option" data-sort="unrated">Unrated first</button>
               <button type="button" class="sort-filter-option" data-sort="added">Recently added</button>
+              <button type="button" class="sort-filter-option" id="sortGenreMatchOption" data-sort="genreMatch" hidden>Closest genre match</button>
               <div class="menu-divider"></div>
               <label class="arrange-row"><input type="checkbox" id="sortFilterListenedToggle"> Listened only</label>
             </div>
@@ -4900,7 +4916,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.130';
+const APP_VERSION = '1.29.131';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -5306,7 +5322,7 @@ const el = {};
   'qaListenBtn','qaSoundcloudBtn','deckQuickActionsBtn',
   'advancedSearchBtn','advSearchOverlay','advSearchClose','advArtist','advTitle','advYearFrom','advYearTo',
   'advRatingMin','advGenre','advLabel','advType','advCatalog','advExtra','advSearchApplyBtn','advSearchClearBtn',
-  'searchWrap','searchIconBtn','sortFilterBtn','sortFilterMenu','sortFilterListenedToggle'
+  'searchWrap','searchIconBtn','sortFilterBtn','sortFilterMenu','sortFilterListenedToggle','sortGenreMatchOption'
 ].forEach(id => { el[id] = document.getElementById(id); });
 
 let activeItem = null;
@@ -8660,6 +8676,15 @@ function applyFiltersSort() {
     return matchesQuery && matchesNav && matchesListened;
   });
 
+  // "Closest genre match" only means anything while a genre filter is
+  // actually active — if the filter got cleared/changed to something else
+  // while this was selected (rather than tracking down and patching every
+  // place navFilter can change), fall back to the normal default here,
+  // the one guaranteed choke point every filter/sort pass runs through.
+  if (state.sort === 'genreMatch' && !(state.navFilter && state.navFilter.mode === 'genre')) {
+    state.sort = 'newest';
+    savePrefs();
+  }
   list.sort((a, b) => {
     switch (state.sort) {
       case 'oldest': return dateVal(a.releaseDate) - dateVal(b.releaseDate);
@@ -8668,6 +8693,7 @@ function applyFiltersSort() {
       case 'rating': return b.rating - a.rating;
       case 'unrated': return a.rating - b.rating;
       case 'added': return dateVal(b.dateAdded) - dateVal(a.dateAdded);
+      case 'genreMatch': return (genreFilterWeight(b) || 0) - (genreFilterWeight(a) || 0);
       case 'newest':
       default: return dateVal(b.releaseDate) - dateVal(a.releaseDate);
     }
@@ -8682,6 +8708,8 @@ function applyFiltersSort() {
 // popover opens, so it can't go stale from a change made some other way
 // (e.g. the listened-filter icon button toggled directly).
 function renderSortFilterMenu() {
+  const isGenreFilter = !!(state.navFilter && state.navFilter.mode === 'genre');
+  el.sortGenreMatchOption.hidden = !isGenreFilter;
   el.sortFilterMenu.querySelectorAll('.sort-filter-option').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.sort === state.sort);
   });
