@@ -10860,6 +10860,23 @@ function openAlbumQuickPeek(item, cardEl) {
 
   getTracksFor(item).then(tracks => {
     if (mySeq !== quickPeekSeq) return; // closed, or replaced by a different card, while this was loading
+    // Same fix as loadTracksForPlaylistGroups/loadPlaylistFlatTrackTable
+    // (Album and Tracks view, flat Tracks table) — getTracksFor() always
+    // returns the FULL release tracklist with no playlist-awareness at
+    // all. When opened from a playlist's own Covers view, filter down to
+    // just the tracks actually added to THIS playlist for this album,
+    // UNLESS the whole album was added as a single item (type: 'album'),
+    // in which case every track legitimately belongs and the full
+    // tracklist is exactly right.
+    if (state.activePlaylistId) {
+      const playlist = state.playlists.find(p => p.id === state.activePlaylistId);
+      const albumItems = playlist ? playlist.items.filter(it => (item.albumId && it.albumId) ? it.albumId === item.albumId : String(it.row) === String(item.row)) : [];
+      const hasWholeAlbum = albumItems.some(it => it.type === 'album');
+      if (!hasWholeAlbum && albumItems.length) {
+        const wantedTrackNums = new Set(albumItems.filter(it => it.type === 'track').map(it => String(it.trackNum)));
+        tracks = tracks.filter(t => wantedTrackNums.has(String(t.trackNumber)));
+      }
+    }
     el.albumQuickPeekTracks.innerHTML = tracks.length ? tracks.map(t => `
       <div class="album-quick-peek-track" data-track-num="${escapeHtml(String(t.trackNumber || ''))}" data-track-name="${escapeHtml(t.trackName || '')}">
         <button type="button" class="album-quick-peek-track-play" title="Play this track" aria-label="Play ${escapeHtml(t.trackName || 'this track')}">▶</button>
