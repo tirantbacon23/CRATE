@@ -13,7 +13,50 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.121
+  CURRENT_VERSION: 1.29.123
+
+  1.29.123 — 2026-09-26 — Bugfix (partial — see chat): "Spotify lookup
+          completely broken" report (a well-known track, Pixies' "Caribou",
+          returning zero results). getSpotifyToken() (the client-
+          credentials token exchange against accounts.spotify.com) and
+          spotifyTrackSearchRaw() (the actual /v1/search call) both
+          silently swallowed EVERY failure before this — a real network/
+          CORS error and a genuine "no matches" both looked identical: an
+          empty result and a console.warn nobody sees. Both now surface a
+          real toast distinguishing an HTTP error status from a request
+          that never reached Spotify at all (a fetch() to a CORS-blocked
+          endpoint throws before any status code exists to check).
+
+          Root cause NOT confirmed yet — flagged to the user rather than
+          guessed at: Spotify has a well-documented, recurring pattern
+          (most recently reported mid-2026) of their own API's CORS
+          preflight handling breaking for browser requests carrying an
+          Authorization header, self-resolving on Spotify's end each time
+          historically — but this app calling accounts.spotify.com's
+          client-credentials token endpoint directly from browser JS in
+          the first place (rather than through a small server-side proxy)
+          is what exposes it to that fragility whenever it recurs. Can't
+          fix Spotify's own server from this file if that's what's
+          happening; asked the user to check their browser console for the
+          exact error to confirm before attempting a real fix (a proxy, or
+          confirming instead it's an invalid/revoked Client ID/Secret).
+
+  1.29.122 — 2026-09-26 — Tweak: genre weighting refined from a binary
+          "1st/2nd tied at full weight, 3rd+ at half" split to a smooth
+          harmonic decay — 1st = 1.0, 2nd = 0.5, 3rd = 0.333, 4th = 0.25,
+          ... (weight = 1 / position). The binary split didn't actually
+          capture the motivating case: a release with only TWO genres
+          where the first is clearly the primary identity and the second
+          a real but secondary descriptor (RYM lists King Crimson's "In
+          the Court of the Crimson King" as primarily Progressive Rock,
+          Art Rock second) — under the old scheme those two would've tied
+          at equal weight. Straight halving (1.0/0.5/0.25/0.125) was
+          considered and rejected — it craters too fast for an album
+          that's just thoroughly tagged with 4-5 genres. New
+          genrePositionWeight(i) actually extracted as its own function
+          this time, replacing an inline calculation whose own comment
+          referenced a "genrePositionWeight() below" that was never
+          actually written.
 
   1.29.121 — 2026-09-26 — Tweak: Playlist Explorer rows made noticeably
           denser (padding 7px/6px \u2192 4px/6px, gap 10px \u2192 7px, title font
@@ -4681,7 +4724,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.120';
+const APP_VERSION = '1.29.123';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -5510,6 +5553,22 @@ function allGenresForItem(item) {
   return merged.size ? [...merged] : ['Unknown'];
 }
 
+// How much a genre's POSITION in a release's own combined Genre/Secondary
+// Genre list counts toward that genre's tally in buildGenreTree below —
+// harmonic decay (1st = 1.0, 2nd = 0.5, 3rd = 0.333, 4th = 0.25, ...:
+// weight = 1 / position). Reflects that the first genre listed is usually
+// the release's actual primary identity and each one after characterizes
+// it further but less definitively — e.g. RYM lists King Crimson's "In the
+// Court of the Crimson King" as primarily Progressive Rock, with Art Rock
+// as a real but secondary descriptor, not an equally-weighted second
+// identity. Halving outright (1.0/0.5/0.25/0.125) was considered and
+// rejected — it craters too fast for an album that's just thoroughly
+// tagged with 4-5 genres, punishing thoroughness rather than reflecting
+// prominence. i is 0-indexed (array position), so position = i + 1.
+function genrePositionWeight(i) {
+  return 1 / (i + 1);
+}
+
 // Builds the left panel's genre-mode row list as a hierarchy: every known
 // genre (tagged on some album, OR purely organizational — named in the
 // taxonomy but never itself tagged), each with an AGGREGATED count (its
@@ -5519,9 +5578,7 @@ function allGenresForItem(item) {
 // search-filtered set) is left out — same idea as the old flat list never
 // showing genres with no matches. Counts are now WEIGHTED by each genre's
 // position within the release's own combined Genre/Secondary Genre list —
-// the 1st or 2nd genre listed counts fully (weight 1), anything 3rd or
-// later counts at half weight, on the idea that a release's primary sound
-// should carry more than an incidental extra tag. Rounded to 1 decimal for
+// see genrePositionWeight() just above. Rounded to 1 decimal for
 // display; comparisons/aggregation use the full-precision value. This
 // counting is deliberately album-level only (getGenreList(combinedGenreStr),
 // not allGenresForItem) — a per-track genre override changes what shows in
@@ -5532,7 +5589,7 @@ function buildGenreTree(sourceRaw, taxonomy) {
   sourceRaw.forEach(item => {
     getGenreList(combinedGenreStr(item)).forEach((g, i) => {
       const key = genreTaxonomyKey(g);
-      const weight = i < 2 ? 1 : 0.5; // see genrePositionWeight() below for the same rule applied elsewhere
+      const weight = genrePositionWeight(i);
       if (!ownCount.has(key)) ownCount.set(key, { label: g, count: 0 });
       ownCount.get(key).count += weight;
     });
@@ -18524,7 +18581,7 @@ async function getSpotifyToken() {
   if (spotifyToken && spotifyToken.expiresAt > Date.now() + 5000) return spotifyToken.value;
 
   const { clientId, clientSecret } = loadSpotifyCreds();
-  if (!clientId || !clientSecret) return null;
+  if (!clientId || !clientSecret) return null; // not configured at all — expected, not an error, no toast
 
   try {
     const res = await fetch('https://accounts.spotify.com/api/token', {
@@ -18535,13 +18592,25 @@ async function getSpotifyToken() {
       },
       body: 'grant_type=client_credentials'
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn('Spotify token request failed', res.status);
+      flashGlobalToast(`Couldn\u2019t get a Spotify search token (error ${res.status}) \u2014 check your Client ID/Secret in \u2699 \u2192 Spotify API\u2026`);
+      return null;
+    }
     const data = await res.json();
-    if (!data.access_token) return null;
+    if (!data.access_token) { flashGlobalToast('Spotify didn\u2019t return a usable token — try again.'); return null; }
     spotifyToken = { value: data.access_token, expiresAt: Date.now() + (data.expires_in || 3600) * 1000 };
     return spotifyToken.value;
   } catch (e) {
+    // Previously silent (console.warn only) here too — this is the OTHER
+    // half of spotifyTrackSearchRaw's own note on Spotify's recurring
+    // CORS fragility: if THIS request (the token exchange itself) is what
+    // gets blocked, every downstream track search bails out immediately
+    // via spotifyTrackCandidatesLive's `if (!token) return [];` with zero
+    // indication it was ever a token problem rather than a genuine
+    // no-results search.
     console.warn('Spotify token request failed', e);
+    flashGlobalToast('Couldn\u2019t reach Spotify to get a search token at all \u2014 check the browser console for the exact error.');
     return null;
   }
 }
@@ -18932,12 +19001,28 @@ async function spotifyTrackSearchRaw(token, q) {
     const res = await fetch(`https://api.spotify.com/v1/search?type=track&limit=10&q=${encodeURIComponent(q)}`, {
       headers: { 'Authorization': 'Bearer ' + token }
     });
-    if (res.status === 401) { spotifyToken = null; return []; }
-    if (!res.ok) return [];
+    if (res.status === 401) { spotifyToken = null; flashGlobalToast('Spotify session expired \u2014 try again in a moment.'); return []; }
+    if (!res.ok) {
+      console.warn('Spotify track search failed', res.status);
+      flashGlobalToast(`Spotify search failed (error ${res.status}) \u2014 not "no results found", the request itself didn\u2019t go through.`);
+      return [];
+    }
     const data = await res.json();
     return (data.tracks && data.tracks.items) || [];
   } catch (e) {
+    // Previously silent (console.warn only) — every caller (the automatic
+    // match search AND "Fix a wrong Spotify match"/"Try next match") saw
+    // an identical empty result whether this was a genuine no-match or the
+    // request never reaching Spotify at all, e.g. a real, recurring
+    // pattern on Spotify's own side where their API's CORS preflight
+    // handling breaks for browser requests carrying an Authorization
+    // header (reported multiple times historically, most recently
+    // mid-2026, and has self-resolved on Spotify's end each time so far)
+    // — a fetch() to a CORS-blocked endpoint throws exactly this kind of
+    // TypeError, not an HTTP error status, so the `!res.ok` branch above
+    // never even runs.
     console.warn('Spotify live track search failed', e);
+    flashGlobalToast('Spotify search couldn\u2019t reach Spotify at all \u2014 not necessarily "no results found". Check the browser console for the exact error.');
     return [];
   }
 }
