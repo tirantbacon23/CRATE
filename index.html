@@ -13,7 +13,26 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.119
+  CURRENT_VERSION: 1.29.120
+
+  1.29.120 — 2026-09-26 — Bugfix: Map view's basemap showed "API KEY
+          REQUIRED" watermarked across every tile, even with a LocationIQ
+          key already entered. Root cause: CARTO (basemaps.cartocdn.com,
+          the dark_all style this used) started requiring a SEPARATE
+          Basemaps API key of their own in late August 2026 — genuinely
+          keyless when this was first written, and unrelated to the
+          LocationIQ key entered here, which is only ever used for
+          geocoding. CARTO doesn't reject the request either — it returns
+          a real 200 PNG with the warning text burned directly into the
+          tile image, which is why it read as a rendering bug rather than
+          an auth failure. Rather than adding yet another API key to
+          manage, switched to plain keyless OpenStreetMap tiles
+          (tile.openstreetmap.org) and restored the app's original dark
+          look with a CSS filter on Leaflet's own tile pane (invert + hue-
+          rotate + a touch of brightness/contrast — the standard recipe
+          for a dark map from light tiles) rather than depending on a
+          third-party dark-styled tile set again. Markers/popups are
+          untouched — the filter targets .leaflet-tile-pane specifically.
 
   1.29.119 — 2026-09-26 — Feature: Compact left nav (icons only) — new
           checkbox in \u2699 \u2192 Panels configuration…, under Show Categories.
@@ -4654,7 +4673,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.119';
+const APP_VERSION = '1.29.120';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -15752,12 +15771,22 @@ let mapLoadToken = 0; // race guard: only the latest open's geocoding pass may r
 function ensureLeafletMap() {
   if (leafletMapInstance) return leafletMapInstance;
   leafletMapInstance = L.map(el.mapContainer, { worldCopyJump: true }).setView([20, 0], 2);
-  // CARTO's dark basemap (free, no API key) so the map reads as part of the
-  // app's own dark theme instead of a bright rectangle dropped into it.
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+  // Was CARTO's dark_all basemap (basemaps.cartocdn.com) — genuinely
+  // keyless when this was first written, but CARTO started requiring a
+  // separate Basemaps API key (carto.com/basemaps/apikey) on that endpoint
+  // in late August 2026. It doesn't reject the request — it returns a
+  // real 200 PNG with "API KEY REQUIRED" burned diagonally into the tile
+  // image itself, which is why it looked like a rendering bug rather than
+  // an auth failure, and why the LocationIQ key already entered above
+  // (for geocoding — a completely different service) had no effect on it.
+  // Switched to plain keyless OpenStreetMap tiles instead of adding yet
+  // another API key to manage, restoring the dark look via a CSS filter
+  // (see .leaflet-tile-pane below) rather than depending on a third-party
+  // dark-styled tile set again.
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 19,
-    subdomains: 'abcd'
+    subdomains: 'abc'
   }).addTo(leafletMapInstance);
   leafletMarkerLayer = L.layerGroup().addTo(leafletMapInstance);
   return leafletMapInstance;
@@ -21761,6 +21790,15 @@ html, body {
     width: 100%; flex: 3 1 260px; min-height: 220px; border-radius: 8px; overflow: hidden;
     border: 1px solid var(--line); background: #0b0e14;
   }
+  /* Plain OpenStreetMap tiles (see ensureLeafletMap's own comment for why
+     this isn't CARTO's dark_all anymore) are light by default — this
+     approximates the app's original dark look without depending on a
+     third-party dark-styled tile set again. Standard invert+hue-rotate
+     recipe for a dark map from light tiles; brightness/contrast tucked in
+     a touch so it doesn't come out stark white-on-black. Targets Leaflet's
+     own tile layer specifically (not .leaflet-marker-pane/popups etc.), so
+     markers and popups keep their normal, un-inverted colors. */
+  .map-container .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9); }
   .map-status {
     font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; text-transform: uppercase;
     letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 8px; text-align: center; flex: 0 0 auto;
