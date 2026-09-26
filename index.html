@@ -13,7 +13,40 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.131
+  CURRENT_VERSION: 1.29.133
+
+  1.29.133 — 2026-09-26 — Feature: expand/collapse for the left panel's
+          Genre taxonomy tree. Any genre row with children now gets a
+          clickable caret (▾, rotates to ▸ when collapsed); collapsing one
+          hides its whole subtree until expanded again. New
+          filterCollapsedGenreRows() does this as a single pass over
+          buildGenreTree's own DFS pre-order row list, kept entirely in
+          the left-panel rendering path since buildGenreTree itself is
+          shared/generic (Release Statistics' "By genre" also uses it,
+          with no notion of collapse state at all) — "has children" is
+          derived for free from that same pre-order structure (a row has
+          children exactly when the next row in the list is one depth
+          deeper), no changes to buildGenreTree needed. State
+          (state.collapsedGenres, a Set) persisted as a plain array via
+          the usual prefs round-trip, so a collapsed branch stays
+          collapsed across a reload.
+
+  1.29.132 — 2026-09-26 — Feature: descriptor: search operator. New
+          descriptor/descriptors aliases in SEARCH_FIELD_ALIASES — the
+          generic r[canonicalField] fallback already handled it once
+          registered, no new dispatch logic needed (r.descriptor was
+          already a plain string field, and was already part of
+          combinedSearchText's free-text index too, just not previously
+          reachable as its own scoped field: prefix). Also added a
+          dedicated "Descriptor" input to the Advanced Search modal
+          (advDescriptor), matching the existing Genre/Label/Catalog
+          pattern rather than leaving it reachable only through the
+          catch-all "Additional keywords" box, and updated that modal's
+          own operator-syntax hint text (which is the crate's own filter
+          search's real documentation — the OTHER "Advanced:" hint,
+          attached to the Add Release search's "?" button, documents a
+          completely different system, MusicBrainz query syntax, and
+          correctly wasn't touched here).
 
   1.29.131 — 2026-09-26 — Feature: "Closest genre match" sort option (⇅
           Sort & filter), only shown while a genre nav-filter is actually
@@ -4701,8 +4734,9 @@
           </select>
         </label>
         <label class="add-field">Catalog No. <input type="text" id="advCatalog" placeholder="e.g. CRT-036"></label>
+        <label class="add-field">Descriptor <input type="text" id="advDescriptor" placeholder="e.g. lush, melancholic"></label>
         <label class="add-field">Additional keywords <input type="text" id="advExtra" placeholder="anything else — same syntax as the search box"></label>
-        <p class="arrange-hint">The search box itself understands this syntax directly too: <code>artist:</code>, <code>year:&gt;=2020</code>, <code>rating:&gt;=4</code>, <code>genre:</code>, <code>label:</code>, <code>type:</code>, <code>catalog:</code>, <code>"exact phrases"</code>, and <code>-word</code> to exclude.</p>
+        <p class="arrange-hint">The search box itself understands this syntax directly too: <code>artist:</code>, <code>year:&gt;=2020</code>, <code>rating:&gt;=4</code>, <code>genre:</code>, <code>label:</code>, <code>type:</code>, <code>catalog:</code>, <code>descriptor:</code>, <code>"exact phrases"</code>, and <code>-word</code> to exclude.</p>
         <div class="log-form-actions">
           <button type="button" id="advSearchApplyBtn" class="save-btn">Search</button>
           <button type="button" id="advSearchClearBtn" class="cancel-btn">Clear</button>
@@ -4916,7 +4950,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.131';
+const APP_VERSION = '1.29.133';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -5224,6 +5258,7 @@ fields: {
   rightPanelShowQueue: true,     // both independently toggleable — see applyRightPanelSections()
   rightPanelShowHistory: false,
   rightPanelShowTrackInfo: false, // Track Info section — cover art (or, toggled, playback controls) + configurable fields for whatever's currently playing
+  collapsedGenres: new Set(), // genre taxonomy keys currently collapsed in the left panel's Genre tree — see filterCollapsedGenreRows/toggleGenreCollapse
   trackInfoShowPlayer: false, // false = cover art (default), true = compact playback progress in that same slot — see renderTrackInfoPanel()
   trackInfoShowVideo: false, // if true AND the current track has a resolvable YouTube link, shows an embedded video in that same slot instead (takes priority over trackInfoShowPlayer) — see applyTrackInfoPlayerMode()
   releaseSearchGridView: false, // Add-album search results: list (default) or a Topster-style cover-art grid — see setReleaseSearchGridView()
@@ -5321,7 +5356,7 @@ const el = {};
   'qaPlayBtn','qaQueueBtn','qaPlaylistBtn','qaViewBtn','qaLogListenBtn','qaEditBtn','qaSpotifyBtn','qaRymBtn','qaRemoveBtn','qaDeleteBtn','qaDoneBtn',
   'qaListenBtn','qaSoundcloudBtn','deckQuickActionsBtn',
   'advancedSearchBtn','advSearchOverlay','advSearchClose','advArtist','advTitle','advYearFrom','advYearTo',
-  'advRatingMin','advGenre','advLabel','advType','advCatalog','advExtra','advSearchApplyBtn','advSearchClearBtn',
+  'advRatingMin','advGenre','advLabel','advType','advCatalog','advDescriptor','advExtra','advSearchApplyBtn','advSearchClearBtn',
   'searchWrap','searchIconBtn','sortFilterBtn','sortFilterMenu','sortFilterListenedToggle','sortGenreMatchOption'
 ].forEach(id => { el[id] = document.getElementById(id); });
 
@@ -6084,7 +6119,7 @@ function bindEvents() {
   el.advSearchOverlay.addEventListener('click', (e) => { if (e.target === el.advSearchOverlay) closeAdvSearch(); });
   el.advSearchApplyBtn.addEventListener('click', applyAdvSearch);
   el.advSearchClearBtn.addEventListener('click', () => {
-    [el.advArtist, el.advTitle, el.advYearFrom, el.advYearTo, el.advGenre, el.advLabel, el.advCatalog, el.advExtra].forEach(i => i.value = '');
+    [el.advArtist, el.advTitle, el.advYearFrom, el.advYearTo, el.advGenre, el.advLabel, el.advCatalog, el.advDescriptor, el.advExtra].forEach(i => i.value = '');
     el.advRatingMin.value = ''; el.advType.value = '';
   });
 
@@ -7375,6 +7410,7 @@ function loadPrefs() {
     if (typeof p.rightPanelShowQueue === 'boolean') state.rightPanelShowQueue = p.rightPanelShowQueue;
     if (typeof p.rightPanelShowHistory === 'boolean') state.rightPanelShowHistory = p.rightPanelShowHistory;
     if (typeof p.rightPanelShowTrackInfo === 'boolean') state.rightPanelShowTrackInfo = p.rightPanelShowTrackInfo;
+    if (Array.isArray(p.collapsedGenres)) state.collapsedGenres = new Set(p.collapsedGenres);
     if (typeof p.trackInfoShowPlayer === 'boolean') state.trackInfoShowPlayer = p.trackInfoShowPlayer;
     if (typeof p.trackInfoShowVideo === 'boolean') state.trackInfoShowVideo = p.trackInfoShowVideo;
     if (typeof p.releaseSearchGridView === 'boolean') state.releaseSearchGridView = p.releaseSearchGridView;
@@ -7398,6 +7434,7 @@ function savePrefs() {
       rightPanelShowQueue: state.rightPanelShowQueue,
       rightPanelShowHistory: state.rightPanelShowHistory,
       rightPanelShowTrackInfo: state.rightPanelShowTrackInfo,
+      collapsedGenres: [...state.collapsedGenres],
       trackInfoShowPlayer: state.trackInfoShowPlayer,
       trackInfoShowVideo: state.trackInfoShowVideo,
       releaseSearchGridView: state.releaseSearchGridView,
@@ -7957,7 +7994,12 @@ function buildLeftRow(entry, mode) {
     // vs. child (root: full weight/brightness; each level down: a small
     // "↳" connector via CSS, smaller text, progressively dimmer) so the
     // tree structure reads at a glance instead of only being implied by
-    // indentation and aggregated counts.
+    // indentation and aggregated counts. A row with children (entry.hasChildren
+    // — see buildLeftList's own DFS-pre-order "does the NEXT row go one
+    // level deeper" check, right after calling buildGenreTree, which is a
+    // generic/shared function with no notion of collapse state at all)
+    // gets a clickable caret to collapse/expand it — see
+    // filterCollapsedGenreRows/toggleGenreCollapse.
     if (mode === 'genre') {
       const depth = entry.depth || 0;
       row.style.paddingLeft = depth ? (6 + depth * 16) + 'px' : '';
@@ -7967,6 +8009,21 @@ function buildLeftRow(entry, mode) {
       } else {
         titleEl.classList.add('genre-tree-child');
         titleEl.style.opacity = Math.max(0.55, 1 - depth * 0.14);
+      }
+      if (entry.hasChildren) {
+        const key = genreTaxonomyKey(entry.key);
+        const collapsed = state.collapsedGenres.has(key);
+        const caret = document.createElement('button');
+        caret.type = 'button';
+        caret.className = 'genre-tree-caret' + (collapsed ? ' collapsed' : '');
+        caret.textContent = '▾';
+        caret.title = collapsed ? 'Expand' : 'Collapse';
+        caret.setAttribute('aria-label', collapsed ? 'Expand' : 'Collapse');
+        caret.addEventListener('click', (e) => {
+          e.stopPropagation(); // don't also trigger the row's own click-to-filter handler below
+          toggleGenreCollapse(key);
+        });
+        row.insertBefore(caret, row.firstChild);
       }
     }
   }
@@ -8001,6 +8058,40 @@ function buildLeftRow(entry, mode) {
   return row;
 }
 
+// Filters a DFS pre-order genre-tree row list (from buildGenreTree, with
+// .hasChildren already set — see buildLeftList's own genre-mode branch)
+// down to what should actually be visible given state.collapsedGenres.
+// Single pass: once a collapsed row with children is hit, everything
+// deeper than it is skipped until the list returns back up to its own
+// depth — nested collapses inside an already-hidden branch don't need
+// separate handling, since their rows are already being skipped anyway.
+function filterCollapsedGenreRows(rows) {
+  const visible = [];
+  let hideUntilDepth = null;
+  rows.forEach(row => {
+    if (hideUntilDepth !== null) {
+      if (row.depth > hideUntilDepth) return;
+      hideUntilDepth = null;
+    }
+    visible.push(row);
+    if (row.hasChildren && state.collapsedGenres.has(genreTaxonomyKey(row.key))) {
+      hideUntilDepth = row.depth;
+    }
+  });
+  return visible;
+}
+
+// Expand/collapse one genre's children in the left panel's Genre tree —
+// the caret button built in buildLeftRow's genre-mode branch. Persisted
+// (state.collapsedGenres, saved as an array — see savePrefs/loadPrefs)
+// so a collapsed branch stays collapsed across a reload.
+function toggleGenreCollapse(key) {
+  if (state.collapsedGenres.has(key)) state.collapsedGenres.delete(key);
+  else state.collapsedGenres.add(key);
+  savePrefs();
+  buildLeftList();
+}
+
 function buildLeftList() {
   const mode = state.leftMode;
   // Apply the chosen thumbnail size CSS class
@@ -8030,6 +8121,13 @@ if (mode === 'artist') {
     // skipped for this mode (sorting by count wouldn't respect the
     // hierarchy, and it's already alphabetized within each level).
     entries = buildGenreTree(sourceRaw, state.genreTaxonomy);
+    // "Has children" purely from the DFS pre-order structure buildGenreTree
+    // already returns — a shared, generic function (Release Statistics
+    // uses it too) with no notion of collapse state, so this stays
+    // entirely in the left-panel rendering path instead. A row has
+    // children exactly when the NEXT row in the list is one level deeper.
+    entries.forEach((row, i) => { row.hasChildren = !!(entries[i + 1] && entries[i + 1].depth > row.depth); });
+    entries = filterCollapsedGenreRows(entries);
   } else {
     entries = sourceRaw
       .map(r => ({ key: r.row, artKey: artKey(r), label: r.title, sub: r.artist, count: null, item: r }));
@@ -8472,7 +8570,8 @@ const SEARCH_FIELD_ALIASES = {
   catalog: 'catalog', cat: 'catalog', type: 'type',
   year: 'year', rating: 'rating',
   region: 'region', location: 'location',
-  track: 'track', song: 'track'
+  track: 'track', song: 'track',
+  descriptor: 'descriptor', descriptors: 'descriptor'
 };
 
 // Manual tokenizer (rather than one big regex) so quoted phrases, an
@@ -8631,6 +8730,7 @@ function applyAdvSearch() {
   const label = el.advLabel.value.trim();
   const type = el.advType.value.trim();
   const catalog = el.advCatalog.value.trim();
+  const descriptor = el.advDescriptor.value.trim();
   const extra = el.advExtra.value.trim();
   const yearFrom = el.advYearFrom.value.trim();
   const yearTo = el.advYearTo.value.trim();
@@ -8642,6 +8742,7 @@ function applyAdvSearch() {
   if (label) clauses.push(`label:${advQuoteIfNeeded(label)}`);
   if (type) clauses.push(`type:${advQuoteIfNeeded(type)}`);
   if (catalog) clauses.push(`catalog:${advQuoteIfNeeded(catalog)}`);
+  if (descriptor) clauses.push(`descriptor:${advQuoteIfNeeded(descriptor)}`);
 
   if (yearFrom && yearTo) clauses.push(yearFrom === yearTo ? `year:${yearFrom}` : `year:${yearFrom}-${yearTo}`);
   else if (yearFrom) clauses.push(`year:>=${yearFrom}`);
@@ -20964,6 +21065,13 @@ html, body {
   .left-row-title.genre-tree-root { font-weight: 700; }
   .left-row-title.genre-tree-child { font-weight: 400; font-size: 11.5px; }
   .left-row-title.genre-tree-child::before { content: '\21b3 '; color: var(--text-dim); }
+  .genre-tree-caret {
+    flex: 0 0 auto; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;
+    background: none; border: none; color: var(--text-dim); font-size: 9px; cursor: pointer; padding: 0;
+    transition: transform 0.15s ease;
+  }
+  .genre-tree-caret:hover { color: var(--text); }
+  .genre-tree-caret.collapsed { transform: rotate(-90deg); }
   .left-row-sub { font-size: 11px; color: var(--text-dim); margin: 1px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .left-row-count {
     font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-dim);
