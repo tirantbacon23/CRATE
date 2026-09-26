@@ -13,7 +13,38 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.136
+  CURRENT_VERSION: 1.29.137
+
+  1.29.137 — 2026-09-26 — Feature: Last.fm scrobbling for YouTube-sourced
+          plays specifically. Last.fm's own Spotify integration already
+          scrobbles Spotify plays automatically, entirely external to
+          CRATE — but there's no equivalent for YouTube, since Last.fm has
+          no way to see what plays inside an embedded video. Anything
+          played via a YouTube link inside CRATE never reached a Last.fm
+          profile at all until this.
+
+          New "Last.fm Scrobbling…" settings modal (API Key/Shared Secret,
+          same trust tradeoff already accepted for Spotify's Client
+          Credentials — the Shared Secret has to live in browser JS to
+          sign each request) plus a real Connect flow: Last.fm's classic
+          desktop auth (auth.getToken -> approve on last.fm's own site, no
+          redirect needed -> auth.getSession exchanges the token for a
+          permanent session key). onYtPlayerStateChange now tracks a
+          YouTube track's own start time (reset only when the track
+          actually changes — identified by its YouTube URL — not on every
+          resume-from-pause or seek, both of which also fire PLAYING),
+          fires track.updateNowPlaying once a genuinely new track starts,
+          and checks Last.fm's real eligibility rule (played past half its
+          duration or 4 minutes, whichever is less, and the track itself
+          over 30 seconds) before submitting track.scrobble on ENDED.
+
+          A standard public-domain JS MD5 was inlined for Last.fm's
+          api_sig request-signing scheme (sort every param but format/
+          callback, concatenate key+value pairs, append the secret, MD5,
+          hex-encode) since Web Crypto has no MD5 — verified correct
+          against three known hash test vectors (empty string, "hello",
+          the standard pangram) before shipping, given a silently-wrong
+          hash here would make every signed request fail invisibly.
 
   1.29.136 — 2026-09-26 — Bugfix, root cause confirmed: "descriptors for
           all releases got cleared" was never actual data loss — the
@@ -3648,6 +3679,7 @@
           <div class="menu-divider"></div>
           <div class="menu-section-title">Integrations</div>
           <button type="button" id="lastfmBtn">Import from Last.fm</button>
+          <button type="button" id="menuLastfmScrobble">Last.fm Scrobbling…</button>
           <button type="button" id="menuSpotifyApi">Spotify API…</button>
           <button type="button" id="menuDiscogsApi">Discogs API…</button>
           <button type="button" id="menuYoutubeApi">YouTube API…</button>
@@ -4929,6 +4961,39 @@
   </div>
 </div>
 
+<!-- Last.fm scrobbling modal — Last.fm's own Spotify integration already
+     scrobbles Spotify plays automatically (external to CRATE entirely,
+     nothing this app needs to do), but there's no equivalent for YouTube —
+     Last.fm has no way to see what plays in an embedded YouTube video, so
+     without this, anything played via a YouTube link inside CRATE never
+     reaches a Last.fm profile at all. This submits real scrobbles
+     (track.scrobble) for YouTube-engine playback specifically — see
+     onYtPlayerStateChange's own hook into it. -->
+<div id="lastfmScrobbleOverlay" class="arrange-overlay" hidden>
+  <div class="arrange-modal add-modal">
+    <div class="arrange-header"><h2>Last.fm Scrobbling</h2><button id="lastfmScrobbleClose" class="modal-x" aria-label="Close">✕</button></div>
+    <div class="arrange-body">
+      <p class="arrange-hint">Scrobbles YouTube-sourced plays to Last.fm — Spotify plays already scrobble on their own via Last.fm's own Spotify connection, so this only ever covers what that can't see. Create a free API application at last.fm/api/account/create (any name/description; the Callback URL field can be left blank — this doesn't use it) and paste the API Key and Shared Secret below. Stored only in this browser.</p>
+      <label class="add-field">API Key <input type="text" id="lastfmScrobbleApiKey" autocomplete="off"></label>
+      <label class="add-field">Shared Secret <input type="text" id="lastfmScrobbleSecret" autocomplete="off"></label>
+      <div class="log-form-actions">
+        <button id="lastfmScrobbleSaveBtn" class="save-btn">Save</button>
+        <button id="lastfmScrobbleCancelBtn" class="cancel-btn">Cancel</button>
+      </div>
+      <p id="lastfmScrobbleStatus" class="arrange-hint" hidden></p>
+
+      <div class="config-subheading">Connect your account</div>
+      <p class="arrange-hint" id="lastfmScrobbleConnectHint">Save your API Key/Secret above first, then connect the specific Last.fm account to scrobble to.</p>
+      <div class="log-form-actions">
+        <button id="lastfmScrobbleConnectBtn" class="save-btn" type="button">Connect Last.fm account</button>
+        <button id="lastfmScrobbleFinishBtn" class="save-btn" type="button" hidden>I've approved it — finish connecting</button>
+        <button id="lastfmScrobbleDisconnectBtn" class="cancel-btn" type="button" hidden>Disconnect</button>
+      </div>
+      <p id="lastfmScrobbleConnectStatus" class="arrange-hint" hidden></p>
+    </div>
+  </div>
+</div>
+
 <!-- Discogs API token modal — powers the "⤓ Discogs" genre/style lookup in
      Edit details. Discogs's genre+style taxonomy is more granular than
      MusicBrainz's, but its search endpoint requires authentication, so a
@@ -5000,7 +5065,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.136';
+const APP_VERSION = '1.29.137';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -5069,6 +5134,9 @@ const MOBILE_OVERFLOW_ACTIONS = [
 ];
 const SPOTIFY_CREDS_KEY = 'crate_spotify_creds_v1';
 const DISCOGS_TOKEN_KEY = 'crate_discogs_token_v1';
+const LASTFM_SCROBBLE_CREDS_KEY = 'crate_lastfm_scrobble_creds_v1'; // { apiKey, sharedSecret }
+const LASTFM_SCROBBLE_SESSION_KEY = 'crate_lastfm_scrobble_session_v1'; // { sessionKey, username }
+const LASTFM_PENDING_TOKEN_KEY = 'crate_lastfm_pending_token_v1'; // { token, requestedAt } — mid-way through auth.getToken -> user approves on last.fm -> auth.getSession
 const YOUTUBE_API_KEY_KEY = 'crate_youtube_api_key_v1';
 const COVERAGE_CACHE_KEY = 'crate_coverage_cache_v1';
 // Map viewer (see openMapModal): resolved lat/lon per Location string,
@@ -5380,6 +5448,8 @@ const el = {};
   'albumQuickPeek','albumQuickPeekClose','albumQuickPeekArt','albumQuickPeekTitle','albumQuickPeekSub','albumQuickPeekTracks',
   'nowPlayingBox','nowPlayingArt','nowPlayingTitle','nowPlayingArtist',
   'menuSpotifyApi','spotifyOverlay','spotifyClose','spotifyClientId','spotifyClientSecret','spotifySaveBtn','spotifyCancelBtn','spotifyStatus',
+  'menuLastfmScrobble','lastfmScrobbleOverlay','lastfmScrobbleClose','lastfmScrobbleApiKey','lastfmScrobbleSecret','lastfmScrobbleSaveBtn','lastfmScrobbleCancelBtn','lastfmScrobbleStatus',
+  'lastfmScrobbleConnectHint','lastfmScrobbleConnectBtn','lastfmScrobbleFinishBtn','lastfmScrobbleDisconnectBtn','lastfmScrobbleConnectStatus',
   'menuDiscogsApi','discogsOverlay','discogsClose','discogsToken','discogsSaveBtn','discogsCancelBtn','discogsStatus',
   'menuYoutubeApi','youtubeApiOverlay','youtubeApiClose','youtubeApiKey','youtubeApiSaveBtn','youtubeApiCancelBtn','youtubeApiStatus',
   'menuNewReleases','newReleasesBadge','newReleasesOverlay','newReleasesClose','newReleasesCheckBtn','newReleasesLastChecked','newReleasesStatus','newReleasesList',
@@ -6431,6 +6501,26 @@ function bindEvents() {
     el.spotifyStatus.hidden = false;
     setTimeout(() => { el.spotifyOverlay.hidden = true; }, 900);
   });
+
+  el.menuLastfmScrobble.addEventListener('click', () => {
+    el.lastfmScrobbleStatus.hidden = true;
+    el.lastfmScrobbleConnectStatus.hidden = true;
+    renderLastfmScrobbleModalState();
+    el.lastfmScrobbleOverlay.hidden = false;
+    el.layoutMenu.hidden = true;
+  });
+  el.lastfmScrobbleClose.addEventListener('click', () => { el.lastfmScrobbleOverlay.hidden = true; });
+  el.lastfmScrobbleCancelBtn.addEventListener('click', () => { el.lastfmScrobbleOverlay.hidden = true; });
+  el.lastfmScrobbleSaveBtn.addEventListener('click', () => {
+    const apiKey = el.lastfmScrobbleApiKey.value.trim();
+    const sharedSecret = el.lastfmScrobbleSecret.value.trim();
+    saveLastfmScrobbleCreds(apiKey, sharedSecret);
+    el.lastfmScrobbleStatus.textContent = apiKey && sharedSecret ? 'Saved.' : 'Cleared.';
+    el.lastfmScrobbleStatus.hidden = false;
+  });
+  el.lastfmScrobbleConnectBtn.addEventListener('click', connectLastfmScrobbleAccount);
+  el.lastfmScrobbleFinishBtn.addEventListener('click', finishLastfmScrobbleConnect);
+  el.lastfmScrobbleDisconnectBtn.addEventListener('click', disconnectLastfmScrobbleAccount);
 
   el.menuDiscogsApi.addEventListener('click', () => {
     el.discogsToken.value = loadDiscogsToken();
@@ -18805,6 +18895,7 @@ function ensureYtPlayer() {
 
 function onYtPlayerStateChange(e) {
   if (e.data === YT.PlayerState.ENDED) {
+    maybeSubmitYtScrobble(); // see if this play qualifies (Last.fm's own 50%/4-min rule) before anything below moves on to a different track
     if (ytQueueIndex < ytQueue.length - 1) { playYtQueueIndex(ytQueueIndex + 1); return; }
     setYtPlayPauseUI(true);
     // This video standing in for the current entry of a "Play playlist"
@@ -18816,7 +18907,21 @@ function onYtPlayerStateChange(e) {
     }
     return;
   }
-  if (e.data === YT.PlayerState.PLAYING) { setYtPlayPauseUI(false); ytDuration = ytPlayer.getDuration() || 0; }
+  if (e.data === YT.PlayerState.PLAYING) {
+    setYtPlayPauseUI(false);
+    ytDuration = ytPlayer.getDuration() || 0;
+    // Last.fm scrobble tracking — only reset the start-time timer (and
+    // fire track.updateNowPlaying) when this is genuinely a DIFFERENT
+    // track from the one already being tracked, not on every resume from
+    // pause or seek, both of which also fire PLAYING. Identified by the
+    // track's own YouTube URL rather than trying to derive some other key.
+    const currentUrl = ytQueue[ytQueueIndex] && ytQueue[ytQueueIndex].url;
+    if (currentUrl && currentUrl !== ytScrobbleTrackKey) {
+      ytScrobbleTrackKey = currentUrl;
+      ytScrobbleStartedAt = Date.now();
+      ytScrobbleNowPlaying();
+    }
+  }
   else if (e.data === YT.PlayerState.PAUSED) setYtPlayPauseUI(true);
 }
 
@@ -19240,6 +19345,251 @@ async function fetchDiscogsGenreStyle(artist, title) {
    trust model this file already uses for the Last.fm API key. Only usable
    for reading the public catalog (search), never anyone's account data. */
 let spotifyToken = null; // { value, expiresAt } — cached in memory for this session
+
+// ---------- Last.fm scrobbling (YouTube-sourced plays only) ----------
+// Last.fm's own Spotify integration already scrobbles Spotify plays
+// automatically, entirely external to CRATE — nothing this app does or
+// needs to do. There's no equivalent for YouTube: Last.fm has no way to
+// see what plays inside an embedded YouTube video, so without this,
+// anything played via a YouTube link in CRATE never reaches a Last.fm
+// profile at all. This submits real scrobbles (track.scrobble) for that
+// specific gap — see onYtPlayerStateChange's own hook into it.
+//
+// Auth is Last.fm's classic "desktop" flow (auth.getToken -> user
+// approves on last.fm's own site, no redirect needed -> auth.getSession
+// exchanges the now-authorized token for a permanent session key), same
+// shape as Spotify's Client Credentials setup already in this file, and
+// carries the identical trust tradeoff: the Shared Secret has to live in
+// browser JS to compute each request's signature, which is not best
+// practice for a multi-tenant public app, but is consistent with the risk
+// posture this personal-use app already accepts for Spotify.
+//
+// Every write call (auth.getSession, track.updateNowPlaying,
+// track.scrobble) must be signed: every parameter except `format` and
+// `callback`, sorted alphabetically by key, concatenated as key+value with
+// no separators, the Shared Secret appended at the end, MD5'd, hex-encoded
+// — Last.fm's api_sig scheme. MD5 has no browser-native implementation
+// (unlike SHA-*, which Web Crypto provides), so a standard, widely-used
+// public-domain JS MD5 is inlined below rather than pulling in a library.
+function md5(input) {
+  function rotateLeft(n, s) { return (n << s) | (n >>> (32 - s)); }
+  function addUnsigned(x, y) {
+    const x4 = (x & 0x40000000), y4 = (y & 0x40000000), x8 = (x & 0x80000000), y8 = (y & 0x80000000);
+    const result = (x & 0x3FFFFFFF) + (y & 0x3FFFFFFF);
+    if (x4 & y4) return result ^ 0x80000000 ^ x8 ^ y8;
+    if (x4 | y4) {
+      if (result & 0x40000000) return result ^ 0xC0000000 ^ x8 ^ y8;
+      return result ^ 0x40000000 ^ x8 ^ y8;
+    }
+    return result ^ x8 ^ y8;
+  }
+  function F(x, y, z) { return (x & y) | (~x & z); }
+  function G(x, y, z) { return (x & z) | (y & ~z); }
+  function H(x, y, z) { return x ^ y ^ z; }
+  function I(x, y, z) { return y ^ (x | ~z); }
+  function FF(a,b,c,d,x,s,ac){ a=addUnsigned(a,addUnsigned(addUnsigned(F(b,c,d),x),ac)); return addUnsigned(rotateLeft(a,s),b); }
+  function GG(a,b,c,d,x,s,ac){ a=addUnsigned(a,addUnsigned(addUnsigned(G(b,c,d),x),ac)); return addUnsigned(rotateLeft(a,s),b); }
+  function HH(a,b,c,d,x,s,ac){ a=addUnsigned(a,addUnsigned(addUnsigned(H(b,c,d),x),ac)); return addUnsigned(rotateLeft(a,s),b); }
+  function II(a,b,c,d,x,s,ac){ a=addUnsigned(a,addUnsigned(addUnsigned(I(b,c,d),x),ac)); return addUnsigned(rotateLeft(a,s),b); }
+  function convertToWordArray(str) {
+    let wordCount;
+    const messageLength = str.length;
+    const numberOfWordsTemp1 = messageLength + 8;
+    const numberOfWordsTemp2 = (numberOfWordsTemp1 - (numberOfWordsTemp1 % 64)) / 64;
+    const numberOfWords = (numberOfWordsTemp2 + 1) * 16;
+    const wordArray = new Array(numberOfWords - 1);
+    let bytePosition = 0, byteCount = 0;
+    while (byteCount < messageLength) {
+      wordCount = (byteCount - (byteCount % 4)) / 4;
+      bytePosition = (byteCount % 4) * 8;
+      wordArray[wordCount] = (wordArray[wordCount] || 0) | (str.charCodeAt(byteCount) << bytePosition);
+      byteCount++;
+    }
+    wordCount = (byteCount - (byteCount % 4)) / 4;
+    bytePosition = (byteCount % 4) * 8;
+    wordArray[wordCount] = (wordArray[wordCount] || 0) | (0x80 << bytePosition);
+    wordArray[numberOfWords - 2] = messageLength << 3;
+    wordArray[numberOfWords - 1] = messageLength >>> 29;
+    return wordArray;
+  }
+  function wordToHex(value) {
+    let hex = '', byte, count;
+    for (count = 0; count <= 3; count++) {
+      byte = (value >>> (count * 8)) & 255;
+      hex += ('0' + byte.toString(16)).slice(-2);
+    }
+    return hex;
+  }
+  const str = unescape(encodeURIComponent(input)); // UTF-8 encode
+  const x = convertToWordArray(str);
+  let a = 0x67452301, b = 0xEFCDAB89, c = 0x98BADCFE, d = 0x10325476;
+  const S11=7,S12=12,S13=17,S14=22,S21=5,S22=9,S23=14,S24=20,S31=4,S32=11,S33=16,S34=23,S41=6,S42=10,S43=15,S44=21;
+  for (let k = 0; k < x.length; k += 16) {
+    const AA=a, BB=b, CC=c, DD=d;
+    a=FF(a,b,c,d,x[k+0],S11,0xD76AA478); d=FF(d,a,b,c,x[k+1],S12,0xE8C7B756); c=FF(c,d,a,b,x[k+2],S13,0x242070DB); b=FF(b,c,d,a,x[k+3],S14,0xC1BDCEEE);
+    a=FF(a,b,c,d,x[k+4],S11,0xF57C0FAF); d=FF(d,a,b,c,x[k+5],S12,0x4787C62A); c=FF(c,d,a,b,x[k+6],S13,0xA8304613); b=FF(b,c,d,a,x[k+7],S14,0xFD469501);
+    a=FF(a,b,c,d,x[k+8],S11,0x698098D8); d=FF(d,a,b,c,x[k+9],S12,0x8B44F7AF); c=FF(c,d,a,b,x[k+10],S13,0xFFFF5BB1); b=FF(b,c,d,a,x[k+11],S14,0x895CD7BE);
+    a=FF(a,b,c,d,x[k+12],S11,0x6B901122); d=FF(d,a,b,c,x[k+13],S12,0xFD987193); c=FF(c,d,a,b,x[k+14],S13,0xA679438E); b=FF(b,c,d,a,x[k+15],S14,0x49B40821);
+    a=GG(a,b,c,d,x[k+1],S21,0xF61E2562); d=GG(d,a,b,c,x[k+6],S22,0xC040B340); c=GG(c,d,a,b,x[k+11],S23,0x265E5A51); b=GG(b,c,d,a,x[k+0],S24,0xE9B6C7AA);
+    a=GG(a,b,c,d,x[k+5],S21,0xD62F105D); d=GG(d,a,b,c,x[k+10],S22,0x02441453); c=GG(c,d,a,b,x[k+15],S23,0xD8A1E681); b=GG(b,c,d,a,x[k+4],S24,0xE7D3FBC8);
+    a=GG(a,b,c,d,x[k+9],S21,0x21E1CDE6); d=GG(d,a,b,c,x[k+14],S22,0xC33707D6); c=GG(c,d,a,b,x[k+3],S23,0xF4D50D87); b=GG(b,c,d,a,x[k+8],S24,0x455A14ED);
+    a=GG(a,b,c,d,x[k+13],S21,0xA9E3E905); d=GG(d,a,b,c,x[k+2],S22,0xFCEFA3F8); c=GG(c,d,a,b,x[k+7],S23,0x676F02D9); b=GG(b,c,d,a,x[k+12],S24,0x8D2A4C8A);
+    a=HH(a,b,c,d,x[k+5],S31,0xFFFA3942); d=HH(d,a,b,c,x[k+8],S32,0x8771F681); c=HH(c,d,a,b,x[k+11],S33,0x6D9D6122); b=HH(b,c,d,a,x[k+14],S34,0xFDE5380C);
+    a=HH(a,b,c,d,x[k+1],S31,0xA4BEEA44); d=HH(d,a,b,c,x[k+4],S32,0x4BDECFA9); c=HH(c,d,a,b,x[k+7],S33,0xF6BB4B60); b=HH(b,c,d,a,x[k+10],S34,0xBEBFBC70);
+    a=HH(a,b,c,d,x[k+13],S31,0x289B7EC6); d=HH(d,a,b,c,x[k+0],S32,0xEAA127FA); c=HH(c,d,a,b,x[k+3],S33,0xD4EF3085); b=HH(b,c,d,a,x[k+6],S34,0x04881D05);
+    a=HH(a,b,c,d,x[k+9],S31,0xD9D4D039); d=HH(d,a,b,c,x[k+12],S32,0xE6DB99E5); c=HH(c,d,a,b,x[k+15],S33,0x1FA27CF8); b=HH(b,c,d,a,x[k+2],S34,0xC4AC5665);
+    a=II(a,b,c,d,x[k+0],S41,0xF4292244); d=II(d,a,b,c,x[k+7],S42,0x432AFF97); c=II(c,d,a,b,x[k+14],S43,0xAB9423A7); b=II(b,c,d,a,x[k+5],S44,0xFC93A039);
+    a=II(a,b,c,d,x[k+12],S41,0x655B59C3); d=II(d,a,b,c,x[k+3],S42,0x8F0CCC92); c=II(c,d,a,b,x[k+10],S43,0xFFEFF47D); b=II(b,c,d,a,x[k+1],S44,0x85845DD1);
+    a=II(a,b,c,d,x[k+8],S41,0x6FA87E4F); d=II(d,a,b,c,x[k+15],S42,0xFE2CE6E0); c=II(c,d,a,b,x[k+6],S43,0xA3014314); b=II(b,c,d,a,x[k+13],S44,0x4E0811A1);
+    a=II(a,b,c,d,x[k+4],S41,0xF7537E82); d=II(d,a,b,c,x[k+11],S42,0xBD3AF235); c=II(c,d,a,b,x[k+2],S43,0x2AD7D2BB); b=II(b,c,d,a,x[k+9],S44,0xEB86D391);
+    a=addUnsigned(a,AA); b=addUnsigned(b,BB); c=addUnsigned(c,CC); d=addUnsigned(d,DD);
+  }
+  return (wordToHex(a)+wordToHex(b)+wordToHex(c)+wordToHex(d)).toLowerCase();
+}
+
+function loadLastfmScrobbleCreds() {
+  try { return JSON.parse(localStorage.getItem(LASTFM_SCROBBLE_CREDS_KEY) || '{}'); }
+  catch (e) { return {}; }
+}
+function saveLastfmScrobbleCreds(apiKey, sharedSecret) {
+  try { localStorage.setItem(LASTFM_SCROBBLE_CREDS_KEY, JSON.stringify({ apiKey, sharedSecret })); }
+  catch (e) { /* localStorage unavailable — safe to ignore */ }
+}
+function loadLastfmScrobbleSession() {
+  try { return JSON.parse(localStorage.getItem(LASTFM_SCROBBLE_SESSION_KEY) || '{}'); }
+  catch (e) { return {}; }
+}
+function saveLastfmScrobbleSession(sessionKey, username) {
+  try { localStorage.setItem(LASTFM_SCROBBLE_SESSION_KEY, JSON.stringify({ sessionKey, username })); }
+  catch (e) { /* localStorage unavailable — safe to ignore */ }
+}
+function clearLastfmScrobbleSession() {
+  try { localStorage.removeItem(LASTFM_SCROBBLE_SESSION_KEY); } catch (e) { /* ignore */ }
+}
+
+// Last.fm's api_sig scheme: every param except format/callback, sorted by
+// key, concatenated as key+value with no separators, secret appended, MD5'd.
+function lastfmApiSig(params, secret) {
+  const keys = Object.keys(params).filter(k => k !== 'format' && k !== 'callback').sort();
+  let base = '';
+  keys.forEach(k => { base += k + params[k]; });
+  base += secret;
+  return md5(base);
+}
+
+// Generic signed Last.fm API call. GET for read methods, POST (form-
+// encoded) for write methods (auth.getSession, track.scrobble,
+// track.updateNowPlaying) per Last.fm's own requirement that state-
+// changing calls must be POST.
+async function lastfmApiCall(method, params, isPost) {
+  const { apiKey, sharedSecret } = loadLastfmScrobbleCreds();
+  if (!apiKey || !sharedSecret) return null;
+  const allParams = Object.assign({ method, api_key: apiKey }, params);
+  allParams.api_sig = lastfmApiSig(allParams, sharedSecret);
+  allParams.format = 'json';
+  const qs = new URLSearchParams(allParams).toString();
+  const url = 'https://ws.audioscrobbler.com/2.0/' + (isPost ? '' : '?' + qs);
+  try {
+    const res = await fetch(url, isPost ? {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: qs
+    } : undefined);
+    const data = await res.json();
+    if (data.error) { console.warn('Last.fm API error', data.error, data.message); return null; }
+    return data;
+  } catch (e) {
+    console.warn('Last.fm API request failed', e);
+    return null;
+  }
+}
+
+// Step 1 of connecting an account — get an unauthorized token and send the
+// person to Last.fm's own site to approve it (no redirect/callback needed,
+// same "desktop app" flow every Last.fm scrobbler uses).
+async function connectLastfmScrobbleAccount() {
+  const { apiKey } = loadLastfmScrobbleCreds();
+  if (!apiKey) { flashGlobalToast('Save your API Key/Shared Secret first.'); return; }
+  const data = await lastfmApiCall('auth.getToken', {}, false);
+  if (!data || !data.token) { el.lastfmScrobbleConnectStatus.hidden = false; el.lastfmScrobbleConnectStatus.textContent = 'Could not get a token from Last.fm — check your API Key/Secret.'; return; }
+  try { localStorage.setItem(LASTFM_PENDING_TOKEN_KEY, JSON.stringify({ token: data.token, requestedAt: Date.now() })); } catch (e) { /* ignore */ }
+  window.open(`https://www.last.fm/api/auth/?api_key=${encodeURIComponent(apiKey)}&token=${encodeURIComponent(data.token)}`, '_blank', 'noopener,noreferrer');
+  el.lastfmScrobbleFinishBtn.hidden = false;
+  el.lastfmScrobbleConnectStatus.hidden = false;
+  el.lastfmScrobbleConnectStatus.textContent = 'Approve access on the Last.fm tab that just opened, then come back and click "I\u2019ve approved it".';
+}
+
+// Step 2 — exchange the now-authorized token for a permanent session key.
+// Last.fm's token is only valid for a limited window from when it was
+// requested (auth.getToken), so a stale pending token just prompts to
+// reconnect rather than failing silently.
+async function finishLastfmScrobbleConnect() {
+  let pending;
+  try { pending = JSON.parse(localStorage.getItem(LASTFM_PENDING_TOKEN_KEY) || '{}'); } catch (e) { pending = {}; }
+  if (!pending.token) { flashGlobalToast('Click "Connect Last.fm account" first.'); return; }
+  const data = await lastfmApiCall('auth.getSession', { token: pending.token }, true);
+  if (!data || !data.session) {
+    el.lastfmScrobbleConnectStatus.hidden = false;
+    el.lastfmScrobbleConnectStatus.textContent = 'Not approved yet (or the token expired) — approve it on Last.fm, then try again.';
+    return;
+  }
+  saveLastfmScrobbleSession(data.session.key, data.session.name);
+  try { localStorage.removeItem(LASTFM_PENDING_TOKEN_KEY); } catch (e) { /* ignore */ }
+  renderLastfmScrobbleModalState();
+  flashGlobalToast(`Connected to Last.fm as ${data.session.name}.`);
+}
+
+function disconnectLastfmScrobbleAccount() {
+  clearLastfmScrobbleSession();
+  renderLastfmScrobbleModalState();
+}
+
+function renderLastfmScrobbleModalState() {
+  const creds = loadLastfmScrobbleCreds();
+  const session = loadLastfmScrobbleSession();
+  el.lastfmScrobbleApiKey.value = creds.apiKey || '';
+  el.lastfmScrobbleSecret.value = creds.sharedSecret || '';
+  const connected = !!session.sessionKey;
+  el.lastfmScrobbleConnectBtn.hidden = connected;
+  el.lastfmScrobbleFinishBtn.hidden = true;
+  el.lastfmScrobbleDisconnectBtn.hidden = !connected;
+  el.lastfmScrobbleConnectHint.textContent = connected
+    ? `Connected as ${session.username} — YouTube plays will scrobble to this account.`
+    : 'Save your API Key/Secret above first, then connect the specific Last.fm account to scrobble to.';
+}
+
+// ---- Actually submitting scrobbles for YouTube playback ----
+// Last.fm's own eligibility rule: a track must play for at least half its
+// duration, or 4 minutes, whichever is LESS, and must itself be longer
+// than 30 seconds — enforced here before ever calling track.scrobble
+// rather than relying on Last.fm to reject an ineligible one.
+let ytScrobbleTrackKey = null; // identity of the track currently being tracked for scrobble purposes (its YouTube URL) — reset whenever the actual track changes, not on every pause/resume/seek
+let ytScrobbleStartedAt = 0; // ms epoch — when THIS track first started playing
+function ytScrobbleEligible(durationSec, elapsedSec) {
+  if (!durationSec || durationSec < 30) return false;
+  return elapsedSec >= Math.min(240, durationSec / 2);
+}
+async function maybeSubmitYtScrobble() {
+  const session = loadLastfmScrobbleSession();
+  if (!session.sessionKey || !ytScrobbleTrackKey || !ytScrobbleStartedAt) return;
+  const elapsedSec = (Date.now() - ytScrobbleStartedAt) / 1000;
+  if (!ytScrobbleEligible(ytDuration, elapsedSec)) return;
+  const artist = (nowPlayingItem && nowPlayingItem.artist) || (currentSpotifyTrack && currentSpotifyTrack.artists && currentSpotifyTrack.artists[0] && currentSpotifyTrack.artists[0].name) || '';
+  const track = el.miniPlayerTitle.textContent || '';
+  if (!artist || !track) return; // nothing sensible to scrobble
+  await lastfmApiCall('track.scrobble', {
+    artist, track, timestamp: Math.floor(ytScrobbleStartedAt / 1000),
+    album: nowPlayingItem ? nowPlayingItem.title : ''
+  }, true);
+}
+function ytScrobbleNowPlaying() {
+  const session = loadLastfmScrobbleSession();
+  if (!session.sessionKey) return;
+  const artist = (nowPlayingItem && nowPlayingItem.artist) || '';
+  const track = el.miniPlayerTitle.textContent || '';
+  if (!artist || !track) return;
+  lastfmApiCall('track.updateNowPlaying', { artist, track, album: nowPlayingItem ? nowPlayingItem.title : '' }, true);
+}
 
 function loadSpotifyCreds() {
   try { return JSON.parse(localStorage.getItem(SPOTIFY_CREDS_KEY) || '{}'); }
