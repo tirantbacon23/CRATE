@@ -13,7 +13,50 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.128
+  CURRENT_VERSION: 1.29.130
+
+  1.29.130 — 2026-09-26 — Bugfix: genre-match bar (see genreFilterWeight)
+          could be nearly invisible for a secondary/tertiary genre match
+          against album art in a similar hue to --accent, since the whole
+          element (dark-adjacent-looking or not) faded via opacity along
+          with the color itself. Split into two layers: .genre-match-bar
+          itself is now a fixed rgba(0,0,0,0.45) backing, always fully
+          visible regardless of weight; a new ::after overlay carries the
+          actual accent color, with the weight now passed as a
+          --genre-weight custom property (was inline opacity on the outer
+          div) driving JUST that overlay's opacity. Strip still reads as
+          faint/strong for the same reason as before, but now against a
+          contrast-guaranteed dark base rather than whatever the art
+          happens to be.
+
+  1.29.129 — 2026-09-26 — Feature/cleanup: Track Info panel (right panel).
+          Removed the ⏮ ▶ ⏭ transport buttons (.track-info-transport) —
+          seek bar/time stays, "Show playback controls instead of cover
+          art" toggle relabeled "Show playback progress…" to match. Their
+          el[] entries, event listeners (el.trackInfoPrevBtn/PlayPauseBtn/
+          NextBtn), and the now-dead trackInfoPlayPauseBtn mirroring block
+          inside setMiniPlayerPlayPauseIcon all removed with them. Panel
+          also tightened (track-info-body padding/gap, art max-width 190→
+          150px) so the common case — a few fields + rating + art — fits
+          without needing its own scroll.
+
+          New "Show video, if a YouTube link is available" toggle
+          (trackInfoShowVideoToggle/state.trackInfoShowVideo, persisted):
+          when on, shows an embedded (muted) YouTube video in the same
+          slot as the art/progress bar, sized 16:9 instead of the square
+          art box (.track-info-art-wrap.showing-video). Backed by new
+          nowPlayingYoutubeLink, set at every playback entry point that
+          already resolves a specific track's links anyway — playTrackNow,
+          playCrateQueueIndex, openYoutubePlayer (the url param IS the
+          link), openSoundcloudPlayer (best-effort — no trackNum there, so
+          only actually resolves for a manual album via title match).
+          masterPlayerStepTrack clears it when stepping straight through
+          the Spotify SDK (previousTrack/nextTrack) rather than our own
+          crate queue, since the new track isn't known yet at that point;
+          renderMiniPlayerTrack's genuine-track-change branch then does the
+          same best-effort manual-album re-resolution openSoundcloudPlayer
+          uses, once the new track reports in. Video takes priority over
+          the progress-bar toggle, which still wins over plain cover art.
 
   1.29.128 — 2026-09-26 — Feature: genre-match cue on cards. While a genre
           nav-filter is active (left panel), each card now shows a thin
@@ -3788,11 +3831,9 @@
                 </div>
                 <span id="trackInfoTimeTotal" class="track-info-time">0:00</span>
               </div>
-              <div class="track-info-transport">
-                <button type="button" id="trackInfoPrevBtn" class="icon-btn" title="Previous" aria-label="Previous">⏮</button>
-                <button type="button" id="trackInfoPlayPauseBtn" class="icon-btn track-info-play-pause" title="Play/Pause" aria-label="Play/Pause">▶</button>
-                <button type="button" id="trackInfoNextBtn" class="icon-btn" title="Next" aria-label="Next">⏭</button>
-              </div>
+            </div>
+            <div id="trackInfoVideoWrap" class="track-info-video-wrap" hidden>
+              <div id="trackInfoVideoMount" class="track-info-video-mount" data-video-id=""></div>
             </div>
           </div>
           <p id="trackInfoEmpty" class="queue-empty">Nothing playing right now.</p>
@@ -4243,7 +4284,8 @@
           <label class="arrange-row-label"><input type="checkbox" id="rightPanelShowTrackInfo"> Track Info</label>
           <button id="configureTrackInfoBtn" class="config-btn">Panel Settings …</button>
         </div>
-        <label class="arrange-row arrange-row-sub"><input type="checkbox" id="trackInfoShowPlayerToggle"> Show playback controls instead of cover art</label>
+        <label class="arrange-row arrange-row-sub"><input type="checkbox" id="trackInfoShowPlayerToggle"> Show playback progress instead of cover art</label>
+        <label class="arrange-row arrange-row-sub"><input type="checkbox" id="trackInfoShowVideoToggle"> Show video, if a YouTube link is available</label>
       </div>
     </div>
 
@@ -4858,7 +4900,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.128';
+const APP_VERSION = '1.29.130';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -5166,7 +5208,8 @@ fields: {
   rightPanelShowQueue: true,     // both independently toggleable — see applyRightPanelSections()
   rightPanelShowHistory: false,
   rightPanelShowTrackInfo: false, // Track Info section — cover art (or, toggled, playback controls) + configurable fields for whatever's currently playing
-  trackInfoShowPlayer: false, // false = cover art (default), true = compact playback controls in that same slot — see renderTrackInfoPanel()
+  trackInfoShowPlayer: false, // false = cover art (default), true = compact playback progress in that same slot — see renderTrackInfoPanel()
+  trackInfoShowVideo: false, // if true AND the current track has a resolvable YouTube link, shows an embedded video in that same slot instead (takes priority over trackInfoShowPlayer) — see applyTrackInfoPlayerMode()
   releaseSearchGridView: false, // Add-album search results: list (default) or a Topster-style cover-art grid — see setReleaseSearchGridView()
   // Artist tab: which of your artists is selected, and a cache of their
   // full MusicBrainz discography (title/type/year per release-group) so
@@ -5198,7 +5241,7 @@ const el = {};
   'tabStats','tabArtist',
   'statsWrap','statsModeListening','statsModeCollection','statsListeningWrap','statsCollectionWrap','statsCollectionBody','statsYearList','statsDetail','statsDetailBack','statsDetailYear','statsDetailBody',
   'artistWrap','artistSearchInput','artistList','artistDetail',
-  'layoutBtn','layoutMenu','menuArrangePanels','arrangeModal','arrangeClose','toggleLeftPanel','toggleLeftNavCompact','toggleRightPanel','albumQuickPeekStyleSelect','addFieldsChecklist','rightPanelShowQueue','rightPanelShowHistory','rightPanelShowTrackInfo','trackInfoShowPlayerToggle','rightPanelQueueSection','rightPanelHistorySection','rightPanelTrackInfoSection','rightPanelEmptyMsg','rightHistoryPanelBody','trackInfoBody','trackInfoTextWrap','trackInfoTitle','trackInfoRatingRow','trackInfoArtWrap','trackInfoArt','trackInfoPlayerControls','trackInfoFields','trackInfoEmpty','trackInfoSeekTrack','trackInfoSeekFill','trackInfoSeekHandle','trackInfoTimeCurrent','trackInfoTimeTotal','trackInfoPrevBtn','trackInfoPlayPauseBtn','trackInfoNextBtn','historyViewListBtn','historyViewGridBtn','configureMainBtn','configureQueueBtn','configureHistoryBtn','configureTrackInfoBtn','historyLayoutChronoBtn','historyLayoutByDayBtn','configureMiniPlayerBtn','toggleCoverLinks','toggleFitArtwork','toggleCloseGaps','fieldPlacementGroup','fieldPlacementOverlay','fieldPlacementBelow',
+  'layoutBtn','layoutMenu','menuArrangePanels','arrangeModal','arrangeClose','toggleLeftPanel','toggleLeftNavCompact','toggleRightPanel','albumQuickPeekStyleSelect','addFieldsChecklist','rightPanelShowQueue','rightPanelShowHistory','rightPanelShowTrackInfo','trackInfoShowPlayerToggle','trackInfoShowVideoToggle','rightPanelQueueSection','rightPanelHistorySection','rightPanelTrackInfoSection','rightPanelEmptyMsg','rightHistoryPanelBody','trackInfoBody','trackInfoTextWrap','trackInfoTitle','trackInfoRatingRow','trackInfoArtWrap','trackInfoArt','trackInfoPlayerControls','trackInfoVideoWrap','trackInfoVideoMount','trackInfoFields','trackInfoEmpty','trackInfoSeekTrack','trackInfoSeekFill','trackInfoSeekHandle','trackInfoTimeCurrent','trackInfoTimeTotal','historyViewListBtn','historyViewGridBtn','configureMainBtn','configureQueueBtn','configureHistoryBtn','configureTrackInfoBtn','historyLayoutChronoBtn','historyLayoutByDayBtn','configureMiniPlayerBtn','toggleCoverLinks','toggleFitArtwork','toggleCloseGaps','fieldPlacementGroup','fieldPlacementOverlay','fieldPlacementBelow',
   'mainConfigModal','mainConfigClose','mainConfigArtworkOptions',
   'fldTitle','fldArtist','fldYear','fldRating','fldType','fldCatalog','fldGenre','fldLabel','fldDuration','menuCustomizeMain',
   'listenedFilterBtn',
@@ -5599,6 +5642,7 @@ async function init() {
   el.rightPanelShowHistory.checked = state.rightPanelShowHistory;
   el.rightPanelShowTrackInfo.checked = state.rightPanelShowTrackInfo;
   el.trackInfoShowPlayerToggle.checked = state.trackInfoShowPlayer;
+  el.trackInfoShowVideoToggle.checked = state.trackInfoShowVideo;
   el.albumQuickPeekStyleSelect.value = state.albumQuickPeekStyle;
   el.addResultsListBtn.classList.toggle('active', !state.releaseSearchGridView);
   el.addResultsGridBtn.classList.toggle('active', state.releaseSearchGridView);
@@ -6470,6 +6514,11 @@ function bindEvents() {
     savePrefs();
     applyTrackInfoPlayerMode();
   });
+  el.trackInfoShowVideoToggle.addEventListener('change', () => {
+    state.trackInfoShowVideo = el.trackInfoShowVideoToggle.checked;
+    savePrefs();
+    applyTrackInfoPlayerMode();
+  });
   el.configureTrackInfoBtn.addEventListener('click', () => {
     el.arrangeModal.hidden = true;
     renderConfigSlots('trackInfo');
@@ -6776,9 +6825,6 @@ function bindEvents() {
   initMobileOverflowMenu();
   initSeekDrag();
   initTrackInfoSeek();
-  el.trackInfoPlayPauseBtn.addEventListener('click', () => el.miniPlayerPlayPause.click()); // reuse the mini player button's own click handler wholesale rather than duplicating its engine-routing logic
-  el.trackInfoPrevBtn.addEventListener('click', () => masterPlayerStepTrack(-1));
-  el.trackInfoNextBtn.addEventListener('click', () => masterPlayerStepTrack(1));
   el.miniPlayerArt.addEventListener('click', () => {
     // On the compact mobile layout, tapping anywhere on the bar (including
     // the art) opens Quick Actions instead — see the el.miniPlayer listener
@@ -7314,6 +7360,7 @@ function loadPrefs() {
     if (typeof p.rightPanelShowHistory === 'boolean') state.rightPanelShowHistory = p.rightPanelShowHistory;
     if (typeof p.rightPanelShowTrackInfo === 'boolean') state.rightPanelShowTrackInfo = p.rightPanelShowTrackInfo;
     if (typeof p.trackInfoShowPlayer === 'boolean') state.trackInfoShowPlayer = p.trackInfoShowPlayer;
+    if (typeof p.trackInfoShowVideo === 'boolean') state.trackInfoShowVideo = p.trackInfoShowVideo;
     if (typeof p.releaseSearchGridView === 'boolean') state.releaseSearchGridView = p.releaseSearchGridView;
     if (p.lastfmHistoryLayout === 'chronological' || p.lastfmHistoryLayout === 'byDay') state.lastfmHistoryLayout = p.lastfmHistoryLayout;
     if (p.lastfmHistoryViewMode === 'list' || p.lastfmHistoryViewMode === 'grid') state.lastfmHistoryViewMode = p.lastfmHistoryViewMode;
@@ -7336,6 +7383,7 @@ function savePrefs() {
       rightPanelShowHistory: state.rightPanelShowHistory,
       rightPanelShowTrackInfo: state.rightPanelShowTrackInfo,
       trackInfoShowPlayer: state.trackInfoShowPlayer,
+      trackInfoShowVideo: state.trackInfoShowVideo,
       releaseSearchGridView: state.releaseSearchGridView,
       lastfmHistoryLayout: state.lastfmHistoryLayout,
       lastfmHistoryViewMode: state.lastfmHistoryViewMode,
@@ -9951,12 +9999,16 @@ function buildCard(item) {
   // Subtle "how much of this release is that genre" cue — only shown while
   // a genre nav-filter is active (see genreFilterWeight). A thin accent
   // strip rather than a badge/percentage, deliberately low-key: full
-  // opacity for a primary-genre match, fading out for a secondary/tertiary
-  // one, so it reads as a glance-able signal rather than another number to
-  // parse. title gives the exact percentage for anyone who hovers for it.
+  // strength for a primary-genre match, fading out for a secondary/
+  // tertiary one, so it reads as a glance-able signal rather than another
+  // number to parse. The weight drives the accent-color overlay's opacity
+  // via --genre-weight (see .genre-match-bar's CSS) rather than the whole
+  // element's — that element itself is a fixed dark backing so the strip
+  // still shows up against art in a similar hue to the accent color, even
+  // at low weight. title gives the exact percentage for anyone who hovers.
   const genreWeight = genreFilterWeight(item);
   const genreMatchBarHtml = genreWeight === null ? '' :
-    `<div class="genre-match-bar" style="opacity:${genreWeight}" title="${Math.round(genreWeight * 100)}% match to this genre"></div>`;
+    `<div class="genre-match-bar" style="--genre-weight:${genreWeight}" title="${Math.round(genreWeight * 100)}% match to this genre"></div>`;
 
   card.innerHTML = `
     <div class="sleeve">
@@ -10289,6 +10341,18 @@ let activePlayerEngine = null; // 'spotify' | 'youtube' | 'soundcloud' | null
 // since every path that starts a new track also sets this before the mini
 // player actually re-renders.
 let nowPlayingItem = null;
+// The current track's resolved YouTube link, for the Track Info panel's
+// optional video view (⚙ → Panels configuration… → "Show video, if a
+// YouTube link is available" — see applyTrackInfoPlayerMode). Set at every
+// entry point that already resolves a specific track's links anyway
+// (playTrackNow, playCrateQueueIndex, openYoutubePlayer, openSoundcloudPlayer)
+// so this comes for free rather than needing its own lookup pass. Cleared
+// on masterPlayerStepTrack (Prev/Next) since the new track isn't known yet
+// at that point — renderMiniPlayerTrack's own "genuine track change" branch
+// then does a best-effort re-resolution for a manual album (the only case
+// with no trackNum available to look it up properly), same limitation as
+// that function's existing artistsRoughlyMatch check just above it.
+let nowPlayingYoutubeLink = '';
 function setMasterPlayerEngine(engine) {
   activePlayerEngine = engine;
   const isYoutube = engine === 'youtube';
@@ -10325,6 +10389,11 @@ function masterPlayerStepTrack(direction) {
   } else if (activePlayerEngine === 'soundcloud') {
     playScQueueIndex(scQueueIndex + direction);
   } else if (spotifyPlayer) {
+    // Going straight through the SDK rather than our own crate queue — the
+    // resulting track isn't known yet, so clear the stale link rather than
+    // carrying over the wrong one; renderMiniPlayerTrack's genuine-change
+    // branch does a best-effort re-resolution once the new track reports in.
+    nowPlayingYoutubeLink = '';
     if (direction < 0) spotifyPlayer.previousTrack(); else spotifyPlayer.nextTrack();
   }
 }
@@ -10359,6 +10428,14 @@ function renderMiniPlayerTrack(track, paused, positionMs, durationMs, opts) {
 
   if (track.id && track.id !== spotifyCurrentTrackId) {
     spotifyCurrentTrackId = track.id;
+    // Best-effort re-resolution of the YouTube-link video cue (see
+    // nowPlayingYoutubeLink) for a track change we didn't initiate
+    // ourselves (SDK-level skip, another Spotify Connect device, etc.) —
+    // only works for a manual album, matching by title, same limitation as
+    // openSoundcloudPlayer's fallback above and manualYoutubeLinkFor itself.
+    nowPlayingYoutubeLink = (nowPlayingItem && isManualAlbum(nowPlayingItem))
+      ? manualYoutubeLinkFor(nowPlayingItem, undefined, track.name)
+      : '';
     // Only pop the transient "now playing" card for a genuine change of
     // track (SDK events) — not for the boot-time sync, where surfacing
     // something that was already playing before CRATE even opened would
@@ -10831,15 +10908,6 @@ const MINI_PLAYER_PAUSE_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" 
 function setMiniPlayerPlayPauseIcon(paused) {
   el.miniPlayerPlayPause.innerHTML = paused ? MINI_PLAYER_PLAY_ICON : MINI_PLAYER_PAUSE_ICON;
   el.miniPlayerPlayPause.title = paused ? 'Play' : 'Pause';
-  // Track Info panel's own play/pause button (right panel, if that
-  // section + player mode are both on) mirrors the SAME state — every
-  // engine already calls this one shared function on every play/pause
-  // change, so piggybacking here keeps it in sync for free rather than
-  // needing its own separate state-tracking wired into three engines.
-  if (el.trackInfoPlayPauseBtn) {
-    el.trackInfoPlayPauseBtn.textContent = paused ? '▶' : '❚❚';
-    el.trackInfoPlayPauseBtn.title = paused ? 'Play' : 'Pause';
-  }
 }
 
 // Album covers view: a plain click opens this instead of the full deck —
@@ -11293,6 +11361,7 @@ async function playTrackNow(item, trackName, trackNum) {
   // the per-album-type default below — Spotify first since that's the
   // app's primary/continuous player, then YouTube.
   const links = trackLinkOverridesFor(item, trackNum, trackName);
+  nowPlayingYoutubeLink = links.youtubeLink || '';
   const overrideUri = trackSpotifyUriFromLink(links.spotifyLink);
   if (overrideUri) {
     await showMiniPlayer(overrideUri, beginPlayIntent());
@@ -14439,6 +14508,7 @@ async function playCrateQueueIndex(myId, index) {
   renderCrateQueuePanel();
   const { item, track } = crateQueueList[index];
   nowPlayingItem = item;
+  nowPlayingYoutubeLink = track.youtubeLink || '';
   const trackName = track.trackName || '';
   if (!trackName) { playCrateQueueIndex(myId, index + 1); return; }
 
@@ -14660,15 +14730,33 @@ function renderTrackInfoPanel() {
   applyTrackInfoPlayerMode();
 }
 
-// Toggles cover art vs. compact playback controls in the Track Info art
-// slot — ⚙ → Panels configuration… → "Show playback controls instead of
-// cover art". Just a visibility swap; updateProgressUI (already-existing
-// shared 500ms interval) drives the seek bar/time whenever this mode is
-// showing, and setMiniPlayerPlayPauseIcon keeps the play/pause icon in
-// sync — no separate polling/state-tracking needed for either.
+// Picks what shows in the Track Info art slot — cover art, playback
+// progress, or an embedded video — and applies it. Video (⚙ → Panels
+// configuration… → "Show video, if a YouTube link is available") wins
+// whenever it's on AND nowPlayingYoutubeLink resolves to a real video ID;
+// otherwise falls back to the existing art/progress toggle exactly as
+// before. updateProgressUI (already-existing shared 500ms interval) drives
+// the seek bar/time whenever progress mode is showing — no separate
+// polling/state-tracking needed for that half.
 function applyTrackInfoPlayerMode() {
-  el.trackInfoArt.hidden = state.trackInfoShowPlayer;
-  el.trackInfoPlayerControls.hidden = !state.trackInfoShowPlayer;
+  const videoId = state.trackInfoShowVideo ? youtubeVideoIdFromUrl(nowPlayingYoutubeLink) : '';
+  el.trackInfoVideoWrap.hidden = !videoId;
+  el.trackInfoArtWrap.classList.toggle('showing-video', !!videoId);
+  if (videoId) {
+    // Only touch the iframe's src when the video actually changes — avoids
+    // an unnecessary reload (and the resulting flash/replay) every time this
+    // function re-runs for an unrelated reason (e.g. a rating change firing
+    // renderTrackInfoPanel again for the same still-playing track).
+    if (el.trackInfoVideoMount.dataset.videoId !== videoId) {
+      el.trackInfoVideoMount.dataset.videoId = videoId;
+      el.trackInfoVideoMount.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?mute=1&modestbranding=1&rel=0" allow="autoplay; encrypted-media" title="Linked YouTube video" frameborder="0"></iframe>`;
+    }
+  } else if (el.trackInfoVideoMount.dataset.videoId) {
+    el.trackInfoVideoMount.dataset.videoId = '';
+    el.trackInfoVideoMount.innerHTML = '';
+  }
+  el.trackInfoArt.hidden = !!videoId || state.trackInfoShowPlayer;
+  el.trackInfoPlayerControls.hidden = !!videoId || !state.trackInfoShowPlayer;
 }
 
 // Switches the Last.fm History layout (flat chronological vs grouped
@@ -18556,6 +18644,7 @@ function openYoutubePlayer(url, trackName, tracks, item) {
   if (item) nowPlayingItem = item;
   const videoId = youtubeVideoIdFromUrl(url);
   if (!videoId) { flashGlobalToast('That doesn\u2019t look like a valid YouTube link'); return; }
+  nowPlayingYoutubeLink = url;
 
   const ytTracks = (tracks || currentTracklistTracks || []).filter(t => t.youtubeLink && youtubeVideoIdFromUrl(t.youtubeLink));
   if (ytTracks.length) {
@@ -18728,6 +18817,13 @@ function setScPlayPauseUI(paused) {
 function openSoundcloudPlayer(url, trackName, tracks, item) {
   scPlayingForCrateQueue = false; // manual play, not the "Play playlist" queue — see playCrateTrackOnSoundcloud
   if (item) nowPlayingItem = item;
+  // Best-effort only: unlike the direct playTrackNow/playCrateQueueIndex
+  // paths, there's no trackNum here — just title-matching (via
+  // trackLinkOverridesFor's manualTracks fallback), so this only actually
+  // finds a link for manual albums. Same limitation as manualYoutubeLinkFor
+  // itself; a non-manual album's per-track trackData link can't be found
+  // without the trackNum key it's stored under.
+  nowPlayingYoutubeLink = item ? (trackLinkOverridesFor(item, undefined, trackName).youtubeLink || '') : '';
   if (!/soundcloud\.com\//i.test(url || '')) { flashGlobalToast('That doesn\u2019t look like a valid SoundCloud link'); return; }
 
   const scTracks = (tracks || currentTracklistTracks || []).filter(t => t.soundcloudLink);
@@ -20915,10 +21011,10 @@ html, body {
      matches a reference screenshot's structure rather than the
      art-on-top layout this started with. */
   .track-info-body {
-    display: flex; flex-direction: column; gap: 14px;
-    padding: 14px; overflow-y: auto; flex: 1 1 auto; min-height: 0;
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 12px; overflow-y: auto; flex: 1 1 auto; min-height: 0;
   }
-  .track-info-text-wrap { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
+  .track-info-text-wrap { display: flex; flex-direction: column; gap: 5px; flex: 0 0 auto; }
   .track-info-title { margin: 0; font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .track-info-fields { display: flex; flex-direction: column; gap: 3px; }
   /* One line each, label+colon then value inline — the label ALWAYS
@@ -20931,12 +21027,21 @@ html, body {
   .track-info-rating-row:empty { display: none; }
   .track-info-rating-row .star-rating-display { font-size: 13px; }
 
-  .track-info-art-wrap { width: 100%; max-width: 190px; aspect-ratio: 1; flex: 0 0 auto; align-self: center; }
+  /* Sized down from the original 190px, and the player-controls/video CSS
+     below trimmed alongside it (no transport row anymore, one less thing
+     eating vertical space) — together this is what lets the panel fit
+     without needing its own scroll for the common case (a few fields +
+     rating + art) rather than relying on track-info-body's overflow-y. */
+  .track-info-art-wrap { width: 100%; max-width: 150px; aspect-ratio: 1; flex: 0 0 auto; align-self: center; position: relative; }
+  /* An embedded video reads far better at its native widescreen shape than
+     squeezed into the square art slot — switched via this modifier class
+     (see applyTrackInfoPlayerMode) only while a video is actually showing. */
+  .track-info-art-wrap.showing-video { max-width: 100%; aspect-ratio: 16 / 9; }
   .track-info-art { width: 100%; height: 100%; border-radius: 8px; object-fit: cover; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
   .track-info-art.art { width: 100%; height: 100%; } /* the .art cascade conflict hit a few times already this session — pinned explicitly rather than trusting .art's own rule to win */
   .track-info-player-controls {
     width: 100%; height: 100%; border-radius: 8px; background: var(--bg-elevated);
-    display: flex; flex-direction: column; justify-content: center; gap: 18px; padding: 18px; box-sizing: border-box;
+    display: flex; flex-direction: column; justify-content: center; padding: 14px; box-sizing: border-box;
   }
   .track-info-seek-row { display: flex; align-items: center; gap: 8px; }
   .track-info-time { flex: 0 0 auto; width: 34px; text-align: center; font-size: 10px; font-family: 'IBM Plex Mono', monospace; color: var(--text-dim); }
@@ -20946,8 +21051,8 @@ html, body {
     position: absolute; top: 50%; width: 10px; height: 10px; border-radius: 50%; background: var(--accent);
     transform: translate(-50%, -50%); pointer-events: none;
   }
-  .track-info-transport { display: flex; align-items: center; justify-content: center; gap: 22px; }
-  .track-info-play-pause { font-size: 17px; }
+  .track-info-video-wrap { width: 100%; height: 100%; border-radius: 8px; overflow: hidden; background: #000; }
+  .track-info-video-mount, .track-info-video-mount iframe { width: 100%; height: 100%; border: 0; display: block; }
 
   .crate-queue-source {
     flex: 0 0 auto; width: 20px; text-align: center; font-size: 13px; color: var(--text-dim);
@@ -21009,13 +21114,25 @@ html, body {
   .art-wrap { position: relative; aspect-ratio: 1 / 1; background: var(--bg-elevated); }
   /* Genre-match cue (see genreFilterWeight) — a slim strip, not a badge, so
      it reads as ambient signal rather than another piece of UI to parse.
-     Kept deliberately thin/quiet: full accent color, but the calling code's
-     opacity (1.0 primary / 0.5 secondary / ...) is what actually carries
-     the "how much of this release is that genre" signal. */
+     Split into two layers rather than one opacity-faded div: a fixed dark
+     backing (this element) that's ALWAYS fully visible regardless of the
+     weight, so the strip still reads against album art that happens to be
+     a similar hue to --accent itself — and a ::after overlay carrying the
+     actual accent color, whose opacity (via the --genre-weight custom
+     property the calling code sets) is what carries the "how much of this
+     release is that genre" signal. Previously that opacity lived on this
+     same element, which faded the dark backing right along with the
+     color — exactly the case that made a secondary-genre match nearly
+     invisible against art in the same family as the accent color. */
   .genre-match-bar {
     position: absolute; top: 0; left: 0; bottom: 0; width: 3px;
-    background: var(--accent);
+    background: rgba(0,0,0,0.45);
     pointer-events: none;
+  }
+  .genre-match-bar::after {
+    content: ''; position: absolute; inset: 0;
+    background: var(--accent);
+    opacity: var(--genre-weight, 1);
   }
   .list-view .genre-match-bar { width: 2px; }
   .art { width: 100%; height: 100%; object-fit: cover; display: block; }
