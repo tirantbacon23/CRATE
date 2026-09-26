@@ -13,7 +13,90 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.112
+  CURRENT_VERSION: 1.29.114
+
+  1.29.114 — 2026-09-26 — A batch of fixes/features from notes:
+
+          Genre weighting: a genre's 1st/2nd position in the combined
+          Genre/Secondary Genre field now counts fully in buildGenreTree's
+          per-genre counting; 3rd position or later counts at half weight
+          — a release's primary sound should carry more than an incidental
+          extra tag. Shows up in the left panel's Genre counts and Release
+          Stats' "By genre" ranking (rounded to 1 decimal for display,
+          full precision used for aggregation/sorting).
+
+          Track-genre scope corrected: 1.29.111 let a per-track genre
+          override change which genre(s) the RELEASE itself counted under
+          in the taxonomy/filtering/search/grouping — reverted that; a
+          track's own genre override now only affects what shows in that
+          track's own Genre column in the flat Tracks table (trackColumnVal),
+          never the release's own classification. buildGenreTree,
+          groupKeysFor, the free-text search index, and the genre: search
+          operator are back to album-level genre only.
+
+          Genre tree styling: root genres now render bold/full-brightness;
+          children get a "\u21b3" connector, shrink slightly, and dim
+          progressively with depth — parent vs. child reads at a glance
+          instead of only being implied by indentation.
+
+          Player-stuck bugfix: a Spotify play request failing with
+          anything other than 403 was silently swallowed (console.warn
+          only, no toast, no recovery) — if the device_id ever went stale
+          (a real Web Playback SDK gap: `not_ready` doesn't reliably fire
+          for every way this browser's device can drop out from under
+          Spotify's own list), every subsequent play request would 404
+          silently while whatever was already playing just kept going.
+          sendSpotifyPlayRequest now retries once on a 404 by re-finding
+          this browser's own device by its fixed name ('CRATE') via
+          recoverStaleSpotifyDeviceId, and every failure path shows a real
+          toast now instead of failing invisibly.
+
+          Playing a single track now clears the crate queue first
+          (playTrackNow) — confirmed safe since playCrateQueueIndex, the
+          actual queue-advance path, has its own fully separate playback
+          logic and never calls playTrackNow, so this can't sabotage the
+          very queue it's supposed to play from.
+
+          Gap-toggle bugfix: "Close gaps between artwork" was only ever
+          reducing the horizontal (column) gap between covers in the same
+          row — the vertical (row) gap between different rows of covers
+          was left at the base 20px regardless. Now reduces both together
+          with one toggle (both the desktop and mobile variants).
+
+          Group-by-genre scoping bugfix: with a genre nav-filter active in
+          the left sidebar (e.g. Rock), "Group by Genre" in the main panel
+          was creating sub-groups for EVERY genre an album carries, even
+          ones with nothing to do with the active filter (Baroque Pop,
+          Avant-Prog showing up while filtering for Rock, just because a
+          Rock-tagged album also had one of those as a secondary genre).
+          groupKeysFor now filters a release's own genres down to just the
+          ones that actually match or descend from the active genre filter
+          before grouping by them.
+
+          Album covers view parity: the quick-peek tracklist (opened by
+          clicking a cover) now has the same right-click context menu
+          (play, queue, playlist, edit properties, etc.) the flat Tracks
+          table and deck tracklist already had — including acting on the
+          whole multi-selection if the right-clicked row is part of one —
+          and its track rows can no longer have their text highlighted via
+          click-drag, matching every other track list in the app.
+
+  1.29.113 — 2026-09-25 — Bugfix: "Cannot read properties of undefined
+          (reading 'forEach')" when adding a new genre via the Genre
+          Taxonomy editor's "+ Add a genre" button. That handler was still
+          writing the OLD pre-1.29.82 single-parent shape
+          ({ label, parent: '' }) instead of the current multi-parent array
+          ({ label, parents: [] }) — a spot the original migration missed.
+          Every taxonomy function (getAllKnownGenres, buildGenreTree, ...)
+          calls .forEach directly on entry.parents, which threw the moment
+          a genre added this way got looked up (immediately, since
+          renderGenreTaxonomyEditor re-renders right after adding one).
+          Anyone who already hit this has a broken entry sitting in their
+          browser's saved taxonomy — no separate fix needed for that,
+          though: loadGenreTaxonomy's existing migration guard already
+          repairs any entry missing a real parents array generically, not
+          just the specific old `parent` string case, so it self-heals on
+          next reload.
 
   1.29.112 — 2026-09-25 — Feature: Group by now supports a second, nested
           variable — a new "Then by ▸" flyout inside the existing "Group
@@ -4466,7 +4549,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.112';
+const APP_VERSION = '1.29.114';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -5296,14 +5379,24 @@ function allGenresForItem(item) {
 // alphabetized within each level of siblings. A genre with a 0 aggregated
 // count (organizational, nothing tagged under it yet within the current
 // search-filtered set) is left out — same idea as the old flat list never
-// showing genres with no matches.
+// showing genres with no matches. Counts are now WEIGHTED by each genre's
+// position within the release's own combined Genre/Secondary Genre list —
+// the 1st or 2nd genre listed counts fully (weight 1), anything 3rd or
+// later counts at half weight, on the idea that a release's primary sound
+// should carry more than an incidental extra tag. Rounded to 1 decimal for
+// display; comparisons/aggregation use the full-precision value. This
+// counting is deliberately album-level only (getGenreList(combinedGenreStr),
+// not allGenresForItem) — a per-track genre override changes what shows in
+// that track's own Genre column (see trackColumnVal) but must NOT change
+// which genre(s) the release itself is considered to belong to here.
 function buildGenreTree(sourceRaw, taxonomy) {
   const ownCount = new Map(); // normKey -> {label, count}
   sourceRaw.forEach(item => {
-    allGenresForItem(item).forEach(g => {
+    getGenreList(combinedGenreStr(item)).forEach((g, i) => {
       const key = genreTaxonomyKey(g);
+      const weight = i < 2 ? 1 : 0.5; // see genrePositionWeight() below for the same rule applied elsewhere
       if (!ownCount.has(key)) ownCount.set(key, { label: g, count: 0 });
-      ownCount.get(key).count++;
+      ownCount.get(key).count += weight;
     });
   });
 
@@ -5912,9 +6005,14 @@ function bindEvents() {
     if (!name) return;
     const key = genreTaxonomyKey(name);
     if (state.genreTaxonomy[key]) { flashGlobalToast(`${name} is already in the taxonomy.`); return; }
-    // Blank parent (top-level) until they set one via its own row's field —
+    // Blank parents (top-level) until they set one via its own row's field —
     // adding it here just makes it exist so it can be referenced/edited.
-    state.genreTaxonomy[key] = { label: name, parent: '' };
+    // `parents` (an array — see the 1.29.82 multi-parent migration), NOT
+    // the old single `parent` string this line used to write: every other
+    // taxonomy function (getAllKnownGenres, buildGenreTree, ...) calls
+    // .forEach directly on entry.parents, which throws on undefined the
+    // moment a genre added here got looked up.
+    state.genreTaxonomy[key] = { label: name, parents: [] };
     saveGenreTaxonomy(state.genreTaxonomy);
     renderGenreTaxonomyEditor();
   });
@@ -7373,11 +7471,24 @@ function buildLeftRow(entry, mode) {
   } else {
     row.innerHTML = `
       <div class="left-row-text"><p class="left-row-title">${escapeHtml(entry.label)}</p></div>
-      <span class="left-row-count">${entry.count}</span>`;
+      <span class="left-row-count">${Math.round(entry.count * 10) / 10}</span>`;
     // Genre mode is the only one with a real hierarchy (see buildGenreTree)
-    // — indent each row under its parent so the tree structure is visible,
-    // not just implied by aggregated counts.
-    if (mode === 'genre' && entry.depth) row.style.paddingLeft = (6 + entry.depth * 16) + 'px';
+    // — indent each row under its parent AND visually distinguish parent
+    // vs. child (root: full weight/brightness; each level down: a small
+    // "↳" connector via CSS, smaller text, progressively dimmer) so the
+    // tree structure reads at a glance instead of only being implied by
+    // indentation and aggregated counts.
+    if (mode === 'genre') {
+      const depth = entry.depth || 0;
+      row.style.paddingLeft = depth ? (6 + depth * 16) + 'px' : '';
+      const titleEl = row.querySelector('.left-row-title');
+      if (depth === 0) {
+        titleEl.classList.add('genre-tree-root');
+      } else {
+        titleEl.classList.add('genre-tree-child');
+        titleEl.style.opacity = Math.max(0.55, 1 - depth * 0.14);
+      }
+    }
   }
 
   row.addEventListener('click', () => {
@@ -7955,7 +8066,7 @@ function numericClauseMatches(actual, clause) {
 // lazily when the album's deck is opened and isn't available to search here.
 function combinedSearchText(r) {
   const year = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getUTCFullYear() : '';
-  const genres = allGenresForItem(r).join(' ');
+  const genres = getGenreList(combinedGenreStr(r)).join(' ');
   const tracks = trackTitlesFor(r).join(' ');
   return `${r.artist} ${r.title} ${year} ${r.catalog} ${r.descriptor || ''} ${genres} ${tracks}`.toLowerCase();
 }
@@ -7985,7 +8096,7 @@ function searchTokenMatches(r, token) {
     return numericClauseMatches(r.rating || 0, parseNumericClause(value));
   }
   if (canonicalField === 'genre') {
-    return allGenresForItem(r).join(' ').toLowerCase().includes(value.toLowerCase());
+    return getGenreList(combinedGenreStr(r)).join(' ').toLowerCase().includes(value.toLowerCase());
   }
   if (canonicalField === 'track') {
     return trackTitlesFor(r).some(t => t.toLowerCase().includes(value.toLowerCase()));
@@ -8076,7 +8187,7 @@ function applyFiltersSort() {
     
     const matchesNav = !state.navFilter || (
       state.navFilter.mode === 'artist' ? r.artist === state.navFilter.value :
-      state.navFilter.mode === 'genre' ? allGenresForItem(r).some(g => genreMatchesFilter(state.genreTaxonomy, g, state.navFilter.value)) : 
+      state.navFilter.mode === 'genre' ? getGenreList(combinedGenreStr(r)).some(g => genreMatchesFilter(state.genreTaxonomy, g, state.navFilter.value)) : 
       r.row === state.navFilter.value
     );
 
@@ -8338,10 +8449,32 @@ function getRecordedDateFields(prefix) {
 // shared by the main grid's groupItems() below and buildLeftList's own
 // left-panel grouping (state.leftGroupBy). An array since Genre can put
 // one album under more than one heading (primary + secondary genre).
+// Album-level only (getGenreList(combinedGenreStr), not allGenresForItem)
+// — a per-track genre override must not change which genre group(s) the
+// release itself falls under here, same reasoning as buildGenreTree above.
 function groupKeysFor(item, by) {
   if (by === 'artist') return [item.artist];
   if (by === 'type') return [item.type];
-  if (by === 'genre') return allGenresForItem(item);
+  if (by === 'genre') {
+    const genres = getGenreList(combinedGenreStr(item));
+    // When a genre nav-filter is active (left panel), only group by
+    // genres actually relevant to it — the filtered genre itself, or a
+    // taxonomy descendant of it — not every genre this item happens to
+    // carry. Otherwise filtering by Rock and then Group by Genre would
+    // create a group for, say, Baroque Pop or Avant-Prog just because a
+    // Rock-tagged album also happens to carry one of those as a
+    // secondary genre, even though neither is nested under Rock at all.
+    if (state.navFilter && state.navFilter.mode === 'genre') {
+      const relevant = genres.filter(g => genreMatchesFilter(state.genreTaxonomy, g, state.navFilter.value));
+      // Shouldn't ever be empty in practice — an item only reaches this
+      // grouping step under a genre filter because at least one of its
+      // own genres already matched it (see searchFilteredRaw's
+      // matchesNav) — but fall back to the full list defensively rather
+      // than silently dropping the item from every group.
+      if (relevant.length) return relevant;
+    }
+    return genres;
+  }
   if (by === 'year') return [dateVal(item.releaseDate) !== -Infinity ? String(new Date(item.releaseDate).getUTCFullYear()) : 'Unknown'];
   if (by === 'decade') {
     if (dateVal(item.releaseDate) === -Infinity) return ['Unknown'];
@@ -10263,6 +10396,21 @@ function openAlbumQuickPeek(item, cardEl) {
         if (e.target.closest('.album-quick-peek-track-play')) return;
         playTrackNow(item, rowEl.dataset.trackName, rowEl.dataset.trackNum);
       });
+      // Right-click — same context menu (play, queue, playlist, edit
+      // properties, etc.) the flat Tracks table and deck tracklist already
+      // have, for full parity with those views. If the right-clicked row
+      // is part of an active multi-selection, the menu acts on the whole
+      // selection, same convention as those other views.
+      rowEl.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        const key = rowKey(rowEl);
+        const isPartOfSelection = quickPeekSelectedTracks.has(key) && quickPeekSelectedTracks.size > 1;
+        const selectedItems = isPartOfSelection
+          ? rowEls.filter(r => quickPeekSelectedTracks.has(rowKey(r)))
+              .map(r => ({ itemType: 'track', row: item.row, albumId: item.albumId || '', trackNum: r.dataset.trackNum, trackName: r.dataset.trackName }))
+          : undefined;
+        openTrackContextMenu(item, rowEl.dataset.trackName, e.clientX, e.clientY, rowEl.dataset.trackNum, selectedItems);
+      });
     });
   });
 }
@@ -10560,6 +10708,19 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
 async function playTrackNow(item, trackName, trackNum) {
   if (!trackName) return;
   nowPlayingItem = item;
+
+  // Playing a single track directly (this function) is a distinct action
+  // from queuing one — it should replace whatever's lined up, the same way
+  // playAlbumReplacingQueue already does for a whole release, rather than
+  // leaving an old queue sitting there to confusingly resume once this
+  // track ends. Safe to do unconditionally here: playCrateQueueIndex (the
+  // actual queue-advance path) has its own fully separate playback logic
+  // and never calls this function, so this can't clear the very queue
+  // it's supposed to be playing from.
+  crateQueueId++;
+  crateQueueList = [];
+  crateQueueIndex = -1;
+  renderCrateQueuePanel();
 
   // A saved link override (see "Edit track properties…") always wins over
   // the per-album-type default below — Spotify first since that's the
@@ -11233,20 +11394,72 @@ async function playSpotifyUri(uriOrUris) {
   } else {
     body = { uris: [uriOrUris] };
   }
+  await sendSpotifyPlayRequest(token, body, true);
+}
+
+// Split out of playSpotifyUri so a stale device_id can retry itself once.
+// This is the fix for "player gets stuck on one song, nothing new plays" —
+// the Web Playback SDK's `not_ready` event (which nulls spotifyDeviceId,
+// see its listener) doesn't reliably fire for every way this browser's
+// device can quietly drop out from under Spotify's own device list (long
+// idle, another device taking over, a network blip that reconnects with a
+// fresh device_id the SDK doesn't always re-announce via `ready`). Without
+// this, every subsequent play request 404s silently — console.warn only,
+// no toast, nothing telling the user why — while whatever was already
+// playing just keeps going, exactly the reported symptom. Now: on a 404
+// specifically, re-fetch the actual devices list, find the one actually
+// named 'CRATE' (the fixed name this Player instance registers under —
+// see `new Spotify.Player({name: 'CRATE', ...})`), and retry once with the
+// corrected id if it's different. Every failure path now also surfaces a
+// real toast instead of just a console.warn.
+async function sendSpotifyPlayRequest(token, body, allowRetry) {
   try {
     const res = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(spotifyDeviceId)}`, {
       method: 'PUT',
       headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-    if (!res.ok && res.status !== 204) {
-      console.warn('Spotify play request failed', res.status);
-      if (res.status === 403) flashGlobalToast('In-app playback needs a Spotify Premium account.');
-    } else {
+    if (res.ok || res.status === 204) {
       setTimeout(() => { if (!el.queuePanel.hidden) refreshQueuePanel(); }, 700);
+      return true;
     }
+    console.warn('Spotify play request failed', res.status);
+    if (res.status === 403) {
+      flashGlobalToast('In-app playback needs a Spotify Premium account.');
+      return false;
+    }
+    if (res.status === 404 && allowRetry) {
+      const recovered = await recoverStaleSpotifyDeviceId(token);
+      if (recovered) return sendSpotifyPlayRequest(token, body, false); // one retry only — don't loop if it's still wrong
+    }
+    flashGlobalToast(`Spotify playback didn\u2019t start (error ${res.status}) \u2014 try again, or reconnect via the device picker.`);
+    return false;
   } catch (e) {
     console.warn('Spotify play failed', e);
+    flashGlobalToast('Spotify playback failed \u2014 check your connection and try again.');
+    return false;
+  }
+}
+
+// Re-finds this browser's own Spotify Connect device by name (fixed at
+// 'CRATE' — see the Player constructor) when the cached spotifyDeviceId
+// has gone stale, and updates spotifyDeviceId if a different one turns up.
+// Returns true only if it found a (possibly new) id to retry with.
+async function recoverStaleSpotifyDeviceId(token) {
+  try {
+    const res = await fetch('https://api.spotify.com/v1/me/player/devices', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    const mine = (data.devices || []).find(d => d.name === 'CRATE');
+    if (!mine) return false;
+    const changed = mine.id !== spotifyDeviceId;
+    spotifyDeviceId = mine.id;
+    return changed;
+  } catch (e) {
+    console.warn('Device recovery lookup failed', e);
+    return false;
   }
 }
 
@@ -12321,7 +12534,7 @@ function collectionStatBarRows(rows) {
     <div class="stats-bar-row">
       <span class="stats-bar-label">${escapeHtml(r.label)}</span>
       <div class="stats-bar-track"><div class="stats-bar-fill" style="width:${Math.round((r.count / max) * 100)}%"></div></div>
-      <span class="stats-bar-count">${r.count}</span>
+      <span class="stats-bar-count">${Math.round(r.count * 10) / 10}</span>
     </div>
   `).join('');
 }
@@ -19853,6 +20066,13 @@ html, body {
 
   .left-row-text { min-width: 0; flex: 1; }
   .left-row-title { font-size: 12.5px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Genre taxonomy tree (left panel, Genre mode) — parent vs. child at a
+     glance: root genres full weight, children get a small connector glyph,
+     shrink slightly, and dim further with depth via inline opacity (see
+     buildLeftRow). */
+  .left-row-title.genre-tree-root { font-weight: 700; }
+  .left-row-title.genre-tree-child { font-weight: 400; font-size: 11.5px; }
+  .left-row-title.genre-tree-child::before { content: '\21b3 '; color: var(--text-dim); }
   .left-row-sub { font-size: 11px; color: var(--text-dim); margin: 1px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .left-row-count {
     font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-dim);
@@ -19970,7 +20190,7 @@ html, body {
 
   /* "Close gaps between artwork" toggle: shrinks the horizontal gap
      between tiles while leaving vertical row spacing untouched. */
-  #gridContainer.close-gaps .grid { column-gap: 6px; }
+  #gridContainer.close-gaps .grid { gap: 6px; } /* both dimensions — was column-gap only, leaving the row gap between different rows of covers untouched */
 
   .card { cursor: pointer; outline: none; }
   .card.long-press-active { opacity: 0.75; transition: opacity 0.1s; } /* brief feedback while attachLongPress's hold timer is running, mobile only in practice (touch-only event) */
@@ -20864,7 +21084,7 @@ html, body {
   .album-quick-peek-arrow { color: var(--text-dim); font-size: 11px; }
   .album-quick-peek-sub { margin: 2px 0 0; font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .album-quick-peek-tracks { overflow-y: auto; border-top: 1px solid var(--line); padding: 6px 0; }
-  .album-quick-peek-track { display: flex; align-items: center; gap: 8px; padding: 5px 14px; font-size: 12.5px; cursor: pointer; }
+  .album-quick-peek-track { display: flex; align-items: center; gap: 8px; padding: 5px 14px; font-size: 12.5px; cursor: pointer; user-select: none; }
   .album-quick-peek-track:hover { background: var(--bg-card); }
   .album-quick-peek-track.selected { background: var(--bg-card); border-left: 2px solid var(--accent); padding-left: 12px; }
   .album-quick-peek-track-play {
@@ -21601,7 +21821,7 @@ html, body {
        take precedence regardless of whatever size was last picked on
        desktop. ~105px fits 3 comfortably on most phones instead of 1-2. */
     .grid { grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)); gap: 10px; }
-    #gridContainer.close-gaps .grid { column-gap: 5px; }
+    #gridContainer.close-gaps .grid { gap: 5px; }
   }
 
   @media (max-width: 620px) {
