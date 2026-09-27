@@ -4734,6 +4734,8 @@
         <label class="add-field" data-add-field="label">Label <input type="text" id="addLabel"></label>
 		<label class="add-field" data-add-field="catalog">Catalog No. <input type="text" id="addCatalog"></label> <!-- 👈 ADD THIS -->
         <label class="add-field" data-add-field="descriptor">Descriptor <input type="text" id="addDescriptor" placeholder="e.g. Deluxe Edition, Remastered"></label>
+        <label class="add-field" data-add-field="scene">Scene <input type="text" id="addScene" placeholder="e.g. Madchester, Seattle grunge scene"></label>
+        <label class="add-field" data-add-field="movement">Movement <input type="text" id="addMovement" placeholder="e.g. Post-Punk, British Invasion"></label>
         <label class="add-field" data-add-field="link">Link <input type="text" id="addLink" placeholder="https://…"></label>
         <label class="add-field" data-add-field="rymLink">RYM Link <input type="text" id="addRymLink" placeholder="https://rateyourmusic.com/release/…"></label>
         <label class="add-field" data-add-field="cover">Cover Art URL <input type="text" id="addCover" placeholder="https://…"></label>
@@ -4859,8 +4861,10 @@
         </label>
         <label class="add-field">Catalog No. <input type="text" id="advCatalog" placeholder="e.g. CRT-036"></label>
         <label class="add-field">Descriptor <input type="text" id="advDescriptor" placeholder="e.g. lush, melancholic"></label>
+        <label class="add-field">Scene <input type="text" id="advScene" placeholder="e.g. Madchester"></label>
+        <label class="add-field">Movement <input type="text" id="advMovement" placeholder="e.g. Post-Punk"></label>
         <label class="add-field">Additional keywords <input type="text" id="advExtra" placeholder="anything else — same syntax as the search box"></label>
-        <p class="arrange-hint">The search box itself understands this syntax directly too: <code>artist:</code>, <code>year:&gt;=2020</code>, <code>rating:&gt;=4</code>, <code>genre:</code>, <code>label:</code>, <code>type:</code>, <code>catalog:</code>, <code>descriptor:</code>, <code>"exact phrases"</code>, and <code>-word</code> to exclude.</p>
+        <p class="arrange-hint">The search box itself understands this syntax directly too: <code>artist:</code>, <code>year:&gt;=2020</code>, <code>rating:&gt;=4</code>, <code>genre:</code>, <code>label:</code>, <code>type:</code>, <code>catalog:</code>, <code>descriptor:</code>, <code>scene:</code>, <code>movement:</code>, <code>"exact phrases"</code>, and <code>-word</code> to exclude.</p>
         <div class="log-form-actions">
           <button type="button" id="advSearchApplyBtn" class="save-btn">Search</button>
           <button type="button" id="advSearchClearBtn" class="cancel-btn">Clear</button>
@@ -4911,6 +4915,8 @@
         <label class="add-field">Label <input type="text" id="editLabel"></label>
 		<label class="add-field">Catalog No. <input type="text" id="editCatalog"></label> <!-- 👈 ADD THIS -->
         <label class="add-field">Descriptor <input type="text" id="editDescriptor" placeholder="e.g. Deluxe Edition, Remastered"></label>
+        <label class="add-field">Scene <input type="text" id="editScene" placeholder="e.g. Madchester, Seattle grunge scene"></label>
+        <label class="add-field">Movement <input type="text" id="editMovement" placeholder="e.g. Post-Punk, British Invasion"></label>
         <label class="add-field">Link <input type="text" id="editLink" placeholder="https://…"></label>
         <label class="add-field">RYM Link <input type="text" id="editRymLink" placeholder="https://rateyourmusic.com/release/…"></label>
         <label class="add-field">Cover Art URL <input type="text" id="editCover" placeholder="https://…"></label>
@@ -5225,6 +5231,8 @@ const ADD_FORM_FIELD_OPTIONS = {
   label: 'Label',
   catalog: 'Catalog No.',
   descriptor: 'Descriptor',
+  scene: 'Scene',
+  movement: 'Movement',
   link: 'Link',
   rymLink: 'RYM link',
   cover: 'Cover art URL',
@@ -5242,6 +5250,8 @@ const FIELD_OPTIONS = {
   type: 'Media Type (LP/EP)',
   catalog: 'Catalog Number',
   descriptor: 'Descriptor',
+  scene: 'Scene',
+  movement: 'Movement',
   genre: 'Genre',
   label: 'Label',
   region: 'Region / Language',
@@ -5457,13 +5467,13 @@ const el = {};
   'fldTitle','fldArtist','fldYear','fldRating','fldType','fldCatalog','fldGenre','fldLabel','fldDuration','menuCustomizeMain',
   'listenedFilterBtn',
   'addAlbumBtn','addOverlay','addClose','addSearchInput','addSearchHelpBtn','addSearchHelpPopover','addManualEntryBtn','addResultsListBtn','addResultsGridBtn','addResults','addForm',
-  'addArtist','addTitle','addType','addReleaseYear','addReleaseMonth','addReleaseDay','addRecordedYear','addRecordedMonth','addRecordedDay','addGenre','addGenre2','addRegion','addLocation','addLabel','addCatalog','addDescriptor','addLink','addRymLink','addCover','addSaveBtn','addCancelBtn','addToast',
+  'addArtist','addTitle','addType','addReleaseYear','addReleaseMonth','addReleaseDay','addRecordedYear','addRecordedMonth','addRecordedDay','addGenre','addGenre2','addRegion','addLocation','addLabel','addCatalog','addDescriptor','addScene','addMovement','addLink','addRymLink','addCover','addSaveBtn','addCancelBtn','addToast',
   'addTracksRows','addTracksAddRowBtn',
   'addSpotifyMatchBanner','addSpotifyMatchText','addSpotifyMatchAddBtn','addSpotifyMatchDismissBtn',
   'addMusicBrainzMatchBanner','addMusicBrainzMatchText','addMusicBrainzMatchAddBtn','addMusicBrainzMatchDismissBtn',
   'deckOverlay','deckClose','deckImg','deckCatalog','deckTitle','deckArtist','deckMeta','deckAdded','deckScrobbleCount','deckLink','deckRatingNum',
   'deckSpotifyLink','deckSoundcloudLink','deckRymLink','deckPlayBtn','deckActionsBar','deckQueueBtn','deckPlaylistRemoveBtn',
-  'deckEditBtn','editOverlay','editClose','editArtist','editTitle','editType','editReleaseYear','editReleaseMonth','editReleaseDay','editRecordedYear','editRecordedMonth','editRecordedDay','editGenre','editGenre2','editRegion','editLocation','editLabel','editCatalog','editDescriptor','editLink','editRymLink','editCover','editSaveBtn','editCancelBtn','editToast',
+  'deckEditBtn','editOverlay','editClose','editArtist','editTitle','editType','editReleaseYear','editReleaseMonth','editReleaseDay','editRecordedYear','editRecordedMonth','editRecordedDay','editGenre','editGenre2','editRegion','editLocation','editLabel','editCatalog','editDescriptor','editScene','editMovement','editLink','editRymLink','editCover','editSaveBtn','editCancelBtn','editToast',
   'editTracksRows','editTracksAddRowBtn','editTracksLoadBtn',
   'ytPlayerMount','scPlayerMount',
   'deckTracklist','deckStars','deckReview','deckSaveReview','deckToast','deckRemoveBtn','deckPlaylistBtn',
@@ -5518,7 +5528,7 @@ const el = {};
   'qaPlayBtn','qaQueueBtn','qaPlaylistBtn','qaViewBtn','qaLogListenBtn','qaEditBtn','qaSpotifyBtn','qaRymBtn','qaRemoveBtn','qaDeleteBtn','qaDoneBtn',
   'qaListenBtn','qaSoundcloudBtn','deckQuickActionsBtn',
   'advancedSearchBtn','advSearchOverlay','advSearchClose','advArtist','advTitle','advYearFrom','advYearTo',
-  'advRatingMin','advGenre','advLabel','advType','advCatalog','advDescriptor','advExtra','advSearchApplyBtn','advSearchClearBtn',
+  'advRatingMin','advGenre','advLabel','advType','advCatalog','advDescriptor','advScene','advMovement','advExtra','advSearchApplyBtn','advSearchClearBtn',
   'searchWrap','searchIconBtn','sortFilterBtn','sortFilterMenu','sortFilterListenedToggle','sortGenreMatchOption'
 ].forEach(id => { el[id] = document.getElementById(id); });
 
@@ -6281,7 +6291,7 @@ function bindEvents() {
   el.advSearchOverlay.addEventListener('click', (e) => { if (e.target === el.advSearchOverlay) closeAdvSearch(); });
   el.advSearchApplyBtn.addEventListener('click', applyAdvSearch);
   el.advSearchClearBtn.addEventListener('click', () => {
-    [el.advArtist, el.advTitle, el.advYearFrom, el.advYearTo, el.advGenre, el.advLabel, el.advCatalog, el.advDescriptor, el.advExtra].forEach(i => i.value = '');
+    [el.advArtist, el.advTitle, el.advYearFrom, el.advYearTo, el.advGenre, el.advLabel, el.advCatalog, el.advDescriptor, el.advScene, el.advMovement, el.advExtra].forEach(i => i.value = '');
     el.advRatingMin.value = ''; el.advType.value = '';
   });
 
@@ -7780,6 +7790,18 @@ async function fetchCatalog() {
           // after the column was found missing entirely — the field had
           // been silently failing to persist since it first shipped).
           descriptor: r.Descriptor ? String(r.Descriptor).trim() : '',
+          // Scene (a local music community/geographic cultural moment —
+          // "Madchester", "Seattle grunge scene") and Movement (a broader
+          // artistic/stylistic movement — "Post-Punk", "British
+          // Invasion") — same plain string-column pattern as Descriptor
+          // just above, added to apps-script-backend.gs's fields arrays
+          // in the SAME pass as this frontend change specifically to
+          // avoid repeating the exact mistake that silently dropped every
+          // Descriptor save for months (see that bugfix's own changelog
+          // entry) — the backend column and the frontend read/write both
+          // need to exist together, not one now and the other "later".
+          scene: r.Scene ? String(r.Scene).trim() : '',
+          movement: r.Movement ? String(r.Movement).trim() : '',
           trackData: (function(){ try { return r.TrackData ? JSON.parse(String(r.TrackData)) : {}; } catch(e) { return {}; } })(),
           // Manually-typed tracklist (title + optional YouTube link per
           // track), entered via the Add/Edit forms — see showAddForm()'s
@@ -8784,7 +8806,8 @@ const SEARCH_FIELD_ALIASES = {
   year: 'year', rating: 'rating',
   region: 'region', location: 'location',
   track: 'track', song: 'track',
-  descriptor: 'descriptor', descriptors: 'descriptor'
+  descriptor: 'descriptor', descriptors: 'descriptor',
+  scene: 'scene', movement: 'movement', movements: 'movement', scenes: 'scene'
 };
 
 // Manual tokenizer (rather than one big regex) so quoted phrases, an
@@ -8860,7 +8883,7 @@ function combinedSearchText(r) {
   const year = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getUTCFullYear() : '';
   const genres = getGenreList(combinedGenreStr(r)).join(' ');
   const tracks = trackTitlesFor(r).join(' ');
-  return `${r.artist} ${r.title} ${year} ${r.catalog} ${r.descriptor || ''} ${genres} ${tracks}`.toLowerCase();
+  return `${r.artist} ${r.title} ${year} ${r.catalog} ${r.descriptor || ''} ${r.scene || ''} ${r.movement || ''} ${genres} ${tracks}`.toLowerCase();
 }
 
 // Track titles available for search without triggering a network fetch —
@@ -8944,6 +8967,8 @@ function applyAdvSearch() {
   const type = el.advType.value.trim();
   const catalog = el.advCatalog.value.trim();
   const descriptor = el.advDescriptor.value.trim();
+  const scene = el.advScene.value.trim();
+  const movement = el.advMovement.value.trim();
   const extra = el.advExtra.value.trim();
   const yearFrom = el.advYearFrom.value.trim();
   const yearTo = el.advYearTo.value.trim();
@@ -8956,6 +8981,8 @@ function applyAdvSearch() {
   if (type) clauses.push(`type:${advQuoteIfNeeded(type)}`);
   if (catalog) clauses.push(`catalog:${advQuoteIfNeeded(catalog)}`);
   if (descriptor) clauses.push(`descriptor:${advQuoteIfNeeded(descriptor)}`);
+  if (scene) clauses.push(`scene:${advQuoteIfNeeded(scene)}`);
+  if (movement) clauses.push(`movement:${advQuoteIfNeeded(movement)}`);
 
   if (yearFrom && yearTo) clauses.push(yearFrom === yearTo ? `year:${yearFrom}` : `year:${yearFrom}-${yearTo}`);
   else if (yearFrom) clauses.push(`year:>=${yearFrom}`);
@@ -12735,6 +12762,8 @@ function keyToVal(key, item) {
   const map = {
     catalog: item.catalog,
     descriptor: item.descriptor,
+    scene: item.scene,
+    movement: item.movement,
     type: typeAbbrev(item.type),
     year: year,
     releaseDate: formatReleaseDate(item),
@@ -18667,6 +18696,8 @@ async function saveNewAlbum() {
     Location: el.addLocation.value.trim(), // 👈 Map viewer — REQUIRES BACKEND COLUMN, see 1.29.14 log entry
     Label: el.addLabel.value.trim(), Catalog: el.addCatalog.value.trim(), // 👈 ADD CATALOG
     Descriptor: el.addDescriptor.value.trim(),
+    Scene: el.addScene.value.trim(),
+    Movement: el.addMovement.value.trim(),
     Link: el.addLink.value.trim(), RymLink: el.addRymLink.value.trim(), Cover: el.addCover.value.trim()
   };
   // Only write ManualTracks when the tracklist builder actually has rows in
@@ -18707,6 +18738,8 @@ function openEditModal() {
   el.editLabel.value = activeItem.label || '';
   el.editCatalog.value = activeItem.catalog || ''; // 👈 ADD THIS
   el.editDescriptor.value = activeItem.descriptor || '';
+  el.editScene.value = activeItem.scene || '';
+  el.editMovement.value = activeItem.movement || '';
   el.editLink.value = activeItem.link || '';
   el.editRymLink.value = activeItem.rymLink || '';
   el.editCover.value = activeItem.cover || '';
@@ -18751,6 +18784,8 @@ async function saveEditAlbum() {
     Label: el.editLabel.value.trim(),
     Catalog: el.editCatalog.value.trim(), // 👈 ADD THIS
     Descriptor: el.editDescriptor.value.trim(),
+    Scene: el.editScene.value.trim(),
+    Movement: el.editMovement.value.trim(),
     Link: el.editLink.value.trim(),
     RymLink: el.editRymLink.value.trim(),
     Cover: el.editCover.value.trim()
@@ -18775,6 +18810,8 @@ async function saveEditAlbum() {
     activeItem.label = payload.Label;
 	activeItem.catalog = payload.Catalog || 'CRT-' + String(activeItem.row).padStart(3, '0'); // 👈 ADD THIS
     activeItem.descriptor = payload.Descriptor;
+    activeItem.scene = payload.Scene;
+    activeItem.movement = payload.Movement;
     activeItem.link = payload.Link;
     activeItem.rymLink = payload.RymLink;
     activeItem.cover = payload.Cover;
