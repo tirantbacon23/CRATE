@@ -13,7 +13,28 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.137
+  CURRENT_VERSION: 1.29.138
+
+  1.29.138 — 2026-09-26 — Feature: Map view symbology — new "Color by"
+          toolbar dropdown (None/Genre/Year (decade)/Artist), persisted
+          (state.mapColorBy). When active, markers switch from Leaflet's
+          default pin to a coloured L.circleMarker; the colour comes from
+          consistent hashing onto a fixed 10-colour palette
+          (mapColorHash/MAP_SYMBOLOGY_PALETTE), so the same genre/artist/
+          decade always gets the same colour across renders and reopens
+          without needing to persist a colour-per-value mapping anywhere.
+          Genre colours by each release's own first-listed (primary) genre
+          specifically, not every genre it carries. A location whose
+          albums disagree on the chosen attribute (e.g. both a Rock and a
+          Jazz album at the same city, colouring by Genre) gets a neutral
+          "Mixed" grey rather than misrepresenting it as one or the other.
+          New floating legend (#mapLegend) shows every colour actually in
+          use on the current map, not every value that theoretically could
+          appear — positioned as an absolute overlay in the map's own
+          corner via a new .map-container-wrap, deliberately NOT a child of
+          #mapContainer itself, since Leaflet manages that element's
+          internal DOM (tile/marker panes) and isn't guaranteed to
+          preserve arbitrary pre-existing children.
 
   1.29.137 — 2026-09-26 — Feature: Last.fm scrobbling for YouTube-sourced
           plays specifically. Last.fm's own Spotify integration already
@@ -4580,6 +4601,14 @@
           <label class="map-toolbar-field" id="mapCategoryValueField" hidden>Value
             <select id="mapCategoryValueSelect"></select>
           </label>
+          <label class="map-toolbar-field">Color by
+            <select id="mapColorBySelect">
+              <option value="none">None</option>
+              <option value="genre">Genre</option>
+              <option value="year">Year (decade)</option>
+              <option value="artist">Artist</option>
+            </select>
+          </label>
           <label class="map-toolbar-field">Sort
             <select id="mapSortSelect">
               <option value="title">Title (A–Z)</option>
@@ -4615,7 +4644,10 @@
         </div>
 
         <div id="mapStatus" class="map-status" hidden></div>
-        <div id="mapContainer" class="map-container"></div>
+        <div class="map-container-wrap">
+          <div id="mapContainer" class="map-container"></div>
+          <div id="mapLegend" class="map-legend" hidden></div>
+        </div>
         <div id="mapCount" class="map-count"></div>
         <div class="map-attr-table-wrap" id="mapAttrTableWrap">
           <table class="map-attr-table">
@@ -5065,7 +5097,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.137';
+const APP_VERSION = '1.29.138';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -5467,7 +5499,7 @@ const el = {};
   'timelineHint','timelineModeReleaseBtn','timelineModeListenBtn',
   'mapBtn','mapOverlay','mapModal','mapContainer','mapStatus','mapCount','mapEmpty','mapMain','mapClose',
   'mapKeySetup','mapApiKeyInput','mapApiKeySaveBtn','mapKeyEditBtn',
-  'mapCategorySelect','mapCategoryValueField','mapCategoryValueSelect','mapSortSelect',
+  'mapCategorySelect','mapCategoryValueField','mapCategoryValueSelect','mapColorBySelect','mapLegend','mapSortSelect',
   'mapAttrTableWrap','mapAttrHeadRow','mapAttrBody',
   'mapTimeToggleBtn','mapTimeGranularity','mapTimeGranYearBtn','mapTimeGranMonthBtn','mapTimeHint',
   'mapTimeScrubber','mapTimePrev','mapTimeNext','mapTimeLabel','mapTimeSlider','mapTimeTicks',
@@ -6817,6 +6849,11 @@ function bindEvents() {
     renderMap();
   });
   el.mapSortSelect.addEventListener('change', renderMap);
+  el.mapColorBySelect.addEventListener('change', () => {
+    state.mapColorBy = el.mapColorBySelect.value;
+    savePrefs();
+    renderMap();
+  });
   el.mapTimeToggleBtn.addEventListener('click', toggleMapTimeMode);
   el.mapTimeGranYearBtn.addEventListener('click', () => setMapTimeGranularity('year'));
   el.mapTimeGranMonthBtn.addEventListener('click', () => setMapTimeGranularity('month'));
@@ -7551,6 +7588,7 @@ function loadPrefs() {
     if (typeof p.rightPanelShowHistory === 'boolean') state.rightPanelShowHistory = p.rightPanelShowHistory;
     if (typeof p.rightPanelShowTrackInfo === 'boolean') state.rightPanelShowTrackInfo = p.rightPanelShowTrackInfo;
     if (Array.isArray(p.collapsedGenres)) state.collapsedGenres = new Set(p.collapsedGenres);
+    if (['none','genre','year','artist'].includes(p.mapColorBy)) state.mapColorBy = p.mapColorBy;
     if (typeof p.trackInfoShowPlayer === 'boolean') state.trackInfoShowPlayer = p.trackInfoShowPlayer;
     if (typeof p.trackInfoShowVideo === 'boolean') state.trackInfoShowVideo = p.trackInfoShowVideo;
     if (typeof p.releaseSearchGridView === 'boolean') state.releaseSearchGridView = p.releaseSearchGridView;
@@ -7575,6 +7613,7 @@ function savePrefs() {
       rightPanelShowHistory: state.rightPanelShowHistory,
       rightPanelShowTrackInfo: state.rightPanelShowTrackInfo,
       collapsedGenres: [...state.collapsedGenres],
+      mapColorBy: state.mapColorBy,
       trackInfoShowPlayer: state.trackInfoShowPlayer,
       trackInfoShowVideo: state.trackInfoShowVideo,
       releaseSearchGridView: state.releaseSearchGridView,
@@ -16344,6 +16383,7 @@ state.timelineMode = 'release'; // 'release' (default, by release date) or 'list
 let timelineYearCounts = []; // [{ year, count }], ascending by year
 
 state.mapTimeEnabled = false; // Map's "Spread through time" toggle — off by default, transient
+state.mapColorBy = 'none'; // 'none' | 'genre' | 'year' | 'artist' — marker/symbology colour grouping, see mapColorForGroup()/renderMapLegend()
 state.mapTimeGranularity = 'year'; // 'year' or 'month'
 state.mapTimeIndex = null; // absolute period index (year, or year*12+month) currently scrubbed to
 
@@ -17047,6 +17087,7 @@ async function openMapModal() {
 
   populateMapCategoryValues();
   applyMapColumnWidths();
+  el.mapColorBySelect.value = state.mapColorBy;
 
   // Re-sync the time-scrubber UI to state.mapTimeEnabled every open, since
   // the crate/scrobbles may have changed while the modal was closed.
@@ -17078,6 +17119,7 @@ async function renderMap() {
     el.mapStatus.hidden = true;
     if (anyLocated) el.mapCount.textContent = '0 locations match this filter';
     renderMapAttrTable(groups);
+    renderMapLegend(groups);
     return;
   }
 
@@ -17103,6 +17145,7 @@ async function renderMap() {
     + (failed ? ' \u00b7 ' + failed + ' couldn\u2019t be found' : '');
 
   renderMapAttrTable(groups);
+  renderMapLegend(groups);
 }
 
 function closeMapModal() {
@@ -17149,8 +17192,77 @@ function renderMapAttrTable(groups) {
   });
 }
 
+// A fixed, visually-distinct palette for map symbology ("Color by" —
+// Genre/Year/Artist). Consistent hashing onto this palette means the same
+// genre/artist/decade always gets the same colour across renders and
+// reopens, without needing to persist a colour-per-value mapping anywhere.
+const MAP_SYMBOLOGY_PALETTE = [
+  '#e8734a', '#4ea8de', '#8ac926', '#ffca3a', '#c77dff',
+  '#ff6b9d', '#4dd0c4', '#f4a261', '#6a994e', '#a06cd5'
+];
+const MAP_MIXED_COLOR = '#8a8f98'; // a location whose albums disagree on the chosen attribute's value
+function mapColorHash(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) { hash = (hash * 31 + str.charCodeAt(i)) | 0; }
+  return Math.abs(hash) % MAP_SYMBOLOGY_PALETTE.length;
+}
+
+// Resolves the value a group of albums (all at one geocoded location)
+// should be coloured by for the current state.mapColorBy — or null if they
+// disagree (a location with both a Rock and a Jazz album, say, when
+// colouring by Genre), in which case the marker gets a neutral "mixed"
+// colour instead of misrepresenting the location as belonging to just one.
+function mapGroupSymbologyValue(group) {
+  const values = group.items.map(item => {
+    if (state.mapColorBy === 'artist') return item.artist || 'Unknown';
+    if (state.mapColorBy === 'year') {
+      if (dateVal(item.releaseDate) === -Infinity) return 'Unknown';
+      const y = new Date(item.releaseDate).getUTCFullYear();
+      return (Math.floor(y / 10) * 10) + 's';
+    }
+    // genre — this release's own first-listed (primary) genre only, not
+    // every genre it carries, so a location gets one clean colour per
+    // album rather than needing to represent a whole genre list at once.
+    const genres = getGenreList(combinedGenreStr(item));
+    return genres[0] || 'Unknown';
+  });
+  const distinct = [...new Set(values)];
+  return distinct.length === 1 ? distinct[0] : null; // null = mixed
+}
+function mapColorForGroup(group) {
+  if (state.mapColorBy === 'none') return null;
+  const value = mapGroupSymbologyValue(group);
+  return value === null ? MAP_MIXED_COLOR : MAP_SYMBOLOGY_PALETTE[mapColorHash(value)];
+}
+
+// Legend for whatever's actually on the map right now — every distinct
+// value+colour combination currently represented (not every genre/artist
+// that theoretically could be), plus "Mixed" only if at least one location
+// actually has one. Rebuilt on every renderMap() pass alongside the
+// markers themselves, from the exact same groups list.
+function renderMapLegend(groups) {
+  if (state.mapColorBy === 'none' || !groups.length) { el.mapLegend.hidden = true; return; }
+  const seen = new Map(); // value -> color
+  let hasMixed = false;
+  groups.forEach(group => {
+    const value = mapGroupSymbologyValue(group);
+    if (value === null) { hasMixed = true; return; }
+    if (!seen.has(value)) seen.set(value, MAP_SYMBOLOGY_PALETTE[mapColorHash(value)]);
+  });
+  const entries = [...seen.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  if (hasMixed) entries.push(['Mixed', MAP_MIXED_COLOR]);
+  if (!entries.length) { el.mapLegend.hidden = true; return; }
+  el.mapLegend.innerHTML = entries.map(([label, color]) => `
+    <div class="map-legend-item"><span class="map-legend-swatch" style="background:${color}"></span>${escapeHtml(label)}</div>
+  `).join('');
+  el.mapLegend.hidden = false;
+}
+
 function addMapMarker(group, resolved) {
-  const marker = L.marker([resolved.lat, resolved.lon]).addTo(leafletMarkerLayer);
+  const color = mapColorForGroup(group);
+  const marker = color
+    ? L.circleMarker([resolved.lat, resolved.lon], { radius: 8, color: '#12161c', weight: 1.5, fillColor: color, fillOpacity: 0.9 }).addTo(leafletMarkerLayer)
+    : L.marker([resolved.lat, resolved.lon]).addTo(leafletMarkerLayer);
   const popup = document.createElement('div');
   popup.className = 'map-popup';
   const title = document.createElement('div');
@@ -23039,10 +23151,25 @@ html, body {
   .map-time-toggle-btn { flex: 0 0 auto; }
   .map-time-hint { margin: 0 0 8px; flex: 0 0 auto; }
   .map-time-scrubber { margin-bottom: 12px; flex: 0 0 auto; }
+  .map-container-wrap { position: relative; flex: 3 1 260px; min-height: 220px; }
   .map-container {
-    width: 100%; flex: 3 1 260px; min-height: 220px; border-radius: 8px; overflow: hidden;
+    width: 100%; height: 100%; border-radius: 8px; overflow: hidden;
     border: 1px solid var(--line); background: #0b0e14;
   }
+  /* Floats over the map itself (top-right — Leaflet's own zoom control
+     defaults to top-left, so no overlap) rather than taking its own
+     vertical space in the modal's already fairly tight layout. Not a
+     child of #mapContainer — Leaflet manages that element's own internal
+     DOM (tile/marker panes) and isn't guaranteed to preserve arbitrary
+     pre-existing children, so this is a sibling instead, positioned via
+     the shared .map-container-wrap parent. */
+  .map-legend {
+    position: absolute; top: 10px; right: 10px; z-index: 1000; max-width: 46%;
+    background: rgba(11,14,20,0.88); border: 1px solid var(--line); border-radius: 6px;
+    padding: 6px 8px; font-size: 10.5px; pointer-events: none;
+  }
+  .map-legend-item { display: flex; align-items: center; gap: 5px; margin: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .map-legend-swatch { flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%; }
   /* Plain OpenStreetMap tiles (see ensureLeafletMap's own comment for why
      this isn't CARTO's dark_all anymore) are light by default — this
      approximates the app's original dark look without depending on a
