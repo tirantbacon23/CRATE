@@ -13,7 +13,81 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.139
+  CURRENT_VERSION: 1.29.142
+
+  1.29.142 — 2026-09-26 — Feature: three selectable display styles for the
+          right panel's Up Next queue, via a new "View" dropdown in
+          Panels configuration… → right panel (separate from the existing
+          button, now relabeled "Customize Layout …", which adapts to
+          configure whichever style is currently selected rather than
+          being its own style):
+
+          - Track with Thumbnail (default) — the original row style,
+            grouping-line and all, now with a cover-art thumbnail per
+            track. The simplest of the three.
+          - Track Detail — a real table. Modeled directly on the main
+            Tracks View's own "# and Track are always fixed, the rest are
+            configurable columns" structure (trackHeaderColumns), scoped
+            to a plain CSS grid rather than that view's full resizable-
+            column machinery, which would be overkill for this narrow
+            sidebar. New state.fields.queueTrackDetail.
+          - Release and Tracks — modeled on the Playlist Explorer's own
+            "Album and Tracks" view: a release header shown once, its
+            tracks listed under it — applied here to the live queue
+            instead of a saved playlist. Groups any CONSECUTIVE run of
+            queued tracks sharing a release (current + upcoming treated as
+            one continuous sequence for this, since the currently-playing
+            track very often shares a release with what's queued right
+            after it). Two field groups under one "Customize Layout" pass
+            — release fields (state.fields.queueReleaseInfo) shown once
+            per group, track fields (state.fields.queueTrackInfoNested)
+            repeated per track with the track's own name always shown —
+            same dual-group pattern the Covers view's own two field groups
+            already established, reused rather than inventing a new
+            mechanism for a second config screen.
+
+          All three emit the same .queue-row-clickable/data-queue-index
+          convention, so the single click/keyboard handler driving
+          "click a queued row to jump to it" needed no changes at all.
+
+  1.29.141 — 2026-09-26 — Feature: genre taxonomy now syncs per-account
+          instead of living only in localStorage (per-browser/per-device —
+          a taxonomy built up on one device never showed up on another).
+          REQUIRES RE-PASTING THE UPDATED apps-script-backend.gs (provided
+          alongside this version) — new Settings sheet (_getSetting/
+          _setSetting, generic key/value, currently just the one
+          GenreTaxonomy key but built to hold others later without needing
+          another sheet), doGet now includes it in the response, doPost
+          gained a saveGenreTaxonomy action. Frontend: fetchCatalog applies
+          the backend's copy once it arrives (source of truth once the
+          account has synced one at all); localStorage stays as the fast
+          local cache for the very first render before that response
+          arrives, and as the fallback for an account that's never synced
+          one yet. saveGenreTaxonomy() now posts to the backend on every
+          real edit (fire-and-forget — a taxonomy edit is small/infrequent,
+          not worth blocking the UI on), with a skipSync flag so re-
+          applying what fetchCatalog just received doesn't immediately
+          post it right back. Last-write-wins on conflict, same as
+          everything else in this app with no fancier merge logic.
+
+  1.29.140 — 2026-09-26 — Feature: two new release-level fields, Scene
+          (a local music community/geographic cultural moment — e.g.
+          Madchester, the Seattle grunge scene) and Movement (a broader
+          artistic/stylistic movement — e.g. Post-Punk, the British
+          Invasion). Same plain string-column pattern as Descriptor, and
+          — learning directly from Descriptor's own months-long silent-
+          failure bug — added to BOTH the backend's fields arrays AND the
+          full frontend plumbing in the same pass this time, rather than
+          shipping one half now and the other "later": addAlbum/editAlbum
+          in apps-script-backend.gs (REQUIRES RE-PASTING IT), Add/Edit
+          release forms, fetchCatalog's read, keyToVal (an explicit map,
+          not a generic fallback — needed real entries here, same as
+          Descriptor needed one), FIELD_OPTIONS/ADD_FORM_FIELD_OPTIONS (so
+          both are selectable as customizable card/grid/tracks-column
+          fields), SEARCH_FIELD_ALIASES + combinedSearchText (scene:/
+          movement: search operators, plus free-text matching), and
+          dedicated fields in the Advanced Search modal alongside Genre/
+          Label/Catalog/Descriptor.
 
   1.29.139 — 2026-09-26 — Tweak: tightened remaining excess vertical space
           in the Map modal's header area, on top of 1.29.118's earlier
@@ -4436,7 +4510,15 @@
       <div class="pane-config-box-body">
         <div class="arrange-row arrange-row-btn">
           <label class="arrange-row-label"><input type="checkbox" id="rightPanelShowQueue" checked> Up Next (queue)</label>
-          <button id="configureQueueBtn" class="config-btn">Panel Settings …</button>
+          <button id="configureQueueBtn" class="config-btn">Customize Layout …</button>
+        </div>
+        <div class="arrange-row arrange-row-sub" id="queueViewModeRow">
+          <label class="arrange-row-label" for="queueViewModeSelect">View</label>
+          <select id="queueViewModeSelect" class="config-btn">
+            <option value="thumbnail">Track with Thumbnail</option>
+            <option value="trackDetail">Track Detail</option>
+            <option value="releaseTracks">Release and Tracks</option>
+          </select>
         </div>
         <div class="arrange-row arrange-row-btn">
           <label class="arrange-row-label"><input type="checkbox" id="rightPanelShowHistory"> Last.fm History</label>
@@ -5113,7 +5195,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.139';
+const APP_VERSION = '1.29.142';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -5359,6 +5441,14 @@ const state = {
   fieldPlacement: 'below', // 'below' | 'overlay' — only relevant when fitArtwork is true
   closeGaps: false,
   leftNavCompact: false, // icons-only mode for the far-left Music/Playlist Explorer rail — see applyLeftNavCompact()
+  // Which of the three Queue display styles is active — set via the new
+  // "View" dropdown in Panels configuration…, right panel, under Up Next
+  // (not the existing "Panel Settings…" button, which only ever configured
+  // ONE of these three styles' fields — see the "View" dropdown's own
+  // comment for why it needed to be a separate control). Each mode has its
+  // own reference noted where it's implemented — see renderCrateQueuePanel's
+  // dispatch and each of the three render functions it calls.
+  queueViewMode: 'thumbnail', // 'thumbnail' | 'trackDetail' | 'releaseTracks'
   panelWidths: { leftNav: 148, left: 220, right: 260 },
 fields: { 
     // Ordered slots for the Albums Grid
@@ -5372,8 +5462,28 @@ fields: {
     // Right sidebar's "Now Playing"/Up Next queue — printed on a second
     // line under each queued track's name, one release-grouping line per
     // row (e.g. artist, year) so tracks that are collectively part of one
-    // release read as a group at a glance.
+    // release read as a group at a glance. Used by the "Track with
+    // Thumbnail" queue view specifically — see state.queueViewMode and
+    // QUEUE_VIEW_MODES just below fields.
     queue: ['artist', 'year', null],
+    // "Track Detail" queue view — a real table, same "# and Track are
+    // always fixed, these fill the rest" pattern as the main Tracks View
+    // (state.fields.tracks just above) reused deliberately rather than
+    // invented fresh, just scoped to the queue's own narrower sidebar
+    // width (fewer slots than the main view gets). See
+    // renderQueueTrackDetailView().
+    queueTrackDetail: ['artist', 'trackLength', null],
+    // "Release and Tracks" queue view — TWO separate slot groups under one
+    // "Customize Layout" button: the release-level block shown once per
+    // contiguous run of same-release queue entries, and the track-level
+    // block repeated under it for each individual track (track name
+    // itself is always shown there, same fixed-vs-configurable split as
+    // Track Detail above). Modeled on the Playlist Explorer's own "Album
+    // and Tracks" view — release header once, its tracks listed under it —
+    // applied here to the queue instead of a saved playlist. See
+    // renderQueueReleaseTracksView().
+    queueReleaseInfo: ['artist', 'title', 'year'],
+    queueTrackInfoNested: ['trackLength', null],
     // Bottom mini player — printed under the track title, one field per
     // line (top-to-bottom = slot order). Defaults match the previous
     // hardcoded artist/album lines so nothing changes until customized.
@@ -5462,7 +5572,7 @@ const el = {};
   'tabStats','tabArtist',
   'statsWrap','statsModeListening','statsModeCollection','statsListeningWrap','statsCollectionWrap','statsCollectionBody','statsYearList','statsDetail','statsDetailBack','statsDetailYear','statsDetailBody',
   'artistWrap','artistSearchInput','artistList','artistDetail',
-  'layoutBtn','layoutMenu','menuArrangePanels','arrangeModal','arrangeClose','toggleLeftPanel','toggleLeftNavCompact','toggleRightPanel','albumQuickPeekStyleSelect','addFieldsChecklist','rightPanelShowQueue','rightPanelShowHistory','rightPanelShowTrackInfo','trackInfoShowPlayerToggle','trackInfoShowVideoToggle','rightPanelQueueSection','rightPanelHistorySection','rightPanelTrackInfoSection','rightPanelEmptyMsg','rightHistoryPanelBody','trackInfoBody','trackInfoTextWrap','trackInfoTitle','trackInfoRatingRow','trackInfoArtWrap','trackInfoArt','trackInfoPlayerControls','trackInfoVideoWrap','trackInfoVideoMount','trackInfoFields','trackInfoEmpty','trackInfoSeekTrack','trackInfoSeekFill','trackInfoSeekHandle','trackInfoTimeCurrent','trackInfoTimeTotal','historyViewListBtn','historyViewGridBtn','configureMainBtn','configureQueueBtn','configureHistoryBtn','configureTrackInfoBtn','historyLayoutChronoBtn','historyLayoutByDayBtn','configureMiniPlayerBtn','toggleCoverLinks','toggleFitArtwork','toggleCloseGaps','fieldPlacementGroup','fieldPlacementOverlay','fieldPlacementBelow',
+  'layoutBtn','layoutMenu','menuArrangePanels','arrangeModal','arrangeClose','toggleLeftPanel','toggleLeftNavCompact','toggleRightPanel','albumQuickPeekStyleSelect','addFieldsChecklist','rightPanelShowQueue','rightPanelShowHistory','rightPanelShowTrackInfo','trackInfoShowPlayerToggle','trackInfoShowVideoToggle','rightPanelQueueSection','rightPanelHistorySection','rightPanelTrackInfoSection','rightPanelEmptyMsg','rightHistoryPanelBody','trackInfoBody','trackInfoTextWrap','trackInfoTitle','trackInfoRatingRow','trackInfoArtWrap','trackInfoArt','trackInfoPlayerControls','trackInfoVideoWrap','trackInfoVideoMount','trackInfoFields','trackInfoEmpty','trackInfoSeekTrack','trackInfoSeekFill','trackInfoSeekHandle','trackInfoTimeCurrent','trackInfoTimeTotal','queueViewModeSelect','historyViewListBtn','historyViewGridBtn','configureMainBtn','configureQueueBtn','configureHistoryBtn','configureTrackInfoBtn','historyLayoutChronoBtn','historyLayoutByDayBtn','configureMiniPlayerBtn','toggleCoverLinks','toggleFitArtwork','toggleCloseGaps','fieldPlacementGroup','fieldPlacementOverlay','fieldPlacementBelow',
   'mainConfigModal','mainConfigClose','mainConfigArtworkOptions',
   'fldTitle','fldArtist','fldYear','fldRating','fldType','fldCatalog','fldGenre','fldLabel','fldDuration','menuCustomizeMain',
   'listenedFilterBtn',
@@ -5739,9 +5849,23 @@ function loadGenreTaxonomy() {
   });
   return taxonomy;
 }
-function saveGenreTaxonomy(taxonomy) {
+function saveGenreTaxonomy(taxonomy, opts) {
   try { localStorage.setItem(GENRE_TAXONOMY_KEY, JSON.stringify(taxonomy)); }
   catch (e) { /* ignore */ }
+  // Synced to the backend (per-account, not per-browser — see doGet/
+  // doPost's own genreTaxonomy/saveGenreTaxonomy handling) unless this
+  // call is just refreshing the local cache FROM a value already received
+  // from the backend (fetchCatalog's own response handling below) — re-
+  // posting that back would just be a wasted round-trip of data that's
+  // already there. Fire-and-forget: a taxonomy edit is a small, infrequent
+  // action, not worth blocking the UI on the network request, and the
+  // localStorage write just above always succeeds regardless of network
+  // state, so a sync failure here just means the NEXT edit (or the next
+  // fetchCatalog, which re-applies whatever the backend actually holds)
+  // is where any inconsistency would show up, not lost data outright.
+  if (!opts || !opts.skipSync) {
+    postUpdate({ action: 'saveGenreTaxonomy', taxonomy: JSON.stringify(taxonomy) }).catch(e => console.warn('Genre taxonomy sync failed', e));
+  }
 }
 
 function getGenreParents(taxonomy, genre) {
@@ -5862,6 +5986,7 @@ async function init() {
   el.toggleLeftPanel.checked = state.showLeft;
   el.toggleRightPanel.checked = state.showRight;
   el.rightPanelShowQueue.checked = state.rightPanelShowQueue;
+  el.queueViewModeSelect.value = state.queueViewMode;
   el.rightPanelShowHistory.checked = state.rightPanelShowHistory;
   el.rightPanelShowTrackInfo.checked = state.rightPanelShowTrackInfo;
   el.trackInfoShowPlayerToggle.checked = state.trackInfoShowPlayer;
@@ -6818,8 +6943,19 @@ function bindEvents() {
 
   el.configureQueueBtn.addEventListener('click', () => {
     el.arrangeModal.hidden = true;
-    renderConfigSlots('queue');
+    // Adapts to whichever of the three Queue view styles is currently
+    // selected (queueViewModeSelect just below) — one button rather than
+    // a separate one per style, per how this was asked for.
+    const modeForConfig = state.queueViewMode === 'trackDetail' ? 'queueTrackDetail'
+      : state.queueViewMode === 'releaseTracks' ? 'queueReleaseTracks'
+      : 'queue';
+    renderConfigSlots(modeForConfig);
     el.mainConfigModal.hidden = false;
+  });
+  el.queueViewModeSelect.addEventListener('change', () => {
+    state.queueViewMode = el.queueViewModeSelect.value;
+    savePrefs();
+    renderCrateQueuePanel();
   });
 
   el.configureHistoryBtn.addEventListener('click', () => {
@@ -7474,7 +7610,7 @@ function renderConfigSlots(mode) {
   // placement, close gaps) only mean anything for the card-based views —
   // hide them entirely for the queue/mini-player field pickers, which are
   // just a plain list of text slots with nothing to do with artwork.
-  if (el.mainConfigArtworkOptions) el.mainConfigArtworkOptions.hidden = (mode === 'queue' || mode === 'miniPlayer' || mode === 'lastfmHistory' || mode === 'trackInfo');
+  if (el.mainConfigArtworkOptions) el.mainConfigArtworkOptions.hidden = (mode === 'queue' || mode === 'queueTrackDetail' || mode === 'queueReleaseTracks' || mode === 'miniPlayer' || mode === 'lastfmHistory' || mode === 'trackInfo');
 
   const labels = {
     grid: ['Slot 1 (Top)', 'Slot 2', 'Slot 3', 'Slot 4', 'Slot 5 (Bottom)'],
@@ -7482,6 +7618,13 @@ function renderConfigSlots(mode) {
     covers: ['Top Left Tag', 'Bottom Right Tag', 'Bottom Left Tag'],
     coversBelow: ['Row 1', 'Row 2', 'Row 3', 'Row 4', 'Row 5'],
     queue: ['Field 1', 'Field 2', 'Field 3'],
+    // "Track Detail" queue view's table columns — "#" and "Track" are
+    // always fixed (same as the main Tracks View), these fill the rest.
+    queueTrackDetail: ['Column 1', 'Column 2', 'Column 3'],
+    // "Release and Tracks" queue view's two groups — see the addRows calls
+    // for this mode below, same dual-group pattern 'covers' already uses.
+    queueReleaseInfo: ['Field 1', 'Field 2', 'Field 3'],
+    queueTrackInfoNested: ['Field 1 (Track name is always shown)', 'Field 2'],
     miniPlayer: ['Line 1 (under title)', 'Line 2'],
     lastfmHistory: ['Line 1 (title)', 'Line 2 (subtitle)', 'Line 3 (right-aligned)'],
     trackInfo: ['Field 1', 'Field 2', 'Field 3', 'Field 4']
@@ -7505,7 +7648,7 @@ function renderConfigSlots(mode) {
       row.innerHTML = `
         <span class="config-row-label">${label}</span>
         <select data-index="${i}" data-mode="${fieldKey}" class="config-select">
-          ${Object.entries(fieldKey === 'tracks' || fieldKey === 'queue' || fieldKey === 'miniPlayer' ? TRACK_COLUMN_LABELS : fieldKey === 'lastfmHistory' ? LASTFM_HISTORY_FIELD_OPTIONS : FIELD_OPTIONS).map(([val, lbl]) => `<option value="${val}" ${currentFields[i] === val ? 'selected' : ''}>${lbl}</option>`).join('')}
+          ${Object.entries(fieldKey === 'tracks' || fieldKey === 'queue' || fieldKey === 'queueTrackDetail' || fieldKey === 'queueTrackInfoNested' || fieldKey === 'miniPlayer' ? TRACK_COLUMN_LABELS : fieldKey === 'lastfmHistory' ? LASTFM_HISTORY_FIELD_OPTIONS : FIELD_OPTIONS).map(([val, lbl]) => `<option value="${val}" ${currentFields[i] === val ? 'selected' : ''}>${lbl}</option>`).join('')}
         </select>
       `;
 
@@ -7522,7 +7665,7 @@ function renderConfigSlots(mode) {
 
         // Force a re-render to show changes instantly, scoped to whichever
         // panel this field group belongs to.
-        if (m === 'queue') renderCrateQueuePanel();
+        if (m === 'queue' || m === 'queueTrackDetail' || m === 'queueReleaseInfo' || m === 'queueTrackInfoNested') renderCrateQueuePanel();
         else if (m === 'miniPlayer') refreshMiniPlayerMeta();
         else if (m === 'lastfmHistory') renderLastfmHistoryPanel();
         else if (m === 'trackInfo') renderTrackInfoPanel();
@@ -7539,11 +7682,20 @@ function renderConfigSlots(mode) {
     addRows('covers', labels.covers);
     addSubheading('Fields below cover');
     addRows('coversBelow', labels.coversBelow);
+  } else if (mode === 'queueReleaseTracks') {
+    // "Release and Tracks" queue view — same dual-group pattern as
+    // 'covers' just above: the release-level block shown once per
+    // contiguous run of same-release queue entries, and the track-level
+    // block repeated under it per track. See renderQueueReleaseTracksView().
+    addSubheading('Release fields');
+    addRows('queueReleaseInfo', labels.queueReleaseInfo);
+    addSubheading('Track fields');
+    addRows('queueTrackInfoNested', labels.queueTrackInfoNested);
   } else {
     addRows(mode, labels[mode]);
   }
 
-  const titles = { grid: 'Albums Grid', tracks: 'Tracks View', covers: 'Album Covers', queue: 'Now Playing Queue', miniPlayer: 'Bottom Player', lastfmHistory: 'Last.fm History', trackInfo: 'Track Info' };
+  const titles = { grid: 'Albums Grid', tracks: 'Tracks View', covers: 'Album Covers', queue: 'Queue (Track with Thumbnail)', queueTrackDetail: 'Queue (Track Detail)', queueReleaseTracks: 'Queue (Release and Tracks)', miniPlayer: 'Bottom Player', lastfmHistory: 'Last.fm History', trackInfo: 'Track Info' };
   document.getElementById('configModalTitle').textContent = `Configure ${titles[mode]}`;
   const hint = document.querySelector('#mainConfigModal .arrange-hint');
   if (hint) {
@@ -7551,6 +7703,10 @@ function renderConfigSlots(mode) {
       ? '"#" and "Track" are always shown as columns — pick up to 5 more columns to add (e.g. Album, Genre, Year, Length).'
       : (mode === 'queue')
       ? 'Shown on a second line under each queued track — lets tracks that share a release read as a group (e.g. Artist, Year).'
+      : (mode === 'queueTrackDetail')
+      ? '"#" and "Track" are always shown as columns, same as the main Tracks View — pick up to 3 more to add.'
+      : (mode === 'queueReleaseTracks')
+      ? 'Release fields show once per release, grouping consecutive queued tracks from it; track fields repeat under each one (Track name is always shown there).'
       : (mode === 'miniPlayer')
       ? 'Printed under the track title in the bottom player, one field per line.'
       : (mode === 'lastfmHistory')
@@ -7609,6 +7765,7 @@ function loadPrefs() {
     if (typeof p.rightPanelShowTrackInfo === 'boolean') state.rightPanelShowTrackInfo = p.rightPanelShowTrackInfo;
     if (Array.isArray(p.collapsedGenres)) state.collapsedGenres = new Set(p.collapsedGenres);
     if (['none','genre','year','artist'].includes(p.mapColorBy)) state.mapColorBy = p.mapColorBy;
+    if (['thumbnail','trackDetail','releaseTracks'].includes(p.queueViewMode)) state.queueViewMode = p.queueViewMode;
     if (typeof p.trackInfoShowPlayer === 'boolean') state.trackInfoShowPlayer = p.trackInfoShowPlayer;
     if (typeof p.trackInfoShowVideo === 'boolean') state.trackInfoShowVideo = p.trackInfoShowVideo;
     if (typeof p.releaseSearchGridView === 'boolean') state.releaseSearchGridView = p.releaseSearchGridView;
@@ -7634,6 +7791,7 @@ function savePrefs() {
       rightPanelShowTrackInfo: state.rightPanelShowTrackInfo,
       collapsedGenres: [...state.collapsedGenres],
       mapColorBy: state.mapColorBy,
+      queueViewMode: state.queueViewMode,
       trackInfoShowPlayer: state.trackInfoShowPlayer,
       trackInfoShowVideo: state.trackInfoShowVideo,
       releaseSearchGridView: state.releaseSearchGridView,
@@ -7742,6 +7900,22 @@ async function fetchCatalog() {
       console.error('Apps Script returned an error:', data.error);
       showState('error', 'albums', data.error);
       return;
+    }
+
+    // Genre taxonomy sync — per-account (via the backend's own Settings
+    // sheet) rather than per-browser, so a taxonomy built up on one device
+    // now actually shows up on another. Backend is the source of truth
+    // once it has a value at all; localStorage stays as the fast local
+    // cache used for the very first render (before this response has
+    // even arrived) and as the fallback if this account has never synced
+    // one yet (data.genreTaxonomy null — e.g. a brand new account, or one
+    // that hasn't opened the taxonomy editor since this feature shipped).
+    if (data.genreTaxonomy) {
+      try {
+        const synced = JSON.parse(data.genreTaxonomy);
+        state.genreTaxonomy = synced;
+        saveGenreTaxonomy(synced, { skipSync: true }); // refresh the local cache only — don't re-post what we just received
+      } catch (e) { console.warn('Malformed genre taxonomy from backend, keeping local copy', e); }
     }
 
     // Inside fetchCatalog(), update the state.raw mapping:
@@ -15242,6 +15416,28 @@ function renderLastfmHistoryPanel() {
 // will actually play on. Call it any time crateQueueList/crateQueueIndex
 // change (playCrateQueueIndex, addToCrateQueue, playTracksNow,
 // playPlaylistFromStart, clearCrateQueue).
+// Dispatches to one of three queue display styles (state.queueViewMode,
+// set via the "View" dropdown in Panels configuration… → right panel →
+// Up Next — a separate control from "Customize Layout" since that button
+// configures whichever style is currently active, not a style of its own):
+//   'thumbnail'     — renderQueueThumbnailHtml: the original row style,
+//                      now with a cover-art thumbnail per track. The
+//                      simplest of the three — just the tracks queued/
+//                      playing, each with a quick visual.
+//   'trackDetail'   — renderQueueTrackDetailHtml: a real table, modeled
+//                      directly on the main Tracks View's own "# and
+//                      Track are always fixed, the rest are configurable
+//                      columns" structure (trackHeaderColumns), scoped to
+//                      a plain CSS grid rather than that view's full
+//                      resizable-column machinery.
+//   'releaseTracks' — renderQueueReleaseTracksHtml: modeled on the
+//                      Playlist Explorer's own "Album and Tracks" view —
+//                      a release header shown once, its tracks listed
+//                      under it — applied here to the live queue instead
+//                      of a saved playlist.
+// All three emit the same .queue-row-clickable/data-queue-index
+// convention, so the single click/keyboard handler at the bottom of this
+// function works unchanged regardless of which style is showing.
 function renderCrateQueuePanel() {
   if (!el.crateQueuePanelBody) return;
   const current = crateQueueIndex >= 0 ? crateQueueList[crateQueueIndex] : null;
@@ -15259,57 +15455,14 @@ function renderCrateQueuePanel() {
     return;
   }
 
-  // rowHtml renders each entry as a clickable row (data-queue-index is the
-  // entry's actual position in crateQueueList) — same role="button"/
-  // tabindex="0" + .queue-row-clickable pattern the mini player's own
-  // queue popover already uses (see queueRowHtml above), so it picks up
-  // that existing styling/keyboard handling for free. Previously this was
-  // static markup with no way to act on it at all. The "Now playing" row
-  // is clickable too (replays that same entry from the top); the one
-  // exception is the folded-in "something already playing" placeholder
-  // (see addToCrateQueue) which has no real queue index behind it and so
-  // isn't made clickable.
-  const rowHtml = (entry, isCurrent, index) => {
-    // A manual album's track plays via its saved YouTube link (see
-    // isManualAlbum()); the folded-in "now playing" placeholder (item is
-    // null, only ever at index 0) reports its own source via
-    // ytPlayingForCrateQueue/scPlayingForCrateQueue instead, since it has
-    // no item to check. A saved soundcloudLink on the entry itself (see
-    // trackLinkOverridesFor) is checked first and wins over the
-    // isManualAlbum heuristic — that heuristic predates per-track
-    // SoundCloud links and otherwise assumes every manual-album track is a
-    // YouTube one.
-    const isSoundcloud = entry.track && entry.track.soundcloudLink ? true : (!entry.item && isCurrent && scPlayingForCrateQueue);
-    const isYoutube = !isSoundcloud && (entry.item ? isManualAlbum(entry.item) : (isCurrent && ytPlayingForCrateQueue));
-    const clickable = index !== null;
-    // Grouping line (see "Panel Settings…" on the Right Panel in Panels
-    // configuration) — configurable via state.fields.queue, same
-    // FIELD_OPTIONS as the grid/covers views. Default is Artist + Year, so
-    // tracks that are collectively part of one release still read as a
-    // group even without opening each one.
-    const groupingParts = entry.item ? (state.fields.queue || []).map(k => trackColumnVal(k, entry.item, entry.track)).filter(Boolean) : [];
-    const groupingLine = groupingParts.length ? escapeHtml(groupingParts.join(' · ')) : '&nbsp;';
-    const sourceTitle = isSoundcloud ? 'Plays on SoundCloud' : (isYoutube ? 'Plays on YouTube' : 'Plays on Spotify');
-    const sourceIcon = isSoundcloud ? '\u2601' : (isYoutube ? '\u25b6' : '\u266b');
-    return `<div class="queue-row${isCurrent ? ' queue-row-current' : ''}${clickable ? ' queue-row-clickable' : ''}" ${clickable ? `data-queue-index="${index}" role="button" tabindex="0" title="Play this track"` : ''}>
-      <span class="crate-queue-source" title="${sourceTitle}">${sourceIcon}</span>
-      <div class="queue-row-meta">
-        <p class="queue-track-title">${escapeHtml(entry.track.trackName || '')}</p>
-        <p class="queue-track-artist">${groupingLine}</p>
-      </div>
-    </div>`;
-  };
-
   // The folded-in "something already playing" placeholder (see
   // addToCrateQueue) sits at crateQueueIndex 0 with item === null — it has
   // no real lookup behind it, so it's rendered but not made clickable.
   const currentIndex = current && current.item !== null ? crateQueueIndex : null;
 
-  el.crateQueuePanelBody.innerHTML =
-    (current ? `<p class="queue-panel-subheading">Now playing</p>${rowHtml(current, true, currentIndex)}` : '') +
-    (upcoming.length
-      ? `<p class="queue-panel-subheading">${current ? 'Up next' : 'Queued'}</p><div class="queue-list">${upcoming.map((e, i) => rowHtml(e, false, crateQueueIndex + 1 + i)).join('')}</div>`
-      : '');
+  if (state.queueViewMode === 'trackDetail') el.crateQueuePanelBody.innerHTML = renderQueueTrackDetailHtml(current, upcoming, currentIndex);
+  else if (state.queueViewMode === 'releaseTracks') el.crateQueuePanelBody.innerHTML = renderQueueReleaseTracksHtml(current, upcoming, currentIndex);
+  else el.crateQueuePanelBody.innerHTML = renderQueueThumbnailHtml(current, upcoming, currentIndex);
 
   if (!el.crateQueuePanelBody.dataset.clickBound) {
     el.crateQueuePanelBody.dataset.clickBound = '1';
@@ -15328,6 +15481,114 @@ function renderCrateQueuePanel() {
       jumpToRow(e);
     });
   }
+}
+
+// "Track with Thumbnail" — see renderCrateQueuePanel's own dispatch
+// comment. Same row shape/grouping-line logic (state.fields.queue) as
+// this view always had, with a cover-art thumbnail added per track — the
+// item without one (the folded-in "already playing" placeholder) gets a
+// blank same-size spacer instead, so its row doesn't shift out of
+// alignment with the ones around it (the exact same class of bug fixed
+// for the genre-tree caret a few versions back).
+function renderQueueThumbnailHtml(current, upcoming, currentIndex) {
+  const rowHtml = (entry, isCurrent, index) => {
+    const isSoundcloud = entry.track && entry.track.soundcloudLink ? true : (!entry.item && isCurrent && scPlayingForCrateQueue);
+    const isYoutube = !isSoundcloud && (entry.item ? isManualAlbum(entry.item) : (isCurrent && ytPlayingForCrateQueue));
+    const clickable = index !== null;
+    const groupingParts = entry.item ? (state.fields.queue || []).map(k => trackColumnVal(k, entry.item, entry.track)).filter(Boolean) : [];
+    const groupingLine = groupingParts.length ? escapeHtml(groupingParts.join(' · ')) : '&nbsp;';
+    const sourceTitle = isSoundcloud ? 'Plays on SoundCloud' : (isYoutube ? 'Plays on YouTube' : 'Plays on Spotify');
+    const sourceIcon = isSoundcloud ? '\u2601' : (isYoutube ? '\u25b6' : '\u266b');
+    const thumbHtml = entry.item
+      ? `<img class="queue-row-thumbnail art" data-key="${artKey(entry.item)}" src="${state.artCache[artKey(entry.item)]?.art || placeholderArt(entry.item)}" alt="">`
+      : `<span class="queue-row-thumbnail queue-row-thumbnail-spacer" aria-hidden="true"></span>`;
+    return `<div class="queue-row queue-row-thumb${isCurrent ? ' queue-row-current' : ''}${clickable ? ' queue-row-clickable' : ''}" ${clickable ? `data-queue-index="${index}" role="button" tabindex="0" title="Play this track"` : ''}>
+      ${thumbHtml}
+      <span class="crate-queue-source" title="${sourceTitle}">${sourceIcon}</span>
+      <div class="queue-row-meta">
+        <p class="queue-track-title">${escapeHtml(entry.track.trackName || '')}</p>
+        <p class="queue-track-artist">${groupingLine}</p>
+      </div>
+    </div>`;
+  };
+  return (current ? `<p class="queue-panel-subheading">Now playing</p>${rowHtml(current, true, currentIndex)}` : '') +
+    (upcoming.length
+      ? `<p class="queue-panel-subheading">${current ? 'Up next' : 'Queued'}</p><div class="queue-list">${upcoming.map((e, i) => rowHtml(e, false, crateQueueIndex + 1 + i)).join('')}</div>`
+      : '');
+}
+
+// "Track Detail" — see renderCrateQueuePanel's own dispatch comment. "#"
+// (position in queue) and "Track" (name) are always shown, same fixed-
+// column convention as the main Tracks View; state.fields.queueTrackDetail
+// fills the rest, resolved through the same trackColumnVal() that view
+// itself uses.
+function renderQueueTrackDetailHtml(current, upcoming, currentIndex) {
+  const cols = (state.fields.queueTrackDetail || []).filter(k => k && k !== 'none');
+  const gridTemplate = `24px minmax(0,1.4fr) ${cols.map(() => 'minmax(0,1fr)').join(' ')}`;
+  const headerHtml = `<div class="queue-table-row queue-table-header" style="grid-template-columns:${gridTemplate}">
+    <span>#</span><span>Track</span>${cols.map(k => `<span>${escapeHtml(TRACK_COLUMN_LABELS[k] || '')}</span>`).join('')}
+  </div>`;
+  const rowHtml = (entry, isCurrent, index, num) => {
+    const clickable = index !== null;
+    return `<div class="queue-table-row${isCurrent ? ' queue-row-current' : ''}${clickable ? ' queue-row-clickable' : ''}" style="grid-template-columns:${gridTemplate}" ${clickable ? `data-queue-index="${index}" role="button" tabindex="0" title="Play this track"` : ''}>
+      <span class="queue-table-num">${num}</span>
+      <span class="queue-table-track">${escapeHtml(entry.track.trackName || '')}</span>
+      ${cols.map(k => `<span>${entry.item ? escapeHtml(trackColumnVal(k, entry.item, entry.track) || '') : ''}</span>`).join('')}
+    </div>`;
+  };
+  let n = 1;
+  return headerHtml
+    + (current ? rowHtml(current, true, currentIndex, n++) : '')
+    + upcoming.map((e, i) => rowHtml(e, false, crateQueueIndex + 1 + i, n++)).join('');
+}
+
+// "Release and Tracks" — see renderCrateQueuePanel's own dispatch comment.
+// Current + upcoming are treated as ONE continuous sequence for grouping
+// (rather than kept in separate "Now playing"/"Up next" sections like the
+// other two views), since the currently-playing track very often shares a
+// release with whatever's queued right after it — grouping stops at
+// exactly that boundary would fragment the one thing this view exists to
+// show. Groups by each entry's item identity (artKey) — the folded-in
+// "already playing" placeholder (item === null) never groups with
+// anything, since it has no release of its own to group by. Release
+// fields (state.fields.queueReleaseInfo) show once per group; track
+// fields (state.fields.queueTrackInfoNested) repeat per track under it,
+// with the track's own name always shown there regardless of what's
+// configured, same fixed-vs-configurable split as every other view here.
+function renderQueueReleaseTracksHtml(current, upcoming, currentIndex) {
+  const all = [];
+  if (current) all.push({ entry: current, isCurrent: true, index: currentIndex });
+  upcoming.forEach((e, i) => all.push({ entry: e, isCurrent: false, index: crateQueueIndex + 1 + i }));
+
+  const groups = [];
+  all.forEach(row => {
+    const key = row.entry.item ? artKey(row.entry.item) : null;
+    const last = groups[groups.length - 1];
+    if (key !== null && last && last.key === key) last.rows.push(row);
+    else groups.push({ key, item: row.entry.item, rows: [row] });
+  });
+
+  const releaseFields = (state.fields.queueReleaseInfo || []).filter(k => k && k !== 'none');
+  const trackFields = (state.fields.queueTrackInfoNested || []).filter(k => k && k !== 'none');
+
+  return groups.map(group => {
+    const releaseHeaderHtml = group.item ? `
+      <div class="queue-release-header">
+        <img class="queue-release-thumb art" data-key="${artKey(group.item)}" src="${state.artCache[artKey(group.item)]?.art || placeholderArt(group.item)}" alt="">
+        <div class="queue-release-header-text">
+          ${releaseFields.map(k => `<p class="queue-release-field">${escapeHtml(keyToVal(k, group.item) || '')}</p>`).join('') || '&nbsp;'}
+        </div>
+      </div>` : '';
+    const tracksHtml = group.rows.map(({ entry, isCurrent, index }) => {
+      const clickable = index !== null;
+      const extraFields = entry.item ? trackFields.map(k => trackColumnVal(k, entry.item, entry.track)).filter(Boolean) : [];
+      return `<div class="queue-nested-track-row${isCurrent ? ' queue-row-current' : ''}${clickable ? ' queue-row-clickable' : ''}" ${clickable ? `data-queue-index="${index}" role="button" tabindex="0" title="Play this track"` : ''}>
+        <p class="queue-track-title">${escapeHtml(entry.track.trackName || '')}</p>
+        ${extraFields.length ? `<p class="queue-track-artist">${escapeHtml(extraFields.join(' · '))}</p>` : ''}
+      </div>`;
+    }).join('');
+    return `<div class="queue-release-group">${releaseHeaderHtml}<div class="queue-release-tracks">${tracksHtml}</div></div>`;
+  }).join('');
 }
 
 // "Clear" button on the Up Next panel — stops the crate queue from
@@ -22713,6 +22974,44 @@ html, body {
   .queue-track-title { font-size: 12.5px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
   .queue-track-artist { font-size: 11px; margin: 2px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-dim); min-height: 1em; }
   .queue-empty { font-size: 12px; color: var(--text-dim); padding: 6px 8px 10px; margin: 0; }
+
+  /* "Track with Thumbnail" queue view — .queue-row img above already
+     sizes any <img> inside a .queue-row at 34x34 (the mini player's own
+     queue popover relies on that same rule), so this thumbnail picks it
+     up for free; the spacer just needs to match that box so a row without
+     an item (the folded-in "already playing" placeholder) doesn't shift
+     out of alignment with the ones around it. */
+  .queue-row-thumbnail-spacer { width: 34px; height: 34px; flex: 0 0 auto; }
+
+  /* "Track Detail" queue view — a real table, CSS-grid based rather than
+     the main Tracks View's full resizable-column machinery, which would
+     be overkill for this narrow sidebar. See renderQueueTrackDetailHtml. */
+  .queue-table-row {
+    display: grid; align-items: center; gap: 8px; padding: 5px 8px; font-size: 11.5px;
+    border-radius: 4px; overflow: hidden;
+  }
+  .queue-table-row > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .queue-table-header {
+    font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--text-dim); border-bottom: 1px solid var(--line); border-radius: 0; padding: 6px 8px;
+  }
+  .queue-table-num { color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; }
+  .queue-table-track { color: var(--text); font-weight: 600; }
+
+  /* "Release and Tracks" queue view — release header once per group,
+     tracks nested under it. See renderQueueReleaseTracksHtml. */
+  .queue-release-group { padding: 6px 8px; }
+  .queue-release-group + .queue-release-group { border-top: 1px solid var(--line); margin-top: 2px; }
+  .queue-release-header { display: flex; align-items: center; gap: 8px; padding: 2px 0 6px; }
+  .queue-release-thumb { width: 36px; height: 36px; border-radius: 4px; object-fit: cover; background: var(--bg-card); flex: 0 0 auto; }
+  .queue-release-header-text { min-width: 0; }
+  .queue-release-field {
+    margin: 0; font-size: 11.5px; font-weight: 600; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .queue-release-field:not(:first-child) { font-size: 10.5px; font-weight: 400; color: var(--text-dim); margin-top: 1px; }
+  .queue-release-tracks { padding-left: 8px; border-left: 1px solid var(--line); margin-left: 17px; }
+  .queue-nested-track-row { padding: 4px 8px; border-radius: 4px; }
 
   /* Device popover (Spotify Connect device picker) — reuses .queue-panel layout */
   .device-panel { max-height: min(320px, calc(100vh - 190px)); }
