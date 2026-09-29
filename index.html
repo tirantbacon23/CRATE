@@ -13,7 +13,64 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.144
+  CURRENT_VERSION: 1.29.146
+
+  1.29.146 — 2026-09-26 — Major feature: generic drag-and-drop panel
+          layout, modeled on MusicBee's own Panels Configuration. Replaces
+          the old system of three independent right-panel booleans and an
+          unconditional, fixed main-panel view with a real element registry
+          (LAYOUT_ELEMENTS: Music View, Genre Description, Now Playing Bar,
+          Up Next Queue, Last.fm History, Track Info), each declaring which
+          panels it's actually allowed in — Genre Description can never
+          land in Right Panel, for instance, same as certain MusicBee
+          elements are Left Sidebar-only. New "layout" box in Panels
+          configuration… — drag a chip from Available onto Main/Right/
+          Bottom to place it there, drag within a panel to reorder (list
+          order = stacking order, top to bottom), drag back out or use ×
+          to remove. Enforced at the browser's own dragover level (a
+          disallowed drop target never even accepts the drag), not just
+          checked after the fact.
+
+          Two new elements built for real, not just registered: Genre
+          Description is an editable free-text blurb per genre
+          (state.genreTaxonomy[key].description, synced through the exact
+          same backend mechanism the rest of the taxonomy already uses),
+          shown only while that genre is filtered and staying in sync as
+          you click between genres; Now Playing Bar defaults to Bottom (the
+          existing docked mini player — this is now the ONLY thing gating
+          its visibility, on top of its own unrelated playback-based show/
+          hide logic) but can be dragged to Main instead, where it renders
+          as a simpler read-only inline strip rather than duplicating the
+          full player.
+
+          Existing right-panel elements (Queue/History/Track Info) migrate
+          automatically — an existing install's real prior setup carries
+          over exactly via migrateLegacyPanelLayout's read of the three old
+          booleans, not reset to defaults. Their own DOM sections
+          (#rightPanelQueueSection etc.) were reused as-is, just reordered/
+          shown via appendChild rather than rebuilt, to keep this a
+          reasonable size rather than also rewriting every element's own
+          internals. Each element's settings modal (previously five
+          separate buttons) consolidated into one openElementConfig(key)
+          dispatch, opened via the ⚙ on its chip. Caught and fixed two real
+          bugs before shipping: a leftover standalone Track Info config
+          handler that would have run twice, and a stale click-outside
+          check still referencing a button this replaced entirely (would
+          have thrown on every single click in the app).
+
+  1.29.145 — 2026-09-26 — Reworked 1.29.144's release-chart feature: moved
+          out of a section tucked inside Stats → Collection into its own
+          dedicated tab, "CHART", in the main nav bar alongside Music/
+          Diary/Scrobbles/Stats/Artist (new #chartWrap, computeChartGenreYearData/
+          renderChartTab). Has its own genre <select> rather than depending
+          entirely on the left panel's filter state — defaults to whatever
+          genre is currently filtered there if any is (so clicking a genre
+          and switching to Chart shows it immediately), otherwise remembers
+          the last genre picked here (state.chartGenre, persisted), falling
+          back to the first genre alphabetically. Same
+          genreMatchesFilter()-based matching and collectionStatBarRows
+          visual language as before, just relocated to its own space
+          instead of living inside Stats.
 
   1.29.144 — 2026-09-26 — Feature: "Releases per year — [Genre]" chart in
           Release Statistics (Stats tab → Collection), shown automatically
@@ -3773,6 +3830,7 @@
       <button id="tabDiary" class="nav-tab">DIARY</button>
       <button id="tabScrobbles" class="nav-tab">SCROBBLES</button>
       <button id="tabStats" class="nav-tab">STATS</button>
+      <button id="tabChart" class="nav-tab">CHART</button>
       <button id="tabArtist" class="nav-tab">ARTIST</button>
     </nav>
 
@@ -3949,6 +4007,13 @@
     <div class="resizer" id="resizerLeft" aria-hidden="true"></div>
 
     <section id="mainPanel" class="panel panel-main">
+      <!-- Wrapped so Music View becomes just one element in this panel's
+           stack (see LAYOUT_ELEMENTS/applyPanelLayout) rather than this
+           panel's one unconditional piece of content — none of the
+           existing content/behavior inside changed, only that it's now
+           reorderable/hideable alongside Genre Description and (when
+           placed here instead of Bottom) Now Playing Bar. -->
+      <div id="musicViewElement" class="layout-element">
       <div class="panel-bar">
         
         <!-- The Main Label is now the dropdown button -->
@@ -4040,6 +4105,34 @@
       <div id="gridWrap" class="grid-wrap">
         <div id="gridContainer"></div>
         <div id="stateMsg" class="state-msg" hidden></div>
+      </div>
+      </div>
+      <!-- Genre Description — a free-text blurb per genre, editable
+           in-place, shown here only while that genre is filtered in the
+           left panel. Restricted to Main only (see LAYOUT_ELEMENTS).
+           Text is stored on the taxonomy entry itself
+           (state.genreTaxonomy[key].description), synced through the same
+           backend Settings-sheet mechanism the rest of the taxonomy
+           already uses — see renderGenreDescElement()/saveGenreTaxonomy(). -->
+      <div id="genreDescElement" class="layout-element" hidden>
+        <div class="panel-bar"><span class="panel-label" id="genreDescLabel">Genre Description</span></div>
+        <div id="genreDescBody" class="genre-desc-body">
+          <textarea id="genreDescInput" class="genre-desc-input" placeholder="Write a description for this genre…"></textarea>
+          <button type="button" id="genreDescSaveBtn" class="chip-btn">Save</button>
+        </div>
+      </div>
+      <!-- Now Playing Bar, placed in Main instead of its default spot in
+           Bottom (the docked mini player) — a simpler, inline read-only
+           strip (no transport controls) rather than duplicating the full
+           mini player, since that's still the one actually driving
+           playback regardless of where this element is placed. See
+           applyPanelLayout()/refreshNowPlayingBarMain(). -->
+      <div id="nowPlayingBarMainElement" class="layout-element now-playing-bar-main" hidden>
+        <img id="nowPlayingBarMainArt" class="art now-playing-bar-main-art" data-key="" alt="">
+        <div class="now-playing-bar-main-text">
+          <p id="nowPlayingBarMainTitle" class="now-playing-bar-main-title"></p>
+          <p id="nowPlayingBarMainSub" class="now-playing-bar-main-sub"></p>
+        </div>
       </div>
     </section>
 
@@ -4174,6 +4267,22 @@
       </div>
       <div id="statsCollectionBody" class="stats-collection-body"></div>
     </div>
+  </div>
+
+  <!-- Release Chart tab: releases-per-year for one genre at a time, its
+       own dedicated panel rather than a section tucked inside Stats — see
+       renderChartTab()/computeChartGenreYearData(). Genre select defaults
+       to whatever's filtered in the left panel if anything is, else the
+       first genre alphabetically. -->
+  <div id="chartWrap" class="chart-wrap" hidden>
+    <div class="stats-header">
+      <h2>Release Chart</h2>
+      <p class="stats-sub">How many releases in your crate came out each year, for one genre at a time.</p>
+    </div>
+    <label class="chart-genre-field">Genre
+      <select id="chartGenreSelect"></select>
+    </label>
+    <div id="chartBody" class="chart-body"></div>
   </div>
 
   <!-- Artist tab: pick one of your artists and see their full discography
@@ -4533,61 +4642,57 @@
       </div>
     </div>
 
-    <!-- Boxed like "main panel"/"bottom player" below — both sections can
-         be on at once and stack in the actual right panel, rather than
-         the old single-select "shows one or the other" dropdown. -->
+    <!-- Layout: drag an element from "Available" onto a panel to place it
+         there (each element only accepts the panels listed in
+         LAYOUT_ELEMENTS); drag within a panel to reorder — that order is
+         the stacking order, top to bottom. Drag back to "Available" (or
+         use the chip's × ) to remove it from a panel. Modeled on
+         MusicBee's own Panels Configuration. Replaces the old per-section
+         checkboxes entirely — see renderLayoutConfigUI()/
+         initLayoutDragDrop(). -->
     <div class="pane-config-box">
-      <div class="pane-config-box-header">
-        <span class="pane-icon">▤</span> right panel
-      </div>
+      <div class="pane-config-box-header"><span class="pane-icon">▦</span> layout</div>
       <div class="pane-config-box-body">
-        <div class="arrange-row arrange-row-btn">
-          <label class="arrange-row-label"><input type="checkbox" id="rightPanelShowQueue" checked> Up Next (queue)</label>
-          <button id="configureQueueBtn" class="config-btn">Customize Layout …</button>
+        <p class="arrange-hint">Drag elements onto a panel to place them there. Order = stacking order.</p>
+        <div class="layout-zones-grid">
+          <div class="layout-zone" data-panel="main">
+            <div class="layout-zone-label">Main Panel</div>
+            <div class="layout-zone-list" id="layoutZoneMain" data-panel="main"></div>
+          </div>
+          <div class="layout-zone" data-panel="right">
+            <div class="layout-zone-label">Right Panel</div>
+            <div class="layout-zone-list" id="layoutZoneRight" data-panel="right"></div>
+          </div>
+          <div class="layout-zone" data-panel="bottom">
+            <div class="layout-zone-label">Bottom (mini player)</div>
+            <div class="layout-zone-list" id="layoutZoneBottom" data-panel="bottom"></div>
+          </div>
         </div>
+        <div class="layout-zone layout-zone-available">
+          <div class="layout-zone-label">Available elements</div>
+          <div class="layout-zone-list" id="layoutZoneAvailable" data-panel="available"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Element options — settings for elements that don't have their own
+         modal (Queue's view style, Track Info's cover/player toggle);
+         harmless if that element isn't currently placed anywhere. Each
+         element's own modal (Panel Settings…/Customize Layout…) opens via
+         the ⚙ button on its chip above instead of a button here. -->
+    <div class="pane-config-box">
+      <div class="pane-config-box-header"><span class="pane-icon">\u2699</span> element options</div>
+      <div class="pane-config-box-body">
         <div class="arrange-row arrange-row-sub" id="queueViewModeRow">
-          <label class="arrange-row-label" for="queueViewModeSelect">View</label>
+          <label class="arrange-row-label" for="queueViewModeSelect">Up Next (Queue) view</label>
           <select id="queueViewModeSelect" class="config-btn">
             <option value="thumbnail">Track with Thumbnail</option>
             <option value="trackDetail">Track Detail</option>
             <option value="releaseTracks">Release and Tracks</option>
           </select>
         </div>
-        <div class="arrange-row arrange-row-btn">
-          <label class="arrange-row-label"><input type="checkbox" id="rightPanelShowHistory"> Last.fm History</label>
-          <button id="configureHistoryBtn" class="config-btn">Panel Settings …</button>
-        </div>
-        <div class="arrange-row arrange-row-btn">
-          <label class="arrange-row-label"><input type="checkbox" id="rightPanelShowTrackInfo"> Track Info</label>
-          <button id="configureTrackInfoBtn" class="config-btn">Panel Settings …</button>
-        </div>
-        <label class="arrange-row arrange-row-sub"><input type="checkbox" id="trackInfoShowPlayerToggle"> Show playback progress instead of cover art</label>
-        <label class="arrange-row arrange-row-sub"><input type="checkbox" id="trackInfoShowVideoToggle"> Show video, if a YouTube link is available</label>
-      </div>
-    </div>
-
-    <!-- The new boxed Main Panel section -->
-    <div class="pane-config-box">
-      <div class="pane-config-box-header">
-        <span class="pane-icon">◫</span> main panel
-      </div>
-      <div class="pane-config-box-body">
-        <div class="arrange-row arrange-row-btn">
-          <label class="arrange-row-label"><input type="checkbox" checked disabled> music</label>
-          <button id="configureMainBtn" class="config-btn">Panel Settings …</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="pane-config-box">
-      <div class="pane-config-box-header">
-        <span class="pane-icon">▶</span> bottom player
-      </div>
-      <div class="pane-config-box-body">
-        <div class="arrange-row arrange-row-btn">
-          <label class="arrange-row-label"><input type="checkbox" checked disabled> now playing</label>
-          <button id="configureMiniPlayerBtn" class="config-btn">Panel Settings …</button>
-        </div>
+        <label class="arrange-row arrange-row-sub"><input type="checkbox" id="trackInfoShowPlayerToggle"> Track Info: show playback progress instead of cover art</label>
+        <label class="arrange-row arrange-row-sub"><input type="checkbox" id="trackInfoShowVideoToggle"> Track Info: show video, if a YouTube link is available</label>
       </div>
     </div>
 
@@ -5228,7 +5333,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.144';
+const APP_VERSION = '1.29.146';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -5487,6 +5592,13 @@ const state = {
   // (who played what, who wrote it), expanded/collapsed for every track at
   // once rather than per-row, matching the reference this was built from.
   showTrackCredits: false,
+  chartGenre: null, // last-selected genre in the Release Chart tab — see renderChartTab()
+  // Ordered element assignments per panel — see LAYOUT_ELEMENTS just above.
+  // This default (Music View alone in Main, Up Next alone in Right, Now
+  // Playing Bar in Bottom) is only what a genuinely first-ever load gets;
+  // an existing install's real setup is carried over by
+  // migrateLegacyPanelLayout() instead, called once from loadPrefs.
+  panelLayout: { main: ['musicView'], right: ['queue'], bottom: ['nowPlayingBar'] },
   panelWidths: { leftNav: 148, left: 220, right: 260 },
 fields: { 
     // Ordered slots for the Albums Grid
@@ -5600,6 +5712,8 @@ const PLAYLIST_VIEW_LABELS = { tracks: 'Tracks', albumTracks: 'Album and Tracks'
 const el = {};
 [
   'gridContainer','stateMsg','searchInput','refreshBtn',
+  'musicViewElement','genreDescElement','genreDescLabel','genreDescBody','genreDescInput','genreDescSaveBtn',
+  'nowPlayingBarMainElement','nowPlayingBarMainArt','nowPlayingBarMainTitle','nowPlayingBarMainSub',
   'tabAlbums','tabDiary','tabScrobbles','viewGridBtn','viewListBtn','sizeControl','sizeSlider',
   'leftPanel','leftModeBtn','leftModeLabel','leftModeMenu','leftGroupBySection','leftList',
   'mainPanel','mainPanelLabel','rightPanel','crateQueuePanelBody','crateQueueClearBtn','resizerLeft','resizerRight','panels','viewbar',
@@ -5607,10 +5721,12 @@ const el = {};
   'menuMobileActionsLabel','menuMobileActionsSlot','menuMobileActionsDivider',
   'diaryWrap','diaryContainer','diaryStateMsg',
   'scrobblesWrap','scrobblesContainer','scrobblesStateMsg',
-  'tabStats','tabArtist',
+  'tabStats','tabChart','tabArtist',
   'statsWrap','statsModeListening','statsModeCollection','statsListeningWrap','statsCollectionWrap','statsCollectionBody','statsYearList','statsDetail','statsDetailBack','statsDetailYear','statsDetailBody',
+  'chartWrap','chartGenreSelect','chartBody',
   'artistWrap','artistSearchInput','artistList','artistDetail',
-  'layoutBtn','layoutMenu','menuArrangePanels','arrangeModal','arrangeClose','toggleLeftPanel','toggleLeftNavCompact','toggleRightPanel','albumQuickPeekStyleSelect','addFieldsChecklist','rightPanelShowQueue','rightPanelShowHistory','rightPanelShowTrackInfo','trackInfoShowPlayerToggle','trackInfoShowVideoToggle','rightPanelQueueSection','rightPanelHistorySection','rightPanelTrackInfoSection','rightPanelEmptyMsg','rightHistoryPanelBody','trackInfoBody','trackInfoTextWrap','trackInfoTitle','trackInfoRatingRow','trackInfoArtWrap','trackInfoArt','trackInfoPlayerControls','trackInfoVideoWrap','trackInfoVideoMount','trackInfoFields','trackInfoEmpty','trackInfoSeekTrack','trackInfoSeekFill','trackInfoSeekHandle','trackInfoTimeCurrent','trackInfoTimeTotal','queueViewModeSelect','historyViewListBtn','historyViewGridBtn','configureMainBtn','configureQueueBtn','configureHistoryBtn','configureTrackInfoBtn','historyLayoutChronoBtn','historyLayoutByDayBtn','configureMiniPlayerBtn','toggleCoverLinks','toggleFitArtwork','toggleCloseGaps','fieldPlacementGroup','fieldPlacementOverlay','fieldPlacementBelow',
+  'layoutBtn','layoutMenu','menuArrangePanels','arrangeModal','arrangeClose','toggleLeftPanel','toggleLeftNavCompact','toggleRightPanel','albumQuickPeekStyleSelect','addFieldsChecklist','trackInfoShowPlayerToggle','trackInfoShowVideoToggle','rightPanelQueueSection','rightPanelHistorySection','rightPanelTrackInfoSection','rightPanelEmptyMsg','rightHistoryPanelBody','trackInfoBody','trackInfoTextWrap','trackInfoTitle','trackInfoRatingRow','trackInfoArtWrap','trackInfoArt','trackInfoPlayerControls','trackInfoVideoWrap','trackInfoVideoMount','trackInfoFields','trackInfoEmpty','trackInfoSeekTrack','trackInfoSeekFill','trackInfoSeekHandle','trackInfoTimeCurrent','trackInfoTimeTotal','queueViewModeSelect','historyViewListBtn','historyViewGridBtn','historyLayoutChronoBtn','historyLayoutByDayBtn','toggleCoverLinks','toggleFitArtwork','toggleCloseGaps','fieldPlacementGroup','fieldPlacementOverlay','fieldPlacementBelow',
+  'layoutZoneMain','layoutZoneRight','layoutZoneBottom','layoutZoneAvailable',
   'mainConfigModal','mainConfigClose','mainConfigArtworkOptions',
   'fldTitle','fldArtist','fldYear','fldRating','fldType','fldCatalog','fldGenre','fldLabel','fldDuration','menuCustomizeMain',
   'listenedFilterBtn',
@@ -5819,6 +5935,29 @@ function startApp() {
    round-trip through the Apps Script backend. */
 const GENRE_TAXONOMY_KEY = 'crate_genre_taxonomy_v1';
 
+// ---------- Panel layout (drag-and-drop element placement) ----------
+// Modeled on MusicBee's own Panels Configuration: a fixed set of "elements"
+// can each be assigned to whichever of their allowed panels, and the order
+// within a panel's list is the stacking order shown there. Replaces the
+// old system of three independent right-panel booleans
+// (rightPanelShowQueue/History/TrackInfo) and an unconditional, fixed
+// main-panel content — see migrateLegacyPanelLayout() for how an existing
+// setup carries over untouched the first time this loads, and
+// applyPanelLayout()/renderLayoutConfigUI() for where this actually gets
+// used. "panels" on each element is the enforced allow-list — dragging
+// Genre Description onto Right Panel, for instance, is rejected outright
+// since it isn't in Genre Description's own list.
+const LAYOUT_ELEMENTS = {
+  musicView: { label: 'Music View', panels: ['main'] },
+  genreDesc: { label: 'Genre Description', panels: ['main'] },
+  nowPlayingBar: { label: 'Now Playing Bar', panels: ['main', 'bottom'] },
+  queue: { label: 'Up Next (Queue)', panels: ['right'] },
+  lastfmHistory: { label: 'Last.fm History', panels: ['right'] },
+  trackInfo: { label: 'Track Info', panels: ['right'] }
+};
+const LAYOUT_PANEL_LABELS = { main: 'Main Panel', right: 'Right Panel', bottom: 'Bottom (mini player)' };
+
+
 // A modest starting point covering common, widely-known genre
 // relationships (not any one site's specific/proprietary taxonomy) —
 // exactly as editable and removable as anything added by hand afterward
@@ -6023,10 +6162,7 @@ async function init() {
   updateLeftMenuUI();
   el.toggleLeftPanel.checked = state.showLeft;
   el.toggleRightPanel.checked = state.showRight;
-  el.rightPanelShowQueue.checked = state.rightPanelShowQueue;
   el.queueViewModeSelect.value = state.queueViewMode;
-  el.rightPanelShowHistory.checked = state.rightPanelShowHistory;
-  el.rightPanelShowTrackInfo.checked = state.rightPanelShowTrackInfo;
   el.trackInfoShowPlayerToggle.checked = state.trackInfoShowPlayer;
   el.trackInfoShowVideoToggle.checked = state.trackInfoShowVideo;
   el.albumQuickPeekStyleSelect.value = state.albumQuickPeekStyle;
@@ -6086,7 +6222,7 @@ async function init() {
   setInterval(refreshNowPlayingFromWebApi, 6000);
 
   await fetchCatalog();
-  applyRightPanelSections(); // after fetchCatalog so state.scrobbles/state.raw are populated if History is on; also this is the earliest safe point for crateQueueList (declared later in the file — see the genre-taxonomy TDZ note above for why that matters)
+  applyPanelLayout(); // covers all three panels — see its own comment. Right panel's own piece needs to run after fetchCatalog so state.scrobbles/state.raw are populated if History is on; also this is the earliest safe point for crateQueueList (declared later in the file — see the genre-taxonomy TDZ note above for why that matters)
   applyAddFormFieldVisibility();
   maybeRunBackgroundLastfmSync(); // fire-and-forget; doesn't block first paint
   maybeAutoScanNewReleases(); // same — see its own comment for the throttling
@@ -6517,6 +6653,12 @@ function bindEvents() {
   el.tabStats.addEventListener('click', () => { switchTab('stats'); });
   el.statsModeListening.addEventListener('click', () => setStatsMode('listening'));
   el.statsModeCollection.addEventListener('click', () => setStatsMode('collection'));
+  el.tabChart.addEventListener('click', () => { switchTab('chart'); });
+  el.chartGenreSelect.addEventListener('change', () => {
+    state.chartGenre = el.chartGenreSelect.value;
+    savePrefs();
+    renderChartTab();
+  });
   el.tabArtist.addEventListener('click', () => { switchTab('artist'); });
   el.playlistModalClose.addEventListener('click', closePlaylistModal);
   el.playlistModalCancelBtn.addEventListener('click', closePlaylistModal);
@@ -6690,7 +6832,7 @@ function bindEvents() {
 
   // 7. Configuration & Layout Popovers
   el.layoutBtn.addEventListener('click', (e) => { e.stopPropagation(); el.layoutMenu.hidden = !el.layoutMenu.hidden; });
-  el.menuArrangePanels.addEventListener('click', () => { el.arrangeModal.hidden = false; el.layoutMenu.hidden = true; renderAddFieldsChecklist(); });
+  el.menuArrangePanels.addEventListener('click', () => { el.arrangeModal.hidden = false; el.layoutMenu.hidden = true; renderAddFieldsChecklist(); renderLayoutConfigUI(); });
   el.arrangeClose.addEventListener('click', () => { el.arrangeModal.hidden = true; });
   el.mainConfigClose.addEventListener('click', () => { el.mainConfigModal.hidden = true; });
 
@@ -6900,35 +7042,23 @@ function bindEvents() {
     applyPanelVisibility();
     savePrefs();
   });
-  el.rightPanelShowQueue.addEventListener('change', () => {
-    state.rightPanelShowQueue = el.rightPanelShowQueue.checked;
-    savePrefs();
-    applyRightPanelSections();
-  });
-  el.rightPanelShowHistory.addEventListener('change', () => {
-    state.rightPanelShowHistory = el.rightPanelShowHistory.checked;
-    savePrefs();
-    applyRightPanelSections();
-  });
-  el.rightPanelShowTrackInfo.addEventListener('change', () => {
-    state.rightPanelShowTrackInfo = el.rightPanelShowTrackInfo.checked;
-    savePrefs();
-    applyRightPanelSections();
-  });
   el.trackInfoShowPlayerToggle.addEventListener('change', () => {
     state.trackInfoShowPlayer = el.trackInfoShowPlayerToggle.checked;
     savePrefs();
     applyTrackInfoPlayerMode();
   });
+  el.genreDescSaveBtn.addEventListener('click', () => {
+    if (!(state.navFilter && state.navFilter.mode === 'genre')) return;
+    const key = genreTaxonomyKey(state.navFilter.value);
+    if (!state.genreTaxonomy[key]) return; // shouldn't happen — the genre has to exist in the taxonomy to be filterable at all
+    state.genreTaxonomy[key].description = el.genreDescInput.value.trim();
+    saveGenreTaxonomy(state.genreTaxonomy);
+    flashGlobalToast('Genre description saved.');
+  });
   el.trackInfoShowVideoToggle.addEventListener('change', () => {
     state.trackInfoShowVideo = el.trackInfoShowVideoToggle.checked;
     savePrefs();
     applyTrackInfoPlayerMode();
-  });
-  el.configureTrackInfoBtn.addEventListener('click', () => {
-    el.arrangeModal.hidden = true;
-    renderConfigSlots('trackInfo');
-    el.mainConfigModal.hidden = false;
   });
   el.albumQuickPeekStyleSelect.addEventListener('change', () => {
     state.albumQuickPeekStyle = el.albumQuickPeekStyleSelect.value;
@@ -6971,47 +7101,44 @@ function bindEvents() {
     savePrefs();
   });
 
-  el.configureMainBtn.addEventListener('click', () => { 
-    el.arrangeModal.hidden = true; 
-    const mode = (state.mainViewMode === 'covers') ? 'covers' : 
-                 (state.mainViewMode === 'tracks' || state.mainViewMode === 'albumTracks' ? 'tracks' : 'grid');
-    renderConfigSlots(mode);
-    el.mainConfigModal.hidden = false; 
-  });
-
-  el.configureQueueBtn.addEventListener('click', () => {
+  // Each element's own settings modal, now opened via the ⚙ button on its
+  // chip in the new Layout drag-and-drop UI (see renderLayoutConfigUI)
+  // rather than a dedicated button that only existed while that element
+  // had its own checkbox row.
+  function openElementConfig(elementKey) {
     el.arrangeModal.hidden = true;
-    // Adapts to whichever of the three Queue view styles is currently
-    // selected (queueViewModeSelect just below) — one button rather than
-    // a separate one per style, per how this was asked for.
-    const modeForConfig = state.queueViewMode === 'trackDetail' ? 'queueTrackDetail'
-      : state.queueViewMode === 'releaseTracks' ? 'queueReleaseTracks'
-      : 'queue';
-    renderConfigSlots(modeForConfig);
+    if (elementKey === 'musicView') {
+      const mode = (state.mainViewMode === 'covers') ? 'covers'
+        : (state.mainViewMode === 'tracks' || state.mainViewMode === 'albumTracks' ? 'tracks' : 'grid');
+      renderConfigSlots(mode);
+    } else if (elementKey === 'queue') {
+      // Adapts to whichever of the three Queue view styles is currently
+      // selected (queueViewModeSelect in "element options" below).
+      const modeForConfig = state.queueViewMode === 'trackDetail' ? 'queueTrackDetail'
+        : state.queueViewMode === 'releaseTracks' ? 'queueReleaseTracks'
+        : 'queue';
+      renderConfigSlots(modeForConfig);
+    } else if (elementKey === 'lastfmHistory') {
+      renderConfigSlots('lastfmHistory');
+    } else if (elementKey === 'trackInfo') {
+      renderConfigSlots('trackInfo');
+    } else if (elementKey === 'nowPlayingBar') {
+      renderConfigSlots('miniPlayer');
+    } else {
+      return; // genreDesc has no separate field-slot config — it's a single free-text box
+    }
     el.mainConfigModal.hidden = false;
-  });
+  }
   el.queueViewModeSelect.addEventListener('change', () => {
     state.queueViewMode = el.queueViewModeSelect.value;
     savePrefs();
     renderCrateQueuePanel();
   });
 
-  el.configureHistoryBtn.addEventListener('click', () => {
-    el.arrangeModal.hidden = true;
-    renderConfigSlots('lastfmHistory');
-    el.mainConfigModal.hidden = false;
-  });
-
   el.historyLayoutChronoBtn.addEventListener('click', () => setLastfmHistoryLayout('chronological'));
   el.historyLayoutByDayBtn.addEventListener('click', () => setLastfmHistoryLayout('byDay'));
   el.historyViewListBtn.addEventListener('click', () => setLastfmHistoryViewMode('list'));
   el.historyViewGridBtn.addEventListener('click', () => setLastfmHistoryViewMode('grid'));
-
-  el.configureMiniPlayerBtn.addEventListener('click', () => {
-    el.arrangeModal.hidden = true;
-    renderConfigSlots('miniPlayer');
-    el.mainConfigModal.hidden = false;
-  });
 
   // 8. Add / Edit Album Events
   el.addAlbumBtn.addEventListener('click', openAddModal);
@@ -7246,6 +7373,7 @@ function bindEvents() {
   initMobileDrawers();
   initMobileOverflowMenu();
   initSeekDrag();
+  initLayoutDragDrop();
   initTrackInfoSeek();
   el.miniPlayerArt.addEventListener('click', () => {
     // On the compact mobile layout, tapping anywhere on the bar (including
@@ -7528,7 +7656,7 @@ function bindEvents() {
     if (!el.layoutMenu.hidden && !el.layoutMenu.contains(e.target) && !el.layoutBtn.contains(e.target)) el.layoutMenu.hidden = true;
     if (!el.sortFilterMenu.hidden && !el.sortFilterMenu.contains(e.target) && !el.sortFilterBtn.contains(e.target)) el.sortFilterMenu.hidden = true;
     if (!el.arrangeModal.hidden && !el.arrangeModal.contains(e.target) && !el.menuArrangePanels.contains(e.target)) el.arrangeModal.hidden = true;
-    if (!el.mainConfigModal.hidden && !el.mainConfigModal.contains(e.target) && !el.configureMainBtn.contains(e.target) && !el.menuCustomizeMain.contains(e.target)) el.mainConfigModal.hidden = true;
+    if (!el.mainConfigModal.hidden && !el.mainConfigModal.contains(e.target) && !e.target.closest('.layout-chip-configure') && !el.menuCustomizeMain.contains(e.target)) el.mainConfigModal.hidden = true;
   });
 
   // Global Key Listeners (Escape key to close, Ctrl/Cmd+A to select all)
@@ -7807,10 +7935,27 @@ function loadPrefs() {
     if (typeof p.rightPanelShowQueue === 'boolean') state.rightPanelShowQueue = p.rightPanelShowQueue;
     if (typeof p.rightPanelShowHistory === 'boolean') state.rightPanelShowHistory = p.rightPanelShowHistory;
     if (typeof p.rightPanelShowTrackInfo === 'boolean') state.rightPanelShowTrackInfo = p.rightPanelShowTrackInfo;
+    if (p.panelLayout && typeof p.panelLayout === 'object' && p.panelLayout.main && p.panelLayout.right && p.panelLayout.bottom) {
+      state.panelLayout = p.panelLayout;
+    } else {
+      // No saved layout yet — either a genuinely fresh install (the three
+      // legacy booleans' own defaults, read just above, already produce
+      // the right fallback: Queue on, History/TrackInfo off) or an
+      // existing install updating to this version, whose real prior setup
+      // this preserves exactly rather than resetting everyone back to
+      // Up Next only. Main/Bottom get sensible defaults either way, since
+      // neither concept existed before this version.
+      const right = [];
+      if (state.rightPanelShowQueue) right.push('queue');
+      if (state.rightPanelShowHistory) right.push('lastfmHistory');
+      if (state.rightPanelShowTrackInfo) right.push('trackInfo');
+      state.panelLayout = { main: ['musicView'], right, bottom: ['nowPlayingBar'] };
+    }
     if (Array.isArray(p.collapsedGenres)) state.collapsedGenres = new Set(p.collapsedGenres);
     if (['none','genre','year','artist'].includes(p.mapColorBy)) state.mapColorBy = p.mapColorBy;
     if (['thumbnail','trackDetail','releaseTracks'].includes(p.queueViewMode)) state.queueViewMode = p.queueViewMode;
     if (typeof p.showTrackCredits === 'boolean') state.showTrackCredits = p.showTrackCredits;
+    if (typeof p.chartGenre === 'string') state.chartGenre = p.chartGenre;
     if (typeof p.trackInfoShowPlayer === 'boolean') state.trackInfoShowPlayer = p.trackInfoShowPlayer;
     if (typeof p.trackInfoShowVideo === 'boolean') state.trackInfoShowVideo = p.trackInfoShowVideo;
     if (typeof p.releaseSearchGridView === 'boolean') state.releaseSearchGridView = p.releaseSearchGridView;
@@ -7834,10 +7979,12 @@ function savePrefs() {
       rightPanelShowQueue: state.rightPanelShowQueue,
       rightPanelShowHistory: state.rightPanelShowHistory,
       rightPanelShowTrackInfo: state.rightPanelShowTrackInfo,
+      panelLayout: state.panelLayout,
       collapsedGenres: [...state.collapsedGenres],
       mapColorBy: state.mapColorBy,
       queueViewMode: state.queueViewMode,
       showTrackCredits: state.showTrackCredits,
+      chartGenre: state.chartGenre,
       trackInfoShowPlayer: state.trackInfoShowPlayer,
       trackInfoShowVideo: state.trackInfoShowVideo,
       releaseSearchGridView: state.releaseSearchGridView,
@@ -8160,17 +8307,20 @@ function switchTab(tab) {
   el.tabDiary.classList.toggle('active', tab === 'diary');
   el.tabScrobbles.classList.toggle('active', tab === 'scrobbles');
   el.tabStats.classList.toggle('active', tab === 'stats');
+  el.tabChart.classList.toggle('active', tab === 'chart');
   el.tabArtist.classList.toggle('active', tab === 'artist');
   el.panels.style.display = tab === 'albums' ? 'flex' : 'none';
   el.diaryWrap.hidden = tab !== 'diary';
   el.scrobblesWrap.hidden = tab !== 'scrobbles';
   el.statsWrap.hidden = tab !== 'stats';
+  el.chartWrap.hidden = tab !== 'chart';
   el.artistWrap.hidden = tab !== 'artist';
   el.app.classList.toggle('app-wide-diary-tracks', tab === 'diary' && state.diaryViewMode === 'tracks');
   if (tab === 'albums') renderGrid();
   else if (tab === 'diary') renderDiary();
   else if (tab === 'scrobbles') renderScrobbles();
   else if (tab === 'stats') renderStats();
+  else if (tab === 'chart') renderChartTab();
   else if (tab === 'artist') renderArtistTab();
 }
 
@@ -9262,6 +9412,7 @@ function applyFiltersSort() {
 
   state.filtered = list;
   if (state.activeTab === 'albums') renderGrid();
+  if (!el.genreDescElement.hidden) renderGenreDescElement(); // stays in sync with whichever genre gets clicked, not just whatever it showed when first enabled
 }
 
 // Syncs the "Sort & filter" popover's UI (which sort option is highlighted,
@@ -13048,6 +13199,7 @@ function refreshMiniPlayerMeta() {
     if (lineEl) lineEl.textContent = miniPlayerFieldVal(slots[i]);
   });
   renderTrackInfoPanel(); // no-op if that section isn't on — see its own guard
+  refreshNowPlayingBarMain(); // no-op if Now Playing Bar isn't placed in Main — see its own guard
 }
 
 
@@ -13748,38 +13900,13 @@ function computeCollectionStats() {
   // Taxonomy… (a Shoegaze album counts toward Rock here too).
   const byGenreTop = buildGenreTree(raw, state.genreTaxonomy).filter(r => r.depth === 0).sort((a, b) => b.count - a.count);
 
-  // Releases-per-year for whichever genre is currently filtered in the
-  // left panel (null when no genre filter is active — By decade above
-  // already covers the un-filtered, whole-collection case, so this is
-  // deliberately scoped rather than duplicating it). Uses the same
-  // genreMatchesFilter() the actual grid filtering uses, so this always
-  // matches exactly what's showing when you click through to it — a
-  // Shoegaze album counts here while browsing Rock, same as the grid
-  // itself would include it.
-  let byYearForGenre = null;
-  if (state.navFilter && state.navFilter.mode === 'genre') {
-    const genreValue = state.navFilter.value;
-    const yearCounts = new Map();
-    raw.forEach(r => {
-      if (!getGenreList(combinedGenreStr(r)).some(g => genreMatchesFilter(state.genreTaxonomy, g, genreValue))) return;
-      const ms = dateVal(r.releaseDate);
-      if (ms === -Infinity) return;
-      const year = new Date(ms).getUTCFullYear();
-      yearCounts.set(year, (yearCounts.get(year) || 0) + 1);
-    });
-    byYearForGenre = {
-      genre: genreValue,
-      rows: [...yearCounts.entries()].map(([label, count]) => ({ label: String(label), count })).sort((a, b) => a.label.localeCompare(b.label))
-    };
-  }
-
   const ratingCounts = [0, 0, 0, 0, 0]; // index 0 = 1★ ... index 4 = 5★
   rated.forEach(r => {
     const n = Math.round(Number(r.rating));
     if (n >= 1 && n <= 5) ratingCounts[n - 1]++;
   });
 
-  return { total, artistCount: artistSet.size, avgRating, ratedCount: rated.length, byType, byRegion, byLabel, byDecade, byGenreTop, byYearForGenre, ratingCounts };
+  return { total, artistCount: artistSet.size, avgRating, ratedCount: rated.length, byType, byRegion, byLabel, byDecade, byGenreTop, ratingCounts };
 }
 
 // One "label — bar — count" row, reused across every breakdown section
@@ -13818,11 +13945,65 @@ function renderCollectionStats() {
     ${s.byGenreTop.length ? `<div class="stats-section"><h3>By genre</h3>${collectionStatBarRows(s.byGenreTop)}</div>` : ''}
     <div class="stats-section"><h3>By type</h3>${collectionStatBarRows(s.byType)}</div>
     ${s.byDecade.length ? `<div class="stats-section"><h3>By decade</h3>${collectionStatBarRows(s.byDecade)}</div>` : ''}
-    ${s.byYearForGenre ? `<div class="stats-section"><h3>Releases per year \u2014 ${escapeHtml(s.byYearForGenre.genre)}</h3>${s.byYearForGenre.rows.length ? collectionStatBarRows(s.byYearForGenre.rows) : '<p class="diary-empty">No dated releases match this genre.</p>'}</div>` : ''}
     ${ratingRows.length ? `<div class="stats-section"><h3>Ratings</h3>${collectionStatBarRows(ratingRows)}</div>` : ''}
     <div class="stats-section"><h3>By region</h3>${collectionStatBarRows(s.byRegion)}</div>
     ${s.byLabel.length ? `<div class="stats-section"><h3>Top labels</h3>${collectionStatBarRows(s.byLabel)}</div>` : ''}
   `;
+}
+
+// Release Chart tab — releases-per-year for ONE genre at a time, its own
+// dedicated panel (see #chartWrap) rather than a section tucked inside
+// Stats. Genre select defaults to whatever's filtered in the left panel
+// (state.navFilter) if anything is, falling back to state.chartGenre (the
+// last one picked here) or the first genre alphabetically if neither.
+// Uses the same genreMatchesFilter() the grid itself filters by, so this
+// always matches exactly what browsing that genre would show — a
+// Shoegaze album counts here while charting Rock, same as the grid itself
+// would include it.
+function computeChartGenreYearData(genre) {
+  const yearCounts = new Map();
+  let matched = 0;
+  state.raw.forEach(r => {
+    if (!getGenreList(combinedGenreStr(r)).some(g => genreMatchesFilter(state.genreTaxonomy, g, genre))) return;
+    matched++;
+    const ms = dateVal(r.releaseDate);
+    if (ms === -Infinity) return;
+    const year = new Date(ms).getUTCFullYear();
+    yearCounts.set(year, (yearCounts.get(year) || 0) + 1);
+  });
+  const rows = [...yearCounts.entries()].map(([label, count]) => ({ label: String(label), count })).sort((a, b) => a.label.localeCompare(b.label));
+  return { matched, rows };
+}
+
+function renderChartTab() {
+  if (!el.chartWrap) return;
+  const allGenres = getAllKnownGenres(state.genreTaxonomy).sort((a, b) => a.localeCompare(b));
+  if (!allGenres.length) {
+    el.chartGenreSelect.innerHTML = '';
+    el.chartBody.innerHTML = '<p class="diary-empty">No genres yet — tag a release with one to see this chart.</p>';
+    return;
+  }
+
+  // Pick which genre to show: the left panel's own active genre filter
+  // wins if there is one (so clicking a genre there and switching to this
+  // tab shows that genre immediately), else the last one picked here,
+  // else just the first alphabetically.
+  let genre = (state.navFilter && state.navFilter.mode === 'genre') ? state.navFilter.value
+    : (state.chartGenre && allGenres.includes(state.chartGenre)) ? state.chartGenre
+    : allGenres[0];
+  if (!allGenres.includes(genre)) genre = allGenres[0];
+  state.chartGenre = genre;
+
+  el.chartGenreSelect.innerHTML = allGenres.map(g => `<option value="${escapeHtml(g)}" ${g === genre ? 'selected' : ''}>${escapeHtml(g)}</option>`).join('');
+
+  const data = computeChartGenreYearData(genre);
+  if (!data.matched) {
+    el.chartBody.innerHTML = `<p class="diary-empty">No releases tagged ${escapeHtml(genre)} yet.</p>`;
+  } else if (!data.rows.length) {
+    el.chartBody.innerHTML = `<p class="diary-empty">${data.matched} release${data.matched === 1 ? '' : 's'} match ${escapeHtml(genre)}, but none have a usable release date.</p>`;
+  } else {
+    el.chartBody.innerHTML = collectionStatBarRows(data.rows);
+  }
 }
 
 function setStatsMode(mode) {
@@ -15290,14 +15471,139 @@ function addToCrateQueue(entries) {
 // any checkbox there changes, and after fetchCatalog() refreshes
 // state.scrobbles (a Last.fm sync happening while History is visible
 // should update it).
+// Right panel's element-driven equivalent of the old three independent
+// booleans (rightPanelShowQueue/History/TrackInfo) — now entirely driven
+// by state.panelLayout.right (which elements are assigned here, and in
+// what order; see LAYOUT_ELEMENTS/renderLayoutConfigUI's drag-and-drop).
+// Kept under this same name/signature since it already has four call
+// sites elsewhere that just need the right panel refreshed, not rewired.
+// The three booleans are kept too, as a read-only projection kept in sync
+// here — every OTHER place in the file that already reads them (e.g.
+// renderTrackInfoPanel's own early-return guard) keeps working unchanged,
+// rather than needing every one of those checks individually rewritten to
+// read state.panelLayout.right directly.
+const RIGHT_PANEL_ELEMENT_NODES = {
+  queue: () => el.rightPanelQueueSection,
+  lastfmHistory: () => el.rightPanelHistorySection,
+  trackInfo: () => el.rightPanelTrackInfoSection
+};
 function applyRightPanelSections() {
-  el.rightPanelQueueSection.hidden = !state.rightPanelShowQueue;
-  el.rightPanelHistorySection.hidden = !state.rightPanelShowHistory;
-  el.rightPanelTrackInfoSection.hidden = !state.rightPanelShowTrackInfo;
-  el.rightPanelEmptyMsg.hidden = state.rightPanelShowQueue || state.rightPanelShowHistory || state.rightPanelShowTrackInfo;
+  const order = state.panelLayout.right;
+  Object.keys(RIGHT_PANEL_ELEMENT_NODES).forEach(key => { RIGHT_PANEL_ELEMENT_NODES[key]().hidden = true; });
+  order.forEach(key => {
+    const node = RIGHT_PANEL_ELEMENT_NODES[key] && RIGHT_PANEL_ELEMENT_NODES[key]();
+    if (!node) return;
+    node.hidden = false;
+    el.rightPanel.appendChild(node); // moves to the end — repeated in list order achieves the full reorder
+  });
+  state.rightPanelShowQueue = order.includes('queue');
+  state.rightPanelShowHistory = order.includes('lastfmHistory');
+  state.rightPanelShowTrackInfo = order.includes('trackInfo');
+  el.rightPanelEmptyMsg.hidden = order.length > 0;
   el.crateQueueClearBtn.hidden = !state.rightPanelShowQueue || !crateQueueList.length;
   if (state.rightPanelShowHistory) renderLastfmHistoryPanel();
   if (state.rightPanelShowTrackInfo) renderTrackInfoPanel();
+}
+
+// Main panel's element-driven layout — Music View plus, when assigned
+// here, Genre Description and/or Now Playing Bar (see LAYOUT_ELEMENTS).
+// Music View itself is untouched by any of this — it's still the exact
+// same grid/tracks/covers rendering as always, just now living inside a
+// wrapper (#musicViewElement) that can be reordered relative to the other
+// two rather than being this panel's one unconditional piece of content.
+const MAIN_PANEL_ELEMENT_NODES = {
+  musicView: () => el.musicViewElement,
+  genreDesc: () => el.genreDescElement,
+  nowPlayingBar: () => el.nowPlayingBarMainElement
+};
+function applyMainPanelLayout() {
+  const order = state.panelLayout.main;
+  Object.keys(MAIN_PANEL_ELEMENT_NODES).forEach(key => { MAIN_PANEL_ELEMENT_NODES[key]().hidden = true; });
+  order.forEach(key => {
+    const node = MAIN_PANEL_ELEMENT_NODES[key] && MAIN_PANEL_ELEMENT_NODES[key]();
+    if (!node) return;
+    node.hidden = false;
+    el.mainPanel.appendChild(node);
+  });
+  if (order.includes('genreDesc')) renderGenreDescElement();
+  if (order.includes('nowPlayingBar')) refreshNowPlayingBarMain();
+}
+
+// Gates the DOCKED mini player (#miniPlayer) on top of its own existing
+// playback-based show/hide logic, which is unrelated to and untouched by
+// any of this — if Now Playing Bar isn't assigned to Bottom OR Main at
+// all, the docked bar should never show regardless of what's playing; if
+// it's in Main instead, the docked bar specifically stays hidden and the
+// inline version there (refreshNowPlayingBarMain) takes over instead.
+function applyBottomPanelLayout() {
+  const disabled = !state.panelLayout.bottom.includes('nowPlayingBar');
+  el.app.classList.toggle('now-playing-bar-disabled', disabled);
+  // Also toggled directly on the element itself, not just via the
+  // ancestor-descendant CSS rule above — more robust regardless of exactly
+  // where #miniPlayer sits in the DOM.
+  el.miniPlayer.classList.toggle('force-hidden', disabled);
+}
+
+// Genre Description's actual content — a free-text blurb per genre,
+// editable in place, shown only while that genre is filtered in the left
+// panel (see applyFiltersSort's own hook into this). Text lives on the
+// taxonomy entry itself (state.genreTaxonomy[key].description) and syncs
+// through the exact same backend mechanism the rest of the taxonomy
+// already does — nothing new needed there.
+function renderGenreDescElement() {
+  if (!el.genreDescElement || el.genreDescElement.hidden) return;
+  if (!(state.navFilter && state.navFilter.mode === 'genre')) {
+    el.genreDescLabel.textContent = 'Genre Description';
+    el.genreDescInput.value = '';
+    el.genreDescInput.placeholder = 'Select a genre in the left panel to write a description for it.';
+    el.genreDescInput.disabled = true;
+    el.genreDescSaveBtn.disabled = true;
+    return;
+  }
+  const genre = state.navFilter.value;
+  const key = genreTaxonomyKey(genre);
+  el.genreDescLabel.textContent = `Genre Description \u2014 ${genre}`;
+  el.genreDescInput.disabled = false;
+  el.genreDescSaveBtn.disabled = false;
+  el.genreDescInput.placeholder = `Write a description for ${genre}\u2026`;
+  el.genreDescInput.value = (state.genreTaxonomy[key] && state.genreTaxonomy[key].description) || '';
+}
+
+// Now Playing Bar's inline rendering when placed in Main instead of its
+// default spot in Bottom — a simpler, read-only strip (no transport
+// controls) rather than duplicating the full mini player, since that one
+// is still what's actually driving playback regardless of where this
+// element sits. Mirrors the mini player's own title/artist text and
+// current art rather than maintaining a second source of truth for either.
+function refreshNowPlayingBarMain() {
+  if (!el.nowPlayingBarMainElement || el.nowPlayingBarMainElement.hidden) return;
+  const hasTrack = !!nowPlayingItem || (activePlayerEngine === 'spotify' && currentSpotifyTrack);
+  if (!hasTrack) {
+    el.nowPlayingBarMainTitle.textContent = 'Nothing playing right now';
+    el.nowPlayingBarMainSub.textContent = '';
+    el.nowPlayingBarMainArt.removeAttribute('src');
+    return;
+  }
+  el.nowPlayingBarMainTitle.textContent = el.miniPlayerTitle.textContent || '';
+  el.nowPlayingBarMainSub.textContent = el.miniPlayerArtist ? el.miniPlayerArtist.textContent || '' : '';
+  if (nowPlayingItem) {
+    el.nowPlayingBarMainArt.dataset.key = artKey(nowPlayingItem);
+    el.nowPlayingBarMainArt.src = state.artCache[artKey(nowPlayingItem)]?.art || placeholderArt(nowPlayingItem);
+  } else if (currentSpotifyTrack?.album?.images?.[0]) {
+    el.nowPlayingBarMainArt.dataset.key = '';
+    el.nowPlayingBarMainArt.src = currentSpotifyTrack.album.images[0].url;
+  }
+}
+
+// Single entry point covering all three panels — called at init and
+// whenever the drag-and-drop layout config actually changes something
+// (see renderLayoutConfigUI). The four pre-existing call sites for
+// applyRightPanelSections() elsewhere (track/state changes that only ever
+// needed the right panel refreshed, not the whole layout) are untouched.
+function applyPanelLayout() {
+  applyRightPanelSections();
+  applyMainPanelLayout();
+  applyBottomPanelLayout();
 }
 
 // Currently-playing track details for the right panel — cover art (or,
@@ -18267,6 +18573,125 @@ function formatDuration(ms) {
 // state.addFormVisibleFields directly. Called once at init and again each
 // time the Panels configuration modal opens, so it always reflects
 // whatever's actually current.
+// ---------- Layout drag-and-drop (Panels configuration → layout) ----------
+// See LAYOUT_ELEMENTS/state.panelLayout for the data model. One chip per
+// element, draggable between the three panel zones and the "Available"
+// pool; ⚙ opens that element's own settings (openElementConfig), × removes
+// it back to Available. Rendered fresh every time the modal opens
+// (renderLayoutConfigUI) and after every drag-drop/remove.
+function layoutChipHtml(key, removable) {
+  const def = LAYOUT_ELEMENTS[key];
+  return `<div class="layout-element-chip" draggable="true" data-element="${key}">
+    <span class="layout-chip-handle" aria-hidden="true">\u283f</span>
+    <span class="layout-chip-label">${escapeHtml(def.label)}</span>
+    <button type="button" class="layout-chip-configure" data-element="${key}" title="${escapeHtml(def.label)} settings" aria-label="${escapeHtml(def.label)} settings">\u2699</button>
+    ${removable ? `<button type="button" class="layout-chip-remove" data-element="${key}" title="Remove" aria-label="Remove ${escapeHtml(def.label)}">\u00d7</button>` : ''}
+  </div>`;
+}
+
+function renderLayoutConfigUI() {
+  if (!el.layoutZoneMain) return;
+  const zoneEls = { main: el.layoutZoneMain, right: el.layoutZoneRight, bottom: el.layoutZoneBottom };
+  const placed = new Set();
+  ['main', 'right', 'bottom'].forEach(panel => {
+    zoneEls[panel].innerHTML = state.panelLayout[panel].map(key => layoutChipHtml(key, true)).join('')
+      || '<p class="layout-zone-empty">Drag an element here</p>';
+    state.panelLayout[panel].forEach(k => placed.add(k));
+  });
+  const available = Object.keys(LAYOUT_ELEMENTS).filter(k => !placed.has(k));
+  el.layoutZoneAvailable.innerHTML = available.length
+    ? available.map(key => layoutChipHtml(key, false)).join('')
+    : '<p class="layout-zone-empty">Everything is placed</p>';
+}
+
+// Bound once at init (event delegation on the four zone containers, which
+// stay put even though their chip children get fully regenerated on every
+// change — no need to re-bind after each render).
+let layoutDraggedKey = null;
+function initLayoutDragDrop() {
+  const panelZones = [el.layoutZoneMain, el.layoutZoneRight, el.layoutZoneBottom, el.layoutZoneAvailable];
+
+  panelZones.forEach(zone => {
+    zone.addEventListener('dragstart', (e) => {
+      const chip = e.target.closest('.layout-element-chip');
+      if (!chip) return;
+      layoutDraggedKey = chip.dataset.element;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', layoutDraggedKey); // required for Firefox to fire drop at all
+      chip.classList.add('dragging');
+    });
+    zone.addEventListener('dragend', () => {
+      panelZones.forEach(z => { z.classList.remove('drag-over', 'drag-rejected'); z.querySelectorAll('.dragging').forEach(c => c.classList.remove('dragging')); });
+      layoutDraggedKey = null;
+    });
+    zone.addEventListener('dragover', (e) => {
+      if (!layoutDraggedKey) return;
+      const targetPanel = zone.dataset.panel;
+      const allowed = targetPanel === 'available' || (LAYOUT_ELEMENTS[layoutDraggedKey] && LAYOUT_ELEMENTS[layoutDraggedKey].panels.includes(targetPanel));
+      // Not calling preventDefault() when disallowed is what actually makes
+      // the browser refuse the drop outright (shown as a "no entry" cursor)
+      // — this enforces each element's own panel restriction (e.g. Genre
+      // Description can never land in Right Panel) at the source, rather
+      // than silently accepting then rejecting it in the drop handler.
+      if (!allowed) { zone.classList.add('drag-rejected'); zone.classList.remove('drag-over'); return; }
+      e.preventDefault();
+      zone.classList.add('drag-over');
+      zone.classList.remove('drag-rejected');
+    });
+    zone.addEventListener('dragleave', (e) => { if (e.target === zone) zone.classList.remove('drag-over', 'drag-rejected'); });
+    zone.addEventListener('drop', (e) => {
+      if (!layoutDraggedKey) return;
+      const targetPanel = zone.dataset.panel;
+      const allowed = targetPanel === 'available' || (LAYOUT_ELEMENTS[layoutDraggedKey] && LAYOUT_ELEMENTS[layoutDraggedKey].panels.includes(targetPanel));
+      zone.classList.remove('drag-over', 'drag-rejected');
+      if (!allowed) return; // dragover already refused this; belt-and-suspenders
+      e.preventDefault();
+      const key = layoutDraggedKey;
+      ['main', 'right', 'bottom'].forEach(p => {
+        const idx = state.panelLayout[p].indexOf(key);
+        if (idx !== -1) state.panelLayout[p].splice(idx, 1);
+      });
+      if (targetPanel !== 'available') {
+        // Insertion position from cursor Y relative to the OTHER chips
+        // already in this zone (excluding the one being dragged, which is
+        // still rendered at its old spot mid-drag) — drop above a chip's
+        // midpoint inserts before it, below inserts after; dropping on
+        // empty space below every chip just appends to the end.
+        const chips = [...zone.querySelectorAll('.layout-element-chip')].filter(c => c.dataset.element !== key);
+        let insertIndex = state.panelLayout[targetPanel].length;
+        for (let i = 0; i < chips.length; i++) {
+          const rect = chips[i].getBoundingClientRect();
+          if (e.clientY < rect.top + rect.height / 2) { insertIndex = i; break; }
+        }
+        state.panelLayout[targetPanel].splice(insertIndex, 0, key);
+      }
+      layoutDraggedKey = null;
+      savePrefs();
+      applyPanelLayout();
+      renderLayoutConfigUI();
+    });
+  });
+
+  // ⚙/× buttons — event delegation, since chips are fully regenerated on
+  // every change rather than being individually bound.
+  [el.layoutZoneMain, el.layoutZoneRight, el.layoutZoneBottom, el.layoutZoneAvailable].forEach(zone => {
+    zone.addEventListener('click', (e) => {
+      const configBtn = e.target.closest('.layout-chip-configure');
+      if (configBtn) { openElementConfig(configBtn.dataset.element); return; }
+      const removeBtn = e.target.closest('.layout-chip-remove');
+      if (!removeBtn) return;
+      const key = removeBtn.dataset.element;
+      ['main', 'right', 'bottom'].forEach(p => {
+        const idx = state.panelLayout[p].indexOf(key);
+        if (idx !== -1) state.panelLayout[p].splice(idx, 1);
+      });
+      savePrefs();
+      applyPanelLayout();
+      renderLayoutConfigUI();
+    });
+  });
+}
+
 function renderAddFieldsChecklist() {
   if (!el.addFieldsChecklist) return;
   el.addFieldsChecklist.innerHTML = Object.entries(ADD_FORM_FIELD_OPTIONS).map(([key, label]) => `
@@ -22717,6 +23142,17 @@ html, body {
 
   /* ---- Stats tab ---- */
   .stats-wrap { max-width: 760px; margin: 0 auto; }
+  .chart-wrap { max-width: 760px; margin: 0 auto; }
+  .chart-genre-field {
+    display: flex; flex-direction: column; gap: 4px; max-width: 280px; margin: 0 0 20px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .chart-genre-field select {
+    background: var(--bg-card); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+    padding: 7px 10px; font-family: 'Inter', sans-serif; font-size: 13px; text-transform: none; letter-spacing: normal;
+  }
+  .chart-genre-field select:focus { border-color: var(--accent); }
   .stats-header h2 { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 0.5px; margin: 0 0 4px; }
   .stats-sub { font-size: 12.5px; color: var(--text-dim); margin: 0 0 20px; max-width: 560px; line-height: 1.5; }
   .stats-year-list { display: flex; flex-direction: column; gap: 2px; }
@@ -23409,6 +23845,65 @@ html, body {
   }
   .add-fields-checklist { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 12px; margin-top: 6px; }
   .add-fields-checklist-item { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-dim); cursor: pointer; }
+
+  /* ---- Layout drag-and-drop (Panels configuration → layout) ---- */
+  .layout-zones-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .layout-zone-label {
+    font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--text-dim); margin-bottom: 4px;
+  }
+  .layout-zone-list {
+    min-height: 44px; border: 1px dashed var(--line); border-radius: 6px; padding: 4px;
+    display: flex; flex-direction: column; gap: 4px; transition: border-color 0.12s ease, background 0.12s ease;
+  }
+  .layout-zone-list.drag-over { border-color: var(--accent); background: rgba(255,255,255,0.03); border-style: solid; }
+  .layout-zone-list.drag-rejected { border-color: #c0392b; }
+  .layout-zone-empty { margin: 0; padding: 6px 4px; font-size: 10.5px; color: var(--text-dim); font-style: italic; text-align: center; }
+  .layout-zone-available { margin-top: 10px; }
+  .layout-zone-available .layout-zone-list { flex-direction: row; flex-wrap: wrap; }
+  .layout-element-chip {
+    display: flex; align-items: center; gap: 5px; padding: 5px 6px; border-radius: 5px;
+    background: var(--bg-card); border: 1px solid var(--line); cursor: grab; font-size: 11.5px;
+  }
+  .layout-element-chip.dragging { opacity: 0.4; }
+  .layout-chip-handle { color: var(--text-dim); flex: 0 0 auto; font-size: 10px; }
+  .layout-chip-label { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .layout-chip-configure, .layout-chip-remove {
+    flex: 0 0 auto; background: none; border: none; color: var(--text-dim); cursor: pointer;
+    font-size: 12px; padding: 1px 3px; border-radius: 3px; line-height: 1;
+  }
+  .layout-chip-configure:hover, .layout-chip-remove:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+
+  /* Genre Description (Main panel element) */
+  .genre-desc-body { padding: 8px 0; display: flex; flex-direction: column; gap: 8px; }
+  .genre-desc-input {
+    width: 100%; min-height: 70px; resize: vertical; box-sizing: border-box;
+    background: var(--bg-card); border: 1px solid var(--line); border-radius: 6px; color: var(--text);
+    padding: 8px 10px; font-family: 'Inter', sans-serif; font-size: 13px; outline: none;
+  }
+  .genre-desc-input:focus { border-color: var(--accent); }
+  .genre-desc-input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Now Playing Bar, placed in Main instead of Bottom */
+  .now-playing-bar-main { display: flex; align-items: center; gap: 10px; padding: 8px 0; flex: 0 0 auto; border-top: 1px solid var(--line); }
+  .now-playing-bar-main-art { width: 40px; height: 40px; border-radius: 4px; object-fit: cover; background: var(--bg-card); flex: 0 0 auto; }
+  .now-playing-bar-main-text { min-width: 0; }
+  .now-playing-bar-main-title { margin: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .now-playing-bar-main-sub { margin: 2px 0 0; font-size: 11px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Every non-musicView main-panel element sits at its natural height
+     rather than stretching/shrinking to fill the panel — only Music View
+     itself (below) grows to fill whatever space is left. */
+  .layout-element { flex: 0 0 auto; }
+  #musicViewElement { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+
+  /* Gates the DOCKED mini player on top of its own existing playback-based
+     show/hide logic — see applyBottomPanelLayout(). Direct class on the
+     element itself, not just the ancestor-descendant rule below (kept too,
+     since it's harmless either way) — more robust regardless of exactly
+     where #miniPlayer sits in the DOM. */
+  #miniPlayer.force-hidden { display: none !important; }
+  .now-playing-bar-disabled #miniPlayer { display: none !important; }
   .arrange-row-label {
     display: flex;
     align-items: center;
