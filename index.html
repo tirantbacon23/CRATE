@@ -13,7 +13,25 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.142
+  CURRENT_VERSION: 1.29.143
+
+  1.29.143 — 2026-09-26 — Feature: per-track credits (who played what,
+          who wrote it), RYM-style — built from two reference screenshots.
+          Track Properties editor gets a new "Credits" textarea, one
+          credit per line ("Name — Role(s)"); stores into trackData
+          (JSON.parse(trackData).credits) — same JSON-blob persistence the
+          rest of that object already uses, so unlike Descriptor/Scene/
+          Movement earlier this needed ZERO backend changes to round-trip
+          correctly. New parseTrackCredits() turns that text into {name,
+          role} entries for display; deliberately only splits on an em-
+          dash/en-dash, not a plain hyphen — a hyphenated name like "Jean-
+          Paul Smith" would otherwise get its own hyphen mistaken for the
+          split point (verified against exactly that case before
+          shipping). Deck tracklist gets a new "Show/Hide track credits"
+          toggle (only shown when at least one track actually has any,
+          same as RYM itself) that expands every track's credits at once,
+          not per-row, matching the reference exactly — each shown as
+          name (in the accent colour) with its role(s) underneath.
 
   1.29.142 — 2026-09-26 — Feature: three selectable display styles for the
           right panel's Up Next queue, via a new "View" dropdown in
@@ -5195,7 +5213,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.142';
+const APP_VERSION = '1.29.143';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -5449,6 +5467,11 @@ const state = {
   // own reference noted where it's implemented — see renderCrateQueuePanel's
   // dispatch and each of the three render functions it calls.
   queueViewMode: 'thumbnail', // 'thumbnail' | 'trackDetail' | 'releaseTracks'
+  // Deck tracklist's "Show/Hide track credits" toggle (see
+  // parseTrackCredits/renderTracklistBody) — RYM-style per-track credits
+  // (who played what, who wrote it), expanded/collapsed for every track at
+  // once rather than per-row, matching the reference this was built from.
+  showTrackCredits: false,
   panelWidths: { leftNav: 148, left: 220, right: 260 },
 fields: { 
     // Ordered slots for the Albums Grid
@@ -7371,6 +7394,12 @@ function bindEvents() {
     if (e.target.closest('#tlSelectAllBtn')) { await selectAllTracks(activeItem); return; }
     if (e.target.closest('#tlClearSelectionBtn')) { await clearTrackSelection(activeItem); return; }
     if (e.target.closest('#tlAddTrackBtn')) { openAddTrackModal(activeItem); return; }
+    if (e.target.closest('#tlToggleCreditsBtn')) {
+      state.showTrackCredits = !state.showTrackCredits;
+      savePrefs();
+      renderTracklistBody(activeItem, currentTracklistTracks);
+      return;
+    }
 
     const listenToggleBtn = e.target.closest('.track-listen-toggle');
     if (listenToggleBtn) {
@@ -7575,7 +7604,7 @@ async function updateTrackData(item, trackNum, updates) {
   Object.assign(item.trackData[trackNum], updates);
   
   // Cleanup empty objects so we don't save useless bloat
-  if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink && !item.trackData[trackNum].name && !item.trackData[trackNum].lengthMs && !item.trackData[trackNum].album && !item.trackData[trackNum].rymLink && !item.trackData[trackNum].date && !item.trackData[trackNum].artist && !item.trackData[trackNum].albumArtist && !item.trackData[trackNum].soundcloudLink) {
+  if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink && !item.trackData[trackNum].name && !item.trackData[trackNum].lengthMs && !item.trackData[trackNum].album && !item.trackData[trackNum].rymLink && !item.trackData[trackNum].date && !item.trackData[trackNum].artist && !item.trackData[trackNum].albumArtist && !item.trackData[trackNum].soundcloudLink && !item.trackData[trackNum].credits) {
     delete item.trackData[trackNum];
   }
 
@@ -7766,6 +7795,7 @@ function loadPrefs() {
     if (Array.isArray(p.collapsedGenres)) state.collapsedGenres = new Set(p.collapsedGenres);
     if (['none','genre','year','artist'].includes(p.mapColorBy)) state.mapColorBy = p.mapColorBy;
     if (['thumbnail','trackDetail','releaseTracks'].includes(p.queueViewMode)) state.queueViewMode = p.queueViewMode;
+    if (typeof p.showTrackCredits === 'boolean') state.showTrackCredits = p.showTrackCredits;
     if (typeof p.trackInfoShowPlayer === 'boolean') state.trackInfoShowPlayer = p.trackInfoShowPlayer;
     if (typeof p.trackInfoShowVideo === 'boolean') state.trackInfoShowVideo = p.trackInfoShowVideo;
     if (typeof p.releaseSearchGridView === 'boolean') state.releaseSearchGridView = p.releaseSearchGridView;
@@ -7792,6 +7822,7 @@ function savePrefs() {
       collapsedGenres: [...state.collapsedGenres],
       mapColorBy: state.mapColorBy,
       queueViewMode: state.queueViewMode,
+      showTrackCredits: state.showTrackCredits,
       trackInfoShowPlayer: state.trackInfoShowPlayer,
       trackInfoShowVideo: state.trackInfoShowVideo,
       releaseSearchGridView: state.releaseSearchGridView,
@@ -12109,6 +12140,10 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
           <input type="text" id="trackPropsGenre" list="genreAutocompleteList" placeholder="e.g. Dream Pop" value="${escapeHtml(tData.genre || '')}">
         </div>
         <div class="track-props-field">
+          <label for="trackPropsCredits">Credits (one per line: Name \u2014 Role(s))</label>
+          <textarea id="trackPropsCredits" rows="4" placeholder="John Lennon \u2014 lead vocals, songwriter&#10;Paul McCartney \u2014 bass, backing vocals">${escapeHtml(tData.credits || '')}</textarea>
+        </div>
+        <div class="track-props-field">
           <label for="trackPropsLength">Track length</label>
           <input type="text" id="trackPropsLength" placeholder="m:ss" value="${links.lengthMs ? formatMs(links.lengthMs) : (currentLengthMs ? formatMs(currentLengthMs) : '')}">
         </div>
@@ -12165,6 +12200,7 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
   const albumInput = overlay.querySelector('#trackPropsAlbum');
   const dateInput = overlay.querySelector('#trackPropsDate');
   const genreInput = overlay.querySelector('#trackPropsGenre');
+  const creditsInput = overlay.querySelector('#trackPropsCredits');
   const youtubeInput = overlay.querySelector('#trackPropsYoutube');
   const spotifyInput = overlay.querySelector('#trackPropsSpotify');
   const rymInput = overlay.querySelector('#trackPropsRym');
@@ -12272,6 +12308,7 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
       album: (typedAlbum && typedAlbum !== (item.title || '').trim()) ? typedAlbum : '',
       date: dateInput.value.trim(),
       genre: genreInput.value.trim(),
+      credits: creditsInput.value.trim(),
       youtubeLink: youtubeInput.value.trim(),
       spotifyLink: spotifyInput.value.trim(),
       rymLink: rymInput.value.trim(),
@@ -17934,11 +17971,28 @@ async function loadTracklist(item) {
 // Renders the tracklist markup (rows + footer) from already-fetched tracks.
 // Split out from loadTracklist so the "mark as listened" toggle can refresh
 // the checkmarks/progress in place after a click, with no re-fetch.
+// Parses the Track Properties editor's "Name — Role(s)" one-per-line
+// credits format into {name, role} entries for RYM-style display — see
+// renderTracklistBody's own use of this, and the reference screenshots
+// this was built from. Delimiter is an em-dash or en-dash specifically
+// (not a plain hyphen) — a hyphenated name like "Jean-Paul Smith" would
+// otherwise get its own hyphen mistaken for the split point. A line with
+// no recognizable delimiter is treated as a bare name with no role,
+// rather than dropped.
+function parseTrackCredits(raw) {
+  if (!raw) return [];
+  return raw.split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+    const m = line.match(/^(.*?)\s*[\u2014\u2013]\s*(.*)$/);
+    return (m && m[2]) ? { name: m[1].trim(), role: m[2].trim() } : { name: line, role: '' };
+  });
+}
+
 function renderTracklistBody(item, tracks) {
   const totalMs = tracks.reduce((sum, t) => sum + (t.trackTimeMillis || 0), 0);
   const totalTimeStr = formatDuration(totalMs);
 
   let listenedCount = 0;
+  let anyCredits = false;
 
   let html = tracks.map(t => {
     const tNum = t.trackNumber || 0;
@@ -17946,6 +18000,8 @@ function renderTracklistBody(item, tracks) {
     const rating = tData.rating || 0;
     const note = tData.note || '';
     const genre = tData.genre || '';
+    const credits = parseTrackCredits(tData.credits);
+    if (credits.length) anyCredits = true;
     const listened = !!tData.listened;
     if (listened) listenedCount++;
     const scrobbleCount = trackScrobbleCountFor(item.artist, item.title, t.trackName);
@@ -17994,9 +18050,21 @@ function renderTracklistBody(item, tracks) {
             <button type="button" class="save-track-note-btn save-btn">Save track note</button>
           </div>
         </div>
+        ${credits.length ? `
+        <div class="track-credits-wrap"${state.showTrackCredits ? '' : ' hidden'}>
+          ${credits.map(c => `<p class="track-credit-entry"><span class="track-credit-name">${escapeHtml(c.name)}</span>${c.role ? `<span class="track-credit-role">${escapeHtml(c.role)}</span>` : ''}</p>`).join('')}
+        </div>` : ''}
       </div>
     `;
   }).join('');
+
+  // Toggles every track's credits block at once (RYM's own "Show/Hide
+  // track credits" pattern, not a per-row toggle) — only shown if at
+  // least one track here actually has any, same as RYM only shows the
+  // link when there's something to show.
+  if (anyCredits) {
+    html = `<div class="tracklist-credits-toggle-row"><button type="button" id="tlToggleCreditsBtn" class="chip-btn">${state.showTrackCredits ? 'Hide' : 'Show'} track credits</button></div>` + html;
+  }
 
   const allListened = tracks.length > 0 && listenedCount === tracks.length;
   html += `
@@ -18037,7 +18105,7 @@ async function toggleTrackListened(item, trackNum) {
   if (!item.trackData[trackNum]) item.trackData[trackNum] = {};
   if (nowListened) item.trackData[trackNum].listened = true;
   else delete item.trackData[trackNum].listened;
-  if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink && !item.trackData[trackNum].name && !item.trackData[trackNum].lengthMs && !item.trackData[trackNum].album && !item.trackData[trackNum].rymLink && !item.trackData[trackNum].date && !item.trackData[trackNum].artist && !item.trackData[trackNum].albumArtist && !item.trackData[trackNum].soundcloudLink) {
+  if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink && !item.trackData[trackNum].name && !item.trackData[trackNum].lengthMs && !item.trackData[trackNum].album && !item.trackData[trackNum].rymLink && !item.trackData[trackNum].date && !item.trackData[trackNum].artist && !item.trackData[trackNum].albumArtist && !item.trackData[trackNum].soundcloudLink && !item.trackData[trackNum].credits) {
     delete item.trackData[trackNum];
   }
 
@@ -18059,7 +18127,7 @@ async function toggleTrackListened(item, trackNum) {
     if (!item.trackData[trackNum]) item.trackData[trackNum] = {};
     if (wasListened) item.trackData[trackNum].listened = true;
     else delete item.trackData[trackNum].listened;
-    if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink && !item.trackData[trackNum].name && !item.trackData[trackNum].lengthMs && !item.trackData[trackNum].album && !item.trackData[trackNum].rymLink && !item.trackData[trackNum].date && !item.trackData[trackNum].artist && !item.trackData[trackNum].albumArtist && !item.trackData[trackNum].soundcloudLink) {
+    if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink && !item.trackData[trackNum].name && !item.trackData[trackNum].lengthMs && !item.trackData[trackNum].album && !item.trackData[trackNum].rymLink && !item.trackData[trackNum].date && !item.trackData[trackNum].artist && !item.trackData[trackNum].albumArtist && !item.trackData[trackNum].soundcloudLink && !item.trackData[trackNum].credits) {
       delete item.trackData[trackNum];
     }
     if (activeItem === item) renderTracklistBody(item, currentTracklistTracks);
@@ -18100,7 +18168,7 @@ async function clearTrackSelection(item) {
     const tNum = t.trackNumber || 0;
     if (item.trackData[tNum]) {
       delete item.trackData[tNum].listened;
-      if (!item.trackData[tNum].rating && !item.trackData[tNum].note && !item.trackData[tNum].genre && !item.trackData[tNum].youtubeLink && !item.trackData[tNum].spotifyLink && !item.trackData[tNum].name && !item.trackData[tNum].lengthMs && !item.trackData[tNum].album && !item.trackData[tNum].rymLink && !item.trackData[tNum].date && !item.trackData[tNum].artist && !item.trackData[tNum].albumArtist && !item.trackData[tNum].soundcloudLink) delete item.trackData[tNum];
+      if (!item.trackData[tNum].rating && !item.trackData[tNum].note && !item.trackData[tNum].genre && !item.trackData[tNum].youtubeLink && !item.trackData[tNum].spotifyLink && !item.trackData[tNum].name && !item.trackData[tNum].lengthMs && !item.trackData[tNum].album && !item.trackData[tNum].rymLink && !item.trackData[tNum].date && !item.trackData[tNum].artist && !item.trackData[tNum].albumArtist && !item.trackData[tNum].soundcloudLink && !item.trackData[tNum].credits) delete item.trackData[tNum];
     }
   }
   if (activeItem === item) renderTracklistBody(item, currentTracklistTracks);
@@ -21450,6 +21518,19 @@ async function getCaaJsonUrls(endpoint) {
               visibility 0s linear 0.25s;
 }
 
+/* Per-track credits (who played what, who wrote it) — RYM-style, toggled
+   for every track at once via #tlToggleCreditsBtn rather than per-row.
+   See parseTrackCredits/renderTracklistBody. Plain [hidden] toggle rather
+   than .track-note-wrap's grid-animation trick above — this can hold
+   several lines per track across a whole album, so animating its height
+   open/closed would be a much bigger, jankier layout shift than a short
+   note ever is. */
+.track-credits-wrap { padding: 6px 0 8px 44px; display: flex; flex-direction: column; gap: 4px; }
+.track-credit-entry { margin: 0; font-size: 11.5px; line-height: 1.35; }
+.track-credit-name { color: var(--accent); font-weight: 600; }
+.track-credit-role { color: var(--text-dim); display: block; }
+.tracklist-credits-toggle-row { display: flex; justify-content: flex-end; padding: 0 0 8px; }
+
 .track-note-wrap.open {
   grid-template-rows: 1fr;
   opacity: 1;
@@ -22519,11 +22600,12 @@ html, body {
     font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-dim);
     text-transform: uppercase; letter-spacing: 0.5px;
   }
-  .track-props-field input {
+  .track-props-field input, .track-props-field textarea {
     background: var(--bg-card); border: 1px solid var(--line); color: var(--text); border-radius: 6px;
     padding: 8px 10px; font-family: 'Inter', sans-serif; font-size: 13px; outline: none;
   }
-  .track-props-field input:focus { border-color: var(--accent); }
+  .track-props-field textarea { resize: vertical; min-height: 70px; }
+  .track-props-field input:focus, .track-props-field textarea:focus { border-color: var(--accent); }
   /* Spotify match troubleshoot list — see openTrackPropertiesModal. */
   .track-props-match-search-row { display: flex; gap: 6px; }
   .track-props-match-search-row input { flex: 1 1 auto; min-width: 0; }
