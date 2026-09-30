@@ -13,7 +13,79 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.149
+  CURRENT_VERSION: 1.29.153
+
+  1.29.153 — 2026-09-27 — Bugfix, and a better answer than my previous
+          guess: pushed back on with "wouldn't it be more a catalogue
+          issue, to do with access to the spreadsheet?" — correctly.
+          postUpdate() (used by nearly every write in the app — add, edit,
+          delete, playlist changes, everything) only ever checked for an
+          AUTH error specifically; any OTHER backend failure — a script
+          exception during the actual spreadsheet write, entirely
+          plausible for a freshly-provisioned multi-tenant spreadsheet —
+          fell straight through unnoticed, and the calling code just
+          assumed success once the promise resolved at all, regardless of
+          what the response body actually said. That matches "happens
+          after adding, to anything" far better than a stuck filter would:
+          the add can silently never land in the sheet while the toast
+          still says "Added to your crate", and the catalog reload then
+          correctly shows nothing new, since there genuinely IS nothing
+          new — not a display problem, a save that never happened. Same
+          fix in spirit as fetchCatalog's own data.error check (1.29.23),
+          just applied on the write side this time instead of the read
+          side. saveNewAlbum's own catch now surfaces the backend's actual
+          error text when there is one, instead of a flat "try again" that
+          gave no hint whether this was a one-off network blip or a real,
+          recurring spreadsheet problem.
+
+          Scope note: postUpdate() is shared by many other write paths
+          across the file: they'll now correctly reject on a generic
+          backend error too (better than silently succeeding), but I only
+          audited and upgraded Add's own catch block's messaging — some of
+          the others may still show a generic failure message, or in the
+          worst case surface as an unhandled promise rejection in the
+          console, rather than a fully polished, specific error toast.
+          Flagging that honestly rather than claiming a full audit that
+          didn't happen.
+
+  1.29.152 — 2026-09-27 — Diagnostic improvement in response to a real
+          report: a friend (new multi-tenant sign-in) saw "No sleeves
+          match your search" after adding a release, for anything they
+          added. Two earlier versions (1.29.23, 1.29.47) already fixed
+          adjacent-looking causes — a swallowed backend error, and a
+          genuinely empty catalog showing the wrong message — but neither
+          matches "happens after adding, to everything": that shape points
+          at a stuck filter instead (state.raw genuinely has the new item,
+          state.filtered just doesn't), most likely a genre/artist/year
+          click, a leftover search box query, or "Listened only" toggled
+          on — the last one especially would explain "anything I add",
+          since a brand-new release has obviously never been listened to
+          yet. New describeActiveFilters() names whatever's actually
+          active right in the empty-state message now ("You currently have
+          the genre filter 'Rock' active — clear it to see everything"),
+          rather than a bare "no results" with no way to tell why. Doesn't
+          fix a specific stuck filter for anyone already hitting it right
+          now — that's a one-click "All Albums" away — but makes this
+          self-diagnosable going forward instead of looking like a broken
+          add.
+
+  1.29.151 — 2026-09-27 — Tweak: removed the "Nothing queued — right-click
+          a track..." explainer text from the Up Next panel's empty state
+          — it's just blank now, both in the static HTML default and
+          renderCrateQueuePanel's own empty-state branch.
+
+  1.29.150 — 2026-09-27 — Bugfix, confirmed via screenshot: Now Playing
+          Bar's Main-panel placement showed as a bare, blank ~40px square
+          with nothing next to it — the exact same class of bug hit
+          several times this session (an element starting empty in static
+          HTML, relying entirely on a JS call to populate it before it
+          ever becomes visible). #nowPlayingBarMainTitle now has real
+          fallback text ("Nothing playing right now") in the HTML itself
+          rather than starting empty, and refreshNowPlayingBarMain() hides
+          the art image outright in that state instead of just clearing
+          its src — an <img> with no src renders as a small blank box
+          rather than taking up no space at all, same lesson as the
+          queue-thumbnail spacer fix earlier.
 
   1.29.149 — 2026-09-27 — Bugfix, root cause confirmed via screenshot: the
           seek bar was still showing under the cover art in Track Info
@@ -4201,7 +4273,7 @@
       <div id="nowPlayingBarMainElement" class="layout-element now-playing-bar-main" hidden>
         <img id="nowPlayingBarMainArt" class="art now-playing-bar-main-art" data-key="" alt="">
         <div class="now-playing-bar-main-text">
-          <p id="nowPlayingBarMainTitle" class="now-playing-bar-main-title"></p>
+          <p id="nowPlayingBarMainTitle" class="now-playing-bar-main-title">Nothing playing right now</p>
           <p id="nowPlayingBarMainSub" class="now-playing-bar-main-sub"></p>
         </div>
       </div>
@@ -4218,9 +4290,7 @@
           <span class="panel-label">Up Next</span>
           <button type="button" id="crateQueueClearBtn" class="chip-btn" title="Clear the queue" hidden>Clear</button>
         </div>
-        <div id="crateQueuePanelBody" class="crate-queue-panel-body">
-          <p class="queue-empty">Nothing queued — right-click a track or album and choose “Add to queue”, or “▶ Play” a multi-selection, to see upcoming tracks here — Spotify and YouTube-sourced alike.</p>
-        </div>
+        <div id="crateQueuePanelBody" class="crate-queue-panel-body"></div>
       </div>
       <!-- Chronological Last.fm scrobble feed. Day-level only (no time-of-
            day) since that's the actual granularity the Scrobbles sheet
@@ -5413,7 +5483,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.149';
+const APP_VERSION = '1.29.153';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -13339,6 +13409,27 @@ function setViewMode(mode) {
   el.sizeControl.style.visibility = mode === 'grid' ? 'visible' : 'hidden';
 }
 
+// Explains what's currently narrowing state.filtered down, for the "no
+// results" empty state below — a genuine diagnostic gap otherwise:
+// someone with a stray filter active (a genre/artist/year click,
+// "Listened only", a leftover search query) sees "No sleeves match your
+// search" with zero indication of why, which is especially confusing
+// right after adding something that plainly should show up — a real
+// report of exactly that ("happens to anything I add") is what prompted
+// this. Returns '' if nothing is actually filtering.
+function describeActiveFilters() {
+  const parts = [];
+  if (state.query) parts.push(`the search "${state.query}"`);
+  if (state.navFilter) {
+    const modeLabel = state.navFilter.mode === 'genre' ? 'genre' : state.navFilter.mode === 'artist' ? 'artist' : state.navFilter.mode === 'year' ? 'year' : state.navFilter.mode;
+    parts.push(`the ${modeLabel} filter \u201c${state.navFilter.value}\u201d`);
+  }
+  if (state.activeType && state.activeType !== 'All') parts.push(`the \u201c${state.activeType}\u201d type filter`);
+  if (state.listenedOnly) parts.push('\u201cListened only\u201d');
+  if (!parts.length) return '';
+  return ' You currently have ' + parts.join(', ') + ' active \u2014 clear it to see everything.';
+}
+
 function showState(kind, which, detail) {
   const container = which === 'diary' ? el.diaryContainer : which === 'scrobbles' ? el.scrobblesContainer : el.gridContainer;
   const msg = which === 'diary' ? el.diaryStateMsg : which === 'scrobbles' ? el.scrobblesStateMsg : el.stateMsg;
@@ -13364,7 +13455,7 @@ function showState(kind, which, detail) {
     // troubleshooting path for what's usually just a Google Apps Script
     // cold start.
     timeout: 'The crate took a while to respond — Google Apps Script can be slow to spin up, especially after it\u2019s been idle. Give it another try.' + retryBtnHtml,
-    empty: 'No sleeves match your search.',
+    empty: 'No sleeves match your search.' + describeActiveFilters(),
     // Distinct from 'empty' above: that one means "you searched/filtered
     // and nothing matched" — this one means the catalog has literally
     // nothing in it yet (a brand-new spreadsheet, e.g. a friend's first
@@ -15711,8 +15802,14 @@ function refreshNowPlayingBarMain() {
     el.nowPlayingBarMainTitle.textContent = 'Nothing playing right now';
     el.nowPlayingBarMainSub.textContent = '';
     el.nowPlayingBarMainArt.removeAttribute('src');
+    // An <img> with no src renders as a small blank/broken box rather than
+    // just taking up no space — hide it outright in the "nothing playing"
+    // state instead, same as Track Info's own art wrap does, rather than
+    // leaving an empty square sitting there with nothing next to it.
+    el.nowPlayingBarMainArt.hidden = true;
     return;
   }
+  el.nowPlayingBarMainArt.hidden = false;
   el.nowPlayingBarMainTitle.textContent = el.miniPlayerTitle.textContent || '';
   el.nowPlayingBarMainSub.textContent = el.miniPlayerArtist ? el.miniPlayerArtist.textContent || '' : '';
   if (nowPlayingItem) {
@@ -15966,7 +16063,7 @@ function renderCrateQueuePanel() {
   if (el.crateQueueClearBtn && state.rightPanelShowQueue) el.crateQueueClearBtn.hidden = !current && !upcoming.length;
 
   if (!current && !upcoming.length) {
-    el.crateQueuePanelBody.innerHTML = '<p class="queue-empty">Nothing queued — right-click a track or album and choose “Add to queue”, or “▶ Play” a multi-selection, to see upcoming tracks here — Spotify and YouTube-sourced alike.</p>';
+    el.crateQueuePanelBody.innerHTML = '';
     return;
   }
 
@@ -17046,6 +17143,21 @@ function postUpdate(payload) {
     body: JSON.stringify(Object.assign({}, payload, { idToken }))
   }).then(r => r.json()).then(data => {
     if (isAuthError(data)) { handleAuthError(); throw new Error('unauthorized'); }
+    // A generic backend error (an Apps Script exception during the actual
+    // write — a spreadsheet access/creation issue, entirely plausible for
+    // a freshly-provisioned multi-tenant spreadsheet, say) was previously
+    // falling straight through here unnoticed: every caller just assumed
+    // success once this promise resolved at all, regardless of what the
+    // response body actually said. A real report matches this exactly —
+    // an add "succeeding" (the toast said so) while silently never
+    // landing in the sheet, only surfacing later as a confusing empty-
+    // looking catalog rather than an obvious save failure. Rejects with
+    // the backend's own message now, so every write path's existing catch
+    // block (already there, already showing some failure toast) actually
+    // gets a chance to fire instead of silently declaring victory — same
+    // fix in spirit as fetchCatalog's own data.error check (1.29.23),
+    // just on the write side instead of the read side.
+    if (data && data.error) { throw new Error(data.error); }
     return data;
   });
 }
@@ -19683,7 +19795,12 @@ async function saveNewAlbum() {
     flashToast(el.addToast, 'Added to your crate');
     setTimeout(() => { closeAddModal(); fetchCatalog(); }, 700);
   } catch (err) {
-    flashToast(el.addToast, 'Couldn\u2019t save — try again');
+    // err.message now carries the backend's own error text when this was
+    // a generic (non-auth) failure — see postUpdate's own comment — rather
+    // than a flat "try again" that gives no hint whether this is a real,
+    // recurring problem (e.g. a spreadsheet access issue) or a one-off
+    // network blip.
+    flashToast(el.addToast, err && err.message && err.message !== 'unauthorized' ? `Couldn\u2019t save: ${err.message}` : 'Couldn\u2019t save — try again');
   }
 }
 
