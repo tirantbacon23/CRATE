@@ -13,7 +13,21 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.148
+  CURRENT_VERSION: 1.29.149
+
+  1.29.149 — 2026-09-27 — Bugfix, root cause confirmed via screenshot: the
+          seek bar was still showing under the cover art in Track Info
+          even after 1.29.148's fix, which was real but incomplete —
+          applyTrackInfoPlayerMode() was correctly setting hidden = true on
+          #trackInfoPlayerControls the whole time, but .track-info-player-
+          controls' own CSS rule sets display: flex unconditionally, which
+          — coming later in the cascade at equal specificity — overrides
+          the browser's default [hidden] { display: none } behavior
+          entirely. Setting the attribute was doing nothing visually. Added
+          .track-info-player-controls[hidden] { display: none } to
+          re-assert it. Checked the sibling video-wrap element for the same
+          pattern — it doesn't set its own display property, so it was
+          never affected.
 
   1.29.148 — 2026-09-27 — Bugfix per direct request: Track Info's "show
           playback progress instead of cover art" / "show video, if a
@@ -5399,7 +5413,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.148';
+const APP_VERSION = '1.29.149';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -22736,6 +22750,14 @@ html, body {
     width: 100%; height: 100%; border-radius: 8px; background: var(--bg-elevated);
     display: flex; flex-direction: column; justify-content: center; padding: 14px; box-sizing: border-box;
   }
+  /* This class's own display: flex above otherwise wins over the browser's
+     default [hidden] { display: none } — a class selector coming later in
+     the cascade beats an equal-specificity attribute selector from the UA
+     stylesheet, so setting .hidden = true in JS was doing nothing visually
+     even though it correctly set the underlying attribute. Confirmed via a
+     real screenshot: the seek bar stayed visible under the cover art even
+     after applyTrackInfoPlayerMode() unconditionally hid it. */
+  .track-info-player-controls[hidden] { display: none; }
   .track-info-seek-row { display: flex; align-items: center; gap: 8px; }
   .track-info-time { flex: 0 0 auto; width: 34px; text-align: center; font-size: 10px; font-family: 'IBM Plex Mono', monospace; color: var(--text-dim); }
   .track-info-seek-track { position: relative; flex: 1; height: 4px; border-radius: 2px; background: var(--bg-card); cursor: pointer; }
