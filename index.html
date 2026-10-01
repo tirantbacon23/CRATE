@@ -13,7 +13,60 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.156
+  CURRENT_VERSION: 1.29.158
+
+  1.29.158 — 2026-09-27 — Reworked per direct request/clarification: the
+          docked player (the bar with the seek timeline and skip/back
+          controls) is now its own element, "Player Controls", genuinely
+          separate from Now Playing Bar (display-only art/title/artist,
+          Main panel only now — "Bottom" removed from its allowed panels,
+          since that's what previously caused the confusing conflation
+          this whole rename fixes). Player Controls can be placed at Top
+          or Bottom of the screen (new "Top" panel added to the layout
+          system, LAYOUT_PANEL_LABELS/state.panelLayout.top) — a new
+          applyPlayerControlsPosition() just toggles which edge #miniPlayer
+          docks to, deliberately still never touching its visibility,
+          which stays entirely governed by the existing playback-state
+          logic alone (the exact guarantee the previous version's bugfix
+          established, kept intact here).
+
+          Player Controls specifically can never be fully removed from the
+          layout (dragged to Available, or unchecked) — guarded at all
+          three places that could otherwise do that (a panel row's own
+          checkbox, the Available list's master checkbox, and the drop
+          handler itself), snapping back with an explanatory toast instead
+          — it can only move between Top and Bottom, never disappear
+          outright, so there's always somewhere to actually control
+          playback from. loadPrefs migrates any existing saved layout with
+          the old 'nowPlayingBar' sitting in bottom over to 'playerControls'
+          automatically, preserving "docked at the bottom" rather than
+          silently losing it, plus a second independent safety net
+          ensuring it's never saved in neither panel at all.
+
+          CSS: new .mini-player.docked-top flips which edge it's pinned to
+          and which side its border/shadow reads on; the content-clearing
+          #app padding (four separate rules across desktop/mobile/notch/
+          narrow-phone variants) gets a :has()-based override for each one
+          so content never ends up hidden under the bar regardless of
+          which edge it's docked to or which device is viewing it.
+
+  1.29.157 — 2026-09-27 — Bugfix, a real design mistake rather than
+          another CSS cascade issue: disabling "Now Playing Bar" (removing
+          it from every panel) was hiding the ENTIRE docked mini player,
+          including its actual transport controls — play/pause, seek,
+          skip. applyBottomPanelLayout() was gating #miniPlayer's whole
+          visibility on whether that element was placed in Bottom at all,
+          conflating a decorative display element with the only UI for
+          controlling playback. The docked player now always follows its
+          own original playback-state-driven show/hide logic alone,
+          completely untouched by the layout system — "Bottom" stays one
+          of Now Playing Bar's conceptually allowed panels (so dragging it
+          there to represent the docked player in the Layout UI still
+          makes sense, consistent with how this whole restriction concept
+          was first described), it just no longer has any actual gating
+          effect on the player itself. Removed the now-dead CSS
+          (#miniPlayer.force-hidden, .now-playing-bar-disabled) that
+          existed only to implement the behavior just removed.
 
   1.29.156 — 2026-09-27 — Bugfix, confirmed and then swept properly this
           time: "Now Playing Bar shows even when disabled" was the exact
@@ -4872,7 +4925,11 @@
             <div class="layout-panel-box-list" id="layoutZoneRight" data-panel="right"></div>
           </div>
           <div class="layout-panel-box">
-            <div class="layout-panel-box-header"><span class="pane-icon">▶</span> bottom panel</div>
+            <div class="layout-panel-box-header"><span class="pane-icon">▲</span> top</div>
+            <div class="layout-panel-box-list" id="layoutZoneTop" data-panel="top"></div>
+          </div>
+          <div class="layout-panel-box">
+            <div class="layout-panel-box-header"><span class="pane-icon">▶</span> bottom</div>
             <div class="layout-panel-box-list" id="layoutZoneBottom" data-panel="bottom"></div>
           </div>
         </div>
@@ -5542,7 +5599,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.156';
+const APP_VERSION = '1.29.158';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -5803,11 +5860,11 @@ const state = {
   showTrackCredits: false,
   chartGenre: null, // last-selected genre in the Release Chart element (Main panel) — see renderChartElement()
   // Ordered element assignments per panel — see LAYOUT_ELEMENTS just above.
-  // This default (Music View alone in Main, Up Next alone in Right, Now
-  // Playing Bar in Bottom) is only what a genuinely first-ever load gets;
-  // an existing install's real setup is carried over by
-  // migrateLegacyPanelLayout() instead, called once from loadPrefs.
-  panelLayout: { main: ['musicView'], right: ['queue'], bottom: ['nowPlayingBar'] },
+  // This default (Music View alone in Main, Up Next alone in Right, Player
+  // Controls docked in Bottom, nothing in Top) is only what a genuinely
+  // first-ever load gets; an existing install's real setup is carried over
+  // by migrateLegacyPanelLayout() instead, called once from loadPrefs.
+  panelLayout: { main: ['musicView'], right: ['queue'], top: [], bottom: ['playerControls'] },
   // Global "stacked" (every assigned element in a panel shows at once,
   // the only mode that existed before this) vs "tabs" (only one shows at
   // a time, switched via a tab bar) — matches MusicBee's own "stack *"
@@ -5943,7 +6000,7 @@ const el = {};
   'chartElement','chartGenreSelect','chartBody',
   'artistWrap','artistSearchInput','artistList','artistDetail',
   'layoutBtn','layoutMenu','menuArrangePanels','arrangeModal','arrangeClose','toggleLeftPanel','toggleLeftNavCompact','toggleRightPanel','albumQuickPeekStyleSelect','addFieldsChecklist','trackInfoShowPlayerToggle','trackInfoShowVideoToggle','rightPanelQueueSection','rightPanelHistorySection','rightPanelTrackInfoSection','rightPanelEmptyMsg','rightHistoryPanelBody','trackInfoBody','trackInfoTextWrap','trackInfoTitle','trackInfoRatingRow','trackInfoArtWrap','trackInfoArt','trackInfoPlayerControls','trackInfoVideoWrap','trackInfoVideoMount','trackInfoFields','trackInfoEmpty','trackInfoSeekTrack','trackInfoSeekFill','trackInfoSeekHandle','trackInfoTimeCurrent','trackInfoTimeTotal','queueViewModeSelect','historyViewListBtn','historyViewGridBtn','historyLayoutChronoBtn','historyLayoutByDayBtn','toggleCoverLinks','toggleFitArtwork','toggleCloseGaps','fieldPlacementGroup','fieldPlacementOverlay','fieldPlacementBelow',
-  'layoutZoneMain','layoutZoneRight','layoutZoneBottom','layoutZoneAvailable','layoutStackModeStacked','layoutStackModeTabs',
+  'layoutZoneMain','layoutZoneRight','layoutZoneTop','layoutZoneBottom','layoutZoneAvailable','layoutStackModeStacked','layoutStackModeTabs',
   'mainConfigModal','mainConfigClose','mainConfigArtworkOptions',
   'fldTitle','fldArtist','fldYear','fldRating','fldType','fldCatalog','fldGenre','fldLabel','fldDuration','menuCustomizeMain',
   'listenedFilterBtn',
@@ -6168,12 +6225,23 @@ const LAYOUT_ELEMENTS = {
   musicView: { label: 'Music View', panels: ['main'] },
   genreDesc: { label: 'Genre Description', panels: ['main'] },
   chart: { label: 'Release Chart', panels: ['main'] },
-  nowPlayingBar: { label: 'Now Playing Bar', panels: ['main', 'bottom'] },
+  // Now Playing Bar is display-only (art/title/artist, no transport
+  // controls) — Main only, since "Bottom" previously meant something
+  // confusing here: the docked player itself, conflating a decorative
+  // element with the only UI for controlling playback at all (the exact
+  // bug fixed last version). That's now its own separate element below.
+  nowPlayingBar: { label: 'Now Playing Bar', panels: ['main'] },
+  // The actual docked player (play/pause/seek/skip) — Top or Bottom of
+  // the screen, never Main (it's not a panel-stacking element, it's a
+  // fixed-position dock) and never removable from both at once — see
+  // applyPlayerControlsPosition()'s own comment for why its render path
+  // deliberately ignores "fully removed" as a possibility.
+  playerControls: { label: 'Player Controls', panels: ['top', 'bottom'] },
   queue: { label: 'Up Next (Queue)', panels: ['right'] },
   lastfmHistory: { label: 'Last.fm History', panels: ['right'] },
   trackInfo: { label: 'Track Info', panels: ['right'] }
 };
-const LAYOUT_PANEL_LABELS = { main: 'Main Panel', right: 'Right Panel', bottom: 'Bottom (mini player)' };
+const LAYOUT_PANEL_LABELS = { main: 'Main Panel', right: 'Right Panel', top: 'Top', bottom: 'Bottom' };
 
 
 // A modest starting point covering common, widely-known genre
@@ -7342,7 +7410,7 @@ function bindEvents() {
     } else if (elementKey === 'nowPlayingBar') {
       renderConfigSlots('miniPlayer');
     } else {
-      return; // genreDesc/chart have no separate field-slot config — genreDesc is a single free-text box, chart is just its own genre dropdown
+      return; // genreDesc/chart/playerControls have no separate field-slot config — genreDesc is a single free-text box, chart is just its own genre dropdown, playerControls has nothing to configure beyond its Top/Bottom position (set by dragging it, not a modal)
     }
     el.mainConfigModal.hidden = false;
   }
@@ -8166,7 +8234,24 @@ function loadPrefs() {
       if (state.rightPanelShowQueue) right.push('queue');
       if (state.rightPanelShowHistory) right.push('lastfmHistory');
       if (state.rightPanelShowTrackInfo) right.push('trackInfo');
-      state.panelLayout = { main: ['musicView'], right, bottom: ['nowPlayingBar'] };
+      state.panelLayout = { main: ['musicView'], right, top: [], bottom: ['playerControls'] };
+    }
+    // Two follow-up migrations, applied regardless of which branch above
+    // ran, since both can produce a layout predating either change:
+    // (1) 'top' didn't exist as a panel before Player Controls did — add
+    // it if a saved layout from that era is missing it entirely.
+    // (2) Now Playing Bar used to BE the docked player when placed in
+    // Bottom (the confusing conflation fixed by splitting it into this
+    // display-only element plus the new Player Controls one) — anyone
+    // with 'nowPlayingBar' still sitting in their saved bottom array gets
+    // it swapped for 'playerControls' instead, preserving "docked at the
+    // bottom" rather than silently losing their player entirely once
+    // 'nowPlayingBar' stops being a valid occupant of that panel.
+    if (!Array.isArray(state.panelLayout.top)) state.panelLayout.top = [];
+    const legacyIdx = state.panelLayout.bottom.indexOf('nowPlayingBar');
+    if (legacyIdx !== -1) state.panelLayout.bottom[legacyIdx] = 'playerControls';
+    if (!state.panelLayout.bottom.includes('playerControls') && !state.panelLayout.top.includes('playerControls')) {
+      state.panelLayout.bottom.push('playerControls'); // never allowed to end up nowhere at all — see LAYOUT_ELEMENTS' own comment on this element
     }
     if (p.panelStackMode === 'stacked' || p.panelStackMode === 'tabs') state.panelStackMode = p.panelStackMode;
     if (p.activeTabByPanel && typeof p.activeTabByPanel === 'object') state.activeTabByPanel = p.activeTabByPanel;
@@ -15813,19 +15898,19 @@ function applyMainPanelLayout() {
   if (order.includes('nowPlayingBar')) refreshNowPlayingBarMain();
 }
 
-// Gates the DOCKED mini player (#miniPlayer) on top of its own existing
-// playback-based show/hide logic, which is unrelated to and untouched by
-// any of this — if Now Playing Bar isn't assigned to Bottom OR Main at
-// all, the docked bar should never show regardless of what's playing; if
-// it's in Main instead, the docked bar specifically stays hidden and the
-// inline version there (refreshNowPlayingBarMain) takes over instead.
-function applyBottomPanelLayout() {
-  const disabled = !state.panelLayout.bottom.includes('nowPlayingBar');
-  el.app.classList.toggle('now-playing-bar-disabled', disabled);
-  // Also toggled directly on the element itself, not just via the
-  // ancestor-descendant CSS rule above — more robust regardless of exactly
-  // where #miniPlayer sits in the DOM.
-  el.miniPlayer.classList.toggle('force-hidden', disabled);
+// Player Controls — the docked mini player (play/pause/seek/skip), now
+// its own element distinct from the display-only Now Playing Bar (see
+// LAYOUT_ELEMENTS' own comments on why that split exists). Only ever
+// affects WHICH EDGE #miniPlayer docks to, never its visibility — that
+// stays entirely governed by the existing playback-state logic, untouched
+// by any of this, exactly the guarantee the previous version's bugfix
+// established. Defaults to bottom if it's somehow in neither panel —
+// loadPrefs' own migration already prevents that via a saved layout, but
+// this is a second, independent line of defense against the player ever
+// silently having nowhere to dock.
+function applyPlayerControlsPosition() {
+  const top = state.panelLayout.top.includes('playerControls');
+  el.miniPlayer.classList.toggle('docked-top', top);
 }
 
 // Genre Description's actual content — a free-text blurb per genre,
@@ -15910,7 +15995,7 @@ function refreshNowPlayingBarMain() {
 function applyPanelLayout() {
   applyRightPanelSections();
   applyMainPanelLayout();
-  applyBottomPanelLayout();
+  applyPlayerControlsPosition();
 }
 
 // Currently-playing track details for the right panel — cover art (or,
@@ -18930,9 +19015,9 @@ function layoutAvailableRowHtml(key, placed) {
 }
 function renderLayoutConfigUI() {
   if (!el.layoutZoneMain) return;
-  const zoneEls = { main: el.layoutZoneMain, right: el.layoutZoneRight, bottom: el.layoutZoneBottom };
+  const zoneEls = { main: el.layoutZoneMain, right: el.layoutZoneRight, top: el.layoutZoneTop, bottom: el.layoutZoneBottom };
   const placed = new Set();
-  ['main', 'right', 'bottom'].forEach(panel => {
+  ['main', 'right', 'top', 'bottom'].forEach(panel => {
     zoneEls[panel].innerHTML = state.panelLayout[panel].map(key => layoutPanelRowHtml(key)).join('')
       || '<p class="layout-zone-empty">Not displayed \u2014 drag elements here</p>';
     state.panelLayout[panel].forEach(k => placed.add(k));
@@ -18948,7 +19033,7 @@ function renderLayoutConfigUI() {
 // row unchecking it, and (further down) drag-drop's own removal-then-
 // reinsert step.
 function removeLayoutElement(key) {
-  ['main', 'right', 'bottom'].forEach(p => {
+  ['main', 'right', 'top', 'bottom'].forEach(p => {
     const idx = state.panelLayout[p].indexOf(key);
     if (idx !== -1) state.panelLayout[p].splice(idx, 1);
   });
@@ -18958,7 +19043,7 @@ function removeLayoutElement(key) {
 // though their row children are fully regenerated on every change).
 let layoutDraggedKey = null;
 function initLayoutDragDrop() {
-  const panelZones = [el.layoutZoneMain, el.layoutZoneRight, el.layoutZoneBottom, el.layoutZoneAvailable];
+  const panelZones = [el.layoutZoneMain, el.layoutZoneRight, el.layoutZoneTop, el.layoutZoneBottom, el.layoutZoneAvailable];
 
   panelZones.forEach(zone => {
     zone.addEventListener('dragstart', (e) => {
@@ -18994,6 +19079,14 @@ function initLayoutDragDrop() {
       const allowed = targetPanel === 'available' || (LAYOUT_ELEMENTS[layoutDraggedKey] && LAYOUT_ELEMENTS[layoutDraggedKey].panels.includes(targetPanel));
       zone.classList.remove('drag-over', 'drag-rejected');
       if (!allowed) return; // dragover already refused this; belt-and-suspenders
+      // Player Controls can never land in Available (see its own
+      // row-checkbox guard above for why) — dropping it there is treated
+      // the same as a disallowed target rather than letting it disappear.
+      if (targetPanel === 'available' && layoutDraggedKey === 'playerControls') {
+        flashGlobalToast('Player Controls can\u2019t be removed \u2014 drag it between Top and Bottom instead.');
+        layoutDraggedKey = null;
+        return;
+      }
       e.preventDefault();
       const key = layoutDraggedKey;
       removeLayoutElement(key);
@@ -19020,7 +19113,7 @@ function initLayoutDragDrop() {
 
   // Panel-row checkbox (unchecking removes) + "Panel Settings…" button —
   // event delegation, since rows are fully regenerated on every change.
-  [el.layoutZoneMain, el.layoutZoneRight, el.layoutZoneBottom].forEach(zone => {
+  [el.layoutZoneMain, el.layoutZoneRight, el.layoutZoneTop, el.layoutZoneBottom].forEach(zone => {
     zone.addEventListener('click', (e) => {
       const configBtn = e.target.closest('.layout-row-configure');
       if (configBtn) { openElementConfig(configBtn.dataset.element); return; }
@@ -19028,7 +19121,14 @@ function initLayoutDragDrop() {
     zone.addEventListener('change', (e) => {
       const checkbox = e.target.closest('.layout-row-checkbox');
       if (!checkbox || checkbox.checked) return; // only unchecking does anything here — it starts out checked, since being in this list means it's placed
-      removeLayoutElement(checkbox.dataset.element);
+      const key = checkbox.dataset.element;
+      // Player Controls can never be fully removed — see LAYOUT_ELEMENTS'
+      // own comment on why — only repositioned between its two allowed
+      // panels via drag. Unchecking its row here would otherwise do
+      // exactly that (land it in Available with nowhere to dock at all),
+      // so it's re-checked right back and left alone instead.
+      if (key === 'playerControls') { checkbox.checked = true; flashGlobalToast('Player Controls can\u2019t be removed \u2014 drag it between Top and Bottom instead.'); return; }
+      removeLayoutElement(key);
       savePrefs();
       applyPanelLayout();
       renderLayoutConfigUI();
@@ -19037,11 +19137,14 @@ function initLayoutDragDrop() {
 
   // Available list's master checkbox — checking places the element in its
   // FIRST allowed panel (LAYOUT_ELEMENTS[key].panels[0]); drag is how you
-  // reach any other allowed panel instead. Unchecking removes it entirely.
+  // reach any other allowed panel instead. Unchecking removes it entirely
+  // — except Player Controls, which can only move between Top/Bottom, not
+  // disappear outright (see its own row-checkbox guard just above).
   el.layoutZoneAvailable.addEventListener('change', (e) => {
     const checkbox = e.target.closest('.layout-available-checkbox');
     if (!checkbox) return;
     const key = checkbox.dataset.element;
+    if (key === 'playerControls' && !checkbox.checked) { checkbox.checked = true; flashGlobalToast('Player Controls can\u2019t be removed \u2014 drag it between Top and Bottom instead.'); return; }
     removeLayoutElement(key);
     if (checkbox.checked) state.panelLayout[LAYOUT_ELEMENTS[key].panels[0]].push(key);
     savePrefs();
@@ -23771,6 +23874,20 @@ html, body {
     display: flex; align-items: center; gap: 16px; padding: 10px 44px 10px 12px;
   }
   .mini-player[hidden] { display: none; }
+  /* Player Controls placed in Top instead of its default Bottom — flips
+     which edge it's pinned to and, since the bar now sits above its
+     content rather than below, which side the border/shadow reads on
+     too (border-bottom instead of -top, shadow pointing down instead of
+     up) so it still looks anchored to the edge it's actually on. Higher
+     specificity (two classes) than any single-class .mini-player rule
+     elsewhere, including the mobile-specific bottom-offset ones further
+     down — wins regardless of source order, so this doesn't need to be
+     reordered relative to those. */
+  .mini-player.docked-top {
+    top: 0; bottom: auto;
+    border-top: none; border-bottom: 1px solid var(--line);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.4);
+  }
 
   .mini-player-track { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 220px; border-radius: 6px; padding: 4px 6px; margin: -4px -6px; }
   .mini-player-art { width: 44px; height: 44px; border-radius: 4px; object-fit: cover; background: var(--bg-card); flex: 0 0 auto; cursor: pointer; }
@@ -23815,6 +23932,11 @@ html, body {
   .mini-player-close:hover { color: var(--accent); }
   .mini-player-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   body.has-mini-player #app { padding-bottom: 96px; }
+  /* Player Controls docked at Top instead — content needs room reserved
+     above it instead of below. :has() (already used elsewhere in this
+     file, e.g. the quick-actions overlay rule further down) avoids
+     needing a second JS-toggled body class just for this. */
+  body:has(.mini-player.docked-top) #app { padding-bottom: 0; padding-top: 96px; }
 
   /* Base layout is now a column: main row on top, timeline strip below. */
   .mini-player { flex-direction: column; align-items: stretch; gap: 6px; padding: 8px 44px 10px 12px; }
@@ -24343,13 +24465,6 @@ html, body {
      a silently-still-visible panel. */
   #musicViewElement[hidden] { display: none; }
 
-  /* Gates the DOCKED mini player on top of its own existing playback-based
-     show/hide logic — see applyBottomPanelLayout(). Direct class on the
-     element itself, not just the ancestor-descendant rule below (kept too,
-     since it's harmless either way) — more robust regardless of exactly
-     where #miniPlayer sits in the DOM. */
-  #miniPlayer.force-hidden { display: none !important; }
-  .now-playing-bar-disabled #miniPlayer { display: none !important; }
   .arrange-row-label {
     display: flex;
     align-items: center;
@@ -25031,6 +25146,12 @@ html, body {
      without a notch, so this is a no-op everywhere else. */
   .mini-player { padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
   body.has-mini-player #app { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+  /* Same Top-docked flip as the desktop rule above, plus its own safe-area
+     concern: a notch/Dynamic Island sits at the TOP of the viewport, so a
+     bar docked there needs top padding against that instead of bottom
+     padding against the home-indicator strip. */
+  .mini-player.docked-top { padding-bottom: 10px; padding-top: calc(10px + env(safe-area-inset-top)); }
+  body:has(.mini-player.docked-top) #app { padding-bottom: 0; padding-top: calc(96px + env(safe-area-inset-top)); }
   /* On mobile the fixed bottom tab bar (see --mobile-navbar-h in the
      topbar-declutter block above) also needs to be cleared — this has to
      be re-declared here, after the unconditional rule right above, rather
@@ -25039,6 +25160,11 @@ html, body {
      is inside a narrower media query. */
   @media (max-width: 900px) {
     body.has-mini-player #app { padding-bottom: calc(var(--mobile-navbar-h) + 96px + env(safe-area-inset-bottom, 0px)); }
+    /* Docked at Top instead — the mobile bottom tab bar stays at the
+       bottom regardless of where the player docks, so #app's bottom
+       padding only needs to clear THAT now, not the player too; the
+       player's own height moves to the top padding instead. */
+    body:has(.mini-player.docked-top) #app { padding-bottom: var(--mobile-navbar-h); padding-top: calc(96px + env(safe-area-inset-top, 0px)); }
   }
   @media (max-width: 620px) {
     .mini-player { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
@@ -25083,6 +25209,13 @@ html, body {
        900px-scoped #app rule earlier in this file for the same reasoning
        applied there first. */
     body.has-mini-player #app { padding-bottom: calc(var(--mobile-navbar-h) + 64px + env(safe-area-inset-bottom, 0px)); }
+    /* Same Top-docked flip as the 900px-scoped rule above — .deck/
+       .qa-overlay's own bottom-clearance math just below is left as-is
+       for this narrow-phone case specifically: those are about a bottom
+       SHEET clearing a bottom-docked player, so with the player docked at
+       Top instead they just reserve a little more space than strictly
+       needed rather than anything actually breaking. */
+    body:has(.mini-player.docked-top) #app { padding-bottom: var(--mobile-navbar-h); padding-top: calc(64px + env(safe-area-inset-top, 0px)); }
     body.has-mini-player .deck { max-height: calc(88vh - var(--mobile-navbar-h) - 64px - env(safe-area-inset-bottom, 0px)); }
     /* +14px beyond the exact reserved height (mini player + nav bar), so
        the sheet's own bottom edge has some visible breathing room above
