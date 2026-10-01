@@ -13,7 +13,32 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.155
+  CURRENT_VERSION: 1.29.156
+
+  1.29.156 — 2026-09-27 — Bugfix, confirmed and then swept properly this
+          time: "Now Playing Bar shows even when disabled" was the exact
+          same display-vs-[hidden] CSS cascade bug already fixed once this
+          session for .track-info-player-controls — .now-playing-bar-main
+          sets display: flex unconditionally, which wins over the
+          browser's default [hidden] { display: none } at equal
+          specificity. Removing the element correctly updated
+          state.panelLayout and set hidden = true in JS the whole time; it
+          just had no visual effect.
+
+          Rather than fix only the one reported and move on, did a full
+          systematic sweep this time: extracted every element ever toggled
+          via .hidden anywhere in the JS (60+), cross-checked each one's
+          own CSS for the same "sets display: with no [hidden] override"
+          pattern. Found and fixed three more real, if currently latent,
+          instances: .chart-element, #musicViewElement, #app, and #mapMain
+          — none reported yet, but #app's especially was only not visibly
+          broken because #authGate's own full-screen overlay happens to
+          sit on top of it while signed out, which is exactly the kind of
+          thing a future unrelated change could quietly stop being true.
+          One flagged match, #miniPlayer, confirmed as a false positive —
+          it already has its own override, just under the .mini-player
+          class selector rather than the #miniPlayer id the sweep checked
+          for literally.
 
   1.29.155 — 2026-09-27 — Reworked per direct request: Release Chart moved
           from its own top-level "CHART" nav tab into a real Main-panel
@@ -5517,7 +5542,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.155';
+const APP_VERSION = '1.29.156';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -22459,6 +22484,15 @@ html, body {
   display: flex;
   flex-direction: column;
 }
+/* Same display-vs-[hidden] cascade issue found and fixed for several
+   other elements this session (.track-info-player-controls, .now-playing-
+   bar-main, .chart-element, #musicViewElement) — caught here proactively
+   via a full sweep of every element ever toggled through .hidden in JS,
+   rather than waiting for a report. Likely masked in practice by
+   #authGate's own full-screen overlay sitting on top while signed out,
+   but worth closing properly rather than leaving a latent bug relying on
+   that overlay never changing. */
+#app[hidden] { display: none; }
 
 /* The "by track" diary view wants more horizontal room for its entry-card
    grid than the app's normal reading-width cap allows — widened only while
@@ -23504,6 +23538,10 @@ html, body {
      able to push Music View (stacked below or above it, depending on
      drag order) out of reasonable view entirely. */
   .chart-element { display: flex; flex-direction: column; max-height: 340px; padding: 0 0 10px; }
+  /* Same display-vs-[hidden] cascade issue as .now-playing-bar-main/
+     .track-info-player-controls just above/before this — caught proactively
+     this time via a full sweep rather than waiting for another report. */
+  .chart-element[hidden] { display: none; }
   .chart-genre-field {
     display: flex; flex-direction: column; gap: 4px; max-width: 280px; margin: 10px 0 14px; flex: 0 0 auto;
     font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-dim);
@@ -24281,6 +24319,14 @@ html, body {
 
   /* Now Playing Bar, placed in Main instead of Bottom */
   .now-playing-bar-main { display: flex; align-items: center; gap: 10px; padding: 8px 0; flex: 0 0 auto; border-top: 1px solid var(--line); }
+  /* Same bug class just fixed for .track-info-player-controls: this rule's
+     own display: flex otherwise wins over the browser's default [hidden]
+     { display: none }, since a class selector setting display beats an
+     equal-specificity attribute selector from the UA stylesheet that
+     comes earlier in the cascade. Confirmed via a direct report: removing
+     Now Playing Bar from every panel correctly updated state.panelLayout
+     and set hidden = true, but it stayed visually showing regardless. */
+  .now-playing-bar-main[hidden] { display: none; }
   .now-playing-bar-main-art { width: 40px; height: 40px; border-radius: 4px; object-fit: cover; background: var(--bg-card); flex: 0 0 auto; }
   .now-playing-bar-main-text { min-width: 0; }
   .now-playing-bar-main-title { margin: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -24291,6 +24337,11 @@ html, body {
      itself (below) grows to fill whatever space is left. */
   .layout-element { flex: 0 0 auto; }
   #musicViewElement { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  /* Same display-vs-[hidden] cascade issue — Music View is rarely removed
+     from Main (it's the default, always-there element), but if it ever
+     is, this makes that removal actually work visually instead of leaving
+     a silently-still-visible panel. */
+  #musicViewElement[hidden] { display: none; }
 
   /* Gates the DOCKED mini player on top of its own existing playback-based
      show/hide logic — see applyBottomPanelLayout(). Direct class on the
@@ -24493,6 +24544,8 @@ html, body {
   .map-modal .arrange-header { cursor: move; user-select: none; flex: 0 0 auto; }
   .map-modal .arrange-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; }
   #mapMain { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+  /* Same cascade issue as the others found in this sweep. */
+  #mapMain[hidden] { display: none; }
   /* Tightened from the shared .arrange-hint's own 8px — this modal's
      header area (hint + two toolbar rows) was eating into the map's own
      space more than it needed to. */
