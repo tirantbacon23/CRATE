@@ -13,7 +13,43 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.161
+  CURRENT_VERSION: 1.29.162
+
+  1.29.162 — 2026-09-27 — Reworked per correction: Artist Information was
+          built last version as a Main-panel layout element (stacked
+          inside the existing Music tab, shown whenever an artist filter
+          was active) — wrong reading of the reference. It's a genuine new
+          top-level tab instead now, modeled on MusicBee's own "Music
+          Explorer" sitting right next to "Music" in its own tab bar, not
+          something living inside Music's own content area. The Music tab
+          itself is completely untouched by any of this — its own filter/
+          view state stays independent, exactly as it was before this
+          feature existed at all.
+
+          New "ARTIST INFO" tab (hidden until first used, then revealed
+          permanently — nothing useful to show there before an artist's
+          actually been picked). openArtistInfoTab(artistName) is the real
+          entry point: switches to this tab and renders a stats header
+          (total plays, album count, track count — unchanged from last
+          version) plus a grid of that artist's own releases below it,
+          reusing buildGridSection directly — the exact same card-building
+          function the Music tab's own grid uses, just handed this
+          artist's own subset of state.raw rather than going anywhere near
+          state.filtered. A second click on a different artist updates
+          this same tab's content rather than opening another one —
+          MusicBee's own "+" button suggests true multi-tab support, but
+          that's a much bigger scope than this.
+
+          filterByArtist() reverted back to its original behavior (filter
+          the Music tab, leave its view mode alone) rather than being
+          repurposed — it has other existing callers (the mini player's
+          artist link, "View artist discography" context menu action) that
+          should reasonably keep that behavior; only Album Quick Peek's
+          artist-name click uses the new tab now. Also caught and fixed a
+          CSS mistake made while building this the first time: an invented
+          .grid-container class that doesn't actually exist anywhere in
+          this file and would have fought with how buildGridSection's own
+          returned .grid div already lays itself out.
 
   1.29.161 — 2026-09-27 — Bugfix, confirmed via console error: clicking
           "Release Chart" to enable it threw "TypeError: a.localeCompare
@@ -4138,6 +4174,12 @@
 
     <nav class="nav-tabs" aria-label="View">
       <button id="tabAlbums" class="nav-tab active">MUSIC</button>
+      <!-- Hidden until openArtistInfoTab() first runs (clicking an artist
+           name in Album Quick Peek) — modeled on MusicBee's own "Music
+           Explorer" tab sitting right next to "Music", but there's
+           nothing useful to show here before an artist's actually been
+           picked, so it doesn't clutter the bar for everyone up front. -->
+      <button id="tabArtistInfo" class="nav-tab" hidden>ARTIST INFO</button>
       <button id="tabDiary" class="nav-tab">DIARY</button>
       <button id="tabScrobbles" class="nav-tab">SCROBBLES</button>
       <button id="tabStats" class="nav-tab">STATS</button>
@@ -4431,18 +4473,6 @@
           <button type="button" id="genreDescSaveBtn" class="chip-btn">Save</button>
         </div>
       </div>
-      <!-- Artist Information — modeled on MusicBee's own Music Explorer:
-           an artist stats header, shown whenever an artist filter is
-           active (same conditional pattern as Genre Description above).
-           Restricted to Main only. See renderArtistInfoElement()/
-           computeArtistStats(). -->
-      <div id="artistInfoElement" class="layout-element artist-info-element" hidden>
-        <div class="panel-bar"><span class="panel-label">Artist Information</span></div>
-        <div class="artist-info-body">
-          <p id="artistInfoName" class="artist-info-name"></p>
-          <p id="artistInfoStats" class="artist-info-stats"></p>
-        </div>
-      </div>
       <!-- Release Chart — releases-per-year for one genre at a time.
            Restricted to Main only (see LAYOUT_ELEMENTS), same as Genre
            Description just above — was previously its own top-level nav
@@ -4601,6 +4631,21 @@
       </div>
       <div id="statsCollectionBody" class="stats-collection-body"></div>
     </div>
+  </div>
+
+  <!-- Artist Information tab: opened by clicking an artist name in Album
+       Quick Peek (openArtistInfoTab) — stats header for that artist plus
+       all their releases actually owned in this crate, shown as an album
+       covers grid (reuses buildGridSection, same as the Music tab's own
+       grid, just handed a different, independent subset of state.raw —
+       see renderArtistInfoTab()). A second click on a different artist
+       updates this same tab rather than opening another one. -->
+  <div id="artistInfoWrap" class="artist-info-wrap" hidden>
+    <div class="artist-info-header">
+      <p id="artistInfoName" class="artist-info-name"></p>
+      <p id="artistInfoStats" class="artist-info-stats"></p>
+    </div>
+    <div id="artistInfoGrid" class="artist-info-grid"></div>
   </div>
 
   <!-- Artist tab: pick one of your artists and see their full discography
@@ -5664,7 +5709,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.161';
+const APP_VERSION = '1.29.162';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -5924,6 +5969,7 @@ const state = {
   // once rather than per-row, matching the reference this was built from.
   showTrackCredits: false,
   chartGenre: null, // last-selected genre in the Release Chart element (Main panel) — see renderChartElement()
+  artistInfoCurrent: null, // which artist the Artist Information tab is currently showing — see openArtistInfoTab()/renderArtistInfoTab(), independent of navFilter (which only ever governs the Music tab's own grid)
   // Ordered element assignments per panel — see LAYOUT_ELEMENTS just above.
   // This default (Music View alone in Main, Up Next alone in Right, Player
   // Controls docked in Bottom, nothing in Top) is only what a genuinely
@@ -6052,7 +6098,7 @@ const el = {};
 [
   'gridContainer','stateMsg','searchInput','refreshBtn',
   'musicViewElement','genreDescElement','genreDescLabel','genreDescBody','genreDescInput','genreDescSaveBtn',
-  'artistInfoElement','artistInfoName','artistInfoStats',
+  'tabArtistInfo','artistInfoWrap','artistInfoGrid','artistInfoName','artistInfoStats',
   'nowPlayingBarMainElement','nowPlayingBarMainArt','nowPlayingBarMainTitle','nowPlayingBarMainSub','nowPlayingBarMainSub2',
   'tabAlbums','tabDiary','tabScrobbles','viewGridBtn','viewListBtn','sizeControl','sizeSlider',
   'leftPanel','leftModeBtn','leftModeLabel','leftModeMenu','leftGroupBySection','leftList',
@@ -6291,13 +6337,6 @@ const LAYOUT_ELEMENTS = {
   musicView: { label: 'Music View', panels: ['main'] },
   genreDesc: { label: 'Genre Description', panels: ['main'] },
   chart: { label: 'Release Chart', panels: ['main'] },
-  // Modeled on MusicBee's own Music Explorer (artist stats header above
-  // that artist's own releases) — shown whenever an artist filter is
-  // active, same conditional-display pattern as Genre Description. See
-  // renderArtistInfoElement()/computeArtistStats(), and filterByArtist()'s
-  // own auto-add so clicking an artist name actually shows this
-  // immediately rather than requiring it to already be enabled first.
-  artistInfo: { label: 'Artist Information', panels: ['main'] },
   // Now Playing Bar is display-only (art/title/artist, no transport
   // controls) — Main only, since "Bottom" previously meant something
   // confusing here: the docked player itself, conflating a decorative
@@ -7018,6 +7057,7 @@ function bindEvents() {
     renderChartElement();
   });
   el.tabArtist.addEventListener('click', () => { switchTab('artist'); });
+  el.tabArtistInfo.addEventListener('click', () => { switchTab('artistInfo'); });
   el.playlistModalClose.addEventListener('click', closePlaylistModal);
   el.playlistModalCancelBtn.addEventListener('click', closePlaylistModal);
   el.playlistModalSaveBtn.addEventListener('click', savePlaylistModalClick);
@@ -7720,7 +7760,7 @@ function bindEvents() {
     if (!e.target.closest('.quick-peek-artist-link') || !quickPeekItem) return;
     const artist = quickPeekItem.artist;
     closeAlbumQuickPeek();
-    filterByArtist(artist);
+    openArtistInfoTab(artist);
   });
   document.addEventListener('click', (e) => {
     if (el.albumQuickPeek.hidden) return;
@@ -8698,17 +8738,20 @@ function switchTab(tab) {
   }
   state.activeTab = tab;
   el.tabAlbums.classList.toggle('active', tab === 'albums');
+  el.tabArtistInfo.classList.toggle('active', tab === 'artistInfo');
   el.tabDiary.classList.toggle('active', tab === 'diary');
   el.tabScrobbles.classList.toggle('active', tab === 'scrobbles');
   el.tabStats.classList.toggle('active', tab === 'stats');
   el.tabArtist.classList.toggle('active', tab === 'artist');
   el.panels.style.display = tab === 'albums' ? 'flex' : 'none';
+  el.artistInfoWrap.hidden = tab !== 'artistInfo';
   el.diaryWrap.hidden = tab !== 'diary';
   el.scrobblesWrap.hidden = tab !== 'scrobbles';
   el.statsWrap.hidden = tab !== 'stats';
   el.artistWrap.hidden = tab !== 'artist';
   el.app.classList.toggle('app-wide-diary-tracks', tab === 'diary' && state.diaryViewMode === 'tracks');
   if (tab === 'albums') renderGrid();
+  else if (tab === 'artistInfo') renderArtistInfoTab();
   else if (tab === 'diary') renderDiary();
   else if (tab === 'scrobbles') renderScrobbles();
   else if (tab === 'stats') renderStats();
@@ -9805,7 +9848,6 @@ function applyFiltersSort() {
   if (state.activeTab === 'albums') renderGrid();
   if (!el.genreDescElement.hidden) renderGenreDescElement(); // stays in sync with whichever genre gets clicked, not just whatever it showed when first enabled
   if (!el.chartElement.hidden) renderChartElement(); // same idea — Release Chart's own genre select also defaults to the left panel's active filter
-  if (!el.artistInfoElement.hidden) renderArtistInfoElement(); // stays in sync with whichever artist gets filtered to
 }
 
 // Syncs the "Sort & filter" popover's UI (which sort option is highlighted,
@@ -12308,19 +12350,6 @@ function filterByArtist(artistName) {
   state.leftMode = 'artist';
   el.leftModeLabel.textContent = capitalize('artist') + 's';
   state.navFilter = { mode: 'artist', value: artistName };
-  // Auto-shows Artist Information in Main if it isn't already there —
-  // "clicking an artist name brings you to" this, not "brings you to it
-  // if you'd already turned it on" — same navigation-implies-visibility
-  // reasoning, just not requiring the person to have pre-configured
-  // anything first. Placed right before Music View specifically (stats
-  // header above the releases, matching the reference this was built
-  // from) rather than just appended wherever.
-  if (!state.panelLayout.main.includes('artistInfo')) {
-    const musicViewIdx = state.panelLayout.main.indexOf('musicView');
-    state.panelLayout.main.splice(musicViewIdx === -1 ? 0 : musicViewIdx, 0, 'artistInfo');
-    savePrefs();
-    applyMainPanelLayout();
-  }
   buildLeftList();
   updateMainLabel();
   applyFiltersSort();
@@ -16009,7 +16038,6 @@ function applyPanelTabs(panelKey, order, nodeMap, containerEl) {
 const MAIN_PANEL_ELEMENT_NODES = {
   musicView: () => el.musicViewElement,
   genreDesc: () => el.genreDescElement,
-  artistInfo: () => el.artistInfoElement,
   chart: () => el.chartElement,
   nowPlayingBar: () => el.nowPlayingBarMainElement
 };
@@ -16024,7 +16052,6 @@ function applyMainPanelLayout() {
   });
   applyPanelTabs('main', order, MAIN_PANEL_ELEMENT_NODES, el.mainPanel);
   if (order.includes('genreDesc')) renderGenreDescElement();
-  if (order.includes('artistInfo')) renderArtistInfoElement();
   if (order.includes('chart')) renderChartElement();
   if (order.includes('nowPlayingBar')) refreshNowPlayingBarMain();
 }
@@ -16086,17 +16113,43 @@ function computeArtistStats(artistName) {
   return { albumCount: albums.length, trackCount, totalPlays: diaryPlays + scrobblePlays };
 }
 
-function renderArtistInfoElement() {
-  if (!el.artistInfoElement || el.artistInfoElement.hidden) return;
-  if (!(state.navFilter && state.navFilter.mode === 'artist')) {
-    el.artistInfoName.textContent = 'Select an artist to see their information here.';
-    el.artistInfoStats.textContent = '';
-    return;
-  }
-  const artist = state.navFilter.value;
+// Artist Information — a genuine top-level tab (modeled on MusicBee's own
+// "Music Explorer" tab sitting next to "Music" in its own tab bar, per
+// the reference screenshots), NOT something stacked inside the Music
+// tab's own content — the Music tab is left exactly as it was, its own
+// filter/view untouched, while this opens as its own separate place
+// alongside it. state.artistInfoCurrent tracks which artist THIS tab is
+// showing, independent of state.navFilter (which only ever governs the
+// Music tab's own grid). See openArtistInfoTab() for how this actually
+// gets triggered, and switchTab()'s own 'artistInfo' case.
+function renderArtistInfoTab() {
+  const artist = state.artistInfoCurrent;
+  if (!artist) return;
   const s = computeArtistStats(artist);
   el.artistInfoName.textContent = artist;
   el.artistInfoStats.textContent = `${s.totalPlays} play${s.totalPlays === 1 ? '' : 's'} \u00b7 ${s.albumCount} album${s.albumCount === 1 ? '' : 's'} / ${s.trackCount} track${s.trackCount === 1 ? '' : 's'}`;
+  // "Below, all the releases that belong to the artist — essentially the
+  // album covers view but for albums belonging to the artist" — reuses
+  // the exact same card-building function the Music tab's own grid uses,
+  // just handed this artist's own subset of state.raw directly rather
+  // than going anywhere near state.filtered/the Music tab's own filter.
+  const albums = state.raw.filter(r => r.artist === artist);
+  el.artistInfoGrid.innerHTML = '';
+  el.artistInfoGrid.appendChild(buildGridSection(albums));
+}
+
+// Opens/switches to the Artist Information tab for a given artist —
+// the actual entry point clicking an artist name (Album Quick Peek's own
+// subtitle link) calls. A second click on a DIFFERENT artist just updates
+// this same tab's content rather than opening another one — MusicBee's
+// own "+" button suggests it supports several at once, but one reused tab
+// is a far smaller, more honest scope than building full multi-tab
+// management (opening/closing/reordering several of them) for this.
+function openArtistInfoTab(artistName) {
+  el.tabArtistInfo.hidden = false; // revealed on first use — see its own HTML comment for why it starts hidden
+  state.artistInfoCurrent = artistName;
+  switchTab('artistInfo');
+  renderArtistInfoTab();
 }
 
 // Now Playing Bar's inline rendering when placed in Main instead of its
@@ -24290,9 +24343,13 @@ html, body {
   .quick-peek-artist-link:hover { color: var(--accent); text-decoration: underline; }
 
   /* Artist Information (Main panel element) */
-  .artist-info-body { padding: 8px 0; }
-  .artist-info-name { margin: 0; font-size: 16px; font-weight: 700; color: var(--text); }
-  .artist-info-stats { margin: 4px 0 0; font-size: 12px; color: var(--text-dim); }
+  .artist-info-wrap { max-width: 1100px; margin: 0 auto; }
+  .artist-info-header { padding: 0 0 16px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+  .artist-info-name { margin: 0; font-size: 22px; font-weight: 700; color: var(--text); }
+  .artist-info-stats { margin: 6px 0 0; font-size: 12.5px; color: var(--text-dim); }
+  /* No grid-layout rules needed here — buildGridSection() returns its own
+     .grid div (already styled for this app's existing Music tab grid),
+     just appended straight into this wrapper as-is. */
   .album-quick-peek-tracks { overflow-y: auto; border-top: 1px solid var(--line); padding: 6px 0; }
   .album-quick-peek-track { display: flex; align-items: center; gap: 8px; padding: 5px 14px; font-size: 12.5px; cursor: pointer; user-select: none; }
   .album-quick-peek-track:hover { background: var(--bg-card); }
