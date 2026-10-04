@@ -13,7 +13,81 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.168
+  CURRENT_VERSION: 1.29.169
+
+  1.29.169 — 2026-10-03 — Feature: Shuffle toggle on the player. A button at
+          the left of the transport controls (before Previous), aria-pressed,
+          orange with an underline when on (not colour alone), saved in
+          preferences so it survives reloads. Works on all three ways this
+          app plays things:
+
+          1. Crate queue (double-click an album, Play playlist, Add to queue,
+             double-click "All Albums"): the UNPLAYED part of the list is
+             reordered in place (Fisher–Yates over list[index+1..]) rather
+             than adding a separate "random next" mode. So Next, end-of-track
+             handoff and the Up Next panel all keep working unchanged, the
+             panel shows what really plays next, and Previous walks back
+             through what actually played. Toggling mid-queue never changes
+             the current track or what's already played; toggling OFF puts the
+             remaining tracks back in their original order (each entry
+             remembers it via origSeq, sorted on restore — no second copy of
+             the list to go stale). A queue STARTED with shuffle on is
+             shuffled whole, so it opens on a random track.
+          2. Anything added to a running queue with shuffle on is dropped into
+             random positions among the unplayed tracks (crateQueueAppend)
+             instead of stacking at the end — this also covers the progressive
+             "play everything" loader, which would otherwise quietly un-shuffle
+             as releases stream in. That loader also visits releases in random
+             order when shuffle is on (positions in the original list kept as
+             origSeq), otherwise "shuffle everything" would always open on a
+             track from whichever release sorts first, since playback starts
+             after only the first release has loaded.
+          3. Standalone YouTube/SoundCloud album queues (a track's ▶ YT / SC):
+             the clicked track plays first, the rest of the album is shuffled.
+          4. Spotify's own album playback (the deck's ▶ Play sends a
+             context_uri, so Spotify owns that queue): Spotify's shuffle
+             endpoint, called on toggle while Spotify is the active engine
+             and again right before each album starts (shuffle lives on the
+             device, so a leftover state from an earlier album would
+             otherwise override the button). If Spotify refuses, a toast says
+             so rather than failing silently. With a crate queue playing, the
+             toggle reorders the queue and leaves Spotify's setting alone.
+
+          Verified: shuffle uniformity (chi-square 10.3 vs failure threshold
+          49.7, all 24 orderings of a 4-track tail seen, per-position spread
+          within 4% for 8 tracks); the loader with real helper code, shuffle
+          off and on; and ~45 end-to-end checks in real Chromium with real
+          clicks on the real button (toggle/aria/title/persist/reload; queue
+          order off vs on; Next follows exactly what Up Next shows; Previous
+          history; off restores order; fresh queue; adding to a running queue;
+          All Albums double-click; YouTube album queue; Spotify requests;
+          phone viewport, no overflow, no JS errors). One of my own test
+          expectations was wrong (an off-by-one in how many Previous clicks
+          reach a given track); the app was right and the test was fixed.
+
+          Persistence note: reload-persistence initially looked flaky in
+          testing (lost 25-60% of runs). Matched controls showed a plain
+          localStorage key written with no app code involved, and an
+          existing preference (cardSize), were lost at the same rate — a
+          property of headless Chromium on file:// pages, not of shuffle
+          (it uses the same savePrefs/loadPrefs as every other setting).
+          Re-tested over a real HTTP origin: shuffle ON and OFF each restored
+          correctly 25/25 reloads, controls 0/25 lost.
+
+          Not verified: real audio — the YouTube/Spotify/SoundCloud engines
+          were stubbed (no audio or network here), so what was tested is the
+          queue/ordering logic and the exact Spotify requests sent (URL,
+          method, token, order relative to the play request, failure toast),
+          NOT how Spotify actually behaves when it receives them. Not tested
+          on Safari/iOS.
+
+          Behaviour worth knowing: the button lives in the player bar, which
+          only appears once something is playing — but toggling mid-play
+          reshuffles the rest of the queue immediately, and the setting is
+          remembered. One known gap: if shuffle is switched OFF in the middle
+          of a shuffle-started "play everything" load, releases still arriving
+          are appended at the end rather than slotted into their original
+          list position.
 
   1.29.168 — 2026-10-03 — Bugfix, root cause finally found: the Album Quick
           Peek's ✕ "doesn't close the popup" (reported three times). It
@@ -4965,6 +5039,7 @@
       </div>
     </div>
     <div class="mini-player-transport">
+      <button id="miniPlayerShuffle" class="mini-player-btn mini-player-shuffle-btn" title="Shuffle: off" aria-label="Shuffle" aria-pressed="false"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M10.59 9.17 5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg></button>
       <button id="miniPlayerPrev" class="mini-player-btn" title="Previous track" aria-label="Previous track"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M6 5h2v14H6zM19 5v14l-11-7 11-7z"/></svg></button>
       <button id="miniPlayerPlayPause" class="mini-player-btn mini-player-btn-play" title="Play" aria-label="Play/pause"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M6 4.5v15l13-7.5-13-7.5z"/></svg></button>
       <button id="miniPlayerNext" class="mini-player-btn" title="Next track" aria-label="Next track"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M5 5l11 7-11 7V5zM16 5h2v14h-2z"/></svg></button>
@@ -5924,7 +5999,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.168';
+const APP_VERSION = '1.29.169';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -6184,6 +6259,7 @@ const state = {
   // once rather than per-row, matching the reference this was built from.
   showTrackCredits: false,
   chartGenre: null, // last-selected genre in the Release Chart element (Main panel) — see renderChartElement()
+  shuffle: false, // player's Shuffle toggle (persisted) — see setShuffle(); applies to the crate queue, standalone YouTube/SoundCloud queues, and Spotify's own album playback
   artistInfoTabs: [], // ordered list of artist names, each an independently open/closeable tab — genuine multi-tab, not one reused tab. See openArtistInfoTab()/closeArtistInfoTab()/renderArtistInfoTabButtons()
   activeArtistInfoTab: null, // which one of artistInfoTabs (if any) is the currently showing one — independent of navFilter (which only ever governs the Music tab's own grid)
   // Ordered element assignments per panel — see LAYOUT_ELEMENTS just above.
@@ -6358,7 +6434,7 @@ const el = {};
   'lastfmMatchedCount','lastfmMatchedList','lastfmUnmatchedCount','lastfmUnmatchedList',
   'lastfmImportBtn','lastfmBackBtn','lastfmImportStatus','globalToast',
   'miniPlayer','miniPlayerClose','miniPlayerArt','miniPlayerVideoWrap','miniPlayerTitle','miniPlayerArtist','miniPlayerAlbum','miniPlayerTrackInfo',
-  'miniPlayerPrev','miniPlayerPlayPause','miniPlayerNext','miniPlayerVolume','miniPlayerQueueBtn','miniPlayerFullscreenBtn',
+  'miniPlayerShuffle','miniPlayerPrev','miniPlayerPlayPause','miniPlayerNext','miniPlayerVolume','miniPlayerQueueBtn','miniPlayerFullscreenBtn',
   'miniPlayerDetachBtn','miniPlayerDragHandle','miniPlayerDockBtn','miniPlayerMobileProgress','miniPlayerMobileProgressFill',
   'miniPlayerSeekTrack','miniPlayerSeekFill','miniPlayerSeekHandle','miniPlayerTimeCurrent','miniPlayerTimeTotal',
   'queuePanel','queuePanelClose','queuePanelNowPlaying','queuePanelList',
@@ -7944,6 +8020,8 @@ function bindEvents() {
   });
   el.miniPlayerPrev.addEventListener('click', () => masterPlayerStepTrack(-1));
   el.miniPlayerNext.addEventListener('click', () => masterPlayerStepTrack(1));
+  el.miniPlayerShuffle.addEventListener('click', () => setShuffle(!state.shuffle));
+  updateShuffleButtonUI();
   el.miniPlayerVolume.addEventListener('input', () => {
     const val = Number(el.miniPlayerVolume.value);
     if (activePlayerEngine === 'youtube') {
@@ -8564,6 +8642,7 @@ function loadPrefs() {
     if (p.fieldPlacement === 'overlay' || p.fieldPlacement === 'below') state.fieldPlacement = p.fieldPlacement;
     if (typeof p.closeGaps === 'boolean') state.closeGaps = p.closeGaps;
     if (typeof p.leftNavCompact === 'boolean') state.leftNavCompact = p.leftNavCompact;
+    if (typeof p.shuffle === 'boolean') state.shuffle = p.shuffle;
     if (p.panelWidths) state.panelWidths = Object.assign({}, state.panelWidths, p.panelWidths);
     if (p.fields) state.fields = Object.assign(state.fields, p.fields);
     if (p.trackColWidths) state.trackColWidths = p.trackColWidths;
@@ -8633,6 +8712,7 @@ function savePrefs() {
       playlistFoldersCollapsed: state.playlistFoldersCollapsed,
       playlistFolders: state.playlistFolders,
       playlistFolderMap: state.playlistFolderMap,
+      shuffle: state.shuffle,
       statsMode: state.statsMode,
       rightPanelShowQueue: state.rightPanelShowQueue,
       rightPanelShowHistory: state.rightPanelShowHistory,
@@ -13507,18 +13587,30 @@ async function playAlbumsReplacingQueue(items) {
   renderCrateQueuePanel();
   flashGlobalToast(`Queuing ${releases.length} releases\u2026`);
 
+  // With shuffle on, load the releases in RANDOM order (each entry still
+  // remembers its release's position in the original list as origSeq, so
+  // turning shuffle off can restore list order) — otherwise "shuffle
+  // everything" would always open on a track from whichever release sorts
+  // first, since playback starts after only the first release has loaded.
+  const loadOrder = releases.map((_, k) => k);
+  if (state.shuffle) shuffleTail(loadOrder, -1);
+
   let started = false, skipped = 0, lastRender = 0;
   let i = 0;
-  while (i < releases.length) {
+  while (i < loadOrder.length) {
     const size = i === 0 ? 1 : 3; // first one alone so playback starts as soon as possible
-    const chunk = releases.slice(i, i + size);
+    const chunkIdx = loadOrder.slice(i, i + size);
     i += size;
-    const results = await Promise.all(chunk.map(item =>
-      withHardTimeout(getTracksFor(item), 20000, []).then(tracks => ({ item, tracks }), () => ({ item, tracks: [] }))));
+    const results = await Promise.all(chunkIdx.map(rel => {
+      const item = releases[rel];
+      return withHardTimeout(getTracksFor(item), 20000, []).then(tracks => ({ item, rel, tracks }), () => ({ item, rel, tracks: [] }));
+    }));
     if (myId !== crateQueueId) return; // replaced/cleared while loading
-    results.forEach(({ item, tracks }) => {
+    results.forEach(({ item, rel, tracks }) => {
       if (!tracks || !tracks.length) { skipped++; return; }
-      tracks.forEach(t => crateQueueList.push({ item, track: t }));
+      const entries = tracks.map((t, ti) => ({ item, track: t, origSeq: rel * 10000 + ti }));
+      if (!started) entries.forEach(e => crateQueueList.push(e)); // before playback starts everything just accumulates (it gets shuffled as a whole when it starts)
+      else crateQueueAppend(entries);
     });
     if (!started && crateQueueList.length) {
       started = true;
@@ -13592,6 +13684,7 @@ async function playSpotifyUri(uriOrUris) {
   } else {
     body = { uris: [uriOrUris] };
   }
+  if (isAlbum) await setSpotifyShuffle(state.shuffle); // shuffle lives on the device — make sure it matches the button before an album starts
   await sendSpotifyPlayRequest(token, body, true);
 }
 
@@ -16149,6 +16242,135 @@ async function playPlaylistFromStart(playlist) {
   playCrateQueueIndex(myId, 0);
 }
 
+/* ---------- Shuffle ----------
+   One toggle on the player (state.shuffle, persisted) that has to work on all
+   three ways this app actually plays things:
+
+   1. The crate queue (double-click an album, Play playlist, Add to queue...) —
+      an ordered list plus an index; Prev/Next/end-of-track all just move the
+      index. So shuffle REORDERS THE UNPLAYED PART of the list in place rather
+      than adding a "random next pick" mode on the side. That keeps everything
+      downstream untouched (Prev still walks back through what actually
+      played, the Up Next panel shows what really comes next) and means turning
+      shuffle off can put the remaining tracks back in their original order.
+   2. Standalone YouTube / SoundCloud album queues (clicking a track's ▶ YT /
+      SC) — the same array-plus-index shape, so the same helpers apply.
+   3. Spotify's own album playback (the deck's ▶ Play sends a context_uri;
+      Spotify, not us, owns that queue) — there the only lever is Spotify's
+      own shuffle endpoint, see setSpotifyShuffle.
+
+   "Original order" is remembered per entry (origSeq), not as a separate copy
+   of the list: entries get a sequence number the first time a queue is
+   shuffled (or up front, for lists that load progressively), and restoring is
+   just sorting the not-yet-played tail by it. That survives entries being
+   appended mid-queue and never goes stale when a queue is replaced, since it
+   lives on the entries themselves. */
+function origSeqOf(e) { return (e && typeof e.origSeq === 'number') ? e.origSeq : Number.MAX_SAFE_INTEGER; }
+
+// Gives every entry that doesn't have one yet an origSeq after the highest
+// existing one, in list order — i.e. the list's CURRENT order becomes its
+// "original" order for anything not already numbered.
+function ensureOrigSeq(list) {
+  let max = -1;
+  list.forEach(e => { if (e && typeof e.origSeq === 'number' && e.origSeq > max) max = e.origSeq; });
+  list.forEach(e => { if (e && typeof e.origSeq !== 'number') e.origSeq = ++max; });
+}
+
+// Fisher–Yates over just list[index+1 ..] (everything not yet played);
+// index -1 shuffles the whole list.
+function shuffleTail(list, index) {
+  const start = index + 1;
+  for (let i = list.length - 1; i > start; i--) {
+    const j = start + Math.floor(Math.random() * (i - start + 1));
+    const tmp = list[i]; list[i] = list[j]; list[j] = tmp;
+  }
+}
+
+// Shuffle off: the not-yet-played tracks go back to their original relative
+// order. Anything already played (before the current one) stays as it was.
+function restoreTailOrder(list, index) {
+  const start = index + 1;
+  const tail = list.slice(start).sort((a, b) => origSeqOf(a) - origSeqOf(b));
+  for (let i = 0; i < tail.length; i++) list[start + i] = tail[i];
+}
+
+// Used wherever entries get added to a queue that's already running. With
+// shuffle on they're dropped into RANDOM positions among the unplayed tracks
+// instead of stacking up at the end in order (which would quietly un-shuffle
+// a queue that keeps loading, e.g. double-clicking "All Albums").
+function crateQueueAppend(entries) {
+  if (!entries || !entries.length) return;
+  if (!state.shuffle || crateQueueIndex < 0) { crateQueueList.push(...entries); return; }
+  ensureOrigSeq(crateQueueList.concat(entries));
+  entries.forEach(e => {
+    const lo = crateQueueIndex + 1;
+    crateQueueList.splice(lo + Math.floor(Math.random() * (crateQueueList.length - lo + 1)), 0, e);
+  });
+}
+
+function applyShuffleToCrateQueue(on) {
+  if (!isPlayingCrateQueue()) return false;
+  if (on) { ensureOrigSeq(crateQueueList); shuffleTail(crateQueueList, crateQueueIndex); }
+  else restoreTailOrder(crateQueueList, crateQueueIndex);
+  renderCrateQueuePanel();
+  return true;
+}
+
+// The standalone YouTube/SoundCloud album queue, when that's what is playing
+// (NOT when the YT/SC player is just standing in for one entry of the crate
+// queue — then the crate queue is in charge and ytQueue is a single item).
+function standaloneQueueRef() {
+  if (activePlayerEngine === 'youtube' && !ytPlayingForCrateQueue && ytQueue.length > 1) return { list: ytQueue, index: ytQueueIndex };
+  if (activePlayerEngine === 'soundcloud' && !scPlayingForCrateQueue && scQueue.length > 1) return { list: scQueue, index: scQueueIndex };
+  return null;
+}
+function applyShuffleToStandaloneQueue(on) {
+  const q = standaloneQueueRef();
+  if (!q || q.index < 0) return false;
+  if (on) { ensureOrigSeq(q.list); shuffleTail(q.list, q.index); }
+  else restoreTailOrder(q.list, q.index);
+  return true;
+}
+
+// Spotify owns the queue for album (context_uri) playback, so its own
+// endpoint is the only way to shuffle that. Shuffle state lives on the
+// DEVICE, not on a play request, so it's set on toggle and again right before
+// each album starts (see playSpotifyUri) — otherwise a state left over from a
+// previous album would silently win over what the button says.
+async function setSpotifyShuffle(on) {
+  try {
+    const token = await getSpotifyUserAccessToken();
+    if (!token || !spotifyDeviceId) return false;
+    const res = await fetch(`https://api.spotify.com/v1/me/player/shuffle?state=${on ? 'true' : 'false'}&device_id=${encodeURIComponent(spotifyDeviceId)}`, {
+      method: 'PUT',
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    return res.ok || res.status === 204;
+  } catch (e) {
+    console.warn('Spotify shuffle request failed', e);
+    return false;
+  }
+}
+
+function updateShuffleButtonUI() {
+  if (!el.miniPlayerShuffle) return;
+  el.miniPlayerShuffle.setAttribute('aria-pressed', state.shuffle ? 'true' : 'false');
+  el.miniPlayerShuffle.title = state.shuffle ? 'Shuffle: on' : 'Shuffle: off';
+}
+
+function setShuffle(on) {
+  state.shuffle = !!on;
+  savePrefs();
+  updateShuffleButtonUI();
+  if (!applyShuffleToCrateQueue(state.shuffle) && !applyShuffleToStandaloneQueue(state.shuffle)
+      && activePlayerEngine === 'spotify' && spotifyPlayer && spotifyDeviceId) {
+    setSpotifyShuffle(state.shuffle).then(ok => {
+      if (!ok) flashGlobalToast('Couldn\u2019t change Spotify\u2019s shuffle \u2014 it will apply the next time an album starts.');
+    });
+  }
+  flashGlobalToast(state.shuffle ? 'Shuffle on' : 'Shuffle off');
+}
+
 async function playCrateQueueIndex(myId, index) {
   if (myId !== crateQueueId) return;
   if (index < 0 || index >= crateQueueList.length) {
@@ -16156,6 +16378,14 @@ async function playCrateQueueIndex(myId, index) {
     crateQueueExpectedSpotifyTrackId = null;
     renderCrateQueuePanel();
     return;
+  }
+  // A brand-new queue starting from the top while shuffle is on (album,
+  // playlist, library double-click...): shuffle the whole thing first so it
+  // opens on a random track, not track 1. Only the very first call of a run
+  // qualifies — crateQueueIndex is -1 exactly once, before it first plays.
+  if (state.shuffle && index === 0 && crateQueueIndex === -1 && crateQueueList.length > 1) {
+    ensureOrigSeq(crateQueueList);
+    shuffleTail(crateQueueList, -1);
   }
   crateQueueIndex = index;
   renderCrateQueuePanel();
@@ -16270,7 +16500,7 @@ function addToCrateQueue(entries) {
   // earlier "Add to queue" run) — just extend the tail, the existing
   // end-of-track handoff naturally reaches these once it gets there.
   if (isPlayingCrateQueue() || ytPlayingForCrateQueue || scPlayingForCrateQueue) {
-    crateQueueList.push(...entries);
+    crateQueueAppend(entries); // random positions among the unplayed tracks when shuffle is on
     flashGlobalToast(label);
     renderCrateQueuePanel();
     return;
@@ -16296,6 +16526,7 @@ function addToCrateQueue(entries) {
         : ((ytQueue[ytQueueIndex] && ytQueue[ytQueueIndex].trackName) || 'Currently playing');
     crateQueueList = [{ item: null, track: { trackName: nowPlayingName } }, ...entries];
     crateQueueIndex = 0;
+    if (state.shuffle) { ensureOrigSeq(crateQueueList); shuffleTail(crateQueueList, 0); } // the "already playing" placeholder stays first; what's queued behind it gets shuffled
     if (spotifyIsPlaying) {
       crateQueueExpectedSpotifyTrackId = spotifyCurrentTrackId;
     } else if (soundcloudIsPlaying) {
@@ -20997,6 +21228,7 @@ function openYoutubePlayer(url, trackName, tracks, item) {
     ytQueueIndex = 0;
   }
 
+  if (state.shuffle && ytQueue.length > 1) { ensureOrigSeq(ytQueue); shuffleTail(ytQueue, ytQueueIndex); } // the clicked track plays first; the rest of the album is shuffled
   playYtQueueIndex(ytQueueIndex);
 }
 
@@ -21177,6 +21409,7 @@ function openSoundcloudPlayer(url, trackName, tracks, item) {
     scQueueIndex = 0;
   }
 
+  if (state.shuffle && scQueue.length > 1) { ensureOrigSeq(scQueue); shuffleTail(scQueue, scQueueIndex); } // the clicked track plays first; the rest of the album is shuffled
   playScQueueIndex(scQueueIndex);
 }
 
@@ -24547,6 +24780,9 @@ html, body {
   }
   .mini-player-btn:hover { color: var(--accent); background: var(--bg-card); }
   .mini-player-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* Shuffle is a toggle, so "on" can't rely on colour alone — the underline
+     is the second cue (and aria-pressed carries it for screen readers). */
+  .mini-player-shuffle-btn[aria-pressed="true"] { color: var(--accent); background: var(--bg-card); box-shadow: inset 0 -2px 0 var(--accent); }
   .mini-player-btn-play { font-size: 17px; border: 1px solid var(--line); }
   .mini-player-btn-play:hover { border-color: var(--accent); }
 
