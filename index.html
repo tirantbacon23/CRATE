@@ -13,7 +13,151 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.169
+  CURRENT_VERSION: 1.29.172
+
+  1.29.172 — 2026-10-03 — Genre search now follows the genre taxonomy, with
+          a strictness setting; plus a dropdown-menu stacking bug found while
+          verifying it.
+
+          THE PROBLEM. genre:"indie rock" didn't show a Twee Pop release
+          whose parents (in the taxonomy) include Indie Rock — although
+          picking Indie Rock in the left panel does. Two separate causes:
+          (1) genre: was a plain substring test on the release's genre tags
+          with no knowledge of the taxonomy at all (the sidebar uses
+          genreMatchesFilter, which walks the hierarchy); (2) UNQUOTED,
+          "genre:indie rock" tokenizes as genre:indie AND the separate
+          free-text word "rock", so even a taxonomy-aware match would still
+          have lost Twee Pop to the stray "rock". Fixing only (1) would not
+          have fixed the reported query.
+
+          GENRE SEARCH SETTING (⇅ menu > "Genre search", saved in prefs):
+            Exact genre only        tagged with exactly that genre
+            Include sub-genres      + anything filed under it in the genre
+                                    tree — same rule as the sidebar
+            Sub-genres + partial    + any genre whose NAME contains the text
+              names (default)       (rock -> Krautrock). The old substring
+                                    search plus sub-genres, so nothing the
+                                    old search found stops matching.
+          Applies to genre: and -genre: (and the Advanced Search genre
+          field, which builds genre: terms). The left sidebar, Release Chart
+          and double-click-to-play are NOT governed by it and behave exactly
+          as before — verified the sidebar still includes Twee Pop under
+          Indie Rock in every mode.
+
+          UNQUOTED MULTI-WORD GENRES. mergeGenrePhrases folds bare words
+          following an UNQUOTED genre: value into it for as long as the
+          growing phrase is still contained in some real genre name (catalog
+          tags + taxonomy). "genre:indie rock" -> one term; "genre:rock
+          beatles" is left alone (not a genre) so beatles stays its own
+          AND-ed word; a quoted value is always literal; negation and later
+          field terms are preserved. Known limit: if a bare word happens to
+          complete a real genre name it is merged even if you meant it
+          separately (quote the genre to avoid that).
+
+          MATCHING IS NOW PER TAG, not against all of a release's tags glued
+          together with spaces — previously "Indie Pop" + "Rock" as two
+          separate tags falsely satisfied genre:"pop rock". This is the one
+          deliberate departure from the old behaviour (a bug, not a feature).
+
+          FOUND WHILE VERIFYING THE NEW MENU: the ⇅ menu (and three other
+          dropdowns) were being painted OVER by card tags. .nav-view-menu
+          asks for z-index: 20, but .panel-mode-menu — same specificity,
+          declared later — silently overrode it to 5, the same value as the
+          card tags (.catalog-tag/.type-tag), and cards come later in the
+          page. Measured by sampling every 6px inside each open menu with
+          elementFromPoint: 232 covered points across the four menus (even
+          the ⇅ and view menus on desktop); after the fix, 0. This is also
+          what the gear/Actions menu in an earlier mobile screenshot was
+          showing (card titles across "Add album" / "Map viewer"). Fixed with
+          .nav-view-menu.panel-mode-menu and #albumsViewMenu (the one
+          dropdown with .panel-mode-menu alone) at z-index: 20; NOT raising
+          .panel-mode-menu globally since the JS-built context menus use
+          that class with their own z-index.
+
+          Verified: 30 unit checks on the real matching/merging functions
+          (every mode, the reported taxonomy, glued-tags case, never-lose-an-
+          old-match property, 3000 releases ~8 ms/keystroke); ~25 real-
+          browser checks (your query typed exactly as written, quoted form,
+          the real ⇅ menu in all three modes, genre:rock across modes,
+          negation, sidebar unchanged in two modes, persistence across a
+          real reload, phone fit); menu stacking measured before/after.
+          Not covered: a per-query override (the setting is global); plain
+          free-text search ("indie rock" without genre:) is unchanged and
+          doesn't use the taxonomy.
+
+  1.29.171 — 2026-10-03 — Feature: double-clicking a genre in the left panel
+          queues and plays every release under it. Includes sub-genres
+          (double-click "Jazz" and releases tagged "Jazz Fusion" come along,
+          since both this and the grid filter go through genreMatchesFilter),
+          honours the search box and the Listened filter, plays in the
+          current sort order, and REPLACES whatever was queued/playing — same
+          behaviour as double-clicking "All Genres" (1.29.166). The genre
+          stays selected afterwards, so the grid matches what's playing.
+
+          Not a copy of the "All ___" row, because of a trap: a row's single
+          click is a TOGGLE (clicking the selected row clears the filter), so
+          the first click of a double-click selects the genre and the second
+          DESELECTS it — by the time dblclick fires state.filtered is the
+          whole library, and playing that would have queued everything.
+          (Album rows are immune: they play their own entry.item.) The genre
+          row therefore re-selects its own genre explicitly before playing.
+          Verified the trap is real with a control test (two slow clicks end
+          with no filter), not just reasoned about.
+
+          Double-clicks that land on the expand/collapse caret are ignored —
+          rapid caret clicks bubble a dblclick up to the row and would
+          otherwise start playback. Extracted playFilteredReleases() so the
+          "All ___" row and genre rows share one implementation.
+
+          Tested in real Chromium with real double-clicks and a real
+          Jazz > Jazz Fusion taxonomy: parent genre queues itself plus its
+          child and not the rest; child genre alone; one-release genre; a
+          second double-click replaces the queue; search year:2000 narrows
+          it; caret double-click plays nothing and leaves collapse state
+          alone; All Genres and album-row double-clicks still work. Not
+          tested: real audio (stand-in players), touch devices (relies on the
+          browser's native dblclick, like the other double-click actions).
+          Only genre rows do this — artist rows still just filter.
+
+  1.29.170 — 2026-10-03 — Bugfix: play a SoundCloud track, then queue music
+          (e.g. double-click "All Genres") and the new track played OVER the
+          SoundCloud one, which kept going. Reproduced first, in a real
+          browser with stand-in engines that track what is audibly playing:
+          of the six possible engine-to-engine switches, five were fine and
+          SoundCloud -> YouTube left BOTH playing. Cause: "stop the other
+          engines" was three hand-written copies that had drifted apart —
+          starting SoundCloud stopped YouTube and Spotify, starting Spotify
+          stopped YouTube/SoundCloud (but only if activePlayerEngine said so),
+          and starting YouTube only paused Spotify and never touched the
+          SoundCloud widget. The crate queue plays manual-album tracks
+          through YouTube, so queuing music after a SoundCloud track hit
+          exactly that gap.
+
+          Replaced all three with one function, stopOtherEngines(keep),
+          called first by playSpotifyUri / playYtQueueIndex /
+          playScQueueIndex, so a fourth engine can't be added with a case
+          forgotten. Deliberately not gated on activePlayerEngine alone —
+          that is only the last engine to claim the player, and was exactly
+          the value the YouTube path flipped away from 'soundcloud' while the
+          widget kept playing; if the widget/player exists it is stopped
+          (pausing something already paused is harmless). An engine moving
+          on within itself (next SoundCloud/YouTube track of an album) is
+          not stopped.
+
+          Also closes a latent knock-on: the SoundCloud widget kept its own
+          queue and its "standing in for the crate queue" flag after being
+          abandoned, so its eventual FINISH event could skip the crate queue
+          ahead by a track. Stopping it now clears both.
+
+          Tested (real Chromium, stand-in engines): all 6 engine switches
+          leave only the new one audible; the exact reported scenario; SC->SC
+          and YT->YT continue without being stopped; crate-queue hand-offs
+          YT -> SC -> YT with the stand-in flags moving correctly; a stale SC
+          FINISH after the hand-off leaves crateQueueIndex untouched.
+
+          Not tested: the real SoundCloud/YouTube/Spotify players — only
+          their stand-ins, so this proves the app issues the right stop calls
+          to each engine, not how each real widget responds to them.
 
   1.29.169 — 2026-10-03 — Feature: Shuffle toggle on the player. A button at
           the left of the transport controls (before Previous), aria-pressed,
@@ -4736,6 +4880,12 @@
               <button type="button" class="sort-filter-option" id="sortGenreMatchOption" data-sort="genreMatch" hidden>Closest genre match</button>
               <div class="menu-divider"></div>
               <label class="arrange-row"><input type="checkbox" id="sortFilterListenedToggle"> Listened only</label>
+              <div class="menu-divider"></div>
+              <div class="menu-section-title">Genre search</div>
+              <button type="button" class="genre-search-option" data-genre-mode="exact">Exact genre only</button>
+              <button type="button" class="genre-search-option" data-genre-mode="subgenres">Include sub-genres</button>
+              <button type="button" class="genre-search-option" data-genre-mode="loose">Sub-genres + partial names</button>
+              <p id="genreSearchHint" class="menu-hint"></p>
             </div>
           </div>
         </div>
@@ -5750,7 +5900,7 @@
         <label class="add-field">Scene <input type="text" id="advScene" placeholder="e.g. Madchester"></label>
         <label class="add-field">Movement <input type="text" id="advMovement" placeholder="e.g. Post-Punk"></label>
         <label class="add-field">Additional keywords <input type="text" id="advExtra" placeholder="anything else — same syntax as the search box"></label>
-        <p class="arrange-hint">The search box itself understands this syntax directly too: <code>artist:</code>, <code>year:&gt;=2020</code>, <code>rating:&gt;=4</code>, <code>genre:</code>, <code>label:</code>, <code>type:</code>, <code>catalog:</code>, <code>descriptor:</code>, <code>scene:</code>, <code>movement:</code>, <code>"exact phrases"</code>, and <code>-word</code> to exclude.</p>
+        <p class="arrange-hint">The search box itself understands this syntax directly too: <code>artist:</code>, <code>year:&gt;=2020</code>, <code>rating:&gt;=4</code>, <code>genre:</code> (also finds sub-genres — adjust under ⇅ › Genre search), <code>label:</code>, <code>type:</code>, <code>catalog:</code>, <code>descriptor:</code>, <code>scene:</code>, <code>movement:</code>, <code>"exact phrases"</code>, and <code>-word</code> to exclude.</p>
         <div class="log-form-actions">
           <button type="button" id="advSearchApplyBtn" class="save-btn">Search</button>
           <button type="button" id="advSearchClearBtn" class="cancel-btn">Clear</button>
@@ -5999,7 +6149,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.169';
+const APP_VERSION = '1.29.172';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -6259,6 +6409,7 @@ const state = {
   // once rather than per-row, matching the reference this was built from.
   showTrackCredits: false,
   chartGenre: null, // last-selected genre in the Release Chart element (Main panel) — see renderChartElement()
+  genreSearchMode: 'loose', // how strictly genre: searches match — 'exact' | 'subgenres' | 'loose', see genreSearchMatches / the ⇅ popover's "Genre search"
   shuffle: false, // player's Shuffle toggle (persisted) — see setShuffle(); applies to the crate queue, standalone YouTube/SoundCloud queues, and Spotify's own album playback
   artistInfoTabs: [], // ordered list of artist names, each an independently open/closeable tab — genuine multi-tab, not one reused tab. See openArtistInfoTab()/closeArtistInfoTab()/renderArtistInfoTabButtons()
   activeArtistInfoTab: null, // which one of artistInfoTabs (if any) is the currently showing one — independent of navFilter (which only ever governs the Music tab's own grid)
@@ -6471,7 +6622,7 @@ const el = {};
   'qaListenBtn','qaSoundcloudBtn','deckQuickActionsBtn',
   'advancedSearchBtn','advSearchOverlay','advSearchClose','advArtist','advTitle','advYearFrom','advYearTo',
   'advRatingMin','advGenre','advLabel','advType','advCatalog','advDescriptor','advScene','advMovement','advExtra','advSearchApplyBtn','advSearchClearBtn',
-  'searchWrap','searchIconBtn','sortFilterBtn','sortFilterMenu','sortFilterListenedToggle','sortGenreMatchOption'
+  'searchWrap','searchIconBtn','sortFilterBtn','sortFilterMenu','sortFilterListenedToggle','sortGenreMatchOption','genreSearchHint'
 ].forEach(id => { el[id] = document.getElementById(id); });
 
 let activeItem = null;
@@ -7306,6 +7457,17 @@ function bindEvents() {
   });
   el.sortFilterListenedToggle.addEventListener('change', () => {
     el.listenedFilterBtn.click(); // sets state.listenedOnly + applyFiltersSort(), same as the icon itself
+  });
+  el.sortFilterMenu.querySelectorAll('.genre-search-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.genreSearchMode = btn.dataset.genreMode;
+      savePrefs();
+      buildLeftList();   // the left panel's artist/genre/album lists are derived from the search results too
+      applyFiltersSort();
+      renderSortFilterMenu();
+      el.sortFilterMenu.hidden = true;
+      flashGlobalToast('Genre search: ' + GENRE_SEARCH_LABELS[state.genreSearchMode].toLowerCase());
+    });
   });
 
   el.refreshBtn.addEventListener('click', () => fetchCatalog());
@@ -8643,6 +8805,7 @@ function loadPrefs() {
     if (typeof p.closeGaps === 'boolean') state.closeGaps = p.closeGaps;
     if (typeof p.leftNavCompact === 'boolean') state.leftNavCompact = p.leftNavCompact;
     if (typeof p.shuffle === 'boolean') state.shuffle = p.shuffle;
+    if (['exact', 'subgenres', 'loose'].includes(p.genreSearchMode)) state.genreSearchMode = p.genreSearchMode;
     if (p.panelWidths) state.panelWidths = Object.assign({}, state.panelWidths, p.panelWidths);
     if (p.fields) state.fields = Object.assign(state.fields, p.fields);
     if (p.trackColWidths) state.trackColWidths = p.trackColWidths;
@@ -8713,6 +8876,7 @@ function savePrefs() {
       playlistFolders: state.playlistFolders,
       playlistFolderMap: state.playlistFolderMap,
       shuffle: state.shuffle,
+      genreSearchMode: state.genreSearchMode,
       statsMode: state.statsMode,
       rightPanelShowQueue: state.rightPanelShowQueue,
       rightPanelShowHistory: state.rightPanelShowHistory,
@@ -9400,6 +9564,33 @@ function buildLeftRow(entry, mode) {
     // just ones on Spotify.
     row.addEventListener('dblclick', () => playAlbumReplacingQueue(entry.item));
   }
+  // Double-click a GENRE: queue and play every release under it (sub-genres
+  // included — the same set the grid shows when you filter by it, since both
+  // go through genreMatchesFilter), after any search/Listened filter, in the
+  // current sort order.
+  //
+  // Not as simple as the "All ___" row, because a row's single click is a
+  // TOGGLE (clicking the already-selected row clears the filter): the first
+  // click of a double-click selects the genre and the second one DESELECTS
+  // it again, so by the time dblclick fires the filter is cleared and
+  // state.filtered is the whole library — playing that would queue
+  // everything instead of this genre. (Album rows don't have the problem:
+  // they play their own entry.item directly.) So the genre is explicitly
+  // re-selected here first, which also leaves it selected afterwards, i.e.
+  // what you'd expect to see after double-clicking it.
+  if (mode === 'genre') {
+    row.addEventListener('dblclick', (e) => {
+      // Two quick clicks on the expand/collapse caret aren't a play gesture
+      // (the event still bubbles up to the row from the caret).
+      if (e.target && e.target.closest && e.target.closest('.genre-tree-caret')) return;
+      state.navFilter = { mode, value: entry.key };
+      exitPlaylistView();
+      buildLeftList();
+      updateMainLabel();
+      applyFiltersSort();
+      playFilteredReleases();
+    });
+  }
   return row;
 }
 
@@ -9435,6 +9626,14 @@ function toggleGenreCollapse(key) {
   else state.collapsedGenres.add(key);
   savePrefs();
   buildLeftList();
+}
+
+// Plays every release currently included by the main view — state.filtered:
+// search terms, the Listened filter, the nav filter and the chosen sort order.
+// Shared by double-clicking "All ___" and double-clicking a genre row.
+function playFilteredReleases() {
+  if (!state.filtered.length) { flashGlobalToast('Nothing to play \u2014 no releases match.'); return; }
+  playAlbumsReplacingQueue(state.filtered.slice());
 }
 
 function buildLeftList() {
@@ -9521,10 +9720,7 @@ if (mode === 'artist') {
   // genre:punk, ...), the Listened filter, and the chosen sort order — not
   // just the raw search results the row's own count reflects. Same row for
   // Albums/Artists/Genres modes, so it behaves the same in all three.
-  allRow.addEventListener('dblclick', () => {
-    if (!state.filtered.length) { flashGlobalToast('Nothing to play \u2014 no releases match.'); return; }
-    playAlbumsReplacingQueue(state.filtered.slice());
-  });
+  allRow.addEventListener('dblclick', playFilteredReleases);
   el.leftList.appendChild(allRow);
 
   // "Group by" (state.leftGroupBy) clusters the Albums list under
@@ -9954,7 +10150,9 @@ function tokenizeSearchQuery(q) {
       i = fieldStart; // wasn't actually a "field:" prefix — back up and read it as the value
     }
     let value;
+    let quoted = false; // an explicitly quoted value is taken literally — see mergeGenrePhrases
     if (q[i] === '"') {
+      quoted = true;
       i++;
       const vs = i;
       while (i < n && q[i] !== '"') i++;
@@ -9965,7 +10163,7 @@ function tokenizeSearchQuery(q) {
       while (i < n && !/\s/.test(q[i])) i++;
       value = q.slice(vs, i);
     }
-    if (field !== null || value) tokens.push({ negate, field, value });
+    if (field !== null || value) tokens.push({ negate, field, value, quoted });
   }
   return tokens;
 }
@@ -10071,17 +10269,91 @@ function searchTokenMatches(r, token) {
   if (canonicalField === 'rating') {
     return numericClauseMatches(r.rating || 0, parseNumericClause(value));
   }
-  if (canonicalField === 'genre') {
-    return getGenreList(combinedGenreStr(r)).join(' ').toLowerCase().includes(value.toLowerCase());
-  }
+  if (canonicalField === 'genre') return genreSearchMatches(r, value);
   if (canonicalField === 'track') {
     return trackTitlesFor(r).some(t => t.toLowerCase().includes(value.toLowerCase()));
   }
   return String(r[canonicalField] || '').toLowerCase().includes(value.toLowerCase());
 }
 
+// Lower-cased names of every genre the app knows (catalog tags + the genre
+// taxonomy). Only needed when a query has an unquoted genre: followed by a
+// bare word, but search runs per keystroke and filterTracksBySearch asks for
+// the terms once per release, so it is cached against the things it's
+// derived from rather than rebuilt on every call.
+let knownGenreCache = { raw: null, tax: null, taxN: -1, rawN: -1, names: [] };
+function knownGenreNamesLower() {
+  const c = knownGenreCache;
+  const taxN = Object.keys(state.genreTaxonomy || {}).length;
+  if (c.raw !== state.raw || c.tax !== state.genreTaxonomy || c.taxN !== taxN || c.rawN !== state.raw.length) {
+    c.names = getAllKnownGenres(state.genreTaxonomy).map(g => String(g.label || '').toLowerCase());
+    c.raw = state.raw; c.tax = state.genreTaxonomy; c.taxN = taxN; c.rawN = state.raw.length;
+  }
+  return c.names;
+}
+
+// "genre:indie rock" tokenizes as genre:indie AND the free-text word "rock" —
+// two separate conditions — so even a perfectly taxonomy-aware genre: match
+// would still lose a Twee Pop release to the stray "rock" (its genres are
+// "Twee Pop", whose PARENTS include Indie Rock). Multi-word genre names are
+// the normal case, not the exception, so when an UNQUOTED genre: value is
+// followed by bare words, the words are folded into the genre value for as
+// long as the growing phrase is still contained in some real genre name.
+// Anything that doesn't extend a real genre ("genre:rock beatles", or
+// genre:indie sylvie) is left alone as its own AND-ed word, exactly as
+// before, and quoting a value always takes it literally.
+function mergeGenrePhrases(tokens) {
+  const out = [];
+  let known = null;
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    const isGenre = t.field && SEARCH_FIELD_ALIASES[t.field.toLowerCase()] === 'genre';
+    if (!isGenre || t.quoted || !t.value) { out.push(t); continue; }
+    let value = t.value, j = i + 1;
+    while (j < tokens.length && !tokens[j].field && !tokens[j].negate && !tokens[j].quoted && tokens[j].value) {
+      known = known || knownGenreNamesLower();
+      const candidate = `${value} ${tokens[j].value}`;
+      const cl = candidate.toLowerCase();
+      if (!known.some(g => g.includes(cl))) break;
+      value = candidate; j++;
+    }
+    out.push({ ...t, value });
+    i = j - 1;
+  }
+  return out;
+}
+
 function getSearchTerms() {
-  return state.query ? tokenizeSearchQuery(state.query) : [];
+  return state.query ? mergeGenrePhrases(tokenizeSearchQuery(state.query)) : [];
+}
+
+// How a genre: term matches a release — set by "Genre search" in the ⇅
+// popover (state.genreSearchMode), checked per genre TAG rather than against
+// all of a release's tags glued together with spaces (which let two separate
+// tags, "Indie Pop" + "Rock", falsely satisfy genre:"pop rock").
+//   exact      the release is tagged with exactly this genre.
+//   subgenres  ...or with any genre filed UNDER it in the genre taxonomy —
+//              the same rule as picking the genre in the left panel
+//              (genreMatchesFilter), so Twee Pop, whose parents include Indie
+//              Rock, shows up for "indie rock".
+//   loose      ...and also any genre whose NAME merely contains the text
+//              ("rock" -> Krautrock), or that sits under a genre whose name
+//              does. This is the old substring behaviour plus sub-genres, so
+//              nothing that matched before stops matching (the default).
+function genreSearchMatches(r, rawValue) {
+  const v = String(rawValue || '').trim().toLowerCase();
+  if (!v) return true;
+  const mode = state.genreSearchMode;
+  return getGenreList(combinedGenreStr(r)).some(tag => {
+    const tk = tag.trim().toLowerCase();
+    if (tk === v) return true;
+    if (mode === 'exact') return false;
+    if (mode === 'loose' && tk.includes(v)) return true;
+    return getGenreAncestors(state.genreTaxonomy, tag).some(a => {
+      const ak = genreTaxonomyKey(a);
+      return mode === 'loose' ? ak.includes(v) : ak === v;
+    });
+  });
 }
 
 // Shared by the main grid and the left panel (artists/genres/albums) so a
@@ -10218,7 +10490,18 @@ function renderSortFilterMenu() {
     btn.classList.toggle('active', btn.dataset.sort === state.sort);
   });
   el.sortFilterListenedToggle.checked = state.listenedOnly;
+  el.sortFilterMenu.querySelectorAll('.genre-search-option').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.genreMode === state.genreSearchMode);
+  });
+  el.genreSearchHint.textContent = GENRE_SEARCH_HINTS[state.genreSearchMode] || '';
 }
+
+const GENRE_SEARCH_HINTS = {
+  exact: 'genre:rock finds only releases tagged exactly \u201cRock\u201d.',
+  subgenres: 'genre:rock also finds everything filed under Rock in your genre tree (Indie Rock, Twee Pop\u2026) \u2014 the same as picking it in the left panel.',
+  loose: 'Also finds any genre whose name merely contains the text (rock \u2192 Krautrock), on top of sub-genres. The most inclusive option.'
+};
+const GENRE_SEARCH_LABELS = { exact: 'Exact genre only', subgenres: 'Include sub-genres', loose: 'Sub-genres + partial names' };
 
 function hasLoggedListen(item) {
   return state.diary.some(d => d.artist === item.artist && d.title === item.title);
@@ -11894,6 +12177,28 @@ let nowPlayingItem = null;
 // with no trackNum available to look it up properly), same limitation as
 // that function's existing artistsRoughlyMatch check just above it.
 let nowPlayingYoutubeLink = '';
+// Spotify, the floating YouTube player and the SoundCloud widget must never
+// play at the same time, and every engine's play function calls this FIRST
+// with its own name. It used to be three hand-written copies of "stop the
+// others" that had drifted apart: starting YouTube only paused Spotify and
+// never touched SoundCloud, so playing a SoundCloud track and then queuing
+// music that starts on a YouTube-linked track left BOTH audible, with the
+// SoundCloud one carrying on underneath (and, worse, still holding its own
+// queue/"standing in for the crate queue" flag, so its eventual finish could
+// skip the crate queue ahead). One function means a fourth engine can't be
+// added with one of the cases forgotten.
+//
+// Deliberately NOT gated on activePlayerEngine alone: that value is just the
+// last engine to call setMasterPlayerEngine, so it can be stale or wrong
+// (it's exactly what the YouTube path flipped away from 'soundcloud' while
+// the SoundCloud widget kept playing). If the widget/player exists it's
+// stopped; pausing something already paused is harmless.
+function stopOtherEngines(keep) {
+  if (keep !== 'spotify' && spotifyPlayer) spotifyPlayer.pause().catch(() => {});
+  if (keep !== 'youtube' && (ytPlayer || activePlayerEngine === 'youtube')) closeYoutubePlayer();
+  if (keep !== 'soundcloud' && (scWidget || activePlayerEngine === 'soundcloud')) closeSoundcloudPlayer();
+}
+
 function setMasterPlayerEngine(engine) {
   activePlayerEngine = engine;
   const isYoutube = engine === 'youtube';
@@ -13665,11 +13970,8 @@ async function showMiniPlayer(uri, intent) {
 
 async function playSpotifyUri(uriOrUris) {
   // The floating YouTube player, the SoundCloud widget, and Spotify
-  // playback are all mutually exclusive — starting a Spotify track ends
-  // whichever of the other two is currently up so at most one ever plays
-  // at once.
-  if (activePlayerEngine === 'youtube') closeYoutubePlayer();
-  else if (activePlayerEngine === 'soundcloud') closeSoundcloudPlayer();
+  // playback are all mutually exclusive — see stopOtherEngines.
+  stopOtherEngines('spotify');
   const token = await getSpotifyUserAccessToken();
   if (!token || !spotifyDeviceId) {
     flashGlobalToast('Spotify device isn\u2019t ready yet — try again in a moment.');
@@ -21238,9 +21540,9 @@ function openYoutubePlayer(url, trackName, tracks, item) {
 // container regardless of which engine is playing.
 function playYtQueueIndex(i) {
   if (i < 0 || i >= ytQueue.length) return;
-  // Mirror of the guard in playSpotifyUri — a YouTube video starting pauses
-  // any active Spotify playback so the two never play at once.
-  if (spotifyPlayer) spotifyPlayer.pause().catch(() => {});
+  // A YouTube video starting stops Spotify AND SoundCloud so no two engines
+  // play at once — see stopOtherEngines (this used to pause Spotify only).
+  stopOtherEngines('youtube');
   ytQueueIndex = i;
   const q = ytQueue[i];
 
@@ -21422,11 +21724,9 @@ function openSoundcloudPlayer(url, trackName, tracks, item) {
 // generic placeholder).
 function playScQueueIndex(i) {
   if (i < 0 || i >= scQueue.length) return;
-  // Mirror of the guard in playSpotifyUri/playYtQueueIndex — starting a
-  // SoundCloud track pauses any active Spotify playback and stops the
-  // YouTube player so no two engines ever play at once.
-  if (spotifyPlayer) spotifyPlayer.pause().catch(() => {});
-  if (activePlayerEngine === 'youtube') closeYoutubePlayer();
+  // Starting a SoundCloud track stops Spotify and YouTube so no two engines
+  // ever play at once — see stopOtherEngines.
+  stopOtherEngines('soundcloud');
   scQueueIndex = i;
   const q = scQueue[i];
 
@@ -23640,6 +23940,16 @@ html, body {
     position: relative; z-index: 5; background: var(--bg-elevated); border: 1px solid var(--line);
     border-radius: 6px; margin: -8px 0 12px; overflow: hidden; width: fit-content;
   }
+  /* Dropdowns carrying BOTH classes (the ⇅ sort menu, gear/Actions menu, the
+     main-view menu, the left-panel mode menu): .nav-view-menu asks for
+     z-index: 20, but .panel-mode-menu just above — same specificity, declared
+     later — silently won and dropped it to 5, the exact value of the card
+     tags (.catalog-tag / .type-tag, z-index: 5). Cards come later in the page,
+     so card tags painted OVER open menus; the gear menu in a mobile
+     screenshot had card titles across "Add album" and "Map viewer". The
+     doubled selector wins on specificity whatever the source order. */
+  .nav-view-menu.panel-mode-menu,
+  #albumsViewMenu { z-index: 20; } /* the main-view menu is the one dropdown with .panel-mode-menu alone, so it needs naming; NOT .panel-mode-menu globally — the JS-built context menus use that class too, with their own z-index */
   .panel-mode-menu button {
     display: block; width: 100%; text-align: left; background: none; border: none; color: var(--text);
     font-family: 'IBM Plex Mono', monospace; font-size: 12px; padding: 8px 14px; cursor: pointer;
@@ -23647,6 +23957,9 @@ html, body {
   .panel-mode-menu button:hover { background: var(--bg-card); color: var(--accent); }
   .panel-mode-menu button.sort-filter-option.active { color: var(--accent); } /* checkmark added via ::before below */
   .panel-mode-menu button.sort-filter-option.active::before { content: '✓ '; }
+  .panel-mode-menu button.genre-search-option.active { color: var(--accent); }
+  .panel-mode-menu button.genre-search-option.active::before { content: '✓ '; }
+  .menu-hint { margin: 2px 0 6px; padding: 4px 14px 2px; max-width: 250px; font-size: 11px; line-height: 1.4; color: var(--text-dim); white-space: normal; }
   .panel-mode-menu .arrange-row { padding: 8px 14px; margin: 0; } /* the "Listened only" checkbox row, sitting inside a menu rather than the arrange modal .arrange-row is normally used in */
   /* Destructive context-menu action ("Remove from playlist") — same red as .remove-btn */
   .panel-mode-menu button.remove-menu-btn { color: #E5646B; }
