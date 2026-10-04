@@ -13,7 +13,115 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.172
+  CURRENT_VERSION: 1.29.174
+
+  1.29.174 — 2026-10-03 — Feature: right-click the player's track (art,
+          title, artist or album) for a menu on whatever is playing:
+            Add to playlist ▸   (the existing playlist flyout)
+            Add to queue        (the existing cross-platform queue)
+            Go to artist        (opens that artist's Artist Info tab)
+            Go to album         (opens the album page)
+            View credits        (new popover, see below)
+
+          Works whichever engine is playing. The old right-click menu existed
+          only on the album NAME and only for Spotify (it keyed off
+          currentSpotifyTrack), so it did nothing for a YouTube/SoundCloud
+          track or one played from the crate queue; it is replaced
+          (openAlbumContextMenu removed — it had one caller). The playing
+          track is resolved by resolveNowPlayingForMenu(): the crate queue's
+          own current entry first (exact release, name and track number for
+          every engine), then nowPlayingItem, then — for a Spotify track
+          played from outside the crate — a lookup by artist+album.
+          Track number comes from the cached tracklist or a manual album's
+          own list (lookupTrackNum); if it isn't known yet the tracklist is
+          fetched in the background and filled in on the same object the
+          playlist flyout later sends to the server.
+
+          Not in your crate (a Spotify track you haven't added): the menu
+          still opens, offers "Add album to your crate…" first (the existing
+          add flow), and shows the crate-only items GREYED OUT with a "Not in
+          your crate" tooltip rather than hiding them. "Go to artist" stays
+          enabled if you own other releases by that artist.
+
+          View credits: a small popover listing the track's saved credits
+          ("Name — Role" lines from Edit track properties…, same
+          parseTrackCredits and styling as the album page's tracklist), with
+          "Edit credits…" / "Add credits…" opening the track properties
+          editor. If there are none it says so instead of showing an empty
+          box.
+
+          Also: Escape now closes these floating menus (it closed deck/modals
+          but not these). Only swallows the browser's own right-click menu
+          when something is actually playing. Queuing the playing track while
+          it plays OUTSIDE any queue follows addToCrateQueue's existing
+          behaviour (the playing track becomes the queue's first entry, the
+          queued one follows it).
+
+          Tested in real Chromium (45 checks): the menu for a crate-queue
+          track, YouTube played outside the queue, Spotify matched to the
+          crate, Spotify not in the crate, and Spotify with a known artist
+          only; queue append; the playlist POST (right row/track/number);
+          artist and album navigation; credits with/without data and both
+          editor routes; greyed items doing nothing when clicked; Escape and
+          outside-click dismissal; player docked top and bottom; phone width;
+          nothing-playing leaves the browser menu alone.
+
+          Not covered: right-clicking the YouTube VIDEO face itself (a cross-
+          origin iframe swallows the event — use the art/title beside it);
+          touch long-press on a real phone (only a synthetic contextmenu event
+          was tried); real Spotify playback (a stand-in current track was
+          used). "Go to artist" opens the Artist Info tab, as the album quick
+          peek's artist link does — the player's own artist-NAME click still
+          filters the Music tab to that artist instead, a pre-existing
+          difference I left alone.
+
+  1.29.173 — 2026-10-03 — Bugfix: the settings for what appears on the album
+          cards ("Tags on artwork" — the corner tags — and "Overlay fields
+          inside artwork") couldn't be reached from ⚙ > Panels configuration
+          > Music View > Panel Settings…. Two separate bugs, stacked, either
+          one enough on its own:
+
+          1. openElementConfig() was declared INSIDE bindEvents() but its one
+             caller (the Panel Settings button's handler, in
+             initLayoutDragDrop) is in a different function, so clicking threw
+             "openElementConfig is not defined" and nothing happened. Moved to
+             the top level, next to renderConfigSlots.
+          2. Past that, the dialog opened and instantly closed: the
+             document-level click-outside handler exempted
+             .layout-chip-configure — the PRE-rebuild class name of those
+             buttons, which no longer exists — so the same click that opened
+             the dialog bubbled up, looked like a click outside it, and
+             closed it. Exemption now covers .layout-row-configure.
+          Both date from the Panels-configuration rebuild (1.29.146-147), long
+          before the recent versions; I couldn't verify how it behaved at the
+          time. The older route, Album Covers menu > "Customize panel…", never
+          had either bug and works. Honest note: in this session I pointed you
+          at "Panel Settings…" more than once (e.g. for the Now Playing Bar)
+          without ever driving that button in a browser — it was dead the whole
+          time, and none of my tests clicked it.
+
+          Also: Genre Description, Release Chart and Player Controls rows got a
+          "Panel Settings…" button although they have nothing to configure;
+          clicking it closed the whole Panels dialog and opened nothing. They
+          no longer get the button (LAYOUT_ELEMENTS_WITH_SETTINGS), and
+          openElementConfig bails out BEFORE hiding the Panels dialog.
+
+          What I checked and ruled out first, so it isn't a mystery later: the
+          details drawn on the cards themselves render correctly in every
+          combination of view (covers/grid) x Fit artwork x overlay/below x
+          cover links (16 combinations), identically in the Music tab and the
+          Artist Info tab, and my global [hidden] rule (1.29.168) changed none
+          of them (0 of 16 differ with the rule removed). The S/C/R/Y link
+          buttons are off by default since 1.29.35 (Sept 13), unrelated.
+
+          Audited the whole script for the same class of mistake — a helper
+          declared inside one function and called from outside its scope: 633
+          top-level functions, exactly one genuine hit (this one). Verified in
+          real Chromium through the real UI: every Panel Settings button (5
+          open their dialog; no JS errors), dialog stays open, ✕ / Escape /
+          outside-click all close it, inside-click doesn't, "Customize
+          panel…" route, choosing Overlay puts the details on top of the art,
+          Below moves them back, settings persist across a reload.
 
   1.29.172 — 2026-10-03 — Genre search now follows the genre taxonomy, with
           a strictness setting; plus a dropdown-menu stacking bug found while
@@ -6149,7 +6257,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.172';
+const APP_VERSION = '1.29.174';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -6796,6 +6904,11 @@ const LAYOUT_ELEMENTS = {
   lastfmHistory: { label: 'Last.fm History', panels: ['right'] },
   trackInfo: { label: 'Track Info', panels: ['right'] }
 };
+// Elements whose row in the Panels configuration gets a "Panel Settings…"
+// button. The others (Genre Description, Release Chart, Player Controls) have
+// nothing to configure beyond where they sit, and used to get the button
+// anyway: clicking it closed the whole Panels dialog and opened nothing.
+const LAYOUT_ELEMENTS_WITH_SETTINGS = new Set(['musicView', 'queue', 'lastfmHistory', 'trackInfo', 'nowPlayingBar']);
 const LAYOUT_PANEL_LABELS = { main: 'Main Panel', right: 'Right Panel', top: 'Top', bottom: 'Bottom' };
 
 
@@ -7974,30 +8087,10 @@ function bindEvents() {
   // chip in the new Layout drag-and-drop UI (see renderLayoutConfigUI)
   // rather than a dedicated button that only existed while that element
   // had its own checkbox row.
-  function openElementConfig(elementKey) {
-    el.arrangeModal.hidden = true;
-    if (elementKey === 'musicView') {
-      const mode = (state.mainViewMode === 'covers') ? 'covers'
-        : (state.mainViewMode === 'tracks' || state.mainViewMode === 'albumTracks' ? 'tracks' : 'grid');
-      renderConfigSlots(mode);
-    } else if (elementKey === 'queue') {
-      // Adapts to whichever of the three Queue view styles is currently
-      // selected (queueViewModeSelect in "element options" below).
-      const modeForConfig = state.queueViewMode === 'trackDetail' ? 'queueTrackDetail'
-        : state.queueViewMode === 'releaseTracks' ? 'queueReleaseTracks'
-        : 'queue';
-      renderConfigSlots(modeForConfig);
-    } else if (elementKey === 'lastfmHistory') {
-      renderConfigSlots('lastfmHistory');
-    } else if (elementKey === 'trackInfo') {
-      renderConfigSlots('trackInfo');
-    } else if (elementKey === 'nowPlayingBar') {
-      renderConfigSlots('miniPlayer');
-    } else {
-      return; // genreDesc/chart/playerControls have no separate field-slot config — genreDesc is a single free-text box, chart is just its own genre dropdown, playerControls has nothing to configure beyond its Top/Bottom position (set by dragging it, not a modal)
-    }
-    el.mainConfigModal.hidden = false;
-  }
+  // openElementConfig() lives at the top level now, next to renderConfigSlots —
+  // it used to be declared HERE, inside bindEvents, so it only existed in this
+  // function while its one caller (the Panels configuration's "Panel Settings…"
+  // button, in initLayoutDragDrop) is elsewhere and threw ReferenceError.
   el.queueViewModeSelect.addEventListener('change', () => {
     state.queueViewMode = el.queueViewModeSelect.value;
     savePrefs();
@@ -8271,10 +8364,11 @@ function bindEvents() {
   el.miniPlayerTitle.addEventListener('click', () => { if (isMiniPlayerMobileLayout()) return; if (activePlayerEngine === 'spotify') goToTrackPage(currentSpotifyTrack); });
   el.miniPlayerArtist.addEventListener('click', () => { if (isMiniPlayerMobileLayout()) return; if (activePlayerEngine === 'spotify') goToArtistTracks(currentSpotifyTrack); });
   el.miniPlayerAlbum.addEventListener('click', () => { if (isMiniPlayerMobileLayout()) return; if (activePlayerEngine === 'spotify') goToTrackPage(currentSpotifyTrack); });
-  el.miniPlayerAlbum.addEventListener('contextmenu', (e) => {
-    if (activePlayerEngine !== 'spotify' || !currentSpotifyTrack) return;
-    e.preventDefault();
-    openAlbumContextMenu(currentSpotifyTrack, e.clientX, e.clientY);
+  // Right-click anywhere on the player's track area (art, title, artist, album)
+  // — see openPlayerTrackContextMenu. Only swallows the browser's own menu when
+  // there's actually something playing to act on.
+  el.miniPlayerTrackInfo.addEventListener('contextmenu', (e) => {
+    if (openPlayerTrackContextMenu(e.clientX, e.clientY)) e.preventDefault();
   });
   // Shared by the whole-bar tap (below) and miniPlayerExpandBtn's own
   // click handler — the mobile mini player's "there's more here" action,
@@ -8535,7 +8629,11 @@ function bindEvents() {
     if (!el.layoutMenu.hidden && !el.layoutMenu.contains(e.target) && !el.layoutBtn.contains(e.target)) el.layoutMenu.hidden = true;
     if (!el.sortFilterMenu.hidden && !el.sortFilterMenu.contains(e.target) && !el.sortFilterBtn.contains(e.target)) el.sortFilterMenu.hidden = true;
     if (!el.arrangeModal.hidden && !el.arrangeModal.contains(e.target) && !el.menuArrangePanels.contains(e.target)) el.arrangeModal.hidden = true;
-    if (!el.mainConfigModal.hidden && !el.mainConfigModal.contains(e.target) && !e.target.closest('.layout-chip-configure') && !el.menuCustomizeMain.contains(e.target)) el.mainConfigModal.hidden = true;
+    // .layout-row-configure is the Panels configuration's "Panel Settings…" button — the
+    // exemption below only named .layout-chip-configure, its pre-rebuild class, which
+    // no longer exists. So the click that OPENED this dialog from there also bubbled up
+    // to this handler, looked like a click outside it, and closed it again instantly.
+    if (!el.mainConfigModal.hidden && !el.mainConfigModal.contains(e.target) && !e.target.closest('.layout-chip-configure, .layout-row-configure') && !el.menuCustomizeMain.contains(e.target)) el.mainConfigModal.hidden = true;
   });
 
   // Global Key Listeners (Escape key to close, Ctrl/Cmd+A to select all)
@@ -8593,7 +8691,7 @@ function bindEvents() {
       }
     }
     if (e.key !== 'Escape') return;
-    closeDeck(); closeQuickActions(); closeAdvSearch(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal(); closeTrackPropertiesModal(); closeTimelineModal(); closeMapModal();
+    closeNowPlayingAddMenu(); closeDeck(); closeQuickActions(); closeAdvSearch(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal(); closeTrackPropertiesModal(); closeTimelineModal(); closeMapModal();
     setMobileDrawer(null);
     // Deliberately NOT closing the master player here — whichever engine
     // (Spotify or YouTube) is driving it, it's a persistent background
@@ -8650,6 +8748,39 @@ function updateLeftMenuUI() {
   // "Group by" only means anything in Albums mode — Artists/Genres/Years
   // already show one row per category, so there's nothing to cluster there.
   if (el.leftGroupBySection) el.leftGroupBySection.hidden = state.leftMode !== 'album';
+}
+
+// Opens the field-slot settings dialog for one element in the Panels
+// configuration ("Panel Settings…" on its row). For Music View that is where
+// you choose which details appear on the album cards — the corner tags on the
+// artwork, the fields underneath, and (with "Fit artwork" on) "Overlay fields
+// inside artwork". Was declared inside bindEvents() but called from
+// initLayoutDragDrop(), a different scope, so the button threw "openElementConfig
+// is not defined" and none of those settings could be reached.
+function openElementConfig(elementKey) {
+  if (!LAYOUT_ELEMENTS_WITH_SETTINGS.has(elementKey)) return; // before closing the Panels dialog, so a no-settings element can't make it vanish for nothing
+  el.arrangeModal.hidden = true;
+  if (elementKey === 'musicView') {
+    const mode = (state.mainViewMode === 'covers') ? 'covers'
+      : (state.mainViewMode === 'tracks' || state.mainViewMode === 'albumTracks' ? 'tracks' : 'grid');
+    renderConfigSlots(mode);
+  } else if (elementKey === 'queue') {
+    // Adapts to whichever of the three Queue view styles is currently
+    // selected (queueViewModeSelect in "element options" below).
+    const modeForConfig = state.queueViewMode === 'trackDetail' ? 'queueTrackDetail'
+      : state.queueViewMode === 'releaseTracks' ? 'queueReleaseTracks'
+      : 'queue';
+    renderConfigSlots(modeForConfig);
+  } else if (elementKey === 'lastfmHistory') {
+    renderConfigSlots('lastfmHistory');
+  } else if (elementKey === 'trackInfo') {
+    renderConfigSlots('trackInfo');
+  } else if (elementKey === 'nowPlayingBar') {
+    renderConfigSlots('miniPlayer');
+  } else {
+    return; // genreDesc/chart/playerControls have no separate field-slot config — genreDesc is a single free-text box, chart is just its own genre dropdown, playerControls has nothing to configure beyond its Top/Bottom position (set by dragging it, not a modal)
+  }
+  el.mainConfigModal.hidden = false;
 }
 
 function renderConfigSlots(mode) {
@@ -13083,38 +13214,145 @@ function openNowPlayingAddMenu(track, x, y) {
   setTimeout(() => document.addEventListener('click', closeNowPlayingAddMenuOnOutsideClick), 0);
 }
 
-// Right-click menu on the album name in the mini player: jump straight to
-// the album's page if it's already in the crate, or add it if not.
-function openAlbumContextMenu(track, x, y) {
+// ---------- Right-click on the player's track ----------
+// Right-clicking the art/title/artist/album area of the player opens one menu
+// for whatever is playing, whichever engine it's on: Add to playlist, Add to
+// queue, Go to artist, Go to album, View credits. This replaces a menu that
+// only existed on the album NAME and only for Spotify (it keyed off
+// currentSpotifyTrack, so it did nothing at all for a YouTube/SoundCloud track
+// or one played from the crate queue).
+
+// Which release/track is the player actually on? Prefers the crate queue's own
+// current entry (exact release, name and track number, for every engine), then
+// nowPlayingItem (set by single-track/album plays), then — for a Spotify track
+// played from outside the crate — a lookup of it in the crate by artist+album.
+// item is null when it isn't in the crate; trackName comes from what the player
+// is showing, so it's right for any engine.
+function resolveNowPlayingForMenu() {
+  let item = null, trackName = '', trackNum = '';
+  const entry = isPlayingCrateQueue() ? crateQueueList[crateQueueIndex] : null;
+  if (entry && entry.item) {
+    item = entry.item;
+    trackName = (entry.track && entry.track.trackName) || '';
+    trackNum = (entry.track && entry.track.trackNumber != null) ? entry.track.trackNumber : '';
+  } else {
+    const spotifyTrack = activePlayerEngine === 'spotify' ? currentSpotifyTrack : null;
+    item = nowPlayingItem || (spotifyTrack ? findCrateItemForTrack(spotifyTrack) : null);
+    trackName = spotifyTrack ? spotifyTrack.name : (el.miniPlayerTitle.textContent || '').trim();
+  }
+  if (trackName === '\u2014') trackName = ''; // the player's own "nothing here yet" placeholder
+  if (item && trackName && trackNum === '') trackNum = lookupTrackNum(item, trackName);
+  return { item, trackName, trackNum };
+}
+
+// Track number for a track NAME within a release, from what's already loaded
+// (the tracklist cache, or a manual album's own tracklist) — or '' if unknown.
+function lookupTrackNum(item, trackName) {
+  const key = normMatchKey(trackName);
+  if (!key) return '';
+  const cached = state.trackCache[artKey(item)];
+  if (Array.isArray(cached)) {
+    const t = cached.find(c => normMatchKey(c.trackName) === key);
+    if (t && t.trackNumber != null) return t.trackNumber;
+  }
+  const m = (item.manualTracks || []).find(t => normMatchKey(t.title) === key);
+  return m && m.trackNumber != null ? m.trackNumber : '';
+}
+
+function openPlayerTrackContextMenu(x, y) {
+  const { item, trackName, trackNum } = resolveNowPlayingForMenu();
+  const spotifyTrack = activePlayerEngine === 'spotify' ? currentSpotifyTrack : null;
+  if (!trackName && !item) return false;   // nothing to act on — let the browser's own menu through
   closeNowPlayingAddMenu();
-  const album = track.album || {};
-  const match = findCrateItemForTrack(track);
+
+  // Same shape every other track menu feeds the playlist/queue code.
+  const trackPlaylistItems = item
+    ? [{ itemType: 'track', row: item.row, albumId: item.albumId || '', trackNum: trackNum === '' ? '' : trackNum, trackName }]
+    : [];
+  // Artist can be known even when the release isn't in the crate (a Spotify
+  // track by an artist you do own other releases of).
+  const artistGuess = item ? item.artist : ((spotifyTrack && spotifyTrack.artists && spotifyTrack.artists[0] && spotifyTrack.artists[0].name) || '');
+  const crateArtist = artistGuess ? (state.raw.find(r => normMatchKey(r.artist) === normMatchKey(artistGuess)) || {}).artist : '';
+  const needsCrate = 'title="Not in your crate" disabled';
 
   const menu = document.createElement('div');
   menu.className = 'panel-mode-menu now-playing-add-menu';
   menu.innerHTML = `
-    <div class="menu-section-title">${escapeHtml(album.name || track.name)}</div>
-    <button type="button" data-album-action="view">${match ? 'View album' : 'View album (not in crate yet)'}</button>
-    <button type="button" data-album-action="add">Add to your crate</button>
+    <div class="menu-section-title">${escapeHtml(trackName || (item && item.title) || 'Now playing')}</div>
+    ${!item && spotifyTrack ? '<button type="button" data-player-action="addToCrate">Add album to your crate\u2026</button><div class="menu-divider"></div>' : ''}
+    <button type="button" class="menu-parent-btn" data-player-action="playlist" ${item ? '' : needsCrate}>Add to playlist <span class="submenu-caret">\u25b8</span></button>
+    <button type="button" data-player-action="queue" ${item ? '' : needsCrate}>Add to queue</button>
+    <div class="menu-divider"></div>
+    <button type="button" data-player-action="artist" ${crateArtist ? '' : needsCrate}>Go to artist</button>
+    <button type="button" data-player-action="album" ${item ? '' : needsCrate}>Go to album</button>
+    <button type="button" data-player-action="credits" ${item ? '' : needsCrate}>View credits</button>
   `;
   document.body.appendChild(menu);
   positionFloatingMenu(menu, x, y);
 
-  menu.addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-album-action]');
-    if (!btn) return;
-    const action = btn.dataset.albumAction;
+  if (item) {
+    const playlistBtn = menu.querySelector('[data-player-action="playlist"]');
+    playlistBtn.addEventListener('mouseenter', () => openAddToPlaylistSubmenu(playlistBtn, trackPlaylistItems));
+    playlistBtn.addEventListener('mouseleave', scheduleCloseAddToPlaylistSubmenu);
+    // Track number not known yet (a tracklist that hasn't been fetched) —
+    // fetch it in the background; it fills in on the SAME object the
+    // playlist submenu will hand to the server, so "Add to playlist" still
+    // carries it if the tracklist arrives before the click.
+    if (trackNum === '' && trackName) {
+      getTracksFor(item).then(() => { const n = lookupTrackNum(item, trackName); if (n !== '') trackPlaylistItems[0].trackNum = n; }).catch(() => {});
+    }
+  }
+
+  menu.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-player-action]');
+    if (!btn || btn.disabled) return;
+    const action = btn.dataset.playerAction;
+    if (action === 'playlist') { openAddToPlaylistSubmenu(btn, trackPlaylistItems); return; } // tap-to-open for touch
     closeNowPlayingAddMenu();
 
-    if (action === 'view') {
-      if (match) { switchTab('albums'); openDeck(match); }
-      else { openAddModal(); showAddForm(crateAlbumPrefillFromTrack(track)); }
-      return;
+    if (action === 'queue') queueTracksNow(trackPlaylistItems);
+    else if (action === 'artist') openArtistInfoTab(crateArtist);
+    else if (action === 'album') { switchTab('albums'); openDeck(item); }
+    else if (action === 'addToCrate') openNowPlayingAddMenu(spotifyTrack, x, y);
+    else if (action === 'credits') {
+      let tn = trackNum;
+      if (tn === '') {            // resolve from the full tracklist if it wasn't loaded yet
+        try { await getTracksFor(item); } catch (err) { /* fall through with what we have */ }
+        tn = lookupTrackNum(item, trackName);
+      }
+      openTrackCreditsPopover(item, tn, trackName, x, y);
     }
-    openAddModal();
-    showAddForm(crateAlbumPrefillFromTrack(track));
   });
 
+  nowPlayingAddMenuEl = menu;
+  setTimeout(() => document.addEventListener('click', closeNowPlayingAddMenuOnOutsideClick), 0);
+  return true;
+}
+
+// Credits for one track (the "Name \u2014 Role" lines saved under Edit track
+// properties\u2026 \u2192 Credits), shown in a small popover rather than only inside
+// the album page's tracklist, which is the only other place they appear.
+function openTrackCreditsPopover(item, trackNum, trackName, x, y) {
+  closeNowPlayingAddMenu();
+  const known = trackNum !== '' && trackNum != null;
+  const credits = known ? parseTrackCredits((item.trackData && item.trackData[trackNum] && item.trackData[trackNum].credits) || '') : [];
+
+  const menu = document.createElement('div');
+  menu.className = 'panel-mode-menu now-playing-add-menu track-credits-popover';
+  menu.innerHTML = `
+    <div class="menu-section-title">Credits \u2014 ${escapeHtml(trackName || item.title)}</div>
+    ${credits.length
+      ? `<div class="track-credits-list">${credits.map(c => `<p class="track-credit-entry"><span class="track-credit-name">${escapeHtml(c.name)}</span>${c.role ? `<span class="track-credit-role">${escapeHtml(c.role)}</span>` : ''}</p>`).join('')}</div>`
+      : `<p class="menu-hint">${known ? 'No credits saved for this track yet.' : 'Couldn\u2019t match this track to one in the album\u2019s tracklist, so there are no credits to show.'}</p>`}
+    ${known ? `<div class="menu-divider"></div><button type="button" data-credits-action="edit">${credits.length ? 'Edit credits\u2026' : 'Add credits\u2026'}</button>` : ''}
+  `;
+  document.body.appendChild(menu);
+  positionFloatingMenu(menu, x, y);
+  menu.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-credits-action="edit"]')) return;
+    closeNowPlayingAddMenu();
+    openTrackPropertiesModal(item, trackNum, trackName);
+  });
   nowPlayingAddMenuEl = menu;
   setTimeout(() => document.addEventListener('click', closeNowPlayingAddMenuOnOutsideClick), 0);
 }
@@ -20138,7 +20376,7 @@ function layoutPanelRowHtml(key) {
       <input type="checkbox" checked data-element="${key}" class="layout-row-checkbox">
       ${escapeHtml(def.label)}
     </label>
-    <button type="button" class="config-btn layout-row-configure" data-element="${key}">Panel Settings \u2026</button>
+    ${LAYOUT_ELEMENTS_WITH_SETTINGS.has(key) ? `<button type="button" class="config-btn layout-row-configure" data-element="${key}">Panel Settings \u2026</button>` : ''}
   </div>`;
 }
 function layoutAvailableRowHtml(key, placed) {
@@ -24550,6 +24788,11 @@ html, body {
   /* Right-click "change column" popup for the Tracks table header, and the
      "add what's playing" popup off the mini player / now-playing toast */
   .track-col-menu, .now-playing-add-menu { position: fixed; z-index: 320; max-height: 70vh; overflow-y: auto; }
+  /* Greyed-out entries in the player's track menu ("Not in your crate"). */
+  .panel-mode-menu button:disabled { opacity: 0.4; cursor: default; }
+  .panel-mode-menu button:disabled:hover { background: none; color: var(--text); }
+  .track-credits-popover { max-width: 340px; }
+  .track-credits-list { padding: 6px 14px 8px; display: flex; flex-direction: column; gap: 6px; }
   .track-col-menu .track-col-menu-active { color: var(--accent); }
   .mt-num { color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
   .mt-title { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
