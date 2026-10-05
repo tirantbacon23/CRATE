@@ -13,7 +13,182 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.174
+  CURRENT_VERSION: 1.29.177
+
+  1.29.177 — 2026-10-04 — The tabs are now their own bar at the very top of the
+          window, modeled on MusicBee's tab row, instead of sitting in the
+          CRATE header. Full width, flush to the top edge, above the logo row:
+              ←  →   MUSIC  DIARY  SCROBBLES  STATS  ARTIST  [artist tabs]  +
+          Flat uppercase labels, the active tab brighter with an accent
+          underline (rather than boxed pills).
+
+          - ← / → are real history, like a browser's: every tab you land on is
+            recorded (for an artist tab, which artist), going back and then
+            somewhere new discards "forward", and an artist tab you've since
+            closed is skipped rather than reopened. Disabled at the ends.
+          - + opens a small finder to open any artist in your crate as a new tab
+            (type to narrow — names that start with what you typed first — arrow
+            keys + Enter, Escape or a click elsewhere to dismiss, the + toggles
+            it). Artist tabs are the one kind of tab there is more than one of.
+          - Artist tabs now open AFTER the fixed tabs, just before the +, as in
+            MusicBee (they used to sit between MUSIC and DIARY).
+          - A Player Controls bar docked at the TOP sits above the strip with the
+            strip directly beneath it, as MusicBee's transport does.
+          - On a phone nothing changes: it's the same .nav-tabs element, still the
+            fixed bottom bar with its solid accent pill; the strip dissolves
+            (display: contents) and its arrows/+ aren't shown.
+          - The two window-sized pages (ARTIST and Artist Information) subtract the
+            strip's height so they still fit without a page scrollbar.
+
+          Not wired into ⚙ > Panels configuration: it's a fixed part of the window
+          like the docked player (hiding it would leave no way to navigate, and on
+          a phone it IS the navigation). If you want it listed there, say so.
+
+          Two bugs found on the way, both fixed:
+          1. Closing an artist tab you were NOT on threw you to MUSIC.
+             activeArtistInfoTab is the last artist tab you were on and stays set
+             after you've gone off to Diary/Stats, so the close took the "I closed
+             the tab I'm looking at" branch. Closing a background tab now leaves
+             you where you are, as in a browser.
+          2. (Caught by my own docked-top test, before shipping) my first override
+             of #app's top padding lost to a later, equally specific safe-area rule
+             and left an 11px gap under the player; the test now allows at most 3px.
+
+          Verified in real Chromium (55 checks): position (y=0, full width, above
+          the header), order and styling, every tab still switching its page,
+          history incl. artist tabs and closed ones, the + finder (keyboard,
+          mouse, empty/no-match), page heights, the docked-top case and clicking
+          through it, and the phone bottom bar. Not tested: touch devices with a
+          notch/safe-area at the TOP edge on desktop-width layouts (iPad
+          landscape) — the strip sits at y=0 there.
+
+  1.29.176 — 2026-10-04 — New Main-panel element: Artist Biography, the strip
+          under the grid in the MusicBee reference screenshot. An "Artist
+          Biography" bar, a centred "Simon & Garfunkel  [ 8 plays ]" title,
+          the picture on the left (Wikipedia photo, else the artist's cover)
+          and the biography on the right, scrolling inside the strip rather
+          than growing it. Add it from ⚙ > Panels configuration (it isn't on
+          by default, so nothing changes unless you add it); Main panel only;
+          no "Panel Settings…" button since there's nothing to configure.
+
+          Which artist it shows — what you're BROWSING beats what's playing:
+          the artist picked/filtered in the left panel, a picked album's
+          artist, or a search that has narrowed the grid to a single artist;
+          only if none of those applies, the artist of the track in the player
+          (including a Spotify track that isn't in the crate). Clicking the
+          name or the picture opens that artist's full Artist Information page.
+
+          Same data and rules as the Artist Information page's Profile tab —
+          one shared lookup (aiExt / aiEnsureProfile: MusicBrainz's own link
+          to the artist's Wikipedia page, cached, never a text search), so an
+          artist loaded in either place is instantly available in the other.
+          Every outcome has its own message: no Wikipedia link, not on
+          MusicBrainz, same-named artists (with a button that opens the page
+          on More Albums, where that's settled), unreachable (with Retry).
+          Lookups are DEBOUNCED 600ms: clicking through five artists in a row
+          looks up only the one you stopped on, instead of queueing the
+          MusicBrainz requests for four you'd already moved past (tested: 5
+          artists clicked in one go -> exactly 1 search). A slow response for
+          an artist you've left can't overwrite the one you're on, and going
+          back to a loaded artist costs no new requests.
+
+          On a phone the picture sits small BESIDE the text instead of above
+          it: stacked, the strip was ~500px tall and squeezed the album grid
+          to a sliver (caught from a screenshot, not a test).
+
+          Verified in real Chromium (37 checks, network stubbed to the real
+          MusicBrainz/Wikidata/Wikipedia response shapes): enabling and
+          removing it through the real Panels configuration, placement below
+          the grid, the left-panel/playing/search priority order, all five
+          states, the debounce and the stale-response race, reload
+          persistence of the layout, phone fit. Not verified: the real
+          services (no network here).
+
+  1.29.175 — 2026-10-04 — Artist Information page redesigned to match the
+          MusicBee "Music Explorer" reference screenshots (it was a bare
+          stats line over a grid of covers). Each artist tab is now a full
+          page:
+            - left: an "Album Artist" list of every artist in the crate
+              (thumbnail + "N albums", filterable, current one highlighted;
+              clicking another artist opens/switches to their tab);
+            - header: round photo, large name, a ▶ that plays everything by
+              the artist (discography order, honours Shuffle), "1 play · 1
+              album/ 7 tracks" exactly as in the reference, and a
+              "playing now:" line when what's loaded in the player is theirs;
+            - four sub-tabs, with the decade and main genre ("1970s · Freak
+              Folk") at the right of the bar:
+              Albums & Stats  owned releases as tiles (click = album page,
+                              double-click = play, right-click = the usual
+                              album menu) + TOP TRACKS with per-track play
+                              counts (scrobbles), a Top tracks / Album order
+                              switch, and TOTAL PLAY COUNT; double-click a
+                              track plays it, right-click opens the track menu.
+              More Albums     the artist's MusicBrainz discography as cover
+                              tiles (Cover Art Archive art, placeholder if
+                              missing), owned ones marked, "+ Add" on the
+                              rest, "Show everything" for singles/comps,
+                              a MusicBrainz link, and the same-named-artist
+                              picker.
+              Profile         photo + biography from Wikipedia with Read
+                              More…, a CC BY-SA credit and link, and Top
+                              Tracks (album, time, plays) with View All.
+              Similar Artists other artists IN YOUR CRATE ranked by genre
+                              overlap (position-weighted like the rest of
+                              the app, ancestors in the genre tree at half
+                              weight, shared scene/movement counts). Entirely
+                              local — no service or API key.
+
+          How the biography is found: MusicBrainz's own links for the artist
+          (a direct Wikipedia link, or Wikidata -> its English Wikipedia
+          title), then one Wikipedia query for text + photo. Never a text
+          search, so a common name can't pull in a different person's page; if
+          MusicBrainz has no link it says so and offers a Wikipedia search
+          instead. Results are cached in localStorage (30 days found, 7 days
+          "none"; a transient failure is never cached). Reuses
+          fetchArtistDiscography for the artist match, so same-named artists
+          are settled the same way as on the ARTIST tab.
+
+          THREE PRE-EXISTING BUGS FOUND AND FIXED while building this (all in
+          code the old ARTIST tab already shared):
+          1. Same-named artists never got the "which one is this?" picker. An
+             ambiguous result has no `items`, and `items == null` was tested
+             first, so the ARTIST tab showed "Couldn't reach MusicBrainz right
+             now" + Retry forever instead. Reproduced against the delivered
+             v1.29.174 before changing anything. Fixed in the ARTIST tab and
+             in the new page.
+          2. fetchArtistDiscography reported a FAILED release lookup as "this
+             artist has no releases" and cached that for the session. A failed
+             lookup is now "unreachable" (not cached, Retry really retries).
+          3. ...and an artist MusicBrainz simply doesn't have (common in a
+             personal crate) came back as "unreachable"; it is now a real,
+             cacheable "not found", with its own message on the new page.
+
+          Other things the testing caught: getGenreList returns the
+          placeholder genre 'Unknown' for a release with no genre, which made
+          two untagged artists rank as identical and put "2000s · Unknown" in
+          the header — real tags only now (aiGenresOf); the page shrank to
+          ~790px because a flex item with auto margins fits its contents
+          (width: 100% now); on a phone the sub-tab bar clipped "Similar
+          Artists" (tightened to fit the ~308px the page gets there).
+          computeArtistStats' track count now also uses fetched tracklists
+          (trackCache), not only manually-typed ones, so releases added by
+          lookup no longer read as 0 tracks. Async lookups (tracklists,
+          discography, profile) re-check they're still the page on screen
+          before painting — tested with a deliberately slow response for the
+          artist you've already left.
+
+          Verified in real Chromium (90 checks) with the network stubbed to
+          the real MusicBrainz/Wikidata/Wikipedia response shapes: layout
+          against the reference, every sub-tab, all interactions, failure /
+          not-found / ambiguous / empty paths, reload persistence of the
+          biography cache, a stale-response race, a phone-sized screen.
+          NOT verified: the real MusicBrainz, Wikidata, Wikipedia and Cover
+          Art Archive services (no network here) — the response shapes come
+          from their documented formats, but an unexpected difference would
+          only show up live. Not done: a "Similar Artists" source beyond your
+          own crate (e.g. Last.fm, which needs an API key); the reference's
+          "Get it on iTunes" badge (replaced by a MusicBrainz link); a
+          waveform/spectrum like MusicBee's player chrome.
 
   1.29.174 — 2026-10-03 — Feature: right-click the player's track (art,
           title, artist or album) for a menu on whatever is playing:
@@ -4701,6 +4876,32 @@
 </div>
 
 <div id="app" hidden>
+  <!-- Tab bar — the strip at the very top of the window (MusicBee-style): back /
+       forward, the tabs, "+". Desktop: its own full-width bar above the header. Phone:
+       display: contents, so the .nav-tabs inside stays the fixed bottom bar it always was.
+       Artist tabs open after the fixed ones, just before the "+", as in MusicBee. See
+       initTabBar() / recordTabHistory() / openArtistQuickOpen(). -->
+  <div id="tabBar" class="tab-bar">
+    <div class="tab-bar-history">
+      <button type="button" id="tabBackBtn" class="tab-bar-btn" title="Back" aria-label="Back" disabled>&#8592;</button>
+      <button type="button" id="tabForwardBtn" class="tab-bar-btn" title="Forward" aria-label="Forward" disabled>&#8594;</button>
+    </div>
+    <nav class="nav-tabs" aria-label="View">
+      <button id="tabAlbums" class="nav-tab active">MUSIC</button>
+      <button id="tabDiary" class="nav-tab">DIARY</button>
+      <button id="tabScrobbles" class="nav-tab">SCROBBLES</button>
+      <button id="tabStats" class="nav-tab">STATS</button>
+      <button id="tabArtist" class="nav-tab">ARTIST</button>
+      <!-- Genuine browser-style tabs (Firefox/Chrome, per the reference)
+           rather than one fixed, reused tab — clicking a DIFFERENT artist
+           opens its OWN new tab here, each independently closeable, same
+           as MusicBee's own several simultaneous "Music Explorer" tabs.
+           Empty (nothing rendered) until the first artist's ever been
+           clicked. See renderArtistInfoTabButtons()/openArtistInfoTab(). -->
+      <div id="artistInfoTabsContainer" class="artist-info-tabs-container"></div>
+    </nav>
+    <button type="button" id="tabAddBtn" class="tab-bar-btn tab-bar-add" title="Open an artist in a new tab" aria-label="Open an artist in a new tab">+</button>
+  </div>
   <header class="topbar">
     <!-- Mobile-only: opens the Music/Playlists nav + browse-tree panels as
          an off-canvas drawer (see .mobile-nav-open on #panels below) since
@@ -4712,20 +4913,6 @@
       <p class="tagline">a listening log</p>
     </div>
 
-    <nav class="nav-tabs" aria-label="View">
-      <button id="tabAlbums" class="nav-tab active">MUSIC</button>
-      <!-- Genuine browser-style tabs (Firefox/Chrome, per the reference)
-           rather than one fixed, reused tab — clicking a DIFFERENT artist
-           opens its OWN new tab here, each independently closeable, same
-           as MusicBee's own several simultaneous "Music Explorer" tabs.
-           Empty (nothing rendered) until the first artist's ever been
-           clicked. See renderArtistInfoTabButtons()/openArtistInfoTab(). -->
-      <div id="artistInfoTabsContainer" class="artist-info-tabs-container"></div>
-      <button id="tabDiary" class="nav-tab">DIARY</button>
-      <button id="tabScrobbles" class="nav-tab">SCROBBLES</button>
-      <button id="tabStats" class="nav-tab">STATS</button>
-      <button id="tabArtist" class="nav-tab">ARTIST</button>
-    </nav>
 
     <div class="controls" id="topbarControls">
       <div class="search-wrap" id="searchWrap">
@@ -5033,6 +5220,13 @@
         </label>
         <div id="chartBody" class="chart-body"></div>
       </div>
+      <!-- Artist Biography — picture, "[ N plays ]" and the Wikipedia biography
+           of the artist you're browsing (or, failing that, playing). Main only.
+           See currentArtistForBio()/renderArtistBioElement(). -->
+      <div id="artistBioElement" class="layout-element artist-bio-element" hidden>
+        <div class="panel-bar"><span class="panel-label">Artist Biography</span></div>
+        <div id="artistBioBody" class="artist-bio-wrap"></div>
+      </div>
       <!-- Now Playing Bar, placed in Main instead of its default spot in
            Bottom (the docked mini player) — a simpler, inline read-only
            strip (no transport controls) rather than duplicating the full
@@ -5180,19 +5374,40 @@
     </div>
   </div>
 
-  <!-- Artist Information tab: opened by clicking an artist name in Album
-       Quick Peek (openArtistInfoTab) — stats header for that artist plus
-       all their releases actually owned in this crate, shown as an album
-       covers grid (reuses buildGridSection, same as the Music tab's own
-       grid, just handed a different, independent subset of state.raw —
-       see renderArtistInfoTab()). A second click on a different artist
-       updates this same tab rather than opening another one. -->
+  <!-- Artist Information page — modeled on MusicBee's "Music Explorer" (the
+       reference screenshots): an artist list on the left, and for the chosen
+       artist a header (photo, name, ▶, stats) over four sub-tabs — Albums &
+       Stats, More Albums, Profile, Similar Artists. Opened per artist as a
+       browser-style tab (openArtistInfoTab); everything inside is built by
+       renderArtistInfoTab() and the ai* functions. -->
   <div id="artistInfoWrap" class="artist-info-wrap" hidden>
-    <div class="artist-info-header">
-      <p id="artistInfoName" class="artist-info-name"></p>
-      <p id="artistInfoStats" class="artist-info-stats"></p>
-    </div>
-    <div id="artistInfoGrid" class="artist-info-grid"></div>
+    <aside class="ai-sidebar">
+      <div class="ai-pane-title">Album Artist</div>
+      <input id="aiArtistFilter" class="ai-filter" type="search" placeholder="Find artist…" autocomplete="off" aria-label="Find artist">
+      <div id="aiArtistList" class="ai-artist-list" role="list"></div>
+    </aside>
+    <section class="ai-main">
+      <div class="ai-pane-title">Artist Information</div>
+      <header class="ai-header">
+        <img id="aiAvatar" class="ai-avatar" alt="">
+        <div class="ai-headline">
+          <div class="ai-name-row">
+            <h2 id="artistInfoName" class="ai-name"></h2>
+            <button type="button" id="aiPlayBtn" class="ai-play-btn" title="Play everything by this artist" aria-label="Play everything by this artist">&#9654;</button>
+          </div>
+          <p id="artistInfoStats" class="ai-stats"></p>
+        </div>
+        <p id="aiNowPlaying" class="ai-now-playing"></p>
+      </header>
+      <nav id="aiSubtabs" class="ai-subtabs" role="tablist" aria-label="Artist information sections">
+        <button type="button" role="tab" data-aitab="stats">Albums &amp; Stats</button>
+        <button type="button" role="tab" data-aitab="albums">More Albums</button>
+        <button type="button" role="tab" data-aitab="profile">Profile</button>
+        <button type="button" role="tab" data-aitab="similar">Similar Artists</button>
+        <span id="aiDecadeGenre" class="ai-decade-genre"></span>
+      </nav>
+      <div id="aiBody" class="ai-body"></div>
+    </section>
   </div>
 
   <!-- Artist tab: pick one of your artists and see their full discography
@@ -6257,7 +6472,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.174';
+const APP_VERSION = '1.29.177';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -6519,6 +6734,11 @@ const state = {
   chartGenre: null, // last-selected genre in the Release Chart element (Main panel) — see renderChartElement()
   genreSearchMode: 'loose', // how strictly genre: searches match — 'exact' | 'subgenres' | 'loose', see genreSearchMatches / the ⇅ popover's "Genre search"
   shuffle: false, // player's Shuffle toggle (persisted) — see setShuffle(); applies to the crate queue, standalone YouTube/SoundCloud queues, and Spotify's own album playback
+  tabHistory: [],       // [{tab, artist}] — what the tab bar's back/forward walk (session only)
+  tabHistoryIndex: -1,  // -1 until initTabBar() seeds it
+  artistInfoSubTab: {}, // per artist: which of the page's sub-tabs ('stats'|'albums'|'profile'|'similar') is showing — session only
+  artistInfoTrackSort: 'plays', // Top Tracks order: 'plays' | 'album'
+  artistInfoShowAllTracks: false,
   artistInfoTabs: [], // ordered list of artist names, each an independently open/closeable tab — genuine multi-tab, not one reused tab. See openArtistInfoTab()/closeArtistInfoTab()/renderArtistInfoTabButtons()
   activeArtistInfoTab: null, // which one of artistInfoTabs (if any) is the currently showing one — independent of navFilter (which only ever governs the Music tab's own grid)
   // Ordered element assignments per panel — see LAYOUT_ELEMENTS just above.
@@ -6649,7 +6869,7 @@ const el = {};
 [
   'gridContainer','stateMsg','searchInput','refreshBtn',
   'musicViewElement','genreDescElement','genreDescLabel','genreDescBody','genreDescInput','genreDescSaveBtn',
-  'artistInfoTabsContainer','artistInfoWrap','artistInfoGrid','artistInfoName','artistInfoStats',
+  'tabBar','tabBackBtn','tabForwardBtn','tabAddBtn','artistBioElement','artistBioBody','artistInfoTabsContainer','artistInfoWrap','artistInfoName','artistInfoStats','aiArtistFilter','aiArtistList','aiAvatar','aiPlayBtn','aiNowPlaying','aiSubtabs','aiDecadeGenre','aiBody',
   'nowPlayingBarMainElement','nowPlayingBarMainArt','nowPlayingBarMainTitle','nowPlayingBarMainSub','nowPlayingBarMainSub2',
   'tabAlbums','tabDiary','tabScrobbles','viewGridBtn','viewListBtn','sizeControl','sizeSlider',
   'leftPanel','leftModeBtn','leftModeLabel','leftModeMenu','leftGroupBySection','leftList',
@@ -6888,6 +7108,8 @@ const LAYOUT_ELEMENTS = {
   musicView: { label: 'Music View', panels: ['main'] },
   genreDesc: { label: 'Genre Description', panels: ['main'] },
   chart: { label: 'Release Chart', panels: ['main'] },
+  // The strip under the grid in the MusicBee reference — see renderArtistBioElement().
+  artistBio: { label: 'Artist Biography', panels: ['main'] },
   // Now Playing Bar is display-only (art/title/artist, no transport
   // controls) — Main only, since "Bottom" previously meant something
   // confusing here: the docked player itself, conflating a decorative
@@ -8347,6 +8569,8 @@ function bindEvents() {
   initSeekDrag();
   initLayoutDragDrop();
   initTrackInfoSeek();
+  initArtistInfoPage();
+  initTabBar();
   el.miniPlayerArt.addEventListener('click', () => {
     // On the compact mobile layout, tapping anywhere on the bar (including
     // the art) opens Quick Actions instead — see the el.miniPlayer listener
@@ -8691,7 +8915,7 @@ function bindEvents() {
       }
     }
     if (e.key !== 'Escape') return;
-    closeNowPlayingAddMenu(); closeDeck(); closeQuickActions(); closeAdvSearch(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal(); closeTrackPropertiesModal(); closeTimelineModal(); closeMapModal();
+    closeArtistQuickOpen(); closeNowPlayingAddMenu(); closeDeck(); closeQuickActions(); closeAdvSearch(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal(); closeTrackPropertiesModal(); closeTimelineModal(); closeMapModal();
     setMobileDrawer(null);
     // Deliberately NOT closing the master player here — whichever engine
     // (Spotify or YouTube) is driving it, it's a persistent background
@@ -9357,6 +9581,7 @@ function switchTab(tab) {
   else if (tab === 'scrobbles') renderScrobbles();
   else if (tab === 'stats') renderStats();
   else if (tab === 'artist') renderArtistTab();
+  recordTabHistory();
 }
 
 function applyMainViewMode() {
@@ -10607,6 +10832,7 @@ function applyFiltersSort() {
   state.filtered = list;
   if (state.activeTab === 'albums') renderGrid();
   if (!el.genreDescElement.hidden) renderGenreDescElement(); // stays in sync with whichever genre gets clicked, not just whatever it showed when first enabled
+  if (!el.artistBioElement.hidden) renderArtistBioElement(); // follows the artist you click / filter to
   if (!el.chartElement.hidden) renderChartElement(); // same idea — Release Chart's own genre select also defaults to the left panel's active filter
 }
 
@@ -14649,6 +14875,8 @@ function refreshMiniPlayerMeta() {
   });
   renderTrackInfoPanel(); // no-op if that section isn't on — see its own guard
   refreshNowPlayingBarMain(); // no-op if Now Playing Bar isn't placed in Main — see its own guard
+  aiRefreshNowPlaying();      // the Artist Information page's "playing now:" line
+  if (el.artistBioElement && !el.artistBioElement.hidden) renderArtistBioElement(); // the biography strip falls back to the playing artist
 }
 
 
@@ -15618,7 +15846,10 @@ async function renderArtistDetail() {
   const list = document.getElementById('artistWorksList');
   if (!list) return;
 
-  if (result.items == null) {
+  // An ambiguous match (several MusicBrainz artists with this exact name) carries no `items` at
+  // all, so a bare `items == null` test also matched it and showed "couldn't reach MusicBrainz"
+  // with a Retry button — the "which one is this?" picker below it could never appear.
+  if (result.items == null && !result.ambiguous) {
     list.innerHTML = '<p class="tracklist-status">Couldn\u2019t reach MusicBrainz right now — try again in a moment.</p><button type="button" id="artistWorksRetryBtn" class="config-btn">Retry</button>';
     document.getElementById('artistWorksRetryBtn')?.addEventListener('click', () => renderArtistDetail());
     return;
@@ -15811,15 +16042,28 @@ async function fetchArtistDiscography(artistName, ownedKeys, includeAll = false)
         // told apart, rather than silently defaulting to whichever ranks
         // first in MusicBrainz's search order.
         const withItems = [];
+        let failedLookups = 0;
         for (let i = 0; i < candidates.length; i++) {
           const items = await fetchReleaseGroupsForMbid(candidates[i].id, headers, includeAll);
+          if (items == null) failedLookups++;   // null = the request itself failed (see fetchReleaseGroupsForMbid), unlike [] = a real "no releases"
           if (items && items.length > 0) {
             withItems.push({ mbid: candidates[i].id, disambiguation: candidates[i].disambiguation || '', items });
           }
         }
 
         if (withItems.length === 0) {
-          result = candidates.length ? { items: [], mbid: candidates[0].id } : { items: null };
+          // Three different situations used to collapse into two answers:
+          //  - MusicBrainz answered and has NO artist by this name -> a real, cacheable "not found"
+          //    (items: [] with no mbid). It used to come back as items: null, which every caller
+          //    shows as "Couldn't reach MusicBrainz — retry", wrong for any artist that simply isn't
+          //    on MusicBrainz (common in a personal crate) and it kept retrying them.
+          //  - Every release lookup FAILED -> unreachable (items: null, so it is not cached and a
+          //    retry really retries). It used to fall into the next case, i.e. a network blip was
+          //    reported as "this artist has no releases" AND cached that way for the session.
+          //  - Some answered with an empty list -> a genuine empty discography.
+          if (!candidates.length) result = { items: [], mbid: null };
+          else if (failedLookups === candidates.length) result = { items: null };
+          else result = { items: [], mbid: candidates[0].id };
         } else if (withItems.length === 1) {
           result = { items: withItems[0].items, mbid: withItems[0].mbid };
         } else {
@@ -17171,6 +17415,7 @@ const MAIN_PANEL_ELEMENT_NODES = {
   musicView: () => el.musicViewElement,
   genreDesc: () => el.genreDescElement,
   chart: () => el.chartElement,
+  artistBio: () => el.artistBioElement,
   nowPlayingBar: () => el.nowPlayingBarMainElement
 };
 function applyMainPanelLayout() {
@@ -17185,6 +17430,7 @@ function applyMainPanelLayout() {
   applyPanelTabs('main', order, MAIN_PANEL_ELEMENT_NODES, el.mainPanel);
   if (order.includes('genreDesc')) renderGenreDescElement();
   if (order.includes('chart')) renderChartElement();
+  if (order.includes('artistBio')) renderArtistBioElement();
   if (order.includes('nowPlayingBar')) refreshNowPlayingBarMain();
 }
 
@@ -17239,7 +17485,10 @@ function renderGenreDescElement() {
 // owned here, same as the Music View grid itself shows once filtered.
 function computeArtistStats(artistName) {
   const albums = state.raw.filter(r => r.artist === artistName);
-  const trackCount = albums.reduce((sum, a) => sum + trackTitlesFor(a).length, 0);
+  // trackTitlesFor only knows MANUALLY entered tracklists; once a release's real tracklist has been
+  // fetched (the Artist Information page does that in the background) it's in trackCache, so take
+  // whichever is larger rather than undercounting every release that wasn't typed in by hand.
+  const trackCount = albums.reduce((sum, a) => sum + Math.max(trackTitlesFor(a).length, (state.trackCache[artKey(a)] || []).length), 0);
   const diaryPlays = state.diary.filter(d => d.artist === artistName).length;
   const scrobblePlays = state.scrobbles.filter(s => s.artist === artistName).reduce((sum, s) => sum + (s.playCount || 1), 0);
   return { albumCount: albums.length, trackCount, totalPlays: diaryPlays + scrobblePlays };
@@ -17259,22 +17508,787 @@ function renderArtistInfoTabButtons() {
       <span class="artist-info-tab-close" data-artist="${escapeHtml(artist)}" title="Close" aria-label="Close ${escapeHtml(artist)} tab">\u00d7</span>
     </button>
   `).join('');
+  updateTabHistoryButtons(); // an artist tab opening/closing changes which history entries are still reachable
 }
 
+/* ---------- Artist Information page ----------
+   The page behind each artist tab (see openArtistInfoTab), modeled on
+   MusicBee's "Music Explorer": an artist list on the left; for the chosen
+   artist a header (photo, name, ▶ to play everything, "N plays · N albums/
+   N tracks", the decade and main genre) over four sub-tabs:
+
+     Albums & Stats   the releases you own, plus a Top Tracks list with play
+                      counts (scrobbles per track) and the total.
+     More Albums      the artist's full discography from MusicBrainz, owned
+                      releases marked, the rest one click from "+ Add".
+     Profile          a biography and photo from Wikipedia (found through the
+                      artist's MusicBrainz links), plus Top Tracks.
+     Similar Artists  other artists IN YOUR CRATE ranked by how much their
+                      genres overlap — a taxonomy-aware comparison, so it
+                      needs no external service or API key.
+
+   What it deliberately reuses rather than reimplements: fetchArtistDiscography
+   (MusicBrainz matching, same-named-artist disambiguation, caching), the card
+   artwork system (images carry data-key and applyCachedArtFor fills them),
+   openTrackContextMenu / openAlbumCardContextMenu, playAlbumsReplacingQueue.
+   The older ARTIST tab is untouched.
+
+   Async work (tracklists, discography, profile) can finish after the person has
+   moved on, so every continuation checks it's still the artist/sub-tab being
+   shown (aiBodyToken, and state.activeArtistInfoTab) before painting. */
+const ARTIST_PROFILE_CACHE_KEY = 'crate_artist_profile_cache_v1';
+const ARTIST_PROFILE_TTL_MS = { ok: 30 * 86400000, none: 7 * 86400000 }; // transient failures are never cached
+let aiBodyToken = 0;
+let aiRowsShown = [];            // the track rows currently on screen — click handlers index into this
+let aiAmbiguousResult = null;    // the MusicBrainz "which artist is this?" options currently on screen
+let aiClickTimer = null;         // single-click vs double-click on an album tile
+const aiExternal = new Map();    // artist.toLowerCase() -> { profile, promise }
+const aiTracksLoading = new Set();
+
+function aiOwned(artist) {
+  return state.raw.filter(r => r.artist === artist).sort((a, b) => {
+    const da = dateVal(a.releaseDate), db = dateVal(b.releaseDate);
+    if (da === db) return a.title.localeCompare(b.title);
+    if (da === -Infinity) return 1;           // undated last
+    if (db === -Infinity) return -1;
+    return da - db;
+  });
+}
+function aiYear(item) { const ms = dateVal(item.releaseDate); return ms === -Infinity ? '' : new Date(ms).getUTCFullYear(); }
+function aiSubTab(artist) { return state.artistInfoSubTab[artist] || 'stats'; }
+function aiExt(artist) {
+  const k = artist.toLowerCase();
+  if (!aiExternal.has(k)) aiExternal.set(k, { profile: null, promise: null });
+  return aiExternal.get(k);
+}
+function aiClock(ms) { if (!ms) return ''; const t = Math.round(ms / 1000); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; }
+function aiShowing(artist) { return state.activeTab === 'artistInfo' && state.activeArtistInfoTab === artist; }
+
+// ----- artwork (shares the card system: img.art + data-key) -----
+function aiArtSrc(item) { const c = state.artCache[artKey(item)]; return (c && c.art) || item.cover || placeholderArt(item); }
+function aiArtImg(item, cls) { return `<img class="art ${cls}" data-key="${escapeHtml(artKey(item))}" src="${escapeHtml(aiArtSrc(item))}" alt="" loading="lazy">`; }
+// Same "make sure this item's art is at least requested" guard buildCard uses.
+function aiTouchArt(items) {
+  items.forEach(it => {
+    const key = artKey(it), c = state.artCache[key];
+    const need = it.cover ? (!c || c.art !== it.cover) : !c;
+    if (need && !artFetchInFlight.has(key)) { artFetchInFlight.add(key); fetchArt(it); }
+  });
+}
+
+// The REAL genre tags on a release. getGenreList returns the placeholder ['Unknown'] for a release
+// with no genre at all — right for the genre sidebar, wrong here: two untagged artists would then
+// "share" the genre Unknown and rank as identical, and the header would read "2000s · Unknown".
+function aiGenresOf(r) { const g = combinedGenreStr(r); return g.trim() ? getGenreList(g) : []; }
+
+// ----- the two header facts: "1970s · Freak Folk" -----
+function aiDecadeGenreLabel(owned) {
+  const decades = new Map();
+  owned.forEach(r => { const y = aiYear(r); if (y === '') return; const d = Math.floor(y / 10) * 10; decades.set(d, (decades.get(d) || 0) + 1); });
+  let decade = null, best = 0;
+  [...decades.entries()].sort((a, b) => a[0] - b[0]).forEach(([d, n]) => { if (n > best) { best = n; decade = d; } }); // ties go to the earlier decade
+  const genres = new Map();
+  owned.forEach(r => aiGenresOf(r).forEach((g, i) => {
+    const k = genreTaxonomyKey(g), cur = genres.get(k) || { label: g, w: 0 };
+    cur.w += genrePositionWeight(i); genres.set(k, cur);
+  }));
+  const top = [...genres.values()].sort((a, b) => b.w - a.w)[0];
+  return [decade != null ? `${decade}s` : '', top ? top.label : ''].filter(Boolean).join(' \u00b7 ');
+}
+function aiStatsText(artist) {
+  const s = computeArtistStats(artist);
+  return `${s.totalPlays} play${s.totalPlays === 1 ? '' : 's'} \u00b7 ${s.albumCount} album${s.albumCount === 1 ? '' : 's'}/ ${s.trackCount} track${s.trackCount === 1 ? '' : 's'}`;
+}
+
+// ----- left list -----
+function aiRenderSidebar(current) {
+  const list = el.aiArtistList;
+  if (!list) return;
+  const q = (el.aiArtistFilter.value || '').trim().toLowerCase();
+  const byArtist = new Map();
+  state.raw.forEach(r => { if (!byArtist.has(r.artist)) byArtist.set(r.artist, []); byArtist.get(r.artist).push(r); });
+  const names = [...byArtist.keys()].filter(n => !q || n.toLowerCase().includes(q)).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  const prev = list.scrollTop;
+  list.innerHTML = names.length ? names.map(n => {
+    const rel = byArtist.get(n);
+    return `<div class="ai-artist-row${n === current ? ' active' : ''}" role="listitem" data-artist="${escapeHtml(n)}">
+      <span class="ai-thumb-wrap">${aiArtImg(rel[0], 'ai-thumb')}</span>
+      <span class="ai-artist-text"><span class="ai-artist-name">${escapeHtml(n)}</span><span class="ai-artist-sub">${rel.length} album${rel.length === 1 ? '' : 's'}</span></span>
+    </div>`;
+  }).join('') : '<p class="ai-empty">No artists match.</p>';
+  list.scrollTop = prev;
+  const a = list.querySelector('.ai-artist-row.active');   // keep the current artist in view, scrolling only the list itself
+  if (a) {
+    if (a.offsetTop < list.scrollTop) list.scrollTop = a.offsetTop;
+    else if (a.offsetTop + a.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = a.offsetTop + a.offsetHeight - list.clientHeight;
+  }
+}
+
+// ----- header -----
+function aiSetAvatar(artist, owned) {
+  const img = el.aiAvatar, prof = aiExt(artist).profile;
+  img.dataset.fallback = '';
+  if (prof && prof.status === 'ok' && prof.thumb) {
+    img.classList.remove('art'); img.removeAttribute('data-key');
+    if (img.src !== prof.thumb) img.src = prof.thumb;
+  } else if (owned.length) {
+    img.classList.add('art'); img.dataset.key = artKey(owned[0]); img.src = aiArtSrc(owned[0]);
+  } else {
+    img.classList.remove('art'); img.removeAttribute('data-key'); img.src = placeholderArt({ artist });
+  }
+}
+function aiRenderHeader(artist, owned) {
+  el.artistInfoName.textContent = artist;
+  el.artistInfoStats.textContent = aiStatsText(artist);
+  el.aiDecadeGenre.textContent = aiDecadeGenreLabel(owned);
+  el.aiPlayBtn.disabled = !owned.length;
+  aiSetAvatar(artist, owned);
+  aiRefreshNowPlaying();
+}
+// "playing now:" — shown when what's loaded in the player is by this artist.
+function aiRefreshNowPlaying() {
+  if (!el.aiNowPlaying) return;
+  const artist = state.activeArtistInfoTab;
+  let text = '';
+  if (artist && aiShowing(artist) && !el.miniPlayer.hidden) {
+    const np = resolveNowPlayingForMenu();
+    const sp = activePlayerEngine === 'spotify' ? currentSpotifyTrack : null;
+    const who = np.item ? np.item.artist : ((sp && sp.artists && sp.artists[0] && sp.artists[0].name) || '');
+    if (np.trackName && who && normMatchKey(who) === normMatchKey(artist)) text = `playing now: ${np.trackName}`;
+  }
+  el.aiNowPlaying.textContent = text;
+}
+
+// ----- tracks & play counts -----
+function aiTrackRows(artist) {
+  const rows = [];
+  aiOwned(artist).forEach(item => {
+    let tracks = state.trackCache[artKey(item)];
+    if (!tracks && isManualAlbum(item)) tracks = item.manualTracks.map(t => ({ trackNumber: t.trackNumber, trackName: t.title, trackTimeMillis: null }));
+    (tracks || []).forEach(t => rows.push({
+      item, trackName: t.trackName, trackNum: t.trackNumber != null ? t.trackNumber : '', ms: t.trackTimeMillis || 0,
+      order: rows.length, plays: trackScrobbleCountFor(item.artist, item.title, t.trackName)
+    }));
+  });
+  return rows;
+}
+function aiSortedRows(artist) {
+  const rows = aiTrackRows(artist);
+  if (state.artistInfoTrackSort === 'plays') rows.sort((a, b) => b.plays - a.plays || a.order - b.order);
+  return rows;
+}
+// Real tracklists for releases that haven't had theirs fetched yet (a manually
+// typed one needs no lookup; the rest hit iTunes/MusicBrainz via getTracksFor,
+// which caches). Two at a time, repainting as each pair lands.
+async function aiEnsureTracks(artist) {
+  const missing = aiOwned(artist).filter(it => !state.trackCache[artKey(it)]);
+  if (!missing.length || aiTracksLoading.has(artist)) return;
+  aiTracksLoading.add(artist);
+  try {
+    for (let i = 0; i < missing.length; i += 2) {
+      await Promise.all(missing.slice(i, i + 2).map(it => withHardTimeout(getTracksFor(it), 15000, []).catch(() => [])));
+      if (!aiShowing(artist)) break;   // moved on — the rest loads next time
+      aiRefreshTrackViews(artist);
+    }
+  } finally { aiTracksLoading.delete(artist); }
+  if (aiShowing(artist)) aiRefreshTrackViews(artist);
+}
+function aiRefreshTrackViews(artist) {
+  el.artistInfoStats.textContent = aiStatsText(artist);
+  const sub = aiSubTab(artist);
+  if (sub === 'stats') aiRenderTopTracks(artist);
+  else if (sub === 'profile') aiRenderProfileTracks(artist);
+}
+function aiTrackRowHtml(r, i, withAlbum) {
+  return `<div class="ai-track-row${withAlbum ? ' wide' : ''}" data-i="${i}" title="Double-click to play \u00b7 right-click for more">
+    <span class="ai-track-name">${escapeHtml(r.trackName)}</span>
+    ${withAlbum ? `<span class="ai-track-album">${escapeHtml(r.item.title)}</span><span class="ai-track-time">${aiClock(r.ms)}</span>` : ''}
+    <span class="ai-track-plays${r.plays ? '' : ' zero'}">${r.plays}</span>
+  </div>`;
+}
+function aiRenderTopTracks(artist) {
+  const box = document.getElementById('aiTopTracks');
+  if (!box) return;
+  const rows = aiSortedRows(artist);
+  const limit = state.artistInfoShowAllTracks ? Infinity : 12;
+  aiRowsShown = rows.slice(0, limit);
+  box.innerHTML = aiRowsShown.length
+    ? aiRowsShown.map((r, i) => aiTrackRowHtml(r, i, false)).join('')
+      + (rows.length > 12 ? `<button type="button" class="ai-link-btn ai-more-btn" data-ai-action="${state.artistInfoShowAllTracks ? 'showFewerTracks' : 'showAllTracks'}">${state.artistInfoShowAllTracks ? 'Show fewer' : `Show all ${rows.length} tracks`}</button>` : '')
+    : `<p class="ai-empty">${aiTracksLoading.has(artist) ? 'Loading tracks\u2026' : 'No tracklists known for these releases yet.'}</p>`;
+  const t = document.getElementById('aiTotalPlays');
+  if (t) t.textContent = computeArtistStats(artist).totalPlays;
+}
+
+// ----- Albums & Stats -----
+function aiStatsBodyHtml(owned) {
+  const tiles = owned.length ? owned.map(it => `
+    <div class="ai-album" data-row="${escapeHtml(String(it.row))}" tabindex="0" title="Click to open \u00b7 double-click to play \u00b7 right-click for more">
+      <div class="ai-cover">${aiArtImg(it, 'ai-cover-img')}</div>
+      <div class="ai-album-title">${escapeHtml(it.title)}</div>
+      <div class="ai-album-year">${aiYear(it)}</div>
+    </div>`).join('') : '<p class="ai-empty">No releases by this artist are in your crate.</p>';
+  return `<div class="ai-stats-layout">
+    <div id="artistInfoGrid" class="ai-album-grid">${tiles}</div>
+    <aside class="ai-top-tracks">
+      <label class="ai-top-head"><select id="aiTrackSort" aria-label="Order of the track list">
+        <option value="plays">Top tracks</option><option value="album">Album order</option></select></label>
+      <div id="aiTopTracks" class="ai-track-list"></div>
+      <div class="ai-total"><span>TOTAL PLAY COUNT</span><span id="aiTotalPlays"></span></div>
+    </aside>
+  </div>`;
+}
+
+// ----- More Albums (MusicBrainz discography) -----
+async function aiRenderAlbumsTab(artist, owned, token) {
+  el.aiBody.innerHTML = `<div class="ai-albums-head"><h3 class="ai-h3">${escapeHtml(artist)} Albums</h3>
+      <div class="ai-albums-tools"><button type="button" class="ai-link-btn" data-ai-action="toggleAllTypes">${state.artistShowAllTypes ? 'Albums &amp; EPs only' : 'Show everything (singles, comps\u2026)'}</button><span id="aiMbLink"></span></div></div>
+    <div id="aiRgGrid" class="ai-album-grid"><p class="ai-empty">Looking up ${escapeHtml(artist)}\u2019s discography on MusicBrainz\u2026</p></div>`;
+  const ownedKeys = new Set(owned.map(r => lastfmNormKey(artist, r.title)));
+  const result = await fetchArtistDiscography(artist, ownedKeys, state.artistShowAllTypes);
+  if (token !== aiBodyToken) return;               // sub-tab or artist changed while that was in flight
+  const grid = document.getElementById('aiRgGrid');
+  if (!grid) return;
+  if (result.items == null && !result.ambiguous) {   // ambiguous results carry no items either — see the same fix in renderArtistDetail
+    grid.innerHTML = '<div class="ai-note"><p>Couldn\u2019t reach MusicBrainz right now \u2014 try again in a moment.</p><button type="button" class="config-btn" data-ai-action="retryAlbums">Retry</button></div>';
+    return;
+  }
+  if (result.ambiguous) {
+    aiAmbiguousResult = result;
+    grid.innerHTML = `<div class="ai-note"><p>More than one artist named \u201c${escapeHtml(artist)}\u201d has releases on MusicBrainz \u2014 which one is this?</p>` +
+      result.options.map(opt => {
+        const sample = opt.items.slice(0, 3).map(it => it.title).join(', ');
+        return `<div class="ai-disambig"><div class="ai-disambig-desc">${escapeHtml(opt.disambiguation || 'No description on MusicBrainz')}</div>
+          <div class="ai-disambig-sample">${opt.items.length} release${opt.items.length === 1 ? '' : 's'} \u2014 e.g. ${escapeHtml(sample)}${opt.items.length > 3 ? ', \u2026' : ''}</div>
+          <button type="button" class="config-btn" data-ai-action="pickMbid" data-mbid="${escapeHtml(opt.mbid)}">Use this one</button></div>`;
+      }).join('') + '</div>';
+    return;
+  }
+  const mb = document.getElementById('aiMbLink');
+  if (mb && result.mbid) mb.innerHTML = `<a class="ai-link-btn" href="https://musicbrainz.org/artist/${escapeHtml(result.mbid)}" target="_blank" rel="noopener noreferrer">MusicBrainz \u2197</a>`;
+  if (!result.items.length) {
+    const why = result.mbid ? 'No albums or EPs found on MusicBrainz for this artist.' : `${escapeHtml(artist)} isn\u2019t on MusicBrainz under this name, so there\u2019s no discography to show.`;
+    grid.innerHTML = `<div class="ai-note"><p>${why}</p><button type="button" class="config-btn" data-ai-action="manualAdd">+ Add a release manually</button></div>`;
+    return;
+  }
+  const ownedByKey = new Map(owned.map(r => [lastfmNormKey(artist, r.title), r]));
+  const reset = loadArtistMbidChoice(artist) ? `<div class="ai-note ai-note-inline"><button type="button" class="ai-link-btn" data-ai-action="resetMatch">Not the right ${escapeHtml(artist)}? Reset match</button></div>` : '';
+  grid.innerHTML = reset + result.items.map(w => {
+    const match = ownedByKey.get(lastfmNormKey(artist, w.title));
+    const cover = match ? aiArtImg(match, 'ai-cover-img')
+      : `<img class="ai-cover-img ai-caa" loading="lazy" alt="" src="https://coverartarchive.org/release-group/${escapeHtml(w.id)}/front-250">`;
+    return `<div class="ai-album ai-rg${match ? ' owned' : ''}" data-rg="${escapeHtml(w.id)}" data-title="${escapeHtml(w.title)}" data-type="${escapeHtml(w.type || '')}" data-year="${escapeHtml(w.year || '')}" tabindex="0"
+        title="${match ? 'In your crate \u2014 click to open' : 'Not in your crate \u2014 click to search Spotify'}">
+      <div class="ai-cover">${cover}${match ? '<span class="ai-owned-badge" title="In your crate">\u25cf</span>' : ''}</div>
+      <div class="ai-album-title">${escapeHtml(w.title)}</div>
+      <div class="ai-album-year">${w.year || '\u2014'}${w.type && w.type !== 'Album' ? ` \u00b7 ${escapeHtml(w.type)}` : ''}</div>
+      ${match ? '' : '<button type="button" class="ai-add-btn" data-ai-action="addRg">+ Add</button>'}
+    </div>`;
+  }).join('');
+}
+
+// ----- Profile (Wikipedia, found through MusicBrainz) -----
+function aiLoadProfileCache(mbid) {
+  try {
+    const e = (JSON.parse(localStorage.getItem(ARTIST_PROFILE_CACHE_KEY) || '{}'))[mbid];
+    if (!e || !e.data) return null;
+    const ttl = ARTIST_PROFILE_TTL_MS[e.data.status];
+    return ttl && Date.now() - e.at < ttl ? e.data : null;
+  } catch (err) { return null; }
+}
+function aiSaveProfileCache(mbid, data) {
+  try {
+    const all = JSON.parse(localStorage.getItem(ARTIST_PROFILE_CACHE_KEY) || '{}');
+    all[mbid] = { at: Date.now(), data };
+    const keys = Object.keys(all);
+    if (keys.length > 120) keys.sort((a, b) => all[a].at - all[b].at).slice(0, keys.length - 120).forEach(k => delete all[k]);
+    localStorage.setItem(ARTIST_PROFILE_CACHE_KEY, JSON.stringify(all));
+  } catch (err) { /* storage unavailable/full — it just won't be cached */ }
+}
+// MusicBrainz artist -> its Wikipedia page. MusicBrainz links to Wikipedia
+// directly for some artists and via Wikidata for most; both are handled. The
+// match comes from MusicBrainz's own link, never a text search, so a common
+// name can't pull in a different person's biography. Returns {status:'ok'|'none'|'error'}.
+async function fetchArtistProfile(mbid) {
+  const cached = aiLoadProfileCache(mbid);
+  if (cached) return cached;
+  try {
+    const mbRes = await mbFetch(`https://musicbrainz.org/ws/2/artist/${mbid}?inc=url-rels&fmt=json`, { headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' } });
+    if (!mbRes.ok) return { status: 'error' };
+    const rels = ((await mbRes.json()).relations || []).filter(r => r.url && r.url.resource);
+    let title = null;
+    const wp = rels.find(r => r.type === 'wikipedia' && /^https?:\/\/en\.wikipedia\.org\/wiki\//.test(r.url.resource));
+    if (wp) title = decodeURIComponent(wp.url.resource.replace(/^https?:\/\/en\.wikipedia\.org\/wiki\//, '').split('#')[0]).replace(/_/g, ' ');
+    if (!title) {
+      const wd = rels.find(r => r.type === 'wikidata');
+      const q = wd && wd.url.resource.match(/\/(Q\d+)$/);
+      if (q) {
+        const wRes = await fetch(`https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${q[1]}&props=sitelinks&sitefilter=enwiki&format=json&origin=*`);
+        if (!wRes.ok) return { status: 'error' };
+        const ent = ((await wRes.json()).entities || {})[q[1]];
+        title = ent && ent.sitelinks && ent.sitelinks.enwiki && ent.sitelinks.enwiki.title;
+      }
+    }
+    if (!title) { const none = { status: 'none' }; aiSaveProfileCache(mbid, none); return none; }
+    const url = 'https://en.wikipedia.org/w/api.php?action=query&prop=extracts%7Cpageimages&exintro=1&explaintext=1&redirects=1&piprop=thumbnail&pithumbsize=640&format=json&origin=*&titles=' + encodeURIComponent(title);
+    const res = await fetch(url);
+    if (!res.ok) return { status: 'error' };
+    const pages = ((await res.json()).query || {}).pages || {};
+    const page = Object.values(pages)[0];
+    if (!page || page.missing !== undefined || !page.extract) { const none = { status: 'none' }; aiSaveProfileCache(mbid, none); return none; }
+    const ok = { status: 'ok', title: page.title, extract: page.extract, thumb: (page.thumbnail && page.thumbnail.source) || '', url: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(page.title.replace(/ /g, '_')) };
+    aiSaveProfileCache(mbid, ok);
+    return ok;
+  } catch (err) { return { status: 'error' }; }
+}
+// Finds the MusicBrainz id (through the same discography lookup the More Albums
+// tab uses, which also settles same-named artists) and then the profile.
+function aiEnsureProfile(artist) {
+  const ext = aiExt(artist);
+  if (ext.profile && ext.profile.status !== 'error') return Promise.resolve();
+  if (!ext.promise) {
+    ext.promise = (async () => {
+      const owned = aiOwned(artist);
+      const disco = await fetchArtistDiscography(artist, new Set(owned.map(r => lastfmNormKey(artist, r.title))), false);
+      if (disco.ambiguous) return { status: 'ambiguous' };      // checked first: an ambiguous result has no items either
+      if (disco.items == null) return { status: 'error' };
+      if (!disco.mbid) return { status: 'unmatched' };          // MusicBrainz has no artist by this name
+      return { ...(await fetchArtistProfile(disco.mbid)), mbid: disco.mbid };
+    })().then(p => { ext.profile = p; return p; }).finally(() => { ext.promise = null; });
+  }
+  return ext.promise.then(() => {
+    aiRefreshBioElement(artist);       // the Main-panel biography strip, if it's showing this artist
+    if (!aiShowing(artist)) return;
+    aiSetAvatar(artist, aiOwned(artist));
+    if (aiSubTab(artist) === 'profile') aiRenderBody(artist);
+  });
+}
+function aiBioHtml(text) {
+  return text.split(/\n+/).map(p => p.trim()).filter(Boolean).map(p => `<p>${escapeHtml(p)}</p>`).join('');
+}
+function aiProfileTracksHtml(artist) {
+  const rows = aiSortedRows(artist).slice(0, 5);
+  aiRowsShown = rows;
+  return rows.length ? rows.map((r, i) => aiTrackRowHtml(r, i, true)).join('')
+    : `<p class="ai-empty">${aiTracksLoading.has(artist) ? 'Loading tracks\u2026' : 'No tracklists known for these releases yet.'}</p>`;
+}
+function aiRenderProfileTracks(artist) {
+  const box = document.getElementById('aiProfileTracks');
+  if (box) box.innerHTML = aiProfileTracksHtml(artist);
+}
+function aiRenderProfileTab(artist, owned) {
+  const prof = aiExt(artist).profile;
+  const fallbackCover = owned.length ? `<div class="ai-hero">${aiArtImg(owned[0], 'ai-hero-img')}</div>` : '';
+  let top;
+  if (!prof) {
+    top = `${fallbackCover}<div class="ai-bio"><h3 class="ai-h3">${escapeHtml(artist)}</h3><p class="ai-empty">Loading biography\u2026</p></div>`;
+  } else if (prof.status === 'ok') {
+    const hero = prof.thumb ? `<div class="ai-hero"><img class="ai-hero-img ai-wiki-img" src="${escapeHtml(prof.thumb)}" alt=""></div>` : fallbackCover;
+    top = `${hero}<div class="ai-bio"><h3 class="ai-h3">${escapeHtml(artist)}</h3>
+      <div id="aiBioText" class="ai-bio-text">${aiBioHtml(prof.extract)}</div>
+      <button type="button" id="aiReadMore" class="ai-link-btn" data-ai-action="readMore" hidden>Read More\u2026</button>
+      <p class="ai-bio-source">Text from <a href="${escapeHtml(prof.url)}" target="_blank" rel="noopener noreferrer">Wikipedia</a> (CC BY-SA)</p></div>`;
+  } else {
+    const q = encodeURIComponent(artist);
+    let msg, extra = '';
+    if (prof.status === 'ambiguous') { msg = `More than one artist named \u201c${escapeHtml(artist)}\u201d is on MusicBrainz, so there\u2019s no way to know whose biography to show.`; extra = '<button type="button" class="config-btn" data-ai-action="gotoAlbums">Choose the right one in More Albums</button>'; }
+    else if (prof.status === 'error') { msg = 'Couldn\u2019t reach the biography sources right now.'; extra = '<button type="button" class="config-btn" data-ai-action="retryProfile">Retry</button>'; }
+    else if (prof.status === 'unmatched') { msg = `${escapeHtml(artist)} isn\u2019t on MusicBrainz under this name, so there\u2019s no biography source to look in.`; extra = `<a class="ai-link-btn" href="https://en.wikipedia.org/w/index.php?search=${q}" target="_blank" rel="noopener noreferrer">Search Wikipedia \u2197</a>`; }
+    else { msg = `No Wikipedia page is linked to ${escapeHtml(artist)} on MusicBrainz.`; extra = `<a class="ai-link-btn" href="https://en.wikipedia.org/w/index.php?search=${q}" target="_blank" rel="noopener noreferrer">Search Wikipedia \u2197</a>`; }
+    top = `${fallbackCover}<div class="ai-bio"><h3 class="ai-h3">${escapeHtml(artist)}</h3><div class="ai-note"><p>${msg}</p>${extra}</div></div>`;
+  }
+  el.aiBody.innerHTML = `<div class="ai-profile"><div class="ai-profile-top">${top}</div>
+    <div class="ai-profile-tracks-wrap"><div class="ai-section-row"><h3 class="ai-h3">Top Tracks</h3><button type="button" class="ai-link-btn" data-ai-action="gotoStats">View All \u203a</button></div>
+    <div id="aiProfileTracks" class="ai-track-list">${aiProfileTracksHtml(artist)}</div></div></div>`;
+  const bio = document.getElementById('aiBioText'), more = document.getElementById('aiReadMore');
+  if (bio && more && bio.scrollHeight > bio.clientHeight + 2) more.hidden = false;   // only offer "Read More" when the text is actually clipped
+}
+
+// ----- Similar Artists (within your own crate) -----
+let aiVectorCache = { raw: null, tax: null, rawN: -1, taxN: -1, map: null };
+// One genre-weight vector per artist: each genre counts by the position it holds
+// on the release (first = 1, second = 1/2 … the same convention as everywhere
+// else), its ancestors in the genre tree count half as much, and a shared
+// scene/movement counts too. Normalised so a prolific artist doesn't dominate.
+function aiArtistVectors() {
+  const c = aiVectorCache, taxN = Object.keys(state.genreTaxonomy || {}).length;
+  if (c.map && c.raw === state.raw && c.tax === state.genreTaxonomy && c.rawN === state.raw.length && c.taxN === taxN) return c.map;
+  const map = new Map();
+  state.raw.forEach(r => {
+    if (!map.has(r.artist)) map.set(r.artist, { v: new Map(), labels: new Map(), first: r });
+    const e = map.get(r.artist);
+    const add = (key, label, w) => { e.v.set(key, (e.v.get(key) || 0) + w); if (!e.labels.has(key)) e.labels.set(key, label); };
+    aiGenresOf(r).forEach((g, i) => {
+      const w = genrePositionWeight(i);
+      add(genreTaxonomyKey(g), g, w);
+      getGenreAncestors(state.genreTaxonomy, g).forEach(a => add(genreTaxonomyKey(a), a, w * 0.5));
+    });
+    [['scene', r.scene], ['movement', r.movement]].forEach(([kind, val]) => { if (val && String(val).trim()) add(`${kind}:${String(val).trim().toLowerCase()}`, `${capitalize(kind)}: ${String(val).trim()}`, 0.75); });
+  });
+  map.forEach(e => { let sum = 0; e.v.forEach(x => { sum += x; }); if (sum > 0) e.v.forEach((x, k) => e.v.set(k, x / sum)); });
+  aiVectorCache = { raw: state.raw, tax: state.genreTaxonomy, rawN: state.raw.length, taxN, map };
+  return map;
+}
+function aiSimilarArtists(artist, limit = 16) {
+  const vecs = aiArtistVectors(), me = vecs.get(artist);
+  if (!me || !me.v.size) return null;                 // nothing tagged to compare on
+  const out = [];
+  vecs.forEach((o, name) => {
+    if (name === artist) return;
+    let score = 0; const shared = [];
+    me.v.forEach((w, k) => { const m = Math.min(w, o.v.get(k) || 0); if (m > 0) { score += m; shared.push([m, o.labels.get(k) || me.labels.get(k)]); } });
+    if (score >= 0.05) out.push({ name, score, first: o.first, shared: shared.sort((a, b) => b[0] - a[0]).slice(0, 2).map(x => x[1]) });
+  });
+  return out.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name)).slice(0, limit);
+}
+function aiRenderSimilarTab(artist) {
+  const sim = aiSimilarArtists(artist);
+  let inner;
+  if (sim === null) inner = '<p class="ai-empty">Tag this artist\u2019s releases with genres to find similar artists in your crate.</p>';
+  else if (!sim.length) inner = `<p class="ai-empty">No other artist in your crate shares enough genres with ${escapeHtml(artist)} yet.</p>`;
+  else inner = `<div class="ai-album-grid ai-sim-grid">${sim.map(s => `
+    <div class="ai-album ai-sim" data-ai-action="openArtist" data-artist="${escapeHtml(s.name)}" tabindex="0" title="${Math.round(s.score * 100)}% genre overlap">
+      <div class="ai-cover ai-cover-round">${aiArtImg(s.first, 'ai-cover-img')}</div>
+      <div class="ai-album-title">${escapeHtml(s.name)}</div>
+      <div class="ai-album-year">${escapeHtml(s.shared.join(', '))}</div>
+    </div>`).join('')}</div>`;
+  el.aiBody.innerHTML = `<div class="ai-albums-head"><h3 class="ai-h3">Similar to ${escapeHtml(artist)}</h3><span class="ai-sub-note">In your crate \u00b7 by genre overlap</span></div>${inner}`;
+}
+
+// ----- page assembly -----
+function aiRenderBody(artist) {
+  const owned = aiOwned(artist), token = ++aiBodyToken, sub = aiSubTab(artist);
+  el.aiSubtabs.querySelectorAll('[data-aitab]').forEach(b => {
+    const on = b.dataset.aitab === sub;
+    b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  el.aiBody.scrollTop = 0;
+  aiTouchArt(owned);
+  if (sub === 'stats') {
+    el.aiBody.innerHTML = aiStatsBodyHtml(owned);
+    document.getElementById('aiTrackSort').value = state.artistInfoTrackSort;
+    aiRenderTopTracks(artist);
+  } else if (sub === 'albums') aiRenderAlbumsTab(artist, owned, token);
+  else if (sub === 'profile') aiRenderProfileTab(artist, owned);
+  else aiRenderSimilarTab(artist);
+}
 function renderArtistInfoTab() {
   const artist = state.activeArtistInfoTab;
   if (!artist) return;
-  const s = computeArtistStats(artist);
-  el.artistInfoName.textContent = artist;
-  el.artistInfoStats.textContent = `${s.totalPlays} play${s.totalPlays === 1 ? '' : 's'} \u00b7 ${s.albumCount} album${s.albumCount === 1 ? '' : 's'} / ${s.trackCount} track${s.trackCount === 1 ? '' : 's'}`;
-  // "Below, all the releases that belong to the artist — essentially the
-  // album covers view but for albums belonging to the artist" — reuses
-  // the exact same card-building function the Music tab's own grid uses,
-  // just handed this artist's own subset of state.raw directly rather
-  // than going anywhere near state.filtered/the Music tab's own filter.
-  const albums = state.raw.filter(r => r.artist === artist);
-  el.artistInfoGrid.innerHTML = '';
-  el.artistInfoGrid.appendChild(buildGridSection(albums));
+  const owned = aiOwned(artist);
+  aiRenderSidebar(artist);
+  aiRenderHeader(artist, owned);
+  aiRenderBody(artist);
+  aiEnsureTracks(artist);
+  aiEnsureProfile(artist);
+}
+
+// ----- events (delegated: the body is rebuilt constantly) -----
+function aiAction(action, node, artist) {
+  if (action === 'showAllTracks' || action === 'showFewerTracks') { state.artistInfoShowAllTracks = action === 'showAllTracks'; aiRenderTopTracks(artist); }
+  else if (action === 'toggleAllTypes') { state.artistShowAllTypes = !state.artistShowAllTypes; aiRenderBody(artist); }
+  else if (action === 'retryAlbums') aiRenderBody(artist);
+  else if (action === 'resetMatch') {
+    clearArtistMbidChoice(artist);
+    delete state.artistWorksCache[`${artist.toLowerCase()}::main`]; delete state.artistWorksCache[`${artist.toLowerCase()}::all`];
+    aiExt(artist).profile = null; aiEnsureProfile(artist);
+    aiRenderBody(artist);
+  } else if (action === 'pickMbid') {
+    const chosen = aiAmbiguousResult && aiAmbiguousResult.options.find(o => o.mbid === node.dataset.mbid);
+    if (!chosen) return;
+    saveArtistMbidChoice(artist, chosen.mbid);
+    state.artistWorksCache[`${artist.toLowerCase()}::${state.artistShowAllTypes ? 'all' : 'main'}`] = { items: chosen.items, mbid: chosen.mbid, fetchedAt: Date.now() };
+    aiExt(artist).profile = null; aiEnsureProfile(artist);
+    aiRenderBody(artist);
+  } else if (action === 'manualAdd') { openAddModal(); showAddForm({ artist }); }
+  else if (action === 'addRg') {
+    const t = node.closest('.ai-rg');
+    openAddModalForReleaseGroup({ artist, title: t.dataset.title, type: t.dataset.type, releaseDate: t.dataset.year || '', rgId: t.dataset.rg || '' });
+  } else if (action === 'readMore') {
+    const open = document.getElementById('aiBioText').classList.toggle('expanded');
+    node.textContent = open ? 'Show less' : 'Read More\u2026';
+  } else if (action === 'retryProfile') { aiExt(artist).profile = null; aiRenderBody(artist); aiEnsureProfile(artist); }
+  else if (action === 'gotoAlbums') { state.artistInfoSubTab[artist] = 'albums'; aiRenderBody(artist); }
+  else if (action === 'gotoStats') { state.artistInfoSubTab[artist] = 'stats'; aiRenderBody(artist); }
+  else if (action === 'openArtist') openArtistInfoTab(node.dataset.artist);
+}
+function aiBodyClick(e) {
+  const artist = state.activeArtistInfoTab;
+  if (!artist) return;
+  const act = e.target.closest('[data-ai-action]');
+  if (act) { aiAction(act.dataset.aiAction, act, artist); return; }
+  const rg = e.target.closest('.ai-rg');
+  if (rg) {
+    const match = aiOwned(artist).find(r => lastfmNormKey(artist, r.title) === lastfmNormKey(artist, rg.dataset.title));
+    if (match) openDeck(match); else window.open(spotifySearchUrl({ artist, title: rg.dataset.title }), '_blank', 'noopener,noreferrer');
+    return;
+  }
+  const tile = e.target.closest('.ai-album');
+  if (tile && tile.dataset.row !== undefined) {
+    // Wait out a possible double-click (which plays the album) before opening the album page.
+    clearTimeout(aiClickTimer);
+    aiClickTimer = setTimeout(() => { const it = state.raw.find(r => String(r.row) === tile.dataset.row); if (it) openDeck(it); }, 260);
+  }
+}
+function aiBodyDblClick(e) {
+  const tile = e.target.closest('.ai-album');
+  if (tile && tile.dataset.row !== undefined) {
+    clearTimeout(aiClickTimer);
+    const it = state.raw.find(r => String(r.row) === tile.dataset.row);
+    if (it) playAlbumReplacingQueue(it);
+    return;
+  }
+  const row = e.target.closest('.ai-track-row');
+  if (row && aiRowsShown[+row.dataset.i]) { const r = aiRowsShown[+row.dataset.i]; playTrackNow(r.item, r.trackName, r.trackNum); }
+}
+function aiBodyContextMenu(e) {
+  const tile = e.target.closest('.ai-album');
+  if (tile && tile.dataset.row !== undefined) {
+    const it = state.raw.find(r => String(r.row) === tile.dataset.row);
+    if (it) { e.preventDefault(); openAlbumCardContextMenu(it, e.clientX, e.clientY); }
+    return;
+  }
+  const row = e.target.closest('.ai-track-row');
+  if (row && aiRowsShown[+row.dataset.i]) { const r = aiRowsShown[+row.dataset.i]; e.preventDefault(); openTrackContextMenu(r.item, r.trackName, e.clientX, e.clientY, r.trackNum); }
+}
+/* ---------- Artist Biography (Main-panel element) ----------
+   The strip under the grid in the MusicBee reference: an "Artist Biography" bar,
+   a centred "Simon & Garfunkel  [ 8 plays ]" title, the picture on the left and
+   the biography on the right. Same data and the same rules as the Artist
+   Information page's Profile tab (aiExt/aiEnsureProfile — MusicBrainz's own link
+   to the artist's Wikipedia page, cached), just surfaced where you're already
+   browsing. Clicking the name or picture opens the full artist page.
+
+   Which artist? What you're BROWSING wins over what's playing, since the point
+   is to read about what you've just clicked: an artist picked/filtered in the
+   left panel, a picked album's artist, or a search that has narrowed the grid to
+   one artist; only then the artist of the track in the player.
+
+   Lookups are debounced: clicking quickly through ten artists must not queue
+   thirty MusicBrainz requests for artists you've already moved past. */
+let aiBioTimer = null;
+
+function currentArtistForBio() {
+  const nf = state.navFilter;
+  if (nf && nf.mode === 'artist') return nf.value;
+  if (nf && nf.mode === 'album') { const it = state.raw.find(r => String(r.row) === String(nf.value)); if (it) return it.artist; }
+  if (state.filtered.length && state.filtered.length < state.raw.length) {
+    const a = state.filtered[0].artist;
+    if (state.filtered.every(r => r.artist === a)) return a;
+  }
+  if (el.miniPlayer && !el.miniPlayer.hidden) {
+    const np = resolveNowPlayingForMenu();
+    if (np.item) return np.item.artist;
+    const sp = activePlayerEngine === 'spotify' ? currentSpotifyTrack : null;
+    const name = sp && sp.artists && sp.artists[0] && sp.artists[0].name;
+    if (name) return name;
+  }
+  return '';
+}
+function aiScheduleBioLookup(artist) {
+  clearTimeout(aiBioTimer);
+  aiBioTimer = setTimeout(() => {
+    if (el.artistBioElement && !el.artistBioElement.hidden && el.artistBioElement.dataset.artist === artist) aiEnsureProfile(artist);
+  }, 600);
+}
+function aiRefreshBioElement(artist) {
+  if (el.artistBioElement && !el.artistBioElement.hidden && el.artistBioElement.dataset.artist === artist) renderArtistBioElement();
+}
+function renderArtistBioElement() {
+  const host = el.artistBioElement, box = el.artistBioBody;
+  if (!host || !box || host.hidden) return;
+  const artist = currentArtistForBio();
+  host.dataset.artist = artist;
+  if (!artist) {
+    box.innerHTML = '<p class="artist-bio-note">Pick an artist in the left panel \u2014 or play something \u2014 to see their biography here.</p>';
+    return;
+  }
+  const prof = aiExt(artist).profile, owned = aiOwned(artist);
+  const cover = owned.length ? aiArtImg(owned[0], 'artist-bio-img') : '';
+  const q = encodeURIComponent(artist);
+  let picture = cover, text;
+  if (!prof) {
+    text = '<p class="artist-bio-note">Loading biography\u2026</p>';
+    aiScheduleBioLookup(artist);
+  } else if (prof.status === 'ok') {
+    if (prof.thumb) picture = `<img class="artist-bio-img" src="${escapeHtml(prof.thumb)}" alt="">`;
+    text = `<div class="artist-bio-text">${aiBioHtml(prof.extract)}<p class="artist-bio-source">Text from <a href="${escapeHtml(prof.url)}" target="_blank" rel="noopener noreferrer">Wikipedia</a> (CC BY-SA)</p></div>`;
+  } else if (prof.status === 'ambiguous') {
+    text = `<p class="artist-bio-note">More than one artist named \u201c${escapeHtml(artist)}\u201d is on MusicBrainz, so there\u2019s no way to know whose biography to show.</p><button type="button" class="ai-link-btn" data-bio-action="chooseArtist">Choose the right one</button>`;
+  } else if (prof.status === 'error') {
+    text = '<p class="artist-bio-note">Couldn\u2019t reach the biography sources right now.</p><button type="button" class="ai-link-btn" data-bio-action="retry">Retry</button>';
+  } else if (prof.status === 'unmatched') {
+    text = `<p class="artist-bio-note">${escapeHtml(artist)} isn\u2019t on MusicBrainz under this name, so there\u2019s no biography source to look in. <a class="ai-link-btn" href="https://en.wikipedia.org/w/index.php?search=${q}" target="_blank" rel="noopener noreferrer">Search Wikipedia \u2197</a></p>`;
+  } else {
+    text = `<p class="artist-bio-note">No Wikipedia page is linked to ${escapeHtml(artist)} on MusicBrainz. <a class="ai-link-btn" href="https://en.wikipedia.org/w/index.php?search=${q}" target="_blank" rel="noopener noreferrer">Search Wikipedia \u2197</a></p>`;
+  }
+  const n = computeArtistStats(artist).totalPlays;
+  box.innerHTML = `<div class="artist-bio-title"><button type="button" class="artist-bio-name" data-bio-action="openArtist" title="Open the full artist page">${escapeHtml(artist)}</button><span class="artist-bio-plays">[ ${n} play${n === 1 ? '' : 's'} ]</span></div>
+    <div class="artist-bio-main">${picture ? `<div class="artist-bio-pic" data-bio-action="openArtist" title="Open the full artist page">${picture}</div>` : ''}<div class="artist-bio-body">${text}</div></div>`;
+}
+function aiBioClick(e) {
+  const a = e.target.closest('[data-bio-action]');
+  const artist = el.artistBioElement && el.artistBioElement.dataset.artist;
+  if (!a || !artist) return;
+  const act = a.dataset.bioAction;
+  if (act === 'openArtist') openArtistInfoTab(artist);
+  else if (act === 'chooseArtist') { state.artistInfoSubTab[artist] = 'albums'; openArtistInfoTab(artist); }
+  else if (act === 'retry') { aiExt(artist).profile = null; renderArtistBioElement(); }   // the render schedules the new lookup
+}
+
+/* ---------- Tab bar ----------
+   The strip at the very top of the window (modeled on MusicBee's tab row):
+   back / forward arrows, the tabs, then a "+". On desktop it is its own
+   full-width bar above the header; on a phone it stays the fixed bottom bar it
+   always was (it is the same .nav-tabs element — only the desktop styling moved).
+
+   Back / forward are real history, like a browser's: every tab you land on is
+   recorded (for an artist tab, which artist), going back and then somewhere new
+   discards the "forward" entries, and an artist tab you've since CLOSED is skipped
+   rather than reopened. The "+" opens a small finder to open any artist in your
+   crate as a new tab — the one kind of tab there is more than one of. */
+let tabHistoryNavigating = false;
+let tabQuickOpenEl = null;
+
+function tabHistoryEntry() {
+  return { tab: state.activeTab, artist: state.activeTab === 'artistInfo' ? state.activeArtistInfoTab : null };
+}
+function tabHistoryEntryValid(e) { return e.tab !== 'artistInfo' || state.artistInfoTabs.includes(e.artist); }
+function recordTabHistory() {
+  if (tabHistoryNavigating || state.tabHistoryIndex < 0) return;   // index < 0: not seeded yet (still starting up)
+  const e = tabHistoryEntry(), h = state.tabHistory, last = h[state.tabHistoryIndex];
+  if (last && last.tab === e.tab && last.artist === e.artist) { updateTabHistoryButtons(); return; }
+  h.splice(state.tabHistoryIndex + 1);                // going somewhere new discards "forward", as a browser does
+  h.push(e);
+  if (h.length > 60) h.shift();
+  state.tabHistoryIndex = h.length - 1;
+  updateTabHistoryButtons();
+}
+function tabHistoryHas(delta) {
+  for (let i = state.tabHistoryIndex + delta; i >= 0 && i < state.tabHistory.length; i += delta) {
+    if (tabHistoryEntryValid(state.tabHistory[i])) return true;
+  }
+  return false;
+}
+function updateTabHistoryButtons() {
+  if (!el.tabBackBtn) return;
+  el.tabBackBtn.disabled = !tabHistoryHas(-1);
+  el.tabForwardBtn.disabled = !tabHistoryHas(1);
+}
+function navigateTabHistory(delta) {
+  let i = state.tabHistoryIndex + delta;
+  while (i >= 0 && i < state.tabHistory.length && !tabHistoryEntryValid(state.tabHistory[i])) i += delta;   // skip closed artist tabs
+  if (i < 0 || i >= state.tabHistory.length) return;
+  const e = state.tabHistory[i];
+  state.tabHistoryIndex = i;
+  tabHistoryNavigating = true;
+  try {
+    if (e.tab === 'artistInfo') { state.activeArtistInfoTab = e.artist; renderArtistInfoTabButtons(); }
+    switchTab(e.tab);
+  } finally { tabHistoryNavigating = false; }
+  updateTabHistoryButtons();
+}
+
+// ----- "+" : open an artist as a new tab -----
+function closeArtistQuickOpen() {
+  if (!tabQuickOpenEl) return;
+  tabQuickOpenEl.remove(); tabQuickOpenEl = null;
+  document.removeEventListener('mousedown', quickOpenOutside, true);
+}
+function quickOpenOutside(e) {
+  // the + button itself is excluded so its own click can toggle the finder closed rather than close-then-reopen it
+  if (tabQuickOpenEl && !tabQuickOpenEl.contains(e.target) && !e.target.closest('#tabAddBtn')) closeArtistQuickOpen();
+}
+function openArtistQuickOpen() {
+  if (tabQuickOpenEl) { closeArtistQuickOpen(); return; }
+  const counts = new Map();
+  state.raw.forEach(r => counts.set(r.artist, (counts.get(r.artist) || 0) + 1));
+  const names = [...counts.keys()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  const menu = document.createElement('div');
+  menu.className = 'tab-quick-open';
+  menu.setAttribute('role', 'dialog'); menu.setAttribute('aria-label', 'Open artist');
+  menu.innerHTML = '<input type="search" class="tab-quick-open-input" placeholder="Open artist\u2026" autocomplete="off" aria-label="Open artist"><div class="tab-quick-open-list" role="listbox"></div>';
+  document.body.appendChild(menu);
+  tabQuickOpenEl = menu;
+  const r = el.tabAddBtn.getBoundingClientRect();
+  menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 280)) + 'px';
+  menu.style.top = (r.bottom + 6) + 'px';
+  const input = menu.querySelector('input'), list = menu.querySelector('.tab-quick-open-list');
+  let active = 0, shown = [];
+  const render = () => {
+    const q = input.value.trim().toLowerCase();
+    // names that START with what's typed come before ones that merely contain it
+    shown = names.filter(n => !q || n.toLowerCase().includes(q))
+      .sort((a, b) => (b.toLowerCase().startsWith(q) - a.toLowerCase().startsWith(q))).slice(0, 12);
+    active = Math.min(active, Math.max(0, shown.length - 1));
+    list.innerHTML = shown.length
+      ? shown.map((n, i) => `<button type="button" role="option" class="tab-quick-open-item${i === active ? ' active' : ''}" data-artist="${escapeHtml(n)}"><span>${escapeHtml(n)}</span><small>${counts.get(n)} album${counts.get(n) === 1 ? '' : 's'}</small></button>`).join('')
+      : `<p class="tab-quick-open-empty">${names.length ? 'No artist matches.' : 'No artists in your crate yet.'}</p>`;
+  };
+  const open = (name) => { closeArtistQuickOpen(); openArtistInfoTab(name); };
+  input.addEventListener('input', () => { active = 0; render(); });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); active = Math.min(shown.length - 1, active + 1); render(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(0, active - 1); render(); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (shown[active]) open(shown[active]); }
+    else if (e.key === 'Escape') { e.preventDefault(); closeArtistQuickOpen(); el.tabAddBtn.focus(); }
+  });
+  list.addEventListener('click', (e) => { const b = e.target.closest('[data-artist]'); if (b) open(b.dataset.artist); });
+  document.addEventListener('mousedown', quickOpenOutside, true);
+  render();
+  input.focus();
+}
+
+function initTabBar() {
+  if (!el.tabBar) return;
+  state.tabHistory = [tabHistoryEntry()];     // seed with wherever the app starts, so "back" has somewhere to go
+  state.tabHistoryIndex = 0;
+  updateTabHistoryButtons();
+  el.tabBackBtn.addEventListener('click', () => navigateTabHistory(-1));
+  el.tabForwardBtn.addEventListener('click', () => navigateTabHistory(1));
+  el.tabAddBtn.addEventListener('click', openArtistQuickOpen);
+}
+
+function initArtistInfoPage() {
+  if (el.artistBioBody) el.artistBioBody.addEventListener('click', aiBioClick);
+  if (!el.artistInfoWrap) return;
+  el.aiArtistFilter.addEventListener('input', debounce(() => aiRenderSidebar(state.activeArtistInfoTab), 120));
+  el.aiArtistList.addEventListener('click', (e) => { const row = e.target.closest('.ai-artist-row'); if (row) openArtistInfoTab(row.dataset.artist); });
+  el.aiSubtabs.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-aitab]'), a = state.activeArtistInfoTab;
+    if (!b || !a) return;
+    state.artistInfoSubTab[a] = b.dataset.aitab;
+    aiRenderBody(a);
+  });
+  el.aiPlayBtn.addEventListener('click', () => {
+    const owned = state.activeArtistInfoTab ? aiOwned(state.activeArtistInfoTab) : [];
+    if (owned.length) playAlbumsReplacingQueue(owned);   // discography order; honours Shuffle
+  });
+  el.aiBody.addEventListener('click', aiBodyClick);
+  el.aiBody.addEventListener('dblclick', aiBodyDblClick);
+  el.aiBody.addEventListener('contextmenu', aiBodyContextMenu);
+  el.aiBody.addEventListener('change', (e) => {
+    if (e.target.id !== 'aiTrackSort') return;
+    state.artistInfoTrackSort = e.target.value;
+    if (state.activeArtistInfoTab) aiRenderTopTracks(state.activeArtistInfoTab);
+  });
+  // A Cover Art Archive tile with no art (404) or a dead Wikipedia photo falls back
+  // instead of showing a broken-image icon. 'error' doesn't bubble, hence capture.
+  el.aiBody.addEventListener('error', (e) => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement)) return;
+    if (img.classList.contains('ai-caa')) {
+      img.classList.remove('ai-caa');
+      const t = img.closest('.ai-album');
+      img.src = placeholderArt({ artist: (t && t.dataset.title) || '?' });
+    } else if (img.classList.contains('ai-wiki-img')) img.closest('.ai-hero').remove();
+  }, true);
+  el.aiAvatar.addEventListener('error', () => {
+    if (el.aiAvatar.dataset.fallback) return;          // never loop
+    el.aiAvatar.dataset.fallback = '1';
+    const owned = state.activeArtistInfoTab ? aiOwned(state.activeArtistInfoTab) : [];
+    el.aiAvatar.src = owned.length ? aiArtSrc(owned[0]) : placeholderArt({ artist: state.activeArtistInfoTab || '?' });
+  });
 }
 
 // Opens a tab for the given artist — the actual entry point clicking an
@@ -17299,16 +18313,19 @@ function closeArtistInfoTab(artistName) {
   const idx = state.artistInfoTabs.indexOf(artistName);
   if (idx === -1) return;
   state.artistInfoTabs.splice(idx, 1);
+  // activeArtistInfoTab is the LAST artist tab you were on, and stays set after you've gone off to
+  // Diary or Stats. Closing it from there used to take the "I closed the tab I'm looking at" branch
+  // and throw you to MUSIC; closing a background tab must leave you where you are, as in a browser.
+  const wasShowing = state.activeTab === 'artistInfo' && state.activeArtistInfoTab === artistName;
   if (state.activeArtistInfoTab === artistName) {
     if (state.artistInfoTabs.length) {
       state.activeArtistInfoTab = state.artistInfoTabs[Math.max(0, idx - 1)];
       renderArtistInfoTabButtons();
-      switchTab('artistInfo');
-      renderArtistInfoTab();
+      if (wasShowing) { switchTab('artistInfo'); renderArtistInfoTab(); }
       return;
     }
     state.activeArtistInfoTab = null;
-    switchTab('albums');
+    if (wasShowing) switchTab('albums');
   }
   renderArtistInfoTabButtons();
 }
@@ -25125,7 +26142,7 @@ html, body {
   .stats-bar-count { font-size: 11.5px; color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; text-align: right; }
 
   /* ---- Artist tab ---- */
-  .artist-wrap { display: flex; gap: 0; height: calc(100vh - 150px); max-width: 1100px; margin: 0 auto; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .artist-wrap { display: flex; gap: 0; height: calc(100vh - 150px - var(--tab-bar-h, 0px)); max-width: 1100px; margin: 0 auto; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
   .artist-wrap[hidden] { display: none; }
   .artist-sidebar { width: 260px; flex: 0 0 260px; border-right: 1px solid var(--line); display: flex; flex-direction: column; background: var(--bg-elevated); }
   .artist-sidebar input {
@@ -25568,14 +26585,195 @@ html, body {
   }
   .quick-peek-artist-link:hover { color: var(--accent); text-decoration: underline; }
 
-  /* Artist Information (Main panel element) */
-  .artist-info-wrap { max-width: 1100px; margin: 0 auto; }
-  .artist-info-header { padding: 0 0 16px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
-  .artist-info-name { margin: 0; font-size: 22px; font-weight: 700; color: var(--text); }
-  .artist-info-stats { margin: 6px 0 0; font-size: 12.5px; color: var(--text-dim); }
-  /* No grid-layout rules needed here — buildGridSection() returns its own
-     .grid div (already styled for this app's existing Music tab grid),
-     just appended straight into this wrapper as-is. */
+  /* Artist Biography (Main-panel element) — the strip under the grid in the MusicBee reference */
+  .artist-bio-wrap { padding: 8px 14px 12px; }
+  .artist-bio-title { display: flex; justify-content: center; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+  .artist-bio-name { background: none; border: none; padding: 0; font: 700 13px 'Inter', sans-serif; color: var(--text); cursor: pointer; }
+  .artist-bio-name:hover { color: var(--accent); }
+  .artist-bio-plays { font: 12px 'IBM Plex Mono', monospace; color: var(--text-dim); }
+  .artist-bio-main { display: flex; gap: 16px; align-items: flex-start; max-height: 190px; }
+  .artist-bio-pic { flex: 0 0 170px; width: 170px; height: 170px; background: var(--bg-card); border-radius: 3px; overflow: hidden; cursor: pointer; }
+  .artist-bio-pic .artist-bio-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .artist-bio-body { flex: 1; min-width: 0; max-height: 190px; overflow-y: auto; }
+  .artist-bio-text p { margin: 0 0 10px; font-size: 12.5px; line-height: 1.5; color: var(--text-dim); }
+  .artist-bio-text .artist-bio-source { margin: 0; font-size: 11px; }
+  .artist-bio-source a { color: var(--text-dim); }
+  .artist-bio-note { margin: 0 0 8px; font-size: 13px; color: var(--text-dim); }
+  @media (max-width: 900px) {
+    /* Small and BESIDE the text, not stacked above it: a stacked strip is ~500px tall on a phone and squeezes the album grid above it down to a sliver. */
+    .artist-bio-wrap { padding: 6px 10px 10px; }
+    .artist-bio-main { gap: 10px; max-height: 150px; }
+    .artist-bio-pic { flex: 0 0 84px; width: 84px; height: 84px; }
+    .artist-bio-body { max-height: 150px; }
+  }
+
+  /* ---- Tab bar: the window's very top strip, MusicBee-style ----
+     Desktop only below; on a phone .tab-bar is display: contents (see the mobile block),
+     so the .nav-tabs inside it keeps being the fixed bottom bar it always was.
+     --tab-bar-h is how much taller everything below it now starts than before the bar
+     existed (38px strip + 14px gap - the 24px #app padding it overlaps) — pages sized to
+     the window (calc(100vh - 150px) …) subtract it. */
+  :root { --tab-bar-h: 28px; }
+  .tab-bar-btn { background: none; border: none; color: var(--text-dim); height: 38px; min-width: 30px; padding: 0 6px; font-size: 16px; line-height: 1; cursor: pointer; flex: 0 0 auto; }
+  .tab-bar-btn:hover:not(:disabled) { color: var(--accent); }
+  .tab-bar-btn:disabled { opacity: 0.3; cursor: default; }
+  .tab-bar-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .tab-bar-add { font-size: 19px; }
+  .tab-bar-history { display: flex; align-items: stretch; margin-right: 6px; }
+  @media (min-width: 901px) {
+    .tab-bar { display: flex; align-items: stretch; gap: 2px; flex: 0 0 auto; height: 38px; margin: -24px -40px 14px; padding: 0 12px 0 10px;
+      background: var(--bg-elevated); border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+    .tab-bar::-webkit-scrollbar { display: none; }
+    .tab-bar .nav-tabs { align-self: stretch; gap: 0; flex: 0 0 auto; }
+    .tab-bar .nav-tab { display: inline-flex; align-items: center; height: 38px; box-sizing: border-box; padding: 0 16px; border-radius: 0;
+      background: none; color: var(--text-dim); font-size: 12px; letter-spacing: 0.7px; }
+    .tab-bar .nav-tab:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+    .tab-bar .nav-tab.active { color: var(--text); background: var(--bg); box-shadow: inset 0 -2px 0 var(--accent); }
+    .tab-bar .artist-info-tab-btn { padding-right: 10px; }
+    /* A Player Controls bar docked at the TOP sits above the tab strip, as MusicBee's transport does: the
+       strip starts right under the bar (85px tall) instead of overlapping it. The leading `html` is
+       deliberate: a later, equally specific safe-area rule for this same state (padding-top: 96px) would
+       otherwise win by source order and leave an 11px gap. */
+    html body:has(.mini-player.docked-top) #app { padding-top: 85px; }
+    body:has(.mini-player.docked-top) .tab-bar { margin-top: 0; }
+    body:has(.mini-player.docked-top) { --tab-bar-h: 38px; }
+  }
+  .tab-quick-open { position: fixed; z-index: 320; width: 270px; padding: 8px; background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 12px 28px rgba(0,0,0,0.45); }
+  .tab-quick-open-input { width: 100%; box-sizing: border-box; background: var(--bg); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 7px 10px; font: 13px 'Inter', sans-serif; outline: none; }
+  .tab-quick-open-input:focus { border-color: var(--accent); }
+  .tab-quick-open-list { margin-top: 6px; max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; }
+  .tab-quick-open-item { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; width: 100%; text-align: left; background: none; border: none; color: var(--text); padding: 7px 8px; border-radius: 5px; cursor: pointer; font: 13px 'Inter', sans-serif; }
+  .tab-quick-open-item span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tab-quick-open-item small { flex: 0 0 auto; color: var(--text-dim); font: 11px 'IBM Plex Mono', monospace; }
+  .tab-quick-open-item:hover, .tab-quick-open-item.active { background: var(--bg-card); color: var(--accent); }
+  .tab-quick-open-empty { margin: 8px; font-size: 12.5px; color: var(--text-dim); }
+
+  /* ---- Artist Information page (see the "Artist Information page" block in the script) ----
+     Two-column like MusicBee's Music Explorer: artist list | the chosen artist.
+     Every image rule uses a compound selector on purpose: .art's own
+     width/height/object-fit (shared with the grid cards) has equal specificity
+     to a plain class and would silently win — the cascade trap hit repeatedly
+     in this file. */
+  .artist-info-wrap { display: flex; width: 100%; box-sizing: border-box; height: calc(100vh - 150px - var(--tab-bar-h, 0px)); max-width: 1500px; margin: 0 auto; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--bg); }
+  .ai-pane-title { padding: 9px 14px; font-size: 12px; font-weight: 700; letter-spacing: 0.2px; color: var(--text); border-bottom: 1px solid var(--line); background: var(--bg-elevated); flex: 0 0 auto; }
+
+  .ai-sidebar { flex: 0 0 245px; width: 245px; min-height: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); background: var(--bg-elevated); }
+  .ai-filter { margin: 10px; width: calc(100% - 20px); box-sizing: border-box; background: var(--bg); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 7px 10px; font: 13px 'Inter', sans-serif; outline: none; }
+  .ai-filter:focus { border-color: var(--accent); }
+  .ai-artist-list { flex: 1; min-height: 0; overflow-y: auto; position: relative; padding-bottom: 8px; }
+  .ai-artist-row { display: flex; align-items: center; gap: 10px; padding: 6px 12px; cursor: pointer; }
+  .ai-artist-row:hover { background: var(--bg-card); }
+  .ai-artist-row.active { background: var(--bg-card); box-shadow: inset 2px 0 0 var(--accent); }
+  .ai-artist-row .ai-thumb-wrap { flex: 0 0 40px; width: 40px; height: 40px; border-radius: 3px; overflow: hidden; background: var(--bg); }
+  .ai-artist-row .ai-thumb-wrap .ai-thumb { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ai-artist-text { min-width: 0; display: flex; flex-direction: column; }
+  .ai-artist-name { font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ai-artist-row.active .ai-artist-name { color: var(--accent); }
+  .ai-artist-sub { font-size: 11px; color: var(--text-dim); }
+
+  .ai-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+  .ai-header { display: flex; align-items: center; gap: 22px; padding: 16px 22px; background: var(--bg-elevated); flex: 0 0 auto; }
+  .ai-header #aiAvatar.ai-avatar { width: 126px; height: 126px; flex: 0 0 126px; border-radius: 50%; object-fit: cover; background: var(--bg-card); border: 1px solid var(--line); display: block; }
+  .ai-headline { min-width: 0; }
+  .ai-name-row { display: flex; align-items: center; gap: 14px; }
+  .ai-name { margin: 0; font-family: 'Bebas Neue', sans-serif; font-size: 46px; font-weight: 400; letter-spacing: 0.5px; line-height: 1; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ai-play-btn { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: none; color: var(--accent); font-size: 13px; padding: 0 0 0 3px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+  .ai-play-btn:hover:not(:disabled) { background: var(--accent); color: #12161C; border-color: var(--accent); }
+  .ai-play-btn:disabled { opacity: 0.35; cursor: default; }
+  .ai-stats { margin: 6px 0 0; font-size: 12.5px; color: var(--text-dim); }
+  .ai-now-playing { margin: 0 0 0 auto; align-self: flex-start; max-width: 240px; font-size: 11px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .ai-subtabs { display: flex; align-items: center; gap: 4px; padding: 0 22px 0 14px; background: var(--bg-card); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); flex: 0 0 auto; overflow-x: auto; }
+  .ai-subtabs button { background: none; border: none; color: var(--text-dim); padding: 11px 12px; font: 13px 'Inter', sans-serif; cursor: pointer; white-space: nowrap; }
+  .ai-subtabs button:hover { color: var(--text); }
+  .ai-subtabs button.active { color: var(--text); font-weight: 700; box-shadow: inset 0 -2px 0 var(--accent); }
+  .ai-decade-genre { margin-left: auto; padding-left: 16px; font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+
+  .ai-body { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 22px; }
+  .ai-empty { margin: 8px 0; font-size: 13px; color: var(--text-dim); }
+  .ai-h3 { margin: 0; font-size: 15px; font-weight: 700; color: var(--text); }
+  .ai-link-btn { background: none; border: none; padding: 0; font: inherit; font-size: 12px; color: var(--accent); cursor: pointer; text-decoration: none; }
+  .ai-link-btn:hover { text-decoration: underline; }
+  .ai-note { background: var(--bg-card); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; font-size: 13px; color: var(--text-dim); grid-column: 1 / -1; }
+  .ai-note p { margin: 0 0 10px; }
+  .ai-note-inline { padding: 8px 12px; }
+  .ai-note-inline p { margin: 0; }
+
+  /* the album / discography / similar-artist tiles */
+  .ai-album-grid { display: grid; grid-template-columns: repeat(auto-fill, 150px); gap: 20px 16px; justify-content: start; align-content: start; flex: 1; min-width: 0; }
+  .ai-album { width: 150px; text-align: center; cursor: pointer; }
+  .ai-album:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+  .ai-cover { position: relative; width: 150px; height: 150px; border-radius: 3px; overflow: hidden; background: var(--bg-card); }
+  .ai-cover.ai-cover-round { border-radius: 50%; }
+  .ai-cover .ai-cover-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ai-album:hover .ai-cover { box-shadow: 0 0 0 2px var(--accent); }
+  .ai-album-title { margin-top: 7px; font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ai-album-year { margin-top: 1px; font-size: 11px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ai-rg:not(.owned) .ai-cover-img { opacity: 0.82; }
+  .ai-owned-badge { position: absolute; right: 6px; bottom: 5px; color: var(--accent); font-size: 12px; text-shadow: 0 0 5px #000; }
+  .ai-add-btn { margin: 5px auto 0; display: block; background: none; border: 1px solid var(--line); border-radius: 12px; padding: 1px 11px; font-size: 11px; color: var(--accent); cursor: pointer; }
+  .ai-add-btn:hover { border-color: var(--accent); }
+  .ai-albums-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .ai-albums-tools { display: flex; gap: 16px; align-items: center; }
+  .ai-sub-note { font-size: 11.5px; color: var(--text-dim); }
+  .ai-disambig { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-top: 10px; background: var(--bg); }
+  .ai-disambig-desc { font-size: 13.5px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+  .ai-disambig-sample { font-size: 11.5px; color: var(--text-dim); margin-bottom: 10px; }
+
+  /* Albums & Stats: tiles on the left, Top Tracks on the right */
+  .ai-stats-layout { display: flex; gap: 22px; align-items: flex-start; }
+  .ai-top-tracks { flex: 0 0 250px; width: 250px; padding-left: 18px; border-left: 1px solid var(--line); }
+  .ai-top-head { position: relative; display: inline-block; margin-bottom: 8px; }
+  .ai-top-head::after { content: '\25BE'; position: absolute; right: 0; top: 50%; transform: translateY(-50%); font-size: 10px; color: var(--text-dim); pointer-events: none; }
+  .ai-top-head select { appearance: none; -webkit-appearance: none; background: none; border: none; color: var(--text-dim); font: 11px 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: 0.7px; padding: 2px 18px 2px 0; cursor: pointer; outline: none; }
+  .ai-top-head select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .ai-top-head select option { background: var(--bg-elevated); color: var(--text); text-transform: none; }
+  .ai-track-list { display: flex; flex-direction: column; }
+  .ai-track-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 4px 4px; font-size: 12.5px; color: var(--text-dim); cursor: default; border-radius: 3px; }
+  .ai-track-row:hover { background: var(--bg-card); color: var(--text); }
+  .ai-track-name { min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ai-track-plays { font: 12px 'IBM Plex Mono', monospace; flex: 0 0 auto; }
+  .ai-track-plays.zero { opacity: 0.5; }
+  .ai-track-row.wide { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.6fr) 52px 36px; align-items: baseline; padding: 7px 8px; border-top: 1px solid var(--line); font-size: 13px; }
+  .ai-track-row.wide .ai-track-album { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ai-track-row.wide .ai-track-time { text-align: right; font: 12px 'IBM Plex Mono', monospace; }
+  .ai-track-row.wide .ai-track-plays { text-align: right; }
+  .ai-more-btn { margin-top: 8px; align-self: flex-start; }
+  .ai-total { display: flex; justify-content: space-between; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); font: 11px 'IBM Plex Mono', monospace; letter-spacing: 0.6px; color: var(--text-dim); }
+
+  /* Profile */
+  .ai-profile-top { display: flex; gap: 26px; align-items: flex-start; }
+  .ai-hero { flex: 0 0 min(46%, 520px); aspect-ratio: 16 / 10; background: var(--bg-card); border-radius: 4px; overflow: hidden; }
+  .ai-hero .ai-hero-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ai-hero .ai-hero-img.art { object-fit: contain; }
+  .ai-bio { flex: 1; min-width: 0; }
+  .ai-bio-text { max-height: 15.5em; overflow: hidden; margin-top: 8px; font-size: 12.5px; line-height: 1.5; color: var(--text-dim); }
+  .ai-bio-text.expanded { max-height: none; }
+  .ai-bio-text p { margin: 0 0 12px; }
+  .ai-bio-source { margin: 10px 0 0; font-size: 11px; color: var(--text-dim); }
+  .ai-bio-source a { color: var(--text-dim); }
+  .ai-section-row { display: flex; justify-content: space-between; align-items: baseline; margin: 26px 0 8px; }
+
+  @media (max-width: 900px) {
+    .artist-info-wrap { flex-direction: column; height: auto; min-height: calc(100vh - 150px); }
+    .ai-sidebar { display: none; }
+    .ai-header { gap: 14px; padding: 12px 14px; }
+    .ai-header #aiAvatar.ai-avatar { width: 72px; height: 72px; flex-basis: 72px; }
+    .ai-name { font-size: 32px; }
+    .ai-now-playing { display: none; }
+    .ai-subtabs { padding: 0 4px; gap: 0; }
+    .ai-subtabs button { padding: 11px 5px; font-size: 11.5px; flex: 1 1 auto; text-align: center; }   /* the page itself is only ~308px wide on a 390px phone (the app keeps side margins); all four tabs have to fit that without sideways scrolling */
+    .ai-decade-genre { display: none; }
+    .ai-body { overflow: visible; padding: 14px; }
+    .ai-stats-layout, .ai-profile-top { flex-direction: column; }
+    .ai-top-tracks { flex-basis: auto; width: 100%; padding-left: 0; border-left: none; }
+    .ai-hero { flex-basis: auto; width: 100%; }
+    .ai-album-grid { grid-template-columns: repeat(auto-fill, 120px); gap: 16px 12px; }
+    .ai-album, .ai-cover { width: 120px; }
+    .ai-cover { height: 120px; }
+    .ai-track-row.wide { grid-template-columns: minmax(0, 1fr) 44px 30px; }
+    .ai-track-row.wide .ai-track-album { display: none; }
+  }
   .album-quick-peek-tracks { overflow-y: auto; border-top: 1px solid var(--line); padding: 6px 0; }
   .album-quick-peek-track { display: flex; align-items: center; gap: 8px; padding: 5px 14px; font-size: 12.5px; cursor: pointer; user-select: none; }
   .album-quick-peek-track:hover { background: var(--bg-card); }
@@ -26309,7 +27507,10 @@ html, body {
        bar. --mobile-navbar-h is the one place its height is defined;
        #app's bottom padding and the mini player's bottom offset below
        both reference it so nothing ends up hidden underneath it. */
-    :root { --mobile-navbar-h: 54px; }
+    :root { --mobile-navbar-h: 54px; --tab-bar-h: 0px; }
+    /* The desktop tab strip dissolves on a phone: .nav-tabs inside it is the same fixed bottom bar as before; the strip's own back/forward/+ aren't shown. */
+    .tab-bar { display: contents; }
+    .tab-bar-history, .tab-bar-add { display: none; }
     .nav-tabs {
       position: fixed; left: 0; right: 0; z-index: 45;
       /* var(--mobile-chrome-gap) — see syncMobileChromeGap() — compensates
