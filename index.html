@@ -13,7 +13,247 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.177
+  CURRENT_VERSION: 1.29.182
+
+  1.29.182 — 2026-10-05 — Right-click a track in the Up Next queue. It had no
+          context menu at all. The menu (also reachable with the keyboard's Menu key)
+          for an UPCOMING track:
+              Play now · Play next · Remove from queue
+              Add to playlist ▸
+              Go to artist · Go to album · View credits
+          For the track that is PLAYING, the queue actions are left out (nothing to
+          remove or skip to); for a track that already played, same. The row you
+          right-clicked is marked with the accent bar while the menu is open. Works
+          in all three queue views (thumbnail, track detail, release and tracks): every
+          row now carries its position in the queue (data-queue-pos) — assigned after
+          rendering from DOM order rather than by editing three long templates, and
+          skipped (not guessed) if a row count ever disagrees with the queue. Over a
+          heading or empty space the browser's own menu is left alone.
+
+          Built on the player's right-click menu: that function is now a thin wrapper
+          over a shared openTrackActionsMenu(), so the playlist submenu, artist, album
+          and credits actions are the same code in both places (the player menu's 45
+          checks still pass unchanged). The "something is already playing" placeholder
+          at the head of a queue isn't a crate track, so right-clicking it gives the
+          player's menu for what's playing.
+            - The menu remembers the ENTRY, not a position: the queue can advance or be
+              edited while it's open, so "Remove"/"Play next" re-find the entry and do
+              nothing if it has since started playing.
+            - Remove: only an upcoming entry. Safe against everything else that touches
+              the queue — it advances by playCrateQueueIndex(id, index + 1) from the playing
+              track and appends only ever add at the end (the multi-release loader
+              included); nothing pre-loads upcoming tracks into Spotify.
+            - Play next: moves the entry to directly after the playing one. With Shuffle
+              on, entries carry an original-order number that turning Shuffle OFF sorts
+              the rest of the queue back by; the moved entry takes one just below the
+              tail's smallest, or switching Shuffle off would quietly put it back where it
+              came from (the test fails without that line — checked).
+
+          REGRESSION FROM 1.29.178, FOUND AND FIXED: in the floating Album Quick Peek,
+          1.29.178 re-ran its keep-it-on-screen positioning after the tracklist loaded.
+          For any card in the lower part of the window that pushed the peek UP OVER ITS OWN
+          CARD, so the second click of a double-click (which plays the album) landed on the
+          peek instead — double-click-to-play silently stopped working for those cards in
+          the floating style. Found because this test double-clicks the Exuma card. The
+          peek is now placed once, at open, so it never covers its card: below the card
+          when there's room, otherwise above it, with its height capped to the room on
+          that side (the track list scrolls inside). That also removes the visible jump.
+          New tests cover EVERY card in the grid (never overlaps the card, always on
+          screen, goes below or above as needed), double-click on the lowest card, and a
+          deliberately short window.
+
+          Not done: Spotify's own queue (the mini player's popover list) — its rows are
+          Spotify tracks with no crate release behind them, so the crate actions don't
+          apply; it needs a different menu. Verified in real Chromium (38 checks in
+          pw_queue_menu, run three times because shuffle is random; 41 in
+          pw_peek_details incl. the new placement ones).
+
+  1.29.181 — 2026-10-05 — The Artist Information page's artist list now shares the
+          Music tab's sidebar: same position, same layout, same look. It was a
+          lookalike of its own (a boxed page with a 245px sidebar, 40px thumbnails,
+          a different row style and an "Album Artist" title bar), so it matched
+          nothing and ignored every setting that shapes the Music list.
+
+          Now the page lives INSIDE #panels, beside the Music main panel (only one
+          of the two shows: #panels.artist-info-mode), and the artist list is a
+          THIRD VIEW of the real #leftPanel — next to the Music browser and the
+          Playlist Explorer. Built that way, the sameness isn't imitated, it is
+          inherited:
+            - the far-left rail (Music / Playlist Explorer) is in the same place,
+              the left column has the same x, width, height and header bar;
+            - rows are buildLeftRow's 'artist' row class for class: round
+              thumbnail, name, count pill — including the "1 of 6 (17%)" coverage
+              badge once an artist's discography has been counted;
+            - it follows the Music list's settings: the Thumbnails size (none …
+              XX-large), the Name / Highest Count sort, the compact (icons-only)
+              rail, the column width you drag with the resizer (one panel, one
+              saved width — drag it on either tab and both change), and ⚙ >
+              Panels' show/hide of the left panel;
+            - the rail stays visible on the artist tab and is the way back:
+              "Music" / "Playlist Explorer" return to the Music tab on that view
+              (neither is marked current while you're on the artist page);
+            - the list's filter box stays (the Music list has none, but an artist
+              list needs one), styled to match.
+          The Music main panel and, on desktop, the queue panel are hidden on the
+          artist page (as before — the old page also used the full width).
+
+          Bonus, free from the same change: on a phone the artist list was
+          unreachable (the old sidebar was simply hidden). It is now in the ☰ nav
+          drawer, exactly where the Music list is; choosing an artist opens it and
+          closes the drawer. On a phone the queue panel stays available as its
+          off-canvas drawer.
+
+          Not copied: the Music list's pinned "All Artists" row (it clears a filter
+          there; the artist page has no filter to clear). The page's own header bar
+          starts at the same height as the Music main bar but is shorter (the Music
+          one holds the size slider and view buttons).
+
+          Verified in real Chromium (41 checks, new pw_artist_sidebar): identical
+          rectangles for the rail, column and header bar; identical computed styles
+          and geometry for an active and an idle row; same order, same pills; both
+          sort orders; four thumbnail sizes and none; dragging the resizer on the
+          artist page changes the Music tab's width too; compact rail; hide-left-
+          panel; the rail round trips; keyboard (Enter) and filter; the phone drawer.
+          The comparisons were checked for sensitivity (a padding nudge or a width
+          change is reported). Two older tests were updated for the new structure
+          (class names; "Music content hidden" now means the Music main panel, since
+          #panels itself hosts the page).
+
+  1.29.180 — 2026-10-04 — First step towards a Discover section: "Beyond your
+          crate", under the in-crate row on the Artist Information page's
+          Similar Artists tab. Last.fm's "listeners of X also play" (artist.
+          getSimilar), minus every artist you already own, highest match first,
+          up to 12, each with its match % and a link to its Last.fm page; click a
+          tile to search that artist on Spotify. Uses the API key already saved
+          for the Last.fm import. It's the one real taste-matching signal still
+          available — Spotify's related-artists / recommendations / audio-analysis
+          endpoints are closed to new apps.
+
+          - Asked only when the Similar Artists tab is opened, and it never holds
+            up the in-crate row (that appears at once; this fills in).
+          - A READ-ONLY method, so it needs only the key — not the signed,
+            write-capable lastfmApiCall, which also throws the error reason away.
+            A small dedicated fetch tells the cases apart, each with its own
+            message: no key (button opens the Last.fm dialog) / key rejected
+            (Last.fm answers 403 with the reason in the body, so the body is read
+            before looking at the status) / artist unknown to Last.fm / rate-limited
+            or unreachable (Retry) / "everything it suggests is already in your
+            crate" / no similar artists.
+          - Cached 14 days in localStorage. Only "ok" and "artist unknown" are
+            cached: a missing/rejected key or a network failure is retried the next
+            time, so fixing the key takes effect immediately. Simultaneous lookups
+            for the same artist share one request (re-rendering the tab used to fire
+            two before the first answered).
+          - Last.fm no longer has artist pictures, so each tile borrows an album
+            cover from iTunes — but only when iTunes says the album is BY that
+            artist (a fuzzy search for an obscure name happily returns someone
+            else's record; a wrong picture is worse than a letter). One lookup at a
+            time, spaced out.
+          - Names and URLs from Last.fm are untrusted: names are escaped (a name
+            that looks like HTML shows as text) and a link is only rendered if it
+            points at https://www.last.fm/. Real links inside clickable tiles just
+            follow themselves (they no longer also trigger the tile).
+
+          Verified in real Chromium (36 checks) with Last.fm and iTunes stubbed to
+          their documented response shapes: request parameters (unsigned,
+          autocorrect, key), exclusion of owned artists, ordering, the 12 cap,
+          HTML/javascript: in names and URLs, artwork verified vs mismatched, click
+          vs link, in-memory and after-reload caching, every outcome above, a slow
+          answer for an artist you've since left, phone width. Two new checks were
+          confirmed to FAIL with their fix removed (the concurrent-request sharing).
+          NOT verified: the real Last.fm and iTunes services (no network here), and
+          — the real question — how GOOD the suggestions are for your library.
+          Last.fm's similar-artist data leans towards popular acts; an obscure crate
+          may get thin or odd results. That can only be judged on your own account.
+
+          Not done (the rest of the Discover idea): "missing from artists you love"
+          (unowned albums by your most-played/rated artists, from MusicBrainz) and
+          "unexplored corners of a genre" (neighbouring genres in your taxonomy
+          with nothing in your crate), and a place of their own to browse them.
+
+  1.29.179 — 2026-10-04 — Album Quick Peek: more per-track details, wherever the
+          source has them.
+            - "DISC 1 / DISC 2" dividers before the first track of each disc, for
+              releases that actually have more than one (a one-disc album gets no
+              pointless "Disc 1"). Track numbers still run on continuously across
+              discs, as before. Decided from the whole release, so a search that
+              leaves only disc-2 tracks still says "Disc 2".
+            - an "E" badge right after the title of explicit tracks (iTunes'
+              trackExplicitness = 'explicit'; "cleaned" and "notExplicit" get none).
+              It survives a long title: the ellipsis is on the title text, not the row.
+          Sources: iTunes already supplied discNumber / discCount /
+          trackExplicitness (the tracklist keeps the whole iTunes object) — they
+          just weren't shown. The MusicBrainz fallback DISCARDED the disc (it only
+          kept number/name/length, renumbering continuously across media); it now
+          also keeps discNumber and discCount, so MusicBrainz-only releases show
+          their discs too. MusicBrainz has no explicit flag, so none is invented.
+          A hand-typed tracklist has neither field and looks exactly as before.
+
+          Two bugs found while testing this, both fixed:
+          1. (mine, from 1.29.178) A VERY long title broke its row apart: the title
+             jumped onto a line of its own and dragged the length onto a third.
+             1.29.178 made rows flex-wrap so details could drop to a second line, and
+             a wrapping flex item is placed by its full content width, so any long
+             title wrapped instead of being cut with an ellipsis. Caught by looking at
+             a screenshot — every test title was short. Title now has flex-basis 0
+             (it can never force a wrap) and two new checks assert a long title stays
+             on one line in both peek styles; confirmed they FAIL with the fix
+             reverted (row 72px tall instead of one line).
+          2. (pre-existing) The INLINE peek opens in the grid's flow under the
+             clicked row, and nothing ever scrolled it into view: for a card in the
+             bottom visible row it opened entirely below the fold and looked like
+             nothing had happened. It is now scrolled into view once its tracks have
+             loaded (it only has its real height then), with the least scrolling
+             that shows it.
+
+          Not done: the same disc/explicit details on the album page's own
+          tracklist, the Album and Tracks view and the Artist Information page's
+          track lists (this change is the Album Quick Peek, inline and floating).
+          Duration is shown wherever the source supplies one — hand-typed albums
+          still have none unless a length is set in Edit track properties (an
+          existing field), which is a separate question.
+          Verified in real Chromium (26 checks, iTunes and MusicBrainz responses
+          stubbed to their real shapes): disc order from a shuffled source,
+          divider placement, continuous numbering, badge placement/long titles,
+          one-disc and hand-typed albums unchanged, MusicBrainz discs kept in the
+          cache, range-select across a divider, playing a row after one, floating
+          style, scroll-into-view, phone width. Not verified: the real iTunes and
+          MusicBrainz services (no network here).
+
+  1.29.178 — 2026-10-04 — Album Quick Peek: the tracklist rows now carry per-track
+          details. They used to be ▶ / number / title / length only, while the
+          album page's tracklist already showed much more. Added, only where a
+          track actually HAS it (an un-annotated album looks exactly as before):
+            ★ 4.5            your rating (whole numbers shown without a decimal)
+            N plays          Last.fm plays of that track
+            Calypso          the track's own genre
+            ✓ listened       marked for the next diary entry
+            N credits ▾      click to show/hide that track's credits (name + role)
+            the note         one line, ellipsised; the full text is the tooltip
+          Layout follows the style: in the INLINE peek (full grid width) the
+          details sit on the title's line between title and length; in the narrow
+          FLOATING peek they wrap to a line under the title, indented to line up
+          with it. Read-only — editing stays in right-click > Edit track
+          properties… / the album page. Row click-to-select, double-click-to-play,
+          ▶ and right-click are unchanged; the credits chip is excluded from
+          select/double-click so using it never selects or plays the row. Notes and
+          credits are escaped (a note containing <b>…</b> or an <img onerror> is
+          shown as text). Applies to both peek styles — one shared list.
+
+          Also fixed (pre-existing, found by the test): the FLOATING peek is first
+          positioned while it is only a header, so positionFloatingMenu's keep-it-
+          on-screen clamp used that short height; when the tracklist then arrived
+          and it grew (up to its ~420px cap) it ran off the bottom of the window for
+          any card in the lower part of the grid (bottom at 1179px in a 900px
+          window). It is now positioned again once the tracks are in.
+
+          Not done: the Album and Tracks view and the Artist Information page's
+          track lists have the same bare rows — same treatment possible. No on/off
+          switch for the details (they only appear on tracks that have them).
+          Verified in real Chromium (36 checks): every detail, rounding, bare rows
+          unchanged and no taller, inline vs floating geometry, the credits chip
+          (no select / no play, even double-click), select / double-click / ▶ /
+          right-click still working, HTML in notes, on-screen fit, phone width.
 
   1.29.177 — 2026-10-04 — The tabs are now their own bar at the very top of the
           window, modeled on MusicBee's tab row, instead of sitting in the
@@ -5082,6 +5322,15 @@
         </div>
         <div id="playlistSidebarList" class="playlist-sidebar-list"></div>
       </div>
+
+      <!-- Third view: the Artist Information tab's artist list. Same markup/classes as the Music tab's Artists
+           list (.left-row, round .left-thumb, .left-row-count), and it follows the same Thumbnails setting and
+           Name/Count sort. -->
+      <div id="artistBrowserView" class="left-browser-view" hidden>
+        <div class="panel-bar"><span class="panel-label">Artists</span></div>
+        <input id="aiArtistFilter" class="ai-filter" type="search" placeholder="Find artist…" autocomplete="off" aria-label="Find artist">
+        <div id="aiArtistList" class="left-list" role="list"></div>
+      </div>
     </section>
 
     <div class="resizer" id="resizerLeft" aria-hidden="true"></div>
@@ -5243,6 +5492,33 @@
       </div>
     </section>
 
+    <!-- Artist Information page — the content half of the Artist Information tab. It lives INSIDE #panels, beside
+         the Music main panel (only one of the two shows, see #panels.artist-info-mode and syncLeftPanelViews()), so
+         that its artist list can be a third view of the real #leftPanel — same rail, same column, same width and
+         resizer, same thumbnail size, same row styling as the Music tab's list — instead of a lookalike of its own. -->
+    <section id="artistInfoWrap" class="panel panel-main artist-info-wrap" hidden>
+      <div class="panel-bar"><span class="panel-label">Artist Information</span></div>
+      <header class="ai-header">
+        <img id="aiAvatar" class="ai-avatar" alt="">
+        <div class="ai-headline">
+          <div class="ai-name-row">
+            <h2 id="artistInfoName" class="ai-name"></h2>
+            <button type="button" id="aiPlayBtn" class="ai-play-btn" title="Play everything by this artist" aria-label="Play everything by this artist">&#9654;</button>
+          </div>
+          <p id="artistInfoStats" class="ai-stats"></p>
+        </div>
+        <p id="aiNowPlaying" class="ai-now-playing"></p>
+      </header>
+      <nav id="aiSubtabs" class="ai-subtabs" role="tablist" aria-label="Artist information sections">
+        <button type="button" role="tab" data-aitab="stats">Albums &amp; Stats</button>
+        <button type="button" role="tab" data-aitab="albums">More Albums</button>
+        <button type="button" role="tab" data-aitab="profile">Profile</button>
+        <button type="button" role="tab" data-aitab="similar">Similar Artists</button>
+        <span id="aiDecadeGenre" class="ai-decade-genre"></span>
+      </nav>
+      <div id="aiBody" class="ai-body"></div>
+    </section>
+
     <div class="resizer" id="resizerRight" aria-hidden="true"></div>
 
     <section id="rightPanel" class="panel panel-right">
@@ -5380,35 +5656,6 @@
        Stats, More Albums, Profile, Similar Artists. Opened per artist as a
        browser-style tab (openArtistInfoTab); everything inside is built by
        renderArtistInfoTab() and the ai* functions. -->
-  <div id="artistInfoWrap" class="artist-info-wrap" hidden>
-    <aside class="ai-sidebar">
-      <div class="ai-pane-title">Album Artist</div>
-      <input id="aiArtistFilter" class="ai-filter" type="search" placeholder="Find artist…" autocomplete="off" aria-label="Find artist">
-      <div id="aiArtistList" class="ai-artist-list" role="list"></div>
-    </aside>
-    <section class="ai-main">
-      <div class="ai-pane-title">Artist Information</div>
-      <header class="ai-header">
-        <img id="aiAvatar" class="ai-avatar" alt="">
-        <div class="ai-headline">
-          <div class="ai-name-row">
-            <h2 id="artistInfoName" class="ai-name"></h2>
-            <button type="button" id="aiPlayBtn" class="ai-play-btn" title="Play everything by this artist" aria-label="Play everything by this artist">&#9654;</button>
-          </div>
-          <p id="artistInfoStats" class="ai-stats"></p>
-        </div>
-        <p id="aiNowPlaying" class="ai-now-playing"></p>
-      </header>
-      <nav id="aiSubtabs" class="ai-subtabs" role="tablist" aria-label="Artist information sections">
-        <button type="button" role="tab" data-aitab="stats">Albums &amp; Stats</button>
-        <button type="button" role="tab" data-aitab="albums">More Albums</button>
-        <button type="button" role="tab" data-aitab="profile">Profile</button>
-        <button type="button" role="tab" data-aitab="similar">Similar Artists</button>
-        <span id="aiDecadeGenre" class="ai-decade-genre"></span>
-      </nav>
-      <div id="aiBody" class="ai-body"></div>
-    </section>
-  </div>
 
   <!-- Artist tab: pick one of your artists and see their full discography
        (MusicBrainz), with albums already in your crate marked as owned. -->
@@ -6472,7 +6719,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.177';
+const APP_VERSION = '1.29.182';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -6869,7 +7116,7 @@ const el = {};
 [
   'gridContainer','stateMsg','searchInput','refreshBtn',
   'musicViewElement','genreDescElement','genreDescLabel','genreDescBody','genreDescInput','genreDescSaveBtn',
-  'tabBar','tabBackBtn','tabForwardBtn','tabAddBtn','artistBioElement','artistBioBody','artistInfoTabsContainer','artistInfoWrap','artistInfoName','artistInfoStats','aiArtistFilter','aiArtistList','aiAvatar','aiPlayBtn','aiNowPlaying','aiSubtabs','aiDecadeGenre','aiBody',
+  'tabBar','tabBackBtn','tabForwardBtn','tabAddBtn','artistBrowserView','artistBioElement','artistBioBody','artistInfoTabsContainer','artistInfoWrap','artistInfoName','artistInfoStats','aiArtistFilter','aiArtistList','aiAvatar','aiPlayBtn','aiNowPlaying','aiSubtabs','aiDecadeGenre','aiBody',
   'nowPlayingBarMainElement','nowPlayingBarMainArt','nowPlayingBarMainTitle','nowPlayingBarMainSub','nowPlayingBarMainSub2',
   'tabAlbums','tabDiary','tabScrobbles','viewGridBtn','viewListBtn','sizeControl','sizeSlider',
   'leftPanel','leftModeBtn','leftModeLabel','leftModeMenu','leftGroupBySection','leftList',
@@ -7870,8 +8117,10 @@ function bindEvents() {
   // to open first. "Music" swaps the browser column back to Albums/
   // Artists/Genres (and leaves playlist view); "Playlist Explorer" swaps it
   // to the playlist/folder tree (see setLeftNavView()).
-  el.navMusicBtn.addEventListener('click', () => setLeftNavView('music'));
-  el.navPlaylistsBtn.addEventListener('click', () => setLeftNavView('playlists'));
+  // The rail is also visible on the Artist Information tab now (it's the same left column), where these two
+  // are the way back to the Music tab, landing on whichever view was clicked.
+  el.navMusicBtn.addEventListener('click', () => { if (state.activeTab !== 'albums') switchTab('albums'); setLeftNavView('music'); });
+  el.navPlaylistsBtn.addEventListener('click', () => { if (state.activeTab !== 'albums') switchTab('albums'); setLeftNavView('playlists'); });
   setLeftNavView(state.leftNavView);
 
   // Drop target for filing a playlist into whichever folder it lands in
@@ -9562,13 +9811,14 @@ function switchTab(tab) {
     if (selectedDiaryKeys.size) { selectedDiaryKeys.clear(); updateDiarySelectionBar(); }
   }
   state.activeTab = tab;
+  syncLeftPanelViews();
   el.tabAlbums.classList.toggle('active', tab === 'albums');
   renderArtistInfoTabButtons(); // dynamic tabs — .active depends on state.activeTab, so re-render rather than toggle a fixed button
   el.tabDiary.classList.toggle('active', tab === 'diary');
   el.tabScrobbles.classList.toggle('active', tab === 'scrobbles');
   el.tabStats.classList.toggle('active', tab === 'stats');
   el.tabArtist.classList.toggle('active', tab === 'artist');
-  el.panels.style.display = tab === 'albums' ? 'flex' : 'none';
+  el.panels.style.display = (tab === 'albums' || tab === 'artistInfo') ? 'flex' : 'none';   // #panels hosts both tabs: the Music browser, or the Artist Information tab's list + page
   el.artistInfoWrap.hidden = tab !== 'artistInfo';
   el.diaryWrap.hidden = tab !== 'diary';
   el.scrobblesWrap.hidden = tab !== 'scrobbles';
@@ -12083,13 +12333,18 @@ async function getTracksFor(item) {
           // trackCounter instead runs continuously across every medium,
           // guaranteeing each track gets a unique, ordered number.
           if (mbData.media) {
-            mbData.media.forEach(media => {
+            mbData.media.forEach((media, mi) => {
               if (media.tracks) {
                 media.tracks.forEach(t => {
                   tracks.push({
                     trackNumber: trackCounter,
                     trackName: t.title || t.recording?.title || 'Unknown Track',
-                    trackTimeMillis: t.length || t.recording?.length || 0
+                    trackTimeMillis: t.length || t.recording?.length || 0,
+                    // The continuous trackCounter above deliberately hides which disc a track
+                    // is on, so keep that separately (iTunes results already carry the same
+                    // two fields): the Album Quick Peek uses them to mark where each disc starts.
+                    discNumber: media.position || mi + 1,
+                    discCount: mbData.media.length
                   });
                   trackCounter++;
                 });
@@ -13134,6 +13389,62 @@ function closeOtherDropdownMenus() {
   el.leftModeMenu.hidden = true;
 }
 
+// One row of the Album Quick Peek's tracklist. Beyond ▶ / number / title / length it now carries the
+// per-track details the album page's tracklist already shows (and the peek never did): your star
+// rating, Last.fm plays, the track's own genre, the "listened" tick, your note, and its credits.
+// Only what a track actually HAS is shown, so an un-annotated album looks exactly as it did.
+// Read-only: editing stays where it was (right-click > Edit track properties…, or the album page).
+// Same element and class names as before so the row's select / double-click / context-menu
+// handlers in openAlbumQuickPeek are untouched. In the inline style the peek spans the whole grid, so
+// the details sit on the title's line; in the narrow floating style they wrap to a second line
+// (see the .album-quick-peek-track-details rules for the ordering).
+// Does this release have more than one disc? (iTunes and, now, MusicBrainz results both carry
+// discNumber/discCount; a source that has neither — a hand-typed tracklist — reads as one disc.)
+function tracksSpanMultipleDiscs(tracks) {
+  return (tracks || []).some(t => (t.discNumber || 1) > 1 || (t.discCount || 1) > 1);
+}
+function quickPeekTrackRowHtml(item, t) {
+  const tNum = t.trackNumber || 0;
+  const d = (item.trackData && item.trackData[tNum]) || {};
+  const rating = Number(d.rating) || 0, note = String(d.note || '').trim(), genre = String(d.genre || '').trim();
+  const credits = parseTrackCredits(d.credits), listened = !!d.listened;
+  const plays = trackScrobbleCountFor(item.artist, item.title, t.trackName);
+  const bits = [];
+  if (rating > 0) bits.push(`<span class="qp-detail qp-rating" title="Your rating">\u2605 ${Number.isInteger(rating) ? rating : rating.toFixed(1)}</span>`);
+  if (plays > 0) bits.push(`<span class="qp-detail" title="Last.fm plays">${plays} play${plays === 1 ? '' : 's'}</span>`);
+  if (genre) bits.push(`<span class="qp-detail" title="Track genre">${escapeHtml(genre)}</span>`);
+  if (listened) bits.push('<span class="qp-detail qp-listened" title="Marked for the next diary entry">\u2713 listened</span>');
+  if (credits.length) bits.push(`<button type="button" class="qp-detail qp-credits-btn" aria-expanded="false" title="Show this track\u2019s credits">${credits.length} credit${credits.length === 1 ? '' : 's'} \u25be</button>`);
+  if (note) bits.push(`<span class="qp-detail qp-note" title="${escapeHtml(note)}">${escapeHtml(note)}</span>`);
+  return `
+      <div class="album-quick-peek-track" data-track-num="${escapeHtml(String(t.trackNumber || ''))}" data-track-name="${escapeHtml(t.trackName || '')}">
+        <button type="button" class="album-quick-peek-track-play" title="Play this track" aria-label="Play ${escapeHtml(t.trackName || 'this track')}">▶</button>
+        <span class="album-quick-peek-track-num">${t.trackNumber || ''}</span>
+        <span class="album-quick-peek-track-name"><span class="qp-title">${escapeHtml(t.trackName || '')}</span>${t.trackExplicitness === 'explicit' ? '<span class="qp-explicit" title="Explicit">E</span>' : ''}</span>
+        ${bits.length ? `<span class="album-quick-peek-track-details">${bits.join('')}</span>` : ''}
+        <span class="album-quick-peek-track-time">${formatDuration(t.trackTimeMillis)}</span>
+        ${credits.length ? `<div class="album-quick-peek-track-credits" hidden>${credits.map(c => `<p class="track-credit-entry"><span class="track-credit-name">${escapeHtml(c.name)}</span>${c.role ? `<span class="track-credit-role">${escapeHtml(c.role)}</span>` : ''}</p>`).join('')}</div>` : ''}
+      </div>
+    `;
+}
+// Places the FLOATING peek beside its card without ever covering it: below the card when there is
+// reasonable room, otherwise above it, with the peek's height capped to the room on that side (its track
+// list scrolls inside). Done once, at open, from the card's position — not re-done when the tracklist
+// arrives. A version (1.29.178) that re-ran the keep-it-on-screen clamp after the tracks loaded pushed
+// the peek UP over its own card for any card in the lower part of the window, so the second click of a
+// double-click (which plays the album) landed on the peek instead of the card.
+function placeFloatingQuickPeek(cardEl) {
+  const peek = el.albumQuickPeek, r = cardEl.getBoundingClientRect();
+  const gap = 6, margin = 8, cap = 420;
+  const below = window.innerHeight - r.bottom - gap - margin;
+  const above = r.top - gap - margin;
+  const useAbove = below < 240 && above > below;
+  peek.style.maxHeight = Math.max(160, Math.min(cap, useAbove ? above : below)) + 'px';
+  const w = peek.getBoundingClientRect().width;
+  peek.style.left = Math.max(4, Math.min(r.left, window.innerWidth - w - margin)) + 'px';
+  if (useAbove) { peek.style.top = 'auto'; peek.style.bottom = (window.innerHeight - r.top + gap) + 'px'; }
+  else { peek.style.bottom = 'auto'; peek.style.top = Math.max(4, r.bottom + gap) + 'px'; }
+}
 function openAlbumQuickPeek(item, cardEl) {
   closeOtherDropdownMenus();
   quickPeekItem = item;
@@ -13165,6 +13476,8 @@ function openAlbumQuickPeek(item, cardEl) {
     el.albumQuickPeek.classList.add('album-quick-peek-inline');
     el.albumQuickPeek.style.left = '';
     el.albumQuickPeek.style.top = '';
+    el.albumQuickPeek.style.bottom = '';       // floating mode anchors to the card's top edge when it opens upward
+    el.albumQuickPeek.style.maxHeight = '';
     // Playlists' own Covers view renders into #playlistBody, not
     // #gridContainer — pick whichever one actually holds this card so row-
     // mate detection works in both contexts.
@@ -13186,13 +13499,15 @@ function openAlbumQuickPeek(item, cardEl) {
         quickPeekOriginalParent.appendChild(el.albumQuickPeek);
       }
     }
-    const rect = cardEl.getBoundingClientRect();
-    positionFloatingMenu(el.albumQuickPeek, rect.left, rect.bottom + 6);
+    placeFloatingQuickPeek(cardEl);
   }
   applyCachedArt();
 
   getTracksFor(item).then(tracks => {
     if (mySeq !== quickPeekSeq) return; // closed, or replaced by a different card, while this was loading
+    // Decided from the WHOLE release, before any playlist/search narrowing below: a search that
+    // leaves only disc-2 tracks should still say "Disc 2", not look like a one-disc album.
+    const multiDisc = tracksSpanMultipleDiscs(tracks);
     // Same fix as loadTracksForPlaylistGroups/loadPlaylistFlatTrackTable
     // (Album and Tracks view, flat Tracks table) — getTracksFor() always
     // returns the FULL release tracklist with no playlist-awareness at
@@ -13222,14 +13537,20 @@ function openAlbumQuickPeek(item, cardEl) {
       // Music tab.
       tracks = filterTracksBySearch(item, tracks);
     }
-    el.albumQuickPeekTracks.innerHTML = tracks.length ? tracks.map(t => `
-      <div class="album-quick-peek-track" data-track-num="${escapeHtml(String(t.trackNumber || ''))}" data-track-name="${escapeHtml(t.trackName || '')}">
-        <button type="button" class="album-quick-peek-track-play" title="Play this track" aria-label="Play ${escapeHtml(t.trackName || 'this track')}">▶</button>
-        <span class="album-quick-peek-track-num">${t.trackNumber || ''}</span>
-        <span class="album-quick-peek-track-name">${escapeHtml(t.trackName || '')}</span>
-        <span class="album-quick-peek-track-time">${formatDuration(t.trackTimeMillis)}</span>
-      </div>
-    `).join('') : '<p class="tracklist-status">No tracklist found for this release.</p>';
+    let lastDisc = null;
+    el.albumQuickPeekTracks.innerHTML = tracks.length ? tracks.map(t => {
+      const disc = t.discNumber || 1;
+      const head = multiDisc && disc !== lastDisc ? `<div class="album-quick-peek-disc">Disc ${disc}</div>` : '';
+      lastDisc = disc;
+      return head + quickPeekTrackRowHtml(item, t);
+    }).join('') : '<p class="tracklist-status">No tracklist found for this release.</p>';
+    // The INLINE peek opens in the grid's own flow, right under the clicked row — so for a card in the
+    // bottom visible row it opened entirely below the fold and looked like nothing had happened. It also
+    // only gets its real height now, once the tracks are in, so this is where it can be brought into view
+    // (nearest = the least scrolling that shows it, none if it's already visible).
+    if (el.albumQuickPeek.classList.contains('album-quick-peek-inline')) {
+      el.albumQuickPeek.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
 
     const rowEls = [...el.albumQuickPeekTracks.querySelectorAll('.album-quick-peek-track')];
     const rowKey = r => r.dataset.trackNum + '::' + r.dataset.trackName;
@@ -13238,11 +13559,20 @@ function openAlbumQuickPeek(item, cardEl) {
         e.stopPropagation();
         playTrackNow(item, rowEl.dataset.trackName, rowEl.dataset.trackNum);
       });
+      // The "N credits" chip shows/hides that track's credits under the row. It must not also
+      // select the row (hence stopPropagation here, and the matching guards on click/dblclick below).
+      const creditsBtn = rowEl.querySelector('.qp-credits-btn');
+      if (creditsBtn) creditsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const block = rowEl.querySelector('.album-quick-peek-track-credits');
+        block.hidden = !block.hidden;
+        creditsBtn.setAttribute('aria-expanded', String(!block.hidden));
+      });
       // Click selects (shift/ctrl for range/toggle, same convention as
       // album-card and Tracks-table selection elsewhere in the app);
       // double-click plays it directly, same as the ▶ button.
       rowEl.addEventListener('click', (e) => {
-        if (e.target.closest('.album-quick-peek-track-play')) return;
+        if (e.target.closest('.album-quick-peek-track-play, .qp-credits-btn')) return;
         const key = rowKey(rowEl);
         const allKeys = rowEls.map(rowKey);
         if (e.shiftKey && quickPeekLastSelectedKey && allKeys.includes(quickPeekLastSelectedKey)) {
@@ -13263,7 +13593,7 @@ function openAlbumQuickPeek(item, cardEl) {
         rowEls.forEach(r => r.classList.toggle('selected', quickPeekSelectedTracks.has(rowKey(r))));
       });
       rowEl.addEventListener('dblclick', (e) => {
-        if (e.target.closest('.album-quick-peek-track-play')) return;
+        if (e.target.closest('.album-quick-peek-track-play, .qp-credits-btn')) return;
         playTrackNow(item, rowEl.dataset.trackName, rowEl.dataset.trackNum);
       });
       // Right-click — same context menu (play, queue, playlist, edit
@@ -13489,7 +13819,32 @@ function openPlayerTrackContextMenu(x, y) {
   const { item, trackName, trackNum } = resolveNowPlayingForMenu();
   const spotifyTrack = activePlayerEngine === 'spotify' ? currentSpotifyTrack : null;
   if (!trackName && !item) return false;   // nothing to act on — let the browser's own menu through
+  openTrackActionsMenu({ item, trackName, trackNum, spotifyTrack, x, y, queueEntry: null });
+  return true;
+}
+
+// Right-click on a row of the Up Next panel (the crate queue). The queue-specific actions come first —
+// Play now / Play next / Remove from queue, only for tracks that are still UPCOMING — then the same
+// playlist / artist / album / credits actions every other track menu has. The folded-in "something
+// is already playing" placeholder (item === null) isn't a crate track, so it gets the player's menu.
+function openQueueTrackContextMenu(entry, x, y) {
+  if (!entry) return false;
+  if (!entry.item) return openPlayerTrackContextMenu(x, y);
+  openTrackActionsMenu({
+    item: entry.item, trackName: (entry.track && entry.track.trackName) || '',
+    trackNum: entry.track && entry.track.trackNumber != null ? entry.track.trackNumber : '',
+    spotifyTrack: null, x, y, queueEntry: entry
+  });
+  return true;
+}
+
+// The menu itself, shared by the player's right-click and the queue's. queueEntry is the crate-queue entry
+// the menu was opened on (null for the player). It is remembered as the ENTRY, not as a position: the queue
+// can advance or be edited while the menu is open, and a position would then point at the wrong track.
+function openTrackActionsMenu({ item, trackName, trackNum, spotifyTrack, x, y, queueEntry }) {
   closeNowPlayingAddMenu();
+  const qIdx = queueEntry ? crateQueueList.indexOf(queueEntry) : -1;
+  const upcoming = qIdx > crateQueueIndex;            // false for the playing track, or one that has already played
 
   // Same shape every other track menu feeds the playlist/queue code.
   const trackPlaylistItems = item
@@ -13506,8 +13861,13 @@ function openPlayerTrackContextMenu(x, y) {
   menu.innerHTML = `
     <div class="menu-section-title">${escapeHtml(trackName || (item && item.title) || 'Now playing')}</div>
     ${!item && spotifyTrack ? '<button type="button" data-player-action="addToCrate">Add album to your crate\u2026</button><div class="menu-divider"></div>' : ''}
+    ${queueEntry && upcoming ? `
+    <button type="button" data-player-action="queuePlayNow">Play now</button>
+    <button type="button" data-player-action="queuePlayNext" ${qIdx === crateQueueIndex + 1 ? 'disabled title="Already next"' : ''}>Play next</button>
+    <button type="button" data-player-action="queueRemove">Remove from queue</button>
+    <div class="menu-divider"></div>` : ''}
     <button type="button" class="menu-parent-btn" data-player-action="playlist" ${item ? '' : needsCrate}>Add to playlist <span class="submenu-caret">\u25b8</span></button>
-    <button type="button" data-player-action="queue" ${item ? '' : needsCrate}>Add to queue</button>
+    ${queueEntry ? '' : `<button type="button" data-player-action="queue" ${item ? '' : needsCrate}>Add to queue</button>`}
     <div class="menu-divider"></div>
     <button type="button" data-player-action="artist" ${crateArtist ? '' : needsCrate}>Go to artist</button>
     <button type="button" data-player-action="album" ${item ? '' : needsCrate}>Go to album</button>
@@ -13537,6 +13897,9 @@ function openPlayerTrackContextMenu(x, y) {
     closeNowPlayingAddMenu();
 
     if (action === 'queue') queueTracksNow(trackPlaylistItems);
+    else if (action === 'queuePlayNow') { const i = crateQueueList.indexOf(queueEntry); if (i > crateQueueIndex) playCrateQueueIndex(crateQueueId, i); }
+    else if (action === 'queuePlayNext') crateQueuePlayNext(queueEntry);
+    else if (action === 'queueRemove') crateQueueRemove(queueEntry);
     else if (action === 'artist') openArtistInfoTab(crateArtist);
     else if (action === 'album') { switchTab('albums'); openDeck(item); }
     else if (action === 'addToCrate') openNowPlayingAddMenu(spotifyTrack, x, y);
@@ -13552,7 +13915,6 @@ function openPlayerTrackContextMenu(x, y) {
 
   nowPlayingAddMenuEl = menu;
   setTimeout(() => document.addEventListener('click', closeNowPlayingAddMenuOnOutsideClick), 0);
-  return true;
 }
 
 // Credits for one track (the "Name \u2014 Role" lines saved under Edit track
@@ -13586,6 +13948,7 @@ function closeNowPlayingAddMenuOnOutsideClick(e) {
   if (nowPlayingAddMenuEl && !nowPlayingAddMenuEl.contains(e.target)) closeNowPlayingAddMenu();
 }
 function closeNowPlayingAddMenu() {
+  document.querySelectorAll('.queue-context-target').forEach(r => r.classList.remove('queue-context-target'));
   if (nowPlayingAddMenuEl) { nowPlayingAddMenuEl.remove(); nowPlayingAddMenuEl = null; }
   document.removeEventListener('click', closeNowPlayingAddMenuOnOutsideClick);
   closeAlbumSearchSubmenu();
@@ -16181,18 +16544,26 @@ function exitPlaylistView() {
 // #leftNavPanel rail. Switching to "Music" also exits playlist view
 // (closing whatever playlist was open), same as clicking back into Albums/
 // Artists/Genres always did.
+// The left panel is shared by the Music tab (its album/artist/genre browser, or the Playlist Explorer) and the
+// Artist Information tab (an artist list in the very same column — same position, width, resizer, thumbnail size
+// and row styling). Which of its three views shows follows the active tab; the rail's Music/Playlist Explorer
+// highlight only applies on the Music tab (neither is "current" on the artist page).
+function syncLeftPanelViews() {
+  const onArtistPage = state.activeTab === 'artistInfo';
+  if (el.panels) el.panels.classList.toggle('artist-info-mode', onArtistPage);
+  if (el.artistBrowserView) el.artistBrowserView.hidden = !onArtistPage;
+  if (el.musicBrowserView) el.musicBrowserView.hidden = onArtistPage || state.leftNavView !== 'music';
+  if (el.playlistsBrowserView) el.playlistsBrowserView.hidden = onArtistPage || state.leftNavView !== 'playlists';
+  [[el.navMusicBtn, 'music'], [el.navPlaylistsBtn, 'playlists']].forEach(([btn, view]) => {
+    if (!btn) return;
+    const on = !onArtistPage && state.leftNavView === view;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-current', on ? 'page' : 'false');
+  });
+}
 function setLeftNavView(view) {
   state.leftNavView = view;
-  if (el.navMusicBtn) {
-    el.navMusicBtn.classList.toggle('active', view === 'music');
-    el.navMusicBtn.setAttribute('aria-current', view === 'music' ? 'page' : 'false');
-  }
-  if (el.navPlaylistsBtn) {
-    el.navPlaylistsBtn.classList.toggle('active', view === 'playlists');
-    el.navPlaylistsBtn.setAttribute('aria-current', view === 'playlists' ? 'page' : 'false');
-  }
-  if (el.musicBrowserView) el.musicBrowserView.hidden = view !== 'music';
-  if (el.playlistsBrowserView) el.playlistsBrowserView.hidden = view !== 'playlists';
+  syncLeftPanelViews();
 
   if (view === 'music') {
     exitPlaylistView();
@@ -17092,6 +17463,31 @@ function crateQueueAppend(entries) {
   });
 }
 
+// Remove an UPCOMING entry (never the one playing, never one that already played). By entry, not position:
+// the menu that calls this can have been open while the queue moved on. A no-op in those cases.
+// The queue only ever advances by playCrateQueueIndex(id, index + 1) from the playing track, and new tracks
+// are only appended, so deleting something after the current track needs no other bookkeeping.
+function crateQueueRemove(entry) {
+  const i = crateQueueList.indexOf(entry);
+  if (i <= crateQueueIndex) return false;
+  crateQueueList.splice(i, 1);
+  renderCrateQueuePanel();
+  return true;
+}
+// Make an upcoming entry the NEXT one to play. With Shuffle on, each entry carries an original-order number
+// that "Shuffle off" sorts the rest of the queue back by — so the moved entry takes one just below the
+// smallest in the tail, otherwise turning Shuffle off would quietly put it back where it came from.
+function crateQueuePlayNext(entry) {
+  const i = crateQueueList.indexOf(entry), dest = crateQueueIndex + 1;
+  if (i <= crateQueueIndex || i === dest) return false;
+  crateQueueList.splice(i, 1);
+  const seqs = crateQueueList.slice(dest).map(e => e && e.origSeq).filter(n => typeof n === 'number');
+  if (seqs.length) entry.origSeq = Math.min(...seqs) - 1;
+  crateQueueList.splice(dest, 0, entry);
+  renderCrateQueuePanel();
+  return true;
+}
+
 function applyShuffleToCrateQueue(on) {
   if (!isPlayingCrateQueue()) return false;
   if (on) { ensureOrigSeq(crateQueueList); shuffleTail(crateQueueList, crateQueueIndex); }
@@ -17607,13 +18003,21 @@ function aiRenderSidebar(current) {
   const q = (el.aiArtistFilter.value || '').trim().toLowerCase();
   const byArtist = new Map();
   state.raw.forEach(r => { if (!byArtist.has(r.artist)) byArtist.set(r.artist, []); byArtist.get(r.artist).push(r); });
-  const names = [...byArtist.keys()].filter(n => !q || n.toLowerCase().includes(q)).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  // Same ordering rule as the Music tab's Artists list (state.leftSort: Name A-Z, or Highest Count then name).
+  const names = [...byArtist.keys()].filter(n => !q || n.toLowerCase().includes(q))
+    .sort(state.leftSort === 'count' ? (a, b) => byArtist.get(b).length - byArtist.get(a).length || a.localeCompare(b) : (a, b) => a.localeCompare(b));
   const prev = list.scrollTop;
+  // The list takes the same size class the Music list does, so the Thumbnails setting (none … XX-large) applies here too.
+  list.className = 'left-list thumb-' + state.leftThumbSize;
+  // The row is buildLeftRow's 'artist' row, class for class: round thumbnail, name, count pill (showing the
+  // "N of M (x%)" coverage badge once that artist's MusicBrainz discography has been counted, exactly as there).
   list.innerHTML = names.length ? names.map(n => {
-    const rel = byArtist.get(n);
-    return `<div class="ai-artist-row${n === current ? ' active' : ''}" role="listitem" data-artist="${escapeHtml(n)}">
-      <span class="ai-thumb-wrap">${aiArtImg(rel[0], 'ai-thumb')}</span>
-      <span class="ai-artist-text"><span class="ai-artist-name">${escapeHtml(n)}</span><span class="ai-artist-sub">${rel.length} album${rel.length === 1 ? '' : 's'}</span></span>
+    const rel = byArtist.get(n), first = rel[0], cached = state.artistDiscogCache[n.toLowerCase()];
+    const countText = (cached && cached.total != null) ? formatCoverageBadge(rel.length, cached.total) : rel.length;
+    return `<div class="left-row ai-artist-row${n === current ? ' active' : ''}" role="listitem" tabindex="0" data-artist="${escapeHtml(n)}">
+      <img class="left-thumb left-thumb-round art" data-key="${escapeHtml(artKey(first))}" src="${escapeHtml(aiArtSrc(first))}" alt="">
+      <div class="left-row-text"><p class="left-row-title">${escapeHtml(n)}</p></div>
+      <span class="left-row-count">${countText}</span>
     </div>`;
   }).join('') : '<p class="ai-empty">No artists match.</p>';
   list.scrollTop = prev;
@@ -17952,7 +18356,119 @@ function aiRenderSimilarTab(artist) {
       <div class="ai-album-title">${escapeHtml(s.name)}</div>
       <div class="ai-album-year">${escapeHtml(s.shared.join(', '))}</div>
     </div>`).join('')}</div>`;
-  el.aiBody.innerHTML = `<div class="ai-albums-head"><h3 class="ai-h3">Similar to ${escapeHtml(artist)}</h3><span class="ai-sub-note">In your crate \u00b7 by genre overlap</span></div>${inner}`;
+  el.aiBody.innerHTML = `<div class="ai-albums-head"><h3 class="ai-h3">Similar to ${escapeHtml(artist)}</h3><span class="ai-sub-note">In your crate \u00b7 by genre overlap</span></div>${inner}<div id="aiBeyond" class="ai-beyond"></div>`;
+  aiRenderBeyondCrate(artist, aiBodyToken);   // aiRenderBody bumped the token just before calling this
+}
+
+// ----- Beyond your crate (Last.fm) -----
+// "People who listen to X also listen to…" from Last.fm's artist.getSimilar, minus anything you
+// already own — the one real taste-matching signal still available (Spotify's related-artists and
+// recommendations endpoints are closed to new apps). Uses the API key already saved for the Last.fm
+// import. It's a READ-ONLY method, so it needs only the key — not the signed, write-capable
+// lastfmApiCall, which also swallows the error reason; here "key rejected", "artist unknown" and
+// "unreachable" each need their own message. Opened lazily (only with the Similar Artists tab) and cached.
+const LASTFM_SIMILAR_CACHE_KEY = 'crate_lastfm_similar_cache_v1';
+const LASTFM_SIMILAR_TTL_MS = 14 * 86400000;
+const aiBeyondMem = new Map();    // artist.toLowerCase() -> result, this session
+const aiBeyondFlight = new Map(); // artist.toLowerCase() -> the request currently in flight, so concurrent callers share it
+const aiBeyondArt = new Map();    // artist.toLowerCase() -> picture URL, or '' when looked up and none found
+let aiBeyondArtChain = Promise.resolve();
+
+function aiLoadSimilarCache(artist) {
+  try {
+    const e = JSON.parse(localStorage.getItem(LASTFM_SIMILAR_CACHE_KEY) || '{}')[artist.toLowerCase()];
+    return e && Date.now() - e.at < LASTFM_SIMILAR_TTL_MS ? e.data : null;
+  } catch (err) { return null; }
+}
+function aiSaveSimilarCache(artist, data) {
+  try {
+    const all = JSON.parse(localStorage.getItem(LASTFM_SIMILAR_CACHE_KEY) || '{}');
+    all[artist.toLowerCase()] = { at: Date.now(), data };
+    const keys = Object.keys(all);
+    if (keys.length > 80) keys.sort((a, b) => all[a].at - all[b].at).slice(0, keys.length - 80).forEach(k => delete all[k]);
+    localStorage.setItem(LASTFM_SIMILAR_CACHE_KEY, JSON.stringify(all));
+  } catch (err) { /* storage unavailable/full — just not cached */ }
+}
+// -> { status: 'ok', artists: [{name, match, url}] } | 'nokey' | 'badkey' | 'notfound' | 'error'.
+// Only 'ok' and 'notfound' are cached: a missing/rejected key or a network failure must be retried
+// the moment it's fixed, not remembered for two weeks.
+function fetchLastfmSimilar(artist) {
+  // Re-rendering the tab (e.g. clicking the sub-tab you're already on) re-asks before the first answer
+  // has arrived; for anything not cached — a rejected key, a failure — that was two identical requests
+  // for the same artist at once. Callers now share the one in flight.
+  const k = artist.toLowerCase();
+  if (aiBeyondFlight.has(k)) return aiBeyondFlight.get(k);
+  const p = fetchLastfmSimilarOnce(artist).finally(() => aiBeyondFlight.delete(k));
+  aiBeyondFlight.set(k, p);
+  return p;
+}
+async function fetchLastfmSimilarOnce(artist) {
+  const k = artist.toLowerCase();
+  if (aiBeyondMem.has(k)) return aiBeyondMem.get(k);
+  const apiKey = (loadLastfmCreds().apiKey || '').trim();
+  if (!apiKey) return { status: 'nokey' };
+  const cached = aiLoadSimilarCache(artist);
+  if (cached) { aiBeyondMem.set(k, cached); return cached; }
+  try {
+    const res = await fetch('https://ws.audioscrobbler.com/2.0/?' + new URLSearchParams({ method: 'artist.getsimilar', artist, api_key: apiKey, autocorrect: '1', limit: '50', format: 'json' }));
+    const data = await res.json().catch(() => null);          // Last.fm sends its error JSON with a 4xx status too, so read the body before looking at res.ok
+    if (data && data.error) {
+      if (data.error === 6) { const nf = { status: 'notfound' }; aiBeyondMem.set(k, nf); aiSaveSimilarCache(artist, nf); return nf; }
+      if (data.error === 10 || data.error === 26) return { status: 'badkey' };   // invalid / suspended key
+      return { status: 'error' };                                                 // incl. 29 (rate limited)
+    }
+    if (!res.ok || !data || !data.similarartists) return { status: 'error' };
+    const artists = [].concat(data.similarartists.artist || []).map(a => ({ name: String(a.name || ''), match: parseFloat(a.match) || 0, url: String(a.url || '') })).filter(a => a.name);
+    const ok = { status: 'ok', artists };
+    aiBeyondMem.set(k, ok); aiSaveSimilarCache(artist, ok);
+    return ok;
+  } catch (err) { return { status: 'error' }; }
+}
+// Last.fm has no artist pictures any more, so borrow the cover of one of the artist's albums from iTunes
+// — but only when iTunes says that album really is BY this artist (a fuzzy search for an obscure name
+// happily returns somebody else's record, and a wrong picture is worse than a letter). One lookup at a
+// time, spaced out, because iTunes rate-limits.
+function aiBeyondArtFor(name) {
+  const k = name.toLowerCase();
+  if (aiBeyondArt.has(k)) return Promise.resolve(aiBeyondArt.get(k));
+  aiBeyondArtChain = aiBeyondArtChain.then(async () => {
+    if (aiBeyondArt.has(k)) return;
+    let url = '';
+    try {
+      const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(name)}&entity=album&limit=3`);
+      const hit = ((await res.json()).results || []).find(r => r.artistName && normMatchKey(r.artistName) === normMatchKey(name) && r.artworkUrl100);
+      if (hit) url = hit.artworkUrl100.replace(/\/\d+x\d+bb\./, '/300x300bb.');
+    } catch (err) { /* no picture — the letter stands in */ }
+    aiBeyondArt.set(k, url);
+    await new Promise(r => setTimeout(r, 250));
+  });
+  return aiBeyondArtChain.then(() => aiBeyondArt.get(k) || '');
+}
+async function aiRenderBeyondCrate(artist, token) {
+  const box = document.getElementById('aiBeyond');
+  if (!box) return;
+  const head = `<div class="ai-albums-head ai-beyond-head"><h3 class="ai-h3">Beyond your crate</h3><span class="ai-sub-note">Last.fm \u00b7 what listeners of ${escapeHtml(artist)} also play</span></div>`;
+  box.innerHTML = head + '<p class="ai-empty">Asking Last.fm\u2026</p>';
+  const res = await fetchLastfmSimilar(artist);
+  if (token !== aiBodyToken || !document.getElementById('aiBeyond')) return;   // moved to another artist/tab meanwhile
+  const note = (msg, btn) => { box.innerHTML = head + `<div class="ai-note"><p>${msg}</p>${btn || ''}</div>`; };
+  const setup = '<button type="button" class="config-btn" data-ai-action="setupLastfm">Set up Last.fm</button>';
+  if (res.status === 'nokey') return note('Add your Last.fm API key to see artists beyond your crate.', setup);
+  if (res.status === 'badkey') return note('Last.fm rejected the API key \u2014 check it in the Last.fm settings.', setup);
+  if (res.status === 'notfound') return note(`Last.fm doesn\u2019t know an artist called \u201c${escapeHtml(artist)}\u201d.`);
+  if (res.status !== 'ok') return note('Couldn\u2019t reach Last.fm right now.', '<button type="button" class="config-btn" data-ai-action="retryBeyond">Retry</button>');
+  const owned = new Set(state.raw.map(r => normMatchKey(r.artist)));
+  const fresh = res.artists.filter(a => !owned.has(normMatchKey(a.name))).sort((a, b) => b.match - a.match).slice(0, 12);
+  if (!fresh.length) return note(res.artists.length ? 'Everything Last.fm suggests is already in your crate.' : 'Last.fm has no similar artists for this one.');
+  box.innerHTML = head + `<div class="ai-album-grid ai-sim-grid">${fresh.map(a => `
+    <div class="ai-album ai-beyond-tile" data-ai-action="searchSpotifyArtist" data-artist="${escapeHtml(a.name)}" tabindex="0" title="Search ${escapeHtml(a.name)} on Spotify">
+      <div class="ai-cover ai-cover-round"><img class="ai-cover-img" alt="" src="${escapeHtml(placeholderArt({ artist: a.name }))}"></div>
+      <div class="ai-album-title">${escapeHtml(a.name)}</div>
+      <div class="ai-album-year">${Math.round(a.match * 100)}% match${/^https:\/\/www\.last\.fm\//.test(a.url) ? ` \u00b7 <a href="${escapeHtml(a.url)}" target="_blank" rel="noopener noreferrer">Last.fm \u2197</a>` : ''}</div>
+    </div>`).join('')}</div>`;
+  box.querySelectorAll('.ai-beyond-tile').forEach(tile => {
+    aiBeyondArtFor(tile.dataset.artist).then(url => { if (url && token === aiBodyToken && tile.isConnected) tile.querySelector('img').src = url; });
+  });
 }
 
 // ----- page assembly -----
@@ -18011,10 +18527,14 @@ function aiAction(action, node, artist) {
   else if (action === 'gotoAlbums') { state.artistInfoSubTab[artist] = 'albums'; aiRenderBody(artist); }
   else if (action === 'gotoStats') { state.artistInfoSubTab[artist] = 'stats'; aiRenderBody(artist); }
   else if (action === 'openArtist') openArtistInfoTab(node.dataset.artist);
+  else if (action === 'setupLastfm') openLastfmModal();
+  else if (action === 'retryBeyond') { aiBeyondMem.delete(artist.toLowerCase()); aiRenderBeyondCrate(artist, aiBodyToken); }
+  else if (action === 'searchSpotifyArtist') window.open(spotifySearchUrl({ artist: node.dataset.artist, title: '' }), '_blank', 'noopener,noreferrer');
 }
 function aiBodyClick(e) {
   const artist = state.activeArtistInfoTab;
   if (!artist) return;
+  if (e.target.closest('a')) return;   // a real link (Wikipedia, Last.fm…) just follows itself, even when it sits inside a clickable tile
   const act = e.target.closest('[data-ai-action]');
   if (act) { aiAction(act.dataset.aiAction, act, artist); return; }
   const rg = e.target.closest('.ai-rg');
@@ -18253,7 +18773,9 @@ function initArtistInfoPage() {
   if (el.artistBioBody) el.artistBioBody.addEventListener('click', aiBioClick);
   if (!el.artistInfoWrap) return;
   el.aiArtistFilter.addEventListener('input', debounce(() => aiRenderSidebar(state.activeArtistInfoTab), 120));
-  el.aiArtistList.addEventListener('click', (e) => { const row = e.target.closest('.ai-artist-row'); if (row) openArtistInfoTab(row.dataset.artist); });
+  const openRow = (row) => { if (!row) return; openArtistInfoTab(row.dataset.artist); if (isMobileDrawerLayout()) setMobileDrawer(null); };
+  el.aiArtistList.addEventListener('click', (e) => openRow(e.target.closest('.ai-artist-row')));
+  el.aiArtistList.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { const row = e.target.closest('.ai-artist-row'); if (row) { e.preventDefault(); openRow(row); } } });
   el.aiSubtabs.addEventListener('click', (e) => {
     const b = e.target.closest('[data-aitab]'), a = state.activeArtistInfoTab;
     if (!b || !a) return;
@@ -18634,6 +19156,27 @@ function renderCrateQueuePanel() {
   else if (state.queueViewMode === 'releaseTracks') el.crateQueuePanelBody.innerHTML = renderQueueReleaseTracksHtml(current, upcoming, currentIndex);
   else el.crateQueuePanelBody.innerHTML = renderQueueThumbnailHtml(current, upcoming, currentIndex);
 
+  // Every row — the playing one and the placeholder too, which have no data-queue-index because they aren't
+  // click-to-play — gets its position in crateQueueList, for the right-click menu. All three views emit exactly
+  // one row per entry, in queue order (the playing one first when there is one), so a row's position is just
+  // its place in the DOM; if a row count ever disagrees with the queue, positions are left off rather than guessed.
+  const queueRows = [...el.crateQueuePanelBody.querySelectorAll('.queue-row, .queue-table-row:not(.queue-table-header), .queue-nested-track-row')];
+  if (queueRows.length === (current ? 1 : 0) + upcoming.length) {
+    let pos = current ? crateQueueIndex : crateQueueIndex + 1;
+    queueRows.forEach(r => { r.dataset.queuePos = String(pos++); });
+  }
+  if (!el.crateQueuePanelBody.dataset.ctxBound) {
+    el.crateQueuePanelBody.dataset.ctxBound = '1';
+    el.crateQueuePanelBody.addEventListener('contextmenu', (e) => {
+      const row = e.target.closest('[data-queue-pos]');
+      if (!row) return;                                   // header / empty space: the browser's own menu
+      const entry = crateQueueList[parseInt(row.dataset.queuePos, 10)];
+      if (!entry) return;
+      e.preventDefault();
+      openQueueTrackContextMenu(entry, e.clientX, e.clientY);
+      row.classList.add('queue-context-target');          // shows which row the open menu is about
+    });
+  }
   if (!el.crateQueuePanelBody.dataset.clickBound) {
     el.crateQueuePanelBody.dataset.clickBound = '1';
     const jumpToRow = (e) => {
@@ -26503,6 +27046,7 @@ html, body {
   .queue-track-artist { font-size: 11px; margin: 2px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-dim); min-height: 1em; }
   .queue-empty { font-size: 12px; color: var(--text-dim); padding: 6px 8px 10px; margin: 0; }
 
+  .queue-context-target { background: var(--bg-card); box-shadow: inset 2px 0 0 var(--accent); }
   /* "Track with Thumbnail" queue view — .queue-row img above already
      sizes any <img> inside a .queue-row at 34x34 (the mini player's own
      queue popover relies on that same rule), so this thumbnail picks it
@@ -26654,25 +27198,22 @@ html, body {
      width/height/object-fit (shared with the grid cards) has equal specificity
      to a plain class and would silently win — the cascade trap hit repeatedly
      in this file. */
-  .artist-info-wrap { display: flex; width: 100%; box-sizing: border-box; height: calc(100vh - 150px - var(--tab-bar-h, 0px)); max-width: 1500px; margin: 0 auto; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--bg); }
-  .ai-pane-title { padding: 9px 14px; font-size: 12px; font-weight: 700; letter-spacing: 0.2px; color: var(--text); border-bottom: 1px solid var(--line); background: var(--bg-elevated); flex: 0 0 auto; }
-
-  .ai-sidebar { flex: 0 0 245px; width: 245px; min-height: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); background: var(--bg-elevated); }
-  .ai-filter { margin: 10px; width: calc(100% - 20px); box-sizing: border-box; background: var(--bg); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 7px 10px; font: 13px 'Inter', sans-serif; outline: none; }
+  /* The page is now a .panel-main inside #panels (see the markup comment) and its artist list a view of the real
+     #leftPanel, whose own rules (.left-row, .left-thumb, .thumb-*, .panel-bar, .resizer, the rail) supply the
+     position, width and look — so nothing here sizes or styles that list except the filter box. Only one of the
+     Music main panel / this page shows at a time; the right (queue) panel is hidden on the artist page on desktop
+     only — on a phone it is an off-canvas drawer and must stay available. `!important` because
+     applyPanelVisibility() sets the right panel's display inline. */
+  #panels.artist-info-mode > #mainPanel { display: none !important; }
+  @media (min-width: 901px) {
+    #panels.artist-info-mode > #rightPanel, #panels.artist-info-mode > #resizerRight { display: none !important; }
+  }
+  .artist-info-wrap { min-height: 0; }
+  .ai-filter { margin: 2px 10px 8px 0; width: calc(100% - 10px); box-sizing: border-box; background: var(--bg); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 7px 10px; font: 13px 'Inter', sans-serif; outline: none; flex: 0 0 auto; }
   .ai-filter:focus { border-color: var(--accent); }
-  .ai-artist-list { flex: 1; min-height: 0; overflow-y: auto; position: relative; padding-bottom: 8px; }
-  .ai-artist-row { display: flex; align-items: center; gap: 10px; padding: 6px 12px; cursor: pointer; }
-  .ai-artist-row:hover { background: var(--bg-card); }
-  .ai-artist-row.active { background: var(--bg-card); box-shadow: inset 2px 0 0 var(--accent); }
-  .ai-artist-row .ai-thumb-wrap { flex: 0 0 40px; width: 40px; height: 40px; border-radius: 3px; overflow: hidden; background: var(--bg); }
-  .ai-artist-row .ai-thumb-wrap .ai-thumb { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .ai-artist-text { min-width: 0; display: flex; flex-direction: column; }
-  .ai-artist-name { font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ai-artist-row.active .ai-artist-name { color: var(--accent); }
-  .ai-artist-sub { font-size: 11px; color: var(--text-dim); }
+  #aiArtistList { position: relative; }   /* offsetTop of the active row is measured against the list (aiRenderSidebar) */
 
-  .ai-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-  .ai-header { display: flex; align-items: center; gap: 22px; padding: 16px 22px; background: var(--bg-elevated); flex: 0 0 auto; }
+  .ai-header { display: flex; align-items: center; gap: 22px; padding: 16px 22px; background: var(--bg-elevated); border-radius: 8px 8px 0 0; flex: 0 0 auto; }
   .ai-header #aiAvatar.ai-avatar { width: 126px; height: 126px; flex: 0 0 126px; border-radius: 50%; object-fit: cover; background: var(--bg-card); border: 1px solid var(--line); display: block; }
   .ai-headline { min-width: 0; }
   .ai-name-row { display: flex; align-items: center; gap: 14px; }
@@ -26720,6 +27261,11 @@ html, body {
   .ai-disambig-desc { font-size: 13.5px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
   .ai-disambig-sample { font-size: 11.5px; color: var(--text-dim); margin-bottom: 10px; }
 
+  .ai-beyond { margin-top: 34px; }
+  .ai-album-year a { color: var(--accent); text-decoration: none; }
+  .ai-album-year a:hover { text-decoration: underline; }
+  .ai-beyond-tile .ai-cover { box-shadow: inset 0 0 0 1px var(--line); }
+
   /* Albums & Stats: tiles on the left, Top Tracks on the right */
   .ai-stats-layout { display: flex; gap: 22px; align-items: flex-start; }
   .ai-top-tracks { flex: 0 0 250px; width: 250px; padding-left: 18px; border-left: 1px solid var(--line); }
@@ -26755,8 +27301,6 @@ html, body {
   .ai-section-row { display: flex; justify-content: space-between; align-items: baseline; margin: 26px 0 8px; }
 
   @media (max-width: 900px) {
-    .artist-info-wrap { flex-direction: column; height: auto; min-height: calc(100vh - 150px); }
-    .ai-sidebar { display: none; }
     .ai-header { gap: 14px; padding: 12px 14px; }
     .ai-header #aiAvatar.ai-avatar { width: 72px; height: 72px; flex-basis: 72px; }
     .ai-name { font-size: 32px; }
@@ -26786,6 +27330,34 @@ html, body {
   .album-quick-peek-track-num { flex: 0 0 auto; width: 18px; color: var(--text-dim); text-align: right; }
   .album-quick-peek-track-name { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .album-quick-peek-track-time { flex: 0 0 auto; color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; font-size: 11px; }
+  /* Per-track details. A row wraps so the details can drop to a line of their own under the title in the
+     narrow FLOATING peek (order 5 = after the time, full width, indented past ▶ and the number) and sit on the
+     title's own line in the full-width INLINE peek (order 3 = between title and time). */
+  .album-quick-peek-track { flex-wrap: wrap; }
+  /* The title is now a flex row so the "E" badge sits right after the title's text and survives when a long
+     title is cut with an ellipsis (the ellipsis has to live on the inner .qp-title span: text-overflow doesn't
+     apply to a flex container's own text). */
+  /* flex: 1 1 0 (not auto) matters: the row now wraps so the details can drop to a second line, and a wrapping
+     flex item is placed by its full CONTENT width — a long title with the default basis jumped onto a line of its
+     own and dragged the length with it. A zero basis can never force a wrap; it just takes the room that's left
+     and is cut with an ellipsis, as before. */
+  .album-quick-peek-track-name { display: flex; align-items: center; gap: 6px; flex: 1 1 0; }
+  .qp-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .qp-explicit { flex: 0 0 auto; font: 700 9px 'IBM Plex Mono', monospace; line-height: 13px; padding: 0 4px; color: var(--text-dim); border: 1px solid var(--line); border-radius: 3px; }
+  .album-quick-peek-disc { padding: 9px 14px 3px; font: 10.5px 'IBM Plex Mono', monospace; letter-spacing: 0.7px; text-transform: uppercase; color: var(--text-dim); }
+  .album-quick-peek-disc:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--line); }
+  .album-quick-peek-track-play { order: 0; } .album-quick-peek-track-num { order: 1; } .album-quick-peek-track-name { order: 2; } .album-quick-peek-track-time { order: 4; }
+  .album-quick-peek-track-details { order: 5; flex: 0 0 100%; box-sizing: border-box; padding-left: 52px; margin-top: -2px; display: flex; flex-wrap: wrap; align-items: center; gap: 3px 12px; font-size: 11px; color: var(--text-dim); min-width: 0; }
+  .album-quick-peek.album-quick-peek-inline .album-quick-peek-track-details { order: 3; flex: 0 1 auto; max-width: 62%; padding-left: 0; margin-top: 0; flex-wrap: nowrap; overflow: hidden; }
+  .qp-detail { white-space: nowrap; }
+  .qp-rating { color: var(--accent); }
+  .qp-listened { color: #7FBF8E; }
+  .qp-note { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-style: italic; }
+  .album-quick-peek-track-details .qp-note { flex: 0 1 auto; }
+  .qp-credits-btn { background: none; border: none; padding: 0; font: inherit; font-size: 11px; color: var(--accent); cursor: pointer; }
+  .qp-credits-btn:hover { text-decoration: underline; }
+  .album-quick-peek-track-credits { order: 6; flex: 0 0 100%; box-sizing: border-box; padding: 2px 0 4px 52px; }
+  .album-quick-peek-track-credits .track-credit-entry { margin: 0 0 3px; font-size: 11.5px; }
   .device-row-clickable { cursor: pointer; }
   .device-row-clickable:hover, .device-row-clickable:focus-visible { background: var(--bg-card); }
   .device-row-icon { font-size: 16px; flex: 0 0 auto; width: 20px; text-align: center; }
