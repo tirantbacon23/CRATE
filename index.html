@@ -19,7 +19,55 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.29.189
+  CURRENT_VERSION: 1.29.190
+
+  1.29.190 — 2026-10-07 — Genre pages: the Years active chart can now show MusicBrainz's releases by year as a histogram, on its own or overlaid on your crate (switch: Your crate | Both | MusicBrainz).
+
+          How it works: MusicBrainz has no "releases per year" table, but a search reports its total for any
+          query and a query can carry a date, so the histogram is built by asking it. A release GROUP (an
+          album/EP/single with its reissues counted once) is counted under the year of its FIRST release, for
+          groups tagged with this genre's name: tag:"progressive rock" AND firstreleasedate:1972*. The same
+          number as the header's "N on MusicBrainz", broken down by year. It is asked for only when you press
+          Load, because it is dozens of requests through the app's one-a-second MusicBrainz queue:
+            1. every decade from 1900 to the current one (13 requests);
+            2. the years inside each decade that has anything — stopping a decade as soon as its years add up
+               to its total, and working out a full decade's last year by subtraction instead of asking.
+          That is typically 50-60 requests (about a minute) rather than one per year (77+). The result is
+          remembered for 30 days; Refresh reads it again.
+
+          Behaviour: one request at a time, each awaited before the next is queued, so other MusicBrainz work
+          (art, adding a release, another genre's count) slots in between instead of waiting behind the whole
+          run. A progress panel shows the request count with Cancel; Cancel, closing the genre's tab, or a
+          failure stops it, and Resume/Retry carries on from where it stopped — every answer is kept in one
+          shared object, so nothing already fetched is asked again. Another genre's tab can be opened while it
+          runs, and it keeps going. In "Both" the MusicBrainz bars are teal behind your gold ones; "MusicBrainz"
+          alone hides yours. Each series is scaled to its OWN busiest year (shapes, not sizes), tooltips give
+          both numbers ("1972 · 2 in your crate · 210 on MusicBrainz"), the axis spans the combined range, and
+          the choice is saved with your other preferences. Clicking a year still filters YOUR releases below
+          (a year in which you own nothing does nothing). While MusicBrainz is shown, "Compare to a genre" steps
+          aside. The summary under the chart: total tagged, how many have a first-release year (and their
+          span), how many are undated, before 1900 or not yet released, with a link to run the same search on
+          MusicBrainz yourself.
+
+          Sanity check: when a run finishes the numbers are checked against each other. A tag that MusicBrainz
+          says has releases but none with a date (or dated counts well above the total) means its date search
+          didn't answer the way this expects, and the page says so — with the link — instead of drawing a flat
+          chart or calling it done; such a result is never remembered.
+
+          IMPORTANT, NOT VERIFIED: no network here, so the date syntax (a trailing * on the first-release date,
+          chosen because it matches however the field is indexed) is untested against the real MusicBrainz.
+          Everything else is tested with MusicBrainz stubbed to a known table. If the real service answers
+          differently, the page will say so ("didn't return counts that add up") rather than show wrong numbers.
+          Not done: a baseline of ALL of MusicBrainz per year (to show a genre's share), counting sub-genres
+          (the tag is matched exactly, as for the header figure), releases before 1900.
+
+          Verified in real Chromium: 49 browser checks (pw_genre_mb_years.py) and 22 unit checks of the
+          algorithm (test_mb_hist.js). The algorithm test confirms the result is exactly the stubbed table, the
+          request count is exactly what the rules imply (57 for the test data) with none repeated, and that
+          resume/failure repeat nothing. Two behaviours were mutation-checked (ignoring a closed tab; accepting
+          answers that don't add up). The test also found and I fixed a real bug before release: reloading with
+          MusicBrainz mode saved and numbers cached crashed the genre page while drawing (the summary read a
+          "dated" total that was only set by a fresh load); it is now derived from the stored years.
 
   1.29.189 — 2026-10-07 — New: a red ! on any release that has songs with no link, with a setting in the ⚙ menu (Checks > "Flag releases with unlinked songs") to turn it on or off.
 
@@ -7094,7 +7142,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.189';
+const APP_VERSION = '1.29.190';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -7361,6 +7409,8 @@ const state = {
   genreTabs: [],        // genre tabs, in the order opened (session only, like artist tabs)
   activeGenreTab: null, // the last genre tab you were on
   genreMb: {},          // per genre: what MusicBrainz said about it this session ({status: loading|ok|error, count})
+  genreMbYears: {},     // per genre: MusicBrainz release groups by year, as far as they've been read ({decades, years, requests, total, status})
+  genreChartMb: 'off',  // Years active chart: 'off' = your crate only, 'both' = + MusicBrainz overlaid, 'only' = MusicBrainz alone
   genreUi: {},          // per genre (by taxonomy key): include sub-genres, sort, view, year filter, compare, editing — kept while its tab is open
   artistInfoSubTab: {}, // per artist: which of the page's sub-tabs ('stats'|'albums'|'profile'|'similar') is showing — session only
   artistInfoTrackSort: 'plays', // Top Tracks order: 'plays' | 'album'
@@ -9845,6 +9895,7 @@ function loadPrefs() {
     if (typeof p.showTrackCredits === 'boolean') state.showTrackCredits = p.showTrackCredits;
     if (typeof p.chartGenre === 'string') state.chartGenre = p.chartGenre;
     if (typeof p.flagMissingLinks === 'boolean') state.flagMissingLinks = p.flagMissingLinks;
+    if (['off', 'both', 'only'].includes(p.genreChartMb)) state.genreChartMb = p.genreChartMb;
     if (typeof p.trackInfoShowPlayer === 'boolean') state.trackInfoShowPlayer = p.trackInfoShowPlayer;
     if (typeof p.trackInfoShowVideo === 'boolean') state.trackInfoShowVideo = p.trackInfoShowVideo;
     if (typeof p.releaseSearchGridView === 'boolean') state.releaseSearchGridView = p.releaseSearchGridView;
@@ -9879,6 +9930,7 @@ function savePrefs() {
       showTrackCredits: state.showTrackCredits,
       chartGenre: state.chartGenre,
       flagMissingLinks: state.flagMissingLinks,
+      genreChartMb: state.genreChartMb,
       trackInfoShowPlayer: state.trackInfoShowPlayer,
       trackInfoShowVideo: state.trackInfoShowVideo,
       releaseSearchGridView: state.releaseSearchGridView,
@@ -19479,6 +19531,48 @@ function initLinkFlags() {
   });
 }
 
+// BEGIN mb-hist
+// ---- MusicBrainz release counts by year: the plan (pure — the request itself is injected, so this can be tested) ----
+// MusicBrainz can't list "releases per year" in one go, but a search reports its total (count) for any query, and a
+// query can carry a date prefix: tag:"x" AND firstreleasedate:197* is the decade, ...:1972* the year. (A trailing *
+// is used rather than an exact date because it matches however the field is indexed — whole date or its parts.)
+// So the histogram is asked for in two passes, as cheaply as the numbers allow:
+//   1. every decade from 1900 to the current one (13 requests);
+//   2. the years inside each decade that has anything — stopping a decade as soon as its years add up to its total
+//      (the rest are 0), and working out a full decade's LAST year by subtraction instead of asking.
+// Everything is written into one shared "known" object ({decades, years, requests}) as it goes, so a run that is
+// cancelled or fails can be resumed later and repeats no request. Releases dated before 1900, with no date, or in a
+// future year of the current decade are in the tag's total but not in the chart.
+function genreMbPhrase(label) { return String(label).toLowerCase().replace(/[\\"]/g, '\\$&'); }   // inside a quoted Lucene phrase only " and \ are special
+function genreMbQuery(label, datePrefix) {
+  return 'tag:"' + genreMbPhrase(label) + '"' + (datePrefix ? ' AND firstreleasedate:' + datePrefix + '*' : '');
+}
+async function buildMbYearHistogram(countFor, opts) {
+  const known = opts.known, nowYear = opts.nowYear, stop = opts.shouldStop || (() => false), step = opts.onStep || (() => {});
+  known.decades = known.decades || {}; known.years = known.years || {}; known.requests = known.requests || 0;
+  const ask = async (prefix) => { const n = await countFor(prefix); known.requests++; return n; };
+  const lastDecade = Math.floor(nowYear / 10) * 10;
+  for (let d = 1900; d <= lastDecade; d += 10) {
+    if (stop()) return false;
+    if (known.decades[d] === undefined) { known.decades[d] = await ask(String(d / 10)); step(); }
+  }
+  for (let d = 1900; d <= lastDecade; d += 10) {
+    const want = known.decades[d], yLast = Math.min(d + 9, nowYear);
+    if (!want) { for (let y = d; y <= yLast; y++) if (known.years[y] === undefined) known.years[y] = 0; continue; }
+    let have = 0;
+    for (let y = d; y <= yLast; y++) if (known.years[y] !== undefined) have += known.years[y];
+    for (let y = d; y <= yLast; y++) {
+      if (known.years[y] !== undefined) continue;
+      if (have >= want) { known.years[y] = 0; continue; }                        // the decade's total is already accounted for
+      if (y === d + 9) { known.years[y] = want - have; have = want; continue; }   // the last year of a full decade is whatever is left
+      if (stop()) return false;
+      known.years[y] = await ask(String(y)); have += known.years[y]; step();
+    }
+  }
+  return true;
+}
+// END mb-hist
+
 // BEGIN genre-data
 // ---- Genre page: the numbers (pure functions of the library + the taxonomy, so they can be tested on their own) ----
 // A release belongs to a genre if ANY of its genres (primary, secondary…) is that genre — or, with includeSub, is
@@ -19506,16 +19600,19 @@ function genreChartModel(counts, compareCounts) {
   const years = [...counts.keys(), ...(compareCounts ? [...compareCounts.keys()] : [])];
   if (!years.length) return null;
   const dataLo = Math.min(...counts.size ? [...counts.keys()] : years), dataHi = Math.max(...counts.size ? [...counts.keys()] : years);
+  const cYears = compareCounts ? [...compareCounts.keys()] : [];
+  const dataLoC = cYears.length ? Math.min(...cYears) : null, dataHiC = cYears.length ? Math.max(...cYears) : null;   // the second series' own span
   let lo = Math.min(...years), hi = Math.max(...years);
   if (hi - lo < 9) { const pad = Math.ceil((9 - (hi - lo)) / 2); lo -= pad; hi += pad; }
   const maxN = Math.max(1, ...counts.values()), maxC = compareCounts && compareCounts.size ? Math.max(...compareCounts.values()) : 0;
-  const bars = []; let peakYear = null;
+  const bars = []; let peakYear = null, peakYearC = null;
   for (let y = lo; y <= hi; y++) {
     const n = counts.get(y) || 0, c = compareCounts ? (compareCounts.get(y) || 0) : 0;
     bars.push({ year: y, n, c, h: n / maxN, ch: maxC ? c / maxC : 0 });
     if (peakYear === null && counts.size && n === maxN) peakYear = y;
+    if (peakYearC === null && maxC && c === maxC) peakYearC = y;
   }
-  return { lo, hi, dataLo, dataHi, bars, peakYear, maxN, maxC };
+  return { lo, hi, dataLo, dataHi, dataLoC, dataHiC, bars, peakYear, peakYearC, maxN, maxC };
 }
 function genrePlayMap() {      // normalised "artist|album" -> plays (diary entries + Last.fm scrobbles)
   const m = new Map();
@@ -19645,9 +19742,8 @@ function giMbCacheRead() { try { return JSON.parse(localStorage.getItem(GENRE_MB
 function giMbCacheWrite(key, count) {
   try { const all = giMbCacheRead(); all[key] = { count, at: Date.now() }; localStorage.setItem(GENRE_MB_CACHE_KEY, JSON.stringify(all)); } catch (e) { /* storage full or blocked: just not remembered */ }
 }
-async function fetchGenreMbCount(label) {
-  const phrase = String(label).toLowerCase().replace(/[\\"]/g, '\\$&');       // inside a quoted Lucene phrase only " and \ are special
-  const res = await mbFetch(`https://musicbrainz.org/ws/2/release-group?query=${encodeURIComponent('tag:"' + phrase + '"')}&limit=1&fmt=json`, { headers: { 'Accept': 'application/json' } });
+async function fetchGenreMbCount(label, datePrefix) {     // datePrefix (e.g. '197' or '1972') narrows it to a decade or a year — see buildMbYearHistogram
+  const res = await mbFetch(`https://musicbrainz.org/ws/2/release-group?query=${encodeURIComponent(genreMbQuery(label, datePrefix))}&limit=1&fmt=json`, { headers: { 'Accept': 'application/json' } });
   if (!res.ok) throw new Error('MusicBrainz HTTP ' + res.status);
   const data = await res.json();
   if (!data || typeof data.count !== 'number') throw new Error('MusicBrainz sent no count');
@@ -19687,6 +19783,138 @@ function giRenderMb(genre) {
     b.type = 'button'; b.className = 'ai-link-btn'; b.dataset.gi = 'mb-retry'; b.textContent = 'Retry';
     out.appendChild(b);
   } else if (st.status === 'loading') out.append(' \u00b7 checking MusicBrainz\u2026');
+}
+
+// ----- MusicBrainz: the Years active chart's second series — release groups by year -----
+// Asked for only when you press Load (it is dozens of requests through the app's one-a-second MusicBrainz queue, so
+// roughly a minute the first time) and remembered for 30 days once it has finished. One request at a time, each
+// awaited before the next is queued, so other MusicBrainz work (an art lookup, adding a release) slots in between
+// rather than waiting behind the whole run. It stops if you press Cancel or close the genre's tab, and a stopped or
+// failed run resumes where it left off (the shared "rec" object keeps every answer). When it finishes, the numbers are
+// checked against each other: a genre MusicBrainz says has releases but none with a date means its date search didn't
+// answer the way this expects, and the page says so instead of drawing a flat chart.
+const GENRE_MBY_CACHE_KEY = 'crate_genre_mb_years_v1';
+function giMbYearsCacheRead() { try { return JSON.parse(localStorage.getItem(GENRE_MBY_CACHE_KEY) || '{}') || {}; } catch (e) { return {}; } }
+function giMbYearsCacheWrite(key, rec) {
+  try { const all = giMbYearsCacheRead(); all[key] = { decades: rec.decades, years: rec.years, total: rec.total, requests: rec.requests, at: rec.at }; localStorage.setItem(GENRE_MBY_CACHE_KEY, JSON.stringify(all)); } catch (e) { /* storage full or blocked: just not remembered */ }
+}
+function giMbYearsRec(genre) {
+  const key = genreTaxonomyKey(genre);
+  return state.genreMbYears[key] || (state.genreMbYears[key] = { decades: {}, years: {}, requests: 0, total: null, status: 'idle', error: '', stop: false, at: null });
+}
+function giMbYearsHydrate(genre) {      // the saved answer, if there is a fresh one and nothing newer is in memory
+  const key = genreTaxonomyKey(genre), rec = giMbYearsRec(genre);
+  if (rec.status !== 'idle') return rec;
+  const hit = giMbYearsCacheRead()[key];
+  if (hit && hit.years && typeof hit.total === 'number' && Date.now() - hit.at < GENRE_MB_TTL_MS) Object.assign(rec, { decades: hit.decades || {}, years: hit.years, total: hit.total, requests: hit.requests || 0, at: hit.at, status: 'done' });
+  return rec;
+}
+function giMbCheckUrl(genre) { return 'https://musicbrainz.org/search?query=' + encodeURIComponent(genreMbQuery(genre)) + '&type=release_group&method=advanced'; }
+function giPaintMbYears(genre) {
+  if (!giShowing(genre)) return;
+  const ui = giUi(genre);
+  giRenderChart(genre, ui, genreReleasesOf(genre, ui.includeSub));
+}
+async function giLoadMbYears(genre, fresh) {
+  const key = genreTaxonomyKey(genre);
+  if (fresh) { delete state.genreMbYears[key]; try { const all = giMbYearsCacheRead(); delete all[key]; localStorage.setItem(GENRE_MBY_CACHE_KEY, JSON.stringify(all)); } catch (e) {} }
+  const rec = giMbYearsRec(genre);
+  if (rec.status === 'loading') return;
+  rec.status = 'loading'; rec.stop = false; rec.error = '';
+  giPaintMbYears(genre);
+  try {
+    if (rec.total === null) {
+      const have = state.genreMb[key];
+      rec.total = have && have.status === 'ok' ? have.count : await fetchGenreMbCount(genre);
+    }
+    const finished = await buildMbYearHistogram((prefix) => fetchGenreMbCount(genre, prefix), {
+      nowYear: new Date().getFullYear(), known: rec, onStep: () => giPaintMbYears(genre),
+      shouldStop: () => rec.stop || !state.genreTabs.some(g => genreTaxonomyKey(g) === key)
+    });
+    if (!finished) rec.status = 'stopped';
+    else {
+      const decadeSum = Object.values(rec.decades).reduce((a, b) => a + b, 0);
+      if ((rec.total > 0 && decadeSum === 0) || decadeSum > rec.total * 1.05 + 5) rec.status = 'odd';   // dated answers that contradict the total
+      else { rec.status = 'done'; rec.at = Date.now(); giMbYearsCacheWrite(key, rec); }
+    }
+  } catch (err) {
+    console.warn('MusicBrainz year counts failed', err);
+    rec.status = 'error'; rec.error = String((err && err.message) || err);
+  }
+  giPaintMbYears(genre);
+}
+function giMbPanelHtml(genre, rec) {
+  const check = `<a href="${escapeHtml(giMbCheckUrl(genre))}" target="_blank" rel="noopener">Check the same search on MusicBrainz \u2197</a>`;
+  const reqs = `${rec.requests} request${rec.requests === 1 ? '' : 's'}`;
+  if (rec.status === 'loading') {
+    const decades = Object.keys(rec.decades).length, phase = decades < Math.floor(new Date().getFullYear() / 10) - 189 ? `counting decades (${decades} of ${Math.floor(new Date().getFullYear() / 10) - 189})` : 'counting years';
+    return `<div class="gi-mb-panel" role="status" aria-live="polite"><div class="gi-mb-line"><span>Reading MusicBrainz\u2026 ${reqs} so far, ${phase}${rec.stop ? ' \u2014 stopping after this one' : ''}</span><button type="button" class="ai-link-btn" data-gi="mb-stop"${rec.stop ? ' disabled' : ''}>Cancel</button></div><div class="gi-mb-bar"><i></i></div><p class="gi-hint">MusicBrainz allows one request a second, so the first time takes about a minute. The page stays usable, and the result is remembered for 30 days.</p></div>`;
+  }
+  if (rec.status === 'stopped') return `<div class="gi-mb-panel" role="status"><div class="gi-mb-line"><span>Stopped after ${reqs}. What's loaded is shown below.</span><button type="button" class="ai-link-btn" data-gi="mb-load">Resume</button></div></div>`;
+  if (rec.status === 'error') return `<div class="gi-mb-panel" role="status"><div class="gi-mb-line"><span>MusicBrainz stopped answering after ${reqs} (${escapeHtml(rec.error)}).</span><button type="button" class="ai-link-btn" data-gi="mb-load">Retry</button></div><p class="gi-hint">Retrying carries on from where it stopped; nothing already fetched is asked again.</p></div>`;
+  if (rec.status === 'odd') return `<div class="gi-mb-panel" role="status"><div class="gi-mb-line"><span>MusicBrainz says ${rec.total.toLocaleString()} release groups carry this tag, but its date search didn't return counts that add up, so no chart was drawn.</span><button type="button" class="ai-link-btn" data-gi="mb-load" data-fresh="1">Try again</button></div><p class="gi-hint">${check}</p></div>`;
+  return `<div class="gi-mb-panel"><div class="gi-mb-line"><span>MusicBrainz can't list releases by year in one go, so this asks it year by year \u2014 about a minute the first time, then remembered for 30 days.</span><button type="button" class="config-btn" data-gi="mb-load">Load MusicBrainz release counts</button></div></div>`;
+}
+function giMbSummary(genre, rec) {
+  const ys = Object.keys(rec.years).map(Number).filter(y => rec.years[y] > 0);
+  const dated = ys.reduce((a, y) => a + rec.years[y], 0);   // worked out here, not stored: numbers read back from the cache never had it set
+  if (!ys.length) return `MusicBrainz: ${rec.total.toLocaleString()} release groups tagged \u201c${escapeHtml(String(genre).toLowerCase())}\u201d, none with a first-release year.`;
+  const rest = Math.max(0, rec.total - dated);
+  return `MusicBrainz: ${rec.total.toLocaleString()} release groups tagged \u201c${escapeHtml(String(genre).toLowerCase())}\u201d \u00b7 ${dated.toLocaleString()} with a first-release year (${Math.min(...ys)}\u2013${Math.max(...ys)}) \u00b7 ${rest.toLocaleString()} undated, before 1900 or not yet released. <a href="${escapeHtml(giMbCheckUrl(genre))}" target="_blank" rel="noopener">Check \u2197</a> \u00b7 <button type="button" class="ai-link-btn" data-gi="mb-refresh">Refresh</button>`;
+}
+function giRenderChart(genre, ui, items) {
+  const mode = state.genreChartMb || 'off', mbOn = mode !== 'off';
+  const rec = mbOn ? giMbYearsHydrate(genre) : null;
+  const mbMap = rec ? new Map(Object.entries(rec.years).filter(([, v]) => v > 0).map(([y, v]) => [Number(y), v])) : null;
+  const cmpItems = !mbOn && ui.compare ? genreReleasesOf(ui.compare, ui.includeSub) : null;
+  const counts = genreYearCounts(items);
+  const second = mbOn ? (mbMap.size ? mbMap : null) : (cmpItems ? genreYearCounts(cmpItems) : null);
+  const model = genreChartModel(counts, second);
+  const undated = items.length - [...counts.values()].reduce((a, b) => a + b, 0);
+  const labels = getAllKnownGenres(state.genreTaxonomy).map(g => g.label).filter(l => genreTaxonomyKey(l) !== genreTaxonomyKey(genre));
+  const showPlot = !!model && !(mode === 'only' && !mbMap.size);
+  let chart = '';
+  if (!showPlot) { if (!mbOn) chart = '<p class="ai-empty">No dated releases in this genre yet.</p>'; }
+  else {
+    const n = model.bars.length, pct = (y) => ((y - model.lo + 0.5) / n * 100).toFixed(2);
+    const bands = [];
+    for (let d = Math.floor(model.lo / 10) * 10; d <= model.hi; d += 10) {
+      if ((d / 10) % 2) continue;
+      const s = Math.max(d, model.lo), e = Math.min(d + 9, model.hi);
+      bands.push(`<span class="gi-band" style="left:${((s - model.lo) / n * 100).toFixed(3)}%;width:${((e - s + 1) / n * 100).toFixed(3)}%"></span>`);
+    }
+    const cols = model.bars.map(b => {
+      const sel = ui.year === b.year;
+      const tip = mbOn ? `${b.year} \u00b7 ${b.n} in your crate \u00b7 ${b.c.toLocaleString()} on MusicBrainz`
+        : `${b.year} \u00b7 ${b.n} release${b.n === 1 ? '' : 's'}` + (cmpItems ? ` \u00b7 ${ui.compare}: ${b.c}` : '');
+      return `<button type="button" class="gi-col${sel ? ' selected' : ''}${ui.year && !sel ? ' dim' : ''}" data-gi="year" data-year="${b.year}" data-n="${b.n}" title="${escapeHtml(tip)}" aria-label="${escapeHtml(tip)}" aria-pressed="${sel}"${b.n || b.c ? '' : ' disabled'}>` +
+        (second && b.c ? `<span class="gi-bar gi-bar-c" style="height:${Math.max(3, Math.round(b.ch * GI_CHART_H))}px"></span>` : '') +
+        (b.n && mode !== 'only' ? `<span class="gi-bar" style="height:${Math.max(3, Math.round(b.h * GI_CHART_H))}px"></span>` : '') + '</button>';
+    }).join('');
+    const only = mode === 'only';
+    const first = only ? model.dataLoC : (mbOn && model.dataLoC !== null ? Math.min(model.dataLo, model.dataLoC) : model.dataLo);
+    const last = only ? model.dataHiC : (mbOn && model.dataHiC !== null ? Math.max(model.dataHi, model.dataHiC) : model.dataHi);
+    const peak = only ? model.peakYearC : model.peakYear;
+    chart = `<div class="gi-plot${only ? ' mb-only' : ''}" style="height:${GI_CHART_H}px">${bands.join('')}<div class="gi-cols-row">${cols}</div></div>
+      <div class="gi-axis"><span style="left:${pct(first)}%">${first}</span>${peak !== null && peak !== first && peak !== last ? `<span class="gi-axis-peak" style="left:${pct(peak)}%">${peak}</span>` : ''}${last !== first ? `<span style="left:${pct(last)}%">${last}</span>` : ''}</div>`;
+  }
+  const panel = mbOn && rec.status !== 'done' ? giMbPanelHtml(genre, rec) : '';
+  const hint = mbOn && rec.status === 'done' ? giMbSummary(genre, rec)
+    : ui.year ? `Showing ${ui.year} only. <button type="button" class="ai-link-btn" data-gi="clear-year">Show all years</button>`
+    : (model && !(mode === 'only' && !mbMap.size) ? 'Your releases in this genre by year of release. Click a year to filter the releases below.' : '') + (undated ? ` ${undated} undated release${undated === 1 ? '' : 's'} not shown.` : '');
+  const seg = (m, text) => `<button type="button" class="gi-seg-btn${mode === m ? ' active' : ''}" data-gi="mb-mode" data-mode="${m}" aria-pressed="${mode === m}">${text}</button>`;
+  const legend = mbOn
+    ? (mode === 'only' ? '' : `<span class="gi-legend"><i class="gi-swatch"></i>Your crate</span>`) + `<span class="gi-legend"><i class="gi-swatch gi-swatch-c"></i>MusicBrainz</span>`
+    : `<span class="gi-legend"><i class="gi-swatch"></i>${escapeHtml(genre)}</span>` + (ui.compare ? `<span class="gi-legend"><i class="gi-swatch gi-swatch-c"></i>${escapeHtml(ui.compare)} <button type="button" class="gi-x" data-gi="clear-compare" aria-label="Stop comparing with ${escapeHtml(ui.compare)}">\u00d7</button></span>`
+        : `<input id="giCompare" class="gi-compare" type="text" list="giGenreOptions" placeholder="Compare to a genre\u2026" aria-label="Compare to a genre" autocomplete="off"><datalist id="giGenreOptions">${labels.map(l => `<option value="${escapeHtml(l)}"></option>`).join('')}</datalist>`);
+  $gi('giChart').innerHTML = `
+    <div class="gi-chart-head"><h2 class="gi-h2">Years active</h2>
+      <div class="gi-chart-tools">
+        <span class="gi-seg gi-seg-text" role="group" aria-label="What the chart shows">${seg('off', 'Your crate')}${seg('both', 'Both')}${seg('only', 'MusicBrainz')}</span>
+        ${legend}
+        <span class="gi-help" tabindex="0" role="img" aria-label="About this chart" title="Releases in your crate by year of release. Compare overlays another genre; MusicBrainz overlays its count of release groups tagged with this genre, by first-release year. Each series is scaled to its own busiest year, so you are comparing shapes, not sizes.">?</span>
+      </div></div>
+    ${panel}${chart}<p class="gi-hint">${hint}</p>`;
 }
 
 // ----- tabs -----
@@ -19855,44 +20083,6 @@ function giRenderTitle(genre, ui, items, family) {
       <button type="button" class="gi-pill" data-gi="edit">Edit description</button>
     </div>`;
 }
-function giRenderChart(genre, ui, items) {
-  const cmpItems = ui.compare ? genreReleasesOf(ui.compare, ui.includeSub) : null;
-  const counts = genreYearCounts(items), model = genreChartModel(counts, cmpItems ? genreYearCounts(cmpItems) : null);
-  const undated = items.length - [...counts.values()].reduce((a, b) => a + b, 0);
-  const labels = getAllKnownGenres(state.genreTaxonomy).map(g => g.label).filter(l => genreTaxonomyKey(l) !== genreTaxonomyKey(genre));
-  let chart;
-  if (!model) chart = '<p class="ai-empty">No dated releases in this genre yet.</p>';
-  else {
-    const n = model.bars.length, pct = (y) => ((y - model.lo + 0.5) / n * 100).toFixed(2);
-    const bands = [];
-    for (let d = Math.floor(model.lo / 10) * 10; d <= model.hi; d += 10) {
-      if ((d / 10) % 2) continue;
-      const s = Math.max(d, model.lo), e = Math.min(d + 9, model.hi);
-      bands.push(`<span class="gi-band" style="left:${((s - model.lo) / n * 100).toFixed(3)}%;width:${((e - s + 1) / n * 100).toFixed(3)}%"></span>`);
-    }
-    const cols = model.bars.map(b => {
-      const sel = ui.year === b.year;
-      const tip = `${b.year} \u00b7 ${b.n} release${b.n === 1 ? '' : 's'}` + (cmpItems ? ` \u00b7 ${ui.compare}: ${b.c}` : '');
-      return `<button type="button" class="gi-col${sel ? ' selected' : ''}${ui.year && !sel ? ' dim' : ''}" data-gi="year" data-year="${b.year}" title="${escapeHtml(tip)}" aria-label="${escapeHtml(tip)}" aria-pressed="${sel}"${b.n ? '' : ' disabled'}>` +
-        (cmpItems && b.c ? `<span class="gi-bar gi-bar-c" style="height:${Math.max(3, Math.round(b.ch * GI_CHART_H))}px"></span>` : '') +
-        (b.n ? `<span class="gi-bar" style="height:${Math.max(3, Math.round(b.h * GI_CHART_H))}px"></span>` : '') + '</button>';
-    }).join('');
-    chart = `<div class="gi-plot" style="height:${GI_CHART_H}px">${bands.join('')}<div class="gi-cols-row">${cols}</div></div>
-      <div class="gi-axis"><span style="left:${pct(model.dataLo)}%">${model.dataLo}</span>${model.peakYear !== null && model.peakYear !== model.dataLo && model.peakYear !== model.dataHi ? `<span class="gi-axis-peak" style="left:${pct(model.peakYear)}%">${model.peakYear}</span>` : ''}${model.dataHi !== model.dataLo ? `<span style="left:${pct(model.dataHi)}%">${model.dataHi}</span>` : ''}</div>`;
-  }
-  const hint = ui.year
-    ? `Showing ${ui.year} only. <button type="button" class="ai-link-btn" data-gi="clear-year">Show all years</button>`
-    : (model ? 'Your releases in this genre by year of release. Click a year to filter the releases below.' : '') + (undated ? ` ${undated} undated release${undated === 1 ? '' : 's'} not shown.` : '');
-  $gi('giChart').innerHTML = `
-    <div class="gi-chart-head"><h2 class="gi-h2">Years active</h2>
-      <div class="gi-chart-tools">
-        <span class="gi-legend"><i class="gi-swatch"></i>${escapeHtml(genre)}</span>
-        ${ui.compare ? `<span class="gi-legend"><i class="gi-swatch gi-swatch-c"></i>${escapeHtml(ui.compare)} <button type="button" class="gi-x" data-gi="clear-compare" aria-label="Stop comparing with ${escapeHtml(ui.compare)}">\u00d7</button></span>`
-          : `<input id="giCompare" class="gi-compare" type="text" list="giGenreOptions" placeholder="Compare to a genre\u2026" aria-label="Compare to a genre" autocomplete="off"><datalist id="giGenreOptions">${labels.map(l => `<option value="${escapeHtml(l)}"></option>`).join('')}</datalist>`}
-        <span class="gi-help" tabindex="0" role="img" aria-label="About this chart" title="Releases in your crate by year of release. Compare overlays another genre; each genre is scaled to its own busiest year, so you are comparing shapes, not sizes.">?</span>
-      </div></div>
-    ${chart}<p class="gi-hint">${hint}</p>`;
-}
 function giRenderAbout(genre, ui) {
   const entry = state.genreTaxonomy[genreTaxonomyKey(genre)] || {};
   const text = (entry.description || '').trim();
@@ -19996,13 +20186,17 @@ function giClick(e) {
     else if (a === 'cancel-desc') { ui.editing = false; giRenderAbout(genre, ui); }
     else if (a === 'save-desc') giSaveDescription(genre);
     else if (a === 'more') { ui.descOpen = !ui.descOpen; giRenderAbout(genre, ui); }
-    else if (a === 'year') { ui.year = ui.year === Number(act.dataset.year) ? null : Number(act.dataset.year); const items = genreReleasesOf(genre, ui.includeSub); giRenderChart(genre, ui, items); giRenderReleases(genre, ui, items); }
+    else if (a === 'year') { if (act.dataset.n === '0') return; ui.year = ui.year === Number(act.dataset.year) ? null : Number(act.dataset.year); const items = genreReleasesOf(genre, ui.includeSub); giRenderChart(genre, ui, items); giRenderReleases(genre, ui, items); }
     else if (a === 'clear-year') { ui.year = null; const items = genreReleasesOf(genre, ui.includeSub); giRenderChart(genre, ui, items); giRenderReleases(genre, ui, items); }
     else if (a === 'clear-compare') { ui.compare = null; giRenderChart(genre, ui, genreReleasesOf(genre, ui.includeSub)); }
     else if (a === 'view') { ui.view = act.dataset.view; giRenderReleases(genre, ui, genreReleasesOf(genre, ui.includeSub)); }
     else if (a === 'genre') openGenreTab(act.dataset.genre);
     else if (a === 'artist') openArtistInfoTab(act.dataset.artist);
     else if (a === 'mb-retry') giEnsureMb(genre, true);
+    else if (a === 'mb-mode') { state.genreChartMb = act.dataset.mode; savePrefs(); giRenderChart(genre, ui, genreReleasesOf(genre, ui.includeSub)); }
+    else if (a === 'mb-load') giLoadMbYears(genre, !!act.dataset.fresh);
+    else if (a === 'mb-stop') { giMbYearsRec(genre).stop = true; giPaintMbYears(genre); }
+    else if (a === 'mb-refresh') giLoadMbYears(genre, true);
     return;
   }
   const item = giItemByRow(e.target);
@@ -28657,6 +28851,19 @@ html, body {
   .gi-axis-peak { color: var(--accent); font-weight: 700; }
   .gi-hint { margin: 6px 0 0; font-size: 11.5px; color: var(--text-dim); }
   .gi-hint-inline { font-size: 11.5px; color: var(--text-dim); }
+  .gi-seg-text .gi-seg-btn { width: auto; padding: 0 12px; font: 12px 'Inter', sans-serif; }
+  .gi-seg-text .gi-seg-btn:nth-child(2) { border-radius: 0; border-left: none; }
+  .gi-mb-panel { margin: 14px 0 4px; padding: 12px 14px; background: var(--bg-card); border: 1px solid var(--line); border-radius: 6px; font-size: 12.5px; color: var(--text); }
+  .gi-mb-panel .gi-hint { margin-top: 8px; }
+  .gi-mb-line { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+  .gi-mb-bar { height: 3px; margin-top: 10px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  .gi-mb-bar i { display: block; height: 100%; width: 35%; background: var(--accent); animation: gi-mb-slide 1.4s ease-in-out infinite; }
+  @keyframes gi-mb-slide { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+  @media (prefers-reduced-motion: reduce) { .gi-mb-bar i { animation: none; width: 100%; opacity: 0.5; } }
+  .gi-plot.mb-only .gi-bar-c { background: rgba(94,148,136,0.7); }
+  .gi-hint a, .gi-mb-panel a { color: var(--text-dim); text-decoration: underline dotted; text-underline-offset: 3px; }
+  .gi-hint a:hover, .gi-mb-panel a:hover { color: var(--accent); }
+
 
   .gi-cols { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; margin-top: 16px; }
   .gi-about { flex: 1.5 1 380px; min-width: 0; }
