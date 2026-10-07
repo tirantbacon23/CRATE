@@ -19,7 +19,38 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.29.187
+  CURRENT_VERSION: 1.29.188
+
+  1.29.188 — 2026-10-07 — Genre pages now show how many releases MusicBrainz has under the genre ("40,474 on MusicBrainz"), linked to its tag page, beside the count of what's in your crate.
+
+          What it asks: MusicBrainz has no "releases per genre" endpoint, but a release-group search by tag
+          reports a total however few results are requested, so ONE request with limit=1 answers it:
+          release-group?query=tag:"<genre>"&limit=1. A release group is an album/EP/single with its reissues
+          counted once — the nearest thing MusicBrainz has to "releases" in your sense. Be aware what the
+          number is: release groups TAGGED with that name by MusicBrainz users (so approximate, and a
+          tag-and-genre-name match, not a curated total), and it does NOT fold in sub-genres. The link's
+          tooltip says so.
+
+          Behaviour:
+            - asked once the genre page is drawn, never before; the rest of the page doesn't wait for it. While
+              it's out the line says "checking MusicBrainz…";
+            - one request per genre, then remembered for 30 days (localStorage, crate_genre_mb_count_v1);
+              switching tabs, redrawing the page and reloading ask nothing more; an older answer is asked for again;
+            - it goes through mbFetch like every other MusicBrainz call, so it joins the app-wide one-at-a-time
+              queue and rate limit; asking again for a genre that's still loading sends nothing extra;
+            - an answer for a genre you've since left is kept but never painted over the one you're on;
+            - a genre MusicBrainz has no tag for says "not tagged on MusicBrainz" (not a link);
+            - a failure (network, 429/503, an answer with no count) says "MusicBrainz count unavailable" with a
+              Retry button. It is NEVER remembered and NEVER retried automatically, even when you switch away and
+              back, so a flaky connection can't become a request loop;
+            - the genre name is lower-cased and its quotes/backslashes escaped inside the search phrase.
+          Not done: a "your share" figure (10 of 40,474), counting sub-genres, or using MusicBrainz's own genre
+          list (it has no counts).
+          Verified in real Chromium, MusicBrainz stubbed (36 checks, pw_genre_mb.py): the figure and link, one
+          request, caching and a 30-day expiry across a reload, no repeats on tab switches, zero, loading, the
+          slow-answer case (one check fails if the guard is removed — mutation-checked), three kinds of failure
+          with Retry, escaping, large numbers, a phone. NOT verified: the real MusicBrainz service (no network
+          here), so the exact numbers it gives for your genres are untested.
 
   1.29.187 — 2026-10-07 — New: genre pages. Right-click a genre in the left panel > "View genre description" opens it as its own tab: a Years active chart, your description (editable, with other genres linked), counts, where it sits in the taxonomy, top artists, and its releases.
 
@@ -7013,7 +7044,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.187';
+const APP_VERSION = '1.29.188';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -7279,6 +7310,7 @@ const state = {
   tabHistoryIndex: -1,  // -1 until initTabBar() seeds it
   genreTabs: [],        // genre tabs, in the order opened (session only, like artist tabs)
   activeGenreTab: null, // the last genre tab you were on
+  genreMb: {},          // per genre: what MusicBrainz said about it this session ({status: loading|ok|error, count})
   genreUi: {},          // per genre (by taxonomy key): include sub-genres, sort, view, year filter, compare, editing — kept while its tab is open
   artistInfoSubTab: {}, // per artist: which of the page's sub-tabs ('stats'|'albums'|'profile'|'similar') is showing — session only
   artistInfoTrackSort: 'plays', // Top Tracks order: 'plays' | 'album'
@@ -19457,6 +19489,65 @@ function canonicalGenreLabel(label) {
 }
 function giShowing(genre) { return state.activeTab === 'genreInfo' && genreTaxonomyKey(state.activeGenreTab) === genreTaxonomyKey(genre); }
 
+// ----- MusicBrainz: how many release groups carry this genre as a tag -----
+// MusicBrainz has no "release count per genre" endpoint, but a search of release groups by tag reports a total
+// (count) however few results are asked for, so one request with limit=1 answers it. A release group is an album/EP/
+// single with all its reissues counted once, which is the nearest MusicBrainz has to "releases" in your sense.
+// Tags are typed by MusicBrainz users, so this is "tagged with that name", not a curated total, and it does not
+// fold in sub-genres. One request per genre, then remembered for 30 days; a failure is never remembered and never
+// retried on its own (the Retry button does that) so a flaky connection can't turn into a request loop. It goes
+// through mbFetch like every other MusicBrainz call, so it shares the app-wide rate limit.
+const GENRE_MB_CACHE_KEY = 'crate_genre_mb_count_v1';
+const GENRE_MB_TTL_MS = 30 * 24 * 3600 * 1000;
+const giMbFlight = new Map();
+function giMbCacheRead() { try { return JSON.parse(localStorage.getItem(GENRE_MB_CACHE_KEY) || '{}') || {}; } catch (e) { return {}; } }
+function giMbCacheWrite(key, count) {
+  try { const all = giMbCacheRead(); all[key] = { count, at: Date.now() }; localStorage.setItem(GENRE_MB_CACHE_KEY, JSON.stringify(all)); } catch (e) { /* storage full or blocked: just not remembered */ }
+}
+async function fetchGenreMbCount(label) {
+  const phrase = String(label).toLowerCase().replace(/[\\"]/g, '\\$&');       // inside a quoted Lucene phrase only " and \ are special
+  const res = await mbFetch(`https://musicbrainz.org/ws/2/release-group?query=${encodeURIComponent('tag:"' + phrase + '"')}&limit=1&fmt=json`, { headers: { 'Accept': 'application/json' } });
+  if (!res.ok) throw new Error('MusicBrainz HTTP ' + res.status);
+  const data = await res.json();
+  if (!data || typeof data.count !== 'number') throw new Error('MusicBrainz sent no count');
+  return data.count;
+}
+function giEnsureMb(genre, force) {
+  const key = genreTaxonomyKey(genre), cur = state.genreMb[key];
+  if (cur && (cur.status === 'ok' || cur.status === 'loading' || (cur.status === 'error' && !force))) { giRenderMb(genre); return; }
+  const hit = giMbCacheRead()[key];
+  if (hit && typeof hit.count === 'number' && Date.now() - hit.at < GENRE_MB_TTL_MS) { state.genreMb[key] = { status: 'ok', count: hit.count }; giRenderMb(genre); return; }
+  state.genreMb[key] = { status: 'loading' };
+  giRenderMb(genre);
+  let p = giMbFlight.get(key);
+  if (!p) { p = fetchGenreMbCount(genre); giMbFlight.set(key, p); p.then(() => giMbFlight.delete(key), () => giMbFlight.delete(key)); }
+  p.then(count => { giMbCacheWrite(key, count); state.genreMb[key] = { status: 'ok', count }; })
+   .catch(err => { console.warn('MusicBrainz genre count failed', err); state.genreMb[key] = { status: 'error' }; })
+   .then(() => { if (giShowing(genre)) giRenderMb(genre); });   // a late answer for a genre you've left is kept, just not painted over the one you're on
+}
+function giRenderMb(genre) {
+  const out = document.getElementById('giMb');
+  if (!out) return;
+  const key = genreTaxonomyKey(genre), st = state.genreMb[key] || {};
+  out.textContent = '';
+  if (st.status === 'ok') {
+    out.append(' \u00b7 ');
+    if (st.count > 0) {
+      const a = document.createElement('a');
+      a.href = 'https://musicbrainz.org/tag/' + encodeURIComponent(String(genre).toLowerCase());
+      a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = st.count.toLocaleString() + ' on MusicBrainz \u2197';
+      a.title = `Release groups tagged \u201c${String(genre).toLowerCase()}\u201d on MusicBrainz \u2014 an album and its reissues count once. Tags are added by MusicBrainz users, and sub-genres aren\u2019t included.`;
+      out.appendChild(a);
+    } else out.append('not tagged on MusicBrainz');
+  } else if (st.status === 'error') {
+    out.append(' \u00b7 MusicBrainz count unavailable ');
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'ai-link-btn'; b.dataset.gi = 'mb-retry'; b.textContent = 'Retry';
+    out.appendChild(b);
+  } else if (st.status === 'loading') out.append(' \u00b7 checking MusicBrainz\u2026');
+}
+
 // ----- tabs -----
 function renderGenreTabButtons() {
   if (!el.genreTabsContainer) return;
@@ -19589,6 +19680,7 @@ function renderGenreInfoTab() {
   renderGenreBrowser(genre);
   const keepScroll = giRenderedGenre === genreTaxonomyKey(genre) ? el.genreInfoBody.scrollTop : 0;
   giRenderAll(genre);
+  giEnsureMb(genre);
   el.genreInfoBody.scrollTop = keepScroll;
   giRenderedGenre = genreTaxonomyKey(genre);
 }
@@ -19615,7 +19707,7 @@ function giRenderTitle(genre, ui, items, family) {
   const bits = [`<b>${st.releases}</b> in your crate`, `${st.artists} artist${st.artists === 1 ? '' : 's'}`];
   if (family.children.length) bits.push(`${family.children.length} sub-genre${family.children.length === 1 ? '' : 's'}`);
   $gi('giTitle').innerHTML = `
-    <div class="gi-titlewrap"><h1 class="gi-title">${escapeHtml(genre)}</h1><p class="gi-meta">${bits.join(' \u00b7 ')}</p></div>
+    <div class="gi-titlewrap"><h1 class="gi-title">${escapeHtml(genre)}</h1><p class="gi-meta">${bits.join(' \u00b7 ')}<span id="giMb" class="gi-mb"></span></p></div>
     <div class="gi-actions">
       <button type="button" class="gi-round gi-round-accent" data-gi="play" title="Play every release in this genre" aria-label="Play every release in ${escapeHtml(genre)}"${st.releases ? '' : ' disabled'}>\u25b6</button>
       <button type="button" class="gi-round" data-gi="shuffle" title="Shuffle this genre" aria-label="Shuffle ${escapeHtml(genre)}"${st.releases ? '' : ' disabled'}>\u21cc</button>
@@ -19769,6 +19861,7 @@ function giClick(e) {
     else if (a === 'view') { ui.view = act.dataset.view; giRenderReleases(genre, ui, genreReleasesOf(genre, ui.includeSub)); }
     else if (a === 'genre') openGenreTab(act.dataset.genre);
     else if (a === 'artist') openArtistInfoTab(act.dataset.artist);
+    else if (a === 'mb-retry') giEnsureMb(genre, true);
     return;
   }
   const item = giItemByRow(e.target);
@@ -19781,7 +19874,7 @@ function giChange(e) {
   const genre = state.activeGenreTab;
   if (!genre) return;
   const ui = giUi(genre), id = e.target.id;
-  if (id === 'giIncludeSub') { ui.includeSub = e.target.checked; ui.year = null; giRenderAll(genre); }
+  if (id === 'giIncludeSub') { ui.includeSub = e.target.checked; ui.year = null; giRenderAll(genre); giRenderMb(genre); }
   else if (id === 'giSort') { ui.sort = e.target.value; giRenderReleases(genre, ui, genreReleasesOf(genre, ui.includeSub)); }
   else if (id === 'giCompare') {
     const v = e.target.value.trim();
@@ -28372,6 +28465,8 @@ html, body {
   .gi-title { margin: 0; font-family: 'Bebas Neue', sans-serif; font-weight: 400; font-size: 64px; line-height: 1; letter-spacing: 0.5px; color: var(--text); overflow-wrap: anywhere; }
   .gi-meta { margin: 8px 0 0; font-size: 13px; color: var(--text-dim); }
   .gi-meta b { color: var(--text); font-weight: 600; }
+  .gi-mb a { color: var(--text-dim); text-decoration: underline dotted; text-underline-offset: 3px; }
+  .gi-mb a:hover { color: var(--accent); }
   .gi-actions { display: flex; align-items: center; gap: 10px; padding-bottom: 6px; flex-wrap: wrap; }
   .gi-round { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: none; color: var(--text); font-size: 17px; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
   .gi-round:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
