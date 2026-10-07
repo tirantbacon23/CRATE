@@ -19,7 +19,46 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.29.185
+  CURRENT_VERSION: 1.29.186
+
+  1.29.186 — 2026-10-06 — Fix: a red "[UNHANDLED PROMISE REJECTION] Failed to fetch" banner appeared across the top of the page during the Add release search. It was the page's leftover diagnostic overlay reporting a browser extension's copy of a failed request, not a bug in the search.
+
+          What happened (from a screenshot of the banner): while the release search draws its
+          results, each row asks the Cover Art Archive for artwork (buildReleaseResultRow ->
+          resolveCoverArt -> getCaaJsonUrls). For a release with no artwork that request can
+          fail at network level ("Failed to fetch"). The page handles that correctly: its own
+          try/catch swallows it, the row keeps a blank thumbnail, and the results loaded fine
+          in the screenshot. The banner came from elsewhere. The topmost stack frames were
+          chrome-extension://…/libs/requests.js, a browser extension that wraps fetch and
+          leaves its OWN copy of the failed request rejecting with no handler. The page can't
+          catch that, and the page's TEMPORARY DIAGNOSTIC OVERLAY (a script at the top of
+          <head>, added to chase a phone-only load crash and meant to be removed once that
+          was fixed) printed it full-width as if it were a crash, with no way to dismiss it.
+
+          Fix: the overlay stays (it is still the only way to see a crash on a phone with no
+          devtools) but is now quiet about things that aren't crashes:
+            - errors/rejections whose stack is inside a browser extension (chrome-, moz-,
+              safari-(web-)extension://);
+            - routine network failures ("Failed to fetch", Safari's "Load failed", Firefox's
+              "NetworkError when attempting to fetch resource", ...): offline, blocked, or a
+              CORS failure from a third-party API;
+            - the browser's harmless "ResizeObserver loop" notice.
+          Those are console.warn'ed instead ("[CRATE] ignored (...)"), so they are hidden from
+          the page but not from devtools. Genuine errors still show. Identical repeats collapse
+          into one line with a count, "(×3)". The box now has a ✕ to dismiss it, and a new
+          genuine error brings it back. Text is shown as text, never as HTML.
+          Also: the two best-effort background fills on a result row (cover art, release
+          date) now end in .catch(() => {}). They don't reject themselves, but a throw in
+          their follow-up step would have caused the same banner.
+
+          Reproduced before fixing: an extension-style fetch wrapper (a handler-less .then()
+          chained onto the real promise) plus failing Cover Art requests gives exactly the
+          reported banner. The new test (pw_errbanner.py) fails 10 of its 19 checks on the old
+          code and passes all 19 now. NOT verified: the actual extension you have installed,
+          or the real Cover Art Archive response (no network here); the reproduction imitates
+          what the stack trace shows the extension doing.
+          If you'd rather the overlay were removed entirely, or only appeared with a ?debug
+          flag, that's a one-line change.
 
   1.29.185 — 2026-10-06 — New: an Update log. ⚙ > "Update log…" (or click the version at the bottom of that menu) lists every release, newest first, with a one-line summary each and the full notes under "Details".
 
@@ -5196,33 +5235,61 @@
      the way desktop browsers do. -->
 <script>
 (function() {
-  var box = null;
+  // Still a diagnostic for a page that can crash on a phone with no devtools — but one that has to be quiet
+  // about things that aren't crashes, or it just teaches you to ignore it:
+  //  - Errors that come from BROWSER EXTENSIONS (their frames are chrome-extension:// etc.). An extension that
+  //    wraps fetch can leave its own copy of a failed request rejecting with no handler, even though this page
+  //    handled its own copy — the page can't fix that, and it isn't the page's bug.
+  //  - Routine network failures ("Failed to fetch" and its Safari/Firefox wordings): offline, blocked, or a CORS
+  //    failure from a third-party API (e.g. the Cover Art Archive answering 404 without CORS headers for a
+  //    release with no artwork). The app handles these where it matters.
+  //  - The browser's harmless "ResizeObserver loop" notice.
+  // Anything ignored is still console.warn'ed, so it is hidden from the page, not from devtools. Genuine errors
+  // still show — repeats collapse into one line with a count, and the box can be dismissed.
+  var box = null, seen = {};
+  var FOREIGN = /(?:chrome|moz|safari(?:-web)?)-extension:\/\//i;
+  var NETWORK = /^(?:TypeError:\s*)?(?:Failed to fetch|Load failed|NetworkError when attempting to fetch resource\.?|Network request failed|The network connection was lost\.?)\s*$/i;
+  var BENIGN = /^ResizeObserver loop (?:limit exceeded|completed with undelivered notifications)/i;
+  function ignore(why, detail) { try { console.warn('[CRATE] ignored (' + why + '):', detail); } catch (e) {} }
+  function dismiss() { if (box) { box.remove(); box = null; seen = {}; } }
   function ensureBox() {
     if (box) return box;
     box = document.createElement('div');
     box.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;' +
-      'background:#3a0d0d;color:#fff;font:12px/1.4 monospace;padding:10px;' +
+      'background:#3a0d0d;color:#fff;font:12px/1.4 monospace;padding:10px 38px 10px 10px;' +
       'max-height:60vh;overflow:auto;white-space:pre-wrap;border-bottom:3px solid #ff5555;';
+    var x = document.createElement('button');
+    x.type = 'button'; x.textContent = '\u2715'; x.title = 'Dismiss'; x.setAttribute('aria-label', 'Dismiss');
+    x.style.cssText = 'position:sticky;float:right;top:0;margin:-4px -30px 0 8px;background:#5a1a1a;color:#fff;border:1px solid #ff5555;border-radius:4px;cursor:pointer;font:14px monospace;padding:0 7px;';
+    x.addEventListener('click', dismiss);
+    box.appendChild(x);
     document.documentElement.appendChild(box);
     return box;
   }
   function report(label, detail) {
-    var el = ensureBox();
+    var key = label + '|' + detail, text = '[' + label + '] ' + detail;
+    if (seen[key]) { seen[key].n++; seen[key].line.textContent = '(\u00d7' + seen[key].n + ') ' + text; return; }   // the same error again: count it
     var line = document.createElement('div');
     line.style.marginBottom = '8px';
-    line.textContent = '[' + label + '] ' + detail;
-    el.appendChild(line);
+    line.textContent = text;                       // text, never HTML: error messages can contain anything
+    seen[key] = { n: 1, line: line };
+    ensureBox().appendChild(line);
   }
   window.addEventListener('error', function(e) {
+    var stack = e.error && e.error.stack ? e.error.stack : '';
+    if (FOREIGN.test(e.filename || '') || FOREIGN.test(stack)) return ignore('browser extension', e.message);
+    if (BENIGN.test(e.message || '')) return ignore('harmless browser notice', e.message);
     report('ERROR', (e.message || 'unknown error') +
       '\n  at ' + (e.filename || '?') + ':' + e.lineno + ':' + e.colno +
-      (e.error && e.error.stack ? '\n' + e.error.stack : ''));
+      (stack ? '\n' + stack : ''));
   });
   window.addEventListener('unhandledrejection', function(e) {
     var reason = e.reason;
-    report('UNHANDLED PROMISE REJECTION',
-      (reason && reason.message ? reason.message : String(reason)) +
-      (reason && reason.stack ? '\n' + reason.stack : ''));
+    var msg = reason && reason.message ? reason.message : String(reason);
+    var stack = reason && reason.stack ? reason.stack : '';
+    if (FOREIGN.test(stack)) return ignore('browser extension', reason);
+    if (NETWORK.test(msg)) return ignore('network failure', reason);
+    report('UNHANDLED PROMISE REJECTION', msg + (stack ? '\n' + stack : ''));
   });
 })();
 </script>
@@ -6879,7 +6946,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.185';
+const APP_VERSION = '1.29.186';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -22671,7 +22738,7 @@ function buildReleaseResultRow(hit, opts = {}) {
       }, 150);
       prefillData.cover = artUrls.large; // Injects the resolved URL before you hit Save!
     }
-  });
+  }).catch(() => {});   // cover art is a best-effort extra on a result row — never worth an unhandled rejection
 
   // 1.29.1 — This specific *release* resource frequently has no `date` of
   // its own (only the release-group's first-release-date is reliably
@@ -22689,7 +22756,7 @@ function buildReleaseResultRow(hit, opts = {}) {
       prefillData.releaseDate = date;
       const yearSpan = row.querySelector('.add-result-year');
       if (yearSpan && !yearSpan.textContent) yearSpan.textContent = ' · ' + new Date(date).getUTCFullYear();
-    });
+    }).catch(() => {});   // same: a best-effort fill
   }
 
   return row;
