@@ -19,7 +19,59 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.29.186
+  CURRENT_VERSION: 1.29.187
+
+  1.29.187 — 2026-10-07 — New: genre pages. Right-click a genre in the left panel > "View genre description" opens it as its own tab: a Years active chart, your description (editable, with other genres linked), counts, where it sits in the taxonomy, top artists, and its releases.
+
+          Built from the layout sketch (https://claude.ai/artifact/6yv41KrXqnRX7H77pbuwBu). The page follows
+          the Artist Information page's pattern: it sits in #panels beside the Music main panel (only one of
+          the two shows) and the left panel gains a FOURTH view, the genre tree, so the column's position,
+          width, resizer and row styling are the Music tab's own. Genre tabs open after the artist tabs,
+          carry a small tag icon (dropped on a phone, where the bottom bar splits its width between every
+          tab), close like artist tabs (closing one you are not on leaves you where you are) and take part in
+          Back/Forward (a closed one is skipped). Session-only, like artist tabs.
+
+          The right-click menu (on a genre row in the Music tab's genre list AND in the genre tab's own tree):
+            View genre description (new tab) · Play all N releases · Shuffle · Edit description...
+          N counts sub-genres, as the left panel's genre filter does. Shuffle switches the Shuffle setting on.
+
+          The page, top to bottom:
+            - a breadcrumb (Genres > Rock > Progressive Rock; first parent when there are two) and the name,
+              with "N in your crate · N artists · N sub-genres", a play button, a shuffle button, Edit description;
+            - YEARS ACTIVE: one column per year from the first to the last release (at least ten, so a handful
+              of releases isn't one fat bar), decade bands, the peak year picked out. Click a year to filter the
+              releases below (click again, or "Show all years", to clear). "Compare to a genre..." overlays a
+              second genre in a second colour; each is scaled to ITS OWN busiest year so you compare shapes,
+              not sizes. Undated releases aren't charted and the hint says how many;
+            - ABOUT: the genre's description from the taxonomy (the same field the Genre Description element
+              uses). Other genres you mention become links to their pages — each genre links once, at its
+              first mention anywhere in the text, whole words only, longest name first (so "Rock" inside
+              "Progressive Rock" isn't linked), never the genre's own name. Long text is cut with Read more,
+              offered only when it really overflows. Edit description opens a text box; Save writes it into the
+              taxonomy and syncs it like any taxonomy edit; a genre that exists only as a tag on releases gets
+              its taxonomy entry the first time it has a description. HTML typed in is shown as text;
+            - YOUR CRATE: releases, artists, average rating (rated releases only; a dash when none), plays
+              (diary entries + Last.fm scrobbles, matched ignoring case), listened / releases, top decade;
+            - FAMILY: parent(s), direct sub-genres with how many of your releases sit under each, and the
+              genres most often tagged alongside this one (its own ancestors/descendants left out);
+            - TOP ARTISTS: most releases here first, with a cover; click opens the artist's tab;
+            - RELEASES: grouped by year like the Music view (undated last), or flat under Rating / Artist / Title;
+              covers or list; "Include sub-genres" (on by default; off narrows the numbers, chart and releases to
+              the genre itself). Click opens the album page, double-click plays, right-click is the usual album menu.
+
+          Two bugs found by the browser test while building it, both fixed before release: the left tree's
+          double-click-to-play never fired (the first click opens the genre and redraws the rows, and a
+          browser only sends dblclick when both clicks hit the same element) — a click count of 2 is used
+          instead; and a "keep the open genre visible" rule re-expanded a branch the moment you collapsed it
+          — it now runs only when a genre is OPENED. The collapsed/expanded state is the Music tab's own.
+
+          Not done: the "AKA" aliases line from the reference (needs a new field in the taxonomy sheet and a
+          backend column), MusicBrainz's release count for the genre, the "+" finder listing genres, and
+          genre tabs mixed into one order with artist tabs (artists come first, then genres).
+          Verified in real Chromium: 103 browser checks (pw_genre_tab.py: the menu, the tab and left panel,
+          every number against an independent calculation, the chart and year filter, compare, links, editing
+          and saving, top artists, sorting/list view/play/shuffle, the genre tree, tab history and closing,
+          odd genre names, a phone) and 41 unit checks of the data functions (test_genre_page.js).
 
   1.29.186 — 2026-10-06 — Fix: a red "[UNHANDLED PROMISE REJECTION] Failed to fetch" banner appeared across the top of the page during the Add release search. It was the page's leftover diagnostic overlay reporting a browser extension's copy of a failed request, not a bug in the search.
 
@@ -5348,6 +5400,7 @@
            Empty (nothing rendered) until the first artist's ever been
            clicked. See renderArtistInfoTabButtons()/openArtistInfoTab(). -->
       <div id="artistInfoTabsContainer" class="artist-info-tabs-container"></div>
+      <div id="genreTabsContainer" class="artist-info-tabs-container"></div>
     </nav>
     <button type="button" id="tabAddBtn" class="tab-bar-btn tab-bar-add" title="Open an artist in a new tab" aria-label="Open an artist in a new tab">+</button>
   </div>
@@ -5541,6 +5594,13 @@
         <input id="aiArtistFilter" class="ai-filter" type="search" placeholder="Find artist…" autocomplete="off" aria-label="Find artist">
         <div id="aiArtistList" class="left-list" role="list"></div>
       </div>
+
+      <!-- Fourth view: the genre tree, shown on a genre tab. Rows are built like the Music tab's genre rows
+           (same classes, same expand/collapse state); clicking one opens that genre's tab. -->
+      <div id="genreBrowserView" class="left-browser-view" hidden>
+        <div class="panel-bar"><span class="panel-label">Genres</span></div>
+        <div id="giGenreList" class="left-list" role="list"></div>
+      </div>
     </section>
 
     <div class="resizer" id="resizerLeft" aria-hidden="true"></div>
@@ -5727,6 +5787,13 @@
         <span id="aiDecadeGenre" class="ai-decade-genre"></span>
       </nav>
       <div id="aiBody" class="ai-body"></div>
+    </section>
+
+    <!-- Genre page — the content half of a genre tab (right-click a genre > View genre description). Same arrangement
+         as the artist page above: inside #panels, beside the Music main panel; only one of them shows. -->
+    <section id="genreInfoWrap" class="panel panel-main genre-info-wrap" hidden>
+      <div class="panel-bar"><span class="panel-label">Genre</span></div>
+      <div id="genreInfoBody" class="gi-body"></div>
     </section>
 
     <div class="resizer" id="resizerRight" aria-hidden="true"></div>
@@ -6946,7 +7013,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.186';
+const APP_VERSION = '1.29.187';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -7210,6 +7277,9 @@ const state = {
   shuffle: false, // player's Shuffle toggle (persisted) — see setShuffle(); applies to the crate queue, standalone YouTube/SoundCloud queues, and Spotify's own album playback
   tabHistory: [],       // [{tab, artist}] — what the tab bar's back/forward walk (session only)
   tabHistoryIndex: -1,  // -1 until initTabBar() seeds it
+  genreTabs: [],        // genre tabs, in the order opened (session only, like artist tabs)
+  activeGenreTab: null, // the last genre tab you were on
+  genreUi: {},          // per genre (by taxonomy key): include sub-genres, sort, view, year filter, compare, editing — kept while its tab is open
   artistInfoSubTab: {}, // per artist: which of the page's sub-tabs ('stats'|'albums'|'profile'|'similar') is showing — session only
   artistInfoTrackSort: 'plays', // Top Tracks order: 'plays' | 'album'
   artistInfoShowAllTracks: false,
@@ -7343,7 +7413,7 @@ const el = {};
 [
   'gridContainer','stateMsg','searchInput','refreshBtn',
   'musicViewElement','genreDescElement','genreDescLabel','genreDescBody','genreDescInput','genreDescSaveBtn',
-  'tabBar','tabBackBtn','tabForwardBtn','tabAddBtn','artistBrowserView','artistBioElement','artistBioBody','artistInfoTabsContainer','artistInfoWrap','artistInfoName','artistInfoStats','aiArtistFilter','aiArtistList','aiAvatar','aiPlayBtn','aiNowPlaying','aiSubtabs','aiDecadeGenre','aiBody',
+  'tabBar','tabBackBtn','tabForwardBtn','tabAddBtn','artistBrowserView','genreInfoWrap','genreInfoBody','genreBrowserView','giGenreList','genreTabsContainer','artistBioElement','artistBioBody','artistInfoTabsContainer','artistInfoWrap','artistInfoName','artistInfoStats','aiArtistFilter','aiArtistList','aiAvatar','aiPlayBtn','aiNowPlaying','aiSubtabs','aiDecadeGenre','aiBody',
   'nowPlayingBarMainElement','nowPlayingBarMainArt','nowPlayingBarMainTitle','nowPlayingBarMainSub','nowPlayingBarMainSub2',
   'tabAlbums','tabDiary','tabScrobbles','viewGridBtn','viewListBtn','sizeControl','sizeSlider',
   'leftPanel','leftModeBtn','leftModeLabel','leftModeMenu','leftGroupBySection','leftList',
@@ -9048,6 +9118,7 @@ function bindEvents() {
   initArtistInfoPage();
   initTabBar();
   initUpdateLog();
+  initGenrePage();
   el.miniPlayerArt.addEventListener('click', () => {
     // On the compact mobile layout, tapping anywhere on the bar (including
     // the art) opens Quick Actions instead — see the el.miniPlayer listener
@@ -10042,12 +10113,14 @@ function switchTab(tab) {
   syncLeftPanelViews();
   el.tabAlbums.classList.toggle('active', tab === 'albums');
   renderArtistInfoTabButtons(); // dynamic tabs — .active depends on state.activeTab, so re-render rather than toggle a fixed button
+  renderGenreTabButtons();
   el.tabDiary.classList.toggle('active', tab === 'diary');
   el.tabScrobbles.classList.toggle('active', tab === 'scrobbles');
   el.tabStats.classList.toggle('active', tab === 'stats');
   el.tabArtist.classList.toggle('active', tab === 'artist');
-  el.panels.style.display = (tab === 'albums' || tab === 'artistInfo') ? 'flex' : 'none';   // #panels hosts both tabs: the Music browser, or the Artist Information tab's list + page
+  el.panels.style.display = (tab === 'albums' || tab === 'artistInfo' || tab === 'genreInfo') ? 'flex' : 'none';   // #panels hosts both tabs: the Music browser, or the Artist Information tab's list + page
   el.artistInfoWrap.hidden = tab !== 'artistInfo';
+  el.genreInfoWrap.hidden = tab !== 'genreInfo';
   el.diaryWrap.hidden = tab !== 'diary';
   el.scrobblesWrap.hidden = tab !== 'scrobbles';
   el.statsWrap.hidden = tab !== 'stats';
@@ -10055,6 +10128,7 @@ function switchTab(tab) {
   el.app.classList.toggle('app-wide-diary-tracks', tab === 'diary' && state.diaryViewMode === 'tracks');
   if (tab === 'albums') renderGrid();
   else if (tab === 'artistInfo') renderArtistInfoTab();
+  else if (tab === 'genreInfo') renderGenreInfoTab();
   else if (tab === 'diary') renderDiary();
   else if (tab === 'scrobbles') renderScrobbles();
   else if (tab === 'stats') renderStats();
@@ -10424,6 +10498,8 @@ function buildLeftRow(entry, mode) {
       applyFiltersSort();
       playFilteredReleases();
     });
+    // Right-click: View genre description (opens the genre's own tab), play, shuffle, edit the description.
+    row.addEventListener('contextmenu', (e) => { e.preventDefault(); openGenreContextMenu(entry.label, e.clientX, e.clientY); });
   }
   return row;
 }
@@ -16827,14 +16903,15 @@ function exitPlaylistView() {
 // and row styling). Which of its three views shows follows the active tab; the rail's Music/Playlist Explorer
 // highlight only applies on the Music tab (neither is "current" on the artist page).
 function syncLeftPanelViews() {
-  const onArtistPage = state.activeTab === 'artistInfo';
-  if (el.panels) el.panels.classList.toggle('artist-info-mode', onArtistPage);
+  const onArtistPage = state.activeTab === 'artistInfo', onGenrePage = state.activeTab === 'genreInfo', onSidePage = onArtistPage || onGenrePage;
+  if (el.panels) { el.panels.classList.toggle('artist-info-mode', onArtistPage); el.panels.classList.toggle('genre-info-mode', onGenrePage); }
   if (el.artistBrowserView) el.artistBrowserView.hidden = !onArtistPage;
-  if (el.musicBrowserView) el.musicBrowserView.hidden = onArtistPage || state.leftNavView !== 'music';
-  if (el.playlistsBrowserView) el.playlistsBrowserView.hidden = onArtistPage || state.leftNavView !== 'playlists';
+  if (el.genreBrowserView) el.genreBrowserView.hidden = !onGenrePage;
+  if (el.musicBrowserView) el.musicBrowserView.hidden = onSidePage || state.leftNavView !== 'music';
+  if (el.playlistsBrowserView) el.playlistsBrowserView.hidden = onSidePage || state.leftNavView !== 'playlists';
   [[el.navMusicBtn, 'music'], [el.navPlaylistsBtn, 'playlists']].forEach(([btn, view]) => {
     if (!btn) return;
-    const on = !onArtistPage && state.leftNavView === view;
+    const on = !onSidePage && state.leftNavView === view;
     btn.classList.toggle('active', on);
     btn.setAttribute('aria-current', on ? 'page' : 'false');
   });
@@ -18949,13 +19026,13 @@ let tabHistoryNavigating = false;
 let tabQuickOpenEl = null;
 
 function tabHistoryEntry() {
-  return { tab: state.activeTab, artist: state.activeTab === 'artistInfo' ? state.activeArtistInfoTab : null };
+  return { tab: state.activeTab, artist: state.activeTab === 'artistInfo' ? state.activeArtistInfoTab : null, genre: state.activeTab === 'genreInfo' ? state.activeGenreTab : null };
 }
-function tabHistoryEntryValid(e) { return e.tab !== 'artistInfo' || state.artistInfoTabs.includes(e.artist); }
+function tabHistoryEntryValid(e) { return (e.tab !== 'artistInfo' || state.artistInfoTabs.includes(e.artist)) && (e.tab !== 'genreInfo' || state.genreTabs.includes(e.genre)); }
 function recordTabHistory() {
   if (tabHistoryNavigating || state.tabHistoryIndex < 0) return;   // index < 0: not seeded yet (still starting up)
   const e = tabHistoryEntry(), h = state.tabHistory, last = h[state.tabHistoryIndex];
-  if (last && last.tab === e.tab && last.artist === e.artist) { updateTabHistoryButtons(); return; }
+  if (last && last.tab === e.tab && last.artist === e.artist && last.genre === e.genre) { updateTabHistoryButtons(); return; }
   h.splice(state.tabHistoryIndex + 1);                // going somewhere new discards "forward", as a browser does
   h.push(e);
   if (h.length > 60) h.shift();
@@ -18982,6 +19059,7 @@ function navigateTabHistory(delta) {
   tabHistoryNavigating = true;
   try {
     if (e.tab === 'artistInfo') { state.activeArtistInfoTab = e.artist; renderArtistInfoTabButtons(); }
+    if (e.tab === 'genreInfo') { state.activeGenreTab = e.genre; renderGenreTabButtons(); }
     switchTab(e.tab);
   } finally { tabHistoryNavigating = false; }
   updateTabHistoryButtons();
@@ -19226,6 +19304,559 @@ function initUpdateLog() {
     if (e.target.closest('[data-update-log-retry]')) { el.updateLogSummary.textContent = 'Loading\u2026'; loadUpdateLogEntries().then(renderUpdateLog); }
   });
   el.updateLogNote.addEventListener('click', (e) => { if (e.target.closest('[data-update-log-reload]')) location.reload(); });
+}
+
+// BEGIN genre-data
+// ---- Genre page: the numbers (pure functions of the library + the taxonomy, so they can be tested on their own) ----
+// A release belongs to a genre if ANY of its genres (primary, secondary…) is that genre — or, with includeSub, is
+// anywhere under it in the taxonomy (the same rule the left panel's genre filter uses).
+function genreReleaseMatches(r, genre, includeSub, taxonomy) {
+  const key = genreTaxonomyKey(genre);
+  return getGenreList(combinedGenreStr(r)).some(g => genreTaxonomyKey(g) === key || (includeSub && genreMatchesFilter(taxonomy, g, genre)));
+}
+function genreReleasesOf(genre, includeSub) {
+  return state.raw.filter(r => genreReleaseMatches(r, genre, includeSub, state.genreTaxonomy));
+}
+function genreYear(r) {
+  const ms = dateVal(r.releaseDate);
+  return ms === -Infinity ? null : new Date(ms).getUTCFullYear();
+}
+function genreYearCounts(items) {
+  const m = new Map();
+  items.forEach(r => { const y = genreYear(r); if (y !== null) m.set(y, (m.get(y) || 0) + 1); });
+  return m;
+}
+// The "Years active" chart: one column per year from the first to the last year with a release (padded to at least
+// ten so a handful of releases isn't one fat bar). Heights are each series' share of ITS OWN busiest year, so two genres
+// of very different size can still be compared by shape.
+function genreChartModel(counts, compareCounts) {
+  const years = [...counts.keys(), ...(compareCounts ? [...compareCounts.keys()] : [])];
+  if (!years.length) return null;
+  const dataLo = Math.min(...counts.size ? [...counts.keys()] : years), dataHi = Math.max(...counts.size ? [...counts.keys()] : years);
+  let lo = Math.min(...years), hi = Math.max(...years);
+  if (hi - lo < 9) { const pad = Math.ceil((9 - (hi - lo)) / 2); lo -= pad; hi += pad; }
+  const maxN = Math.max(1, ...counts.values()), maxC = compareCounts && compareCounts.size ? Math.max(...compareCounts.values()) : 0;
+  const bars = []; let peakYear = null;
+  for (let y = lo; y <= hi; y++) {
+    const n = counts.get(y) || 0, c = compareCounts ? (compareCounts.get(y) || 0) : 0;
+    bars.push({ year: y, n, c, h: n / maxN, ch: maxC ? c / maxC : 0 });
+    if (peakYear === null && counts.size && n === maxN) peakYear = y;
+  }
+  return { lo, hi, dataLo, dataHi, bars, peakYear, maxN, maxC };
+}
+function genrePlayMap() {      // normalised "artist|album" -> plays (diary entries + Last.fm scrobbles)
+  const m = new Map();
+  state.diary.forEach(d => { const k = lastfmNormKey(d.artist, d.title); m.set(k, (m.get(k) || 0) + 1); });
+  state.scrobbles.forEach(s => { const k = lastfmNormKey(s.artist, s.title); m.set(k, (m.get(k) || 0) + (s.playCount || 1)); });
+  return m;
+}
+function genreStatsOf(items) {
+  const plays = genrePlayMap(), logged = new Set(state.diary.map(d => lastfmNormKey(d.artist, d.title)));
+  const rated = items.filter(r => Number(r.rating) > 0);
+  const decades = new Map();
+  items.forEach(r => { const y = genreYear(r); if (y !== null) { const d = Math.floor(y / 10) * 10; decades.set(d, (decades.get(d) || 0) + 1); } });
+  let topDecade = null, best = 0;
+  [...decades.entries()].sort((a, b) => a[0] - b[0]).forEach(([d, n]) => { if (n > best) { best = n; topDecade = d; } });   // ties: the earlier decade
+  return {
+    releases: items.length,
+    artists: new Set(items.map(r => r.artist)).size,
+    avgRating: rated.length ? rated.reduce((s, r) => s + Number(r.rating), 0) / rated.length : null,
+    plays: items.reduce((s, r) => s + (plays.get(lastfmNormKey(r.artist, r.title)) || 0), 0),
+    listened: items.filter(r => logged.has(lastfmNormKey(r.artist, r.title))).length,
+    topDecade
+  };
+}
+// Parents, direct sub-genres (with how many of YOUR releases sit under each) and the genres most often tagged
+// alongside this one. "Alongside" leaves out the genre's own ancestors/descendants — Rock beside Progressive Rock
+// says nothing.
+function genreFamilyOf(genre, items, taxonomy, allItems) {
+  const key = genreTaxonomyKey(genre);
+  const parents = getGenreParents(taxonomy, genre);
+  const children = Object.values(taxonomy).filter(e => e && (e.parents || []).some(p => genreTaxonomyKey(p) === key))
+    .map(e => ({ label: e.label, count: allItems.filter(r => genreReleaseMatches(r, e.label, true, taxonomy)).length }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  const related = new Map();
+  items.forEach(r => new Set(getGenreList(combinedGenreStr(r)).filter(g => genreTaxonomyKey(g) !== key && !genreMatchesFilter(taxonomy, g, genre) && !genreMatchesFilter(taxonomy, genre, g)).map(genreTaxonomyKey)).forEach(k => {
+    const label = getGenreList(combinedGenreStr(r)).find(g => genreTaxonomyKey(g) === k);
+    const cur = related.get(k) || { label, count: 0 }; cur.count++; related.set(k, cur);
+  }));
+  const cooccur = [...related.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)).slice(0, 8);
+  return { parents, children, cooccur };
+}
+function genreTopArtistsOf(items, limit) {
+  const by = new Map();
+  items.forEach(r => { const e = by.get(r.artist) || { artist: r.artist, count: 0, first: r }; e.count++; by.set(r.artist, e); });
+  return [...by.values()].sort((a, b) => b.count - a.count || a.artist.localeCompare(b.artist)).slice(0, limit);
+}
+// The breadcrumb: follow the FIRST parent upward (a genre with two parents sits under both in the tree; the trail
+// shows one path). Stops if the taxonomy loops.
+function genreTrail(genre, taxonomy) {
+  const trail = [genre], seen = new Set([genreTaxonomyKey(genre)]);
+  let cur = genre;
+  for (;;) {
+    const p = getGenreParents(taxonomy, cur)[0];
+    if (!p || seen.has(genreTaxonomyKey(p))) break;
+    seen.add(genreTaxonomyKey(p)); trail.unshift(p); cur = p;
+  }
+  return trail;
+}
+// Splits a description into plain text and mentions of OTHER genres you know (taxonomy or tagged on a release), so
+// the page can turn the mentions into links. Each genre links once (its first mention) — linking every "rock" in a
+// description of rock music is noise — whole words only, longest name first ("Progressive Rock" before "Rock"),
+// and never the genre's own name. No lookbehind: older Safari can't compile one.
+function genreLinkSegments(text, selfLabel, knownLabels) {
+  const self = genreTaxonomyKey(selfLabel);
+  // The genre's own name stays in the pattern: it has to match AS A UNIT (and be left as plain text) so the words
+  // inside it — the "Rock" of "Progressive Rock" — aren't linked as if they were a mention of another genre.
+  const labels = [...new Set([...knownLabels, selfLabel].filter(l => l && genreTaxonomyKey(l) !== 'unknown'))].sort((a, b) => b.length - a.length);
+  if (!text || labels.length < 2) return [{ text: text || '' }];
+  const byKey = new Map(labels.map(l => [genreTaxonomyKey(l), l]));
+  const re = new RegExp('(' + labels.map(l => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'gi');
+  const word = /[\p{L}\p{N}_]/u, out = [], used = new Set();
+  let last = 0, m;
+  while ((m = re.exec(text))) {
+    const start = m.index, end = start + m[0].length, k = genreTaxonomyKey(m[0]);
+    const before = start > 0 ? text[start - 1] : '', after = end < text.length ? text[end] : '';
+    if ((before && word.test(before)) || (after && word.test(after)) || !byKey.has(k)) { re.lastIndex = start + 1; continue; }
+    if (k === self) { re.lastIndex = end; continue; }                  // its own name: plain text, and nothing inside it is linked
+    if (used.has(k)) continue;
+    used.add(k);
+    if (start > last) out.push({ text: text.slice(last, start) });
+    out.push({ text: m[0], genre: byKey.get(k) });
+    last = end;
+  }
+  if (last < text.length) out.push({ text: text.slice(last) });
+  return out;
+}
+// END genre-data
+
+/* ---------- Genre page ----------
+   Right-click a genre in the left panel > "View genre description" opens it as its own tab (like an artist),
+   showing what your crate holds under that genre: the years its releases span (with an optional second genre
+   overlaid for comparison), your own description of it (the free-text blurb stored in the genre taxonomy, now
+   editable here too, with mentions of other genres turned into links), counts, where it sits in the taxonomy,
+   the artists you have most of, and its releases.
+
+   Same shape as the Artist Information page: the page sits inside #panels beside the Music main panel (only one
+   of the two shows), and the left panel gains a fourth view — the genre tree — so the position, width, resizer
+   and row styling are the Music tab's own. All the numbers come from the pure functions in the genre-data block
+   above; this part is the tabs, the DOM and the events. Session-only, like artist tabs. */
+const GI_CHART_H = 130;
+const GI_TAG_ICON = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8.4V2.5h5.9l6 6-5.5 5.5z"></path><circle cx="5.3" cy="5.4" r="1" fill="currentColor" stroke="none"></circle></svg>';
+let giRenderedGenre = null;       // which genre the page body currently shows (to keep the scroll position across re-renders of the same one)
+let giClickTimer = null;
+
+function giUi(genre) {            // per-genre view settings, kept while the tab is open
+  const k = genreTaxonomyKey(genre);
+  return state.genreUi[k] || (state.genreUi[k] = { includeSub: true, sort: 'year', view: 'covers', year: null, compare: null, editing: false, descOpen: false });
+}
+function canonicalGenreLabel(label) {
+  const k = genreTaxonomyKey(label);
+  const hit = getAllKnownGenres(state.genreTaxonomy).find(g => g.key === k);
+  return hit ? hit.label : String(label || '').trim();
+}
+function giShowing(genre) { return state.activeTab === 'genreInfo' && genreTaxonomyKey(state.activeGenreTab) === genreTaxonomyKey(genre); }
+
+// ----- tabs -----
+function renderGenreTabButtons() {
+  if (!el.genreTabsContainer) return;
+  el.genreTabsContainer.innerHTML = state.genreTabs.map(g => `
+    <button type="button" class="nav-tab genre-tab-btn${g === state.activeGenreTab && state.activeTab === 'genreInfo' ? ' active' : ''}" data-genre="${escapeHtml(g)}">
+      <span class="genre-tab-icon">${GI_TAG_ICON}</span>
+      <span class="genre-tab-label">${escapeHtml(g)}</span>
+      <span class="genre-tab-close" data-genre="${escapeHtml(g)}" title="Close" aria-label="Close ${escapeHtml(g)} tab">\u00d7</span>
+    </button>`).join('');
+  updateTabHistoryButtons();
+}
+function openGenreTab(label, opts) {
+  const name = canonicalGenreLabel(label);
+  if (!name) return;
+  const existing = state.genreTabs.find(g => genreTaxonomyKey(g) === genreTaxonomyKey(name));
+  if (!existing) state.genreTabs.push(name);
+  state.activeGenreTab = existing || name;
+  if (opts && opts.edit) giUi(state.activeGenreTab).editing = true;
+  renderGenreTabButtons();
+  switchTab('genreInfo');
+}
+function closeGenreTab(genre) {   // same rules as closeArtistInfoTab: only navigate away if it was the page being shown
+  const idx = state.genreTabs.indexOf(genre);
+  if (idx === -1) return;
+  state.genreTabs.splice(idx, 1);
+  delete state.genreUi[genreTaxonomyKey(genre)];
+  const wasShowing = state.activeTab === 'genreInfo' && state.activeGenreTab === genre;
+  if (state.activeGenreTab === genre) {
+    if (state.genreTabs.length) {
+      state.activeGenreTab = state.genreTabs[Math.max(0, idx - 1)];
+      renderGenreTabButtons();
+      if (wasShowing) switchTab('genreInfo');
+      return;
+    }
+    state.activeGenreTab = null;
+    if (wasShowing) switchTab('albums');
+  }
+  renderGenreTabButtons();
+}
+
+// ----- left panel: the genre tree (the fourth view of #leftPanel) -----
+function toggleGenreBranch(key) {          // shares state.collapsedGenres with the Music tab's tree, so a branch is open or closed in both
+  if (state.collapsedGenres.has(key)) state.collapsedGenres.delete(key); else state.collapsedGenres.add(key);
+  savePrefs();
+  buildLeftList();
+  renderGenreBrowser(state.activeGenreTab);
+}
+function renderGenreBrowser(current) {
+  const list = el.giGenreList;
+  if (!list) return;
+  const rows = buildGenreTree(state.raw, state.genreTaxonomy);
+  rows.forEach((row, i) => { row.hasChildren = !!(rows[i + 1] && rows[i + 1].depth > row.depth); });
+  const curKey = genreTaxonomyKey(current);
+  const prev = list.scrollTop;
+  list.textContent = '';
+  filterCollapsedGenreRows(rows).forEach(entry => {
+    const key = genreTaxonomyKey(entry.key);
+    const row = document.createElement('div');
+    row.className = 'left-row gi-genre-row' + (key === curKey ? ' active' : '');
+    row.setAttribute('role', 'listitem'); row.tabIndex = 0; row.dataset.genre = entry.label;
+    row.style.paddingLeft = entry.depth ? (6 + entry.depth * 16) + 'px' : '';
+    const ancestors = getGenreAncestors(state.genreTaxonomy, entry.label);
+    if (ancestors.length) row.title = 'Under: ' + ancestors.join(', ');
+    let lead;
+    if (entry.hasChildren) {
+      lead = document.createElement('button'); lead.type = 'button';
+      const collapsed = state.collapsedGenres.has(key);
+      lead.className = 'genre-tree-caret' + (collapsed ? ' collapsed' : '');
+      lead.textContent = '\u25be'; lead.title = collapsed ? 'Expand' : 'Collapse'; lead.setAttribute('aria-label', collapsed ? 'Expand' : 'Collapse');
+      lead.addEventListener('click', (e) => { e.stopPropagation(); toggleGenreBranch(key); });
+    } else { lead = document.createElement('span'); lead.className = 'genre-tree-caret-spacer'; lead.setAttribute('aria-hidden', 'true'); }
+    const text = document.createElement('div'); text.className = 'left-row-text';
+    const title = document.createElement('p'); title.className = 'left-row-title ' + (entry.depth ? 'genre-tree-child' : 'genre-tree-root'); title.textContent = entry.label;
+    if (entry.depth) title.style.opacity = Math.max(0.55, 1 - entry.depth * 0.14);
+    text.appendChild(title);
+    const count = document.createElement('span'); count.className = 'left-row-count'; count.textContent = Math.round(entry.count * 10) / 10;
+    row.append(lead, text, count);
+    list.appendChild(row);
+  });
+  list.scrollTop = prev;
+  const a = list.querySelector('.gi-genre-row.active');
+  if (a) {
+    if (a.offsetTop < list.scrollTop) list.scrollTop = a.offsetTop;
+    else if (a.offsetTop + a.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = a.offsetTop + a.offsetHeight - list.clientHeight;
+  }
+}
+
+// ----- sorting / playing -----
+function giSortItems(items, sort) {
+  const t = (r) => { const ms = dateVal(r.releaseDate); return ms === -Infinity ? null : ms; };
+  const byYear = (dir) => (a, b) => { const x = t(a), y = t(b); if (x === null && y === null) return a.title.localeCompare(b.title); if (x === null) return 1; if (y === null) return -1; return (x - y) * dir || a.title.localeCompare(b.title); };
+  const out = items.slice();
+  if (sort === 'yeardesc') out.sort(byYear(-1));
+  else if (sort === 'rating') out.sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0) || a.title.localeCompare(b.title));
+  else if (sort === 'artist') out.sort((a, b) => a.artist.localeCompare(b.artist) || byYear(1)(a, b));
+  else if (sort === 'title') out.sort((a, b) => a.title.localeCompare(b.title));
+  else out.sort(byYear(1));
+  return out;
+}
+function giPlayGenre(genre, shuffle) {
+  const ui = giUi(genre), items = giSortItems(genreReleasesOf(genre, ui.includeSub), ui.sort);
+  if (!items.length) { flashGlobalToast('Nothing to play \u2014 no releases in ' + genre + '.'); return; }
+  if (shuffle && !state.shuffle) setShuffle(true);
+  playAlbumsReplacingQueue(items);
+}
+
+// ----- the page -----
+function giEnsureSkeleton() {
+  if (el.genreInfoBody.dataset.ready) return;
+  el.genreInfoBody.dataset.ready = '1';
+  el.genreInfoBody.innerHTML = `
+    <nav id="giCrumbs" class="gi-crumbs" aria-label="Where this genre sits"></nav>
+    <div id="giTitle" class="gi-titlebar"></div>
+    <section id="giChart" class="gi-card gi-chart" aria-label="Years active"></section>
+    <div class="gi-cols">
+      <section id="giAbout" class="gi-card gi-about" aria-label="About this genre"></section>
+      <div class="gi-side"><section id="giStats" class="gi-card" aria-label="Your crate"></section><section id="giFamily" class="gi-card" aria-label="Family"></section></div>
+    </div>
+    <section id="giArtists" class="gi-artists" aria-label="Top artists in this genre"></section>
+    <section id="giReleases" class="gi-releases" aria-label="Releases"></section>`;
+}
+function renderGenreInfoTab() {
+  const genre = state.activeGenreTab;
+  if (!genre) return;
+  giEnsureSkeleton();
+  // Opening (or switching to) a genre never leaves it hidden inside a collapsed branch. This is here, not in
+  // renderGenreBrowser: collapsing a branch that holds the open genre is the user's own choice and must stick.
+  const hidden = getGenreAncestors(state.genreTaxonomy, genre).map(genreTaxonomyKey).filter(k => state.collapsedGenres.has(k));
+  if (hidden.length) { hidden.forEach(k => state.collapsedGenres.delete(k)); savePrefs(); buildLeftList(); }
+  renderGenreBrowser(genre);
+  const keepScroll = giRenderedGenre === genreTaxonomyKey(genre) ? el.genreInfoBody.scrollTop : 0;
+  giRenderAll(genre);
+  el.genreInfoBody.scrollTop = keepScroll;
+  giRenderedGenre = genreTaxonomyKey(genre);
+}
+function giRenderAll(genre) {
+  const ui = giUi(genre), items = genreReleasesOf(genre, ui.includeSub);
+  const family = genreFamilyOf(genre, items, state.genreTaxonomy, state.raw);
+  giRenderCrumbs(genre);
+  giRenderTitle(genre, ui, items, family);
+  giRenderChart(genre, ui, items);
+  giRenderAbout(genre, ui);
+  giRenderStats(items);
+  giRenderFamily(family);
+  giRenderArtists(items);
+  giRenderReleases(genre, ui, items);
+}
+const $gi = (id) => document.getElementById(id);
+function giRenderCrumbs(genre) {
+  const trail = genreTrail(genre, state.genreTaxonomy);
+  $gi('giCrumbs').innerHTML = '<span>Genres</span>' + trail.map((g, i) => '<span class="gi-crumb-sep">\u203a</span>' +
+    (i === trail.length - 1 ? `<span class="gi-crumb-here">${escapeHtml(g)}</span>` : `<a href="#" data-genre="${escapeHtml(g)}">${escapeHtml(g)}</a>`)).join('');
+}
+function giRenderTitle(genre, ui, items, family) {
+  const st = genreStatsOf(items);
+  const bits = [`<b>${st.releases}</b> in your crate`, `${st.artists} artist${st.artists === 1 ? '' : 's'}`];
+  if (family.children.length) bits.push(`${family.children.length} sub-genre${family.children.length === 1 ? '' : 's'}`);
+  $gi('giTitle').innerHTML = `
+    <div class="gi-titlewrap"><h1 class="gi-title">${escapeHtml(genre)}</h1><p class="gi-meta">${bits.join(' \u00b7 ')}</p></div>
+    <div class="gi-actions">
+      <button type="button" class="gi-round gi-round-accent" data-gi="play" title="Play every release in this genre" aria-label="Play every release in ${escapeHtml(genre)}"${st.releases ? '' : ' disabled'}>\u25b6</button>
+      <button type="button" class="gi-round" data-gi="shuffle" title="Shuffle this genre" aria-label="Shuffle ${escapeHtml(genre)}"${st.releases ? '' : ' disabled'}>\u21cc</button>
+      <button type="button" class="gi-pill" data-gi="edit">Edit description</button>
+    </div>`;
+}
+function giRenderChart(genre, ui, items) {
+  const cmpItems = ui.compare ? genreReleasesOf(ui.compare, ui.includeSub) : null;
+  const counts = genreYearCounts(items), model = genreChartModel(counts, cmpItems ? genreYearCounts(cmpItems) : null);
+  const undated = items.length - [...counts.values()].reduce((a, b) => a + b, 0);
+  const labels = getAllKnownGenres(state.genreTaxonomy).map(g => g.label).filter(l => genreTaxonomyKey(l) !== genreTaxonomyKey(genre));
+  let chart;
+  if (!model) chart = '<p class="ai-empty">No dated releases in this genre yet.</p>';
+  else {
+    const n = model.bars.length, pct = (y) => ((y - model.lo + 0.5) / n * 100).toFixed(2);
+    const bands = [];
+    for (let d = Math.floor(model.lo / 10) * 10; d <= model.hi; d += 10) {
+      if ((d / 10) % 2) continue;
+      const s = Math.max(d, model.lo), e = Math.min(d + 9, model.hi);
+      bands.push(`<span class="gi-band" style="left:${((s - model.lo) / n * 100).toFixed(3)}%;width:${((e - s + 1) / n * 100).toFixed(3)}%"></span>`);
+    }
+    const cols = model.bars.map(b => {
+      const sel = ui.year === b.year;
+      const tip = `${b.year} \u00b7 ${b.n} release${b.n === 1 ? '' : 's'}` + (cmpItems ? ` \u00b7 ${ui.compare}: ${b.c}` : '');
+      return `<button type="button" class="gi-col${sel ? ' selected' : ''}${ui.year && !sel ? ' dim' : ''}" data-gi="year" data-year="${b.year}" title="${escapeHtml(tip)}" aria-label="${escapeHtml(tip)}" aria-pressed="${sel}"${b.n ? '' : ' disabled'}>` +
+        (cmpItems && b.c ? `<span class="gi-bar gi-bar-c" style="height:${Math.max(3, Math.round(b.ch * GI_CHART_H))}px"></span>` : '') +
+        (b.n ? `<span class="gi-bar" style="height:${Math.max(3, Math.round(b.h * GI_CHART_H))}px"></span>` : '') + '</button>';
+    }).join('');
+    chart = `<div class="gi-plot" style="height:${GI_CHART_H}px">${bands.join('')}<div class="gi-cols-row">${cols}</div></div>
+      <div class="gi-axis"><span style="left:${pct(model.dataLo)}%">${model.dataLo}</span>${model.peakYear !== null && model.peakYear !== model.dataLo && model.peakYear !== model.dataHi ? `<span class="gi-axis-peak" style="left:${pct(model.peakYear)}%">${model.peakYear}</span>` : ''}${model.dataHi !== model.dataLo ? `<span style="left:${pct(model.dataHi)}%">${model.dataHi}</span>` : ''}</div>`;
+  }
+  const hint = ui.year
+    ? `Showing ${ui.year} only. <button type="button" class="ai-link-btn" data-gi="clear-year">Show all years</button>`
+    : (model ? 'Your releases in this genre by year of release. Click a year to filter the releases below.' : '') + (undated ? ` ${undated} undated release${undated === 1 ? '' : 's'} not shown.` : '');
+  $gi('giChart').innerHTML = `
+    <div class="gi-chart-head"><h2 class="gi-h2">Years active</h2>
+      <div class="gi-chart-tools">
+        <span class="gi-legend"><i class="gi-swatch"></i>${escapeHtml(genre)}</span>
+        ${ui.compare ? `<span class="gi-legend"><i class="gi-swatch gi-swatch-c"></i>${escapeHtml(ui.compare)} <button type="button" class="gi-x" data-gi="clear-compare" aria-label="Stop comparing with ${escapeHtml(ui.compare)}">\u00d7</button></span>`
+          : `<input id="giCompare" class="gi-compare" type="text" list="giGenreOptions" placeholder="Compare to a genre\u2026" aria-label="Compare to a genre" autocomplete="off"><datalist id="giGenreOptions">${labels.map(l => `<option value="${escapeHtml(l)}"></option>`).join('')}</datalist>`}
+        <span class="gi-help" tabindex="0" role="img" aria-label="About this chart" title="Releases in your crate by year of release. Compare overlays another genre; each genre is scaled to its own busiest year, so you are comparing shapes, not sizes.">?</span>
+      </div></div>
+    ${chart}<p class="gi-hint">${hint}</p>`;
+}
+function giRenderAbout(genre, ui) {
+  const entry = state.genreTaxonomy[genreTaxonomyKey(genre)] || {};
+  const text = (entry.description || '').trim();
+  let body;
+  if (ui.editing) {
+    body = `<textarea id="giDescInput" class="gi-desc-input" placeholder="Write a description for this genre\u2026" aria-label="Description of ${escapeHtml(genre)}">${escapeHtml(text)}</textarea>
+      <div class="gi-edit-actions"><button type="button" class="config-btn" data-gi="save-desc">Save</button><button type="button" class="ai-link-btn" data-gi="cancel-desc">Cancel</button><span class="gi-hint-inline">Names of other genres you have become links.</span></div>`;
+  } else if (!text) {
+    body = `<p class="ai-empty">No description yet. <button type="button" class="ai-link-btn" data-gi="edit">Write one</button> \u2014 other genres you mention become links to their pages.</p>`;
+  } else {
+    const known = getAllKnownGenres(state.genreTaxonomy).map(g => g.label);
+    // Linked as ONE text (each genre links once, at its first mention anywhere in the description), then cut into
+    // paragraphs at the blank lines — a paragraph at a time would link "Rock" again in every paragraph.
+    const parasHtml = [''];
+    genreLinkSegments(text, genre, known).forEach(sg => {
+      if (sg.genre) { parasHtml[parasHtml.length - 1] += `<a href="#" class="gi-genre-link" data-genre="${escapeHtml(sg.genre)}">${escapeHtml(sg.text)}</a>`; return; }
+      sg.text.split(/\n{2,}/).forEach((part, i) => { if (i > 0) parasHtml.push(''); parasHtml[parasHtml.length - 1] += escapeHtml(part); });
+    });
+    const paras = parasHtml.map(h => '<p>' + h + '</p>').join('');
+    body = `<div id="giDesc" class="gi-desc${ui.descOpen ? '' : ' clamped'}">${paras}</div><button type="button" id="giMore" class="ai-link-btn gi-more" data-gi="more" hidden>${ui.descOpen ? 'Show less' : 'Read more'}</button>`;
+  }
+  $gi('giAbout').innerHTML = `<div class="gi-card-label">About</div>${body}`;
+  if (ui.editing) { const ta = $gi('giDescInput'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }
+  const d = $gi('giDesc'), more = $gi('giMore');
+  if (d && more) more.hidden = !(ui.descOpen || d.scrollHeight > d.clientHeight + 4);   // only offer "Read more" when the text is actually cut
+}
+function giRenderStats(items) {
+  const s = genreStatsOf(items), cell = (k, v) => `<div class="gi-stat"><div class="gi-stat-v">${v}</div><div class="gi-stat-k">${k}</div></div>`;
+  $gi('giStats').innerHTML = `<div class="gi-card-label">Your crate</div><div class="gi-stats">` +
+    cell('Releases', s.releases) + cell('Artists', s.artists) + cell('Avg rating', s.avgRating === null ? '\u2014' : '\u2605 ' + s.avgRating.toFixed(1)) +
+    cell('Plays', s.plays) + cell('Listened', `${s.listened} / ${s.releases}`) + cell('Top decade', s.topDecade === null ? '\u2014' : s.topDecade + 's') + '</div>';
+}
+function giRenderFamily(f) {
+  const chip = (c, dim) => `<button type="button" class="gi-chip${dim ? ' dim' : ''}" data-gi="genre" data-genre="${escapeHtml(c.label)}">${escapeHtml(c.label)}<span class="gi-chip-n">${c.count === undefined ? '' : c.count}</span></button>`;
+  const famGroup = (title, chips) => chips ? `<div class="gi-fam-title">${title}</div><div class="gi-chips">${chips}</div>` : '';
+  const html = famGroup('Parent', f.parents.map(p => chip({ label: p })).join('')) + famGroup('Sub-genres', f.children.slice(0, 14).map(c => chip(c, !c.count)).join('')) + famGroup('Often tagged with', f.cooccur.map(c => chip(c)).join(''));
+  $gi('giFamily').innerHTML = `<div class="gi-card-label">Family</div>` + (html || '<p class="ai-empty">This genre has no parents or sub-genres, and nothing else is tagged alongside it.</p>');
+}
+function giRenderArtists(items) {
+  const top = genreTopArtistsOf(items, 14);
+  if (!top.length) { $gi('giArtists').innerHTML = ''; return; }
+  aiTouchArt(top.map(t => t.first));
+  $gi('giArtists').innerHTML = `<div class="gi-section-head"><span class="gi-card-label">Top artists in this genre</span></div><div class="gi-artist-row">` +
+    top.map(t => `<button type="button" class="gi-artist" data-gi="artist" data-artist="${escapeHtml(t.artist)}" title="Open ${escapeHtml(t.artist)}"><span class="gi-avatar">${aiArtImg(t.first, 'gi-avatar-img')}</span><span class="gi-artist-name">${escapeHtml(t.artist)}</span><span class="gi-artist-n">${t.count} release${t.count === 1 ? '' : 's'}</span></button>`).join('') + '</div>';
+}
+function giTileHtml(it) {
+  return `<div class="ai-album" data-row="${escapeHtml(String(it.row))}" tabindex="0" title="Click to open \u00b7 double-click to play \u00b7 right-click for more">
+    <div class="ai-cover">${aiArtImg(it, 'ai-cover-img')}</div><div class="ai-album-title">${escapeHtml(it.title)}</div><div class="ai-album-year">${escapeHtml(it.artist)}</div></div>`;
+}
+function giListRowHtml(it) {
+  const y = genreYear(it), r = Number(it.rating) || 0;
+  return `<div class="gi-list-row" data-row="${escapeHtml(String(it.row))}" tabindex="0" title="Click to open \u00b7 double-click to play \u00b7 right-click for more">
+    <span class="gi-list-cover">${aiArtImg(it, 'gi-list-img')}</span><span class="gi-list-main"><span class="gi-list-title">${escapeHtml(it.title)}</span><span class="gi-list-artist">${escapeHtml(it.artist)}</span></span>
+    <span class="gi-list-year">${y === null ? '' : y}</span><span class="gi-list-rating">${r > 0 ? '\u2605 ' + (Number.isInteger(r) ? r : r.toFixed(1)) : ''}</span></div>`;
+}
+function giRenderReleases(genre, ui, items) {
+  const shown = giSortItems(ui.year ? items.filter(r => genreYear(r) === ui.year) : items, ui.sort);
+  aiTouchArt(shown);
+  let body;
+  if (!shown.length) body = `<p class="ai-empty">${items.length ? 'No releases that year.' : 'No releases in this genre yet.'}</p>`;
+  else if (ui.view === 'list') body = `<div class="gi-list">${shown.map(giListRowHtml).join('')}</div>`;
+  else if (ui.sort === 'year' || ui.sort === 'yeardesc') {
+    const groups = []; shown.forEach(r => { const y = genreYear(r), g = groups[groups.length - 1]; if (g && g.y === y) g.items.push(r); else groups.push({ y, items: [r] }); });
+    body = groups.map(g => `<div class="gi-year-head">${g.y === null ? 'Undated' : g.y} \u00b7 ${g.items.length}</div><div class="ai-album-grid">${g.items.map(giTileHtml).join('')}</div>`).join('');
+  } else body = `<div class="ai-album-grid">${shown.map(giTileHtml).join('')}</div>`;
+  const opt = (v, t) => `<option value="${v}"${ui.sort === v ? ' selected' : ''}>${t}</option>`;
+  $gi('giReleases').innerHTML = `
+    <div class="gi-rel-head">
+      <div class="gi-rel-title"><h2 class="gi-h2">Releases</h2><span class="gi-rel-count">${ui.year ? `${shown.length} of ${items.length}` : items.length}</span>${ui.year ? `<button type="button" class="gi-chip" data-gi="clear-year">${ui.year} \u00d7</button>` : ''}</div>
+      <div class="gi-rel-tools">
+        <label class="gi-check"><input type="checkbox" id="giIncludeSub"${ui.includeSub ? ' checked' : ''}> Include sub-genres</label>
+        <select id="giSort" class="gi-select" aria-label="Sort releases">${opt('year', 'Year (oldest first)')}${opt('yeardesc', 'Year (newest first)')}${opt('rating', 'Rating')}${opt('artist', 'Artist A\u2013Z')}${opt('title', 'Title A\u2013Z')}</select>
+        <span class="gi-seg"><button type="button" class="gi-seg-btn${ui.view === 'covers' ? ' active' : ''}" data-gi="view" data-view="covers" aria-label="Covers" aria-pressed="${ui.view === 'covers'}" title="Covers">\u25a6</button><button type="button" class="gi-seg-btn${ui.view === 'list' ? ' active' : ''}" data-gi="view" data-view="list" aria-label="List" aria-pressed="${ui.view === 'list'}" title="List">\u2630</button></span>
+      </div></div>${body}`;
+}
+
+// ----- events -----
+function giItemByRow(node) { const t = node && node.closest('[data-row]'); return t ? state.raw.find(r => String(r.row) === t.dataset.row) : null; }
+function giSaveDescription(genre) {
+  const key = genreTaxonomyKey(genre), ui = giUi(genre);
+  if (!state.genreTaxonomy[key]) state.genreTaxonomy[key] = { label: genre, parents: [] };   // a genre that is only tagged on releases gets its taxonomy entry the first time it has something to say
+  state.genreTaxonomy[key].description = $gi('giDescInput').value.trim();
+  saveGenreTaxonomy(state.genreTaxonomy);
+  ui.editing = false;
+  giRenderAbout(genre, ui);
+  if (el.genreDescElement && !el.genreDescElement.hidden) renderGenreDescElement();   // the Main-panel Genre Description box, if it's showing, reads the same field
+  flashGlobalToast('Genre description saved.');
+}
+function giClick(e) {
+  const genre = state.activeGenreTab;
+  if (!genre) return;
+  const ui = giUi(genre);
+  const link = e.target.closest('a[data-genre]');
+  if (link) { e.preventDefault(); openGenreTab(link.dataset.genre); return; }
+  const act = e.target.closest('[data-gi]');
+  if (act) {
+    const a = act.dataset.gi;
+    if (a === 'play') giPlayGenre(genre, false);
+    else if (a === 'shuffle') giPlayGenre(genre, true);
+    else if (a === 'edit') { ui.editing = true; ui.descOpen = true; giRenderAbout(genre, ui); }
+    else if (a === 'cancel-desc') { ui.editing = false; giRenderAbout(genre, ui); }
+    else if (a === 'save-desc') giSaveDescription(genre);
+    else if (a === 'more') { ui.descOpen = !ui.descOpen; giRenderAbout(genre, ui); }
+    else if (a === 'year') { ui.year = ui.year === Number(act.dataset.year) ? null : Number(act.dataset.year); const items = genreReleasesOf(genre, ui.includeSub); giRenderChart(genre, ui, items); giRenderReleases(genre, ui, items); }
+    else if (a === 'clear-year') { ui.year = null; const items = genreReleasesOf(genre, ui.includeSub); giRenderChart(genre, ui, items); giRenderReleases(genre, ui, items); }
+    else if (a === 'clear-compare') { ui.compare = null; giRenderChart(genre, ui, genreReleasesOf(genre, ui.includeSub)); }
+    else if (a === 'view') { ui.view = act.dataset.view; giRenderReleases(genre, ui, genreReleasesOf(genre, ui.includeSub)); }
+    else if (a === 'genre') openGenreTab(act.dataset.genre);
+    else if (a === 'artist') openArtistInfoTab(act.dataset.artist);
+    return;
+  }
+  const item = giItemByRow(e.target);
+  if (item) {                                   // wait out a possible double-click (which plays it) before opening the album page
+    clearTimeout(giClickTimer);
+    giClickTimer = setTimeout(() => openDeck(item), 260);
+  }
+}
+function giChange(e) {
+  const genre = state.activeGenreTab;
+  if (!genre) return;
+  const ui = giUi(genre), id = e.target.id;
+  if (id === 'giIncludeSub') { ui.includeSub = e.target.checked; ui.year = null; giRenderAll(genre); }
+  else if (id === 'giSort') { ui.sort = e.target.value; giRenderReleases(genre, ui, genreReleasesOf(genre, ui.includeSub)); }
+  else if (id === 'giCompare') {
+    const v = e.target.value.trim();
+    if (!v) return;
+    const hit = getAllKnownGenres(state.genreTaxonomy).find(g => genreTaxonomyKey(g.label) === genreTaxonomyKey(v));
+    if (!hit || genreTaxonomyKey(hit.label) === genreTaxonomyKey(genre)) { flashGlobalToast(hit ? 'That is this genre.' : 'No genre called \u201c' + v + '\u201d.'); e.target.value = ''; return; }
+    ui.compare = hit.label;
+    giRenderChart(genre, ui, genreReleasesOf(genre, ui.includeSub));
+  }
+}
+function giDblClick(e) {
+  const item = giItemByRow(e.target);
+  if (item) { clearTimeout(giClickTimer); playAlbumReplacingQueue(item); }
+}
+function giContextMenu(e) {
+  const item = giItemByRow(e.target);
+  if (item) { e.preventDefault(); openAlbumCardContextMenu(item, e.clientX, e.clientY); }
+}
+
+// ----- the right-click menu on a genre row -----
+function openGenreContextMenu(label, x, y) {
+  closeNowPlayingAddMenu();
+  const name = canonicalGenreLabel(label), n = genreReleasesOf(name, true).length;
+  const menu = document.createElement('div');
+  menu.className = 'panel-mode-menu now-playing-add-menu';
+  menu.innerHTML = `
+    <div class="menu-section-title">${escapeHtml(name)}</div>
+    <button type="button" data-genre-action="view">View genre description <span class="menu-hint-right">new tab</span></button>
+    <button type="button" data-genre-action="play"${n ? '' : ' disabled'}>Play all ${n} release${n === 1 ? '' : 's'}</button>
+    <button type="button" data-genre-action="shuffle"${n ? '' : ' disabled'}>Shuffle</button>
+    <div class="menu-divider"></div>
+    <button type="button" data-genre-action="edit">Edit description\u2026</button>`;
+  document.body.appendChild(menu);
+  positionFloatingMenu(menu, x, y);
+  menu.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-genre-action]');
+    if (!b || b.disabled) return;
+    closeNowPlayingAddMenu();
+    const a = b.dataset.genreAction;
+    if (a === 'view') openGenreTab(name);
+    else if (a === 'edit') openGenreTab(name, { edit: true });
+    else { const ui = giUi(name), items = giSortItems(genreReleasesOf(name, true), ui.sort); if (a === 'shuffle' && !state.shuffle) setShuffle(true); playAlbumsReplacingQueue(items); }
+  });
+  nowPlayingAddMenuEl = menu;
+  setTimeout(() => document.addEventListener('click', closeNowPlayingAddMenuOnOutsideClick), 0);
+}
+
+function initGenrePage() {
+  if (!el.genreInfoBody) return;
+  el.genreTabsContainer.addEventListener('click', (e) => {
+    const close = e.target.closest('.genre-tab-close');
+    if (close) { e.stopPropagation(); closeGenreTab(close.dataset.genre); return; }
+    const tab = e.target.closest('.genre-tab-btn');
+    if (!tab) return;
+    state.activeGenreTab = tab.dataset.genre;
+    switchTab('genreInfo');
+  });
+  // A double-click is detected from the click COUNT, not a 'dblclick' event: the first click opens the genre and redraws
+  // these rows, and a browser only fires dblclick when both clicks land on the same element — so it never would.
+  el.giGenreList.addEventListener('click', (e) => {
+    const row = e.target.closest('.gi-genre-row');
+    if (!row || e.target.closest('.genre-tree-caret')) return;
+    if (e.detail >= 2) { giPlayGenre(canonicalGenreLabel(row.dataset.genre), false); return; }
+    openGenreTab(row.dataset.genre);
+    if (isMobileDrawerLayout()) setMobileDrawer(null);
+  });
+  el.giGenreList.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { const row = e.target.closest('.gi-genre-row'); if (row) { e.preventDefault(); openGenreTab(row.dataset.genre); } } });
+  el.giGenreList.addEventListener('contextmenu', (e) => {
+    const row = e.target.closest('.gi-genre-row');
+    if (row) { e.preventDefault(); openGenreContextMenu(row.dataset.genre, e.clientX, e.clientY); }
+  });
+  el.genreInfoBody.addEventListener('click', giClick);
+  el.genreInfoBody.addEventListener('change', giChange);
+  el.genreInfoBody.addEventListener('dblclick', giDblClick);
+  el.genreInfoBody.addEventListener('contextmenu', giContextMenu);
 }
 
 function initTabBar() {
@@ -27716,6 +28347,136 @@ html, body {
   .update-details { margin: 8px 0 2px; padding: 10px 12px; background: var(--bg-card); border-radius: 6px; font: 11.5px/1.55 'IBM Plex Mono', monospace; color: var(--text-dim); white-space: pre-wrap; overflow-wrap: anywhere; }
   @media (max-width: 900px) { .update-log-modal { width: 96vw; height: calc(100vh - 260px); } .update-log-list { padding-bottom: 150px; }   /* the player bar floats over the bottom of the sheet; this lets the last entries scroll clear of it */
   .update-details { font-size: 11px; padding: 8px 10px; } }
+
+  /* ---- Genre page (see the "Genre page" block in the script) ---- */
+  .genre-tab-btn { display: inline-flex; align-items: center; gap: 8px; max-width: 220px; }
+  .genre-tab-icon { display: inline-flex; flex: 0 0 auto; color: var(--accent); }
+  .genre-tab-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .genre-tab-close { flex: 0 0 auto; width: 16px; height: 16px; line-height: 15px; text-align: center; border-radius: 50%; font-size: 14px; opacity: 0.6; }
+  .genre-tab-close:hover { opacity: 1; background: rgba(255,255,255,0.12); }
+  @media (min-width: 901px) { .tab-bar .genre-tab-btn { padding-right: 10px; } }
+  @media (max-width: 900px) { .genre-tab-icon { display: none; } .genre-tab-btn { gap: 4px; } }   /* the phone's bottom bar splits its width between every tab: the icon (there to tell genre tabs from artist tabs on the desktop strip) isn't worth the room */
+  /* Same arrangement as the artist page: this page is a .panel-main beside the Music main panel; only one shows. */
+  #panels.genre-info-mode > #mainPanel { display: none !important; }
+  @media (min-width: 901px) { #panels.genre-info-mode > #rightPanel, #panels.genre-info-mode > #resizerRight { display: none !important; } }
+  .genre-info-wrap { min-height: 0; }
+  .gi-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0 6px 56px 0; }
+  .menu-hint-right { float: right; margin-left: 18px; font: 10.5px 'IBM Plex Mono', monospace; color: var(--text-dim); }
+
+  .gi-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 14px; font: 11px 'IBM Plex Mono', monospace; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-dim); }
+  .gi-crumbs a { color: var(--text-dim); text-decoration: none; }
+  .gi-crumbs a:hover { color: var(--accent); }
+  .gi-crumb-here { color: var(--text); }
+  .gi-titlebar { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-top: 8px; }
+  .gi-titlewrap { min-width: 0; }
+  .gi-title { margin: 0; font-family: 'Bebas Neue', sans-serif; font-weight: 400; font-size: 64px; line-height: 1; letter-spacing: 0.5px; color: var(--text); overflow-wrap: anywhere; }
+  .gi-meta { margin: 8px 0 0; font-size: 13px; color: var(--text-dim); }
+  .gi-meta b { color: var(--text); font-weight: 600; }
+  .gi-actions { display: flex; align-items: center; gap: 10px; padding-bottom: 6px; flex-wrap: wrap; }
+  .gi-round { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: none; color: var(--text); font-size: 17px; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+  .gi-round:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .gi-round-accent { background: var(--accent); border-color: var(--accent); color: #12161C; padding-left: 3px; }
+  .gi-round-accent:hover:not(:disabled) { color: #12161C; filter: brightness(1.1); }
+  .gi-round:disabled { opacity: 0.35; cursor: default; }
+  .gi-pill { height: 36px; padding: 0 15px; border-radius: 18px; border: 1px solid var(--line); background: none; color: var(--text); font: 13px 'Inter', sans-serif; cursor: pointer; }
+  .gi-pill:hover { border-color: var(--accent); color: var(--accent); }
+
+  .gi-card { background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; }
+  .gi-card-label { margin-bottom: 12px; font: 11px 'IBM Plex Mono', monospace; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-dim); }
+  .gi-h2 { margin: 0; font-size: 19px; font-weight: 600; color: var(--text); }
+  .gi-chart { margin-top: 22px; padding: 18px 20px 14px; }
+  .gi-chart-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+  .gi-chart-tools { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .gi-legend { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--text-dim); }
+  .gi-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px; background: var(--accent); }
+  .gi-swatch-c { background: #5E9488; }
+  .gi-x { background: none; border: none; color: var(--text-dim); font-size: 16px; line-height: 1; padding: 0 2px; cursor: pointer; }
+  .gi-x:hover { color: var(--accent); }
+  .gi-compare { width: 210px; height: 32px; box-sizing: border-box; border-radius: 16px; border: 1px solid var(--line); background: var(--bg-card); color: var(--text); padding: 0 14px; font: 13px 'Inter', sans-serif; outline: none; }
+  .gi-compare:focus { border-color: var(--accent); }
+  .gi-help { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); color: var(--text-dim); font-size: 13px; font-weight: 700; cursor: help; }
+  .gi-plot { position: relative; margin-top: 14px; }
+  .gi-band { position: absolute; top: 0; bottom: 0; background: #171D26; }
+  .gi-cols-row { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 1px; }
+  .gi-col { flex: 1 1 0; min-width: 0; height: 100%; padding: 0; border: none; background: none; position: relative; display: flex; align-items: flex-end; cursor: pointer; }
+  .gi-col:disabled { cursor: default; }
+  .gi-col:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .gi-bar { display: block; width: 100%; box-sizing: border-box; background: rgba(214,162,76,0.5); border-top: 2px solid var(--accent); position: relative; }
+  .gi-bar-c { position: absolute; left: 0; bottom: 0; background: rgba(94,148,136,0.45); border-top: 2px solid #5E9488; }
+  .gi-col:hover:not(:disabled) .gi-bar { background: rgba(214,162,76,0.78); }
+  .gi-col.selected .gi-bar { background: var(--accent); }
+  .gi-col.dim .gi-bar, .gi-col.dim .gi-bar-c { opacity: 0.3; }
+  .gi-axis { position: relative; height: 22px; margin-top: 6px; font: 500 12px 'IBM Plex Mono', monospace; color: var(--text); }
+  .gi-axis span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+  .gi-axis-peak { color: var(--accent); font-weight: 700; }
+  .gi-hint { margin: 6px 0 0; font-size: 11.5px; color: var(--text-dim); }
+  .gi-hint-inline { font-size: 11.5px; color: var(--text-dim); }
+
+  .gi-cols { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; margin-top: 16px; }
+  .gi-about { flex: 1.5 1 380px; min-width: 0; }
+  .gi-side { display: flex; flex-direction: column; gap: 16px; flex: 1 1 320px; min-width: 0; }
+  .gi-desc p { margin: 0 0 10px; font-size: 14px; line-height: 1.6; color: var(--text); white-space: pre-line; overflow-wrap: anywhere; }
+  .gi-desc.clamped { max-height: 11.2em; overflow: hidden; }
+  .gi-genre-link { color: var(--accent); text-decoration: none; }
+  .gi-genre-link:hover { text-decoration: underline; }
+  .gi-more { margin-top: 4px; font-weight: 700; }
+  .gi-desc-input { width: 100%; min-height: 200px; box-sizing: border-box; resize: vertical; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; color: var(--text); font: 14px/1.6 'Inter', sans-serif; padding: 10px 12px; outline: none; }
+  .gi-desc-input:focus { border-color: var(--accent); }
+  .gi-edit-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 10px; }
+  .gi-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .gi-stat { background: var(--bg-card); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; min-width: 0; }
+  .gi-stat-v { font: 500 18px 'IBM Plex Mono', monospace; color: var(--text); overflow-wrap: anywhere; }
+  .gi-stat-k { margin-top: 2px; font-size: 11.5px; color: var(--text-dim); }
+  .gi-fam-title { margin: 12px 0 6px; font-size: 11.5px; color: var(--text-dim); }
+  .gi-fam-title:first-of-type { margin-top: 0; }
+  .gi-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .gi-chip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg-card); color: var(--text); font: 12.5px 'Inter', sans-serif; cursor: pointer; }
+  .gi-chip:hover { border-color: var(--accent); color: var(--accent); }
+  .gi-chip.dim { opacity: 0.6; }
+  .gi-chip-n { font: 11px 'IBM Plex Mono', monospace; color: var(--text-dim); }
+  .gi-chip-n:empty { display: none; }
+
+  .gi-artists { margin-top: 24px; }
+  .gi-section-head { margin-bottom: 12px; }
+  .gi-section-head .gi-card-label { margin-bottom: 0; }
+  .gi-artist-row { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 6px; }
+  .gi-artist { flex: 0 0 auto; width: 92px; padding: 0; background: none; border: none; color: inherit; text-align: center; cursor: pointer; font-family: inherit; }
+  .gi-avatar { display: block; width: 64px; height: 64px; margin: 0 auto; border-radius: 50%; overflow: hidden; background: var(--bg-card); border: 1px solid var(--line); }
+  .gi-avatar .gi-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .gi-artist:hover .gi-avatar { border-color: var(--accent); }
+  .gi-artist-name { display: block; margin-top: 7px; font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gi-artist-n { display: block; font: 11px 'IBM Plex Mono', monospace; color: var(--text-dim); }
+
+  .gi-releases { margin-top: 28px; }
+  .gi-rel-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .gi-rel-title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .gi-rel-count { font: 13px 'IBM Plex Mono', monospace; color: var(--text-dim); }
+  .gi-rel-tools { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .gi-check { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text); cursor: pointer; }
+  .gi-check input { accent-color: var(--accent); margin: 0; }
+  .gi-select { height: 32px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg-elevated); color: var(--text); font: 12.5px 'Inter', sans-serif; }
+  .gi-seg { display: inline-flex; }
+  .gi-seg-btn { width: 34px; height: 32px; padding: 0; border: 1px solid var(--line); background: var(--bg-elevated); color: var(--text); font-size: 15px; cursor: pointer; }
+  .gi-seg-btn:first-child { border-radius: 6px 0 0 6px; }
+  .gi-seg-btn:last-child { border-radius: 0 6px 6px 0; border-left: none; }
+  .gi-seg-btn.active { background: var(--accent); border-color: var(--accent); color: #12161C; }
+  .gi-year-head { margin: 10px 0 12px; padding: 14px 0 10px; border-bottom: 1px solid var(--line); font: 12px 'IBM Plex Mono', monospace; letter-spacing: 0.8px; color: var(--text-dim); }
+  .gi-list { display: flex; flex-direction: column; margin-top: 8px; }
+  .gi-list-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) 56px 64px; align-items: center; gap: 12px; padding: 6px 4px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .gi-list-row:hover { background: var(--bg-card); }
+  .gi-list-cover { width: 40px; height: 40px; border-radius: 3px; overflow: hidden; background: var(--bg-card); }
+  .gi-list-cover .gi-list-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .gi-list-main { min-width: 0; display: flex; flex-direction: column; }
+  .gi-list-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gi-list-artist { font-size: 11.5px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gi-list-year { font: 12px 'IBM Plex Mono', monospace; color: var(--text-dim); }
+  .gi-list-rating { font: 12px 'IBM Plex Mono', monospace; color: var(--accent); text-align: right; }
+  @media (max-width: 900px) {
+    .gi-title { font-size: 42px; }
+    .gi-chart { padding: 14px 12px 12px; }
+    .gi-list-row { grid-template-columns: 40px minmax(0, 1fr) 44px 52px; gap: 8px; }
+    .gi-compare { width: 100%; }
+  }
 
   /* ---- Artist Information page (see the "Artist Information page" block in the script) ----
      Two-column like MusicBee's Music Explorer: artist list | the chosen artist.
