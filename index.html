@@ -13,7 +13,63 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.184
+  The ⚙ menu's "Update log…" reads THIS log back out of the page, so keep each entry's
+  header line exactly in the form  "  X.Y.Z — YYYY-MM-DD — summary"  (two leading spaces, em
+  dashes, a real version and date), put the summary in the FIRST paragraph (the list shows
+  it; everything after the first blank line becomes "Details"), indent the rest of the entry
+  by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
+
+  CURRENT_VERSION: 1.29.185
+
+  1.29.185 — 2026-10-06 — New: an Update log. ⚙ > "Update log…" (or click the version at the bottom of that menu) lists every release, newest first, with a one-line summary each and the full notes under "Details".
+
+          Where it comes from: the maintenance log at the top of this file, read back out of
+          the page itself — there is no second copy to keep in step, and the release routine
+          ("add an entry to the top of the log") is unchanged. The header comment now spells
+          out what the log depends on: each entry starts with a line of the exact form
+          "  X.Y.Z — YYYY-MM-DD — summary", the FIRST paragraph is the summary the list shows
+          (cut at ~260 characters on a word boundary), everything after the first blank line
+          becomes "Details", and no line of equals signs inside an entry.
+
+          What's in it:
+            - every update, grouped under month headings, newest first. Ordered by VERSION
+              rather than file order (the file has 1.29.159 above 1.29.160), compared
+              numerically (1.100.0 > 1.10.0 > 1.9.0);
+            - "Details" opens the full notes; "Expand all" / "Collapse all" for the lot.
+              The details text is built the first time an entry is opened. The file wraps
+              its paragraphs at ~80 columns, which reads as ragged half-lines on a phone,
+              so the wrapped lines of ordinary paragraphs are re-joined; bullets, indented
+              blocks and column-aligned lines are left exactly as written;
+            - a search box over versions, dates, summaries AND the full text; when a hit is
+              only down in an entry's details, that entry opens itself;
+            - "Current" on the running version; "New" on every entry newer than the last
+              one you had seen when you opened the log (nothing is marked the very first
+              time, which would mark all of history; remembered in localStorage);
+            - because the page is re-read with cache: 'no-cache' (a cheap conditional
+              request when nothing changed), a deploy made since this page loaded shows up
+              — with a note "A newer version is on the site", and a Reload button;
+            - everything is inserted as TEXT: the entries talk about HTML and contain < and &.
+          Two stray leftovers in the old log are handled rather than shown: ten bare
+          version-number lines (e.g. a lone "1.29.40") from old editing, and the ==== rules.
+
+          Limits: it reads the live page, so it needs the site served over http(s); opened
+          straight from disk (file://) it says so instead of showing nothing. The older
+          entries are engineering notes, so the summaries read that way; the log is shown
+          as written, not rewritten. The panel is sized to stop above the player bar, which
+          in this app floats above modal overlays (on a phone the list gets extra scroll
+          room past it).
+
+          Verified: 33 unit checks of the parser and the re-flow (test_updatelog.js, including
+          the real log: every one of the 231 headers becomes exactly one entry, strictly
+          descending, no stray lines) and 59 browser checks against the real served page
+          (pw_updatelog.py: finding it, the full list and its order, month grouping, summaries
+          vs an independent Python parse, details/HTML-as-text, search incl. details-only
+          hits, expand/collapse all, closing four ways, the New badges across visits, a
+          simulated newer deploy, a failed load with Retry, the file:// message, phone fit).
+          Two rules were mutation-checked: dropping the version sort fails 4 checks, keeping
+          the stray version lines fails 1.
+          Not done: a "what's new" dot on the ⚙ button, per-version links, and plain-language
+          rewrites of the old notes.
 
   1.29.184 — 2026-10-06 — Fix: a release's tracks (and cover) came from the WRONG iTunes
           album. Reported as: adding the album "Touch" by the artist "Touch" gave the
@@ -5285,10 +5341,11 @@
           <button type="button" id="menuSpotifyApi">Spotify API…</button>
           <button type="button" id="menuDiscogsApi">Discogs API…</button>
           <button type="button" id="menuYoutubeApi">YouTube API…</button>
+          <button type="button" id="menuUpdateLog">Update log…</button>
           <div class="menu-divider"></div>
           <button type="button" id="menuSignOut">Sign out</button>
           <div class="menu-divider"></div>
-          <div class="menu-app-version" id="menuAppVersion" title="Build version"></div>
+          <div class="menu-app-version" id="menuAppVersion" title="Build version — click for the update log" role="button" tabindex="0"></div>
         </div>
       </div>
       <!-- 👆 👆 -->
@@ -6768,6 +6825,23 @@
   </div>
 </div>
 
+<!-- Update log — every release, newest first, read back out of the maintenance log at the top of this file
+     (see the "Update log" block in the script). Opened from ⚙ > Update log… or by clicking the version. -->
+<div id="updateLogOverlay" class="arrange-overlay" hidden>
+  <div class="arrange-modal add-modal update-log-modal" role="dialog" aria-modal="true" aria-labelledby="updateLogTitle">
+    <div class="arrange-header"><h2 id="updateLogTitle">Update log</h2><button id="updateLogClose" class="modal-x" aria-label="Close">✕</button></div>
+    <div class="arrange-body update-log-body">
+      <div class="update-log-toolbar">
+        <input id="updateLogSearch" type="search" placeholder="Search updates…" autocomplete="off" aria-label="Search updates">
+        <button type="button" id="updateLogToggleAll" class="chip-btn" hidden>Expand all</button>
+      </div>
+      <p id="updateLogSummary" class="arrange-hint"></p>
+      <p id="updateLogNote" class="update-log-note" hidden></p>
+      <div id="updateLogList" class="update-log-list"></div>
+    </div>
+  </div>
+</div>
+
 <div id="newReleasesOverlay" class="arrange-overlay" hidden>
   <div class="arrange-modal add-modal new-releases-modal">
     <div class="arrange-header"><h2>New Releases</h2><button id="newReleasesClose" class="modal-x" aria-label="Close">✕</button></div>
@@ -6805,7 +6879,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.184';
+const APP_VERSION = '1.29.185';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -7257,7 +7331,7 @@ const el = {};
   'menuLastfmScrobble','lastfmScrobbleOverlay','lastfmScrobbleClose','lastfmScrobbleApiKey','lastfmScrobbleSecret','lastfmScrobbleSaveBtn','lastfmScrobbleCancelBtn','lastfmScrobbleStatus',
   'lastfmScrobbleConnectHint','lastfmScrobbleConnectBtn','lastfmScrobbleFinishBtn','lastfmScrobbleDisconnectBtn','lastfmScrobbleConnectStatus',
   'menuDiscogsApi','discogsOverlay','discogsClose','discogsToken','discogsSaveBtn','discogsCancelBtn','discogsStatus',
-  'menuYoutubeApi','youtubeApiOverlay','youtubeApiClose','youtubeApiKey','youtubeApiSaveBtn','youtubeApiCancelBtn','youtubeApiStatus',
+  'menuYoutubeApi','menuUpdateLog','updateLogOverlay','updateLogClose','updateLogSearch','updateLogToggleAll','updateLogSummary','updateLogNote','updateLogList','youtubeApiOverlay','youtubeApiClose','youtubeApiKey','youtubeApiSaveBtn','youtubeApiCancelBtn','youtubeApiStatus',
   'menuNewReleases','newReleasesBadge','newReleasesOverlay','newReleasesClose','newReleasesCheckBtn','newReleasesLastChecked','newReleasesStatus','newReleasesList',
   'menuGenreTaxonomy','genreTaxonomyOverlay','genreTaxonomyClose','genreTaxonomyDatalist','genreTaxonomyList','genreTaxonomyAddBtn','genreTaxonomyStatus',
   'genreAutocompleteList',
@@ -8906,6 +8980,7 @@ function bindEvents() {
   initTrackInfoSeek();
   initArtistInfoPage();
   initTabBar();
+  initUpdateLog();
   el.miniPlayerArt.addEventListener('click', () => {
     // On the compact mobile layout, tapping anywhere on the bar (including
     // the art) opens Quick Actions instead — see the el.miniPlayer listener
@@ -9250,7 +9325,7 @@ function bindEvents() {
       }
     }
     if (e.key !== 'Escape') return;
-    closeArtistQuickOpen(); closeNowPlayingAddMenu(); closeDeck(); closeQuickActions(); closeAdvSearch(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal(); closeTrackPropertiesModal(); closeTimelineModal(); closeMapModal();
+    closeUpdateLog(); closeArtistQuickOpen(); closeNowPlayingAddMenu(); closeDeck(); closeQuickActions(); closeAdvSearch(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal(); closeTrackPropertiesModal(); closeTimelineModal(); closeMapModal();
     setMobileDrawer(null);
     // Deliberately NOT closing the master player here — whichever engine
     // (Spotify or YouTube) is driving it, it's a persistent background
@@ -18895,6 +18970,197 @@ function openArtistQuickOpen() {
   input.focus();
 }
 
+/* ---------- Update log ----------
+   The log lives where it always has — the maintenance comment at the top of this file, one entry per
+   release, newest first — and this reads it back out of the page itself, so there is no second copy to keep in
+   step and the release routine ("add an entry to the top of the log") is unchanged. What it needs from
+   that comment (also stated in its header): each entry starts with a line
+       "  X.Y.Z — YYYY-MM-DD — summary…"
+   and runs until the next such line; the first paragraph is the summary shown in the list, the rest is the
+   "Details". The page is fetched with cache: 'no-cache' (a cheap conditional request when nothing changed), which
+   also means a deploy made since this page loaded shows up here — hence the "newer version" hint.
+   Everything is inserted as TEXT: the entries talk about HTML and contain < and & freely. */
+const UPDATE_LOG_SEEN_KEY = 'crate_updatelog_seen_v1';
+let updateLogEntries = null;      // parsed, newest first; null until loaded
+let updateLogError = '';          // '' | 'file' | 'fetch'
+let updateLogSeen = null;         // the newest version already seen BEFORE this opening (for the NEW badges)
+let updateLogLoading = null;
+
+function updateLogCompare(a, b) {
+  const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) { const d = (pa[i] || 0) - (pb[i] || 0); if (d) return d; }
+  return 0;
+}
+function parseUpdateLog(html) {
+  const a = html.indexOf('<!--'), b = html.indexOf('-->', a + 4);
+  if (a < 0 || b < 0) return [];
+  const header = /^  (\d+\.\d+\.\d+) \u2014 (\d{4}-\d{2}-\d{2}) \u2014 (.*)$/;
+  const entries = [];
+  let cur = null;
+  html.slice(a + 4, b).split('\n').forEach(line => {
+    const m = header.exec(line);
+    if (m) { cur = { version: m[1], date: m[2], lines: [m[3]] }; entries.push(cur); return; }
+    if (!cur) return;                                       // the maintenance instructions above the first entry
+    if (/^\s*={5,}\s*$/.test(line)) return;                 // the banner rules
+    if (/^\s*\d+\.\d+(\.\d+)?\s*$/.test(line)) return;      // stray bare version numbers left over from old edits
+    cur.lines.push(line.replace(/^ {1,10}/, ''));           // drop the entry indent, keep any deeper (bulleted) indent
+  });
+  const seen = new Set();
+  return entries.filter(e => !seen.has(e.version) && seen.add(e.version)).map(e => {
+    const text = e.lines.join('\n').replace(/\s+$/, '');
+    const firstPara = text.split(/\n\s*\n/)[0].replace(/\s+/g, ' ').trim();
+    let summary = firstPara;
+    if (summary.length > 260) summary = summary.slice(0, 260).replace(/\s+\S*$/, '') + '\u2026';
+    return { version: e.version, date: e.date, text, summary, hasDetails: text.replace(/\s+/g, ' ').trim().length > summary.length && text.replace(/\s+/g, ' ').trim() !== summary };
+  }).sort((x, y) => updateLogCompare(y.version, x.version));   // by version, not file order (1.29.159 once sat above 1.29.160)
+}
+function loadUpdateLogEntries() {
+  if (updateLogLoading) return updateLogLoading;
+  updateLogError = '';
+  if (location.protocol === 'file:') { updateLogError = 'file'; return Promise.resolve(null); }
+  updateLogLoading = fetch(location.origin + location.pathname, { cache: 'no-cache' })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+    .then(html => { const parsed = parseUpdateLog(html); if (!parsed.length) throw new Error('no entries found'); updateLogEntries = parsed; return parsed; })
+    .catch(err => { console.warn('update log load failed', err); updateLogError = 'fetch'; updateLogEntries = null; return null; })
+    .finally(() => { updateLogLoading = null; });
+  return updateLogLoading;
+}
+function fmtUpdateDate(iso) {
+  return new Date(iso + 'T00:00:00Z').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+}
+function fmtUpdateMonth(iso) {
+  return new Date(iso + 'T00:00:00Z').toLocaleDateString(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' });
+}
+function renderUpdateLog() {
+  const list = el.updateLogList;
+  list.textContent = '';
+  el.updateLogNote.hidden = true;
+  if (!updateLogEntries) {
+    el.updateLogSummary.textContent = '';
+    const box = document.createElement('div');
+    box.className = 'ai-note';
+    const p = document.createElement('p');
+    p.textContent = updateLogError === 'file'
+      ? 'The update log is read from the live page, so it isn\u2019t available when this file is opened straight from disk. Open the site instead.'
+      : 'Couldn\u2019t load the update log \u2014 check your connection and try again.';
+    box.appendChild(p);
+    if (updateLogError !== 'file') {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'config-btn'; b.dataset.updateLogRetry = '1'; b.textContent = 'Retry';
+      box.appendChild(b);
+    }
+    list.appendChild(box);
+    return;
+  }
+  const q = (el.updateLogSearch.value || '').trim().toLowerCase();
+  const matches = updateLogEntries.map(e => {
+    if (!q) return { e, inDetails: false };
+    const inHead = (e.version + ' ' + e.date + ' ' + e.summary).toLowerCase().includes(q);
+    const inText = inHead || e.text.toLowerCase().includes(q);
+    return inText ? { e, inDetails: !inHead } : null;
+  }).filter(Boolean);
+  const latest = updateLogEntries[0], oldest = updateLogEntries[updateLogEntries.length - 1];
+  el.updateLogSummary.textContent = q
+    ? `${matches.length} of ${updateLogEntries.length} updates match`
+    : `${updateLogEntries.length} updates \u00b7 v${oldest.version} (${fmtUpdateDate(oldest.date)}) to v${latest.version} (${fmtUpdateDate(latest.date)})`;
+  if (updateLogCompare(latest.version, APP_VERSION) > 0) {
+    el.updateLogNote.textContent = '';
+    el.updateLogNote.append(`A newer version (v${latest.version}) is on the site \u2014 you\u2019re running v${APP_VERSION}. `);
+    const rb = document.createElement('button');
+    rb.type = 'button'; rb.className = 'ai-link-btn'; rb.dataset.updateLogReload = '1'; rb.textContent = 'Reload to update';
+    el.updateLogNote.appendChild(rb);
+    el.updateLogNote.hidden = false;
+  }
+  if (!matches.length) { const p = document.createElement('p'); p.className = 'ai-empty'; p.textContent = 'No updates match \u201c' + el.updateLogSearch.value.trim() + '\u201d.'; list.appendChild(p); return; }
+  let month = '';
+  const frag = document.createDocumentFragment();
+  matches.forEach(({ e, inDetails }) => {
+    const m = fmtUpdateMonth(e.date);
+    if (m !== month) { month = m; const h = document.createElement('h3'); h.className = 'update-month'; h.textContent = m; frag.appendChild(h); }
+    const art = document.createElement('article');
+    art.className = 'update-entry'; art.dataset.version = e.version;
+    const head = document.createElement('div'); head.className = 'update-entry-head';
+    const ver = document.createElement('span'); ver.className = 'update-ver'; ver.textContent = 'v' + e.version; head.appendChild(ver);
+    const date = document.createElement('span'); date.className = 'update-date'; date.textContent = fmtUpdateDate(e.date); head.appendChild(date);
+    if (e.version === APP_VERSION) { const t = document.createElement('span'); t.className = 'update-tag update-tag-current'; t.textContent = 'Current'; head.appendChild(t); }
+    if (updateLogSeen && updateLogCompare(e.version, updateLogSeen) > 0) { const t = document.createElement('span'); t.className = 'update-tag update-tag-new'; t.textContent = 'New'; head.appendChild(t); }
+    art.appendChild(head);
+    const sum = document.createElement('p'); sum.className = 'update-summary'; sum.textContent = e.summary; art.appendChild(sum);
+    if (e.hasDetails) {
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'update-more'; btn.setAttribute('aria-expanded', 'false'); btn.textContent = 'Details';
+      art.appendChild(btn);
+      if (inDetails) setUpdateEntryOpen(art, true);       // the search hit is down in the details, so show them
+    }
+    frag.appendChild(art);
+  });
+  list.appendChild(frag);
+  el.updateLogToggleAll.hidden = !matches.some(({ e }) => e.hasDetails);
+  el.updateLogToggleAll.textContent = 'Expand all';
+}
+// The entries are hard-wrapped at ~80 columns in the file, which reads as ragged half-lines on a narrow screen.
+// Join the wrapped lines of ordinary paragraphs back into one line (the browser then wraps to the width). Only
+// PLAIN lines are joined — flush-left, not starting a bullet/number, and without an aligned run of spaces —
+// so bullets, indented blocks and column-aligned tables are left exactly as written.
+function reflowUpdateText(text) {
+  const out = []; let prevPlain = false;
+  text.split('\n').forEach(line => {
+    const plain = line.trim() !== '' && !/^\s/.test(line) && !/\S {2,}\S/.test(line) && !/^(?:\d+[.)]|[-\u2022*])\s/.test(line);
+    if (plain && prevPlain) out[out.length - 1] += ' ' + line.trim();
+    else out.push(line);
+    prevPlain = plain;
+  });
+  return out.join('\n');
+}
+function setUpdateEntryOpen(art, open) {
+  const e = updateLogEntries.find(x => x.version === art.dataset.version);
+  const btn = art.querySelector('.update-more');
+  if (!e || !btn) return;
+  let pre = art.querySelector('.update-details');
+  if (open && !pre) { pre = document.createElement('pre'); pre.className = 'update-details'; pre.textContent = reflowUpdateText(e.text); art.insertBefore(pre, btn); }   // built the first time it's opened: 230+ long entries aren't all needed up front
+  if (pre) pre.hidden = !open;
+  btn.setAttribute('aria-expanded', String(open));
+  btn.textContent = open ? 'Hide details' : 'Details';
+}
+async function openUpdateLog() {
+  el.layoutMenu.hidden = true;
+  el.updateLogOverlay.hidden = false;
+  el.updateLogSearch.value = '';
+  let seen = null;
+  try { seen = localStorage.getItem(UPDATE_LOG_SEEN_KEY); } catch (err) { /* private mode: no NEW badges */ }
+  updateLogSeen = seen;                                    // fixed for this opening; stored below so the NEXT one starts fresh
+  el.updateLogSummary.textContent = 'Loading\u2026';
+  el.updateLogList.textContent = '';
+  el.updateLogNote.hidden = true;
+  await loadUpdateLogEntries();
+  if (el.updateLogOverlay.hidden) return;                  // closed while it was loading
+  renderUpdateLog();
+  const newest = updateLogEntries && updateLogEntries[0] ? updateLogEntries[0].version : APP_VERSION;
+  try { localStorage.setItem(UPDATE_LOG_SEEN_KEY, newest); } catch (err) { /* ignore */ }
+  el.updateLogSearch.focus();
+}
+function closeUpdateLog() { if (el.updateLogOverlay) el.updateLogOverlay.hidden = true; }
+function initUpdateLog() {
+  if (!el.updateLogOverlay) return;
+  el.menuUpdateLog.addEventListener('click', openUpdateLog);
+  el.menuAppVersion.addEventListener('click', openUpdateLog);
+  el.menuAppVersion.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openUpdateLog(); } });
+  el.updateLogClose.addEventListener('click', closeUpdateLog);
+  el.updateLogOverlay.addEventListener('mousedown', (e) => { if (e.target === el.updateLogOverlay) closeUpdateLog(); });   // the backdrop
+  el.updateLogSearch.addEventListener('input', debounce(renderUpdateLog, 150));
+  el.updateLogToggleAll.addEventListener('click', () => {
+    const open = el.updateLogToggleAll.textContent === 'Expand all';
+    el.updateLogList.querySelectorAll('.update-entry').forEach(a => { if (a.querySelector('.update-more')) setUpdateEntryOpen(a, open); });
+    el.updateLogToggleAll.textContent = open ? 'Collapse all' : 'Expand all';
+  });
+  el.updateLogList.addEventListener('click', (e) => {
+    const more = e.target.closest('.update-more');
+    if (more) { const art = more.closest('.update-entry'); setUpdateEntryOpen(art, more.getAttribute('aria-expanded') !== 'true'); return; }
+    if (e.target.closest('[data-update-log-retry]')) { el.updateLogSummary.textContent = 'Loading\u2026'; loadUpdateLogEntries().then(renderUpdateLog); }
+  });
+  el.updateLogNote.addEventListener('click', (e) => { if (e.target.closest('[data-update-log-reload]')) location.reload(); });
+}
+
 function initTabBar() {
   if (!el.tabBar) return;
   state.tabHistory = [tabHistoryEntry()];     // seed with wherever the app starts, so "back" has somewhere to go
@@ -27356,6 +27622,33 @@ html, body {
   .tab-quick-open-item small { flex: 0 0 auto; color: var(--text-dim); font: 11px 'IBM Plex Mono', monospace; }
   .tab-quick-open-item:hover, .tab-quick-open-item.active { background: var(--bg-card); color: var(--accent); }
   .tab-quick-open-empty { margin: 8px; font-size: 12.5px; color: var(--text-dim); }
+
+  /* ---- Update log (see the "Update log" block in the script) ---- */
+  #menuAppVersion { cursor: pointer; }
+  #menuAppVersion:hover { color: var(--accent); }
+  /* Height leaves room for the player bar, which sits ABOVE modal overlays in this app and would otherwise cover the panel's bottom edge. */
+  .update-log-modal { max-width: 760px; width: min(94vw, 760px); height: min(calc(100vh - 230px), 900px); min-height: 340px; display: flex; flex-direction: column; }
+  .update-log-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .update-log-toolbar { display: flex; gap: 10px; align-items: center; flex: 0 0 auto; }
+  .update-log-toolbar input[type="search"] { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 8px 10px; font: 13px 'Inter', sans-serif; outline: none; }
+  .update-log-toolbar input[type="search"]:focus { border-color: var(--accent); }
+  #updateLogSummary { margin: 10px 0 4px; flex: 0 0 auto; }
+  .update-log-note { margin: 4px 0 8px; padding: 8px 12px; font-size: 12.5px; color: var(--text); background: var(--bg-card); border: 1px solid var(--accent); border-radius: 6px; flex: 0 0 auto; }
+  .update-log-list { flex: 1; min-height: 0; overflow-y: auto; padding-right: 6px; }
+  .update-month { position: sticky; top: 0; z-index: 1; margin: 0; padding: 12px 0 6px; background: var(--bg-elevated); font: 11px 'IBM Plex Mono', monospace; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-dim); border-bottom: 1px solid var(--line); }
+  .update-entry { padding: 11px 0 12px; border-bottom: 1px solid var(--line); }
+  .update-entry-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 4px; }
+  .update-ver { font: 700 13px 'IBM Plex Mono', monospace; color: var(--accent); }
+  .update-date { font-size: 11.5px; color: var(--text-dim); }
+  .update-tag { font: 700 9.5px 'IBM Plex Mono', monospace; letter-spacing: 0.6px; text-transform: uppercase; padding: 1px 6px; border-radius: 3px; }
+  .update-tag-current { color: var(--text-dim); border: 1px solid var(--line); }
+  .update-tag-new { color: #12161C; background: var(--accent); }
+  .update-summary { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; }
+  .update-more { background: none; border: none; padding: 4px 0 0; font: inherit; font-size: 12px; color: var(--accent); cursor: pointer; }
+  .update-more:hover { text-decoration: underline; }
+  .update-details { margin: 8px 0 2px; padding: 10px 12px; background: var(--bg-card); border-radius: 6px; font: 11.5px/1.55 'IBM Plex Mono', monospace; color: var(--text-dim); white-space: pre-wrap; overflow-wrap: anywhere; }
+  @media (max-width: 900px) { .update-log-modal { width: 96vw; height: calc(100vh - 260px); } .update-log-list { padding-bottom: 150px; }   /* the player bar floats over the bottom of the sheet; this lets the last entries scroll clear of it */
+  .update-details { font-size: 11px; padding: 8px 10px; } }
 
   /* ---- Artist Information page (see the "Artist Information page" block in the script) ----
      Two-column like MusicBee's Music Explorer: artist list | the chosen artist.
