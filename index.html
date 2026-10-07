@@ -13,7 +13,93 @@
   only running record of what's been done to this file, so keep it going
   rather than skipping it for "small" edits.
 
-  CURRENT_VERSION: 1.29.182
+  CURRENT_VERSION: 1.29.184
+
+  1.29.184 — 2026-10-06 — Fix: a release's tracks (and cover) came from the WRONG iTunes
+          album. Reported as: adding the album "Touch" by the artist "Touch" gave the
+          tracks of a release called "Total Touch".
+
+          Cause: three lookups asked iTunes for artist + title with limit=1 and trusted
+          results[0] without checking it. iTunes orders results by relevance to the words
+          typed, not by how closely a result IS the album asked for, and "Touch Touch" is
+          also the heart of "Total Touch". The three were fetchArt (cover — which also
+          cached the wrong album's collectionId), recoverFailedArt, and getTracksFor
+          (tracks). A release that came from MusicBrainz already has a cover, so no id was
+          cached and getTracksFor made its own blind search — hence wrong TRACKS, the part
+          that was noticed.
+
+          Fix: findItunesAlbum() asks for 15 results and accepts one only if its TITLE and
+          ARTIST match the release:
+            - titles compare after dropping bracketed edition text and a trailing "- EP" /
+              "- Remastered 2011" style tail, folding case, accents, "&"/"and", leading
+              "The" and punctuation — so "Abbey Road (Remastered)", "Touch - EP" and
+              "Beatles"/"The Beatles" still match, while "Total Touch", "Touch Of Evil" and
+              "Touché" do not. A real subtitle ("Live - Paris") is not mistaken for edition talk.
+            - artists match if equal, or — for collaborations — share a credited artist.
+            - when the plain album and a deluxe edition both qualify, the plain one wins.
+          If "artist title" finds nothing that qualifies, a second query searches the title
+          ALONE restricted to album titles and filters by artist (a short or common title can
+          be buried or crowded out of the first). With no real match there is no iTunes
+          match: the tracklist falls back to the release's own MusicBrainz link, else shows
+          NO tracks — never a confident wrong one; the cover stays a placeholder.
+          Nothing is saved: the art/track caches live only in the session, so a reload picks
+          up the corrected matches for releases already in your crate.
+
+          Trade-off: matching is deliberately strict. A release whose stored title differs
+          from iTunes' (not just an edition suffix) now gets a placeholder cover where it
+          used to get a loose guess — right when the guess is wrong, a small loss when it
+          was right. The same applies to its tracklist unless it has a MusicBrainz link.
+
+          Verified: 29 unit checks of the matching rules (test_itunes_match.js) and 16
+          browser checks reproducing the report (pw_itunes_match.py: iTunes returns "Total
+          Touch" first; real tracks, no lookup of Total Touch, MusicBrainz fallback, no
+          tracks when there's no link, the second query, art, art recovery, an ordinary
+          album, the quick peek). The browser test FAILS 11 of 16 against the pre-fix code
+          with exactly the reported symptom (['TT One', 'TT Two']).
+          Process note: my first attempt to prove that was cut off before it restored the
+          fixed file, so for a while the suites ran against the OLD code (spotted because
+          typeof findItunesAlbum was undefined) — everything was re-run against the
+          verified fix. One older test (pw_peek_discs) stubbed iTunes with bare
+          {collectionId} objects, which real iTunes never returns; it now returns names.
+
+  1.29.183 — 2026-10-06 — Add a release: the pressing picker now sets the ORIGINAL
+          issue in bold. When a release's pressings are listed (reached from the
+          discography's "+ Add", from a free-text search result, or when adding the
+          playing Spotify album — all one function, renderReleasePickerResults), the
+          earliest official pressing(s) are bold, with a one-line key above the list
+          ("Bold: the earliest official pressing(s)") and a hover tip on the row. The
+          list stays most-recent-first on purpose (it surfaces the widely available
+          reissue first), which leaves the original near the BOTTOM of a long list —
+          exactly where bold helps. List rows: title and the year · label line go bold
+          (the line is dim otherwise, so it also goes full-strength; the catalog number
+          keeps its normal weight). Cover-grid mode: titles are already semi-bold, so
+          the title steps up and the line under it goes bold and bright; the key spans
+          the grid instead of taking a card's slot.
+
+          What "original" means (earliestPressingIds):
+            - MusicBrainz dates are partial ('1970' / '1970-03' / '1970-03-12'); a
+              missing month/day counts as the start of the period, so they sort.
+            - Only OFFICIAL pressings compete (a bootleg or promo that predates the
+              real release isn't the original issue); no status counts as official; if
+              nothing is official (all bootlegs) the dated ones compete instead.
+            - Undated pressings can't be compared and never win; fewer than two dated
+              candidates marks nothing (there'd be nothing to tell apart).
+            - Pressings TIED for the earliest date are all marked (a simultaneous UK/US
+              release has no single original) — unless every candidate ties, which says
+              nothing, so nothing is marked.
+          Plain free-text search results are NOT marked: those rows are different
+          releases, not pressings of one. The order, the click behaviour and the data
+          that lands in the form are unchanged.
+
+          Verified in real Chromium (26 checks, MusicBrainz stubbed to the real release
+          shape): the typical case (two same-day official pressings marked; the
+          earlier bootleg and the undated one are not), unchanged order, key/tooltip,
+          computed font weights in list and grid, partial dates, single / all-tied /
+          one-dated lists (nothing marked), all-bootleg and no-status lists, an earlier
+          promo, the key spanning the grid, clicking a marked pressing carries ITS
+          MusicBrainz link into the form, drilling in from a search result, phone width.
+          Two rules were mutation-checked (ignoring status fails 8 checks; marking when
+          everything ties fails 1). Not verified: the real MusicBrainz service.
 
   1.29.182 — 2026-10-05 — Right-click a track in the Up Next queue. It had no
           context menu at all. The menu (also reachable with the keyboard's Menu key)
@@ -6719,7 +6805,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.182';
+const APP_VERSION = '1.29.184';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -12255,6 +12341,59 @@ function isManualAlbum(item) {
   return !!(item && item.hasManualTracklist);
 }
 
+// BEGIN itunes-match
+// ---- Finding the iTunes album that IS this release ----
+// An iTunes album search is ordered by RELEVANCE to the words typed, not by how closely a result is the album
+// you asked for. Three lookups (the cover art, its recovery path, and the tracklist) used to take results[0] on
+// faith — so an album like "Touch" by "Touch", whose search terms ("Touch Touch") are also the heart of "Total
+// Touch", got Total Touch's cover and, worse, its TRACKS. A result is now accepted only when its title AND its
+// artist match this release; otherwise there is no iTunes match (the tracklist then falls back to the release's
+// own MusicBrainz link, and art to the placeholder) rather than a confident wrong one.
+const ITUNES_EDITION_TAIL = /\b(ep|single|deluxe|remaster(?:ed)?|expanded|anniversary|edition|version|bonus|explicit|special|collector|reissue|mono|stereo|digital|\d{4}\s+mix)\b/i;
+function foldKey(s) {
+  return normMatchKey(String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/&/g, ' and ')).replace(/^the /, '');
+}
+// iTunes adds edition talk to titles: in brackets ("(Deluxe Edition)" — normMatchKey already drops those) or
+// after a dash ("Abbey Road - Remastered", "Touch - EP"). Only a tail that LOOKS like edition talk is dropped,
+// so a real subtitle ("Live - Paris") still has to match.
+function itunesTitleKey(name) {
+  return foldKey(String(name || '').replace(/\s+[-\u2013\u2014]\s+([^-\u2013\u2014]*)$/, (m, tail) => (ITUNES_EDITION_TAIL.test(tail) ? '' : m)));
+}
+function creditKeys(s) {
+  return String(s || '').split(/\s*(?:,|;|\/|&|\band\b|\bfeat\.?|\bfeaturing\b|\bwith\b|\bx\b)\s*/i).map(foldKey).filter(Boolean);
+}
+// Same artist, or — for collaborations/features — at least one credited artist in common.
+function itunesArtistMatches(hitArtist, itemArtist) {
+  const a = foldKey(hitArtist), b = foldKey(itemArtist);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const cb = creditKeys(itemArtist);
+  return creditKeys(hitArtist).some(x => cb.includes(x));
+}
+// The best match among iTunes results, or null. When several qualify (the album and its deluxe edition), the
+// one whose title equals ours exactly wins; otherwise the most relevant.
+// rawKey is foldKey WITHOUT dropping bracketed text, so "Abbey Road (Deluxe)" and "Abbey Road" stay different
+// for the tie-break below (foldKey/normMatchKey would make them identical).
+function rawKey(s) {
+  return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim().replace(/^the /, '');
+}
+function pickItunesAlbum(results, item) {
+  const want = itunesTitleKey(item.title), exact = rawKey(item.title);
+  const ok = (results || []).filter(r => r && r.collectionId && itunesTitleKey(r.collectionName) === want && itunesArtistMatches(r.artistName, item.artist));
+  return ok.find(r => rawKey(r.collectionName) === exact) || ok[0] || null;
+}
+// Two queries, the second only when the first finds nothing that matches: "artist title" (relevance-ranked, so a
+// short or common title can be buried or crowded out), then the title ALONE restricted to album titles and
+// filtered by artist. doFetch lets the tracklist lookup keep its timeout.
+async function findItunesAlbum(item, doFetch = fetch) {
+  const cleanTitle = item.title.replace(/\s*\[.*?\]|\s*\(.*?\)/g, '');
+  const get = async (url) => { const res = await doFetch(url); const data = await res.json(); return data.results || []; };
+  const first = pickItunesAlbum(await get(`https://itunes.apple.com/search?term=${encodeURIComponent(item.artist + ' ' + cleanTitle)}&entity=album&limit=15`), item);
+  if (first) return first;
+  return pickItunesAlbum(await get(`https://itunes.apple.com/search?term=${encodeURIComponent(cleanTitle)}&entity=album&attribute=albumTerm&limit=50`), item);
+}
+// END itunes-match
+
 async function getTracksFor(item) {
   const key = artKey(item);
   if (state.trackCache[key]) return state.trackCache[key];
@@ -12288,12 +12427,9 @@ async function getTracksFor(item) {
   // ATTEMPT 1: iTunes Search (Fast, handles 95% of cases)
   try {
     if (!collectionId) {
-      // Clean up the title by removing text in brackets (e.g. "(Remastered)", "[Deluxe]")
-      const cleanTitle = item.title.replace(/\s*\[.*?\]|\s*\(.*?\)/g, '');
-      const q = encodeURIComponent(item.artist + ' ' + cleanTitle);
-      const searchRes = await fetchWithTimeout(`https://itunes.apple.com/search?term=${q}&entity=album&limit=1`);
-      const searchData = await searchRes.json();
-      const hit = searchData.results && searchData.results[0];
+      // Only an iTunes album that really IS this release (title and artist) — see findItunesAlbum. When
+      // there isn't one, collectionId stays empty and the MusicBrainz fallback below gets its turn.
+      const hit = await findItunesAlbum(item, (u) => fetchWithTimeout(u));
       collectionId = hit && hit.collectionId;
     }
 
@@ -22181,6 +22317,7 @@ function buildReleaseResultRow(hit, opts = {}) {
   const gridView = state.releaseSearchGridView;
   const row = document.createElement('div');
   row.className = gridView ? 'add-result-card' : 'add-result-row';
+  if (opts.originalIssue) { row.classList.add('add-result-original'); row.title = 'Earliest official pressing'; }   // see earliestPressingIds
 
   const year = hit.date ? new Date(hit.date).getUTCFullYear() : '';
   const artistName = hit['artist-credit'] ? hit['artist-credit'].map(a => a.name + (a.joinphrase || '')).join('') : (opts.fallbackArtist || 'Unknown Artist');
@@ -22344,6 +22481,32 @@ function openAddModalForReleaseGroup(basic) {
   });
 }
 
+// Which pressings of a release are its ORIGINAL issue — the earliest OFFICIAL ones — so the picker can set
+// them in bold (the list is deliberately most-recent-first, which leaves the original at the bottom of a
+// long one). Returns a Set of release ids, empty whenever bold wouldn't tell anything apart:
+//  - MusicBrainz dates are partial ('1970', '1970-03', '1970-03-12'); a missing month/day counts as the
+//    start of the period so they sort chronologically ('1970' ties with '1970-01-01').
+//  - Only Official pressings are candidates when there are any (a bootleg or promo that predates the real
+//    release isn't the original issue); a release with no status counts as official. If NOTHING is
+//    official (a list of bootlegs) the dated ones compete instead.
+//  - Pressings with no date can't be compared, so they never win — and fewer than two dated ones means
+//    "earliest" would be a claim about nothing, so none is marked.
+//  - Pressings tied for the earliest date are ALL marked (a simultaneous UK/US release has no single
+//    original) — unless every candidate ties, when marking all of them says nothing either.
+function pressingDateKey(d) {
+  const m = /^(\d{4})(?:-(\d{2}))?(?:-(\d{2}))?$/.exec(String(d || ''));
+  return m ? `${m[1]}-${m[2] || '01'}-${m[3] || '01'}` : null;
+}
+function earliestPressingIds(releases) {
+  const dated = (releases || []).map(r => ({ id: r.id, status: r.status, key: pressingDateKey(r.date) })).filter(x => x.key);
+  const official = dated.filter(x => !x.status || x.status === 'Official');
+  const pool = official.length ? official : dated;
+  if (pool.length < 2) return new Set();
+  const first = pool.reduce((m, x) => (x.key < m ? x.key : m), pool[0].key);
+  const earliest = pool.filter(x => x.key === first);
+  return earliest.length === pool.length ? new Set() : new Set(earliest.map(x => x.id));
+}
+
 // Renders the list of specific releases (one row per label/pressing) found
 // under a release-group, each clickable via buildReleaseResultRow. Always
 // ends with a fallback link so there's always a way through even when
@@ -22357,12 +22520,20 @@ function renderReleasePickerResults(releases, basic) {
   } else {
     // Most-recent-first tends to surface the widely-available pressing/reissue
     // before obscure regional ones, without hiding any of them.
+    const originals = earliestPressingIds(releases);
+    if (originals.size) {
+      const key = document.createElement('p');
+      key.className = 'tracklist-status add-pressing-key';
+      key.textContent = originals.size === 1 ? 'Bold: the earliest official pressing' : 'Bold: the earliest official pressings';
+      el.addResults.appendChild(key);
+    }
     releases.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')).forEach(hit => {
       el.addResults.appendChild(buildReleaseResultRow(hit, {
         fallbackArtist: basic.artist,
         fallbackTitle: basic.title,
         fallbackType: basic.type,
-        fallbackReleaseDate: basic.releaseDate
+        fallbackReleaseDate: basic.releaseDate,
+        originalIssue: originals.has(hit.id)
       }));
     });
   }
@@ -25072,10 +25243,7 @@ async function fetchArt(item) {
   
   if (state.artCache[key]) { artFetchInFlight.delete(key); return applyCachedArtFor(key); }
   try {
-    const q = encodeURIComponent(item.artist + ' ' + item.title);
-    const res = await fetch(`https://itunes.apple.com/search?term=${q}&entity=album&limit=1`);
-    const data = await res.json();
-    const hit = data.results && data.results[0];
+    const hit = await findItunesAlbum(item);
     if (hit && hit.artworkUrl100) {
       state.artCache[key] = { art: hit.artworkUrl100.replace('100x100', '600x600'), collectionId: hit.collectionId };
     } else {
@@ -25107,10 +25275,7 @@ async function recoverFailedArt(key) {
   const item = state.raw.find(r => artKey(r) === key);
   if (!item) return;
   try {
-    const q = encodeURIComponent(item.artist + ' ' + item.title);
-    const res = await fetch(`https://itunes.apple.com/search?term=${q}&entity=album&limit=1`);
-    const data = await res.json();
-    const hit = data.results && data.results[0];
+    const hit = await findItunesAlbum(item);
     state.artCache[key] = hit && hit.artworkUrl100
       ? { art: hit.artworkUrl100.replace('100x100', '600x600'), collectionId: hit.collectionId }
       : { art: placeholderArt(item), collectionId: null };
@@ -27782,6 +27947,15 @@ html, body {
   .add-result-card { display: flex; flex-direction: column; gap: 4px; cursor: pointer; border-radius: 6px; padding: 4px; }
   .add-result-card:hover { background: var(--bg-card); }
   .add-thumb-grid { width: 100%; aspect-ratio: 1; border-radius: 4px; object-fit: cover; background: var(--bg-card); }
+  /* The earliest official pressing in the pressing picker. List rows: the title is normally regular weight, so
+     bold alone shows; the detail line (year · label …) is dim, so it also goes bold and full-strength. Grid
+     cards: the title is already semi-bold, so it steps up and the line under it goes bold + bright as well. */
+  .add-result-original .add-result-title { font-weight: 700; }
+  .add-result-original .add-result-artist { font-weight: 700; color: var(--text); }
+  .add-result-original .add-result-card-title { font-weight: 800; }
+  .add-result-original .add-result-card-sub { font-weight: 700; color: var(--text); }
+  .add-pressing-key { font-size: 11px; margin: 0 0 6px; }
+  .add-results-grid-mode .add-pressing-key { grid-column: 1 / -1; }   /* in the cover grid the key must span the row, not take a card's slot */
   .add-result-card-title { font-size: 11.5px; font-weight: 600; margin: 0; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .add-result-card-sub { font-size: 10.5px; color: var(--text-dim); margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
