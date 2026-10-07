@@ -19,7 +19,53 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.29.188
+  CURRENT_VERSION: 1.29.189
+
+  1.29.189 — 2026-10-07 — New: a red ! on any release that has songs with no link, with a setting in the ⚙ menu (Checks > "Flag releases with unlinked songs") to turn it on or off.
+
+          What counts: a release whose tracklist you typed by hand is played from the link saved on each
+          SONG (Spotify, YouTube or SoundCloud — in the tracklist builder or under "Edit track
+          properties..."). The player never guesses for these: a song with no usable link is skipped
+          ("Skipping ... no link saved"). So a hand-made release with any such song will play with holes in
+          it, and now says so. A link that is there but can't be played (the player's own parsers reject it
+          and skip the song just the same) counts as missing. Releases whose tracklist comes from
+          iTunes/MusicBrainz are matched to Spotify automatically at play time and have no per-song links to
+          be missing, so they are never flagged; nor is a hand-made release with no songs typed in.
+
+          Where it shows: a red circle in the top-right of the cover (Covers, Albums grid and list view), a
+          small one before the title in the left-panel album rows (before, so a long title that is cut off
+          can't hide it), the release's tiles on the artist and genre pages (and the genre page's list rows),
+          and in the quick peek and the album page both beside the release's title AND on the individual
+          songs that lack a link, so you can see which to fix. Hover for the wording: "2 of 4 songs have no
+          usable link — playing this release skips them. Missing: Gap Two, Gap Four." (or "None of the 3
+          songs has a usable link ...", or for one song "...skips it.").
+
+          The setting: the flags are always worked out and the setting only HIDES them (a class on <body>),
+          so switching is instant everywhere with nothing redrawn. On by default; saved with the other
+          preferences; the menu entry shows a tick when on.
+
+          Kept in step: each flag sits in a slot keyed to its release, and refreshLinkFlagsFor(item) updates
+          every slot on screen when a song's links change (updateTrackData — "Edit track properties..." —
+          and saveManualTracklist, the quick add/remove-track actions). Adding the missing link clears the
+          ! on the card, left row, tiles and album page at once; removing one brings it back. The Edit Album
+          save already redraws everything. The quick peek's SONG rows are drawn when it opens and aren't
+          updated live (its title flag is).
+
+          It can't break drawing: it runs while every card is drawn, and the app's own link lookup throws on
+          an odd tracklist (a null entry from a hand-edited sheet cell, say), so a release that can't be
+          judged is simply not flagged — found by the unit test, which first crashed on exactly that.
+
+          Verified in real Chromium: 47 browser checks (pw_link_flag.py) and 24 unit checks
+          (test_link_flag.js). The central one: for five releases, the songs the PLAYER ACTUALLY SKIPS when it
+          plays them are exactly the songs the flag names. Also: every view above, the left-panel row of a
+          long title, the peek and album page per-song flags, the setting on/off/persisted across a reload
+          and defaulting on, live refresh both ways, odd data, a phone. Two rules mutation-checked: counting
+          a broken link as fine fails a check; skipping the refresh fails four.
+          Also fixed in my own genre-page test: its "double-click plays without opening the album page" check
+          looked for a #deck element that doesn't exist (the album page is #deckOverlay), so it could never
+          fail; it now checks the real thing.
+          Not done: flags in the flat Tracks / Album-and-Tracks table views, and flagging releases that
+          have no tracklist and no way to play (see the note on what counts above) — say if you want either.
 
   1.29.188 — 2026-10-07 — Genre pages now show how many releases MusicBrainz has under the genre ("40,474 on MusicBrainz"), linked to its tag page, beside the count of what's in your crate.
 
@@ -5482,6 +5528,10 @@
           <div class="menu-section-title">Layout options</div>
           <button type="button" id="menuArrangePanels">Panels configuration…</button>
           <div class="menu-divider"></div>
+          <div class="menu-section-title">Checks</div>
+          <!-- Red "!" on any release with songs that have no link (see songLinkGaps). Hiding it is a class on <body>. -->
+          <button type="button" id="menuFlagMissingLinks" class="menu-toggle-btn" aria-pressed="true" title="Show a red ! on releases that have songs with no link, which are skipped when you play the release"><span class="menu-check" aria-hidden="true">✓</span>Flag releases with unlinked songs</button>
+          <div class="menu-divider"></div>
           <div class="menu-section-title">Discovery</div>
           <button type="button" id="menuNewReleases">New Releases <span id="newReleasesBadge" class="menu-badge" hidden>0</span></button>
           <button type="button" id="menuGenreTaxonomy">Genre Taxonomy…</button>
@@ -7044,7 +7094,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.188';
+const APP_VERSION = '1.29.189';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -7421,6 +7471,7 @@ fields: {
   rightPanelShowHistory: false,
   rightPanelShowTrackInfo: false, // Track Info section — cover art (or, toggled, playback controls) + configurable fields for whatever's currently playing
   collapsedGenres: new Set(), // genre taxonomy keys currently collapsed in the left panel's Genre tree — see filterCollapsedGenreRows/toggleGenreCollapse
+  flagMissingLinks: true, // red ! on releases with songs that have no link — see songLinkGaps / initLinkFlags
   trackInfoShowPlayer: false, // false = cover art (default), true = compact playback progress in that same slot — see renderTrackInfoPanel()
   trackInfoShowVideo: false, // if true AND the current track has a resolvable YouTube link, shows an embedded video in that same slot instead (takes priority over trackInfoShowPlayer) — see applyTrackInfoPlayerMode()
   releaseSearchGridView: false, // Add-album search results: list (default) or a Topster-style cover-art grid — see setReleaseSearchGridView()
@@ -7500,7 +7551,7 @@ const el = {};
   'menuLastfmScrobble','lastfmScrobbleOverlay','lastfmScrobbleClose','lastfmScrobbleApiKey','lastfmScrobbleSecret','lastfmScrobbleSaveBtn','lastfmScrobbleCancelBtn','lastfmScrobbleStatus',
   'lastfmScrobbleConnectHint','lastfmScrobbleConnectBtn','lastfmScrobbleFinishBtn','lastfmScrobbleDisconnectBtn','lastfmScrobbleConnectStatus',
   'menuDiscogsApi','discogsOverlay','discogsClose','discogsToken','discogsSaveBtn','discogsCancelBtn','discogsStatus',
-  'menuYoutubeApi','menuUpdateLog','updateLogOverlay','updateLogClose','updateLogSearch','updateLogToggleAll','updateLogSummary','updateLogNote','updateLogList','youtubeApiOverlay','youtubeApiClose','youtubeApiKey','youtubeApiSaveBtn','youtubeApiCancelBtn','youtubeApiStatus',
+  'menuYoutubeApi','menuFlagMissingLinks','menuUpdateLog','updateLogOverlay','updateLogClose','updateLogSearch','updateLogToggleAll','updateLogSummary','updateLogNote','updateLogList','youtubeApiOverlay','youtubeApiClose','youtubeApiKey','youtubeApiSaveBtn','youtubeApiCancelBtn','youtubeApiStatus',
   'menuNewReleases','newReleasesBadge','newReleasesOverlay','newReleasesClose','newReleasesCheckBtn','newReleasesLastChecked','newReleasesStatus','newReleasesList',
   'menuGenreTaxonomy','genreTaxonomyOverlay','genreTaxonomyClose','genreTaxonomyDatalist','genreTaxonomyList','genreTaxonomyAddBtn','genreTaxonomyStatus',
   'genreAutocompleteList',
@@ -9151,6 +9202,7 @@ function bindEvents() {
   initTabBar();
   initUpdateLog();
   initGenrePage();
+  initLinkFlags();
   el.miniPlayerArt.addEventListener('click', () => {
     // On the compact mobile layout, tapping anywhere on the bar (including
     // the art) opens Quick Actions instead — see the el.miniPlayer listener
@@ -9532,6 +9584,7 @@ async function updateTrackData(item, trackNum, updates) {
     delete item.trackData[trackNum];
   }
 
+  refreshLinkFlagsFor(item);   // a link may have just been added or removed
   try {
     await postUpdate({ row: item.row, trackData: JSON.stringify(item.trackData) });
     flashToast(el.deckToast, 'Track saved');
@@ -9791,6 +9844,7 @@ function loadPrefs() {
     if (['thumbnail','trackDetail','releaseTracks'].includes(p.queueViewMode)) state.queueViewMode = p.queueViewMode;
     if (typeof p.showTrackCredits === 'boolean') state.showTrackCredits = p.showTrackCredits;
     if (typeof p.chartGenre === 'string') state.chartGenre = p.chartGenre;
+    if (typeof p.flagMissingLinks === 'boolean') state.flagMissingLinks = p.flagMissingLinks;
     if (typeof p.trackInfoShowPlayer === 'boolean') state.trackInfoShowPlayer = p.trackInfoShowPlayer;
     if (typeof p.trackInfoShowVideo === 'boolean') state.trackInfoShowVideo = p.trackInfoShowVideo;
     if (typeof p.releaseSearchGridView === 'boolean') state.releaseSearchGridView = p.releaseSearchGridView;
@@ -9824,6 +9878,7 @@ function savePrefs() {
       queueViewMode: state.queueViewMode,
       showTrackCredits: state.showTrackCredits,
       chartGenre: state.chartGenre,
+      flagMissingLinks: state.flagMissingLinks,
       trackInfoShowPlayer: state.trackInfoShowPlayer,
       trackInfoShowVideo: state.trackInfoShowVideo,
       releaseSearchGridView: state.releaseSearchGridView,
@@ -10394,7 +10449,7 @@ function buildLeftRow(entry, mode) {
     row.innerHTML = `
       <img class="left-thumb art" data-key="${entry.artKey}" alt="">
       <div class="left-row-text">
-        <p class="left-row-title">${escapeHtml(entry.label)}</p>
+        <p class="left-row-title">${linkFlagHtml(entry.item, 'before')}${escapeHtml(entry.label)}</p>
         <p class="left-row-sub">${escapeHtml(entry.sub)}</p>
       </div>`;
   } else if (mode === 'artist') {
@@ -12838,6 +12893,7 @@ function buildCard(item) {
         <img class="art" data-key="${artKey(item)}" loading="lazy">
         ${genreMatchBarHtml}
         ${overlayHtml}
+        ${linkFlagHtml(item)}
         ${useOverlayFields ? infoHtml : ''}
         <div class="cover-links" onclick="event.stopPropagation()">
           <a class="cover-link-btn cover-link-spotify" href="${spotifySearchUrl(item)}" target="_blank" rel="noopener noreferrer" title="Search on Spotify">S</a>
@@ -13806,7 +13862,7 @@ function quickPeekTrackRowHtml(item, t) {
       <div class="album-quick-peek-track" data-track-num="${escapeHtml(String(t.trackNumber || ''))}" data-track-name="${escapeHtml(t.trackName || '')}">
         <button type="button" class="album-quick-peek-track-play" title="Play this track" aria-label="Play ${escapeHtml(t.trackName || 'this track')}">▶</button>
         <span class="album-quick-peek-track-num">${t.trackNumber || ''}</span>
-        <span class="album-quick-peek-track-name"><span class="qp-title">${escapeHtml(t.trackName || '')}</span>${t.trackExplicitness === 'explicit' ? '<span class="qp-explicit" title="Explicit">E</span>' : ''}</span>
+        <span class="album-quick-peek-track-name"><span class="qp-title">${escapeHtml(t.trackName || '')}</span>${songFlagHtml(item, t)}${t.trackExplicitness === 'explicit' ? '<span class="qp-explicit" title="Explicit">E</span>' : ''}</span>
         ${bits.length ? `<span class="album-quick-peek-track-details">${bits.join('')}</span>` : ''}
         <span class="album-quick-peek-track-time">${formatDuration(t.trackTimeMillis)}</span>
         ${credits.length ? `<div class="album-quick-peek-track-credits" hidden>${credits.map(c => `<p class="track-credit-entry"><span class="track-credit-name">${escapeHtml(c.name)}</span>${c.role ? `<span class="track-credit-role">${escapeHtml(c.role)}</span>` : ''}</p>`).join('')}</div>` : ''}
@@ -13844,7 +13900,7 @@ function openAlbumQuickPeek(item, cardEl) {
 
   el.albumQuickPeekArt.src = item.cover || state.artCache[artKey(item)]?.art || placeholderArt(item);
   el.albumQuickPeekArt.dataset.key = artKey(item);
-  el.albumQuickPeekTitle.innerHTML = `${escapeHtml(item.title)} <span class="album-quick-peek-arrow">▸</span>`;
+  el.albumQuickPeekTitle.innerHTML = `${escapeHtml(item.title)}${linkFlagHtml(item, 'after')} <span class="album-quick-peek-arrow">▸</span>`;
   const year = dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getUTCFullYear() : '';
   // Artist name is clickable — jumps to Artist Information + that
   // artist's own releases (filterByArtist), matching the reference this
@@ -17610,6 +17666,7 @@ async function saveManualTracklist(item, rows) {
   item.manualTracks = manualTracks;
   item.hasManualTracklist = true;
   delete state.trackCache[artKey(item)];
+  refreshLinkFlagsFor(item);   // songs were added/removed: the release may now have (or no longer have) unlinked ones
   if (activeItem === item) await loadTracklist(item);
   flashGlobalToast('Tracklist updated');
 }
@@ -18515,7 +18572,7 @@ function aiRenderTopTracks(artist) {
 function aiStatsBodyHtml(owned) {
   const tiles = owned.length ? owned.map(it => `
     <div class="ai-album" data-row="${escapeHtml(String(it.row))}" tabindex="0" title="Click to open \u00b7 double-click to play \u00b7 right-click for more">
-      <div class="ai-cover">${aiArtImg(it, 'ai-cover-img')}</div>
+      <div class="ai-cover">${aiArtImg(it, 'ai-cover-img')}${linkFlagHtml(it)}</div>
       <div class="ai-album-title">${escapeHtml(it.title)}</div>
       <div class="ai-album-year">${aiYear(it)}</div>
     </div>`).join('') : '<p class="ai-empty">No releases by this artist are in your crate.</p>';
@@ -19338,6 +19395,90 @@ function initUpdateLog() {
   el.updateLogNote.addEventListener('click', (e) => { if (e.target.closest('[data-update-log-reload]')) location.reload(); });
 }
 
+// BEGIN link-flag
+// ---- Unlinked-song flags ----
+// A release you typed the tracklist of by hand (isManualAlbum) is played from the link saved on each SONG: a Spotify
+// link, a YouTube link or a SoundCloud link (saved in the tracklist builder or under "Edit track properties…"). The
+// player never guesses for these — a song with no usable link is skipped ("Skipping … no link saved"). So a hand-made
+// release with any such song is one that will play with holes in it, and gets a red "!" (the setting in the ⚙ menu
+// turns every flag off). A link that is there but can't be played — the player's own parsers reject it, so it is
+// skipped just the same — counts as missing. Releases whose tracklist comes from iTunes/MusicBrainz are matched to
+// Spotify automatically at play time and have no per-song links to be missing, so they are never flagged.
+function songLinkProblem(links) {
+  const sp = String((links && links.spotifyLink) || '').trim(), yt = String((links && links.youtubeLink) || '').trim(), sc = String((links && links.soundcloudLink) || '').trim();
+  if (!sp && !yt && !sc) return 'none';
+  if (trackSpotifyUriFromLink(sp) || (yt && youtubeVideoIdFromUrl(yt)) || /^https?:\/\/\S+$/i.test(sc)) return '';
+  return 'invalid';
+}
+function songLinkGaps(item) {
+  if (!isManualAlbum(item)) return null;
+  // This runs while every card is drawn, so it must never be able to break drawing: the app's own link lookup throws on
+  // an odd tracklist (a null entry from a hand-edited sheet cell, say), and a release that can't be judged is simply
+  // not flagged rather than taking the whole grid down with it.
+  try {
+    const tracks = (item.manualTracks || []).filter(t => t && String(t.title || '').trim());
+    const missing = [];
+    tracks.forEach((t, i) => {
+      const n = t.trackNumber || (i + 1);
+      const problem = songLinkProblem(trackLinkOverridesFor(item, n, t.title));
+      if (problem) missing.push({ trackNumber: n, title: String(t.title).trim(), problem });
+    });
+    return missing.length ? { total: tracks.length, missing } : null;
+  } catch (e) { return null; }
+}
+function songLinkGapText(g) {
+  const n = g.missing.length, names = g.missing.slice(0, 4).map(m => m.title).join(', ') + (n > 4 ? ` and ${n - 4} more` : '');
+  if (n === g.total) return `None of the ${g.total} song${g.total === 1 ? ' has' : 's has'} a usable link \u2014 playing this release skips ${g.total === 1 ? 'it' : 'them all'}.`;
+  return `${n} of ${g.total} songs ${n === 1 ? 'has' : 'have'} no usable link \u2014 playing this release skips ${n === 1 ? 'it' : 'them'}. Missing: ${names}.`;
+}
+// END link-flag
+
+// Where the flags are drawn. The setting only ever hides them (a class on <body>), so turning it on or off is instant
+// everywhere and nothing has to be redrawn; the flags are always worked out, because they're cheap.
+//   mode: undefined = a corner badge on a cover; 'before' / 'after' = a small inline one next to a title
+// The flag always sits in a slot keyed to its release (display: contents, so the slot itself has no box), because
+// the flag has to come AND GO: fixing a song's link must clear the "!" on the card, the left-panel row, the tiles and
+// the album page without redrawing any of them. refreshLinkFlagsFor does that — it is called wherever a song's
+// links can change (updateTrackData, saveManualTracklist); the Edit Album save already redraws everything.
+function linkFlagInner(item, mode) {
+  const g = songLinkGaps(item);
+  if (!g) return '';
+  const tip = escapeHtml(songLinkGapText(g));
+  return `<span class="link-flag${mode ? ' link-flag-inline' : ''}${mode === 'after' ? ' link-flag-after' : ''}" role="img" aria-label="${tip}" title="${tip}">!</span>`;
+}
+function linkFlagHtml(item, mode) {
+  return `<span class="link-flag-slot" data-flag-row="${escapeHtml(String(item.row))}" data-flag-mode="${mode || ''}">${linkFlagInner(item, mode)}</span>`;
+}
+function refreshLinkFlagsFor(item) {
+  if (!item) return;
+  document.querySelectorAll(`.link-flag-slot[data-flag-row="${CSS.escape(String(item.row))}"]`).forEach(slot => { slot.innerHTML = linkFlagInner(item, slot.dataset.flagMode || ''); });
+}
+// One song's own flag in a hand-made release's tracklist — the same test as the release's flag, on the links the
+// track object already carries (merged with its saved overrides), so the two can never disagree.
+function songFlagHtml(item, t) {
+  if (!isManualAlbum(item) || !t) return '';
+  const problem = songLinkProblem({ spotifyLink: t.spotifyLink, youtubeLink: t.youtubeLink, soundcloudLink: t.soundcloudLink });
+  if (!problem) return '';
+  const tip = problem === 'invalid' ? 'This song\u2019s link can\u2019t be played \u2014 playing the release skips it.' : 'This song has no link \u2014 playing the release skips it.';
+  return `<span class="link-flag link-flag-inline" role="img" aria-label="${tip}" title="${tip}">!</span>`;
+}
+function applyLinkFlagSetting() {
+  document.body.classList.toggle('hide-link-flags', !state.flagMissingLinks);
+  const b = document.getElementById('menuFlagMissingLinks');
+  if (b) b.setAttribute('aria-pressed', state.flagMissingLinks ? 'true' : 'false');
+}
+function initLinkFlags() {
+  applyLinkFlagSetting();
+  if (!el.menuFlagMissingLinks) return;
+  el.menuFlagMissingLinks.addEventListener('click', () => {
+    state.flagMissingLinks = !state.flagMissingLinks;
+    savePrefs();
+    applyLinkFlagSetting();
+    el.layoutMenu.hidden = true;
+    flashGlobalToast(state.flagMissingLinks ? 'Unlinked-song flags on.' : 'Unlinked-song flags off.');
+  });
+}
+
 // BEGIN genre-data
 // ---- Genre page: the numbers (pure functions of the library + the taxonomy, so they can be tested on their own) ----
 // A release belongs to a genre if ANY of its genres (primary, secondary…) is that genre — or, with includeSub, is
@@ -19799,12 +19940,12 @@ function giRenderArtists(items) {
 }
 function giTileHtml(it) {
   return `<div class="ai-album" data-row="${escapeHtml(String(it.row))}" tabindex="0" title="Click to open \u00b7 double-click to play \u00b7 right-click for more">
-    <div class="ai-cover">${aiArtImg(it, 'ai-cover-img')}</div><div class="ai-album-title">${escapeHtml(it.title)}</div><div class="ai-album-year">${escapeHtml(it.artist)}</div></div>`;
+    <div class="ai-cover">${aiArtImg(it, 'ai-cover-img')}${linkFlagHtml(it)}</div><div class="ai-album-title">${escapeHtml(it.title)}</div><div class="ai-album-year">${escapeHtml(it.artist)}</div></div>`;
 }
 function giListRowHtml(it) {
   const y = genreYear(it), r = Number(it.rating) || 0;
   return `<div class="gi-list-row" data-row="${escapeHtml(String(it.row))}" tabindex="0" title="Click to open \u00b7 double-click to play \u00b7 right-click for more">
-    <span class="gi-list-cover">${aiArtImg(it, 'gi-list-img')}</span><span class="gi-list-main"><span class="gi-list-title">${escapeHtml(it.title)}</span><span class="gi-list-artist">${escapeHtml(it.artist)}</span></span>
+    <span class="gi-list-cover">${aiArtImg(it, 'gi-list-img')}</span><span class="gi-list-main"><span class="gi-list-title">${linkFlagHtml(it, 'before')}${escapeHtml(it.title)}</span><span class="gi-list-artist">${escapeHtml(it.artist)}</span></span>
     <span class="gi-list-year">${y === null ? '' : y}</span><span class="gi-list-rating">${r > 0 ? '\u2605 ' + (Number.isInteger(r) ? r : r.toFixed(1)) : ''}</span></div>`;
 }
 function giRenderReleases(genre, ui, items) {
@@ -20930,6 +21071,7 @@ function openDeck(item) {
   el.deckImg.src = item.cover || state.artCache[artKey(item)]?.art || placeholderArt(item);
   el.deckCatalog.textContent = item.catalog + ' · ' + item.type.toUpperCase();
   el.deckTitle.textContent = item.title;
+  el.deckTitle.insertAdjacentHTML('beforeend', linkFlagHtml(item, 'after'));
   el.deckArtist.textContent = item.artist;
   el.deckArtist.onclick = () => {
     state.artistSelectedName = item.artist;
@@ -22912,7 +23054,7 @@ function renderTracklistBody(item, tracks) {
              ${(!manual || t.spotifyLink) ? `<button type="button" class="track-play-btn" data-track-name="${escapeHtml(t.trackName || '')}" title="Play on Spotify" aria-label="Play ${escapeHtml(t.trackName || '')} on Spotify">\u25b6</button>` : ''}
              ${t.youtubeLink ? `<button type="button" class="track-play-yt-btn" data-youtube-link="${escapeHtml(t.youtubeLink)}" data-track-name="${escapeHtml(t.trackName || '')}" title="Play on YouTube" aria-label="Play ${escapeHtml(t.trackName || '')} on YouTube">▶ YT</button>` : ''}
              ${t.soundcloudLink ? `<a class="track-play-sc-btn" href="${escapeHtml(t.soundcloudLink)}" target="_blank" rel="noopener noreferrer" title="Open on SoundCloud" aria-label="Open ${escapeHtml(t.trackName || '')} on SoundCloud">SC ↗</a>` : ''}
-             <span class="track-name">${escapeHtml(t.trackName || '')}</span>
+             ${songFlagHtml(item, t)}<span class="track-name">${escapeHtml(t.trackName || '')}</span>
              ${scrobbleCount > 0 ? `<span class="track-scrobble-count" title="Last.fm plays">${scrobbleCount} play${scrobbleCount === 1 ? '' : 's'}</span>` : ''}
              ${genre ? `<span class="track-genre-preview" title="Track genre">${escapeHtml(genre)}</span>` : ''}
              ${note ? `<span class="track-note-preview">${escapeHtml(note)}</span>` : ''}
@@ -28441,6 +28583,15 @@ html, body {
   @media (max-width: 900px) { .update-log-modal { width: 96vw; height: calc(100vh - 260px); } .update-log-list { padding-bottom: 150px; }   /* the player bar floats over the bottom of the sheet; this lets the last entries scroll clear of it */
   .update-details { font-size: 11px; padding: 8px 10px; } }
 
+  /* ---- Unlinked-song flags (see songLinkGaps in the script) ---- */
+  .link-flag { position: absolute; top: 6px; right: 6px; z-index: 5; width: 20px; height: 20px; box-sizing: border-box; border-radius: 50%; background: #D93036; color: #fff; font: 700 13px/20px 'Inter', sans-serif; text-align: center; box-shadow: 0 0 0 2px rgba(18,22,28,0.85); cursor: help; }
+  .link-flag-inline { position: static; display: inline-block; flex: 0 0 auto; width: 16px; height: 16px; margin: 0 6px 0 0; font-size: 11px; line-height: 16px; vertical-align: middle; box-shadow: none; }
+  .link-flag-after { margin: 0 0 0 7px; }
+  .link-flag-slot { display: contents; }
+  .list-view .link-flag:not(.link-flag-inline) { top: 2px; right: 2px; width: 15px; height: 15px; font-size: 10px; line-height: 15px; }
+  .hide-link-flags .link-flag { display: none !important; }
+  .menu-toggle-btn .menu-check { display: inline-block; width: 18px; visibility: hidden; color: var(--accent); }
+  .menu-toggle-btn[aria-pressed="true"] .menu-check { visibility: visible; }
   /* ---- Genre page (see the "Genre page" block in the script) ---- */
   .genre-tab-btn { display: inline-flex; align-items: center; gap: 8px; max-width: 220px; }
   .genre-tab-icon { display: inline-flex; flex: 0 0 auto; color: var(--accent); }
