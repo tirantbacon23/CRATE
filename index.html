@@ -19,7 +19,101 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.29.190
+  CURRENT_VERSION: 1.29.192
+
+  1.29.192 — 2026-10-08 — Fix: the MusicBrainz histogram couldn't be built because the date search wasn't understood. It now works out which way of writing a date MusicBrainz accepts, and shows exactly what it said if none works.
+
+          What happened: the histogram asks MusicBrainz for release groups by first-release year with
+          firstreleasedate:197* (a trailing wildcard). I couldn't test that against the real service, said so in
+          the 1.29.190 notes, and the real service evidently didn't answer it usefully, so no dated counts came
+          back and the page (correctly) refused to draw a chart from numbers that didn't add up.
+
+          The fix doesn't guess a different syntax; it finds out. Four ways of writing a date are known, in this
+          order: a prefix (197*), a range of years ([1970 TO 1979]), a range of full dates ([1970-01-01 TO
+          1979-12-31]) and a range of timestamps. On the first Load, each is tested WITHOUT any genre in the query:
+          two different years of the 1990s must each come back with at least 3,000 release groups (any single
+          year has far more). The first way that does is used for the whole histogram and remembered for 30
+          days. A way that is refused (HTTP 400) or accepted but answers 0 or nonsense is skipped; a test costs
+          two requests per way (one if it is refused outright), so at most about eight, once.
+          If NONE works the panel says so and lists every query it tried with what MusicBrainz answered (the
+          status and a snippet of the reply), under "What MusicBrainz answered", with a link to run the tag
+          search yourself. That evidence is what's needed to fix it properly. If no request gets any answer at
+          all, it's reported as a connection problem, not blamed on the dates. "Try again" and "Refresh" start
+          over, including the test. When the way is fine but the genre's own dated counts still contradict its
+          total, the page says that instead and shows the numbers it saw.
+
+          Verified (MusicBrainz stubbed to behave each possible way): 38 unit checks of the syntaxes, the query
+          builder and the picker (test_mb_hist.js) and 69 browser checks (pw_genre_mb_years.py): the first way
+          works (2 test requests); the first is refused and the next found (3); a way that answers 0 is
+          rejected (6); only the last works (5); none works (4 requests, the evidence listed, nothing remembered,
+          and "Try again" succeeds once it does); the network is down; the way works but the tag's counts don't
+          add up; remembered across a reload and re-checked after 30 days; a second genre doesn't repeat the test.
+          Mutation-checked: accepting a way that answers 0 makes a test fail.
+          STILL NOT VERIFIED against the real MusicBrainz: whether any of the four ways works. If you press
+          Load and it still can't build the chart, open "What MusicBrainz answered" and send me what it says.
+
+  1.29.191 — 2026-10-07 — New: Match songs. One dialog finds Spotify and YouTube links for every song of a release at once, scoring each candidate; the automatic Spotify match at play time now picks the right recording instead of Spotify's first result.
+
+          The problem: matching was one song at a time, only inside the Edit dialog's tracklist builder. Spotify
+          gave ten unranked results per song with no lengths; YouTube cost 100 of the day's 10,000 quota units
+          per song and gave ten unranked results; and playback of a song with no saved link silently played
+          whatever Spotify listed first — which can be a live take, a karaoke version or a cover.
+
+          Match songs (a dialog for the whole release). Open it by clicking a red ! (a release's, or a song's),
+          from a release's right-click menu ("Match songs to Spotify / YouTube..."), or the "Match songs..." chip on
+          the album page. A red ! is now a button (keyboard too).
+            - SPOTIFY is matched ALBUM-first. Up to four candidate editions are read in full (the edition you
+              linked yourself is always one of them), the one that best explains your tracklist is chosen (a
+              standard edition beats a deluxe that contains the same songs), and songs are paired to its tracks by
+              title, length and position, one-to-one. Songs it doesn't explain are searched for one by one (free),
+              scored the same way. Reading the albums needs the Spotify Client ID/Secret the app already uses.
+            - YOUTUBE is matched PLAYLIST-first. The album's playlist (usually the artist's auto-generated "Topic"
+              one) is found and read in one go: a playlist search (100 quota units), its items (1) and the videos'
+              lengths and whether each can be embedded (1) = about 102 units for the whole album, not 100 per song.
+              Searching songs one at a time is offered separately, with the cost stated ("about N x 100 quota
+              units; X used today"), and stops cleanly if the quota runs out. A running count of this app's quota
+              use is kept per day (YouTube resets at midnight Pacific). A video that can't be embedded is shown as
+              weak with the reason (the app plays YouTube in an embedded player).
+            - SCORING (0-100) on title (55), artist (15), length (+/-20, the best single clue to the same
+              recording), album (10) and track position, minus a penalty for version words the song itself doesn't
+              carry (live, remix, acoustic, karaoke, demo, cover, slowed/8D, reaction...). >= 85 confident, >= 65
+              likely, else weak; a title that is only similar ('Julia' / 'Julie') can never be confident; the
+              same title by a different artist never is either. YouTube's "Artist - Song" titles are matched on the
+              song (previously a dash rule deleted the song and kept the artist). Each score's tooltip gives the
+              reasons.
+            - REVIEW: one row per song with its length, the matched track (artist, album, length, score), a preview
+              button (Spotify in the app's player, YouTube in its floating player), and "Others" (alternatives,
+              or paste your own link). Confident matches are ticked for you, only for songs with no usable link of
+              that kind: a link you already have is never replaced unless you tick a different one. Closing asks only
+              if you have changed a selection yourself. ONE Save writes every ticked link of both platforms in a
+              single update (the button says "Save 6 Spotify + 5 YouTube links" when both have ticks), and the
+              red ! flags clear as links land.
+
+          The automatic match at play time: when a song has no saved link, the Spotify candidates are now RANKED with
+          the same scoring (context: the release's album title and the song's length when known) instead of using
+          Spotify's order; its order still decides ties. "Try next match" and "Confirm match" use the same order, so
+          what you hear is what they refer to. Candidates now carry their length.
+
+          Two older things fixed on the way: the base .arrange-modal rule (max-width 420px) comes later in the
+          stylesheet and was beating same-specificity overrides, so the UPDATE LOG dialog added in 1.29.185 has been
+          420px wide instead of its intended 760px — both dialogs now chain the class to win (and the update log's
+          test asserts its width); and the red ! flags' tests now expect a button.
+
+          Verified: 57 unit checks of the engine (test_song_match.js) and 83 browser checks with Spotify and
+          YouTube stubbed (pw_song_match.py): every way in, album-first matching (standard over deluxe, karaoke album
+          skipped, no per-song search when the album explains everything), one-update Save, existing links
+          untouched, per-song fallback, the YouTube playlist (exactly 3 requests, 102 units), non-embeddable
+          video, per-song search with its cost, quota persistence and daily reset, missing credentials, errors,
+          a failing save, a phone. Three rules mutation-checked (never replace a link you have; look-alike titles
+          never confident; automatic matching back on Spotify's order — which plays the live take and the cover).
+          Bugs the tests caught and I fixed before release: the "Artist - Song" shape, a blocked video vanishing
+          instead of showing as weak, the Topic-channel bonus never applying to artists starting with "The", and
+          the dialog being squeezed to 420px.
+          NOT verified: the real Spotify and YouTube services (no network here). The endpoints used are search,
+          albums/{id} (Spotify) and search, playlistItems, videos (YouTube). Spotify's developer rules have been
+          changing, so if its album endpoint answers differently the dialog says "Spotify answered NNN" with a Retry.
+          Not done: matching other sources (SoundCloud), choosing YouTube over Spotify when both exist (playback
+          order is unchanged: a Spotify link wins), and a "match every release" bulk mode.
 
   1.29.190 — 2026-10-07 — Genre pages: the Years active chart can now show MusicBrainz's releases by year as a histogram, on its own or overlaid on your crate (switch: Your crate | Both | MusicBrainz).
 
@@ -7105,6 +7199,23 @@
   </div>
 </div>
 
+<!-- Match songs — one dialog to find Spotify / YouTube links for every song of a release (see the "Match songs" block in
+     the script). Opened by clicking a red ! flag, from a release's right-click menu, or from its album page. -->
+<div id="songMatchOverlay" class="arrange-overlay" hidden>
+  <div class="arrange-modal add-modal song-match-modal" role="dialog" aria-modal="true" aria-labelledby="songMatchTitle">
+    <div class="arrange-header"><div><h2 id="songMatchTitle">Match songs</h2><p id="songMatchSub" class="sm-sub"></p></div><button id="songMatchClose" class="modal-x" aria-label="Close">✕</button></div>
+    <div class="arrange-body sm-body">
+      <div class="sm-toolbar">
+        <span id="songMatchTabs" class="gi-seg gi-seg-text" role="group" aria-label="Match against"><button type="button" class="gi-seg-btn active" data-sm-platform="spotify" aria-pressed="true">Spotify</button><button type="button" class="gi-seg-btn" data-sm-platform="youtube" aria-pressed="false">YouTube</button></span>
+        <button type="button" id="songMatchSelectConf" class="ai-link-btn" hidden></button>
+      </div>
+      <div id="songMatchStatus"></div>
+      <div id="songMatchList" class="sm-list"></div>
+      <div class="sm-footer"><span id="songMatchSaved" class="sm-dim" role="status"></span><button type="button" id="songMatchSave" class="config-btn" disabled>Save</button></div>
+    </div>
+  </div>
+</div>
+
 <div id="newReleasesOverlay" class="arrange-overlay" hidden>
   <div class="arrange-modal add-modal new-releases-modal">
     <div class="arrange-header"><h2>New Releases</h2><button id="newReleasesClose" class="modal-x" aria-label="Close">✕</button></div>
@@ -7142,7 +7253,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.190';
+const APP_VERSION = '1.29.192';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -7601,7 +7712,7 @@ const el = {};
   'menuLastfmScrobble','lastfmScrobbleOverlay','lastfmScrobbleClose','lastfmScrobbleApiKey','lastfmScrobbleSecret','lastfmScrobbleSaveBtn','lastfmScrobbleCancelBtn','lastfmScrobbleStatus',
   'lastfmScrobbleConnectHint','lastfmScrobbleConnectBtn','lastfmScrobbleFinishBtn','lastfmScrobbleDisconnectBtn','lastfmScrobbleConnectStatus',
   'menuDiscogsApi','discogsOverlay','discogsClose','discogsToken','discogsSaveBtn','discogsCancelBtn','discogsStatus',
-  'menuYoutubeApi','menuFlagMissingLinks','menuUpdateLog','updateLogOverlay','updateLogClose','updateLogSearch','updateLogToggleAll','updateLogSummary','updateLogNote','updateLogList','youtubeApiOverlay','youtubeApiClose','youtubeApiKey','youtubeApiSaveBtn','youtubeApiCancelBtn','youtubeApiStatus',
+  'menuYoutubeApi','menuFlagMissingLinks','songMatchOverlay','songMatchClose','songMatchTitle','songMatchSub','songMatchTabs','songMatchStatus','songMatchList','songMatchSave','songMatchSelectConf','songMatchSaved','menuUpdateLog','updateLogOverlay','updateLogClose','updateLogSearch','updateLogToggleAll','updateLogSummary','updateLogNote','updateLogList','youtubeApiOverlay','youtubeApiClose','youtubeApiKey','youtubeApiSaveBtn','youtubeApiCancelBtn','youtubeApiStatus',
   'menuNewReleases','newReleasesBadge','newReleasesOverlay','newReleasesClose','newReleasesCheckBtn','newReleasesLastChecked','newReleasesStatus','newReleasesList',
   'menuGenreTaxonomy','genreTaxonomyOverlay','genreTaxonomyClose','genreTaxonomyDatalist','genreTaxonomyList','genreTaxonomyAddBtn','genreTaxonomyStatus',
   'genreAutocompleteList',
@@ -9414,6 +9525,7 @@ function bindEvents() {
     // setupTrackStarInteraction(), wired up separately — see init.
 
     if (e.target.closest('#tlSelectAllBtn')) { await selectAllTracks(activeItem); return; }
+    if (e.target.closest('#tlMatchSongsBtn')) { openSongMatcher(activeItem); return; }
     if (e.target.closest('#tlClearSelectionBtn')) { await clearTrackSelection(activeItem); return; }
     if (e.target.closest('#tlAddTrackBtn')) { openAddTrackModal(activeItem); return; }
     if (e.target.closest('#tlToggleCreditsBtn')) {
@@ -9597,7 +9709,7 @@ function bindEvents() {
       }
     }
     if (e.key !== 'Escape') return;
-    closeUpdateLog(); closeArtistQuickOpen(); closeNowPlayingAddMenu(); closeDeck(); closeQuickActions(); closeAdvSearch(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal(); closeTrackPropertiesModal(); closeTimelineModal(); closeMapModal();
+    closeSongMatcher(); closeUpdateLog(); closeArtistQuickOpen(); closeNowPlayingAddMenu(); closeDeck(); closeQuickActions(); closeAdvSearch(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal(); closeTrackPropertiesModal(); closeTimelineModal(); closeMapModal();
     setMobileDrawer(null);
     // Deliberately NOT closing the master player here — whichever engine
     // (Spotify or YouTube) is driving it, it's a persistent background
@@ -14586,7 +14698,7 @@ async function playTrackNow(item, trackName, trackNum) {
   const intent = beginPlayIntent();
   flashGlobalToast(`Looking up "${trackName}" on Spotify…`);
   try {
-    const trackId = await spotifyTrackId(item.artist, trackName);
+    const trackId = await spotifyTrackId(item.artist, trackName, songContextFor(item, trackNum, trackName));
     if (!isPlayIntentCurrent(intent)) return; // a newer play action started while this was looking up
     if (trackId) {
       showMiniPlayer(`spotify:track:${trackId}`, intent);
@@ -14990,6 +15102,7 @@ function openAlbumCardContextMenu(item, x, y) {
     <div class="menu-divider"></div>
     <button type="button" data-card-action="spotify">Open on Spotify ↗</button>
     <button type="button" data-card-action="rym">View on RateYourMusic ↗</button>
+    <button type="button" data-card-action="match">Match songs to Spotify / YouTube…</button>
     ${state.activePlaylistId ? '<div class="menu-divider"></div><button type="button" class="remove-menu-btn" data-card-action="removeFromPlaylist">Remove from playlist</button>' : ''}
     <div class="menu-divider"></div>
     <button type="button" class="remove-menu-btn" data-card-action="delete">Delete from crate</button>
@@ -15027,6 +15140,7 @@ function openAlbumCardContextMenu(item, x, y) {
     else if (action === 'queue') queueAlbumTracks(item);
     else if (action === 'spotify') openAlbumOnSpotify(item);
     else if (action === 'rym') openAlbumOnRym(item);
+    else if (action === 'match') openSongMatcher(item);
     else if (action === 'removeFromPlaylist') removeAlbumFromActivePlaylist(item);
     else if (action === 'delete') deleteAlbumFromContextMenu(item);
   });
@@ -18109,7 +18223,7 @@ async function playCrateQueueIndex(myId, index) {
 
   const intent = beginPlayIntent();
   try {
-    const trackId = await spotifyTrackId(item.artist, trackName);
+    const trackId = await spotifyTrackId(item.artist, trackName, { album: item.title, durationMs: track.trackTimeMillis || 0 });
     if (myId !== crateQueueId || crateQueueIndex !== index) return; // queue moved on while this lookup was in flight
     if (trackId) {
       crateQueueExpectedSpotifyTrackId = trackId;
@@ -19496,7 +19610,7 @@ function linkFlagInner(item, mode) {
   const g = songLinkGaps(item);
   if (!g) return '';
   const tip = escapeHtml(songLinkGapText(g));
-  return `<span class="link-flag${mode ? ' link-flag-inline' : ''}${mode === 'after' ? ' link-flag-after' : ''}" role="img" aria-label="${tip}" title="${tip}">!</span>`;
+  return `<span class="link-flag${mode ? ' link-flag-inline' : ''}${mode === 'after' ? ' link-flag-after' : ''}" role="button" tabindex="0" data-match-row="${escapeHtml(String(item.row))}" aria-label="${tip} Press Enter to find links for the songs." title="${tip}">!</span>`;
 }
 function linkFlagHtml(item, mode) {
   return `<span class="link-flag-slot" data-flag-row="${escapeHtml(String(item.row))}" data-flag-mode="${mode || ''}">${linkFlagInner(item, mode)}</span>`;
@@ -19512,7 +19626,7 @@ function songFlagHtml(item, t) {
   const problem = songLinkProblem({ spotifyLink: t.spotifyLink, youtubeLink: t.youtubeLink, soundcloudLink: t.soundcloudLink });
   if (!problem) return '';
   const tip = problem === 'invalid' ? 'This song\u2019s link can\u2019t be played \u2014 playing the release skips it.' : 'This song has no link \u2014 playing the release skips it.';
-  return `<span class="link-flag link-flag-inline" role="img" aria-label="${tip}" title="${tip}">!</span>`;
+  return `<span class="link-flag link-flag-inline" role="button" tabindex="0" data-match-row="${escapeHtml(String(item.row))}" data-match-track="${escapeHtml(String(t.trackNumber || ''))}" aria-label="${tip} Press Enter to find a link." title="${tip}">!</span>`;
 }
 function applyLinkFlagSetting() {
   document.body.classList.toggle('hide-link-flags', !state.flagMissingLinks);
@@ -19521,6 +19635,17 @@ function applyLinkFlagSetting() {
 }
 function initLinkFlags() {
   applyLinkFlagSetting();
+  // A red ! is a button: it opens the Match songs dialog for its release (a song's own ! scrolls to that song). Handled in the
+  // CAPTURE phase on the document, and stopped there, so it doesn't also trigger the card / row / title it sits inside.
+  const fromFlag = (e) => {
+    const f = e.target.closest && e.target.closest('.link-flag[data-match-row]');
+    if (!f) return;
+    e.preventDefault(); e.stopPropagation();
+    const item = state.raw.find(r => String(r.row) === f.dataset.matchRow);
+    if (item) openSongMatcher(item, { focusTrackNum: f.dataset.matchTrack ? Number(f.dataset.matchTrack) : null });
+  };
+  document.addEventListener('click', fromFlag, true);
+  document.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.link-flag[data-match-row]')) fromFlag(e); }, true);
   if (!el.menuFlagMissingLinks) return;
   el.menuFlagMissingLinks.addEventListener('click', () => {
     state.flagMissingLinks = !state.flagMissingLinks;
@@ -19528,6 +19653,529 @@ function initLinkFlags() {
     applyLinkFlagSetting();
     el.layoutMenu.hidden = true;
     flashGlobalToast(state.flagMissingLinks ? 'Unlinked-song flags on.' : 'Unlinked-song flags off.');
+  });
+}
+
+// BEGIN song-match
+// ---- Matching a release's songs to Spotify / YouTube: the judgement (pure, so it can be tested on its own) ----
+// A candidate (a Spotify track, a YouTube video) is scored 0-100 against a song of the release:
+//   title similarity (up to 55) + artist (15) + length (+/-20 — the best single clue to "the same recording") +
+//   album (10), minus a penalty for VERSION words the song itself doesn't ask for (live, remix, demo, acoustic,
+//   karaoke, cover, slowed/8D...). Where the match is made against a candidate ALBUM's track list, a matching
+//   track position adds a little. Then: >= 85 "confident", >= 65 "likely", else "weak" — and a candidate whose
+//   title isn't a near-exact match can never be "confident", however well it does on the rest.
+const SM_FLAGS = [
+  ['live', /\b(live|in concert|unplugged|bbc session|peel session)\b/],
+  ['remix', /\b(remix|remixed|rework|re ?edit|dub mix|club mix|extended mix|radio edit)\b/],
+  ['acoustic', /\b(acoustic|stripped)\b/],
+  ['instrumental', /\b(instrumental|karaoke|backing track|minus one)\b/],
+  ['demo', /\b(demo|rough mix|alternate take|alt take|outtake|early version)\b/],
+  ['cover', /\b(cover|tribute|made famous by|in the style of|originally performed)\b/],
+  ['altered', /\b(slowed|sped up|speed up|nightcore|8d|reverb|bass boosted|reversed)\b/],
+  ['reaction', /\b(reaction|tutorial|lesson|how to play|review)\b/]
+];
+function smFold(s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/&/g, ' and '); }
+function smFlags(title) {
+  const t = smFold(title).replace(/[^a-z0-9\s]/g, ' ');
+  return new Set(SM_FLAGS.filter(([, re]) => re.test(t)).map(([n]) => n));
+}
+// The words that identify the SONG: brackets and trailing " - Remastered 2011" / " - Live at ..." tails are removed
+// (the version words are judged separately, by smFlags, on the untouched title).
+function smCore(title) {
+  let t = smFold(title);
+  t = t.replace(/\s*[\(\[][^\)\]]*[\)\]]/g, ' ').replace(/\s+[-\u2013\u2014]\s+.*$/, ' ').replace(/\b(feat|ft|featuring)\b\.?\s.*$/, ' ');
+  return t.replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function smLev(a, b) {
+  if (a === b) return 0; if (!a.length) return b.length; if (!b.length) return a.length;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}
+function smSim(a, b) {                  // 0..1 between two already-normalised strings
+  if (!a || !b) return 0; if (a === b) return 1;
+  const ta = a.split(' '), tb = b.split(' '), setB = new Set(tb);
+  const common = ta.filter(w => setB.has(w)).length, dice = 2 * common / (ta.length + tb.length);
+  const lev = 1 - smLev(a, b) / Math.max(a.length, b.length);
+  return Math.max(dice, lev);
+}
+function smTitleSim(want, got) {        // the song's words, falling back on the whole untouched title (a dash can be part of a real name)
+  const a = smCore(want), b = smCore(got);
+  const whole = smSim(smFold(want).replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim(), smFold(got).replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim());
+  return Math.max(smSim(a, b), whole * 0.97);
+}
+function smChannelArtist(channel) { return smFold(channel).replace(/\s*-\s*topic$/, '').replace(/\s*(vevo|official|music)$/, '').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim(); }
+// YouTube titles are mostly "Artist - Song (Official Audio)". smCore drops a trailing " - ..." as an edition tail, which on
+// that shape would delete the song and keep the artist — so a leading "<the artist> - " is removed first.
+function smStripArtistPrefix(title, artist) {
+  const m = /^(.+?)\s+[-\u2013\u2014]\s+(.+)$/.exec(String(title || ''));
+  if (!m) return title;
+  const am = smArtistMatch(artist, [m[1]]);
+  return am !== null && am >= 0.75 ? m[2] : title;
+}
+function smArtistMatch(want, got) {     // 1 same, .75 one contains the other, 0 different; null when there is nothing to compare
+  const w = smFold(want).replace(/^the /, '').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  const names = (Array.isArray(got) ? got : [got]).map(g => smChannelArtist(g).replace(/^the /, '')).filter(Boolean);
+  if (!w || !names.length) return null;
+  if (names.some(n => n === w)) return 1;
+  if (names.some(n => n.includes(w) || w.includes(n))) return 0.75;
+  return 0;
+}
+function smDurationPoints(wantMs, gotMs) {   // null when either length is unknown
+  if (!wantMs || !gotMs) return null;
+  const d = Math.abs(wantMs - gotMs) / 1000;
+  return d <= 2 ? 20 : d <= 4 ? 16 : d <= 7 ? 10 : d <= 12 ? 0 : d <= 25 ? -10 : -20;
+}
+function smIsoDuration(iso) {           // YouTube's "PT1H2M3S" -> milliseconds
+  const m = /^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$/.exec(String(iso || ''));
+  if (!m) return 0;
+  return Math.round((((+m[1] || 0) * 24 + (+m[2] || 0)) * 3600 + (+m[3] || 0) * 60 + (+m[4] || 0)) * 1000);
+}
+function smBand(score) { return score >= 85 ? 'confident' : score >= 65 ? 'likely' : 'weak'; }
+// song: {title, artist, durationMs, album, trackNumber}   cand: {title, artists|channel, durationMs, album, index, blocked}
+function smScore(song, cand, opts) {
+  opts = opts || {};
+  const reasons = [];
+  const ts = smTitleSim(song.title, smStripArtistPrefix(cand.title, song.artist));
+  let score = Math.pow(ts, 1.5) * 55;
+  reasons.push(ts >= 0.95 ? 'same title' : ts >= 0.75 ? 'similar title' : 'different title');
+  const am = smArtistMatch(song.artist, cand.artists || cand.channel);
+  if (am === null) score += 8; else { score += am * 15; reasons.push(am === 1 ? 'same artist' : am > 0 ? 'artist partly matches' : 'different artist'); }
+  const dp = smDurationPoints(song.durationMs, cand.durationMs);
+  if (dp === null) score += 10; else { score += dp; reasons.push(dp >= 16 ? 'same length' : dp >= 10 ? 'length within a few seconds' : dp >= 0 ? 'length a little off' : 'length is quite different'); }
+  if (song.album && cand.album) { const as = smSim(smCore(song.album), smCore(cand.album)); if (as >= 0.9) { score += 10; reasons.push('same album'); } else if (as >= 0.6) score += 5; }
+  if (opts.position && song.trackNumber && cand.index && song.trackNumber === cand.index) { score += 8; reasons.push('same position'); }
+  const want = smFlags(song.title), got = smFlags(cand.title);
+  const extra = [...got].filter(f => !want.has(f));
+  if (extra.length) { score -= Math.min(45, extra.length * 30); reasons.push('looks like a ' + extra.join('/') + ' version'); }
+  if (cand.channel) {
+    const ca = smChannelArtist(cand.channel).replace(/^the /, ''), wa = smFold(song.artist).replace(/^the /, '').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();   // both sides stripped of a leading "The" the same way
+    if (/ - topic$/i.test(cand.channel) && ca === wa) { score += 8; reasons.push('the artist\u2019s Topic channel'); }
+    else if (ca && wa && ca === wa) { score += 5; reasons.push('the artist\u2019s own channel'); }
+  }
+  if (/\blyrics?\b/i.test(cand.title || '')) score -= 4;
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  if (ts < 0.85) score = Math.min(score, 80);                // not a near-exact title: never "confident"
+  const rawScore = score;                                      // what it would score if it could be played
+  if (cand.blocked) { score = Math.min(score, 20); reasons.push('can\u2019t be played in the app'); }
+  return { score, band: smBand(score), reasons, titleSim: ts, rawScore };
+}
+// Matches songs to one candidate album's/playlist's track list (cands in order, index 1-based): every pairing is scored, then
+// the best pairs are taken one-to-one — a candidate is never given to two songs. Pairs scoring under `min` stay unmatched.
+function smAssign(songs, cands, opts) {
+  opts = opts || {}; const min = opts.min == null ? 50 : opts.min;
+  const pairs = [];
+  songs.forEach((s, si) => cands.forEach((c, ci) => { const r = smScore(s, c, { position: true }); if (r.rawScore >= min) pairs.push({ si, ci, r }); }));   // a video that can't be embedded is still SHOWN (weak, with the reason) rather than reported as "no match"
+  pairs.sort((a, b) => b.r.score - a.r.score || Math.abs(a.si - a.ci) - Math.abs(b.si - b.ci));
+  const bySong = new Map(), usedC = new Set();
+  pairs.forEach(p => { if (!bySong.has(p.si) && !usedC.has(p.ci)) { bySong.set(p.si, { cand: cands[p.ci], ...p.r }); usedC.add(p.ci); } });
+  return bySong;
+}
+// How well a whole candidate album/playlist explains the release: the average assigned score over ALL the songs (an
+// unmatched song counts 0). Among equals the candidate with the closer track count wins (standard over deluxe).
+function smAlbumFit(songs, cands) {
+  const a = smAssign(songs, cands);
+  const total = [...a.values()].reduce((s, m) => s + m.score, 0);
+  return { fit: songs.length ? total / songs.length : 0, matched: a.size, assign: a, countGap: Math.abs(cands.length - songs.length) };
+}
+function smBestAlbum(songs, albums) {   // albums: [{id, name, tracks:[...]}] -> the best fit (or null)
+  let best = null;
+  albums.forEach(al => { const f = smAlbumFit(songs, al.tracks || []); const cur = { album: al, ...f }; if (!best || cur.fit > best.fit + 0.5 || (Math.abs(cur.fit - best.fit) <= 0.5 && cur.countGap < best.countGap)) best = cur; });
+  return best;
+}
+// Orders candidates best-first for ONE song, keeping the given order among equals (so Spotify's own relevance still decides ties).
+function smRank(song, cands) {
+  return cands.map((c, i) => ({ c, i, r: smScore(song, c, {}) })).sort((a, b) => b.r.score - a.r.score || a.i - b.i).map(x => x.c);
+}
+// END song-match
+
+/* ---------- Match songs ----------
+   One dialog for a whole release instead of one song at a time. Spotify is matched ALBUM-first: the edition of the
+   album that best explains your tracklist is found (up to four candidate editions are read in full), then songs are
+   paired to its tracks by title, length and position — so a live take or a cover with the same title can't beat the
+   real track, and a release's songs all come from one coherent edition. Songs that edition doesn't explain are
+   searched for one by one (free). YouTube is matched PLAYLIST-first: the album's playlist (usually the artist's
+   auto-generated "Topic" one) is read in a single go, which costs about 100 of the day's 10,000 quota units for the
+   whole album instead of 100 per song; searching songs one by one is offered separately, with the cost stated.
+   Every candidate carries a score and the reasons for it (see the song-match block). Nothing is saved until you press
+   Save, and then it's one update. Links already saved are never replaced unless you pick a different one. */
+const SM_YT_QUOTA_KEY = 'crate_youtube_quota_v1', SM_YT_DAILY = 10000;
+function smPacificDay() { try { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }); } catch (e) { return new Date().toISOString().slice(0, 10); } }   // YouTube's quota resets at midnight Pacific
+function smYtQuotaUsed() { try { const q = JSON.parse(localStorage.getItem(SM_YT_QUOTA_KEY) || '{}'); return q.day === smPacificDay() ? (q.used || 0) : 0; } catch (e) { return 0; } }
+function smYtQuotaAdd(n) { try { localStorage.setItem(SM_YT_QUOTA_KEY, JSON.stringify({ day: smPacificDay(), used: smYtQuotaUsed() + n })); } catch (e) { /* just not counted */ } }
+let smState = null;
+let smLoadSeq = 0;
+
+async function smBuildSongs(item) {
+  const tracks = (await getTracksFor(item)) || [];
+  return tracks.map((t, i) => ({ idx: i, trackNum: t.trackNumber || (i + 1), trackNumber: i + 1, title: t.trackName || '', artist: item.artist, album: item.title,
+    durationMs: t.trackTimeMillis || 0, spotifyLink: t.spotifyLink || '', youtubeLink: t.youtubeLink || '' })).filter(s => s.title);
+}
+function smTopCands(song, cands, min, limit) {
+  return cands.map(c => Object.assign({}, c, smScore(song, c, {}))).filter(c => c.score >= min).sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
+// ----- Spotify -----
+async function smSpotifyForRelease(item, songs) {
+  const token = await getSpotifyToken();
+  if (!token) return { status: 'nocreds' };
+  const getJson = async (url) => {
+    const res = await spotifyApiFetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
+    if (res.status === 401) { spotifyToken = null; throw new Error('Spotify\u2019s session expired \u2014 try again'); }
+    if (!res.ok) throw new Error('Spotify answered ' + res.status);
+    return res.json();
+  };
+  const clean = item.title.replace(/\s*\[.*?\]|\s*\(.*?\)/g, '').trim();
+  const found = new Map();
+  const own = String(item.link || '').match(/open\.spotify\.com\/album\/([A-Za-z0-9]+)/);
+  if (own) found.set(own[1], { id: own[1], mine: true, nameSim: 1 });          // the edition you linked yourself is always considered
+  for (const q of [`album:${clean} artist:${item.artist}`, `${item.artist} ${clean}`]) {
+    const d = await getJson(`https://api.spotify.com/v1/search?type=album&limit=10&q=${encodeURIComponent(q)}`);
+    ((d.albums && d.albums.items) || []).filter(a => spotifyResultArtistMatches(a, item.artist)).forEach(a => { if (!found.has(a.id)) found.set(a.id, { id: a.id, nameSim: smSim(smCore(a.name), smCore(item.title)) }); });
+    if (found.size >= 4) break;
+  }
+  const albums = [];
+  for (const meta of [...found.values()].sort((a, b) => (b.mine ? 1 : 0) - (a.mine ? 1 : 0) || b.nameSim - a.nameSim).slice(0, 4)) {
+    try {
+      const d = await getJson(`https://api.spotify.com/v1/albums/${meta.id}`);
+      let items = (d.tracks && d.tracks.items) || [], next = d.tracks && d.tracks.next;
+      while (next) { const page = await getJson(next); items = items.concat(page.items || []); next = page.next; }
+      albums.push({ id: d.id, name: d.name, url: (d.external_urls && d.external_urls.spotify) || '', mine: !!meta.mine,
+        tracks: items.map((t, i) => ({ id: t.id, title: t.name, artists: (t.artists || []).map(a => a.name), durationMs: t.duration_ms || 0, album: d.name, index: i + 1 })) });
+    } catch (e) { if (/session/.test(e.message)) throw e; console.warn('Spotify album read failed', e); }
+  }
+  const best = smBestAlbum(songs, albums);
+  const byIdx = {}; let fit = 0, albumName = '', albumUrl = '';
+  const useAlbum = best && best.fit >= 55;
+  if (useAlbum) {
+    fit = best.fit; albumName = best.album.name; albumUrl = best.album.url;
+    const all = albums.reduce((acc, al) => acc.concat(al.tracks), []);
+    songs.forEach(s => {
+      const m = best.assign.get(s.idx);
+      if (m) {
+        const others = smTopCands(s, all, 50, 6).filter(c => c.id !== m.cand.id).slice(0, 3);
+        byIdx[s.idx] = [Object.assign({}, m.cand, { score: m.score, band: m.band, reasons: m.reasons, source: 'album' }), ...others.map(c => Object.assign(c, { source: 'edition' }))];
+      }
+    });
+  }
+  // songs the album didn't explain (or no album at all): a search for each, scored the same way
+  for (const s of songs) {
+    if (byIdx[s.idx]) continue;
+    let items = [];
+    for (const q of [`track:${s.title} artist:${item.artist}`, `${item.artist} ${s.title}`]) {
+      try {
+        const d = await getJson(`https://api.spotify.com/v1/search?type=track&limit=10&q=${encodeURIComponent(q)}`);
+        items = (d.tracks && d.tracks.items) || [];
+      } catch (e) { if (/session/.test(e.message)) throw e; items = []; }
+      if (items.length) break;
+    }
+    const cands = items.map(t => ({ id: t.id, title: t.name, artists: (t.artists || []).map(a => a.name), durationMs: t.duration_ms || 0, album: (t.album && t.album.name) || '', index: 0 }));
+    const top = smTopCands(s, cands, 35, 4).map(c => Object.assign(c, { source: 'search' }));
+    if (top.length) byIdx[s.idx] = top;
+  }
+  return { status: 'done', albumName: useAlbum ? albumName : '', albumUrl, fit, byIdx, searched: songs.filter(s => byIdx[s.idx] && byIdx[s.idx][0].source === 'search').length };
+}
+
+// ----- YouTube -----
+async function smYtApi(path, params, cost) {
+  const key = loadYoutubeApiKey();
+  const res = await fetch(`https://www.googleapis.com/youtube/v3/${path}?${new URLSearchParams(Object.assign({}, params, { key })).toString()}`);
+  if (!res.ok) {
+    let reason = '';
+    try { const e = await res.json(); reason = (e.error && e.error.errors && e.error.errors[0] && e.error.errors[0].reason) || (e.error && e.error.message) || ''; } catch (e) { /* no body */ }
+    if (res.status === 403 && /quota/i.test(reason)) throw new Error('quota');
+    if (res.status === 400 || res.status === 403) throw new Error('key: ' + (reason || res.status));
+    throw new Error('YouTube answered ' + res.status);
+  }
+  smYtQuotaAdd(cost);
+  return res.json();
+}
+async function smYtDetails(ids) {         // length, whether it can be embedded (the app plays YouTube in an embedded player), channel
+  const out = new Map();
+  for (let i = 0; i < ids.length; i += 50) {
+    const d = await smYtApi('videos', { part: 'contentDetails,status,snippet', id: ids.slice(i, i + 50).join(','), maxResults: 50 }, 1);
+    (d.items || []).forEach(v => out.set(v.id, { durationMs: smIsoDuration(v.contentDetails && v.contentDetails.duration), blocked: !!(v.status && v.status.embeddable === false), channel: (v.snippet && v.snippet.channelTitle) || '', title: (v.snippet && v.snippet.title) || '' }));
+  }
+  return out;
+}
+async function smYoutubeForRelease(item, songs) {
+  if (!loadYoutubeApiKey()) return { status: 'nokey' };
+  const clean = item.title.replace(/\s*\[.*?\]|\s*\(.*?\)/g, '').trim();
+  const found = await smYtApi('search', { part: 'snippet', type: 'playlist', maxResults: 5, q: `${item.artist} ${clean}` }, 100);
+  const stripAlbum = (t) => String(t || '').replace(/^album\s*[-\u2013:]\s*/i, '');
+  const lists = (found.items || []).filter(it => it.id && it.id.playlistId && it.snippet).map(it => ({
+    id: it.id.playlistId, title: it.snippet.title, channel: it.snippet.channelTitle,
+    rank: smSim(smCore(stripAlbum(it.snippet.title)), smCore(item.title)) + (/ - topic$/i.test(it.snippet.channelTitle || '') ? 0.1 : 0) + (smArtistMatch(item.artist, it.snippet.channelTitle) === 1 ? 0.05 : 0)
+  })).filter(l => l.rank >= 0.6).sort((a, b) => b.rank - a.rank).slice(0, 2);
+  const playlists = [];
+  for (const l of lists) {
+    let vids = [], page = '', pages = 0;
+    do {
+      const d = await smYtApi('playlistItems', Object.assign({ part: 'snippet', maxResults: 50, playlistId: l.id }, page ? { pageToken: page } : {}), 1);
+      vids = vids.concat((d.items || []).filter(it => it.snippet && it.snippet.resourceId && it.snippet.resourceId.videoId && !/^(deleted|private) video$/i.test(it.snippet.title || '')));
+      page = d.nextPageToken || ''; pages++;
+    } while (page && pages < 4);
+    const details = await smYtDetails(vids.map(v => v.snippet.resourceId.videoId));
+    playlists.push({ id: l.id, name: l.title, channel: l.channel, tracks: vids.map((v, i) => {
+      const id = v.snippet.resourceId.videoId, dt = details.get(id) || {};
+      return { id, title: v.snippet.title, channel: dt.channel || v.snippet.videoOwnerChannelTitle || l.channel, durationMs: dt.durationMs || 0, blocked: !!dt.blocked, index: i + 1 };
+    }) });
+  }
+  const best = smBestAlbum(songs, playlists);
+  const byIdx = {};
+  if (best && best.fit >= 55) {
+    const all = playlists.reduce((acc, p) => acc.concat(p.tracks), []);
+    songs.forEach(s => {
+      const m = best.assign.get(s.idx); if (!m) return;
+      const others = smTopCands(s, all, 50, 6).filter(c => c.id !== m.cand.id).slice(0, 3);
+      byIdx[s.idx] = [Object.assign({}, m.cand, { score: m.score, band: m.band, reasons: m.reasons, source: 'playlist' }), ...others.map(c => Object.assign(c, { source: 'playlist' }))];
+    });
+    return { status: 'done', playlistTitle: best.album.name, playlistChannel: best.album.channel, playlistUrl: 'https://www.youtube.com/playlist?list=' + best.album.id, fit: best.fit, byIdx };
+  }
+  return { status: 'done', playlistTitle: '', byIdx, none: true };
+}
+async function smYoutubeSearchSongs(item, songs, idxs, onStep) {     // 100 quota units each: only ever on request
+  const added = {};
+  for (const idx of idxs) {
+    const s = songs.find(x => x.idx === idx); if (!s) continue;
+    const d = await smYtApi('search', { part: 'snippet', type: 'video', maxResults: 5, q: `${item.artist} ${s.title}` }, 100);
+    const ids = (d.items || []).filter(it => it.id && it.id.videoId).map(it => it.id.videoId);
+    const details = ids.length ? await smYtDetails(ids) : new Map();
+    const cands = ids.map(id => { const dt = details.get(id) || {}; return { id, title: dt.title || '', channel: dt.channel || '', durationMs: dt.durationMs || 0, blocked: !!dt.blocked, index: 0 }; });
+    const top = smTopCands(s, cands, 35, 4).map(c => Object.assign(c, { source: 'search' }));
+    if (top.length) added[idx] = top;
+    if (onStep) onStep(idx, top);
+  }
+  return added;
+}
+
+// ----- the dialog -----
+function smHas(song, kind) { return kind === 'spotify' ? !!trackSpotifyUriFromLink(song.spotifyLink) : !!youtubeVideoIdFromUrl(song.youtubeLink); }
+function smLinkId(song, kind) {
+  if (kind === 'spotify') { const u = trackSpotifyUriFromLink(song.spotifyLink); return u && u.startsWith('spotify:track:') ? u.slice('spotify:track:'.length) : null; }
+  return youtubeVideoIdFromUrl(song.youtubeLink) || null;
+}
+function smCandLink(kind, c) { return kind === 'spotify' ? `https://open.spotify.com/track/${c.id}` : `https://www.youtube.com/watch?v=${c.id}`; }
+function smDefaultPicks(kind) {            // confident matches are ticked for songs that have no usable link of that kind yet; a link you already have is never replaced by default
+  const st = smState, res = st[kind], picks = {};
+  st.songs.forEach(s => { const best = res.byIdx && res.byIdx[s.idx] && res.byIdx[s.idx][0]; if (best && best.band === 'confident' && !smHas(s, kind)) picks[s.idx] = best.id; });
+  return picks;
+}
+async function openSongMatcher(item, opts) {
+  opts = opts || {};
+  closeNowPlayingAddMenu();
+  const mySeq = ++smLoadSeq;
+  const songs = await smBuildSongs(item);
+  if (mySeq !== smLoadSeq) return;
+  if (!songs.length) { flashGlobalToast('This release has no tracklist yet \u2014 add one first.'); return; }
+  smState = { item, songs, platform: opts.platform || 'spotify', open: null, saved: 0, touched: false,
+    spotify: { status: 'idle', byIdx: {} }, youtube: { status: 'idle', byIdx: {} }, pick: { spotify: {}, youtube: {} }, custom: { spotify: {}, youtube: {} } };
+  el.songMatchOverlay.hidden = false;
+  smRender();
+  if (!el.songMatchOverlay.dataset.bound) smBind();
+  smRunSpotify();                                           // free, so it starts at once; YouTube costs quota and waits for a click
+  if (opts.focusTrackNum != null) setTimeout(() => { const row = el.songMatchList.querySelector(`.sm-row[data-track="${opts.focusTrackNum}"]`); if (row) row.scrollIntoView({ block: 'center' }); }, 60);
+}
+function closeSongMatcher(force) {
+  if (!el.songMatchOverlay || el.songMatchOverlay.hidden) return;
+  const n = smState && smState.touched ? smPickCount() : 0;   // the confident matches are ticked FOR you; only a selection you changed yourself is worth a warning
+  if (!force && n > 0 && !confirm(`Discard ${n} unsaved match${n === 1 ? '' : 'es'}?`)) return;
+  el.songMatchOverlay.hidden = true; smLoadSeq++; smState = null;
+}
+async function smRunSpotify() {
+  const st = smState; if (!st) return;
+  st.spotify = { status: 'loading', byIdx: {} }; smRender();
+  try {
+    const r = await smSpotifyForRelease(st.item, st.songs);
+    if (smState !== st) return;
+    st.spotify = r;
+    if (r.status === 'done') st.pick.spotify = smDefaultPicks('spotify');
+  } catch (e) { if (smState !== st) return; st.spotify = { status: 'error', error: String((e && e.message) || e), byIdx: {} }; }
+  smRender();
+}
+async function smRunYoutube() {
+  const st = smState; if (!st) return;
+  st.youtube = { status: 'loading', byIdx: {} }; smRender();
+  try {
+    const r = await smYoutubeForRelease(st.item, st.songs);
+    if (smState !== st) return;
+    st.youtube = r;
+    if (r.status === 'done') st.pick.youtube = smDefaultPicks('youtube');
+  } catch (e) { if (smState !== st) return; st.youtube = { status: /^quota$/.test(e.message) ? 'quota' : 'error', error: String((e && e.message) || e), byIdx: {} }; }
+  smRender();
+}
+async function smSearchYoutubeRemaining() {
+  const st = smState; if (!st) return;
+  const idxs = st.songs.filter(s => !(st.youtube.byIdx[s.idx] && st.youtube.byIdx[s.idx].length)).map(s => s.idx);
+  if (!idxs.length) return;
+  st.youtube.searching = { done: 0, total: idxs.length }; smRender();
+  try {
+    await smYoutubeSearchSongs(st.item, st.songs, idxs, (idx, top) => {
+      if (smState !== st) return;
+      if (top.length) { st.youtube.byIdx[idx] = top; if (top[0].band === 'confident' && !smHas(st.songs.find(s => s.idx === idx), 'youtube')) st.pick.youtube[idx] = top[0].id; }
+      st.youtube.searching.done++; smRender();
+    });
+  } catch (e) { if (smState === st) st.youtube.searchError = /^quota$/.test(e.message) ? 'YouTube\u2019s daily quota is used up \u2014 it resets at midnight Pacific time.' : String((e && e.message) || e); }
+  if (smState === st) { delete st.youtube.searching; smRender(); }
+}
+function smPickCounts() { const st = smState; return st ? { spotify: st.songs.filter(s => st.pick.spotify[s.idx]).length, youtube: st.songs.filter(s => st.pick.youtube[s.idx]).length } : { spotify: 0, youtube: 0 }; }
+function smPickCount() { const c = smPickCounts(); return c.spotify + c.youtube; }
+function smLen(ms) { return ms ? formatDuration(ms) : ''; }
+function smBandCounts(kind) {
+  const st = smState, c = { confident: 0, likely: 0, weak: 0, none: 0 };
+  st.songs.forEach(s => { const b = st[kind].byIdx && st[kind].byIdx[s.idx] && st[kind].byIdx[s.idx][0]; c[b ? b.band : 'none']++; });
+  return c;
+}
+function smStatusHtml(kind) {
+  const st = smState, r = st[kind], c = r.status === 'done' ? smBandCounts(kind) : null;
+  const label = kind === 'spotify' ? 'Spotify' : 'YouTube';
+  if (r.status === 'loading' || r.status === 'idle') {
+    if (kind === 'youtube' && r.status === 'idle') {
+      if (!loadYoutubeApiKey()) return `<div class="sm-status"><span>Matching on YouTube needs a free API key.</span><button type="button" class="config-btn" data-sm="setup-youtube">Set up YouTube API\u2026</button></div>`;
+      return `<div class="sm-status"><span>This looks for the album\u2019s playlist on YouTube and matches every song in one go \u2014 about 100 of YouTube\u2019s 10,000 daily quota units (${smYtQuotaUsed().toLocaleString()} used today by this app).</span><button type="button" class="config-btn" data-sm="run-youtube">Find on YouTube</button></div>`;
+    }
+    return `<div class="sm-status" role="status" aria-live="polite"><span>Looking on ${label}\u2026</span><div class="gi-mb-bar"><i></i></div></div>`;
+  }
+  if (r.status === 'nocreds') return `<div class="sm-status"><span>Matching on Spotify needs a free Client ID and Secret.</span><button type="button" class="config-btn" data-sm="setup-spotify">Set up Spotify API\u2026</button></div>`;
+  if (r.status === 'quota') return `<div class="sm-status" role="status"><span>YouTube\u2019s daily quota is used up \u2014 it resets at midnight Pacific time.</span></div>`;
+  if (r.status === 'error') return `<div class="sm-status" role="status"><span>${label} couldn\u2019t be read: ${escapeHtml(r.error)}.</span><button type="button" class="ai-link-btn" data-sm="retry-${kind}">Retry</button></div>`;
+  // done
+  const found = st.songs.length - c.none;
+  let src;
+  if (kind === 'spotify') src = r.albumName ? `Matched against the album <a href="${escapeHtml(r.albumUrl)}" target="_blank" rel="noopener">\u201c${escapeHtml(r.albumName)}\u201d \u2197</a>${r.searched ? ` and searched for ${r.searched} song${r.searched === 1 ? '' : 's'} it doesn\u2019t explain` : ''}.` : 'No album on Spotify fits this tracklist, so each song was searched for on its own.';
+  else src = r.playlistTitle ? `Matched against the playlist <a href="${escapeHtml(r.playlistUrl)}" target="_blank" rel="noopener">\u201c${escapeHtml(r.playlistTitle)}\u201d \u2197</a> (${escapeHtml(r.playlistChannel || '')}).` : 'No album playlist on YouTube fits this tracklist.';
+  const left = st.songs.filter(s => !(r.byIdx[s.idx] && r.byIdx[s.idx].length)).length;
+  let extra = '';
+  if (kind === 'youtube' && left && !r.searching) extra = `<button type="button" class="config-btn" data-sm="search-youtube">Search individually for ${left} song${left === 1 ? '' : 's'} (about ${(left * 100).toLocaleString()} quota units; ${smYtQuotaUsed().toLocaleString()} used today)</button>`;
+  if (r.searching) extra = `<span role="status" aria-live="polite">Searching\u2026 ${r.searching.done} of ${r.searching.total}</span>`;
+  if (r.searchError) extra += `<span class="sm-warn">${escapeHtml(r.searchError)}</span>`;
+  return `<div class="sm-status"><span>${src} <b>${found}</b> of ${st.songs.length} songs matched: ${c.confident} confident, ${c.likely} likely, ${c.weak} weak.</span>${extra}</div>`;
+}
+function smRowHtml(s, kind) {
+  const st = smState, r = st[kind], cands = (r.byIdx && r.byIdx[s.idx]) || [], best = cands[0];
+  const has = smHas(s, kind), curId = smLinkId(s, kind), picked = st.pick[kind][s.idx], custom = st.custom[kind][s.idx];
+  const chosen = picked ? (cands.find(c => c.id === picked) || (custom && custom.id === picked ? custom : null)) : null;
+  const shown = chosen || best;
+  let match;
+  if (r.status !== 'done') match = '<span class="sm-dim">\u2026</span>';
+  else if (!shown) match = '<span class="sm-dim">No match found.</span>';
+  else {
+    const sub = [Array.isArray(shown.artists) ? shown.artists.join(', ') : shown.channel, shown.album, smLen(shown.durationMs)].filter(Boolean).join(' \u00b7 ');
+    match = `<button type="button" class="sm-play" data-sm="preview" data-id="${escapeHtml(shown.id)}" aria-label="Preview ${escapeHtml(shown.title)}">\u25b6</button>
+      <span class="sm-cand"><span class="sm-cand-title">${escapeHtml(shown.title)}</span><span class="sm-cand-sub">${escapeHtml(sub)}</span></span>
+      ${shown.score != null ? `<span class="sm-score sm-${shown.band}" title="${escapeHtml((shown.reasons || []).join(', '))}">${shown.score}</span>` : '<span class="sm-score sm-custom" title="A link you pasted">link</span>'}`;
+  }
+  const have = has ? (curId && shown && shown.id === curId ? '<span class="sm-have sm-same">linked \u2713 same</span>' : '<span class="sm-have">linked</span>') : '';
+  const checkbox = shown && r.status === 'done' ? `<input type="checkbox" class="sm-pick" data-sm="pick" ${picked && shown.id === picked ? 'checked' : ''} aria-label="Use this match for ${escapeHtml(s.title)}"${curId && shown.id === curId ? ' disabled' : ''}>` : '<input type="checkbox" class="sm-pick" disabled aria-hidden="true">';
+  const more = r.status === 'done' ? `<button type="button" class="ai-link-btn sm-more-btn" data-sm="more" aria-expanded="${st.open === s.idx}">${cands.length > 1 ? 'Others' : 'Other\u2026'}</button>` : '';
+  let moreBlock = '';
+  if (st.open === s.idx && r.status === 'done') {
+    moreBlock = `<div class="sm-others">${cands.map(c => `<label class="sm-alt"><input type="radio" name="sm-alt-${s.idx}" data-sm="alt" data-id="${escapeHtml(c.id)}"${picked === c.id ? ' checked' : ''}><span class="sm-cand"><span class="sm-cand-title">${escapeHtml(c.title)}</span><span class="sm-cand-sub">${escapeHtml([Array.isArray(c.artists) ? c.artists.join(', ') : c.channel, c.album, smLen(c.durationMs)].filter(Boolean).join(' \u00b7 '))}</span></span><span class="sm-score sm-${c.band}" title="${escapeHtml((c.reasons || []).join(', '))}">${c.score}</span><button type="button" class="sm-play" data-sm="preview" data-id="${escapeHtml(c.id)}" aria-label="Preview ${escapeHtml(c.title)}">\u25b6</button></label>`).join('') || '<p class="sm-dim">No candidates.</p>'}
+      <div class="sm-paste"><input type="text" class="sm-paste-input" data-sm="paste" placeholder="Or paste a ${kind === 'spotify' ? 'Spotify track' : 'YouTube'} link\u2026" aria-label="Paste a link for ${escapeHtml(s.title)}"><button type="button" class="ai-link-btn" data-sm="paste-use">Use</button></div></div>`;
+  }
+  return `<div class="sm-row${picked ? ' picked' : ''}" data-idx="${s.idx}" data-track="${s.trackNum}"><div class="sm-check">${checkbox}</div>
+    <div class="sm-song"><span class="sm-num">${s.trackNum}</span><span class="sm-title">${escapeHtml(s.title)}</span><span class="sm-len">${escapeHtml(smLen(s.durationMs))}</span>${have}</div>
+    <div class="sm-match">${match}${more}</div>${moreBlock}</div>`;
+}
+function smRender() {
+  const st = smState; if (!st || el.songMatchOverlay.hidden) return;
+  el.songMatchTitle.textContent = 'Match songs \u2014 ' + st.item.title;
+  el.songMatchSub.textContent = st.item.artist + ' \u00b7 ' + st.songs.length + ' song' + (st.songs.length === 1 ? '' : 's');
+  el.songMatchTabs.querySelectorAll('[data-sm-platform]').forEach(b => { const on = b.dataset.smPlatform === st.platform; b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)); });
+  const k = st.platform;
+  el.songMatchStatus.innerHTML = smStatusHtml(k);
+  const scroll = el.songMatchList.scrollTop;
+  el.songMatchList.innerHTML = st.songs.map(s => smRowHtml(s, k)).join('');
+  el.songMatchList.scrollTop = scroll;
+  const n = smPickCount(), pc = smPickCounts();
+  // Save writes the ticks of BOTH tabs at once, so when both have some the button says so (you may only have been looking at one)
+  el.songMatchSave.textContent = !n ? 'Save' : (pc.spotify && pc.youtube) ? `Save ${pc.spotify} Spotify + ${pc.youtube} YouTube links` : `Save ${n} link${n === 1 ? '' : 's'}`;
+  el.songMatchSave.disabled = !n;
+  const conf = st.songs.filter(s => st[k].byIdx && st[k].byIdx[s.idx] && st[k].byIdx[s.idx][0] && st[k].byIdx[s.idx][0].band === 'confident' && !smHas(s, k) && st.pick[k][s.idx] !== st[k].byIdx[s.idx][0].id).length;
+  el.songMatchSelectConf.hidden = !conf; el.songMatchSelectConf.textContent = `Tick ${conf} more confident match${conf === 1 ? '' : 'es'}`;
+  el.songMatchSaved.textContent = st.saved ? `Saved ${st.saved} link${st.saved === 1 ? '' : 's'} so far.` : '';
+}
+async function saveSongLinks(item, updatesByNum) {       // one update for any number of songs (updateTrackData would post once per song)
+  item.trackData = item.trackData || {};
+  Object.entries(updatesByNum).forEach(([num, upd]) => { item.trackData[num] = Object.assign(item.trackData[num] || {}, upd); });
+  refreshLinkFlagsFor(item);
+  try { await postUpdate({ row: item.row, trackData: JSON.stringify(item.trackData) }); }
+  catch (err) { flashGlobalToast('Couldn\u2019t save the links \u2014 try again.'); return false; }
+  if (currentTracklistTracks.length) mergeTrackLinkOverrides(item, currentTracklistTracks);
+  const cached = state.trackCache[artKey(item)];
+  if (cached && cached !== currentTracklistTracks) mergeTrackLinkOverrides(item, cached);
+  if (activeItem === item) renderTracklistBody(item, currentTracklistTracks);
+  return true;
+}
+async function smSave() {
+  const st = smState; if (!st) return;
+  const updates = {};
+  ['spotify', 'youtube'].forEach(kind => st.songs.forEach(s => {
+    const id = st.pick[kind][s.idx]; if (!id) return;
+    const c = ((st[kind].byIdx[s.idx] || []).find(x => x.id === id)) || (st.custom[kind][s.idx] && st.custom[kind][s.idx].id === id ? st.custom[kind][s.idx] : null);
+    if (!c) return;
+    (updates[s.trackNum] = updates[s.trackNum] || {})[kind === 'spotify' ? 'spotifyLink' : 'youtubeLink'] = c.link || smCandLink(kind, c);
+  }));
+  const n = Object.values(updates).reduce((a, u) => a + Object.keys(u).length, 0);
+  if (!n) return;
+  el.songMatchSave.disabled = true;
+  const ok = await saveSongLinks(st.item, updates);
+  if (!ok || smState !== st) { if (smState === st) smRender(); return; }
+  st.songs.forEach(s => { const u = updates[s.trackNum]; if (u) { if (u.spotifyLink) s.spotifyLink = u.spotifyLink; if (u.youtubeLink) s.youtubeLink = u.youtubeLink; } });
+  st.pick = { spotify: {}, youtube: {} }; st.saved += n; st.touched = false;
+  flashGlobalToast(`Saved ${n} link${n === 1 ? '' : 's'}.`);
+  smRender();
+}
+function smBind() {
+  const ov = el.songMatchOverlay; ov.dataset.bound = '1';
+  el.songMatchClose.addEventListener('click', () => closeSongMatcher());
+  ov.addEventListener('mousedown', (e) => { if (e.target === ov) closeSongMatcher(); });
+  el.songMatchSave.addEventListener('click', smSave);
+  el.songMatchSelectConf.addEventListener('click', () => {
+    const st = smState, k = st.platform;
+    st.touched = true;
+    st.songs.forEach(s => { const b = st[k].byIdx && st[k].byIdx[s.idx] && st[k].byIdx[s.idx][0]; if (b && b.band === 'confident' && !smHas(s, k)) st.pick[k][s.idx] = b.id; });
+    smRender();
+  });
+  el.songMatchTabs.addEventListener('click', (e) => { const b = e.target.closest('[data-sm-platform]'); if (b && smState) { smState.platform = b.dataset.smPlatform; smState.open = null; smRender(); } });
+  ov.addEventListener('click', (e) => {
+    const st = smState; if (!st) return;
+    const t = e.target.closest('[data-sm]'); if (!t) return;
+    const a = t.dataset.sm, k = st.platform, row = t.closest('.sm-row'), idx = row ? Number(row.dataset.idx) : null;
+    if (a === 'run-youtube' || a === 'retry-youtube') smRunYoutube();
+    else if (a === 'retry-spotify') smRunSpotify();
+    else if (a === 'search-youtube') smSearchYoutubeRemaining();
+    else if (a === 'setup-spotify') { closeSongMatcher(); el.menuSpotifyApi.click(); }
+    else if (a === 'setup-youtube') { closeSongMatcher(); el.menuYoutubeApi.click(); }
+    else if (a === 'more') { st.open = st.open === idx ? null : idx; smRender(); }
+    else if (a === 'preview') {
+      const id = t.dataset.id;
+      if (k === 'spotify') showMiniPlayer(`spotify:track:${id}`, beginPlayIntent());
+      else openYoutubePlayer(`https://www.youtube.com/watch?v=${id}`, (st.songs[idx] || {}).title || '', undefined, st.item);
+    }
+    else if (a === 'paste-use') {
+      const input = row.querySelector('.sm-paste-input'), v = input.value.trim();
+      const ok = k === 'spotify' ? (() => { const u = trackSpotifyUriFromLink(v); return u && u.startsWith('spotify:track:') ? u.slice('spotify:track:'.length) : null; })() : youtubeVideoIdFromUrl(v);
+      if (!ok) { flashGlobalToast(k === 'spotify' ? 'That isn\u2019t a Spotify track link.' : 'That isn\u2019t a YouTube video link.'); return; }
+      st.touched = true;
+      st.custom[k][idx] = { id: ok, title: v, link: k === 'spotify' ? `https://open.spotify.com/track/${ok}` : `https://www.youtube.com/watch?v=${ok}`, source: 'pasted' };
+      st.pick[k][idx] = ok; smRender();
+    }
+  });
+  ov.addEventListener('change', (e) => {
+    const st = smState; if (!st) return;
+    const t = e.target.closest('[data-sm]'); if (!t) return;
+    const k = st.platform, row = t.closest('.sm-row'), idx = Number(row.dataset.idx);
+    st.touched = true;
+    if (t.dataset.sm === 'pick') {
+      const best = (st[k].byIdx[idx] || [])[0], cur = st.pick[k][idx];
+      if (t.checked) st.pick[k][idx] = cur || (best && best.id); else delete st.pick[k][idx];
+      smRender();
+    } else if (t.dataset.sm === 'alt') { st.pick[k][idx] = t.dataset.id; smRender(); }
   });
 }
 
@@ -19544,8 +20192,33 @@ function initLinkFlags() {
 // cancelled or fails can be resumed later and repeats no request. Releases dated before 1900, with no date, or in a
 // future year of the current decade are in the tag's total but not in the chart.
 function genreMbPhrase(label) { return String(label).toLowerCase().replace(/[\\"]/g, '\\$&'); }   // inside a quoted Lucene phrase only " and \ are special
-function genreMbQuery(label, datePrefix) {
-  return 'tag:"' + genreMbPhrase(label) + '"' + (datePrefix ? ' AND firstreleasedate:' + datePrefix + '*' : '');
+// HOW MusicBrainz wants a date written in a search isn't something this page can see, and it was guessed wrong once (a
+// trailing wildcard, "firstreleasedate:197*", which the real service didn't answer usefully). So several ways are known, the
+// first that works is found by asking (see mbPickDateSyntax) and remembered, and if none works the page shows what
+// MusicBrainz said instead of guessing again. Each way can ask for a decade and for a year.
+const MB_DATE_SYNTAXES = [
+  { id: 'prefix', label: 'date starts with', year: y => `firstreleasedate:${y}*`, decade: d => `firstreleasedate:${String(d).slice(0, 3)}*` },
+  { id: 'range-year', label: 'range of years', year: y => `firstreleasedate:[${y} TO ${y}]`, decade: d => `firstreleasedate:[${d} TO ${d + 9}]` },
+  { id: 'range-date', label: 'range of dates', year: y => `firstreleasedate:[${y}-01-01 TO ${y}-12-31]`, decade: d => `firstreleasedate:[${d}-01-01 TO ${d + 9}-12-31]` },
+  { id: 'range-time', label: 'range of timestamps', year: y => `firstreleasedate:[${y}-01-01T00:00:00Z TO ${y}-12-31T23:59:59Z]`, decade: d => `firstreleasedate:[${d}-01-01T00:00:00Z TO ${d + 9}-12-31T23:59:59Z]` }
+];
+const MB_PROBE_MIN = 3000;      // a single year of the 1990s has far more release groups than this on MusicBrainz, whatever the genre
+function genreMbQuery(label, datePrefix, syntax) {      // datePrefix: '197' = a decade, '1972' = a year; syntax defaults to the first known way
+  const syn = syntax || MB_DATE_SYNTAXES[0], p = datePrefix ? String(datePrefix) : '';
+  return 'tag:"' + genreMbPhrase(label) + '"' + (p ? ' AND ' + (p.length === 3 ? syn.decade(Number(p) * 10) : syn.year(Number(p))) : '');
+}
+// Finds the first way of writing a date that MusicBrainz answers sensibly. The test has no genre in it: two different years of
+// the 1990s, asked about on their own, must each come back with thousands of release groups. `ask(query)` returns
+// {ok, count} or {ok:false, status, body}. Every attempt is recorded (what was asked, what came back) for the page to show.
+async function mbPickDateSyntax(ask) {
+  const tried = [];
+  for (const syn of MB_DATE_SYNTAXES) {
+    const q1 = syn.year(1990), q2 = syn.year(1995);
+    const a = await ask(q1), b = a.ok ? await ask(q2) : null;
+    tried.push({ id: syn.id, q: q1, status: a.ok ? 200 : a.status, count: a.ok ? a.count : null, count2: b && b.ok ? b.count : null, body: a.ok ? '' : String(a.body || '') });
+    if (a.ok && b && b.ok && a.count >= MB_PROBE_MIN && b.count >= MB_PROBE_MIN) return { syntax: syn, tried };
+  }
+  return { syntax: null, tried, networkDown: tried.length > 0 && tried.every(t => t.status === 0) };
 }
 async function buildMbYearHistogram(countFor, opts) {
   const known = opts.known, nowYear = opts.nowYear, stop = opts.shouldStop || (() => false), step = opts.onStep || (() => {});
@@ -19743,7 +20416,7 @@ function giMbCacheWrite(key, count) {
   try { const all = giMbCacheRead(); all[key] = { count, at: Date.now() }; localStorage.setItem(GENRE_MB_CACHE_KEY, JSON.stringify(all)); } catch (e) { /* storage full or blocked: just not remembered */ }
 }
 async function fetchGenreMbCount(label, datePrefix) {     // datePrefix (e.g. '197' or '1972') narrows it to a decade or a year — see buildMbYearHistogram
-  const res = await mbFetch(`https://musicbrainz.org/ws/2/release-group?query=${encodeURIComponent(genreMbQuery(label, datePrefix))}&limit=1&fmt=json`, { headers: { 'Accept': 'application/json' } });
+  const res = await mbFetch(`https://musicbrainz.org/ws/2/release-group?query=${encodeURIComponent(genreMbQuery(label, datePrefix, mbDateSyntax))}&limit=1&fmt=json`, { headers: { 'Accept': 'application/json' } });
   if (!res.ok) throw new Error('MusicBrainz HTTP ' + res.status);
   const data = await res.json();
   if (!data || typeof data.count !== 'number') throw new Error('MusicBrainz sent no count');
@@ -19809,6 +20482,28 @@ function giMbYearsHydrate(genre) {      // the saved answer, if there is a fresh
   if (hit && hit.years && typeof hit.total === 'number' && Date.now() - hit.at < GENRE_MB_TTL_MS) Object.assign(rec, { decades: hit.decades || {}, years: hit.years, total: hit.total, requests: hit.requests || 0, at: hit.at, status: 'done' });
   return rec;
 }
+let mbDateSyntax = null;      // the way of writing a date that MusicBrainz was found to understand (null until the first Load)
+const MB_SYNTAX_CACHE_KEY = 'crate_mb_date_syntax_v1';
+async function mbAskCount(query) {
+  try {
+    const res = await mbFetch(`https://musicbrainz.org/ws/2/release-group?query=${encodeURIComponent(query)}&limit=1&fmt=json`, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) { let body = ''; try { body = (await res.text()).replace(/\s+/g, ' ').slice(0, 140); } catch (e) { /* no body */ } return { ok: false, status: res.status, body }; }
+    const data = await res.json();
+    return typeof data.count === 'number' ? { ok: true, count: data.count } : { ok: false, status: 200, body: 'the answer had no count' };
+  } catch (e) { return { ok: false, status: 0, body: String((e && e.message) || e) }; }
+}
+async function mbEnsureDateSyntax(force) {
+  if (force) { mbDateSyntax = null; try { localStorage.removeItem(MB_SYNTAX_CACHE_KEY); } catch (e) { /* ignore */ } }
+  if (mbDateSyntax) return { syntax: mbDateSyntax, tried: [] };
+  try {
+    const c = JSON.parse(localStorage.getItem(MB_SYNTAX_CACHE_KEY) || 'null');
+    const known = c && Date.now() - c.at < GENRE_MB_TTL_MS ? MB_DATE_SYNTAXES.find(x => x.id === c.id) : null;
+    if (known) { mbDateSyntax = known; return { syntax: known, tried: [] }; }
+  } catch (e) { /* unreadable: just ask again */ }
+  const r = await mbPickDateSyntax(mbAskCount);
+  if (r.syntax) { mbDateSyntax = r.syntax; try { localStorage.setItem(MB_SYNTAX_CACHE_KEY, JSON.stringify({ id: r.syntax.id, at: Date.now() })); } catch (e) { /* not remembered */ } }
+  return r;
+}
 function giMbCheckUrl(genre) { return 'https://musicbrainz.org/search?query=' + encodeURIComponent(genreMbQuery(genre)) + '&type=release_group&method=advanced'; }
 function giPaintMbYears(genre) {
   if (!giShowing(genre)) return;
@@ -19817,7 +20512,7 @@ function giPaintMbYears(genre) {
 }
 async function giLoadMbYears(genre, fresh) {
   const key = genreTaxonomyKey(genre);
-  if (fresh) { delete state.genreMbYears[key]; try { const all = giMbYearsCacheRead(); delete all[key]; localStorage.setItem(GENRE_MBY_CACHE_KEY, JSON.stringify(all)); } catch (e) {} }
+  if (fresh) { mbDateSyntax = null; delete state.genreMbYears[key]; try { const all = giMbYearsCacheRead(); delete all[key]; localStorage.setItem(GENRE_MBY_CACHE_KEY, JSON.stringify(all)); } catch (e) {} }
   const rec = giMbYearsRec(genre);
   if (rec.status === 'loading') return;
   rec.status = 'loading'; rec.stop = false; rec.error = '';
@@ -19827,6 +20522,15 @@ async function giLoadMbYears(genre, fresh) {
       const have = state.genreMb[key];
       rec.total = have && have.status === 'ok' ? have.count : await fetchGenreMbCount(genre);
     }
+    if (!mbDateSyntax || fresh) {
+      rec.phase = 'probe'; giPaintMbYears(genre);
+      const got = await mbEnsureDateSyntax(!!fresh);
+      rec.phase = '';
+      if (!got.syntax) {
+        if (got.networkDown) throw new Error('MusicBrainz couldn\u2019t be reached');
+        rec.status = 'odd'; rec.diag = got.tried; giPaintMbYears(genre); return;     // nothing it was asked worked: show what it said
+      }
+    }
     const finished = await buildMbYearHistogram((prefix) => fetchGenreMbCount(genre, prefix), {
       nowYear: new Date().getFullYear(), known: rec, onStep: () => giPaintMbYears(genre),
       shouldStop: () => rec.stop || !state.genreTabs.some(g => genreTaxonomyKey(g) === key)
@@ -19834,7 +20538,7 @@ async function giLoadMbYears(genre, fresh) {
     if (!finished) rec.status = 'stopped';
     else {
       const decadeSum = Object.values(rec.decades).reduce((a, b) => a + b, 0);
-      if ((rec.total > 0 && decadeSum === 0) || decadeSum > rec.total * 1.05 + 5) rec.status = 'odd';   // dated answers that contradict the total
+      if ((rec.total > 0 && decadeSum === 0) || decadeSum > rec.total * 1.05 + 5) { rec.status = 'odd'; rec.diag = [{ q: genreMbQuery(genre, '197', mbDateSyntax), status: 200, note: `decade counts add up to ${decadeSum.toLocaleString()} but the tag's total is ${rec.total.toLocaleString()}` }]; }   // dated answers that contradict the total
       else { rec.status = 'done'; rec.at = Date.now(); giMbYearsCacheWrite(key, rec); }
     }
   } catch (err) {
@@ -19847,12 +20551,18 @@ function giMbPanelHtml(genre, rec) {
   const check = `<a href="${escapeHtml(giMbCheckUrl(genre))}" target="_blank" rel="noopener">Check the same search on MusicBrainz \u2197</a>`;
   const reqs = `${rec.requests} request${rec.requests === 1 ? '' : 's'}`;
   if (rec.status === 'loading') {
-    const decades = Object.keys(rec.decades).length, phase = decades < Math.floor(new Date().getFullYear() / 10) - 189 ? `counting decades (${decades} of ${Math.floor(new Date().getFullYear() / 10) - 189})` : 'counting years';
+    const decades = Object.keys(rec.decades).length, phase = rec.phase === 'probe' ? 'checking how MusicBrainz wants a date written' : decades < Math.floor(new Date().getFullYear() / 10) - 189 ? `counting decades (${decades} of ${Math.floor(new Date().getFullYear() / 10) - 189})` : 'counting years';
     return `<div class="gi-mb-panel" role="status" aria-live="polite"><div class="gi-mb-line"><span>Reading MusicBrainz\u2026 ${reqs} so far, ${phase}${rec.stop ? ' \u2014 stopping after this one' : ''}</span><button type="button" class="ai-link-btn" data-gi="mb-stop"${rec.stop ? ' disabled' : ''}>Cancel</button></div><div class="gi-mb-bar"><i></i></div><p class="gi-hint">MusicBrainz allows one request a second, so the first time takes about a minute. The page stays usable, and the result is remembered for 30 days.</p></div>`;
   }
   if (rec.status === 'stopped') return `<div class="gi-mb-panel" role="status"><div class="gi-mb-line"><span>Stopped after ${reqs}. What's loaded is shown below.</span><button type="button" class="ai-link-btn" data-gi="mb-load">Resume</button></div></div>`;
   if (rec.status === 'error') return `<div class="gi-mb-panel" role="status"><div class="gi-mb-line"><span>MusicBrainz stopped answering after ${reqs} (${escapeHtml(rec.error)}).</span><button type="button" class="ai-link-btn" data-gi="mb-load">Retry</button></div><p class="gi-hint">Retrying carries on from where it stopped; nothing already fetched is asked again.</p></div>`;
-  if (rec.status === 'odd') return `<div class="gi-mb-panel" role="status"><div class="gi-mb-line"><span>MusicBrainz says ${rec.total.toLocaleString()} release groups carry this tag, but its date search didn't return counts that add up, so no chart was drawn.</span><button type="button" class="ai-link-btn" data-gi="mb-load" data-fresh="1">Try again</button></div><p class="gi-hint">${check}</p></div>`;
+  if (rec.status === 'odd') {
+    const tried = rec.diag || [], probed = tried.some(t => t.id);
+    const lines = tried.map(t => `<li><code>${escapeHtml(t.q || '')}</code> \u2192 ${t.note ? escapeHtml(t.note) : t.status === 200 ? `answered ${t.count == null ? '?' : t.count.toLocaleString()}${t.count2 != null ? ' and ' + t.count2.toLocaleString() : ''}` : t.status === 0 ? 'no answer' : 'HTTP ' + t.status}${t.body ? ` \u2014 ${escapeHtml(t.body)}` : ''}</li>`).join('');
+    const why = probed ? `MusicBrainz says ${rec.total.toLocaleString()} release groups carry this tag, but none of the ${tried.length} ways I tried asking it for a year gave usable counts (any single year in the 1990s should have thousands of release groups).`
+      : `MusicBrainz says ${rec.total.toLocaleString()} release groups carry this tag, but its date search didn\u2019t return counts that add up, so no chart was drawn.`;
+    return `<div class="gi-mb-panel" role="status"><div class="gi-mb-line"><span>${why}</span><button type="button" class="ai-link-btn" data-gi="mb-load" data-fresh="1">Try again</button></div>${lines ? `<details class="gi-mb-details"><summary>What MusicBrainz answered</summary><ul>${lines}</ul></details>` : ''}<p class="gi-hint">${check}</p></div>`;
+  }
   return `<div class="gi-mb-panel"><div class="gi-mb-line"><span>MusicBrainz can't list releases by year in one go, so this asks it year by year \u2014 about a minute the first time, then remembered for 30 days.</span><button type="button" class="config-btn" data-gi="mb-load">Load MusicBrainz release counts</button></div></div>`;
 }
 function giMbSummary(genre, rec) {
@@ -23296,6 +24006,7 @@ function renderTracklistBody(item, tracks) {
       <button type="button" id="tlSelectAllBtn" class="chip-btn">Select all</button>
       <button type="button" id="tlClearSelectionBtn" class="chip-btn" ${listenedCount ? '' : 'disabled'}>Clear selection</button>
       <button type="button" id="tlAddTrackBtn" class="chip-btn">+ Add track</button>
+      <button type="button" id="tlMatchSongsBtn" class="chip-btn" title="Find Spotify and YouTube links for every song at once">Match songs…</button>
     </div>
     <div class="tracklist-listen-progress ${allListened ? 'complete' : ''}">
       <div class="tlp-bar"><div class="tlp-fill" style="width:${tracks.length ? (listenedCount / tracks.length * 100) : 0}%"></div></div>
@@ -26045,7 +26756,8 @@ async function spotifyTrackCandidatesLive(artist, query) {
     id: t.id,
     name: t.name,
     artists: (t.artists || []).map(a => a.name).join(', '),
-    album: (t.album && t.album.name) || ''
+    album: (t.album && t.album.name) || '',
+    durationMs: t.duration_ms || 0
   }));
 }
 async function spotifyTrackCandidates(artist, trackName) {
@@ -26055,8 +26767,24 @@ async function spotifyTrackCandidates(artist, trackName) {
   spotifyTrackCandidatesCache[cacheKey] = candidates;
   return candidates;
 }
-async function spotifyTrackId(artist, trackName) {
-  const candidates = await spotifyTrackCandidates(artist, trackName);
+// The automatic match no longer trusts Spotify's order. When a song has no saved link, whatever Spotify lists first used to
+// play — sometimes a live take, a karaoke version or someone's cover with the same title. The candidates are now ranked
+// with the same scoring as the Match songs dialog (title, artist, album, length, and a penalty for version words the song
+// itself doesn't have); ctx is the release's album title and the song's length when known. Spotify's order still decides
+// ties, and "Try next match" steps through this same ranked order.
+function songContextFor(item, trackNum, trackName) {
+  const cache = state.trackCache[artKey(item)] || [];
+  const t = cache.find(x => (trackNum !== undefined && trackNum !== '' && x.trackNumber === trackNum)) || cache.find(x => x.trackName === trackName);
+  return { album: item.title, durationMs: (t && t.trackTimeMillis) || 0 };
+}
+async function spotifyRankedCandidates(artist, trackName, ctx) {
+  const raw = await spotifyTrackCandidates(artist, trackName);
+  if (raw.length < 2) return raw;
+  const wrapped = raw.map(c => ({ c, v: { title: c.name, artists: String(c.artists || '').split(', '), album: c.album, durationMs: c.durationMs || 0 } }));
+  return smRank({ title: trackName, artist, album: ctx && ctx.album, durationMs: ctx && ctx.durationMs }, wrapped.map(w => w.v)).map(v => wrapped.find(w => w.v === v).c);
+}
+async function spotifyTrackId(artist, trackName, ctx) {
+  const candidates = await spotifyRankedCandidates(artist, trackName, ctx);
   if (!candidates.length) return null;
   const cacheKey = trackMatchCacheKey(artist, trackName);
   const idx = Math.min(spotifyMatchAttemptIndex[cacheKey] || 0, candidates.length - 1);
@@ -26069,7 +26797,7 @@ async function spotifyTrackId(artist, trackName) {
 // leaving the moment. Nothing is saved yet — see confirmSpotifyMatch for
 // that — so reloading the page resets back to the top match.
 async function tryNextSpotifyMatch(item, trackName, trackNum) {
-  const candidates = await spotifyTrackCandidates(item.artist, trackName);
+  const candidates = await spotifyRankedCandidates(item.artist, trackName, songContextFor(item, trackNum, trackName));
   if (!candidates.length) { flashGlobalToast('No Spotify matches found for this track.'); return; }
   if (candidates.length === 1) { flashGlobalToast('Only one Spotify match found for this track.'); return; }
   const key = trackMatchCacheKey(item.artist, trackName);
@@ -26088,7 +26816,7 @@ async function tryNextSpotifyMatch(item, trackName, trackNum) {
 // the fuzzy search (or the in-memory attempt index above, which resets on
 // reload) to land on it again.
 async function confirmSpotifyMatch(item, trackName, trackNum) {
-  const id = await spotifyTrackId(item.artist, trackName);
+  const id = await spotifyTrackId(item.artist, trackName, songContextFor(item, trackNum, trackName));
   if (!id) { flashGlobalToast('No Spotify match to confirm yet.'); return; }
   await updateTrackData(item, trackNum, { spotifyLink: `https://open.spotify.com/track/${id}` });
   if (currentTracklistTracks.length) mergeTrackLinkOverrides(item, currentTracklistTracks);
@@ -28754,7 +29482,8 @@ html, body {
   #menuAppVersion { cursor: pointer; }
   #menuAppVersion:hover { color: var(--accent); }
   /* Height leaves room for the player bar, which sits ABOVE modal overlays in this app and would otherwise cover the panel's bottom edge. */
-  .update-log-modal { max-width: 760px; width: min(94vw, 760px); height: min(calc(100vh - 230px), 900px); min-height: 340px; display: flex; flex-direction: column; }
+  .arrange-modal.update-log-modal { max-width: 760px; width: min(94vw, 760px); overflow: hidden;   /* chained: the base .arrange-modal (max-width 420px) comes later in the file and would otherwise win */
+    height: min(calc(100vh - 230px), 900px); min-height: 340px; display: flex; flex-direction: column; }
   .update-log-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
   .update-log-toolbar { display: flex; gap: 10px; align-items: center; flex: 0 0 auto; }
   .update-log-toolbar input[type="search"] { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 8px 10px; font: 13px 'Inter', sans-serif; outline: none; }
@@ -28774,9 +29503,58 @@ html, body {
   .update-more { background: none; border: none; padding: 4px 0 0; font: inherit; font-size: 12px; color: var(--accent); cursor: pointer; }
   .update-more:hover { text-decoration: underline; }
   .update-details { margin: 8px 0 2px; padding: 10px 12px; background: var(--bg-card); border-radius: 6px; font: 11.5px/1.55 'IBM Plex Mono', monospace; color: var(--text-dim); white-space: pre-wrap; overflow-wrap: anywhere; }
-  @media (max-width: 900px) { .update-log-modal { width: 96vw; height: calc(100vh - 260px); } .update-log-list { padding-bottom: 150px; }   /* the player bar floats over the bottom of the sheet; this lets the last entries scroll clear of it */
+  @media (max-width: 900px) { .arrange-modal.update-log-modal { width: 96vw; height: calc(100vh - 260px); } .update-log-list { padding-bottom: 150px; }   /* the player bar floats over the bottom of the sheet; this lets the last entries scroll clear of it */
   .update-details { font-size: 11px; padding: 8px 10px; } }
 
+  /* ---- Match songs (see the "Match songs" block in the script) ---- */
+  .link-flag[role="button"] { cursor: pointer; }
+  .link-flag[role="button"]:hover { filter: brightness(1.15); }
+  .link-flag[role="button"]:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  .arrange-modal.song-match-modal { max-width: 940px; width: min(96vw, 940px); overflow: hidden;   /* chained for the same reason as the update log's */
+    height: min(calc(100vh - 170px), 860px); min-height: 380px; display: flex; flex-direction: column; }
+  .sm-sub { margin: 2px 0 0; font-size: 12px; color: var(--text-dim); }
+  .sm-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .sm-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; flex: 0 0 auto; }
+  .sm-status { display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; margin: 12px 0 8px; padding: 10px 12px; background: var(--bg-card); border: 1px solid var(--line); border-radius: 6px; font-size: 12.5px; color: var(--text); flex: 0 0 auto; }
+  .sm-status a { color: var(--accent); }
+  .sm-status .gi-mb-bar { flex: 1 1 100%; margin-top: 4px; }
+  .sm-warn { color: #E5734A; flex: 1 1 100%; }
+  .sm-list { flex: 1; min-height: 0; overflow-y: auto; border-top: 1px solid var(--line); }
+  .sm-row { display: grid; grid-template-columns: 26px minmax(160px, 0.9fr) minmax(0, 1.5fr); gap: 4px 12px; align-items: center; padding: 8px 4px; border-bottom: 1px solid var(--line); }
+  .sm-row.picked { background: rgba(214,162,76,0.07); }
+  .sm-check input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+  .sm-song { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+  .sm-num { font: 11px 'IBM Plex Mono', monospace; color: var(--text-dim); min-width: 18px; }
+  .sm-title { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; flex: 0 1 auto; min-width: 0; }
+  .sm-len { font: 11px 'IBM Plex Mono', monospace; color: var(--text-dim); }
+  .sm-have { font-size: 10.5px; color: var(--text-dim); border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; }
+  .sm-have.sm-same { color: #6FBF8E; border-color: #3F6B63; }
+  .sm-match { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .sm-cand { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+  .sm-cand-title { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sm-cand-sub { font-size: 11px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sm-dim { font-size: 12px; color: var(--text-dim); }
+  .sm-play { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); background: none; color: var(--text); font-size: 10px; padding: 0 0 0 2px; cursor: pointer; }
+  .sm-play:hover { border-color: var(--accent); color: var(--accent); }
+  .sm-score { flex: 0 0 auto; min-width: 30px; text-align: center; font: 700 11px 'IBM Plex Mono', monospace; padding: 2px 6px; border-radius: 10px; }
+  .sm-confident { color: #12161C; background: #6FBF8E; }
+  .sm-likely { color: #12161C; background: var(--accent); }
+  .sm-weak { color: var(--text); background: #5a2a2a; }
+  .sm-custom { color: var(--text); background: var(--bg-card); border: 1px solid var(--line); }
+  .sm-more-btn { flex: 0 0 auto; font-size: 12px; }
+  .sm-others { grid-column: 2 / -1; padding: 4px 0 6px; display: flex; flex-direction: column; gap: 4px; }
+  .sm-alt { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 4px; cursor: pointer; }
+  .sm-alt:hover { background: var(--bg-card); }
+  .sm-alt input { accent-color: var(--accent); }
+  .sm-paste { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+  .sm-paste-input { flex: 1; min-width: 0; height: 30px; box-sizing: border-box; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; color: var(--text); padding: 0 10px; font: 12.5px 'Inter', sans-serif; outline: none; }
+  .sm-paste-input:focus { border-color: var(--accent); }
+  .sm-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 10px; flex: 0 0 auto; }
+  @media (max-width: 900px) {
+    .arrange-modal.song-match-modal { width: 98vw; height: calc(100vh - 250px); }
+    .sm-row { grid-template-columns: 24px minmax(0, 1fr); }
+    .sm-match, .sm-others { grid-column: 2; }
+  }
   /* ---- Unlinked-song flags (see songLinkGaps in the script) ---- */
   .link-flag { position: absolute; top: 6px; right: 6px; z-index: 5; width: 20px; height: 20px; box-sizing: border-box; border-radius: 50%; background: #D93036; color: #fff; font: 700 13px/20px 'Inter', sans-serif; text-align: center; box-shadow: 0 0 0 2px rgba(18,22,28,0.85); cursor: help; }
   .link-flag-inline { position: static; display: inline-block; flex: 0 0 auto; width: 16px; height: 16px; margin: 0 6px 0 0; font-size: 11px; line-height: 16px; vertical-align: middle; box-shadow: none; }
@@ -28855,6 +29633,10 @@ html, body {
   .gi-seg-text .gi-seg-btn:nth-child(2) { border-radius: 0; border-left: none; }
   .gi-mb-panel { margin: 14px 0 4px; padding: 12px 14px; background: var(--bg-card); border: 1px solid var(--line); border-radius: 6px; font-size: 12.5px; color: var(--text); }
   .gi-mb-panel .gi-hint { margin-top: 8px; }
+  .gi-mb-details { margin-top: 8px; font-size: 11.5px; color: var(--text-dim); }
+  .gi-mb-details summary { cursor: pointer; }
+  .gi-mb-details ul { margin: 6px 0 0 18px; padding: 0; }
+  .gi-mb-details code { font: 11px 'IBM Plex Mono', monospace; overflow-wrap: anywhere; }
   .gi-mb-line { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
   .gi-mb-bar { height: 3px; margin-top: 10px; background: var(--line); border-radius: 2px; overflow: hidden; }
   .gi-mb-bar i { display: block; height: 100%; width: 35%; background: var(--accent); animation: gi-mb-slide 1.4s ease-in-out infinite; }
