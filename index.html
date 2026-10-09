@@ -19,7 +19,55 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.29.193
+  CURRENT_VERSION: 1.29.194
+
+  1.29.194 — 2026-10-08 — New: songs are matched to Spotify (and optionally YouTube) while a release is being added. Accept a tracklist and the links are filled in, with scores, for you to review before adding.
+
+          What happens: as soon as songs are in the Add form's tracklist — you accept the Spotify/MusicBrainz
+          tracklist banner, the form opens with a tracklist, or (as a last pass) you press Add to crate — the Match
+          songs engine runs on them:
+            - confident matches (score 85+) are written into the EMPTY Spotify boxes, marked with a green left edge
+              and a score badge (hover for the reasons); a likely-but-unsure match gets an amber "?" you can click to
+              review; a status line above the tracklist says how many songs were linked and how many are left, with a
+              Review... button;
+            - Spotify is free so it is automatic; YouTube costs API quota (about 100 of the day's 10,000 units for the
+              playlist route) so it runs only if you turn it on;
+            - links you typed are never overwritten; a row whose title you changed while it was matching isn't
+              filled in; a late answer for a release you've moved on from, or a form you closed, is dropped;
+            - the new "Match songs..." button (next to "+ Add track") opens the same review dialog as for saved
+              releases, on the unsaved one ("draft" mode): the answers already fetched are reused, and its Save writes
+              into the form's boxes — nothing is sent to the backend until you add the release (typing over a matched
+              link makes it yours again);
+            - Add to crate does one last pass for songs that were typed in or changed and haven't been matched
+              (the button reads "Matching songs...", capped at 25 seconds, only when something changed since the last
+              run, and any failure just saves what is in the form) and the confirmation says how many were linked:
+              "Added to your crate · 8 of 10 songs linked on Spotify".
+          Lengths now travel with a tracklist: MusicBrainz's and Spotify's offers include each song's length, kept on
+          its row, because length is the strongest sign of the same recording (a song whose length disagrees by a few
+          minutes is left for review instead of being filled in).
+          Settings, in the ⚙ menu next to the unlinked-song flag: "Match songs when adding a release" (on) and "...also
+          on YouTube (uses API quota)" (off), both saved with your other preferences. Without Spotify set up it says
+          so and adding is unaffected.
+
+          Also fixed: in the Match songs dialog, previewing a YouTube candidate could be queued behind ANOTHER open
+          album's YouTube links (the player builds its queue from whatever tracklist is open unless told otherwise) and
+          so play the wrong video; it now passes an empty list, so it plays just that video.
+          Cosmetic: the status line no longer inherits the form's all-caps label style.
+          Caught by the menu-stacking test: the two new ⚙ menu items made the menu tall enough to run underneath the
+          bottom tab bar on a phone (400 of 6,400 sample points covered). The menu is now capped to the room actually
+          available (viewport minus the header, and on a phone the bottom bar and player) and scrolls inside, so it
+          can't overflow however many settings are added later.
+
+          Verified in real Chromium with Spotify, YouTube and MusicBrainz stubbed: 44 browser checks (pw_add_match.py)
+          — accepting a tracklist (lengths kept, five filled, the length-mismatched song left for review, album-first,
+          no YouTube requests), the draft review (answers reused, nothing sent, typed-over links), Save (no repeat run;
+          every song saved with its link; the confirmation), typed titles matched on Save (button state, held
+          requests), the settings, never overwriting, a form opened with a tracklist, three race cases, YouTube on
+          (3 requests, 102 units), no Spotify, Spotify erroring, the preview fix, a phone. Removing the
+          never-overwrite guard or the moved-on guard each makes tests fail. NOT verified against the real services.
+          Not done: the Edit form's tracklist (only Add), saving the lengths with the new release (so a saved
+          release's later Match songs has no length clue unless it has been set), and picking the Spotify album for
+          the tracklist OFFER with the same scoring (it still takes Spotify's first hit, as before).
 
   1.29.193 — 2026-10-08 — Genre pages on a phone: each genre row now has an (i) button that opens the genre's page, and a long-press opens the genre menu. Before, there was no way to reach them on a touch screen.
 
@@ -5698,6 +5746,8 @@
           <div class="menu-section-title">Checks</div>
           <!-- Red "!" on any release with songs that have no link (see songLinkGaps). Hiding it is a class on <body>. -->
           <button type="button" id="menuFlagMissingLinks" class="menu-toggle-btn" aria-pressed="true" title="Show a red ! on releases that have songs with no link, which are skipped when you play the release"><span class="menu-check" aria-hidden="true">✓</span>Flag releases with unlinked songs</button>
+          <button type="button" id="menuAutoMatchAdd" class="menu-toggle-btn" aria-pressed="true" title="When you add a release, match its songs to Spotify automatically and fill in their links"><span class="menu-check" aria-hidden="true">✓</span>Match songs when adding a release</button>
+          <button type="button" id="menuAutoMatchYt" class="menu-toggle-btn" aria-pressed="false" title="Also match YouTube when adding (needs a YouTube API key; uses about 100 of the day's 10,000 quota units per release)"><span class="menu-check" aria-hidden="true">✓</span>…also on YouTube (uses API quota)</button>
           <div class="menu-divider"></div>
           <div class="menu-section-title">Discovery</div>
           <button type="button" id="menuNewReleases">New Releases <span id="newReleasesBadge" class="menu-badge" hidden>0</span></button>
@@ -6874,6 +6924,7 @@
           <div class="tracklist-builder-label-row">
             <span>Tracklist (optional)</span>
             <button type="button" id="addTracksAddRowBtn" class="chip-btn">+ Add track</button>
+            <button type="button" id="addTracksMatchBtn" class="chip-btn" title="Find Spotify (and YouTube) links for every song, and review them before adding">Match songs…</button>
           </div>
           <div id="addSpotifyMatchBanner" class="spotify-match-banner" hidden>
             <span id="addSpotifyMatchText"></span>
@@ -6889,6 +6940,7 @@
               <button type="button" id="addMusicBrainzMatchDismissBtn" class="chip-btn">Dismiss</button>
             </div>
           </div>
+          <div id="addMatchStatus" class="tb-match-status" hidden role="status" aria-live="polite"></div>
           <div id="addTracksRows" class="tracklist-builder-rows"></div>
           <p class="tracklist-builder-hint">Add a YouTube and/or Spotify link per track to play it accurately.</p>
         </div>
@@ -7278,7 +7330,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.193';
+const APP_VERSION = '1.29.194';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -7657,6 +7709,8 @@ fields: {
   rightPanelShowHistory: false,
   rightPanelShowTrackInfo: false, // Track Info section — cover art (or, toggled, playback controls) + configurable fields for whatever's currently playing
   collapsedGenres: new Set(), // genre taxonomy keys currently collapsed in the left panel's Genre tree — see filterCollapsedGenreRows/toggleGenreCollapse
+  autoMatchOnAdd: true,  // match a new release's songs to Spotify while it's being added — see autoMatchAddForm
+  autoMatchYoutube: false, // ...and to YouTube too (uses API quota, so it is opt-in)
   flagMissingLinks: true, // red ! on releases with songs that have no link — see songLinkGaps / initLinkFlags
   trackInfoShowPlayer: false, // false = cover art (default), true = compact playback progress in that same slot — see renderTrackInfoPanel()
   trackInfoShowVideo: false, // if true AND the current track has a resolvable YouTube link, shows an embedded video in that same slot instead (takes priority over trackInfoShowPlayer) — see applyTrackInfoPlayerMode()
@@ -7737,7 +7791,7 @@ const el = {};
   'menuLastfmScrobble','lastfmScrobbleOverlay','lastfmScrobbleClose','lastfmScrobbleApiKey','lastfmScrobbleSecret','lastfmScrobbleSaveBtn','lastfmScrobbleCancelBtn','lastfmScrobbleStatus',
   'lastfmScrobbleConnectHint','lastfmScrobbleConnectBtn','lastfmScrobbleFinishBtn','lastfmScrobbleDisconnectBtn','lastfmScrobbleConnectStatus',
   'menuDiscogsApi','discogsOverlay','discogsClose','discogsToken','discogsSaveBtn','discogsCancelBtn','discogsStatus',
-  'menuYoutubeApi','menuFlagMissingLinks','songMatchOverlay','songMatchClose','songMatchTitle','songMatchSub','songMatchTabs','songMatchStatus','songMatchList','songMatchSave','songMatchSelectConf','songMatchSaved','menuUpdateLog','updateLogOverlay','updateLogClose','updateLogSearch','updateLogToggleAll','updateLogSummary','updateLogNote','updateLogList','youtubeApiOverlay','youtubeApiClose','youtubeApiKey','youtubeApiSaveBtn','youtubeApiCancelBtn','youtubeApiStatus',
+  'menuYoutubeApi','menuFlagMissingLinks','menuAutoMatchAdd','menuAutoMatchYt','addTracksMatchBtn','addMatchStatus','songMatchOverlay','songMatchClose','songMatchTitle','songMatchSub','songMatchTabs','songMatchStatus','songMatchList','songMatchSave','songMatchSelectConf','songMatchSaved','menuUpdateLog','updateLogOverlay','updateLogClose','updateLogSearch','updateLogToggleAll','updateLogSummary','updateLogNote','updateLogList','youtubeApiOverlay','youtubeApiClose','youtubeApiKey','youtubeApiSaveBtn','youtubeApiCancelBtn','youtubeApiStatus',
   'menuNewReleases','newReleasesBadge','newReleasesOverlay','newReleasesClose','newReleasesCheckBtn','newReleasesLastChecked','newReleasesStatus','newReleasesList',
   'menuGenreTaxonomy','genreTaxonomyOverlay','genreTaxonomyClose','genreTaxonomyDatalist','genreTaxonomyList','genreTaxonomyAddBtn','genreTaxonomyStatus',
   'genreAutocompleteList',
@@ -9236,6 +9290,7 @@ function bindEvents() {
     renderTracklistBuilderRows(el.addTracksRows, pendingAddSpotifyTracklist);
     hideAddSpotifyMatchBanner();
     flashToast(el.addToast, 'Tracklist added — review it below before saving');
+    if (state.autoMatchOnAdd) autoMatchAddForm();
   });
   el.addSpotifyMatchDismissBtn.addEventListener('click', () => hideAddSpotifyMatchBanner());
   el.addMusicBrainzMatchAddBtn.addEventListener('click', () => {
@@ -9243,6 +9298,7 @@ function bindEvents() {
     renderTracklistBuilderRows(el.addTracksRows, pendingAddMusicBrainzTracklist);
     hideAddMusicBrainzMatchBanner();
     flashToast(el.addToast, 'Tracklist added — review it below before saving');
+    if (state.autoMatchOnAdd) autoMatchAddForm();
   });
   el.addMusicBrainzMatchDismissBtn.addEventListener('click', () => hideAddMusicBrainzMatchBanner());
   el.deckEditBtn.addEventListener('click', openEditModal);
@@ -9389,6 +9445,7 @@ function bindEvents() {
   initUpdateLog();
   initGenrePage();
   initLinkFlags();
+  initAddMatch();
   el.miniPlayerArt.addEventListener('click', () => {
     // On the compact mobile layout, tapping anywhere on the bar (including
     // the art) opens Quick Actions instead — see the el.miniPlayer listener
@@ -10032,6 +10089,8 @@ function loadPrefs() {
     if (typeof p.showTrackCredits === 'boolean') state.showTrackCredits = p.showTrackCredits;
     if (typeof p.chartGenre === 'string') state.chartGenre = p.chartGenre;
     if (typeof p.flagMissingLinks === 'boolean') state.flagMissingLinks = p.flagMissingLinks;
+    if (typeof p.autoMatchOnAdd === 'boolean') state.autoMatchOnAdd = p.autoMatchOnAdd;
+    if (typeof p.autoMatchYoutube === 'boolean') state.autoMatchYoutube = p.autoMatchYoutube;
     if (['off', 'both', 'only'].includes(p.genreChartMb)) state.genreChartMb = p.genreChartMb;
     if (typeof p.trackInfoShowPlayer === 'boolean') state.trackInfoShowPlayer = p.trackInfoShowPlayer;
     if (typeof p.trackInfoShowVideo === 'boolean') state.trackInfoShowVideo = p.trackInfoShowVideo;
@@ -10067,6 +10126,8 @@ function savePrefs() {
       showTrackCredits: state.showTrackCredits,
       chartGenre: state.chartGenre,
       flagMissingLinks: state.flagMissingLinks,
+      autoMatchOnAdd: state.autoMatchOnAdd,
+      autoMatchYoutube: state.autoMatchYoutube,
       genreChartMb: state.genreChartMb,
       trackInfoShowPlayer: state.trackInfoShowPlayer,
       trackInfoShowVideo: state.trackInfoShowVideo,
@@ -20004,15 +20065,18 @@ async function openSongMatcher(item, opts) {
   opts = opts || {};
   closeNowPlayingAddMenu();
   const mySeq = ++smLoadSeq;
-  const songs = await smBuildSongs(item);
+  const songs = opts.songs || await smBuildSongs(item);     // a release being ADDED supplies its own songs (draft mode)
   if (mySeq !== smLoadSeq) return;
   if (!songs.length) { flashGlobalToast('This release has no tracklist yet \u2014 add one first.'); return; }
-  smState = { item, songs, platform: opts.platform || 'spotify', open: null, saved: 0, touched: false,
+  smState = { item, songs, platform: opts.platform || 'spotify', open: null, saved: 0, touched: false, draft: !!opts.draft, onSave: opts.onSave || null,
     spotify: { status: 'idle', byIdx: {} }, youtube: { status: 'idle', byIdx: {} }, pick: { spotify: {}, youtube: {} }, custom: { spotify: {}, youtube: {} } };
   el.songMatchOverlay.hidden = false;
   smRender();
   if (!el.songMatchOverlay.dataset.bound) smBind();
-  smRunSpotify();                                           // free, so it starts at once; YouTube costs quota and waits for a click
+  const pre = opts.prefetched || {};                          // answers already fetched for these songs (the Add form's own run) are reused, not asked for again
+  if (pre.youtube && pre.youtube.status === 'done') { smState.youtube = pre.youtube; smState.pick.youtube = smDefaultPicks('youtube'); }
+  if (pre.spotify && pre.spotify.status === 'done') { smState.spotify = pre.spotify; smState.pick.spotify = smDefaultPicks('spotify'); smRender(); }
+  else smRunSpotify();                                           // free, so it starts at once; YouTube costs quota and waits for a click
   if (opts.focusTrackNum != null) setTimeout(() => { const row = el.songMatchList.querySelector(`.sm-row[data-track="${opts.focusTrackNum}"]`); if (row) row.scrollIntoView({ block: 'center' }); }, 60);
 }
 function closeSongMatcher(force) {
@@ -20158,7 +20222,7 @@ async function smSave() {
   const n = Object.values(updates).reduce((a, u) => a + Object.keys(u).length, 0);
   if (!n) return;
   el.songMatchSave.disabled = true;
-  const ok = await saveSongLinks(st.item, updates);
+  const ok = st.onSave ? await st.onSave(updates) : await saveSongLinks(st.item, updates);      // a draft writes into the Add form's boxes, not to the backend
   if (!ok || smState !== st) { if (smState === st) smRender(); return; }
   st.songs.forEach(s => { const u = updates[s.trackNum]; if (u) { if (u.spotifyLink) s.spotifyLink = u.spotifyLink; if (u.youtubeLink) s.youtubeLink = u.youtubeLink; } });
   st.pick = { spotify: {}, youtube: {} }; st.saved += n; st.touched = false;
@@ -20190,7 +20254,7 @@ function smBind() {
     else if (a === 'preview') {
       const id = t.dataset.id;
       if (k === 'spotify') showMiniPlayer(`spotify:track:${id}`, beginPlayIntent());
-      else openYoutubePlayer(`https://www.youtube.com/watch?v=${id}`, (st.songs[idx] || {}).title || '', undefined, st.item);
+      else openYoutubePlayer(`https://www.youtube.com/watch?v=${id}`, (st.songs[idx] || {}).title || '', [], st.draft ? undefined : st.item);   // [] = just this video (not some other open album's YouTube queue)
     }
     else if (a === 'paste-use') {
       const input = row.querySelector('.sm-paste-input'), v = input.value.trim();
@@ -20211,6 +20275,151 @@ function smBind() {
       if (t.checked) st.pick[k][idx] = cur || (best && best.id); else delete st.pick[k][idx];
       smRender();
     } else if (t.dataset.sm === 'alt') { st.pick[k][idx] = t.dataset.id; smRender(); }
+  });
+}
+
+/* ---------- Matching songs while a release is being added ----------
+   The Add form's tracklist builder has a row per song with Spotify and YouTube link boxes, but nothing filled them in
+   except one-song-at-a-time buttons. Now, as soon as songs are in the form (you accept a Spotify/MusicBrainz tracklist,
+   the form opens with one, or — as a last pass — when you press Add to crate), the Match songs engine runs on them:
+   confident matches are written into the empty link boxes with a score badge, likely-but-unsure ones get an amber "?"
+   to review, and a status line says what happened. Links you typed are never overwritten, nothing is filled into a row
+   whose title you changed meanwhile, and a late answer for a release you've moved on from is dropped. The same review
+   dialog as for saved releases opens on the unsaved one ("draft" mode: its Save writes into these boxes, not to the
+   backend). Spotify is free and automatic; YouTube costs API quota, so it runs only when the setting says so. */
+let addMatchSeq = 0;           // bumped whenever the form moves on to another release (or closes) so a late result can't fill the wrong rows
+let addMatchRun = null;        // the run in flight, so Save can wait for it instead of starting a second
+let addMatchLast = null;       // the last finished run's songs and results, reused by the review dialog
+let addMatchLastSig = '';      // what that run was for, so Save doesn't repeat it when nothing has changed
+
+function addFormSongs() {
+  const out = [];
+  [...el.addTracksRows.querySelectorAll('.tracklist-builder-row')].forEach(rowEl => {
+    const title = rowEl.querySelector('.tracklist-builder-title').value.trim();
+    if (!title) return;
+    const k = out.length;
+    out.push({ idx: k, trackNum: k + 1, trackNumber: k + 1, title, artist: el.addArtist.value.trim(), album: el.addTitle.value.trim(),
+      durationMs: Number(rowEl.dataset.durationMs) || 0,
+      spotifyLink: rowEl.querySelector('.tracklist-builder-sp').value.trim(), youtubeLink: rowEl.querySelector('.tracklist-builder-yt').value.trim(), rowEl });
+  });
+  return out;
+}
+function addFormDraftItem() { return { row: 'draft', artist: el.addArtist.value.trim(), title: el.addTitle.value.trim(), link: el.addLink.value.trim(), cover: el.addCover.value.trim(), trackData: {}, manualTracks: [] }; }
+function addFormSignature() { return JSON.stringify([el.addArtist.value.trim(), el.addTitle.value.trim(), addFormSongs().map(s => s.title)]); }
+function addMatchStatus(html, busy) {
+  if (!el.addMatchStatus) return;
+  el.addMatchStatus.hidden = !html;
+  el.addMatchStatus.innerHTML = html ? `<span>${html}</span>${busy ? '<div class="gi-mb-bar"><i></i></div>' : ''}` : '';
+}
+function addFormSetLink(rowEl, kind, link, badgeText, band, tip) {
+  const input = rowEl.querySelector(kind === 'spotify' ? '.tracklist-builder-sp' : '.tracklist-builder-yt');
+  input.value = link; input.classList.add('tb-matched');
+  const group = input.closest('.tracklist-builder-link-group');
+  let badge = group.querySelector('.tb-score');
+  if (!badge) { badge = document.createElement('span'); group.insertBefore(badge, input.nextSibling); }
+  badge.className = 'tb-score sm-' + band; badge.textContent = badgeText; badge.title = tip; badge.removeAttribute('data-suggest');
+}
+function addFormApply(result, kind) {
+  const r = result[kind];
+  if (!r || r.status !== 'done') return { filled: 0, suggested: 0 };
+  let filled = 0, suggested = 0;
+  result.songs.forEach(s => {
+    const rowEl = s.rowEl;
+    if (!rowEl.isConnected || rowEl.querySelector('.tracklist-builder-title').value.trim() !== s.title) return;     // the row's title changed since this run began
+    const input = rowEl.querySelector(kind === 'spotify' ? '.tracklist-builder-sp' : '.tracklist-builder-yt');
+    if (input.value.trim()) return;                                                                                   // never overwrite a link that is there
+    const best = (r.byIdx[s.idx] || [])[0];
+    if (!best) return;
+    const tip = `Matched automatically (${best.score}): ${(best.reasons || []).join(', ')}`;
+    if (best.band === 'confident') { addFormSetLink(rowEl, kind, best.link || smCandLink(kind, best), String(best.score), 'confident', tip); filled++; }
+    else if (best.band === 'likely') {
+      const group = input.closest('.tracklist-builder-link-group');
+      let badge = group.querySelector('.tb-score');
+      if (!badge) { badge = document.createElement('span'); group.insertBefore(badge, input.nextSibling); }
+      badge.className = 'tb-score sm-likely'; badge.textContent = '?'; badge.setAttribute('data-suggest', String(s.trackNum));
+      badge.title = `A likely match was found (${best.score}) but it isn't certain \u2014 click to review it.`; suggested++;
+    }
+  });
+  return { filled, suggested };
+}
+function addMatchSummary(result) {
+  const bits = [];
+  const part = (kind, label) => {
+    const r = result[kind]; if (!r) return;
+    if (r.status === 'done') {
+      const f = result.counts[kind];
+      bits.push(`${f.filled} of ${result.songs.length} songs linked on ${label}` + (f.suggested ? ` (${f.suggested} more to review)` : ''));
+    } else if (r.status === 'nocreds' || r.status === 'nokey') bits.push(`${label} isn\u2019t set up`);
+    else if (r.error) bits.push(`${label} couldn\u2019t be read: ${escapeHtml(r.error)}`);
+  };
+  part('spotify', 'Spotify'); part('youtube', 'YouTube');
+  result.errors.forEach(e => bits.push(escapeHtml(e)));
+  return (bits.join(' \u00b7 ') || 'No songs to match.') + ' <button type="button" class="ai-link-btn" data-am="review">Review\u2026</button>';
+}
+async function autoMatchAddForm(opts) {
+  opts = opts || {};
+  if (addMatchRun) return addMatchRun;
+  const seq = addMatchSeq;
+  addMatchRun = (async () => {
+    const songs = addFormSongs();
+    if (!songs.length) { addMatchStatus(''); return null; }
+    const creds = loadSpotifyCreds(), spotifyOn = !!(creds.clientId && creds.clientSecret);
+    const ytOn = (opts.youtube !== undefined ? opts.youtube : state.autoMatchYoutube) && !!loadYoutubeApiKey();
+    const result = { songs, spotify: null, youtube: null, counts: { spotify: { filled: 0, suggested: 0 }, youtube: { filled: 0, suggested: 0 } }, errors: [] };
+    if (!spotifyOn && !ytOn) { addMatchStatus('Songs weren\u2019t matched: Spotify isn\u2019t set up (\u2699 \u203a Spotify API\u2026).'); addMatchLastSig = addFormSignature(); return result; }
+    const draft = addFormDraftItem();
+    if (spotifyOn) {
+      addMatchStatus('Matching songs on Spotify\u2026', true);
+      try { result.spotify = await smSpotifyForRelease(draft, songs); } catch (e) { result.spotify = { status: 'error', error: String((e && e.message) || e) }; }
+      if (seq !== addMatchSeq) return null;
+      result.counts.spotify = addFormApply(result, 'spotify');
+    }
+    if (ytOn) {
+      addMatchStatus('Matching songs on YouTube\u2026', true);
+      try { result.youtube = await smYoutubeForRelease(draft, songs); } catch (e) { result.youtube = { status: /^quota$/.test(e.message) ? 'quota' : 'error', error: /^quota$/.test(e.message) ? 'the daily quota is used up' : String((e && e.message) || e) }; }
+      if (seq !== addMatchSeq) return null;
+      result.counts.youtube = addFormApply(result, 'youtube');
+    }
+    addMatchLast = result; addMatchLastSig = addFormSignature();
+    addMatchStatus(addMatchSummary(result));
+    return result;
+  })().finally(() => { addMatchRun = null; });
+  return addMatchRun;
+}
+function addFormApplyDialogPicks(updates) {      // the review dialog's Save, for an unsaved release: into the boxes, nowhere else
+  const st = smState;
+  Object.entries(updates).forEach(([num, upd]) => {
+    const s = st && st.songs.find(x => String(x.trackNum) === num);
+    if (!s || !s.rowEl.isConnected) return;
+    if (upd.spotifyLink) addFormSetLink(s.rowEl, 'spotify', upd.spotifyLink, 'chosen', 'custom', 'Chosen in Match songs');
+    if (upd.youtubeLink) addFormSetLink(s.rowEl, 'youtube', upd.youtubeLink, 'chosen', 'custom', 'Chosen in Match songs');
+  });
+  return true;
+}
+function addFormReview(focusTrackNum) {
+  const songs = addFormSongs();
+  if (!songs.length) { flashToast(el.addToast, 'Add some songs to the tracklist first'); return; }
+  const last = addMatchLast && addMatchLast.songs.length === songs.length && addMatchLast.songs.every((s, i) => s.title === songs[i].title) ? addMatchLast : null;   // reuse the answers when the list hasn't changed
+  openSongMatcher(addFormDraftItem(), { songs, draft: true, onSave: addFormApplyDialogPicks, focusTrackNum, prefetched: last && { spotify: last.spotify, youtube: last.youtube } });
+}
+function applyAutoMatchSettings() {
+  [['menuAutoMatchAdd', 'autoMatchOnAdd'], ['menuAutoMatchYt', 'autoMatchYoutube']].forEach(([id, key]) => { if (el[id]) el[id].setAttribute('aria-pressed', state[key] ? 'true' : 'false'); });
+}
+function initAddMatch() {
+  applyAutoMatchSettings();
+  [['menuAutoMatchAdd', 'autoMatchOnAdd', 'Matching songs when adding a release'], ['menuAutoMatchYt', 'autoMatchYoutube', 'Matching on YouTube when adding']].forEach(([id, key, label]) => {
+    if (!el[id]) return;
+    el[id].addEventListener('click', () => { state[key] = !state[key]; savePrefs(); applyAutoMatchSettings(); el.layoutMenu.hidden = true; flashGlobalToast(`${label}: ${state[key] ? 'on' : 'off'}.`); });
+  });
+  if (!el.addTracksMatchBtn) return;
+  el.addTracksMatchBtn.addEventListener('click', () => addFormReview());
+  el.addMatchStatus.addEventListener('click', (e) => { if (e.target.closest('[data-am="review"]')) addFormReview(); });
+  el.addTracksRows.addEventListener('click', (e) => { const b = e.target.closest('.tb-score[data-suggest]'); if (b) addFormReview(Number(b.dataset.suggest)); });
+  el.addTracksRows.addEventListener('input', (e) => {        // typing over a matched link makes it yours again: the match markers go
+    const input = e.target.closest('.tracklist-builder-sp, .tracklist-builder-yt');
+    if (!input || !input.classList.contains('tb-matched')) return;
+    input.classList.remove('tb-matched');
+    const badge = input.closest('.tracklist-builder-link-group').querySelector('.tb-score'); if (badge) badge.remove();
   });
 }
 
@@ -24412,7 +24621,7 @@ function openAddModal() {
   hideAddSpotifyMatchBanner(); // also invalidates any in-flight Spotify tracklist lookup from a previous open
   el.addSearchInput.focus();
 }
-function closeAddModal() { el.addOverlay.hidden = true; hideAddSpotifyMatchBanner(); el.addSearchHelpPopover.hidden = true; }
+function closeAddModal() { el.addOverlay.hidden = true; addMatchSeq++; hideAddSpotifyMatchBanner(); el.addSearchHelpPopover.hidden = true; }
 
 let addSearchSeq = 0; // race-condition guard: only the latest search may render its results
 
@@ -24905,7 +25114,7 @@ async function doAddSearch() {
    multiple rows there and right-click → Remove from tracklist.) */
 function tracklistBuilderRowHtml(track, idx) {
   return `
-    <div class="tracklist-builder-row" data-idx="${idx}" data-track-number="${track?.trackNumber ?? ''}">
+    <div class="tracklist-builder-row" data-idx="${idx}" data-track-number="${track?.trackNumber ?? ''}" data-duration-ms="${track?.durationMs || ''}">
       <span class="tracklist-builder-num">${idx + 1}</span>
       <input type="text" class="tracklist-builder-title" placeholder="Track title" value="${escapeHtml(track?.title || '')}">
       <div class="tracklist-builder-link-group">
@@ -25076,7 +25285,9 @@ function showAddForm(prefill) {
   el.addRymLink.value = prefill.rymLink || '';
   el.addCover.value = prefill.cover || '';
   el.addToast.textContent = '';
+  addMatchSeq++; addMatchLast = null; addMatchLastSig = ''; addMatchStatus('');      // a different release: nothing from the last one may carry over
   renderTracklistBuilderRows(el.addTracksRows, prefill.manualTracks || []);
+  if ((prefill.manualTracks || []).length && state.autoMatchOnAdd) autoMatchAddForm();
   hideAddSpotifyMatchBanner();
   hideAddMusicBrainzMatchBanner();
   // MusicBrainz is only offered once Spotify's own lookup has finished and
@@ -25157,7 +25368,7 @@ async function mbFetchTracklistForRelease(mbid) {
     let trackCounter = 1;
     (mbData.media || []).forEach(media => {
       (media.tracks || []).forEach(t => {
-        tracks.push({ trackNumber: trackCounter, title: t.title || (t.recording && t.recording.title) || 'Unknown Track' });
+        tracks.push({ trackNumber: trackCounter, title: t.title || (t.recording && t.recording.title) || 'Unknown Track', durationMs: t.length || (t.recording && t.recording.length) || 0 });
         trackCounter++;
       });
     });
@@ -25198,7 +25409,16 @@ async function saveNewAlbum() {
   const title = el.addTitle.value.trim();
   if (!artist || !title) { flashToast(el.addToast, 'Artist and title are required'); return; }
 
-  const manualTracks = collectTracklistBuilderRows(el.addTracksRows);
+  let manualTracks = collectTracklistBuilderRows(el.addTracksRows);
+  // A last pass for songs that were typed in (or changed) and haven't been matched yet. It can never get in the way of saving:
+  // it only runs when something has changed since the last run, it is capped at 25 seconds, and any failure just saves what
+  // is in the form.
+  if (manualTracks.length && state.autoMatchOnAdd && manualTracks.some(t => !t.spotifyLink) && addFormSignature() !== addMatchLastSig) {
+    const label = el.addSaveBtn.textContent; el.addSaveBtn.disabled = true; el.addSaveBtn.textContent = 'Matching songs\u2026';
+    try { await Promise.race([autoMatchAddForm(), new Promise(res => setTimeout(res, 25000))]); } catch (e) { console.warn('match before save failed', e); }
+    el.addSaveBtn.disabled = false; el.addSaveBtn.textContent = label;
+    manualTracks = collectTracklistBuilderRows(el.addTracksRows);
+  }
 
   const payload = {
     action: 'addAlbum', Artist: artist, Title: title, Type: el.addType.value,
@@ -25223,7 +25443,7 @@ async function saveNewAlbum() {
   if (manualTracks.length) payload.ManualTracks = JSON.stringify(manualTracks);
   try {
     await postUpdate(payload);
-    flashToast(el.addToast, 'Added to your crate');
+    { const linked = manualTracks.filter(t => t.spotifyLink).length; flashToast(el.addToast, state.autoMatchOnAdd && linked ? `Added to your crate \u00b7 ${linked} of ${manualTracks.length} songs linked on Spotify` : 'Added to your crate'); }
     setTimeout(() => { closeAddModal(); fetchCatalog(); }, 700);
   } catch (err) {
     // err.message now carries the backend's own error text when this was
@@ -26710,7 +26930,8 @@ async function spotifyFindAlbumTracklist(artist, title) {
       tracks: items.map((t, i) => ({
         trackNumber: i + 1,
         title: t.name,
-        spotifyLink: (t.external_urls && t.external_urls.spotify) || ''
+        spotifyLink: (t.external_urls && t.external_urls.spotify) || '',
+        durationMs: t.duration_ms || 0
       }))
     };
   } catch (e) {
@@ -29543,6 +29764,17 @@ html, body {
   @media (max-width: 900px) { .arrange-modal.update-log-modal { width: 96vw; height: calc(100vh - 260px); } .update-log-list { padding-bottom: 150px; }   /* the player bar floats over the bottom of the sheet; this lets the last entries scroll clear of it */
   .update-details { font-size: 11px; padding: 8px 10px; } }
 
+  /* ---- Matching songs while adding (see "Matching songs while a release is being added" in the script) ---- */
+  .tb-match-status { text-transform: none; letter-spacing: 0; font-family: 'Inter', sans-serif; display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; margin: 6px 0 8px; padding: 8px 10px; background: var(--bg-card); border: 1px solid var(--line); border-radius: 6px; font-size: 12.5px; color: var(--text); }
+  .tb-match-status .gi-mb-bar { flex: 1 1 100%; margin-top: 4px; }
+  .tracklist-builder-sp.tb-matched, .tracklist-builder-yt.tb-matched { border-left: 3px solid #6FBF8E; }
+  .tb-score { flex: 0 0 auto; min-width: 24px; margin-left: 6px; padding: 1px 6px; border-radius: 10px; text-align: center; font: 700 10.5px 'IBM Plex Mono', monospace; }
+  .tb-score[data-suggest] { cursor: pointer; }
+  /* The ⚙ menu grows with every setting added to it. It is capped to the room there actually is (the viewport minus the header above it
+     and, on a phone, the bottom bar and player below) and scrolls inside, so it can never run underneath the bottom bar or off the screen. */
+  #layoutMenu { max-height: calc(100vh - 130px); overflow-y: auto; overscroll-behavior: contain; }
+  @media (max-width: 900px) { #layoutMenu { max-height: calc(100vh - 235px); } }
+  @supports (height: 100dvh) { #layoutMenu { max-height: calc(100dvh - 130px); } @media (max-width: 900px) { #layoutMenu { max-height: calc(100dvh - 235px); } } }
   /* ---- Match songs (see the "Match songs" block in the script) ---- */
   .link-flag[role="button"] { cursor: pointer; }
   .link-flag[role="button"]:hover { filter: brightness(1.15); }
