@@ -19,7 +19,32 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.29.192
+  CURRENT_VERSION: 1.29.193
+
+  1.29.193 — 2026-10-08 — Genre pages on a phone: each genre row now has an (i) button that opens the genre's page, and a long-press opens the genre menu. Before, there was no way to reach them on a touch screen.
+
+          The problem: the genre page (description, years chart, releases) opened from a RIGHT-CLICK menu. A phone
+          has no right-click, and iPhone Safari doesn't turn a long-press into one either; the app's long-press
+          helper (attachLongPress, used for album covers) had never been applied to genre rows. So on a phone a
+          genre row could only filter the grid.
+
+          Now, on a touch screen (any display with no hover, or one up to 900px wide):
+            - every genre row in the Music tab's genre list (open it from the ☰ drawer) has a small round (i) button
+              that opens that genre's page directly. It is a proper button with a label ("Open the Progressive Rock
+              genre page"), a larger invisible touch target around it, and it doesn't ALSO filter the grid or play
+              the genre (a double-tap on it is swallowed). The pinned "All Genres" row has none (it isn't a genre).
+              A desktop with a mouse doesn't show it — right-click still does the job there;
+            - a half-second HOLD on a genre row opens the same menu right-click does (View genre description, Play
+              all N, Shuffle, Edit description). Sliding your finger while holding (scrolling the list) cancels it, a
+              quick tap still just filters, and lifting after a hold doesn't also "tap" the row. The genre page's own
+              genre tree has the long-press too;
+            - opening a genre from the drawer now closes the drawer, so you see the page rather than the list.
+
+          Verified in Chromium at phone size with simulated finger events: 21 checks (pw_genre_phone.py) — the
+          button on every genre row and what it does (opens the page, closes the drawer, no filtering, no playing,
+          double-tap swallowed), the long-press menu and its actions, a quick tap, a drag, the genre page's tree, and
+          that a desktop is unchanged. Removing the long-press makes two checks fail. NOT tested on a real iPhone or
+          Android device — only simulated touch events — so the half-second hold is worth trying by hand.
 
   1.29.192 — 2026-10-08 — Fix: the MusicBrainz histogram couldn't be built because the date search wasn't understood. It now works out which way of writing a date MusicBrainz accepts, and shows exactly what it said if none works.
 
@@ -7253,7 +7278,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.192';
+const APP_VERSION = '1.29.193';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -10751,6 +10776,16 @@ function buildLeftRow(entry, mode) {
     });
     // Right-click: View genre description (opens the genre's own tab), play, shuffle, edit the description.
     row.addEventListener('contextmenu', (e) => { e.preventDefault(); openGenreContextMenu(entry.label, e.clientX, e.clientY); });
+    // A phone has no right-click, and iPhone Safari doesn't turn a long-press into one either — so touch gets its own two ways in:
+    // a long-press (the same helper the album covers use) opens the same menu, and a visible (i) button opens the genre's page
+    // directly (hidden on a mouse-and-keyboard desktop, where right-click does it; see .genre-info-btn).
+    attachLongPress(row, (x, y) => openGenreContextMenu(entry.label, x, y));
+    const info = document.createElement('button');
+    info.type = 'button'; info.className = 'genre-info-btn'; info.textContent = 'i';
+    info.title = 'Open the genre page'; info.setAttribute('aria-label', `Open the ${entry.label} genre page`);
+    info.addEventListener('click', (e) => { e.stopPropagation(); openGenreTab(entry.label); });     // not also "filter the grid by this genre"
+    info.addEventListener('dblclick', (e) => e.stopPropagation());                                  // nor "play this genre"
+    row.appendChild(info);
   }
   return row;
 }
@@ -20646,6 +20681,7 @@ function openGenreTab(label, opts) {
   state.activeGenreTab = existing || name;
   if (opts && opts.edit) giUi(state.activeGenreTab).editing = true;
   renderGenreTabButtons();
+  if (isMobileDrawerLayout()) setMobileDrawer(null);      // chosen from the ☰ drawer on a phone: show the page, not the drawer
   switchTab('genreInfo');
 }
 function closeGenreTab(genre) {   // same rules as closeArtistInfoTab: only navigate away if it was the page being shown
@@ -20704,6 +20740,7 @@ function renderGenreBrowser(current) {
     text.appendChild(title);
     const count = document.createElement('span'); count.className = 'left-row-count'; count.textContent = Math.round(entry.count * 10) / 10;
     row.append(lead, text, count);
+    attachLongPress(row, (x, y) => openGenreContextMenu(row.dataset.genre, x, y));    // the same menu as right-click, for a phone
     list.appendChild(row);
   });
   list.scrollTop = prev;
@@ -29579,6 +29616,11 @@ html, body {
   .gi-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0 6px 56px 0; }
   .menu-hint-right { float: right; margin-left: 18px; font: 10.5px 'IBM Plex Mono', monospace; color: var(--text-dim); }
 
+  /* the (i) on a genre row — touch screens only (phones, tablets); a mouse has right-click */
+  .genre-info-btn { display: none; position: relative; flex: 0 0 auto; align-items: center; justify-content: center; width: 24px; height: 24px; margin-left: 6px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: none; color: var(--text-dim); font: italic 700 13px Georgia, 'Times New Roman', serif; line-height: 1; cursor: pointer; }
+  .genre-info-btn::after { content: ''; position: absolute; inset: -10px; }   /* a thumb-sized target around a small button */
+  .genre-info-btn:hover, .genre-info-btn:focus-visible { border-color: var(--accent); color: var(--accent); }
+  @media (hover: none), (max-width: 900px) { .genre-info-btn { display: inline-flex; } }
   .gi-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 14px; font: 11px 'IBM Plex Mono', monospace; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-dim); }
   .gi-crumbs a { color: var(--text-dim); text-decoration: none; }
   .gi-crumbs a:hover { color: var(--accent); }
