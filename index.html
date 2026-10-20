@@ -19,7 +19,53 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.29.196
+  CURRENT_VERSION: 1.29.197
+
+  1.29.197 — 2026-10-18 — New: export your crate to a file, choosing which links go in (Spotify, YouTube, SoundCloud, other), and import a file into a crate, reviewing everything before anything is added.
+
+          EXPORT (⚙ → "Export crate…"). A file you can keep, share, or import into another crate.
+            - Which releases: everything, or just what's showing now (the current filter/search).
+            - What goes in: Tracklists and Cover art links (each a checkbox), and Links — Spotify, YouTube, SoundCloud
+              and Other (the album link on any other site, and the RYM link) — each a checkbox, with one-click
+              presets: Everything / Only Spotify / Only YouTube / No links. Links are sorted by what they point at (the
+              host), not by the box they were typed in, so "Only Spotify" really leaves no YouTube address anywhere.
+            - A live summary ("4 releases · 7 songs · links: 3 Spotify, 5 YouTube, 3 SoundCloud, 2 other · 2.4 KB") and
+              a preview of the file's real contents update as you change the boxes. Download (crate-export-<date>.json)
+              or Copy to clipboard. Your last choices are remembered.
+            - Not exported, because they're yours: ratings, reviews, your diary and scrobbles. An automatic catalogue
+              number (CRT-007) isn't exported; one you set yourself is. A release whose tracklist is looked up
+              automatically (not entered by hand) is exported without songs. Song links to sites other than
+              Spotify/YouTube/SoundCloud have nowhere to go on import, so they're left out.
+          IMPORT (⚙ → "Import crate…"). Choose a file or paste its contents, then REVIEW before anything is added:
+            - every release in the file is marked New, Already in your crate (matched the way Last.fm matches albums, so
+              "(Remastered)" editions count), Repeated in this file, or Can't import (with the reason: missing
+              artist/title, not a release); the invalid ones can't be ticked, a duplicate can if you really want one;
+            - what each would bring (songs, links by kind) is shown per row, anything that will be left out is noted
+              (an unrecognised date is blanked, a javascript:/non-web link is ignored, an untitled song is skipped);
+            - the same choices apply on the way IN: Tracklists, Cover art, and the four link types with presets, so you
+              can drop a platform from someone else's file. Totals under the summary follow every tick and choice;
+              filter tabs: All / New / Already in your crate / Problems;
+            - only the NEW releases are ticked by default. "Add N releases…" then adds them one at a time with a
+              progress line and Cancel (Escape while adding also means "stop after this one"), lists any that failed
+              with a Retry, and refreshes the library. SoundCloud song links are attached afterwards, once the releases
+              exist. Songs are written as a ManualTracks list only when there are songs (an empty list would stop the app
+              looking the tracklist up). No backend change: it uses the existing add call.
+          Files that are refused with a plain message: not JSON, the wrong shape, from a newer format, no releases, or
+          over 5,000 releases.
+
+          Verified in real Chromium: 37 unit checks of the export/import logic (test_cx.js) and 90 browser checks
+          (pw_cx_a.py export, pw_cx_b.py import) with a test crate mixing Spotify, YouTube, SoundCloud, Bandcamp and
+          RYM links whose totals were worked out by hand: the counts, every preset, each box, the download (name and
+          contents) and clipboard, remembered choices, scope; the review's statuses, selection, tabs and totals, import
+          options, the exact payloads written, SoundCloud attachment, a second import finding everything already
+          there, failure then Retry, Cancel, Escape, bad input, an export read by a different crate, and a phone.
+          Breaking the duplicate check or the link choices each makes many tests fail.
+          Bugs the tests caught, fixed before release: a start-up crash (the helper was a const used before it
+          existed, which stopped the whole app loading) and awkward wording ("invalid link link").
+          NOT verified against the real backend (it's stubbed): large imports go one release at a time, so a few
+          hundred releases take a few minutes. REMINDER: my earlier regression suites were lost in a sandbox reset; the
+          rest of the app was covered by a smoke test and the Last.fm tests only.
+          Not done: merging links INTO releases you already own (they're skipped); importing ratings/diary; CSV.
 
   1.29.196 — 2026-10-18 — New: when CRATE opens it reviews what you played on Last.fm since your last visit, and asks which albums that aren't in your crate you'd like to add. Those plays used to be forgotten; now they're kept, and logged to the new release once you add it.
 
@@ -5823,6 +5869,8 @@
           <button type="button" id="menuSpotifyApi">Spotify API…</button>
           <button type="button" id="menuDiscogsApi">Discogs API…</button>
           <button type="button" id="menuYoutubeApi">YouTube API…</button>
+          <button type="button" id="menuExportCrate">Export crate…</button>
+          <button type="button" id="menuImportCrate">Import crate…</button>
           <button type="button" id="menuUpdateLog">Update log…</button>
           <div class="menu-divider"></div>
           <button type="button" id="menuSignOut">Sign out</button>
@@ -7372,6 +7420,73 @@
   </div>
 </div>
 
+<!-- Export / import a crate (see "Export / import a crate" in the script) -->
+<div id="cxExportOverlay" class="arrange-overlay" hidden>
+  <div class="arrange-modal add-modal cx-modal" role="dialog" aria-modal="true" aria-labelledby="cxExportTitle">
+    <div class="arrange-header"><div><h2 id="cxExportTitle">Export your crate</h2><p class="sm-sub">A file you can keep, share, or import into another crate. Your ratings, reviews and listening history aren’t included.</p></div><button id="cxExportClose" class="modal-x" aria-label="Close">✕</button></div>
+    <div class="arrange-body sm-body">
+      <div class="cx-scroll">
+        <fieldset class="cx-group"><legend>Which releases</legend>
+          <label><input type="radio" name="cxScope" id="cxScopeAll" checked> Everything <span id="cxScopeAllN" class="sm-dim"></span></label>
+          <label><input type="radio" name="cxScope" id="cxScopeView"> What’s showing now <span id="cxScopeViewN" class="sm-dim"></span></label>
+        </fieldset>
+        <fieldset class="cx-group"><legend>Include</legend>
+          <label><input type="checkbox" id="cxExpTracks"> Tracklists</label>
+          <label><input type="checkbox" id="cxExpCover"> Cover art links</label>
+        </fieldset>
+        <fieldset class="cx-group"><legend>Links</legend>
+          <div class="cx-presets">Quick: <button type="button" class="ai-link-btn" data-cx-preset="all">Everything</button><button type="button" class="ai-link-btn" data-cx-preset="spotify">Only Spotify</button><button type="button" class="ai-link-btn" data-cx-preset="youtube">Only YouTube</button><button type="button" class="ai-link-btn" data-cx-preset="none">No links</button></div>
+          <label><input type="checkbox" id="cxExpLinkSpotify"> Spotify</label>
+          <label><input type="checkbox" id="cxExpLinkYoutube"> YouTube</label>
+          <label><input type="checkbox" id="cxExpLinkSoundcloud"> SoundCloud</label>
+          <label><input type="checkbox" id="cxExpLinkOther"> Other (album and RYM links on any other site)</label>
+        </fieldset>
+        <div id="cxExportSummary" class="lfr-summary" role="status" aria-live="polite"></div>
+        <details class="cx-preview"><summary>Preview what the file will look like</summary><pre id="cxExportPreview" class="cx-pre"></pre></details>
+      </div>
+      <div class="lfr-foot"><span></span><span class="lfr-foot-right"><button type="button" id="cxExportCopy" class="ai-link-btn">Copy to clipboard</button><button type="button" id="cxExportDownload" class="config-btn">Download</button></span></div>
+    </div>
+  </div>
+</div>
+
+<div id="cxImportOverlay" class="arrange-overlay" hidden>
+  <div class="arrange-modal add-modal cx-modal" role="dialog" aria-modal="true" aria-labelledby="cxImportTitle">
+    <div class="arrange-header"><div><h2 id="cxImportTitle">Import releases</h2><p class="sm-sub">From a CRATE export file. You’ll review everything before anything is added.</p></div><button id="cxImportClose" class="modal-x" aria-label="Close">✕</button></div>
+    <div class="arrange-body sm-body">
+      <div id="cxImpPick" class="cx-scroll">
+        <p class="sm-dim">Choose an export file (.json), or paste its contents below.</p>
+        <div class="cx-pickrow"><button type="button" id="cxImpChoose" class="config-btn">Choose a file…</button><input type="file" id="cxImpFile" accept=".json,application/json" hidden></div>
+        <textarea id="cxImpText" class="cx-text" rows="8" placeholder="…or paste the export here" aria-label="Paste an export"></textarea>
+        <div class="cx-pickrow"><button type="button" id="cxImpRead" class="ai-link-btn">Read pasted text</button></div>
+        <p id="cxImpError" class="cx-error" role="alert" hidden></p>
+      </div>
+      <div id="cxImpReview" class="cx-review" hidden>
+        <div id="cxImpSummary" class="lfr-summary" role="status" aria-live="polite"></div>
+        <fieldset class="cx-group cx-compact"><legend>What to bring in</legend>
+          <label><input type="checkbox" id="cxImpTracks"> Tracklists</label>
+          <label><input type="checkbox" id="cxImpCover"> Cover art links</label>
+          <span class="cx-sep" aria-hidden="true">|</span>
+          <span class="cx-lbl">Links:</span>
+          <label><input type="checkbox" id="cxImpLinkSpotify"> Spotify</label>
+          <label><input type="checkbox" id="cxImpLinkYoutube"> YouTube</label>
+          <label><input type="checkbox" id="cxImpLinkSoundcloud"> SoundCloud</label>
+          <label><input type="checkbox" id="cxImpLinkOther"> Other</label>
+          <span class="cx-presets cx-presets-end">Quick: <button type="button" class="ai-link-btn" data-cx-preset="all">All</button><button type="button" class="ai-link-btn" data-cx-preset="spotify">Only Spotify</button><button type="button" class="ai-link-btn" data-cx-preset="youtube">Only YouTube</button><button type="button" class="ai-link-btn" data-cx-preset="none">None</button></span>
+        </fieldset>
+        <div id="cxImpTabs" class="gi-seg gi-seg-text" role="group" aria-label="Show"></div>
+        <div id="cxImpList" class="sm-list"></div>
+        <div class="lfr-foot"><span><button type="button" id="cxImpBack" class="ai-link-btn">← Choose another file</button> <button type="button" id="cxImpSelNew" class="ai-link-btn">Select all new</button> <button type="button" id="cxImpSelNone" class="ai-link-btn">Select none</button></span><span class="lfr-foot-right"><button type="button" id="cxImpGo" class="config-btn" disabled>Add selected…</button></span></div>
+      </div>
+      <div id="cxImpProgress" class="cx-scroll" hidden>
+        <p id="cxImpProgText" role="status" aria-live="polite"></p>
+        <div class="gi-mb-bar cx-bar"><i id="cxImpBar" style="width:0%;animation:none"></i></div>
+        <div id="cxImpResult" class="lfr-summary" hidden></div>
+        <div class="lfr-foot"><span></span><span class="lfr-foot-right"><button type="button" id="cxImpCancel" class="ai-link-btn">Cancel</button><button type="button" id="cxImpRetry" class="ai-link-btn" hidden>Retry failed</button><button type="button" id="cxImpDone" class="config-btn">Done</button></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="newReleasesOverlay" class="arrange-overlay" hidden>
   <div class="arrange-modal add-modal new-releases-modal">
     <div class="arrange-header"><h2>New Releases</h2><button id="newReleasesClose" class="modal-x" aria-label="Close">✕</button></div>
@@ -7409,7 +7524,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.196';
+const APP_VERSION = '1.29.197';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -9527,6 +9642,7 @@ function bindEvents() {
   initLinkFlags();
   initAddMatch();
   initLastfmReview();
+  initCrateExchange();
   initGenreLinks();
   el.miniPlayerArt.addEventListener('click', () => {
     // On the compact mobile layout, tapping anywhere on the bar (including
@@ -9873,7 +9989,7 @@ function bindEvents() {
       }
     }
     if (e.key !== 'Escape') return;
-    closeLastfmReview(); closeSongMatcher(); closeUpdateLog(); closeArtistQuickOpen(); closeNowPlayingAddMenu(); closeDeck(); closeQuickActions(); closeAdvSearch(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal(); closeTrackPropertiesModal(); closeTimelineModal(); closeMapModal();
+    closeCxImport(); closeCxExport(); closeLastfmReview(); closeSongMatcher(); closeUpdateLog(); closeArtistQuickOpen(); closeNowPlayingAddMenu(); closeDeck(); closeQuickActions(); closeAdvSearch(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal(); closeTrackPropertiesModal(); closeTimelineModal(); closeMapModal();
     setMobileDrawer(null);
     // Deliberately NOT closing the master player here — whichever engine
     // (Spotify or YouTube) is driving it, it's a persistent background
@@ -20544,6 +20660,329 @@ function lfLoggedAlbums(groups) {
 }
 // END lastfm-review
 
+// BEGIN crate-exchange
+// ---- Exporting and importing a crate: what a file contains, how it is checked, and what an import will write (pure) ----
+// A release in the file: artist, title, type, releaseDate, recorded, genre, secondaryGenre, region, location, label, catalog (only when you
+// set one yourself), descriptor, scene, movement, link (the album's link), rymLink, cover, tracks [{n, title, spotify, youtube, soundcloud}].
+// Links are sorted by WHAT THEY POINT AT (the host), not by the box they were typed in: spotify, youtube, soundcloud, or "other".
+// Ratings, reviews, diary entries and scrobbles are yours and are not exported.
+const CX_FORMAT = 'crate-export', CX_VERSION = 1, CX_MAX_RELEASES = 5000, CX_AUTO_CATALOG = /^CRT-\d+$/;
+const CX_KINDS = ['spotify', 'youtube', 'soundcloud', 'other'];
+function cxLinkKind(url) {
+  const u = String(url == null ? '' : url).trim();
+  if (!u) return '';
+  if (/^spotify:/i.test(u)) return 'spotify';
+  let host = '';
+  try { host = new URL(u).hostname.toLowerCase().replace(/^www\./, ''); } catch (e) { return 'other'; }
+  if (host === 'spotify.link' || host === 'spotify.com' || host.endsWith('.spotify.com')) return 'spotify';
+  if (host === 'youtu.be' || host === 'youtube.com' || host.endsWith('.youtube.com')) return 'youtube';
+  if (host === 'soundcloud.com' || host.endsWith('.soundcloud.com') || host === 'snd.sc') return 'soundcloud';
+  return 'other';
+}
+function cxCleanUrl(v) { const s = String(v == null ? '' : v).trim(); if (!s) return ''; if (/^spotify:\S+$/i.test(s)) return s; return /^https?:\/\/\S+$/i.test(s) ? s : ''; }   // http(s) links and spotify: URIs only (never javascript: and the like)
+function cxExportTracks(item, opts) {
+  if (!opts.tracks || !item.hasManualTracklist || !Array.isArray(item.manualTracks)) return [];
+  const td = item.trackData || {}, out = [];
+  item.manualTracks.forEach((mt, i) => {
+    const title = String((mt && mt.title) || '').trim();
+    if (!title) return;
+    const n = Number(mt.trackNumber) || i + 1, o = td[n] || {}, t = { n, title };
+    [o.spotifyLink || mt.spotifyLink, o.youtubeLink || mt.youtubeLink, o.soundcloudLink || mt.soundcloudLink].forEach(v => {
+      const k = cxLinkKind(v);
+      if (k && k !== 'other' && opts.links[k] && !t[k]) t[k] = String(v).trim();       // a song link to a site that isn't one of the three has nowhere to go on import, so it isn't exported
+    });
+    out.push(t);
+  });
+  return out;
+}
+function cxBuildExport(items, opts, meta) {
+  const releases = (items || []).map(it => {
+    const rel = {}, put = (k, v) => { const s = String(v == null ? '' : v).trim(); if (s) rel[k] = s; };
+    put('artist', it.artist); put('title', it.title); put('type', it.type === 'Unknown' ? '' : it.type);
+    put('releaseDate', it.releaseDate); put('recorded', it.recordedDate); put('genre', it.genre); put('secondaryGenre', it.genre2);
+    put('region', it.region); put('location', it.location); put('label', it.label);
+    if (it.catalog && !CX_AUTO_CATALOG.test(String(it.catalog).trim())) put('catalog', it.catalog);
+    put('descriptor', it.descriptor); put('scene', it.scene); put('movement', it.movement);
+    const lk = cxLinkKind(it.link); if (it.link && opts.links[lk]) put('link', it.link);
+    if (it.rymLink && opts.links.other) put('rymLink', it.rymLink);
+    if (opts.cover) put('cover', it.cover);
+    const tracks = cxExportTracks(it, opts); if (tracks.length) rel.tracks = tracks;
+    return rel;
+  });
+  return { format: CX_FORMAT, version: CX_VERSION, exportedAt: (meta && meta.exportedAt) || new Date().toISOString(), options: { tracks: !!opts.tracks, cover: !!opts.cover, links: Object.assign({}, opts.links) }, releases };
+}
+function cxCounts(releases) {
+  const c = { releases: releases.length, tracks: 0, links: { spotify: 0, youtube: 0, soundcloud: 0, other: 0 } };
+  releases.forEach(r => {
+    if (r.link) c.links[cxLinkKind(r.link) || 'other']++;
+    if (r.rymLink) c.links.other++;
+    (r.tracks || []).forEach(t => { c.tracks++; ['spotify', 'youtube', 'soundcloud'].forEach(k => { if (t[k]) c.links[k]++; }); });
+  });
+  return c;
+}
+function cxNormalizeRelease(raw, idx) {
+  const str = (v) => (v == null ? '' : String(v)).trim();
+  const r = { idx, artist: '', title: '', type: '', releaseDate: '', recorded: '', genre: '', secondaryGenre: '', region: '', location: '', label: '', catalog: '', descriptor: '', scene: '', movement: '', link: '', rymLink: '', cover: '', tracks: [], problems: [], warnings: [] };
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { r.problems.push('Not a release entry'); r.invalid = true; return r; }
+  r.artist = str(raw.artist); r.title = str(raw.title); r.type = str(raw.type);
+  r.recorded = str(raw.recorded != null ? raw.recorded : raw.recordedDate); r.releaseDate = str(raw.releaseDate);
+  r.genre = str(raw.genre); r.secondaryGenre = str(raw.secondaryGenre != null ? raw.secondaryGenre : raw.genre2);
+  ['region', 'location', 'label', 'catalog', 'descriptor', 'scene', 'movement'].forEach(k => { r[k] = str(raw[k]); });
+  if (!r.artist) r.problems.push('Missing artist');
+  if (!r.title) r.problems.push('Missing title');
+  [['releaseDate', 'release date'], ['recorded', 'recorded date']].forEach(([k, label]) => {
+    if (r[k] && !/^\d{4}(-\d{2}(-\d{2})?)?$/.test(r[k])) { r.warnings.push(`Unrecognised ${label} \u201c${r[k]}\u201d left blank`); r[k] = ''; }
+  });
+  ['link', 'rymLink', 'cover'].forEach(k => {
+    const v = str(raw[k]); if (!v) return;
+    r[k] = cxCleanUrl(v); if (!r[k]) r.warnings.push(`Ignored an invalid ${{ link: 'album', rymLink: 'RYM', cover: 'cover art' }[k]} link`);
+  });
+  if (Array.isArray(raw.tracks)) {
+    let dropped = 0, badLinks = 0;
+    raw.tracks.forEach((t, i) => {
+      if (!t || typeof t !== 'object') { dropped++; return; }
+      const title = str(t.title); if (!title) { dropped++; return; }
+      const nt = { n: Number(t.n) || i + 1, title };
+      ['spotify', 'youtube', 'soundcloud'].forEach(k => {
+        const v = str(t[k]); if (!v) return;
+        const clean = cxCleanUrl(v);
+        if (clean && cxLinkKind(clean) === k) nt[k] = clean; else badLinks++;
+      });
+      r.tracks.push(nt);
+    });
+    if (dropped) r.warnings.push(`${dropped} track${dropped === 1 ? '' : 's'} without a title skipped`);
+    if (badLinks) r.warnings.push(`${badLinks} song link${badLinks === 1 ? '' : 's'} ignored (not a valid ${'Spotify/YouTube/SoundCloud'} link)`);
+  }
+  r.invalid = r.problems.length > 0;
+  return r;
+}
+function cxParseImport(text) {
+  let data;
+  try { data = JSON.parse(text); } catch (e) { return { ok: false, error: 'That isn\u2019t valid JSON \u2014 is it a CRATE export file?' }; }
+  let list, meta = {};
+  if (Array.isArray(data)) list = data;
+  else if (data && typeof data === 'object' && Array.isArray(data.releases)) {
+    list = data.releases;
+    if (data.format && data.format !== CX_FORMAT) return { ok: false, error: `This file is a \u201c${String(data.format).slice(0, 40)}\u201d file, not a CRATE export.` };
+    meta = { version: data.version, exportedAt: data.exportedAt || '', options: data.options || null };
+    if (Number(data.version) > CX_VERSION) return { ok: false, error: `This file was made by a newer version of CRATE (format ${data.version}); this one reads format ${CX_VERSION}.` };
+  } else return { ok: false, error: 'This doesn\u2019t look like a CRATE export (no releases found in it).' };
+  if (!list.length) return { ok: false, error: 'The file has no releases in it.' };
+  if (list.length > CX_MAX_RELEASES) return { ok: false, error: `The file has ${list.length.toLocaleString()} releases; the limit for one import is ${CX_MAX_RELEASES.toLocaleString()}.` };
+  return { ok: true, meta, releases: list.map((r, i) => cxNormalizeRelease(r, i)) };
+}
+function cxClassify(releases, existingKeys, keyFn) {          // new | duplicate (already in your crate) | repeat (again in the file) | invalid
+  const seen = new Set();
+  releases.forEach(r => {
+    if (r.invalid) { r.status = 'invalid'; return; }
+    const k = keyFn(r.artist, r.title);
+    if (existingKeys.has(k)) r.status = 'duplicate';
+    else if (seen.has(k)) r.status = 'repeat';
+    else r.status = 'new';
+    seen.add(k);
+  });
+  return releases;
+}
+function cxShape(rel, opts) {                                  // what an import will really write, given the link / tracklist / cover choices
+  const s = Object.assign({}, rel);
+  if (rel.link && !opts.links[cxLinkKind(rel.link) || 'other']) s.link = '';
+  if (rel.rymLink && !opts.links.other) s.rymLink = '';
+  if (!opts.cover) s.cover = '';
+  s.tracks = opts.tracks ? (rel.tracks || []).map(t => { const nt = { n: t.n, title: t.title }; ['spotify', 'youtube', 'soundcloud'].forEach(k => { if (t[k] && opts.links[k]) nt[k] = t[k]; }); return nt; }) : [];
+  return s;
+}
+function cxAddPayload(s) {
+  const p = { action: 'addAlbum', Artist: s.artist, Title: s.title, Type: s.type || 'Album', ReleaseDate: s.releaseDate, Recorded: s.recorded, Genre: s.genre, SecondaryGenre: s.secondaryGenre,
+    Region: s.region, Location: s.location, Label: s.label, Catalog: s.catalog, Descriptor: s.descriptor, Scene: s.scene, Movement: s.movement, Link: s.link, RymLink: s.rymLink, Cover: s.cover };
+  if (s.tracks.length) p.ManualTracks = JSON.stringify(s.tracks.map(t => ({ trackNumber: t.n, title: t.title, youtubeLink: t.youtube || '', spotifyLink: t.spotify || '' })));   // only when there are songs: an empty list would stop the app looking the tracklist up
+  return p;
+}
+function cxSoundcloudUpdates(s) { const u = {}; (s.tracks || []).forEach(t => { if (t.soundcloud) u[t.n] = { soundcloudLink: t.soundcloud }; }); return u; }   // SoundCloud links live with the per-song data, set after the release exists
+// END crate-exchange
+
+/* ---------- Export / import a crate ----------
+   ⚙ → "Export crate…": choose which releases (everything, or what's showing now) and what goes in — tracklists, cover art, and
+   WHICH LINKS: Spotify, YouTube, SoundCloud, Other (album/RYM links on any other site), with one-click presets (Everything / Only
+   Spotify / Only YouTube / No links). A live summary and a preview show exactly what the file will hold; Download or Copy.
+   ⚙ → "Import crate…": pick a file or paste its contents, choose again which links / tracklists / cover art to bring in, then REVIEW:
+   every release is marked new, already in your crate, repeated in the file, or can't be imported (with the reason), you tick what
+   to add and the totals follow. Only then are releases added — one at a time through the normal add call, with progress and
+   Cancel; failures are listed with a Retry, and SoundCloud song links are attached once the releases exist. */
+const CX_OPTS_KEY = 'crate_export_opts_v1';
+function cxEl(id) { return document.getElementById(id); }      // a function declaration, not a const: init runs earlier in the file than this block, and a const wouldn't exist yet
+const CX_LINK_IDS = { spotify: 'LinkSpotify', youtube: 'LinkYoutube', soundcloud: 'LinkSoundcloud', other: 'LinkOther' };
+let cxImp = null, cxExportText = '';
+function cxDefaultOpts() { return { tracks: true, cover: true, links: { spotify: true, youtube: true, soundcloud: true, other: true } }; }
+function cxLoadOpts() {
+  const d = cxDefaultOpts();
+  try {
+    const s = JSON.parse(localStorage.getItem(CX_OPTS_KEY) || '{}') || {};
+    if (typeof s.tracks === 'boolean') d.tracks = s.tracks;
+    if (typeof s.cover === 'boolean') d.cover = s.cover;
+    CX_KINDS.forEach(k => { if (s.links && typeof s.links[k] === 'boolean') d.links[k] = s.links[k]; });
+  } catch (e) { /* defaults */ }
+  return d;
+}
+function cxSaveOpts(o) { try { localStorage.setItem(CX_OPTS_KEY, JSON.stringify(o)); } catch (e) { /* not remembered */ } }
+function cxSetBoxes(prefix, o) { cxEl(prefix + 'Tracks').checked = !!o.tracks; cxEl(prefix + 'Cover').checked = !!o.cover; CX_KINDS.forEach(k => { cxEl(prefix + CX_LINK_IDS[k]).checked = !!o.links[k]; }); }
+function cxGetBoxes(prefix) { const links = {}; CX_KINDS.forEach(k => { links[k] = cxEl(prefix + CX_LINK_IDS[k]).checked; }); return { tracks: cxEl(prefix + 'Tracks').checked, cover: cxEl(prefix + 'Cover').checked, links }; }
+function cxPresetLinks(name) { return { spotify: name === 'all' || name === 'spotify', youtube: name === 'all' || name === 'youtube', soundcloud: name === 'all', other: name === 'all' }; }
+function cxN(n, w) { return `${n.toLocaleString()} ${w}${n === 1 ? '' : 's'}`; }
+function cxFmtCounts(c) {
+  const L = c.links, bits = [];
+  if (L.spotify) bits.push(`${L.spotify.toLocaleString()} Spotify`); if (L.youtube) bits.push(`${L.youtube.toLocaleString()} YouTube`);
+  if (L.soundcloud) bits.push(`${L.soundcloud.toLocaleString()} SoundCloud`); if (L.other) bits.push(`${L.other.toLocaleString()} other`);
+  return `${cxN(c.releases, 'release')} \u00b7 ${cxN(c.tracks, 'song')} \u00b7 ${bits.length ? 'links: ' + bits.join(', ') : 'no links'}`;
+}
+// ----- export -----
+function openCxExport() {
+  cxSetBoxes('cxExp', cxLoadOpts());
+  cxEl('cxScopeAllN').textContent = `(${state.raw.length.toLocaleString()})`; cxEl('cxScopeViewN').textContent = `(${(state.filtered || state.raw).length.toLocaleString()})`;
+  cxEl('cxScopeAll').checked = true;
+  el.layoutMenu.hidden = true;
+  cxEl('cxExportOverlay').hidden = false;
+  if (!cxEl('cxExportOverlay').dataset.bound) cxExportBind();
+  cxExportRefresh();
+}
+function closeCxExport() { const ov = cxEl('cxExportOverlay'); if (ov && !ov.hidden) ov.hidden = true; }
+function cxExportRefresh() {
+  const o = cxGetBoxes('cxExp'); cxSaveOpts(o);
+  const items = cxEl('cxScopeView').checked ? (state.filtered || state.raw) : state.raw;
+  const obj = cxBuildExport(items, o); cxExportText = JSON.stringify(obj, null, 2);
+  const kb = cxExportText.length / 1024;
+  cxEl('cxExportSummary').textContent = `${cxFmtCounts(cxCounts(obj.releases))} \u00b7 ${kb < 100 ? kb.toFixed(1) : Math.round(kb)} KB`;
+  cxEl('cxExportPreview').textContent = JSON.stringify(Object.assign({}, obj, { releases: obj.releases.slice(0, 2) }), null, 2) + (obj.releases.length > 2 ? `\n\u2026 and ${obj.releases.length - 2} more release${obj.releases.length - 2 === 1 ? '' : 's'}` : '');
+  cxEl('cxExportDownload').disabled = cxEl('cxExportCopy').disabled = !obj.releases.length;
+}
+function cxDownload(filename, text) {
+  const blob = new Blob([text], { type: 'application/json' }), a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+}
+async function cxCopy(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch (e) { /* fall through to the old way */ }
+  try { const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); const ok = document.execCommand('copy'); ta.remove(); return ok; } catch (e) { return false; }
+}
+function cxExportBind() {
+  const ov = cxEl('cxExportOverlay'); ov.dataset.bound = '1';
+  cxEl('cxExportClose').addEventListener('click', closeCxExport);
+  ov.addEventListener('mousedown', (e) => { if (e.target === ov) closeCxExport(); });
+  ov.addEventListener('change', (e) => { if (e.target.closest('input')) cxExportRefresh(); });
+  ov.addEventListener('click', (e) => { const b = e.target.closest('[data-cx-preset]'); if (!b) return; const l = cxPresetLinks(b.dataset.cxPreset); CX_KINDS.forEach(k => { cxEl('cxExp' + CX_LINK_IDS[k]).checked = l[k]; }); cxExportRefresh(); });
+  cxEl('cxExportDownload').addEventListener('click', () => {
+    const name = `crate-export-${new Date().toISOString().slice(0, 10)}.json`;
+    cxDownload(name, cxExportText); flashGlobalToast(`Exported ${cxN(JSON.parse(cxExportText).releases.length, 'release')} to ${name}.`);
+  });
+  cxEl('cxExportCopy').addEventListener('click', async () => { flashGlobalToast(await cxCopy(cxExportText) ? 'Copied the export to the clipboard.' : 'Couldn\u2019t copy \u2014 use Download instead.'); });
+}
+// ----- import -----
+function openCxImport() {
+  cxImp = { releases: null, meta: null, selected: new Set(), filter: 'all', running: false, cancel: false, added: [], failed: [] };
+  cxEl('cxImpText').value = ''; cxEl('cxImpFile').value = ''; cxEl('cxImpError').hidden = true;
+  cxSetBoxes('cxImp', cxLoadOpts());
+  el.layoutMenu.hidden = true;
+  cxImpShow('cxImpPick'); cxEl('cxImportOverlay').hidden = false;
+  if (!cxEl('cxImportOverlay').dataset.bound) cxImportBind();
+}
+function closeCxImport() {
+  const ov = cxEl('cxImportOverlay'); if (!ov || ov.hidden) return;
+  if (cxImp && cxImp.running) { cxImp.cancel = true; return; }          // while adding, closing means "stop after the one in progress"
+  ov.hidden = true; cxImp = null;
+}
+function cxImpShow(section) { ['cxImpPick', 'cxImpReview', 'cxImpProgress'].forEach(id => { cxEl(id).hidden = id !== section; }); }
+function cxImpRead(text) {
+  const r = cxParseImport(text);
+  if (!r.ok) { cxEl('cxImpError').textContent = r.error; cxEl('cxImpError').hidden = false; return; }
+  cxClassify(r.releases, new Set(state.raw.map(i => lastfmNormKey(i.artist, i.title))), lastfmNormKey);
+  Object.assign(cxImp, { releases: r.releases, meta: r.meta, filter: 'all', selected: new Set(r.releases.filter(x => x.status === 'new').map(x => x.idx)) });
+  cxEl('cxImpError').hidden = true; cxImpShow('cxImpReview'); cxImpRender();
+}
+const CX_STATUS = { new: ['New', 'cx-chip-new'], duplicate: ['Already in your crate', 'cx-chip-dupe'], repeat: ['Repeated in this file', 'cx-chip-dupe'], invalid: ['Can\u2019t import', 'cx-chip-bad'] };
+function cxImpRender() {
+  const st = cxImp; if (!st || !st.releases) return;
+  const opts = cxGetBoxes('cxImp'), rels = st.releases;
+  const by = { new: 0, duplicate: 0, repeat: 0, invalid: 0 }; rels.forEach(r => { by[r.status]++; });
+  const chosen = rels.filter(r => st.selected.has(r.idx)), shaped = chosen.map(r => cxShape(r, opts)), c = cxCounts(shaped);
+  const when = st.meta && st.meta.exportedAt ? ` (exported ${new Date(st.meta.exportedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })})` : '';
+  cxEl('cxImpSummary').innerHTML = `The file has <b>${cxN(rels.length, 'release')}</b>${when}: <b>${by.new}</b> new, ${by.duplicate} already in your crate${by.repeat ? `, ${by.repeat} repeated in the file` : ''}${by.invalid ? `, ${by.invalid} that can\u2019t be imported` : ''}.<br>Selected to add: <b>${cxFmtCounts(c)}</b>`;
+  const tabs = [['all', `All ${rels.length}`], ['new', `New ${by.new}`], ['dupe', `Already in your crate ${by.duplicate + by.repeat}`], ['bad', `Problems ${by.invalid}`]];
+  cxEl('cxImpTabs').innerHTML = tabs.map(([k, t]) => `<button type="button" class="gi-seg-btn${st.filter === k ? ' active' : ''}" data-cxtab="${k}" aria-pressed="${st.filter === k}">${t}</button>`).join('');
+  const show = rels.filter(r => st.filter === 'all' || (st.filter === 'new' && r.status === 'new') || (st.filter === 'dupe' && (r.status === 'duplicate' || r.status === 'repeat')) || (st.filter === 'bad' && r.status === 'invalid'));
+  cxEl('cxImpList').innerHTML = show.map(r => {
+    const rc = cxCounts([cxShape(r, opts)]), on = st.selected.has(r.idx), [label, cls] = CX_STATUS[r.status];
+    const L = rc.links, bits = [r.type, (r.releaseDate || '').slice(0, 4), r.genre].filter(Boolean);
+    const links = [L.spotify && `${L.spotify} Spotify`, L.youtube && `${L.youtube} YouTube`, L.soundcloud && `${L.soundcloud} SoundCloud`, L.other && `${L.other} other`].filter(Boolean);
+    const notes = r.problems.concat(r.warnings);
+    return `<div class="lfr-row${on ? ' picked' : ''}" data-idx="${r.idx}"><label class="lfr-check"><input type="checkbox" data-cx="pick"${on ? ' checked' : ''}${r.invalid ? ' disabled' : ''} aria-label="Select ${escapeHtml(r.artist)} \u2014 ${escapeHtml(r.title)}"></label>
+      <div class="lfr-main"><span class="lfr-title">${escapeHtml(r.artist || '(no artist)')} \u2014 ${escapeHtml(r.title || '(no title)')}</span>
+      <span class="lfr-meta">${escapeHtml(bits.join(' \u00b7 ') || 'no details')}${rc.tracks ? ` \u00b7 ${cxN(rc.tracks, 'song')}` : ''}${links.length ? ` \u00b7 ${links.join(', ')}` : ''}</span>
+      ${notes.length ? `<span class="lfr-tracks cx-notes" title="${escapeHtml(notes.join('; '))}">${escapeHtml(notes[0])}${notes.length > 1 ? ` (+${notes.length - 1} more)` : ''}</span>` : ''}</div>
+      <span class="cx-chip ${cls}">${label}</span></div>`;
+  }).join('') || '<p class="sm-dim" style="padding:12px 4px">Nothing in this view.</p>';
+  cxEl('cxImpGo').textContent = chosen.length ? `Add ${cxN(chosen.length, 'release')}\u2026` : 'Add selected\u2026'; cxEl('cxImpGo').disabled = !chosen.length;
+}
+async function cxImpRun(list) {                // list: [{ idx, shaped }]
+  const st = cxImp; st.running = true; st.cancel = false; st.added = []; st.failed = [];
+  cxImpShow('cxImpProgress'); cxEl('cxImpResult').hidden = true; cxEl('cxImpCancel').hidden = false; cxEl('cxImpCancel').disabled = false;
+  const total = list.length;
+  for (let i = 0; i < total; i++) {
+    if (st.cancel) break;
+    const it = list[i];
+    cxEl('cxImpProgText').textContent = `Adding ${i + 1} of ${total} \u2014 ${it.shaped.artist} \u2014 ${it.shaped.title}`;
+    cxEl('cxImpBar').style.width = `${Math.round(i / total * 100)}%`;
+    try { const res = await postUpdate(cxAddPayload(it.shaped)); st.added.push({ idx: it.idx, albumId: (res && res.albumId) || '', shaped: it.shaped }); }
+    catch (e) { st.failed.push({ idx: it.idx, shaped: it.shaped, error: String((e && e.message) || e) }); if (/unauthorized/i.test(String(e && e.message))) break; }
+  }
+  const notTried = total - st.added.length - st.failed.length;
+  cxEl('cxImpBar').style.width = '100%'; cxEl('cxImpProgText').textContent = 'Finishing\u2026'; cxEl('cxImpCancel').hidden = true;
+  try { await fetchCatalog(); } catch (e) { console.warn('refresh after import failed', e); }
+  // SoundCloud links live with the per-song data, which needs the release to exist: attach them now.
+  let scFailed = 0;
+  for (const a of st.added) {
+    const upd = cxSoundcloudUpdates(a.shaped); if (!a.albumId || !Object.keys(upd).length) continue;
+    const item = state.raw.find(r => r.albumId === a.albumId);
+    try { if (item) await saveSongLinks(item, upd); else scFailed++; } catch (e) { scFailed++; }
+  }
+  st.running = false;
+  const lines = [`<b>${cxN(st.added.length, 'release')}</b> added${notTried ? `, ${notTried} not attempted (stopped)` : ''}${st.failed.length ? `, <b>${st.failed.length}</b> failed` : ''}.`];
+  if (scFailed) lines.push(`${cxN(scFailed, 'release')} added, but their SoundCloud song links couldn\u2019t be attached.`);
+  if (st.failed.length) lines.push(`<ul class="cx-fails">${st.failed.map(f => `<li>${escapeHtml(f.shaped.artist)} \u2014 ${escapeHtml(f.shaped.title)}: ${escapeHtml(f.error)}</li>`).join('')}</ul>`);
+  cxEl('cxImpProgText').textContent = st.failed.length || notTried ? 'Import finished with problems' : 'Import finished';
+  cxEl('cxImpResult').innerHTML = lines.join('<br>'); cxEl('cxImpResult').hidden = false;
+  cxEl('cxImpRetry').hidden = !st.failed.length;
+  if (st.added.length) flashGlobalToast(`Imported ${cxN(st.added.length, 'release')}.`);
+}
+function cxImportBind() {
+  const ov = cxEl('cxImportOverlay'); ov.dataset.bound = '1';
+  cxEl('cxImportClose').addEventListener('click', closeCxImport);
+  ov.addEventListener('mousedown', (e) => { if (e.target === ov && !(cxImp && cxImp.running)) closeCxImport(); });
+  cxEl('cxImpChoose').addEventListener('click', () => cxEl('cxImpFile').click());
+  cxEl('cxImpFile').addEventListener('change', async () => { const f = cxEl('cxImpFile').files[0]; if (f) cxImpRead(await f.text()); });
+  cxEl('cxImpRead').addEventListener('click', () => { const t = cxEl('cxImpText').value.trim(); if (t) cxImpRead(t); else { cxEl('cxImpError').textContent = 'Choose a file, or paste the export here first.'; cxEl('cxImpError').hidden = false; } });
+  cxEl('cxImpBack').addEventListener('click', () => { cxImpShow('cxImpPick'); });
+  cxEl('cxImpSelNew').addEventListener('click', () => { cxImp.selected = new Set(cxImp.releases.filter(r => r.status === 'new').map(r => r.idx)); cxImpRender(); });
+  cxEl('cxImpSelNone').addEventListener('click', () => { cxImp.selected = new Set(); cxImpRender(); });
+  cxEl('cxImpGo').addEventListener('click', () => { const o = cxGetBoxes('cxImp'); cxImpRun(cxImp.releases.filter(r => cxImp.selected.has(r.idx)).map(r => ({ idx: r.idx, shaped: cxShape(r, o) }))); });
+  cxEl('cxImpCancel').addEventListener('click', () => { cxImp.cancel = true; cxEl('cxImpCancel').disabled = true; cxEl('cxImpProgText').textContent = 'Stopping after this one\u2026'; });
+  cxEl('cxImpRetry').addEventListener('click', () => { const f = cxImp.failed.map(x => ({ idx: x.idx, shaped: x.shaped })); cxEl('cxImpRetry').hidden = true; cxImpRun(f); });
+  cxEl('cxImpDone').addEventListener('click', () => { ov.hidden = true; cxImp = null; });
+  ov.addEventListener('change', (e) => {
+    if (!cxImp || !cxImp.releases) return;
+    const pick = e.target.closest('[data-cx="pick"]');
+    if (pick) { const idx = Number(pick.closest('.lfr-row').dataset.idx); if (pick.checked) cxImp.selected.add(idx); else cxImp.selected.delete(idx); }
+    cxImpRender();                           // a link / tracklist / cover box changed, or a pick: the totals and rows follow
+  });
+  ov.addEventListener('click', (e) => {
+    const p = e.target.closest('[data-cx-preset]');
+    if (p) { const l = cxPresetLinks(p.dataset.cxPreset); CX_KINDS.forEach(k => { cxEl('cxImp' + CX_LINK_IDS[k]).checked = l[k]; }); if (cxImp && cxImp.releases) cxImpRender(); return; }
+    const t = e.target.closest('[data-cxtab]'); if (t && cxImp) { cxImp.filter = t.dataset.cxtab; cxImpRender(); }
+  });
+}
+function initCrateExchange() {
+  cxEl('menuExportCrate').addEventListener('click', openCxExport);
+  cxEl('menuImportCrate').addEventListener('click', openCxImport);
+}
+
 // BEGIN mb-hist
 // ---- MusicBrainz release counts by year: the plan (pure — the request itself is injected, so this can be tested) ----
 // MusicBrainz can't list "releases per year" in one go, but a search reports its total (count) for any query, and a
@@ -30069,6 +30508,39 @@ html, body {
     .arrange-modal.lfr-modal { width: 98vw; height: calc(100vh - 250px); }
     .lfr-row { grid-template-columns: 24px minmax(0, 1fr); }
     .lfr-actions { grid-column: 2; }
+  }
+  /* ---- Export / import a crate (see "Export / import a crate" in the script) ---- */
+  .arrange-modal.cx-modal { max-width: 860px; width: min(96vw, 860px); height: min(calc(100vh - 170px), 780px); min-height: 360px; display: flex; flex-direction: column; overflow: hidden; }
+  .cx-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+  .cx-scroll[hidden], .cx-review[hidden] { display: none; }
+  .cx-review { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .cx-group { border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px 10px; margin: 0 0 10px; }
+  .cx-group legend { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; padding: 0 6px; }
+  .cx-group label { display: inline-flex; align-items: center; gap: 6px; margin-right: 16px; font-size: 13px; cursor: pointer; }
+  .cx-group input { accent-color: var(--accent); }
+  .cx-presets { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 0 0 6px; font-size: 12px; color: var(--text-dim); }
+  .cx-compact { flex: 0 0 auto; margin-bottom: 8px; }
+  .cx-compact .cx-presets { display: inline-flex; margin: 0 0 0 4px; }
+  .cx-presets-end { display: flex; margin: 6px 0 0 !important; }
+  .cx-sep { color: var(--line); margin: 0 12px 0 0; }
+  .cx-lbl { font-size: 12px; color: var(--text-dim); margin-right: 8px; }
+  .lfr-foot > span:first-child { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .cx-preview { margin-top: 6px; font-size: 12px; color: var(--text-dim); }
+  .cx-preview summary { cursor: pointer; }
+  .cx-pre { margin: 6px 0 0; padding: 10px; max-height: 240px; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; font: 11px/1.45 'IBM Plex Mono', monospace; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); }
+  .cx-pickrow { margin: 10px 0; }
+  .cx-text { width: 100%; box-sizing: border-box; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; color: var(--text); padding: 10px; font: 12px 'IBM Plex Mono', monospace; resize: vertical; }
+  .cx-error { color: #E5734A; font-size: 13px; margin: 8px 0; }
+  .cx-chip { flex: 0 0 auto; padding: 2px 9px; border-radius: 10px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .cx-chip-new { color: #12161C; background: #6FBF8E; }
+  .cx-chip-dupe { color: var(--text-dim); border: 1px solid var(--line); }
+  .cx-chip-bad { color: var(--text); background: #5a2a2a; }
+  .cx-notes { color: #D9A04A; }
+  .cx-bar { margin: 10px 0 14px; } .cx-bar i { transition: width 0.3s; }
+  .cx-fails { margin: 8px 0 0 18px; padding: 0; font-size: 12px; color: #E5734A; }
+  @media (max-width: 900px) {
+    .arrange-modal.cx-modal { width: 98vw; height: calc(100vh - 250px); }
+    .cx-group label { margin-right: 10px; }
   }
   /* ---- Match songs (see the "Match songs" block in the script) ---- */
   .link-flag[role="button"] { cursor: pointer; }
