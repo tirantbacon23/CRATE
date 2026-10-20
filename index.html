@@ -19,7 +19,50 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.29.195
+  CURRENT_VERSION: 1.29.196
+
+  1.29.196 — 2026-10-18 — New: when CRATE opens it reviews what you played on Last.fm since your last visit, and asks which albums that aren't in your crate you'd like to add. Those plays used to be forgotten; now they're kept, and logged to the new release once you add it.
+
+          Before: at boot the app already fetched new scrobbles, logged the ones for albums you own, and showed a
+          toast counting the rest — and then moved its sync point past them, so those albums could be seen once (from
+          the toast, in a dialog that had no way to add anything) and never again.
+
+          Now, at boot (when Last.fm is set up and a first import has been done):
+            - scrobbles for albums NOT in your crate are KEPT (per Last.fm user, in this browser), merged with earlier
+              ones, and re-matched each boot in case you've added the album since (any that now match are logged);
+            - if any albums are waiting, a "Since you were last here" dialog opens: a summary (tracks played, plays
+              logged to Scrobbles for albums you own, albums and plays not in your crate, plays with no album tag that
+              can't be matched), a collapsed list of the albums you own that were logged, and the albums not in your
+              crate, newest first, each with its tracks (most played first), plays and last-played day;
+            - each album has Add... and Ignore; or tick several: Select all / Add N selected... / Ignore selected;
+              "Decide later" (also Escape, the X, or clicking outside) snoozes the review for 12 hours — a NEW album
+              you've played brings it back despite the snooze;
+            - Add opens the normal Add modal already searching for "Artist Album", one album at a time, with a bar
+              "Last.fm review · 2 of 4 — Artist — Album" and Skip / Stop (Stop leaves the form open; closing the modal
+              ends the review and says how many are still waiting). When you save, that album's stored plays are
+              logged to the NEW release automatically and the next album opens. The same logging happens when you add
+              an album the ordinary way. Ignored albums are remembered and never offered again (their plays, old and
+              new, are discarded);
+            - the sync point now moves to the newest scrobble of any kind (it used to ignore ones with no album, which
+              were then fetched again every boot);
+            - if writing to the sheet fails nothing is saved or advanced, so nothing is lost and the next boot retries;
+              a Last.fm error is silent, as before.
+          Setting (⚙ menu): "Review Last.fm listening at startup" (on). When off, plays are still logged and the
+          albums still kept, but you get the old toast, which now opens this review when clicked.
+
+          Verified in real Chromium with Last.fm stubbed: 15 unit checks of the merge/rollup logic (test_lfr.js) and 69
+          browser checks (pw_lfr_a.py, pw_lfr_b.py): the dialog's contents and numbers, the sync point and requests,
+          selecting, snoozing and what beats a snooze, ignoring, closing three ways, a phone, adding one album, a queue
+          of two (Skip, Stop, closing), plays logged to the new release, an album added elsewhere caught at boot,
+          merging across boots, 450 scrobbles over three pages, the setting and its toast, no baseline / no account,
+          a Last.fm error, a failed write then a clean retry. Three protections were mutation-checked (unowned plays kept;
+          a new album beats a snooze; a new album's plays are logged). The tests found and I fixed one bug: plays of an
+          ignored album were still being stored out of sight.
+          NOT verified against the real Last.fm. NOT RE-RUN: my earlier regression suites (about 1,000 checks) were lost
+          when the sandbox was reset, so the rest of the app was only smoke-tested this time (Add modal, menu, update log,
+          Match songs, genre pages) — not covered as thoroughly as before.
+          Not done: matching a Last.fm album to the right MusicBrainz release automatically (you choose the pressing in
+          the Add modal as usual); scrobbles with no album tag (counted, not listed); a "play count since" per album.
 
   1.29.195 — 2026-10-09 — Track Info panel: genre names are now links that open that genre's page.
 
@@ -5768,6 +5811,7 @@
           <button type="button" id="menuFlagMissingLinks" class="menu-toggle-btn" aria-pressed="true" title="Show a red ! on releases that have songs with no link, which are skipped when you play the release"><span class="menu-check" aria-hidden="true">✓</span>Flag releases with unlinked songs</button>
           <button type="button" id="menuAutoMatchAdd" class="menu-toggle-btn" aria-pressed="true" title="When you add a release, match its songs to Spotify automatically and fill in their links"><span class="menu-check" aria-hidden="true">✓</span>Match songs when adding a release</button>
           <button type="button" id="menuAutoMatchYt" class="menu-toggle-btn" aria-pressed="false" title="Also match YouTube when adding (needs a YouTube API key; uses about 100 of the day's 10,000 quota units per release)"><span class="menu-check" aria-hidden="true">✓</span>…also on YouTube (uses API quota)</button>
+          <button type="button" id="menuLastfmReview" class="menu-toggle-btn" aria-pressed="true" title="When CRATE opens, show a review of what you played on Last.fm and offer to add albums that aren't in your crate"><span class="menu-check" aria-hidden="true">✓</span>Review Last.fm listening at startup</button>
           <div class="menu-divider"></div>
           <div class="menu-section-title">Discovery</div>
           <button type="button" id="menuNewReleases">New Releases <span id="newReleasesBadge" class="menu-badge" hidden>0</span></button>
@@ -6888,6 +6932,7 @@
   <div class="arrange-modal add-modal">
     <div class="arrange-header"><h2>Add a release</h2><button id="addClose" class="modal-x" aria-label="Close">✕</button></div>
     <div class="arrange-body">
+      <div id="addLastfmBar" class="tb-match-status" hidden role="status"></div>
       <div class="add-search-row">
         <input type="text" id="addSearchInput" placeholder="Search artist or album…">
         <button type="button" id="addSearchHelpBtn" class="icon-btn add-search-help-btn" title="Advanced search operators" aria-label="Advanced search operators">?</button>
@@ -7313,6 +7358,20 @@
   </div>
 </div>
 
+<!-- Last.fm startup review — what you played since your last visit, and which of those albums to add (see "Last.fm startup review" in the script) -->
+<div id="lfrOverlay" class="arrange-overlay" hidden>
+  <div class="arrange-modal add-modal lfr-modal" role="dialog" aria-modal="true" aria-labelledby="lfrTitle">
+    <div class="arrange-header"><div><h2 id="lfrTitle">Since you were last here</h2><p id="lfrSub" class="sm-sub"></p></div><button id="lfrClose" class="modal-x" aria-label="Close">✕</button></div>
+    <div class="arrange-body sm-body">
+      <div id="lfrSummary" class="lfr-summary"></div>
+      <div id="lfrList" class="sm-list"></div>
+      <details id="lfrLoggedWrap" class="lfr-logged" hidden><summary id="lfrLoggedSummary"></summary><div id="lfrLogged"></div></details>
+      <div class="lfr-foot"><button type="button" id="lfrSelectAll" class="ai-link-btn">Select all</button>
+        <span class="lfr-foot-right"><button type="button" id="lfrIgnore" class="ai-link-btn">Ignore selected</button><button type="button" id="lfrLater" class="ai-link-btn">Decide later</button><button type="button" id="lfrAdd" class="config-btn" disabled>Add selected…</button></span></div>
+    </div>
+  </div>
+</div>
+
 <div id="newReleasesOverlay" class="arrange-overlay" hidden>
   <div class="arrange-modal add-modal new-releases-modal">
     <div class="arrange-header"><h2>New Releases</h2><button id="newReleasesClose" class="modal-x" aria-label="Close">✕</button></div>
@@ -7350,7 +7409,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.195';
+const APP_VERSION = '1.29.196';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -7731,6 +7790,7 @@ fields: {
   collapsedGenres: new Set(), // genre taxonomy keys currently collapsed in the left panel's Genre tree — see filterCollapsedGenreRows/toggleGenreCollapse
   autoMatchOnAdd: true,  // match a new release's songs to Spotify while it's being added — see autoMatchAddForm
   autoMatchYoutube: false, // ...and to YouTube too (uses API quota, so it is opt-in)
+  lastfmReviewAtStartup: true, // at boot, review what you played on Last.fm and offer to add albums that aren't in your crate
   flagMissingLinks: true, // red ! on releases with songs that have no link — see songLinkGaps / initLinkFlags
   trackInfoShowPlayer: false, // false = cover art (default), true = compact playback progress in that same slot — see renderTrackInfoPanel()
   trackInfoShowVideo: false, // if true AND the current track has a resolvable YouTube link, shows an embedded video in that same slot instead (takes priority over trackInfoShowPlayer) — see applyTrackInfoPlayerMode()
@@ -7811,7 +7871,7 @@ const el = {};
   'menuLastfmScrobble','lastfmScrobbleOverlay','lastfmScrobbleClose','lastfmScrobbleApiKey','lastfmScrobbleSecret','lastfmScrobbleSaveBtn','lastfmScrobbleCancelBtn','lastfmScrobbleStatus',
   'lastfmScrobbleConnectHint','lastfmScrobbleConnectBtn','lastfmScrobbleFinishBtn','lastfmScrobbleDisconnectBtn','lastfmScrobbleConnectStatus',
   'menuDiscogsApi','discogsOverlay','discogsClose','discogsToken','discogsSaveBtn','discogsCancelBtn','discogsStatus',
-  'menuYoutubeApi','menuFlagMissingLinks','menuAutoMatchAdd','menuAutoMatchYt','addTracksMatchBtn','addMatchStatus','songMatchOverlay','songMatchClose','songMatchTitle','songMatchSub','songMatchTabs','songMatchStatus','songMatchList','songMatchSave','songMatchSelectConf','songMatchSaved','menuUpdateLog','updateLogOverlay','updateLogClose','updateLogSearch','updateLogToggleAll','updateLogSummary','updateLogNote','updateLogList','youtubeApiOverlay','youtubeApiClose','youtubeApiKey','youtubeApiSaveBtn','youtubeApiCancelBtn','youtubeApiStatus',
+  'menuYoutubeApi','menuFlagMissingLinks','menuAutoMatchAdd','menuAutoMatchYt','menuLastfmReview','lfrOverlay','lfrClose','lfrTitle','lfrSub','lfrSummary','lfrList','lfrLoggedWrap','lfrLoggedSummary','lfrLogged','lfrSelectAll','lfrIgnore','lfrLater','lfrAdd','addLastfmBar','addTracksMatchBtn','addMatchStatus','songMatchOverlay','songMatchClose','songMatchTitle','songMatchSub','songMatchTabs','songMatchStatus','songMatchList','songMatchSave','songMatchSelectConf','songMatchSaved','menuUpdateLog','updateLogOverlay','updateLogClose','updateLogSearch','updateLogToggleAll','updateLogSummary','updateLogNote','updateLogList','youtubeApiOverlay','youtubeApiClose','youtubeApiKey','youtubeApiSaveBtn','youtubeApiCancelBtn','youtubeApiStatus',
   'menuNewReleases','newReleasesBadge','newReleasesOverlay','newReleasesClose','newReleasesCheckBtn','newReleasesLastChecked','newReleasesStatus','newReleasesList',
   'menuGenreTaxonomy','genreTaxonomyOverlay','genreTaxonomyClose','genreTaxonomyDatalist','genreTaxonomyList','genreTaxonomyAddBtn','genreTaxonomyStatus',
   'genreAutocompleteList',
@@ -9466,6 +9526,7 @@ function bindEvents() {
   initGenrePage();
   initLinkFlags();
   initAddMatch();
+  initLastfmReview();
   initGenreLinks();
   el.miniPlayerArt.addEventListener('click', () => {
     // On the compact mobile layout, tapping anywhere on the bar (including
@@ -9812,7 +9873,7 @@ function bindEvents() {
       }
     }
     if (e.key !== 'Escape') return;
-    closeSongMatcher(); closeUpdateLog(); closeArtistQuickOpen(); closeNowPlayingAddMenu(); closeDeck(); closeQuickActions(); closeAdvSearch(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal(); closeTrackPropertiesModal(); closeTimelineModal(); closeMapModal();
+    closeLastfmReview(); closeSongMatcher(); closeUpdateLog(); closeArtistQuickOpen(); closeNowPlayingAddMenu(); closeDeck(); closeQuickActions(); closeAdvSearch(); el.arrangeModal.hidden = true; el.mainConfigModal.hidden = true; closeAddModal(); closeEditModal(); closeTrackPropertiesModal(); closeTimelineModal(); closeMapModal();
     setMobileDrawer(null);
     // Deliberately NOT closing the master player here — whichever engine
     // (Spotify or YouTube) is driving it, it's a persistent background
@@ -10112,6 +10173,7 @@ function loadPrefs() {
     if (typeof p.flagMissingLinks === 'boolean') state.flagMissingLinks = p.flagMissingLinks;
     if (typeof p.autoMatchOnAdd === 'boolean') state.autoMatchOnAdd = p.autoMatchOnAdd;
     if (typeof p.autoMatchYoutube === 'boolean') state.autoMatchYoutube = p.autoMatchYoutube;
+    if (typeof p.lastfmReviewAtStartup === 'boolean') state.lastfmReviewAtStartup = p.lastfmReviewAtStartup;
     if (['off', 'both', 'only'].includes(p.genreChartMb)) state.genreChartMb = p.genreChartMb;
     if (typeof p.trackInfoShowPlayer === 'boolean') state.trackInfoShowPlayer = p.trackInfoShowPlayer;
     if (typeof p.trackInfoShowVideo === 'boolean') state.trackInfoShowVideo = p.trackInfoShowVideo;
@@ -10149,6 +10211,7 @@ function savePrefs() {
       flagMissingLinks: state.flagMissingLinks,
       autoMatchOnAdd: state.autoMatchOnAdd,
       autoMatchYoutube: state.autoMatchYoutube,
+      lastfmReviewAtStartup: state.lastfmReviewAtStartup,
       genreChartMb: state.genreChartMb,
       trackInfoShowPlayer: state.trackInfoShowPlayer,
       trackInfoShowVideo: state.trackInfoShowVideo,
@@ -20444,6 +20507,43 @@ function initAddMatch() {
   });
 }
 
+// BEGIN lastfm-review
+// ---- Last.fm startup review: what is kept, merged and shown (pure: the key function is passed in) ----
+// Scrobbles for albums that aren't in your crate used to be counted in a toast and then forgotten (the sync baseline moved on).
+// They are now kept as track-level "groups" (artist, album, track, day, plays), merged as more arrive, and offered for review.
+function lfGroupKey(g, keyFn) { return keyFn(g.artist, g.title) + '::' + g.day + '::' + String(g.track || '').toLowerCase().trim(); }
+function lfMergePending(pending, groups, keyFn, cap) {
+  const map = new Map();
+  (pending || []).concat(groups || []).forEach(g => {
+    const k = lfGroupKey(g, keyFn), cur = map.get(k);
+    if (!cur) map.set(k, Object.assign({}, g));
+    else { cur.playCount += g.playCount; cur.firstUts = Math.min(cur.firstUts, g.firstUts); cur.lastUts = Math.max(cur.lastUts, g.lastUts); }
+  });
+  let out = [...map.values()];
+  if (cap && out.length > cap) out = out.sort((a, b) => b.lastUts - a.lastUts).slice(0, cap);
+  return out;
+}
+function lfAlbumsFromGroups(groups, keyFn, ignored) {
+  const skip = new Set(ignored || []), byKey = new Map();
+  (groups || []).forEach(g => {
+    const key = keyFn(g.artist, g.title);
+    if (skip.has(key)) return;
+    if (!byKey.has(key)) byKey.set(key, { key, artist: g.artist, album: g.title, plays: 0, tracks: new Map(), firstUts: g.firstUts, lastUts: g.lastUts });
+    const a = byKey.get(key);
+    a.plays += g.playCount; a.firstUts = Math.min(a.firstUts, g.firstUts); a.lastUts = Math.max(a.lastUts, g.lastUts);
+    const t = g.track || '(unknown track)'; a.tracks.set(t, (a.tracks.get(t) || 0) + g.playCount);
+  });
+  return [...byKey.values()].map(a => Object.assign(a, { tracks: [...a.tracks].map(([name, plays]) => ({ name, plays })).sort((x, y) => y.plays - x.plays || x.name.localeCompare(y.name)) }))
+    .sort((x, y) => y.lastUts - x.lastUts);
+}
+function lfIsSnoozed(st, now) { return !!(st && st.snoozeUntil && st.snoozeUntil > now); }
+function lfLoggedAlbums(groups) {
+  const byRow = new Map();
+  (groups || []).forEach(g => { const k = g.row; if (!byRow.has(k)) byRow.set(k, { artist: g.artist, title: g.title, plays: 0 }); byRow.get(k).plays += g.playCount; });
+  return [...byRow.values()].sort((a, b) => b.plays - a.plays);
+}
+// END lastfm-review
+
 // BEGIN mb-hist
 // ---- MusicBrainz release counts by year: the plan (pure — the request itself is injected, so this can be tested) ----
 // MusicBrainz can't list "releases per year" in one go, but a search reports its total (count) for any query, and a
@@ -24657,7 +24757,7 @@ function openAddModal() {
   hideAddSpotifyMatchBanner(); // also invalidates any in-flight Spotify tracklist lookup from a previous open
   el.addSearchInput.focus();
 }
-function closeAddModal() { el.addOverlay.hidden = true; addMatchSeq++; hideAddSpotifyMatchBanner(); el.addSearchHelpPopover.hidden = true; }
+function closeAddModal() { el.addOverlay.hidden = true; addMatchSeq++; lfOnAddClosed(); hideAddSpotifyMatchBanner(); el.addSearchHelpPopover.hidden = true; }
 
 let addSearchSeq = 0; // race-condition guard: only the latest search may render its results
 
@@ -25480,7 +25580,7 @@ async function saveNewAlbum() {
   try {
     await postUpdate(payload);
     { const linked = manualTracks.filter(t => t.spotifyLink).length; flashToast(el.addToast, state.autoMatchOnAdd && linked ? `Added to your crate \u00b7 ${linked} of ${manualTracks.length} songs linked on Spotify` : 'Added to your crate'); }
-    setTimeout(() => { closeAddModal(); fetchCatalog(); }, 700);
+    setTimeout(async () => { if (lfAddQueue) lfAddQueue.advancing = true; closeAddModal(); await fetchCatalog(); await lfAfterAdd(); }, 700);    // lfAfterAdd: log this album's stored Last.fm plays, and open the next album of a Last.fm review
   } catch (err) {
     // err.message now carries the backend's own error text when this was
     // a generic (non-auth) failure — see postUpdate's own comment — rather
@@ -27567,67 +27667,204 @@ function flashGlobalToast(msg, opts) {
   }, opts.duration || 5000);
 }
 
+/* ---------- Last.fm startup review ----------
+   At boot the app already fetched your new Last.fm scrobbles, logged the ones for albums in your crate, and toasted a count
+   of the rest. Those others were then forgotten. Now they are KEPT (per Last.fm user, in this browser), re-matched at every
+   boot in case you've since added the album, and shown in a review: what you played, what's already logged, and the albums
+   that aren't in your crate yet, each with Add... / Ignore, or tick several and Add selected. Adding goes through the normal
+   Add modal, pre-searched, one album at a time with a "2 of 4" bar (Skip / Stop); after each album is added its stored plays
+   are logged to Scrobbles automatically. "Decide later" (or closing) snoozes the review for 12 hours unless NEW unmatched
+   albums turn up. A setting in the menu turns the startup review off (the old toast then points at it). */
+const LFR_STATE_KEY = 'crate_lastfm_review_v1', LFR_PENDING_CAP = 3000, LFR_SNOOZE_MS = 12 * 3600 * 1000;
+let lfrState = null, lfAddQueue = null;
+function lfLoadState(user) {
+  try { const s = (JSON.parse(localStorage.getItem(LFR_STATE_KEY) || '{}') || {})[user] || {}; return { groups: Array.isArray(s.groups) ? s.groups : [], ignored: Array.isArray(s.ignored) ? s.ignored : [], snoozeUntil: s.snoozeUntil || 0 }; }
+  catch (e) { return { groups: [], ignored: [], snoozeUntil: 0 }; }
+}
+function lfSaveState(user, st) {
+  try { const all = JSON.parse(localStorage.getItem(LFR_STATE_KEY) || '{}') || {}; all[user] = st; localStorage.setItem(LFR_STATE_KEY, JSON.stringify(all)); } catch (e) { /* storage full or blocked: it just won't be remembered */ }
+}
+async function lfLogGroups(groups) {      // writes matched track-level groups to the Scrobbles sheet (as the import does) and refreshes what's on screen
+  if (!groups.length) return 0;
+  const entries = groups.map(g => ({ row: g.row, artist: g.artist, title: g.title, date: g.day, track: g.track, playCount: g.playCount }));
+  for (let i = 0; i < entries.length; i += LASTFM_CHUNK_SIZE) await postUpdate({ action: 'bulkLogScrobbles', entries: entries.slice(i, i + LASTFM_CHUNK_SIZE) });
+  entries.forEach(p => state.scrobbles.push({ row: p.row, artist: p.artist, title: p.title, day: p.date, track: p.track, playCount: p.playCount }));
+  if (state.activeTab === 'scrobbles') renderScrobbles();
+  if (activeItem) {
+    const total = scrobbleCountFor(activeItem.artist, activeItem.title);
+    if (total > 0) { el.deckScrobbleCount.textContent = `Listened ${total} time${total === 1 ? '' : 's'} (Last.fm)`; el.deckScrobbleCount.hidden = false; }
+    loadTracklist(activeItem);
+  }
+  if (state.rightPanelShowHistory) renderLastfmHistoryPanel();
+  return entries.reduce((sum, e) => sum + e.playCount, 0);
+}
+function lfSyncToast(user, sync) {          // used when the review isn't shown (switched off, or snoozed): the toast opens it
+  const n = sync.newUnmatched, pl = sync.loggedPlays, open = () => openLastfmReview(user, sync);
+  if (pl && !n) flashGlobalToast(`Last.fm: synced ${pl} new play${pl === 1 ? '' : 's'}.`);
+  else if (pl && n) flashGlobalToast(`Last.fm: synced ${pl} new play${pl === 1 ? '' : 's'} \u00b7 ${n} album${n === 1 ? '' : 's'} not in your crate \u2014 click to review`, { onClick: open, duration: 8000 });
+  else if (n) flashGlobalToast(`Last.fm: ${n} new album${n === 1 ? '' : 's'} scrobbled but not in your crate \u2014 click to review`, { onClick: open, duration: 8000 });
+}
 async function maybeRunBackgroundLastfmSync() {
   if (lastfmBackgroundSyncRunning) return;
-
   const creds = loadLastfmCreds();
-  if (!creds.username || !creds.apiKey) return; // never configured — nothing to do
-
+  if (!creds.username || !creds.apiKey) return;                 // never configured — nothing to do
   const syncKey = LASTFM_SYNC_KEY + ':' + creds.username;
   const lastSync = localStorage.getItem(syncKey);
-  if (!lastSync) return; // no baseline yet — wait for a deliberate first import via the modal
-
-  const sinceUts = Math.floor(new Date(lastSync).getTime() / 1000) + 1; // one past the last-synced scrobble
-
+  if (!lastSync) return;                                        // no baseline yet — wait for a deliberate first import via the modal
+  if (!state.raw.length) return;                                // nothing to match against
+  const sinceUts = Math.floor(new Date(lastSync).getTime() / 1000) + 1;   // one past the last-synced scrobble
   lastfmBackgroundSyncRunning = true;
   try {
     const tracks = await fetchAllLastfmScrobbles(creds.username, creds.apiKey, sinceUts, null);
-    if (!tracks.length) return; // nothing new since last time — stay quiet
-
-    const groups = aggregateScrobbles(tracks);
+    const groups = tracks.length ? aggregateScrobbles(tracks) : [];
     const { matched, unmatched } = matchScrobbleGroups(groups);
-
-    if (matched.length) {
-      const entries = matched.map(g => ({ row: g.row, artist: g.artist, title: g.title, date: g.day, track: g.track, playCount: g.playCount }));
-      const chunks = [];
-      for (let i = 0; i < entries.length; i += LASTFM_CHUNK_SIZE) chunks.push(entries.slice(i, i + LASTFM_CHUNK_SIZE));
-      for (const chunk of chunks) await postUpdate({ action: 'bulkLogScrobbles', entries: chunk });
-
-      entries.forEach(payload => {
-        state.scrobbles.push({ row: payload.row, artist: payload.artist, title: payload.title, day: payload.date, track: payload.track, playCount: payload.playCount });
-      });
-      if (state.activeTab === 'scrobbles') renderScrobbles();
-      if (activeItem) {
-        const total = scrobbleCountFor(activeItem.artist, activeItem.title);
-        if (total > 0) { el.deckScrobbleCount.textContent = `Listened ${total} time${total === 1 ? '' : 's'} (Last.fm)`; el.deckScrobbleCount.hidden = false; }
-        loadTracklist(activeItem); // refresh per-track counts if the deck is open on this album
-      }
-    }
-
-    const newestUts = Math.max(...groups.map(g => g.lastUts));
-    if (Number.isFinite(newestUts)) localStorage.setItem(syncKey, new Date(newestUts * 1000).toISOString());
-
-    // matched/unmatched are per-track; roll up to albums for a toast that
-    // talks about albums, not individual tracks.
-    const unmatchedAlbums = rollupByAlbumDay(unmatched).length;
-    const totalPlays = matched.reduce((sum, g) => sum + g.playCount, 0);
-    if (matched.length && !unmatchedAlbums) {
-      flashGlobalToast(`Last.fm: synced ${totalPlays} new play${totalPlays === 1 ? '' : 's'}.`);
-    } else if (matched.length && unmatchedAlbums) {
-      flashGlobalToast(`Last.fm: synced ${totalPlays} new play${totalPlays === 1 ? '' : 's'} \u00b7 ${unmatchedAlbums} album${unmatchedAlbums === 1 ? '' : 's'} not in crate \u2014 click to review`, {
-        onClick: openLastfmModal, duration: 8000
-      });
-    } else if (unmatchedAlbums) {
-      flashGlobalToast(`Last.fm: ${unmatchedAlbums} new album${unmatchedAlbums === 1 ? '' : 's'} scrobbled but not in your crate \u2014 click to review`, {
-        onClick: openLastfmModal, duration: 8000
-      });
-    }
-    if (state.rightPanelShowHistory) renderLastfmHistoryPanel(); // keep it current if it's actually visible right now
+    // What isn't in the crate is KEPT, merged with what was kept before, and re-matched: some may have been added since.
+    const st = lfLoadState(creds.username);
+    const ignoredKeys = new Set(st.ignored);                      // plays of an album you chose to ignore are discarded, not stored out of sight
+    st.groups = lfMergePending(st.groups, unmatched.filter(g => !ignoredKeys.has(lastfmNormKey(g.artist, g.title))), lastfmNormKey, LFR_PENDING_CAP);
+    const re = matchScrobbleGroups(st.groups);
+    st.groups = re.unmatched;
+    const toLog = matched.concat(re.matched);
+    const loggedPlays = await lfLogGroups(toLog);
+    lfSaveState(creds.username, st);                           // only after the log succeeded: a failure keeps everything for next time
+    if (tracks.length) localStorage.setItem(syncKey, new Date(Math.max(...tracks.map(t => t.uts)) * 1000).toISOString());
+    const sync = { since: lastSync, totalTracks: tracks.length, noAlbum: tracks.filter(t => !t.album).length, loggedPlays, loggedAlbums: lfLoggedAlbums(toLog),
+      newUnmatched: lfAlbumsFromGroups(unmatched, lastfmNormKey, st.ignored).length };
+    const pending = lfAlbumsFromGroups(st.groups, lastfmNormKey, st.ignored);
+    if (state.lastfmReviewAtStartup && pending.length && (sync.newUnmatched > 0 || !lfIsSnoozed(st, Date.now()))) openLastfmReview(creds.username, sync);
+    else lfSyncToast(creds.username, sync);
+    if (state.rightPanelShowHistory) renderLastfmHistoryPanel();
   } catch (err) {
-    console.warn('Background Last.fm sync failed:', err); // stays silent in the UI — a failed background sync shouldn't interrupt anyone
+    console.warn('Background Last.fm sync failed:', err);      // stays silent in the UI — a failed background sync shouldn't interrupt anyone
   } finally {
     lastfmBackgroundSyncRunning = false;
   }
+}
+function lfrDay(uts) { return new Date(uts * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }); }
+function lfrPlural(n, w) { return `${n} ${w}${n === 1 ? '' : 's'}`; }
+function openLastfmReview(user, sync) {
+  const st = lfLoadState(user), albums = lfAlbumsFromGroups(st.groups, lastfmNormKey, st.ignored);
+  if (!albums.length && !(sync && sync.loggedPlays)) return;
+  lfrState = { user, sync: sync || null, albums, selected: new Set() };
+  el.lfrOverlay.hidden = false;
+  if (!el.lfrOverlay.dataset.bound) lfrBind();
+  lfrRender();
+}
+function closeLastfmReview(snooze) {
+  if (!el.lfrOverlay || el.lfrOverlay.hidden) return;
+  if (lfrState && snooze !== false) { const st = lfLoadState(lfrState.user); st.snoozeUntil = Date.now() + LFR_SNOOZE_MS; lfSaveState(lfrState.user, st); }
+  el.lfrOverlay.hidden = true; lfrState = null;
+}
+function lfrRender() {
+  const st = lfrState; if (!st) return;
+  const s = st.sync, albums = st.albums, plays = albums.reduce((n, a) => n + a.plays, 0);
+  el.lfrSub.textContent = s && s.since ? 'Last.fm \u00b7 since ' + new Date(s.since).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) : 'Last.fm';
+  const parts = [];
+  if (s && s.totalTracks) parts.push(`You played <b>${lfrPlural(s.totalTracks, 'track')}</b> on Last.fm since your last visit.`);
+  if (s && s.loggedPlays) parts.push(`<b>${lfrPlural(s.loggedPlays, 'play')}</b> from <b>${lfrPlural(s.loggedAlbums.length, 'album')}</b> in your crate ${s.loggedAlbums.length === 1 ? 'was' : 'were'} added to Scrobbles.`);
+  parts.push(albums.length ? `<b>${lfrPlural(albums.length, 'album')}</b> (${lfrPlural(plays, 'play')}) ${albums.length === 1 ? 'isn\u2019t' : 'aren\u2019t'} in your crate yet.` : 'Everything you played is in your crate.');
+  if (s && s.noAlbum) parts.push(`${lfrPlural(s.noAlbum, 'play')} had no album on Last.fm, so ${s.noAlbum === 1 ? 'it' : 'they'} can\u2019t be matched.`);
+  el.lfrSummary.innerHTML = parts.join(' ');
+  el.lfrList.innerHTML = albums.map(a => {
+    const names = a.tracks.map(t => t.name), shown = names.slice(0, 3).join(', ') + (names.length > 3 ? ` +${names.length - 3} more` : ''), on = st.selected.has(a.key);
+    return `<div class="lfr-row${on ? ' picked' : ''}" data-key="${escapeHtml(a.key)}"><label class="lfr-check"><input type="checkbox" data-lfr="pick"${on ? ' checked' : ''} aria-label="Select ${escapeHtml(a.artist)} \u2014 ${escapeHtml(a.album)}"></label>
+      <div class="lfr-main"><span class="lfr-title">${escapeHtml(a.artist)} \u2014 ${escapeHtml(a.album)}</span><span class="lfr-meta">${lfrPlural(a.tracks.length, 'track')} \u00b7 ${lfrPlural(a.plays, 'play')} \u00b7 last played ${lfrDay(a.lastUts)}</span><span class="lfr-tracks" title="${escapeHtml(names.join(', '))}">${escapeHtml(shown)}</span></div>
+      <div class="lfr-actions"><button type="button" class="ai-link-btn" data-lfr="add">Add\u2026</button><button type="button" class="ai-link-btn" data-lfr="ignore">Ignore</button></div></div>`;
+  }).join('');
+  const logged = s && s.loggedAlbums && s.loggedAlbums.length ? s.loggedAlbums : [];
+  el.lfrLoggedWrap.hidden = !logged.length;
+  el.lfrLoggedSummary.textContent = `In your crate \u2014 ${lfrPlural(logged.length, 'album')}, ${lfrPlural(s ? s.loggedPlays : 0, 'play')} added to Scrobbles`;
+  el.lfrLogged.innerHTML = logged.map(a => `<div class="lfr-logged-row">${escapeHtml(a.artist)} \u2014 ${escapeHtml(a.title)} <span>\u00b7 ${lfrPlural(a.plays, 'play')}</span></div>`).join('');
+  const n = st.selected.size;
+  el.lfrAdd.textContent = n ? `Add ${n} selected\u2026` : 'Add selected\u2026'; el.lfrAdd.disabled = !n;
+  el.lfrIgnore.disabled = !n; el.lfrIgnore.hidden = !albums.length; el.lfrAdd.hidden = !albums.length;
+  el.lfrSelectAll.hidden = !albums.length; el.lfrSelectAll.textContent = n === albums.length ? 'Select none' : 'Select all';
+}
+function lfrIgnore(keys) {
+  const st = lfrState; if (!st || !keys.length) return;
+  const saved = lfLoadState(st.user), set = new Set(keys);
+  saved.ignored = [...new Set(saved.ignored.concat(keys))];
+  saved.groups = saved.groups.filter(g => !set.has(lastfmNormKey(g.artist, g.title)));
+  lfSaveState(st.user, saved);
+  st.albums = st.albums.filter(a => !set.has(a.key)); keys.forEach(k => st.selected.delete(k));
+  flashGlobalToast(`Ignored ${lfrPlural(keys.length, 'album')} \u2014 Last.fm won\u2019t ask about ${keys.length === 1 ? 'it' : 'them'} again.`);
+  if (!st.albums.length && !(st.sync && st.sync.loggedPlays)) closeLastfmReview(false); else lfrRender();
+}
+function lfrBind() {
+  const ov = el.lfrOverlay; ov.dataset.bound = '1';
+  el.lfrClose.addEventListener('click', () => closeLastfmReview());
+  el.lfrLater.addEventListener('click', () => closeLastfmReview());
+  ov.addEventListener('mousedown', (e) => { if (e.target === ov) closeLastfmReview(); });
+  el.lfrSelectAll.addEventListener('click', () => { const st = lfrState; st.selected = st.selected.size === st.albums.length ? new Set() : new Set(st.albums.map(a => a.key)); lfrRender(); });
+  el.lfrIgnore.addEventListener('click', () => lfrIgnore([...lfrState.selected]));
+  el.lfrAdd.addEventListener('click', () => lfStartAddQueue(lfrState.albums.filter(a => lfrState.selected.has(a.key))));
+  ov.addEventListener('change', (e) => { const t = e.target.closest('[data-lfr="pick"]'); if (!t || !lfrState) return; const key = t.closest('.lfr-row').dataset.key; if (t.checked) lfrState.selected.add(key); else lfrState.selected.delete(key); lfrRender(); });
+  ov.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-lfr]'); if (!t || !lfrState) return;
+    const row = t.closest('.lfr-row'); if (!row) return;
+    const a = lfrState.albums.find(x => x.key === row.dataset.key);
+    if (t.dataset.lfr === 'add' && a) lfStartAddQueue([a]);
+    else if (t.dataset.lfr === 'ignore' && a) lfrIgnore([a.key]);
+  });
+}
+function lfStartAddQueue(albums) {
+  if (!albums.length || !lfrState) return;
+  const user = lfrState.user;
+  closeLastfmReview(false);
+  lfAddQueue = { user, items: albums, idx: 0, added: 0, skipped: 0, advancing: false };
+  lfOpenNextAdd();
+}
+function lfOpenNextAdd() {
+  const q = lfAddQueue; if (!q) return;
+  if (q.idx >= q.items.length) { lfQueueEnd('done'); return; }
+  const a = q.items[q.idx]; q.advancing = false;
+  openAddModal();
+  el.addSearchInput.value = `${a.artist} ${a.album}`.trim();
+  doAddSearch();
+  el.addLastfmBar.hidden = false;
+  el.addLastfmBar.innerHTML = `<span>Last.fm review \u00b7 ${q.idx + 1} of ${q.items.length} \u2014 ${escapeHtml(a.artist)} \u2014 ${escapeHtml(a.album)}</span><button type="button" class="ai-link-btn" data-lfq="skip">Skip</button><button type="button" class="ai-link-btn" data-lfq="stop">Stop</button>`;
+}
+function lfQueueEnd(reason) {
+  const q = lfAddQueue; lfAddQueue = null;
+  if (el.addLastfmBar) { el.addLastfmBar.hidden = true; el.addLastfmBar.innerHTML = ''; }
+  if (!q) return;
+  const left = q.items.length - q.idx;
+  if (reason === 'done') flashGlobalToast(`Last.fm review done \u2014 ${q.added} added${q.skipped ? `, ${q.skipped} skipped` : ''}.`);
+  else if (left > 0) flashGlobalToast(`Last.fm review stopped \u2014 ${lfrPlural(left, 'album')} still waiting; ${left === 1 ? 'it' : 'they'}\u2019ll be back in your next review.`);
+}
+function lfOnAddClosed() { if (lfAddQueue && !lfAddQueue.advancing) lfQueueEnd('closed'); }     // closing the Add modal yourself ends the queue
+async function lfAfterAdd() {
+  const creds = loadLastfmCreds();
+  if (creds.username) {
+    try {
+      const st = lfLoadState(creds.username);
+      if (st.groups.length) {
+        const re = matchScrobbleGroups(st.groups);                 // the catalogue has just been refetched: anything now in it gets its plays logged
+        if (re.matched.length) {
+          const plays = await lfLogGroups(re.matched);
+          st.groups = re.unmatched; lfSaveState(creds.username, st);
+          const names = [...new Set(re.matched.map(g => g.title))];
+          flashGlobalToast(`Last.fm: logged ${lfrPlural(plays, 'play')} for \u201c${names[0]}\u201d${names.length > 1 ? ` and ${names.length - 1} more` : ''}.`);
+          if (lfAddQueue) lfAddQueue.added++;
+        }
+      }
+    } catch (e) { console.warn('Logging plays for the new album failed:', e); }
+  }
+  if (lfAddQueue) { lfAddQueue.idx++; lfOpenNextAdd(); }
+}
+function initLastfmReview() {
+  if (el.menuLastfmReview) {
+    el.menuLastfmReview.setAttribute('aria-pressed', state.lastfmReviewAtStartup ? 'true' : 'false');
+    el.menuLastfmReview.addEventListener('click', () => {
+      state.lastfmReviewAtStartup = !state.lastfmReviewAtStartup; savePrefs(); el.menuLastfmReview.setAttribute('aria-pressed', state.lastfmReviewAtStartup ? 'true' : 'false');
+      el.layoutMenu.hidden = true; flashGlobalToast(`Last.fm review at startup: ${state.lastfmReviewAtStartup ? 'on' : 'off'}.`);
+    });
+  }
+  if (el.addLastfmBar) el.addLastfmBar.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-lfq]'); const q = lfAddQueue; if (!b || !q) return;
+    if (b.dataset.lfq === 'stop') lfQueueEnd('stopped');          // the Add form stays open for this album; just no more queue
+    else if (b.dataset.lfq === 'skip') { q.skipped++; q.idx++; q.advancing = true; closeAddModal(); lfOpenNextAdd(); }
+  });
 }
 
 function prefetchArt(items) {
@@ -29811,6 +30048,28 @@ html, body {
   #layoutMenu { max-height: calc(100vh - 130px); overflow-y: auto; overscroll-behavior: contain; }
   @media (max-width: 900px) { #layoutMenu { max-height: calc(100vh - 235px); } }
   @supports (height: 100dvh) { #layoutMenu { max-height: calc(100dvh - 130px); } @media (max-width: 900px) { #layoutMenu { max-height: calc(100dvh - 235px); } } }
+  /* ---- Last.fm startup review (see "Last.fm startup review" in the script) ---- */
+  .arrange-modal.lfr-modal { max-width: 860px; width: min(96vw, 860px); height: min(calc(100vh - 170px), 760px); min-height: 360px; display: flex; flex-direction: column; overflow: hidden; }
+  .lfr-summary { margin: 12px 0 8px; padding: 10px 12px; background: var(--bg-card); border: 1px solid var(--line); border-radius: 6px; font-size: 12.5px; line-height: 1.55; color: var(--text); flex: 0 0 auto; }
+  .lfr-summary b { color: var(--accent); font-weight: 600; }
+  .lfr-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 9px 4px; border-bottom: 1px solid var(--line); }
+  .lfr-row.picked { background: rgba(214,162,76,0.07); }
+  .lfr-check input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+  .lfr-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .lfr-title { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+  .lfr-meta, .lfr-tracks { font-size: 11.5px; color: var(--text-dim); }
+  .lfr-tracks { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lfr-actions { display: flex; gap: 12px; }
+  .lfr-logged { margin-top: 8px; font-size: 12px; color: var(--text-dim); flex: 0 0 auto; max-height: 28%; overflow-y: auto; }
+  .lfr-logged summary { cursor: pointer; }
+  .lfr-logged-row { padding: 2px 0 2px 14px; }
+  .lfr-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px 14px; flex-wrap: wrap; padding-top: 10px; flex: 0 0 auto; }
+  .lfr-foot-right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  @media (max-width: 900px) {
+    .arrange-modal.lfr-modal { width: 98vw; height: calc(100vh - 250px); }
+    .lfr-row { grid-template-columns: 24px minmax(0, 1fr); }
+    .lfr-actions { grid-column: 2; }
+  }
   /* ---- Match songs (see the "Match songs" block in the script) ---- */
   .link-flag[role="button"] { cursor: pointer; }
   .link-flag[role="button"]:hover { filter: brightness(1.15); }
