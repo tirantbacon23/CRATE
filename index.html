@@ -19,7 +19,37 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.29.198
+  CURRENT_VERSION: 1.29.199
+
+  1.29.199 — 2026-10-18 — Import review: album covers. Every release in the review now shows its cover, as a thumbnail in the list or as a grid of covers you tick directly.
+
+          Views (a switch beside the All / New / Already in your crate / Problems tabs, remembered):
+            - List (default): a small cover on every row.
+            - Covers: a grid of cards, each a cover with its status on it (New / Owned / Edition? / Repeat / Problem — the
+              full wording is the tooltip) and a tick box. Click a card to tick or untick it; the ones that can't be
+              added (already owned, invalid) are dimmed and don't respond. A warning mark shows where a release has notes.
+            - Text only: no images at all and no image requests (for a huge file or a slow connection).
+          Where a cover comes from, in order, and each candidate is TRIED before it's used so a dead address falls through
+          to the next: the cover address in the file; the Cover Art Archive's front image when the file links a
+          MusicBrainz release; an iTunes lookup that must match artist and title (the same strict matcher as the rest of
+          the app). If nothing works the release gets an initials tile, as in the rest of the app. A release you already
+          own still shows its cover, which is how you recognise it.
+          Only what you can see is looked up: nothing is fetched until a row scrolls into view, at most four lookups run
+          at a time, and every answer is remembered, so ticking and unticking (which redraws the list) causes no new
+          lookups and a 500-release file doesn't fire 500 requests. Releases that can't be imported are never looked up.
+          Safety: the cover address comes from a file you didn't write, so it is only ever put on an image from code and
+          never pasted into the page's HTML; a cover address containing quote marks and an event handler is harmless.
+          (As with any web image, a cover that is hosted somewhere does mean your browser asks that host for it. "Text
+          only" avoids that entirely.) The importer's results are unchanged: an imported release still carries the cover
+          address from the file.
+
+          Verified in real Chromium: 34 browser checks (pw_cx_covers.py) with a stand-in for each image source: the
+          cover from the file; a dead address falling through to the Cover Art Archive; an iTunes lookup for a release
+          with neither; an initials tile; an invalid release never looked up; no re-lookup on redraw; the injection
+          attempt; the grid (cards, statuses, ticking, disabled cards, tabs, importing from it); the remembered view;
+          Text only making no requests; 80 releases looking up only what's on screen, then more on scroll; at most four
+          lookups at once; a phone. Looking everything up at once makes two tests fail.
+          Not done: a larger preview of a cover on click; covers in the Export dialog; choosing a different cover.
 
   1.29.198 — 2026-10-18 — Duplicate protection: adding a release that's already in your crate now warns you, and an exact duplicate can't be added.
 
@@ -7515,7 +7545,8 @@
           <label><input type="checkbox" id="cxImpLinkOther"> Other</label>
           <span class="cx-presets cx-presets-end">Quick: <button type="button" class="ai-link-btn" data-cx-preset="all">All</button><button type="button" class="ai-link-btn" data-cx-preset="spotify">Only Spotify</button><button type="button" class="ai-link-btn" data-cx-preset="youtube">Only YouTube</button><button type="button" class="ai-link-btn" data-cx-preset="none">None</button></span>
         </fieldset>
-        <div id="cxImpTabs" class="gi-seg gi-seg-text" role="group" aria-label="Show"></div>
+        <div class="cx-tabrow"><div id="cxImpTabs" class="gi-seg gi-seg-text" role="group" aria-label="Show"></div>
+          <div id="cxImpViews" class="gi-seg gi-seg-text" role="group" aria-label="How to show the releases"><button type="button" class="gi-seg-btn" data-cxview="list" title="A list with a small cover on each row">List</button><button type="button" class="gi-seg-btn" data-cxview="grid" title="A grid of covers — tick the ones to add">Covers</button><button type="button" class="gi-seg-btn" data-cxview="off" title="No images at all">Text only</button></div></div>
         <div id="cxImpList" class="sm-list"></div>
         <div class="lfr-foot"><span><button type="button" id="cxImpBack" class="ai-link-btn">← Choose another file</button> <button type="button" id="cxImpSelNew" class="ai-link-btn">Select all new</button> <button type="button" id="cxImpSelNone" class="ai-link-btn">Select none</button></span><span class="lfr-foot-right"><button type="button" id="cxImpGo" class="config-btn" disabled>Add selected…</button></span></div>
       </div>
@@ -7566,7 +7597,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.198';
+const APP_VERSION = '1.29.199';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -20953,7 +20984,7 @@ function cxExportBind() {
 }
 // ----- import -----
 function openCxImport() {
-  cxImp = { releases: null, meta: null, selected: new Set(), filter: 'all', running: false, cancel: false, added: [], failed: [] };
+  cxImp = { releases: null, meta: null, selected: new Set(), filter: 'all', view: cxLoadView(), running: false, cancel: false, added: [], failed: [] };
   cxEl('cxImpText').value = ''; cxEl('cxImpFile').value = ''; cxEl('cxImpError').hidden = true;
   cxSetBoxes('cxImp', cxLoadOpts());
   el.layoutMenu.hidden = true;
@@ -20965,6 +20996,59 @@ function closeCxImport() {
   if (cxImp && cxImp.running) { cxImp.cancel = true; return; }          // while adding, closing means "stop after the one in progress"
   ov.hidden = true; cxImp = null;
 }
+
+// ----- covers in the review -----
+// Where a release's cover comes from, in order: the address in the file, then (when the file links a MusicBrainz release) the Cover
+// Art Archive's front image, then an iTunes lookup that must match artist and title. Each candidate is TRIED before it is used, so a
+// dead address falls through to the next. Nothing is looked up until a row scrolls into view, at most four at a time, and each answer
+// is remembered. When nothing works the release gets an initials tile. The address is only ever put on an <img> from code (never
+// pasted into the page's HTML), because it comes from a file you didn't write. "Text only" loads no images at all.
+const CX_VIEW_KEY = 'crate_import_view_v1';
+const cxCoverCache = new Map(), cxCoverInflight = new Map(), cxCoverWait = [];
+let cxCoverBusy = 0, cxCoverObs = null;
+function cxLoadView() { try { const v = localStorage.getItem(CX_VIEW_KEY); return v === 'grid' || v === 'off' ? v : 'list'; } catch (e) { return 'list'; } }
+function cxCoverKey(r) { return dupKey(r.artist, r.title) + '|' + (r.cover || '') + '|' + (r.link || ''); }
+function cxProbe(url) { return new Promise(res => { const im = new Image(); im.onload = () => res(true); im.onerror = () => res(false); im.src = url; }); }
+function cxResolveCover(r) {
+  const key = cxCoverKey(r);
+  if (cxCoverCache.has(key)) return Promise.resolve(cxCoverCache.get(key));
+  if (cxCoverInflight.has(key)) return cxCoverInflight.get(key);
+  const job = (async () => {
+    const tries = [];
+    if (r.cover) tries.push(r.cover);
+    const mb = /musicbrainz\.org\/release\/([0-9a-f-]{36})/i.exec(r.link || '');
+    if (mb) tries.push(`https://coverartarchive.org/release/${mb[1]}/front-250`);
+    let found = '';
+    for (const u of tries) { if (await cxProbe(u)) { found = u; break; } }
+    if (!found && r.artist && r.title) {
+      try { const hit = await findItunesAlbum({ artist: r.artist, title: r.title }); if (hit && hit.artworkUrl100) found = String(hit.artworkUrl100).replace('100x100', '300x300'); } catch (e) { /* no luck: the tile stays */ }
+    }
+    cxCoverCache.set(key, found); cxCoverInflight.delete(key); return found;
+  })();
+  cxCoverInflight.set(key, job);
+  return job;
+}
+function cxCoverQueue(r) {                    // at most 4 lookups at once
+  return new Promise(res => { cxCoverWait.push(() => cxResolveCover(r).then(res, () => res(''))); cxCoverPump(); });
+}
+function cxCoverPump() { while (cxCoverBusy < 4 && cxCoverWait.length) { const j = cxCoverWait.shift(); cxCoverBusy++; j().finally(() => { cxCoverBusy--; cxCoverPump(); }); } }
+function cxCoverImgHtml(r, cls) {             // what shows first: the answer if it's already known, else the tile
+  const known = cxCoverCache.get(cxCoverKey(r));
+  return `<img class="${cls}" alt="" data-cxcover="${r.idx}" decoding="async" src="${known ? escapeHtml(known) : placeholderArt({ artist: r.artist || '?', title: r.title || '' })}">`;
+}
+function cxCoverObserve() {
+  if (cxCoverObs) { cxCoverObs.disconnect(); cxCoverObs = null; }
+  const st = cxImp; if (!st || !st.releases || st.view === 'off' || typeof IntersectionObserver === 'undefined') return;
+  const imgs = [...cxEl('cxImpList').querySelectorAll('img[data-cxcover]')].filter(im => { const r = st.releases[Number(im.dataset.cxcover)]; return r && !r.invalid && !cxCoverCache.has(cxCoverKey(r)); });
+  if (!imgs.length) return;
+  cxCoverObs = new IntersectionObserver((entries) => entries.forEach(en => {
+    if (!en.isIntersecting) return;
+    cxCoverObs.unobserve(en.target);
+    const img = en.target, r = st.releases[Number(img.dataset.cxcover)];
+    cxCoverQueue(r).then(url => { if (url && img.isConnected) img.src = url; });
+  }), { root: cxEl('cxImpList'), rootMargin: '200px' });
+  imgs.forEach(im => cxCoverObs.observe(im));
+}
 function cxImpShow(section) { ['cxImpPick', 'cxImpReview', 'cxImpProgress'].forEach(id => { cxEl(id).hidden = id !== section; }); }
 function cxImpRead(text) {
   const r = cxParseImport(text);
@@ -20972,6 +21056,11 @@ function cxImpRead(text) {
   cxClassify(r.releases, dupIndex(), dupKey);
   Object.assign(cxImp, { releases: r.releases, meta: r.meta, filter: 'all', selected: new Set(r.releases.filter(x => x.status === 'new').map(x => x.idx)) });
   cxEl('cxImpError').hidden = true; cxImpShow('cxImpReview'); cxImpRender();
+}
+function cxStatusShort(r) {           // the same status in a word or two, for the cards (the full wording is the chip's tooltip)
+  if (r.status === 'new') return 'New';
+  if (r.status === 'invalid') return 'Problem';
+  return r.dupLevel === 'edition' ? 'Edition?' : r.status === 'duplicate' ? 'Owned' : 'Repeat';
 }
 function cxStatus(r) {
   const ed = r.dupLevel === 'edition';
@@ -20990,18 +21079,26 @@ function cxImpRender() {
   const tabs = [['all', `All ${rels.length}`], ['new', `New ${by.new}`], ['dupe', `Already in your crate ${by.duplicate + by.repeat}`], ['bad', `Problems ${by.invalid}`]];
   cxEl('cxImpTabs').innerHTML = tabs.map(([k, t]) => `<button type="button" class="gi-seg-btn${st.filter === k ? ' active' : ''}" data-cxtab="${k}" aria-pressed="${st.filter === k}">${t}</button>`).join('');
   const show = rels.filter(r => st.filter === 'all' || (st.filter === 'new' && r.status === 'new') || (st.filter === 'dupe' && (r.status === 'duplicate' || r.status === 'repeat')) || (st.filter === 'bad' && r.status === 'invalid'));
+  cxEl('cxImpViews').querySelectorAll('[data-cxview]').forEach(b => { const on = b.dataset.cxview === st.view; b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)); });
+  cxEl('cxImpList').classList.toggle('cx-grid', st.view === 'grid');
   cxEl('cxImpList').innerHTML = show.map(r => {
-    const rc = cxCounts([cxShape(r, opts)]), on = st.selected.has(r.idx), [label, cls] = cxStatus(r);
+    const rc = cxCounts([cxShape(r, opts)]), on = st.selected.has(r.idx), [label, cls] = cxStatus(r), off = r.invalid || r.dupLevel === 'exact';
     const L = rc.links, bits = [r.type, (r.releaseDate || '').slice(0, 4), r.genre].filter(Boolean);
     const links = [L.spotify && `${L.spotify} Spotify`, L.youtube && `${L.youtube} YouTube`, L.soundcloud && `${L.soundcloud} SoundCloud`, L.other && `${L.other} other`].filter(Boolean);
     const notes = r.problems.concat(r.dupLevel === 'edition' ? [`Looks like a different edition: ${(r.dupDiffs || []).join('; ')}`] : [], r.warnings);
-    return `<div class="lfr-row${on ? ' picked' : ''}" data-idx="${r.idx}"><label class="lfr-check"><input type="checkbox" data-cx="pick"${on ? ' checked' : ''}${r.invalid || r.dupLevel === 'exact' ? ' disabled' : ''} aria-label="Select ${escapeHtml(r.artist)} \u2014 ${escapeHtml(r.title)}"></label>
+    const name = `${r.artist || '(no artist)'} \u2014 ${r.title || '(no title)'}`;
+    if (st.view === 'grid') {
+      return `<label class="cx-card${on ? ' picked' : ''}${off ? ' off' : ''}" data-idx="${r.idx}" title="${escapeHtml(name + (notes.length ? ' \u2014 ' + notes.join('; ') : ''))}"><input type="checkbox" data-cx="pick"${on ? ' checked' : ''}${off ? ' disabled' : ''} aria-label="Select ${escapeHtml(name)}">${cxCoverImgHtml(r, 'cx-card-img')}<span class="cx-chip ${cls}" title="${label}">${cxStatusShort(r)}</span><span class="cx-card-title">${escapeHtml(r.title || '(no title)')}</span><span class="cx-card-sub">${escapeHtml(r.artist || '(no artist)')}${r.releaseDate ? ' \u00b7 ' + escapeHtml(r.releaseDate.slice(0, 4)) : ''}</span>${notes.length ? '<span class="cx-card-warn" aria-hidden="true">\u26a0</span>' : ''}</label>`;
+    }
+    return `<div class="lfr-row${st.view === 'list' ? ' cx-row' : ''}${on ? ' picked' : ''}" data-idx="${r.idx}"><label class="lfr-check"><input type="checkbox" data-cx="pick"${on ? ' checked' : ''}${off ? ' disabled' : ''} aria-label="Select ${escapeHtml(name)}"></label>
+      ${st.view === 'list' ? cxCoverImgHtml(r, 'cx-thumb') : ''}
       <div class="lfr-main"><span class="lfr-title">${escapeHtml(r.artist || '(no artist)')} \u2014 ${escapeHtml(r.title || '(no title)')}</span>
       <span class="lfr-meta">${escapeHtml(bits.join(' \u00b7 ') || 'no details')}${rc.tracks ? ` \u00b7 ${cxN(rc.tracks, 'song')}` : ''}${links.length ? ` \u00b7 ${links.join(', ')}` : ''}</span>
       ${notes.length ? `<span class="lfr-tracks cx-notes" title="${escapeHtml(notes.join('; '))}">${escapeHtml(notes[0])}${notes.length > 1 ? ` (+${notes.length - 1} more)` : ''}</span>` : ''}</div>
       <span class="cx-chip ${cls}">${label}</span></div>`;
   }).join('') || '<p class="sm-dim" style="padding:12px 4px">Nothing in this view.</p>';
   cxEl('cxImpGo').textContent = chosen.length ? `Add ${cxN(chosen.length, 'release')}\u2026` : 'Add selected\u2026'; cxEl('cxImpGo').disabled = !chosen.length;
+  cxCoverObserve();
 }
 async function cxImpRun(list) {                // list: [{ idx, shaped }]
   const st = cxImp; st.running = true; st.cancel = false; st.added = []; st.failed = [];
@@ -21060,13 +21157,14 @@ function cxImportBind() {
   ov.addEventListener('change', (e) => {
     if (!cxImp || !cxImp.releases) return;
     const pick = e.target.closest('[data-cx="pick"]');
-    if (pick) { const idx = Number(pick.closest('.lfr-row').dataset.idx); if (pick.checked) cxImp.selected.add(idx); else cxImp.selected.delete(idx); }
+    if (pick) { const idx = Number(pick.closest('[data-idx]').dataset.idx); if (pick.checked) cxImp.selected.add(idx); else cxImp.selected.delete(idx); }
     cxImpRender();                           // a link / tracklist / cover box changed, or a pick: the totals and rows follow
   });
   ov.addEventListener('click', (e) => {
     const p = e.target.closest('[data-cx-preset]');
     if (p) { const l = cxPresetLinks(p.dataset.cxPreset); CX_KINDS.forEach(k => { cxEl('cxImp' + CX_LINK_IDS[k]).checked = l[k]; }); if (cxImp && cxImp.releases) cxImpRender(); return; }
-    const t = e.target.closest('[data-cxtab]'); if (t && cxImp) { cxImp.filter = t.dataset.cxtab; cxImpRender(); }
+    const t = e.target.closest('[data-cxtab]'); if (t && cxImp) { cxImp.filter = t.dataset.cxtab; cxImpRender(); return; }
+    const v = e.target.closest('[data-cxview]'); if (v && cxImp) { cxImp.view = v.dataset.cxview; try { localStorage.setItem(CX_VIEW_KEY, cxImp.view); } catch (err) { /* not remembered */ } cxImpRender(); }
   });
 }
 function initCrateExchange() {
@@ -30711,6 +30809,27 @@ html, body {
   .add-result-owned { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 9px; font-size: 10.5px; font-weight: 600; color: #12161C; background: #6FBF8E; white-space: nowrap; vertical-align: middle; }
   .add-result-owned.edition { background: var(--accent); }
   .cx-chip-ed { color: #12161C; background: var(--accent); }
+  /* ---- covers in the import review ---- */
+  .cx-tabrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; flex: 0 0 auto; }
+  .lfr-row.cx-row { grid-template-columns: 26px 52px minmax(0, 1fr) auto; }
+  .cx-thumb { width: 52px; height: 52px; border-radius: 5px; object-fit: cover; background: var(--bg-card); border: 1px solid var(--line); }
+  .cx-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; padding: 12px 4px; align-content: start; }
+  .cx-card { position: relative; display: flex; flex-direction: column; gap: 3px; cursor: pointer; border: 2px solid transparent; border-radius: 8px; padding: 4px; min-width: 0; }
+  .cx-card.picked { border-color: var(--accent); background: rgba(214,162,76,0.07); }
+  .cx-card.off { opacity: 0.55; cursor: default; }
+  .cx-card-img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 6px; background: var(--bg-card); display: block; }
+  .cx-card input { position: absolute; top: 10px; right: 10px; width: 18px; height: 18px; margin: 0; accent-color: var(--accent); z-index: 2; }
+  .cx-card .cx-chip { position: absolute; top: 10px; left: 10px; max-width: calc(100% - 46px); overflow: hidden; text-overflow: ellipsis; box-shadow: 0 0 0 1px rgba(0,0,0,0.5); background-clip: padding-box; }
+  .cx-card .cx-chip-dupe { background: #1B212B; }
+  .cx-card-title { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cx-card-sub { font-size: 11px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cx-card-warn { position: absolute; top: 40px; left: 12px; color: #D9A04A; text-shadow: 0 0 3px #000; font-size: 14px; }
+  @media (max-width: 900px) {
+    .lfr-row.cx-row { grid-template-columns: 24px 44px minmax(0, 1fr); }
+    .lfr-row.cx-row .cx-chip { grid-column: 3; justify-self: start; }
+    .cx-thumb { width: 44px; height: 44px; }
+    .cx-grid { grid-template-columns: repeat(auto-fill, minmax(98px, 1fr)); gap: 8px; }
+  }
   /* ---- Match songs (see the "Match songs" block in the script) ---- */
   .link-flag[role="button"] { cursor: pointer; }
   .link-flag[role="button"]:hover { filter: brightness(1.15); }
