@@ -19,7 +19,25 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.29.199
+  CURRENT_VERSION: 1.29.200
+
+  1.29.200 — 2026-10-18 — Fix: a right-click menu opened while the track popup (Album Quick Peek) is showing was drawn BEHIND the popup, so the part of the menu that overlapped it was hidden.
+
+          Cause: the Quick Peek popup sits at z-index 500 and the detached mini-player at 400, but every right-click /
+          action menu (album, song, artist, genre, and the second menu "Add to playlist >" opens) was at 320, so it
+          went underneath whatever it overlapped. Measured in a real browser: 266 of 770 points (35%) of an album's
+          menu were covered by the popup. Right-click does not close the popup (only a normal click outside does), so the
+          two are routinely open together.
+          Fix: those menus (.now-playing-add-menu and .track-col-menu) are now at z-index 600, above the popup and the
+          mini-player. Their second-level menu is the same element type, so it rose with them.
+          Checked and NOT affected: the header dropdowns (the gear, sort and view menus, and the left-panel mode menu).
+          Opening any of them is a normal click outside the popup, which closes it, so they are never open together.
+
+          Verified in real Chromium (pw_menu_z.py, 10 checks): an album's menu opened beside the open popup, overlapping
+          it, has 0 of 770 points hidden (was 266); its second menu is fully visible; both are stacked above the popup
+          and the mini-player; a menu opened from a SONG inside the popup is on top of the popup; a menu over a detached
+          mini-player is on top; the popup isn't closed by the right-click. Two of my own first attempts at the test
+          were too weak (one passed without opening the submenu) and were tightened until they could fail.
 
   1.29.199 — 2026-10-18 — Import review: album covers. Every release in the review now shows its cover, as a thumbnail in the list or as a grid of covers you tick directly.
 
@@ -7597,7 +7615,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.199';
+const APP_VERSION = '1.29.200';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -29860,7 +29878,9 @@ html, body {
 
   /* Right-click "change column" popup for the Tracks table header, and the
      "add what's playing" popup off the mini player / now-playing toast */
-  .track-col-menu, .now-playing-add-menu { position: fixed; z-index: 320; max-height: 70vh; overflow-y: auto; }
+  /* Right-click / action menus must sit above every other floating thing: the Album Quick Peek (500) and the detached mini-player (400) used to
+     hide the part of a menu that overlapped them. Their submenus are inside this stacking context, so they rise with it. */
+  .track-col-menu, .now-playing-add-menu { position: fixed; z-index: 600; max-height: 70vh; overflow-y: auto; }
   /* Greyed-out entries in the player's track menu ("Not in your crate"). */
   .panel-mode-menu button:disabled { opacity: 0.4; cursor: default; }
   .panel-mode-menu button:disabled:hover { background: none; color: var(--text); }
