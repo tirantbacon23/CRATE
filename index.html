@@ -19,7 +19,48 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.29.197
+  CURRENT_VERSION: 1.29.198
+
+  1.29.198 — 2026-10-18 — Duplicate protection: adding a release that's already in your crate now warns you, and an exact duplicate can't be added.
+
+          Where it works. A release can only be added through the Add form's Save and through Import, so both are guarded.
+            - ADD FORM. As you fill it in (or pick a search result), a banner appears at the top if you already have the
+              album, and keeps up as you type the artist, title, descriptor, catalogue number or date:
+                * EXACT duplicate (same album, same edition): a red banner — "Already in your crate — Yes — Close to the
+                  Edge (1972). Adding it again would create a duplicate, so it can't be added." with an Open it link.
+                  Save is switched off.
+                * Probably a different EDITION (the descriptor or a bracketed note in the title differs, or the catalogue
+                  number, or the year): an amber banner says why ("a different year (2003 vs 1972)") and asks for an
+                  explicit "Yes, add this as a separate edition". Save stays off until you tick it, and a tick doesn't
+                  carry over if the situation changes.
+              Save ALSO checks on its own, so a save that gets past the button (Enter, a script) is still refused. Before
+              checking it refreshes the app's copy of your crate if that is more than two minutes old ("Checking your
+              crate…" on the button), so an album added from another device or tab is caught too. With a fresh copy
+              there's no extra delay.
+            - SEARCH RESULTS in the Add modal are marked "In your crate" (same pressing) or "Another edition in your
+              crate" (a reissue, a different year, a "(Remastered)" title), in list and grid view.
+            - IMPORT follows the same rule: an exact duplicate (already owned, or repeated in the file) can no longer be
+              ticked; a different edition can (chip "Another edition in your crate", with the reason). The Add button
+              re-checks right before adding (refreshing a stale crate first) and skips anything that has become an exact
+              duplicate meanwhile, saying which.
+          What counts as "the same album": artist and title match ignoring case, accents (Björk = Bjork), a leading
+          "The", "&" vs "and", apostrophes and punctuation, and any bracketed edition note in the title. Titles in other
+          alphabets are compared properly (an earlier rule would have treated them as empty). Two different albums with
+          the same title by different artists are never flagged. Ratings and other fields don't matter.
+          Everything else (Last.fm review "Add…", the new-releases scan, "Add as album" from the player) goes through the
+          Add form, so it is protected too.
+
+          Verified in real Chromium: 17 unit checks of the matching and edition rules (test_dup.js), 41 of the import
+          logic (test_cx.js) and 100 browser checks (pw_dup.py for the Add form; pw_cx_b.py for import): the banner for
+          exact and edition cases, spelling variants, live typing, catalogue numbers, the confirmation tick and its reset,
+          Save refusing without the button, the stale-copy refresh (and no refresh when fresh), search-result marks in both
+          views, import's tick rules and its skip of a release that became a duplicate mid-review, a phone. Removing the
+          Save check, or the stale-copy refresh, each makes tests fail.
+          NOT verified against the real backend (stubbed). A duplicate added from another device within the last two
+          minutes can still slip through if the other device added it after this page last refreshed AND this page's
+          refresh itself fails; the backend can't enforce uniqueness without a script change.
+          Not done: a way to merge links into the existing copy (Open it takes you to it); checking when you EDIT a
+          release into a duplicate; cleaning up duplicates that are already in your crate.
 
   1.29.197 — 2026-10-18 — New: export your crate to a file, choosing which links go in (Spotify, YouTube, SoundCloud, other), and import a file into a crate, reviewing everything before anything is added.
 
@@ -6998,6 +7039,7 @@
       </div>
       <div id="addResults" class="add-results"></div>
       <div id="addForm" class="add-form" hidden>
+      <div id="addDupBanner" hidden role="alert"></div>
         <p class="arrange-hint">Confirm the details, then add it to your crate.</p>
         <label class="add-field" data-add-field="artist">Artist <input type="text" id="addArtist"></label>
         <label class="add-field" data-add-field="title">Release name <input type="text" id="addTitle"></label>
@@ -7524,7 +7566,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.29.197';
+const APP_VERSION = '1.29.198';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -9643,6 +9685,7 @@ function bindEvents() {
   initAddMatch();
   initLastfmReview();
   initCrateExchange();
+  initDupGuard();
   initGenreLinks();
   el.miniPlayerArt.addEventListener('click', () => {
     // On the compact mobile layout, tapping anywhere on the bar (including
@@ -10456,6 +10499,7 @@ async function fetchCatalog() {
     }
 
     // Inside fetchCatalog(), update the state.raw mapping:
+      state.catalogFetchedAt = Date.now();      // so the duplicate check knows how fresh its copy of the crate is
       state.raw = (data.rows || [])
         .filter(r => r.Artist && r.Title)
         .map((r, i) => ({
@@ -20660,6 +20704,38 @@ function lfLoggedAlbums(groups) {
 }
 // END lastfm-review
 
+// BEGIN dup-check
+// ---- Is this release already in the crate? (pure) ----
+// Two releases are "the same album" when artist and title match after ignoring case, accents, a leading "The", "&" vs "and",
+// apostrophes and other punctuation, and any (bracketed) edition note in the title. Whether it's the same EDITION is a second
+// question (descriptor / bracketed text, catalogue number, year): same album + same edition = an exact duplicate (blocked);
+// same album + a different edition = maybe a deliberate second pressing (warned about, and needs an explicit yes).
+function dupFold(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/&/g, ' and ').replace(/['\u2018\u2019`]/g, ''); }
+function dupWords(s) { return dupFold(s).replace(/[^\p{L}\p{N}]+/gu, ' ').trim(); }       // letters and digits in ANY script, so titles in other alphabets don't all collapse to nothing
+function dupKey(artist, title) {
+  const raw = String(title == null ? '' : title), stripped = raw.replace(/\s*[\(\[][^\)\]]*[\)\]]/g, ' ');
+  const a = dupWords(artist).replace(/^the /, ''), t = (dupWords(stripped) || dupWords(raw)).replace(/^the /, '');
+  return a && t ? a + '::' + t : '';
+}
+function dupEditionText(x) {
+  const br = (String(x.title || '').match(/[\(\[][^\)\]]*[\)\]]/g) || []).map(s => s.slice(1, -1));
+  return [x.descriptor].concat(br).map(s => String(s == null ? '' : s).trim()).filter(Boolean).join(', ');
+}
+function dupEditionSig(x) { return [...new Set(dupWords(dupEditionText(x)).split(' ').filter(Boolean))].sort().join(' '); }
+function dupYear(d) { const m = /^(\d{4})/.exec(String(d == null ? '' : d).trim()); return m ? m[1] : ''; }
+function dupCat(c) { const s = String(c == null ? '' : c).trim(); return /^CRT-\d+$/i.test(s) ? '' : dupWords(s); }      // an automatic CRT-007 number says nothing
+function dupCompare(a, b) {                       // a: the release being added, b: one you already have -> { level: 'exact' | 'edition', diffs: [why] }
+  const diffs = [];
+  if (dupEditionSig(a) !== dupEditionSig(b)) diffs.push(`the edition differs (${dupEditionText(a) || 'standard'} vs ${dupEditionText(b) || 'standard'})`);
+  const ca = dupCat(a.catalog), cb = dupCat(b.catalog);
+  if (ca && cb && ca !== cb) diffs.push(`a different catalogue number (${String(a.catalog).trim()} vs ${String(b.catalog).trim()})`);
+  const ya = dupYear(a.releaseDate), yb = dupYear(b.releaseDate);
+  if (ya && yb && ya !== yb) diffs.push(`a different year (${ya} vs ${yb})`);
+  return { level: diffs.length ? 'edition' : 'exact', diffs };
+}
+function dupVerdict(matches) { return matches.some(m => m.level === 'exact') ? 'exact' : matches.length ? 'edition' : 'none'; }
+// END dup-check
+
 // BEGIN crate-exchange
 // ---- Exporting and importing a crate: what a file contains, how it is checked, and what an import will write (pure) ----
 // A release in the file: artist, title, type, releaseDate, recorded, genre, secondaryGenre, region, location, label, catalog (only when you
@@ -20771,15 +20847,15 @@ function cxParseImport(text) {
   if (list.length > CX_MAX_RELEASES) return { ok: false, error: `The file has ${list.length.toLocaleString()} releases; the limit for one import is ${CX_MAX_RELEASES.toLocaleString()}.` };
   return { ok: true, meta, releases: list.map((r, i) => cxNormalizeRelease(r, i)) };
 }
-function cxClassify(releases, existingKeys, keyFn) {          // new | duplicate (already in your crate) | repeat (again in the file) | invalid
-  const seen = new Set();
+function cxClassify(releases, existingIndex, keyFn) {          // new | duplicate (you own it) | repeat (again in the file) | invalid; and for the last three, dupLevel: exact (can't be added) or edition (a different pressing: your call)
+  const first = new Map();
   releases.forEach(r => {
     if (r.invalid) { r.status = 'invalid'; return; }
-    const k = keyFn(r.artist, r.title);
-    if (existingKeys.has(k)) r.status = 'duplicate';
-    else if (seen.has(k)) r.status = 'repeat';
+    const k = keyFn(r.artist, r.title), owned = k ? (existingIndex.get(k) || []) : [];
+    if (owned.length) { const cmp = owned.map(o => dupCompare(r, o)), ex = cmp.find(c => c.level === 'exact'); r.status = 'duplicate'; r.dupLevel = ex ? 'exact' : 'edition'; r.dupDiffs = (ex || cmp[0]).diffs; }
+    else if (k && first.has(k)) { const c = dupCompare(r, first.get(k)); r.status = 'repeat'; r.dupLevel = c.level; r.dupDiffs = c.diffs; }
     else r.status = 'new';
-    seen.add(k);
+    if (k && !first.has(k)) first.set(k, r);
   });
   return releases;
 }
@@ -20893,11 +20969,17 @@ function cxImpShow(section) { ['cxImpPick', 'cxImpReview', 'cxImpProgress'].forE
 function cxImpRead(text) {
   const r = cxParseImport(text);
   if (!r.ok) { cxEl('cxImpError').textContent = r.error; cxEl('cxImpError').hidden = false; return; }
-  cxClassify(r.releases, new Set(state.raw.map(i => lastfmNormKey(i.artist, i.title))), lastfmNormKey);
+  cxClassify(r.releases, dupIndex(), dupKey);
   Object.assign(cxImp, { releases: r.releases, meta: r.meta, filter: 'all', selected: new Set(r.releases.filter(x => x.status === 'new').map(x => x.idx)) });
   cxEl('cxImpError').hidden = true; cxImpShow('cxImpReview'); cxImpRender();
 }
-const CX_STATUS = { new: ['New', 'cx-chip-new'], duplicate: ['Already in your crate', 'cx-chip-dupe'], repeat: ['Repeated in this file', 'cx-chip-dupe'], invalid: ['Can\u2019t import', 'cx-chip-bad'] };
+function cxStatus(r) {
+  const ed = r.dupLevel === 'edition';
+  if (r.status === 'new') return ['New', 'cx-chip-new'];
+  if (r.status === 'duplicate') return [ed ? 'Another edition in your crate' : 'Already in your crate', ed ? 'cx-chip-ed' : 'cx-chip-dupe'];
+  if (r.status === 'repeat') return [ed ? 'Another edition in this file' : 'Repeated in this file', ed ? 'cx-chip-ed' : 'cx-chip-dupe'];
+  return ['Can\u2019t import', 'cx-chip-bad'];
+}
 function cxImpRender() {
   const st = cxImp; if (!st || !st.releases) return;
   const opts = cxGetBoxes('cxImp'), rels = st.releases;
@@ -20909,11 +20991,11 @@ function cxImpRender() {
   cxEl('cxImpTabs').innerHTML = tabs.map(([k, t]) => `<button type="button" class="gi-seg-btn${st.filter === k ? ' active' : ''}" data-cxtab="${k}" aria-pressed="${st.filter === k}">${t}</button>`).join('');
   const show = rels.filter(r => st.filter === 'all' || (st.filter === 'new' && r.status === 'new') || (st.filter === 'dupe' && (r.status === 'duplicate' || r.status === 'repeat')) || (st.filter === 'bad' && r.status === 'invalid'));
   cxEl('cxImpList').innerHTML = show.map(r => {
-    const rc = cxCounts([cxShape(r, opts)]), on = st.selected.has(r.idx), [label, cls] = CX_STATUS[r.status];
+    const rc = cxCounts([cxShape(r, opts)]), on = st.selected.has(r.idx), [label, cls] = cxStatus(r);
     const L = rc.links, bits = [r.type, (r.releaseDate || '').slice(0, 4), r.genre].filter(Boolean);
     const links = [L.spotify && `${L.spotify} Spotify`, L.youtube && `${L.youtube} YouTube`, L.soundcloud && `${L.soundcloud} SoundCloud`, L.other && `${L.other} other`].filter(Boolean);
-    const notes = r.problems.concat(r.warnings);
-    return `<div class="lfr-row${on ? ' picked' : ''}" data-idx="${r.idx}"><label class="lfr-check"><input type="checkbox" data-cx="pick"${on ? ' checked' : ''}${r.invalid ? ' disabled' : ''} aria-label="Select ${escapeHtml(r.artist)} \u2014 ${escapeHtml(r.title)}"></label>
+    const notes = r.problems.concat(r.dupLevel === 'edition' ? [`Looks like a different edition: ${(r.dupDiffs || []).join('; ')}`] : [], r.warnings);
+    return `<div class="lfr-row${on ? ' picked' : ''}" data-idx="${r.idx}"><label class="lfr-check"><input type="checkbox" data-cx="pick"${on ? ' checked' : ''}${r.invalid || r.dupLevel === 'exact' ? ' disabled' : ''} aria-label="Select ${escapeHtml(r.artist)} \u2014 ${escapeHtml(r.title)}"></label>
       <div class="lfr-main"><span class="lfr-title">${escapeHtml(r.artist || '(no artist)')} \u2014 ${escapeHtml(r.title || '(no title)')}</span>
       <span class="lfr-meta">${escapeHtml(bits.join(' \u00b7 ') || 'no details')}${rc.tracks ? ` \u00b7 ${cxN(rc.tracks, 'song')}` : ''}${links.length ? ` \u00b7 ${links.join(', ')}` : ''}</span>
       ${notes.length ? `<span class="lfr-tracks cx-notes" title="${escapeHtml(notes.join('; '))}">${escapeHtml(notes[0])}${notes.length > 1 ? ` (+${notes.length - 1} more)` : ''}</span>` : ''}</div>
@@ -20945,6 +21027,7 @@ async function cxImpRun(list) {                // list: [{ idx, shaped }]
   }
   st.running = false;
   const lines = [`<b>${cxN(st.added.length, 'release')}</b> added${notTried ? `, ${notTried} not attempted (stopped)` : ''}${st.failed.length ? `, <b>${st.failed.length}</b> failed` : ''}.`];
+  if (st.skipped && st.skipped.length) lines.push(`${cxN(st.skipped.length, 'release')} skipped \u2014 already in your crate: ${st.skipped.map(r => escapeHtml(r.artist + ' \u2014 ' + r.title)).join(', ')}.`);
   if (scFailed) lines.push(`${cxN(scFailed, 'release')} added, but their SoundCloud song links couldn\u2019t be attached.`);
   if (st.failed.length) lines.push(`<ul class="cx-fails">${st.failed.map(f => `<li>${escapeHtml(f.shaped.artist)} \u2014 ${escapeHtml(f.shaped.title)}: ${escapeHtml(f.error)}</li>`).join('')}</ul>`);
   cxEl('cxImpProgText').textContent = st.failed.length || notTried ? 'Import finished with problems' : 'Import finished';
@@ -20962,7 +21045,15 @@ function cxImportBind() {
   cxEl('cxImpBack').addEventListener('click', () => { cxImpShow('cxImpPick'); });
   cxEl('cxImpSelNew').addEventListener('click', () => { cxImp.selected = new Set(cxImp.releases.filter(r => r.status === 'new').map(r => r.idx)); cxImpRender(); });
   cxEl('cxImpSelNone').addEventListener('click', () => { cxImp.selected = new Set(); cxImpRender(); });
-  cxEl('cxImpGo').addEventListener('click', () => { const o = cxGetBoxes('cxImp'); cxImpRun(cxImp.releases.filter(r => cxImp.selected.has(r.idx)).map(r => ({ idx: r.idx, shaped: cxShape(r, o) }))); });
+  cxEl('cxImpGo').addEventListener('click', async () => {
+    const btn = cxEl('cxImpGo'), label = btn.textContent, o = cxGetBoxes('cxImp'); btn.disabled = true;
+    if (Date.now() - (state.catalogFetchedAt || 0) > DUP_FRESH_MS) { btn.textContent = 'Checking your crate\u2026'; try { await fetchCatalog(); } catch (e) { console.warn('refresh before import failed', e); } }
+    const go = [], skipped = [];
+    cxImp.releases.filter(r => cxImp.selected.has(r.idx)).forEach(r => { if (dupVerdict(dupMatches(r)) === 'exact') skipped.push(r); else go.push({ idx: r.idx, shaped: cxShape(r, o) }); });   // it may have been added since the review (another tab, another device)
+    btn.textContent = label; cxImp.skipped = skipped;
+    if (!go.length) { flashGlobalToast('Everything selected is already in your crate \u2014 nothing to add.'); cxImpRender(); return; }
+    cxImpRun(go);
+  });
   cxEl('cxImpCancel').addEventListener('click', () => { cxImp.cancel = true; cxEl('cxImpCancel').disabled = true; cxEl('cxImpProgText').textContent = 'Stopping after this one\u2026'; });
   cxEl('cxImpRetry').addEventListener('click', () => { const f = cxImp.failed.map(x => ({ idx: x.idx, shaped: x.shaped })); cxEl('cxImpRetry').hidden = true; cxImpRun(f); });
   cxEl('cxImpDone').addEventListener('click', () => { ov.hidden = true; cxImp = null; });
@@ -20981,6 +21072,72 @@ function cxImportBind() {
 function initCrateExchange() {
   cxEl('menuExportCrate').addEventListener('click', openCxExport);
   cxEl('menuImportCrate').addEventListener('click', openCxImport);
+}
+
+/* ---------- Duplicate protection when adding ----------
+   Adding a release that is already in the crate is caught in three places. As you fill in the Add form a banner says so: an EXACT
+   duplicate (same album, same edition) can't be added at all, and a probable different edition (a descriptor, bracketed note,
+   catalogue number or year that differs) needs an explicit "yes, add this as a separate edition". Search results are marked
+   "In your crate" before you pick. And Save checks again on its own — first refreshing the crate if the app's copy is more than two
+   minutes old, so a release added from another device is still caught. Importing follows the same rule. */
+const DUP_FRESH_MS = 120000;
+let dupIdxRaw = null, dupIdx = null, addDupState = { verdict: 'none', matches: [], confirmed: false, sig: '' };
+function dupIndex() {
+  if (dupIdx && dupIdxRaw === state.raw) return dupIdx;
+  dupIdxRaw = state.raw; dupIdx = new Map();
+  state.raw.forEach(it => { const k = dupKey(it.artist, it.title); if (!k) return; if (!dupIdx.has(k)) dupIdx.set(k, []); dupIdx.get(k).push(it); });
+  return dupIdx;
+}
+function dupMatches(cand) {            // cand: { artist, title, descriptor, catalog, releaseDate } -> what you own that is the same album, exact matches first
+  const k = dupKey(cand.artist, cand.title); if (!k) return [];
+  return (dupIndex().get(k) || []).map(item => Object.assign({ item }, dupCompare(cand, item))).sort((a, b) => (a.level === 'exact' ? 0 : 1) - (b.level === 'exact' ? 0 : 1));
+}
+function dupLabel(it) { const y = String(it.releaseDate || '').slice(0, 4); return `${it.artist} \u2014 ${it.title}${y ? ` (${y})` : ''}${it.descriptor ? ` \u00b7 ${it.descriptor}` : ''}`; }
+function dupChipHtml(artist, title, catalog, date) {      // for a search result: it is one specific pressing
+  const v = dupVerdict(dupMatches({ artist, title, catalog, releaseDate: date, descriptor: '' }));
+  if (v === 'exact') return ' <span class="add-result-owned" title="This release is already in your crate">In your crate</span>';
+  if (v === 'edition') return ' <span class="add-result-owned edition" title="You have this album, but a different edition of it">Another edition in your crate</span>';
+  return '';
+}
+function addDupCandidate() { return { artist: el.addArtist.value.trim(), title: el.addTitle.value.trim(), descriptor: el.addDescriptor.value.trim(), catalog: el.addCatalog.value.trim(), releaseDate: getReleaseDateFields('add') }; }
+function addDupApplyButton() {
+  const blocked = addDupState.verdict === 'exact' || (addDupState.verdict === 'edition' && !addDupState.confirmed);
+  el.addSaveBtn.disabled = blocked;
+  el.addSaveBtn.title = blocked ? (addDupState.verdict === 'exact' ? 'Already in your crate' : 'Tick the box above to add this as a separate edition') : '';
+}
+function addDupRefresh() {
+  const bar = document.getElementById('addDupBanner'), c = addDupCandidate();
+  const matches = c.artist && c.title ? dupMatches(c) : [], verdict = dupVerdict(matches);
+  const sig = verdict + '|' + matches.map(m => m.item.row).join(',');
+  if (sig !== addDupState.sig) addDupState.confirmed = false;               // a different situation: an earlier "yes" doesn't carry over
+  Object.assign(addDupState, { sig, verdict, matches });
+  if (verdict === 'none') { bar.hidden = true; bar.innerHTML = ''; }
+  else {
+    const best = matches[0], open = `<div class="add-dup-actions"><button type="button" class="ai-link-btn" data-dup="open" data-row="${escapeHtml(String(best.item.row))}">Open ${verdict === 'exact' ? 'it' : 'yours'}</button></div>`;
+    bar.innerHTML = verdict === 'exact'
+      ? `<div class="add-dup add-dup-exact"><b>Already in your crate</b> \u2014 ${escapeHtml(dupLabel(best.item))}. Adding it again would create a duplicate, so it can\u2019t be added.${open}</div>`
+      : `<div class="add-dup add-dup-edition"><b>You already have this album</b> \u2014 ${escapeHtml(dupLabel(best.item))}. This looks like a different edition: ${escapeHtml(best.diffs.join('; '))}. Add it only if you want both.<label class="add-dup-confirm"><input type="checkbox" id="addDupConfirm"${addDupState.confirmed ? ' checked' : ''}> Yes, add this as a separate edition</label>${open}</div>`;
+    bar.hidden = false;
+  }
+  addDupApplyButton();
+}
+async function addDupGuard() {         // true = fine to save. Authoritative: it doesn't trust what the banner last showed.
+  if (Date.now() - (state.catalogFetchedAt || 0) > DUP_FRESH_MS) {
+    const label = el.addSaveBtn.textContent; el.addSaveBtn.disabled = true; el.addSaveBtn.textContent = 'Checking your crate\u2026';
+    try { await fetchCatalog(); } catch (e) { console.warn('refresh before duplicate check failed', e); }
+    el.addSaveBtn.textContent = label;
+  }
+  addDupRefresh();
+  if (addDupState.verdict === 'exact') { flashToast(el.addToast, 'Already in your crate \u2014 not added'); return false; }
+  if (addDupState.verdict === 'edition' && !addDupState.confirmed) { flashToast(el.addToast, 'You already have another edition \u2014 tick the box to add this one too'); return false; }
+  return true;
+}
+function initDupGuard() {
+  const form = document.getElementById('addForm'), bar = document.getElementById('addDupBanner'); let t = null;
+  const later = () => { clearTimeout(t); t = setTimeout(addDupRefresh, 200); };
+  form.addEventListener('input', later); form.addEventListener('change', later);
+  bar.addEventListener('click', (e) => { const b = e.target.closest('[data-dup="open"]'); if (!b) return; const item = state.raw.find(r => String(r.row) === b.dataset.row); if (item) { closeAddModal(); openDeck(item); } });
+  bar.addEventListener('change', (e) => { if (e.target.id === 'addDupConfirm') { addDupState.confirmed = e.target.checked; addDupApplyButton(); } });
 }
 
 // BEGIN mb-hist
@@ -25277,14 +25434,14 @@ function buildReleaseResultRow(hit, opts = {}) {
   if (gridView) {
     row.innerHTML = `
       <img src="${fallbackImg}" alt="" class="add-thumb-grid" style="transition: opacity 0.2s ease;">
-      <p class="add-result-card-title">${escapeHtml(hit.title || '')}</p>
+      <p class="add-result-card-title">${escapeHtml(hit.title || '')}${dupChipHtml(artistName, hit.title || '', catNoForPrefill, hit.date || '')}</p>
       <p class="add-result-card-sub">${escapeHtml(artistName)}${year ? ' \u00b7 ' + year : ''}</p>
     `;
   } else {
     row.innerHTML = `
       <img src="${fallbackImg}" alt="" class="add-thumb" style="transition: opacity 0.2s ease;">
       <div class="add-result-text">
-        <p class="add-result-title">${escapeHtml(hit.title || '')} <span style="color:var(--text-dim);font-weight:normal;">${escapeHtml(catStr)}</span></p>
+        <p class="add-result-title">${escapeHtml(hit.title || '')} <span style="color:var(--text-dim);font-weight:normal;">${escapeHtml(catStr)}</span>${dupChipHtml(artistName, hit.title || '', catNoForPrefill, hit.date || '')}</p>
         <p class="add-result-artist">${escapeHtml(artistName)}<span class="add-result-year">${year ? ' · ' + year : ''}</span>${labelName ? ' · ' + escapeHtml(labelName) : ''}${genreStr ? ' · ' + escapeHtml(genreStr) : ''}${regionStr ? ' · ' + escapeHtml(regionStr) : ''}</p>
       </div>`;
   }
@@ -25863,6 +26020,7 @@ function showAddForm(prefill) {
   addMatchSeq++; addMatchLast = null; addMatchLastSig = ''; addMatchStatus('');      // a different release: nothing from the last one may carry over
   renderTracklistBuilderRows(el.addTracksRows, prefill.manualTracks || []);
   if ((prefill.manualTracks || []).length && state.autoMatchOnAdd) autoMatchAddForm();
+  addDupState = { verdict: 'none', matches: [], confirmed: false, sig: '' }; addDupRefresh();      // is this already in the crate?
   hideAddSpotifyMatchBanner();
   hideAddMusicBrainzMatchBanner();
   // MusicBrainz is only offered once Spotify's own lookup has finished and
@@ -25983,6 +26141,7 @@ async function saveNewAlbum() {
   const artist = el.addArtist.value.trim();
   const title = el.addTitle.value.trim();
   if (!artist || !title) { flashToast(el.addToast, 'Artist and title are required'); return; }
+  if (!(await addDupGuard())) return;      // already in the crate? (see "Duplicate protection when adding")
 
   let manualTracks = collectTracklistBuilderRows(el.addTracksRows);
   // A last pass for songs that were typed in (or changed) and haven't been matched yet. It can never get in the way of saving:
@@ -25991,7 +26150,7 @@ async function saveNewAlbum() {
   if (manualTracks.length && state.autoMatchOnAdd && manualTracks.some(t => !t.spotifyLink) && addFormSignature() !== addMatchLastSig) {
     const label = el.addSaveBtn.textContent; el.addSaveBtn.disabled = true; el.addSaveBtn.textContent = 'Matching songs\u2026';
     try { await Promise.race([autoMatchAddForm(), new Promise(res => setTimeout(res, 25000))]); } catch (e) { console.warn('match before save failed', e); }
-    el.addSaveBtn.disabled = false; el.addSaveBtn.textContent = label;
+    el.addSaveBtn.textContent = label; addDupRefresh();
     manualTracks = collectTracklistBuilderRows(el.addTracksRows);
   }
 
@@ -30542,6 +30701,16 @@ html, body {
     .arrange-modal.cx-modal { width: 98vw; height: calc(100vh - 250px); }
     .cx-group label { margin-right: 10px; }
   }
+  /* ---- Duplicate protection when adding (see "Duplicate protection when adding" in the script) ---- */
+  .add-dup { margin: 0 0 12px; padding: 10px 12px; border-radius: 6px; font-size: 13px; line-height: 1.5; color: var(--text); }
+  .add-dup-exact { background: rgba(229,115,74,0.12); border: 1px solid #E5734A; }
+  .add-dup-edition { background: rgba(214,162,76,0.10); border: 1px solid var(--accent); }
+  .add-dup-confirm { display: flex; align-items: center; gap: 8px; margin-top: 8px; cursor: pointer; font-weight: 600; }
+  .add-dup-confirm input { accent-color: var(--accent); }
+  .add-dup-actions { margin-top: 6px; }
+  .add-result-owned { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 9px; font-size: 10.5px; font-weight: 600; color: #12161C; background: #6FBF8E; white-space: nowrap; vertical-align: middle; }
+  .add-result-owned.edition { background: var(--accent); }
+  .cx-chip-ed { color: #12161C; background: var(--accent); }
   /* ---- Match songs (see the "Match songs" block in the script) ---- */
   .link-flag[role="button"] { cursor: pointer; }
   .link-flag[role="button"]:hover { filter: brightness(1.15); }
