@@ -19,7 +19,25 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.30.0
+  CURRENT_VERSION: 1.30.1
+
+  1.30.1 — 2026-10-22 — Sound analysis: Last.fm tags now understand genres, and the source test says exactly what happened.
+
+          A real run of "Test these sources" showed Last.fm as "Reachable, but no mood tags". Two faults: the tag reader only knew
+          MOOD words (chill, energetic, sad…), but Last.fm's top tags for an album are mostly GENRES and styles ("death metal",
+          "ambient", "house") or things like "seen live"; and the one message covered three different situations, including a
+          request that had simply failed.
+          Now: genre and style words count as a rough prior (death metal reads as very high energy, ambient/classical/piano as quiet
+          and acoustic, house/techno/dance as danceable and not acoustic; plain "rock" only mildly energetic). Tags that mean nothing
+          here (seen live, british, favorites) are still ignored. It remains the lowest-priority source: anything from Spotify,
+          ReccoBeats or the audio itself wins feature by feature.
+          The test now says which case it is: it works (and for how many releases) · Last.fm has no tags for them · it answered
+          with tags but none are usable (and shows which tags it saw) · it couldn't be reached (offline or blocked). A request that
+          FAILED is no longer remembered as "this release has no tags", so those releases are tried again next time.
+          Same run, confirmed in a real browser: ReccoBeats and Apple's previews CAN be read by this page (6 of 11 test songs known
+          to ReccoBeats; a preview analysed in 2.5 s), and Essentia.js loads. Spotify's refusal (403) is expected for a Developer
+          app created after 27 Nov 2024.
+
 
   1.30.0 — 2026-10-22 — Sound analysis and a Map of your crate (Stats → Map).
 
@@ -7872,7 +7890,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.30.0';
+const APP_VERSION = '1.30.1';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -21311,7 +21329,16 @@ const SND_TAG_EFFECTS = {
   'atmospheric': { e: -.3 }, 'dreamy': { e: -.4, v: .2 }, 'sleep': { e: -.9 }, 'lullaby': { e: -.8, v: .2 }, 'slow': { e: -.5 }, 'gentle': { e: -.6 },
   'happy': { v: .8 }, 'cheerful': { v: .8 }, 'uplifting': { v: .8, e: .3 }, 'feel good': { v: .8 }, 'fun': { v: .6 }, 'summer': { v: .5 }, 'joyful': { v: .8 }, 'sunny': { v: .7 },
   'sad': { v: -.8, e: -.3 }, 'melancholy': { v: -.7, e: -.3 }, 'melancholic': { v: -.7, e: -.3 }, 'depressing': { v: -.9 }, 'dark': { v: -.6 }, 'gloomy': { v: -.7 }, 'angry': { v: -.5, e: .8 }, 'somber': { v: -.7, e: -.3 }, 'haunting': { v: -.5 },
-  'acoustic': { a: .9 }, 'unplugged': { a: .8 }, 'folk': { a: .5 }, 'singer-songwriter': { a: .6, e: -.3 }, 'electronic': { a: -.7 }, 'synth': { a: -.6 }, 'electro': { a: -.6 }, 'synthpop': { a: -.6 }
+  'acoustic': { a: .9 }, 'unplugged': { a: .8 }, 'folk': { a: .5 }, 'singer-songwriter': { a: .6, e: -.3 }, 'electronic': { a: -.7, d: .4 }, 'synth': { a: -.6 }, 'electro': { a: -.6 }, 'synthpop': { a: -.6 },
+  // Last.fm's top tags are mostly GENRES and styles rather than moods, so these count too: a rough prior from the genre word, used only when nothing better is known
+  'metal': { e: .8, v: -.2 }, 'heavy metal': { e: .85, v: -.1 }, 'thrash metal': { e: .95, v: -.3 }, 'death metal': { e: .95, v: -.5 }, 'black metal': { e: .85, v: -.7 }, 'doom metal': { e: .5, v: -.7 }, 'power metal': { e: .9, v: .2 },
+  'punk': { e: .85, v: .1 }, 'punk rock': { e: .85, v: .1 }, 'hardcore': { e: .95, v: -.2 }, 'post-punk': { e: .5, v: -.4 }, 'hard rock': { e: .75 }, 'grunge': { e: .7, v: -.4 }, 'industrial': { e: .75, a: -.7, v: -.4 }, 'noise': { e: .9, v: -.4 },
+  'rock': { e: .35 }, 'indie rock': { e: .3 }, 'garage rock': { e: .6 }, 'emo': { e: .45, v: -.4 }, 'goth': { v: -.5, e: -.1 }, 'gothic': { v: -.5 }, 'shoegaze': { e: .1, v: -.1 }, 'post-rock': { e: .0 }, 'slowcore': { e: -.7, v: -.5 },
+  'pop': { v: .35, d: .5 }, 'synthwave': { a: -.7, e: .4, d: .6 }, 'disco': { d: .9, v: .7, e: .6 }, 'house': { e: .6, d: .9, a: -.6 }, 'techno': { e: .7, d: .9, a: -.7 }, 'trance': { e: .7, d: .8, a: -.7 }, 'drum and bass': { e: .85, d: .6, a: -.6 }, 'dubstep': { e: .7, d: .6, a: -.6 },
+  'breakbeat': { e: .7, d: .7 }, 'garage': { e: .5, d: .6 }, 'edm': { e: .8, d: .9, a: -.7 }, 'idm': { a: -.7 }, 'chiptune': { a: -.8, e: .5 }, 'hip-hop': { d: .6, e: .3 }, 'hip hop': { d: .6, e: .3 }, 'rap': { d: .5, e: .3 }, 'trap': { e: .5, d: .6 },
+  'r&b': { d: .6, v: .3 }, 'rnb': { d: .6, v: .3 }, 'soul': { v: .4, d: .5 }, 'funk': { d: .8, v: .5, e: .4 }, 'reggae': { d: .6, v: .6, e: -.1 }, 'ska': { e: .6, v: .6, d: .6 }, 'latin': { d: .8, v: .6 }, 'salsa': { d: .9, v: .8, e: .6 }, 'gospel': { v: .7 },
+  'jazz': { a: .5, e: -.2 }, 'blues': { a: .5, v: -.3 }, 'classical': { a: .9, e: -.4 }, 'baroque': { a: .9, e: -.2 }, 'piano': { a: .9, e: -.4 }, 'country': { a: .7, v: .3 }, 'bluegrass': { a: .9, e: .3, v: .5 }, 'lounge': { e: -.5, v: .3 },
+  'downtempo': { e: -.5 }, 'trip-hop': { e: -.3, v: -.2 }, 'new age': { e: -.6, v: .2 }, 'lo-fi': { e: -.5 }, 'lofi': { e: -.5 }, 'soundtrack': { e: -.2 }, 'easy listening': { e: -.6, v: .4 }
 };
 function sndTagsToFeatures(tags) {
   const acc = { e: [0, 0], v: [0, 0], a: [0, 0], d: [0, 0] }, used = [];
@@ -21660,9 +21687,10 @@ async function sndLastfmTags(item) {
   try {
     let tags = await call('album.gettoptags', { artist: item.artist, album: item.title });
     if (!tags.length) tags = await call('artist.gettoptags', { artist: item.artist });
+    if (!tags.length) return { status: 'notags' };                                              // Last.fm answered and has nothing for this release
     const r = sndTagsToFeatures(tags.map(t => ({ name: t.name, count: Number(t.count) || 0 })));
-    return r ? { status: 'ok', f: r.f, top: r.top } : { status: 'none' };
-  } catch (e) { return { status: e && e.message === 'badkey' ? 'badkey' : 'error' }; }
+    return r ? { status: 'ok', f: r.f, top: r.top } : { status: 'none', top: tags.slice(0, 5).map(t => t.name) };       // tags, but none we can read a mood or style from
+  } catch (e) { return { status: e && e.message === 'badkey' ? 'badkey' : 'error' }; }                                    // the request itself failed
 }
 // ----- optional: Essentia.js (loaded from the web only when you switch it on; better tempo, key and danceability) -----
 let sndEss = null, sndEssError = '';
@@ -21762,7 +21790,7 @@ async function sndRunRelease(item, opts, scope) {                               
     sndJob.stats.tags.tried++; const r = await sndLastfmTags(item);
     if (r.status === 'ok') { sndSetSource(item, 'tags', r.f, 1, { top: r.top }); sndJob.stats.tags.found++; }
     else if (r.status === 'nokey' || r.status === 'badkey') { st.tags = 'dead'; sndLog(r.status === 'nokey' ? 'No Last.fm API key is set, so tags were skipped.' : 'Last.fm rejected the API key; tags were skipped.'); }
-    else sndSetMiss(item, 'tags');
+    else if (r.status !== 'error') sndSetMiss(item, 'tags');                                    // a failed request isn't "no tags": try again next time
     await sndSleep(opts.paceMs.tags);
   }
 }
@@ -21805,7 +21833,16 @@ async function sndProbe(items, say) {
   // 4 · Last.fm
   say('Last.fm tags\u2026');
   if (!(loadLastfmCreds().apiKey || '').trim()) out.tags = { ok: false, text: 'No Last.fm API key set (\u2699 \u2192 Last.fm\u2026).' };
-  else { let n = 0; for (const it of sample.slice(0, 3)) { const r = await sndLastfmTags(it); if (r.status === 'ok') n++; if (r.status === 'badkey') { out.tags = { ok: false, text: 'Last.fm rejected the API key.' }; break; } } if (!out.tags) out.tags = { ok: n > 0, text: n ? `Works: mood tags found for ${n} of ${Math.min(3, sample.length)} test releases.` : 'Reachable, but no mood tags for the test releases.' }; }
+  else {
+    let ok = 0, notags = 0, errs = 0, bad = false; const seen = [];
+    for (const it of sample.slice(0, 3)) { const r = await sndLastfmTags(it); if (r.status === 'ok') ok++; else if (r.status === 'none') seen.push(...(r.top || [])); else if (r.status === 'notags') notags++; else if (r.status === 'badkey') { bad = true; break; } else errs++; }
+    const eg = [...new Set(seen)].slice(0, 5).join(', ');
+    out.tags = bad ? { ok: false, text: 'Last.fm rejected the API key.' }
+      : ok ? { ok: true, text: `Works: a mood or style could be read from the tags of ${ok} of ${Math.min(3, sample.length)} test releases.` }
+      : seen.length ? { ok: false, text: `Last.fm answered with tags (${eg}), but none say anything about mood or style that can be used. This is the lowest-priority source, so it's fine to leave on.` }
+      : notags ? { ok: false, text: 'Last.fm answered, but has no tags for these releases.' }
+      : { ok: false, text: 'Couldn\u2019t reach Last.fm (offline, or the browser blocked the request).' };
+  }
   // 5 · your folder, 6 · Essentia
   out.files = sndLocal.files.length ? { ok: sndLocal.matched.size > 0, text: `${sndLocal.audioFiles || 0} audio files, ${sndLocal.matched.size} releases matched to your crate.` } : { ok: null, text: 'No folder chosen.' };
   if (opts.essentia) { say('Essentia.js\u2026'); const e = await sndLoadEssentia(); out.essentia = e ? { ok: true, text: 'Loaded.' } : { ok: false, text: 'Couldn\u2019t load (' + sndEssError + '); the built-in analysis is used instead.' }; } else out.essentia = { ok: null, text: 'Off.' };
