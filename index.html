@@ -19,7 +19,37 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.33.0
+  CURRENT_VERSION: 1.34.0
+
+  1.34.0 — 2026-10-23 — A better tracklist editor, the same one in the Add form, the Edit form and the deck's "+ Add track" (stage 1 of 3).
+
+          PASTE A LIST: "Paste a list…" takes a tracklist from anywhere (RYM, Wikipedia, Bandcamp, a booklet) and shows what it read before you use it
+            ("5 tracks · 2 headings · 3 with times"). It understands "1. Title 3:12", "01 - Title", "3) Title", times in brackets or after a dash, "Disc 2" / "CD2" /
+            "Side B" / "Bonus tracks" headings, vinyl numbering (A1, A2, B1), tab-separated columns, and ignores "Tracklist" / "Total length" lines. A bare number
+            counts as a track number only when it is the next one ("99 Problems" and "1979" stay titles). "Use this list" replaces, "Add to the end" appends.
+            Pasting several lines straight into a title box spreads them over rows too.
+          ROWS: number, title and length (m:ss) on each row. Drag a row by its handle, or use the ↑ ↓ buttons (the only way on a phone) to reorder; "+" inserts a row
+            right below; ✕ removes. Enter in a title moves to the next row (and starts one at the end). "+ Heading" adds Disc 2, Side B, Bonus tracks… and the deck
+            shows them above the right tracks. The YouTube and Spotify boxes now sit behind a "Links" button (highlighted when a track has one, and opened by
+            itself when auto-match has a suggestion for you to check).
+          LENGTHS ARE KEPT: typed, pasted and imported lengths are saved, so the deck's total duration and duration-based song matching work for typed lists too
+            (they were dropped before).
+          FILL FROM: Spotify, MusicBrainz (needs its release address in Link) and iTunes buttons in both forms (Edit had none). Each says what it found
+            ("Spotify has 10 tracks · 38:12") and waits for "Use this list"; nothing changes until you press it.
+          YOUR DATA STAYS WITH ITS SONG: replacing a list matches new tracks to old ones by title (case, accents and bracketed notes ignored); a match KEEPS the old
+            track's number, so its rating, notes, listened tick and links stay put, and it keeps its old length if the new list gives none. The page says how many were
+            matched and warns if a track that had ratings or notes is not in the new list. A new track now takes a number nobody has used, including numbers a DELETED
+            track left data under (before, it could inherit that track's rating). The number shown in the deck is the position (1, 2, 3…), not that identity number,
+            so reordering never moves anyone's data.
+          WHERE A LIST CAME FROM: each track records its source (typed, pasted, Spotify, MusicBrainz, iTunes, or looked up automatically then edited) and the first
+            track the date; the deck says so under the list ("Tracklist from Spotify · saved 23 Oct 2026"). Older lists keep working and are simply untagged.
+          "+ Add track" in the deck now opens the Edit form with the current list loaded and a new row ready, instead of the old one-field dialog (removed).
+          NO BACKEND CHANGE: it all lives in the existing ManualTracks cell; new fields are optional.
+          VERIFIED: the paste reader, times and number-keeping on their own (32 checks, with the key rules broken on purpose to confirm the tests notice), and in a
+            browser (54): paste, reorder by arrows and by drag, insert, remove, headings, links, saving, an album with real per-track data, the deck, older lists, and the
+            three sources with stand-in answers. NOT VERIFIED against the real Spotify, MusicBrainz and iTunes (they were stood in for), nor drag-and-drop on a touch screen
+            (arrows work there). STAGES 2 AND 3 TO COME: a side-by-side chooser that compares the sources (counts, extra bonus tracks) and RYM as a source via the add-on.
+
 
   1.33.0 — 2026-10-23 — RYM rating history: a record of how each release's rating on Rate Your Music changes over time.
 
@@ -7451,6 +7481,7 @@
             <button type="button" id="addTracksAddRowBtn" class="chip-btn">+ Add track</button>
             <button type="button" id="addTracksMatchBtn" class="chip-btn" title="Find Spotify (and YouTube) links for every song, and review them before adding">Match songs…</button>
           </div>
+          <div id="addTlTools" class="tl-tools"></div>
           <div id="addSpotifyMatchBanner" class="spotify-match-banner" hidden>
             <span id="addSpotifyMatchText"></span>
             <div class="spotify-match-actions">
@@ -7637,6 +7668,7 @@
               <button type="button" id="editTracksAddRowBtn" class="chip-btn">+ Add track</button>
             </span>
           </div>
+          <div id="editTlTools" class="tl-tools"></div>
           <div id="editTracksRows" class="tracklist-builder-rows"></div>
           <p class="tracklist-builder-hint">Add a YouTube and/or Spotify link per track to play it accurately. Editing rows here (or using "Load current tracklist" to start from what's already showing) switches this album to a manually-maintained tracklist — it stops picking up future automatic tracklist lookups.</p>
         </div>
@@ -8038,7 +8070,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.33.0';
+const APP_VERSION = '1.34.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -8592,6 +8624,83 @@ function giUseRymDescription(genre) {
   flashGlobalToast('Using the Rate Your Music description.');
 }
 // END rym-genre
+
+// BEGIN tl-core
+// ---- the tracklist editor: the pure parts (reading a pasted list, times, keeping existing tracks' numbers when a list is replaced, moving rows) ----
+// A track's NUMBER is its identity: ratings, notes, listened ticks and links are saved against it. It is never reused for a different song, and it is
+// not what is shown (the list shows the position, 1, 2, 3...), so reordering never moves anyone's data.
+function tlParseTime(s) {                                    // "3:12", "03:12", "1:02:03" -> milliseconds; anything else 0
+  const t = String(s == null ? '' : s).trim(); let m;
+  if ((m = /^(\d{1,3}):([0-5]\d)$/.exec(t))) return (Number(m[1]) * 60 + Number(m[2])) * 1000;
+  if ((m = /^(\d{1,2}):([0-5]\d):([0-5]\d)$/.exec(t))) return (Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3])) * 1000;
+  return 0;
+}
+function tlFormatTime(ms) {                                  // 192000 -> "3:12"; 3723000 -> "1:02:03"; nothing/0 -> ""
+  const sec = Math.round(Number(ms) / 1000); if (!(sec > 0)) return '';
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60, p = (n) => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${p(m)}:${p(s)}` : `${m}:${p(s)}`;
+}
+function tlKey(title) {                                      // for telling whether two titles are the same song: case, accents, punctuation and (bracketed notes) don't matter
+  const plain = String(title == null ? '' : title).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/['\u2019]/g, '');      // an apostrophe disappears (dont = don't), other punctuation is a space
+  const noParen = plain.replace(/\s*[\(\[][^\)\]]*[\)\]]/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
+  return noParen || plain.replace(/[^a-z0-9]+/g, ' ').trim();
+}
+const TL_IGNORE = /^(?:track\s*list(?:ing)?|tracks?|total(?:\s+(?:length|time|playing\s+time|duration|running\s+time))?\b.*|running\s+time\b.*|length\s*:.*|duration\s*:.*)\s*:?$/i;
+const TL_HEADERS = [/^(?:disc|disk|cd|lp)\s*(?:\d{1,2}|one|two|three|four)\b.{0,28}$/i, /^side\s+(?:[a-d]|\d{1,2}|one|two)\b.{0,20}$/i, /^bonus(?:\s+(?:tracks?|disc|disk|cd|material))?\s*:?$/i];
+function tlIsHeader(line) { return line.length <= 40 && !/\d:\d\d/.test(line) && TL_HEADERS.some(re => re.test(line)); }
+function tlParseText(text) {                                 // a pasted list -> { tracks: [{ title, durationMs, section }], notes: { sections, withTimes, skipped } }
+  const lines = String(text == null ? '' : text).replace(/\r/g, '').replace(/[\u00a0\u202f]/g, ' ').split('\n').map(l => l.trim()).filter(Boolean);
+  const vinyl = lines.filter(l => /^[A-Ha-h]\d{1,2}\s*[.):\-\u2013\u2014]?\s+\S/.test(l)).length >= 2;      // "A1 Title / A2 Title / B1 Title": vinyl numbering, only when it clearly is
+  const tracks = [], notes = { sections: 0, withTimes: 0, skipped: 0 }; let section = '', expected = 1;
+  for (let line of lines) {
+    if (TL_IGNORE.test(line)) { notes.skipped++; continue; }
+    if (tlIsHeader(line)) { section = line.replace(/\s*:\s*$/, '').replace(/^./, c => c.toUpperCase()); notes.sections++; expected = 1; continue; }
+    let durationMs = 0, num = 0, title = line, m;
+    if (line.includes('\t')) {                               // columns copied from a table: number, title, time
+      const cells = line.split('\t').map(c => c.trim()).filter(Boolean);
+      if (cells.length >= 2 && /^\d{1,3}[.)]?$/.test(cells[0])) { num = parseInt(cells[0], 10); const rest = cells.slice(1), tc = rest.find(c => tlParseTime(c) > 0); if (tc) durationMs = tlParseTime(tc); title = rest.filter(c => c !== tc)[0] || ''; }
+      else title = cells.join(' ');
+    }
+    if (!num) {
+      title = title.replace(/^[\u2022\u00b7*]\s+/, '').replace(/^-\s+/, '');
+      if ((m = /^(?:\d{1,2}:)?\d{1,2}:[0-5]\d\s+(\S.*)$/.exec(title))) title = m[1];                          // a time at the START is a chapter stamp, not a length: ignored
+      else if ((m = /^(\d{1,3})\s*[.):\]]\s*(\S.*)$/.exec(title))) { num = +m[1]; title = m[2]; }              // "1. Title", "1) Title", "01: Title"
+      else if ((m = /^(\d{1,3})\s*[-\u2013\u2014]\s+(\S.*)$/.exec(title))) { num = +m[1]; title = m[2]; }      // "01 - Title" (a dash with a space after: "7-Eleven" stays a title)
+      else if (vinyl && (m = /^[A-Ha-h]\d{1,2}\s*[.):\-\u2013\u2014]?\s+(\S.*)$/.exec(title))) title = m[1];
+      else if ((m = /^(\d{1,3})\s+(\S.*)$/.exec(title)) && +m[1] === expected) { num = +m[1]; title = m[2]; }  // "3 Title": only when it is the NEXT number ("99 Problems" is a title)
+    }
+    if (!durationMs) {
+      const tm = /^(.*?)[\s\-\u2013\u2014]*[\(\[]?\s*((?:\d{1,2}:)?\d{1,3}:[0-5]\d)\s*[\)\]]?\s*$/.exec(title);
+      if (tm && tm[1].trim() && tlParseTime(tm[2])) { durationMs = tlParseTime(tm[2]); title = tm[1]; }
+    }
+    title = title.replace(/\s+/g, ' ').trim().replace(/^(["\u201c])(.+)(["\u201d])$/, '$2').trim();
+    if (!title || (/^\d{1,3}$/.test(title) && !durationMs) || tlParseTime(title)) { notes.skipped++; continue; }       // a lone 1-3 digit number is a stray track number, not a title ('1979' is a title)
+    tracks.push({ title, durationMs, section }); if (durationMs) notes.withTimes++; expected = (num || expected) + 1;
+  }
+  return { tracks, notes };
+}
+// Replacing a list: a new track whose title matches an old one KEEPS the old one's number (and its links and length, unless the new list gives its own), so its rating, notes and ticks stay with it.
+// Anything else gets a number nobody has used (past every number in the rows AND every number the album still holds data for).
+function tlAssignNumbers(oldRows, newTracks, minNext) {
+  const pool = (oldRows || []).filter(r => r && r.trackNumber).map(r => ({ r, key: tlKey(r.title), used: false }));
+  let next = Math.max(Number(minNext) || 0, ...pool.map(p => p.r.trackNumber), 0) + 1, matched = 0;
+  const rows = (newTracks || []).map(t => {
+    const k = tlKey(t.title), hit = k ? pool.find(p => !p.used && p.key === k) : null;
+    if (hit) { hit.used = true; matched++; return Object.assign({}, t, { trackNumber: hit.r.trackNumber, youtubeLink: t.youtubeLink || hit.r.youtubeLink || '', spotifyLink: t.spotifyLink || hit.r.spotifyLink || '', durationMs: t.durationMs || hit.r.durationMs || 0 }); }
+    return Object.assign({}, t, { trackNumber: next++ });
+  });
+  return { rows, matched, fresh: rows.length - matched, dropped: pool.filter(p => !p.used).map(p => p.r) };
+}
+function tlMove(arr, from, to) {                              // a copy with the item at `from` moved to index `to`
+  const a = (arr || []).slice(); if (from < 0 || from >= a.length) return a; const t = Math.max(0, Math.min(a.length - 1, to)), [x] = a.splice(from, 1); a.splice(t, 0, x); return a;
+}
+const TL_SOURCE_TEXT = { typed: 'typed by you', pasted: 'pasted', spotify: 'from Spotify', musicbrainz: 'from MusicBrainz', itunes: 'from iTunes', lookup: 'looked up automatically, then edited', rym: 'from Rate Your Music' };
+function tlSourceText(tracks) {                               // "from Spotify" / "typed by you" / "from more than one source" / '' (a list with no record of where it came from)
+  const codes = [...new Set((tracks || []).map(t => t && t.s).filter(c => TL_SOURCE_TEXT[c]))];
+  return !codes.length ? '' : codes.length === 1 ? TL_SOURCE_TEXT[codes[0]] : 'from more than one source';
+}
+// END tl-core
+const tlPending = { add: null, edit: null }, tlSeq = { add: 0, edit: 0 };      // a list on offer from a source / the last source lookup asked for, per editor
 
 const ADD_FORM_FIELD_OPTIONS = {
   artist: 'Artist',
@@ -10459,11 +10568,12 @@ function bindEvents() {
     showAddForm({});
   });
   el.addSaveBtn.addEventListener('click', saveNewAlbum);
-  el.addTracksAddRowBtn.addEventListener('click', () => addTracklistBuilderRow(el.addTracksRows));
+  el.addTracksAddRowBtn.addEventListener('click', () => addTracklistBuilderRow(el.addTracksRows).querySelector('.tracklist-builder-title').focus());      // the new row is ready to type in
   wireTracklistBuilderContainer(el.addTracksRows, () => el.addArtist.value);
+  tlInitTools('add');
   el.addSpotifyMatchAddBtn.addEventListener('click', () => {
     if (!pendingAddSpotifyTracklist) return;
-    renderTracklistBuilderRows(el.addTracksRows, pendingAddSpotifyTracklist);
+    renderTracklistBuilderRows(el.addTracksRows, pendingAddSpotifyTracklist.map(t => Object.assign({}, t, { s: 'spotify' })));
     hideAddSpotifyMatchBanner();
     flashToast(el.addToast, 'Tracklist added — review it below before saving');
     if (state.autoMatchOnAdd) autoMatchAddForm();
@@ -10471,7 +10581,7 @@ function bindEvents() {
   el.addSpotifyMatchDismissBtn.addEventListener('click', () => hideAddSpotifyMatchBanner());
   el.addMusicBrainzMatchAddBtn.addEventListener('click', () => {
     if (!pendingAddMusicBrainzTracklist) return;
-    renderTracklistBuilderRows(el.addTracksRows, pendingAddMusicBrainzTracklist);
+    renderTracklistBuilderRows(el.addTracksRows, pendingAddMusicBrainzTracklist.map(t => Object.assign({}, t, { s: 'musicbrainz' })));
     hideAddMusicBrainzMatchBanner();
     flashToast(el.addToast, 'Tracklist added — review it below before saving');
     if (state.autoMatchOnAdd) autoMatchAddForm();
@@ -10481,9 +10591,10 @@ function bindEvents() {
   el.editClose.addEventListener('click', closeEditModal);
   el.editCancelBtn.addEventListener('click', closeEditModal);
   el.editSaveBtn.addEventListener('click', saveEditAlbum);
-  el.editTracksAddRowBtn.addEventListener('click', () => addTracklistBuilderRow(el.editTracksRows));
+  el.editTracksAddRowBtn.addEventListener('click', () => addTracklistBuilderRow(el.editTracksRows).querySelector('.tracklist-builder-title').focus());
   el.editTracksLoadBtn.addEventListener('click', () => loadCurrentTracklistIntoBuilder());
   wireTracklistBuilderContainer(el.editTracksRows, () => el.editArtist.value);
+  tlInitTools('edit');
 
   // 9. Deck (Detail Modal) Actions
   el.deckClose.addEventListener('click', closeDeck);
@@ -10792,7 +10903,7 @@ function bindEvents() {
     if (e.target.closest('#tlSelectAllBtn')) { await selectAllTracks(activeItem); return; }
     if (e.target.closest('#tlMatchSongsBtn')) { openSongMatcher(activeItem); return; }
     if (e.target.closest('#tlClearSelectionBtn')) { await clearTrackSelection(activeItem); return; }
-    if (e.target.closest('#tlAddTrackBtn')) { openAddTrackModal(activeItem); return; }
+    if (e.target.closest('#tlAddTrackBtn')) { tlAddTrackFromDeck(activeItem); return; }
     if (e.target.closest('#tlToggleCreditsBtn')) {
       state.showTrackCredits = !state.showTrackCredits;
       savePrefs();
@@ -14195,7 +14306,7 @@ async function getTracksFor(item) {
     const tracks = item.manualTracks.map(t => ({
       trackNumber: t.trackNumber,
       trackName: t.title,
-      trackTimeMillis: null,
+      trackTimeMillis: t.durationMs || null, section: t.section || '', s: t.s || '',
       youtubeLink: t.youtubeLink || ''
     }));
     // mergeTrackLinkOverrides reads item.trackData, which can be malformed
@@ -19137,7 +19248,7 @@ function currentTracklistAsManualRows(item) {
   const tracks = (activeItem === item ? currentTracklistTracks : state.trackCache[artKey(item)]) || [];
   return tracks.map(t => {
     const links = trackLinkOverridesFor(item, t.trackNumber || 0, t.trackName);
-    return { trackNumber: t.trackNumber || 0, title: t.trackName || '', youtubeLink: links.youtubeLink, spotifyLink: links.spotifyLink };
+    return { trackNumber: t.trackNumber || 0, title: t.trackName || '', youtubeLink: links.youtubeLink, spotifyLink: links.spotifyLink, durationMs: t.trackTimeMillis || 0, section: t.section || '', s: t.s || '' };
   });
 }
 
@@ -19154,15 +19265,16 @@ function currentTracklistAsManualRows(item) {
 // them — rating/note/genre/other saved links — stays attached correctly;
 // a brand-new row gets the next number free after every number in use.
 async function saveManualTracklist(item, rows) {
-  let nextNum = rows.reduce((max, t) => Math.max(max, t.trackNumber || 0), 0) + 1;
-  const manualTracks = rows
+  let nextNum = Math.max(tlMinNext(item), ...rows.map(t => t.trackNumber || 0), 0) + 1;       // past every number the album still holds data for, so a new track can't inherit a removed one's
+  const manualTracks = tlPersist(rows
     .filter(t => t.title && t.title.trim())
     .map(t => ({
       trackNumber: t.trackNumber || nextNum++,
       title: t.title.trim(),
       youtubeLink: (t.youtubeLink || '').trim(),
-      spotifyLink: (t.spotifyLink || '').trim()
-    }));
+      spotifyLink: (t.spotifyLink || '').trim(),
+      durationMs: t.durationMs || 0, section: t.section || '', s: t.s || ''
+    })), 'lookup');
   await postUpdate({ row: item.row, ManualTracks: JSON.stringify(manualTracks) });
   item.manualTracks = manualTracks;
   item.hasManualTracklist = true;
@@ -19179,7 +19291,7 @@ async function saveManualTracklist(item, rows) {
 // which has no existing album/tracklist yet to load).
 function loadCurrentTracklistIntoBuilder() {
   if (!activeItem) return;
-  renderTracklistBuilderRows(el.editTracksRows, currentTracklistAsManualRows(activeItem));
+  renderTracklistBuilderRows(el.editTracksRows, currentTracklistAsManualRows(activeItem).map(r => Object.assign({}, r, { s: r.s || 'lookup' })));
 }
 
 // "Remove from tracklist" — a track context-menu action available on any
@@ -19227,77 +19339,6 @@ async function quickRemoveTracksFromTracklist(trackPlaylistItems) {
     await saveManualTracklist(owner, after);
   }
   flashGlobalToast(`Removed ${removed} track${removed === 1 ? '' : 's'} from ${albumCount === 1 ? 'tracklist' : 'tracklists'}`);
-}
-
-let addTrackOverlayEl = null;
-// "+ Add track" in the deck's tracklist footer — a small form (title plus
-// optional YouTube/Spotify links, same fields as a tracklist-builder row)
-// for adding one track without opening the full Edit modal. Same
-// manual-conversion trade-off as quickRemoveTrackFromTracklist above.
-function openAddTrackModal(item) {
-  closeAddTrackModal();
-
-  const overlay = document.createElement('div');
-  overlay.className = 'arrange-overlay track-props-overlay';
-  overlay.innerHTML = `
-    <div class="arrange-modal track-props-modal">
-      <div class="arrange-header">
-        <h2>Add track</h2>
-        <button type="button" class="modal-x" data-add-track-action="cancel" aria-label="Close">✕</button>
-      </div>
-      <div class="arrange-body">
-        <div class="track-props-field">
-          <label for="addTrackTitle">Track title</label>
-          <input type="text" id="addTrackTitle" placeholder="Track title">
-        </div>
-        <div class="track-props-field">
-          <label for="addTrackYoutube">YouTube link (optional)</label>
-          <input type="text" id="addTrackYoutube" placeholder="https://youtube.com/watch?v=...">
-        </div>
-        <div class="track-props-field">
-          <label for="addTrackSpotify">Spotify link (optional)</label>
-          <input type="text" id="addTrackSpotify" placeholder="https://open.spotify.com/track/...">
-          <p class="tracklist-builder-hint">Adding a track switches this album to a manually-maintained tracklist \u2014 it\u2019ll stop picking up future automatic tracklist lookups.</p>
-        </div>
-        <div class="track-props-actions">
-          <button type="button" class="chip-btn" data-add-track-action="cancel">Cancel</button>
-          <button type="button" class="save-btn" data-add-track-action="save">Add</button>
-        </div>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(overlay);
-
-  const titleInput = overlay.querySelector('#addTrackTitle');
-  titleInput.focus();
-
-  const doSave = async () => {
-    const title = titleInput.value.trim();
-    if (!title) { titleInput.focus(); return; }
-    const youtubeLink = overlay.querySelector('#addTrackYoutube').value.trim();
-    const spotifyLink = overlay.querySelector('#addTrackSpotify').value.trim();
-    closeAddTrackModal();
-    const rows = currentTracklistAsManualRows(item);
-    rows.push({ trackNumber: null, title, youtubeLink, spotifyLink });
-    await saveManualTracklist(item, rows);
-  };
-
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) { closeAddTrackModal(); return; }
-    const btn = e.target.closest('button[data-add-track-action]');
-    if (!btn) return;
-    if (btn.dataset.addTrackAction === 'save') doSave();
-    else closeAddTrackModal();
-  });
-  overlay.querySelectorAll('input').forEach(inp => inp.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); doSave(); }
-    else if (e.key === 'Escape') { e.preventDefault(); closeAddTrackModal(); }
-  }));
-
-  addTrackOverlayEl = overlay;
-}
-function closeAddTrackModal() {
-  if (addTrackOverlayEl) { addTrackOverlayEl.remove(); addTrackOverlayEl = null; }
 }
 
 async function playPlaylistFromStart(playlist) {
@@ -20014,7 +20055,7 @@ function aiTrackRows(artist) {
   const rows = [];
   aiOwned(artist).forEach(item => {
     let tracks = state.trackCache[artKey(item)];
-    if (!tracks && isManualAlbum(item)) tracks = item.manualTracks.map(t => ({ trackNumber: t.trackNumber, trackName: t.title, trackTimeMillis: null }));
+    if (!tracks && isManualAlbum(item)) tracks = item.manualTracks.map(t => ({ trackNumber: t.trackNumber, trackName: t.title, trackTimeMillis: t.durationMs || null }));
     (tracks || []).forEach(t => rows.push({
       item, trackName: t.trackName, trackNum: t.trackNumber != null ? t.trackNumber : '', ms: t.trackTimeMillis || 0,
       order: rows.length, plays: trackScrobbleCountFor(item.artist, item.title, t.trackName)
@@ -21558,6 +21599,7 @@ function addFormSetLink(rowEl, kind, link, badgeText, band, tip) {
   let badge = group.querySelector('.tb-score');
   if (!badge) { badge = document.createElement('span'); group.insertBefore(badge, input.nextSibling); }
   badge.className = 'tb-score sm-' + band; badge.textContent = badgeText; badge.title = tip; badge.removeAttribute('data-suggest');
+  tlRefreshRowLinks(rowEl);
 }
 function addFormApply(result, kind) {
   const r = result[kind];
@@ -21576,7 +21618,7 @@ function addFormApply(result, kind) {
       const group = input.closest('.tracklist-builder-link-group');
       let badge = group.querySelector('.tb-score');
       if (!badge) { badge = document.createElement('span'); group.insertBefore(badge, input.nextSibling); }
-      badge.className = 'tb-score sm-likely'; badge.textContent = '?'; badge.setAttribute('data-suggest', String(s.trackNum));
+      badge.className = 'tb-score sm-likely'; badge.textContent = '?'; badge.setAttribute('data-suggest', String(s.trackNum)); tlExpandLinks(rowEl, true);
       badge.title = `A likely match was found (${best.score}) but it isn't certain \u2014 click to review it.`; suggested++;
     }
   });
@@ -27148,7 +27190,7 @@ async function loadTracklist(item) {
     const tracks = item.manualTracks.map(t => ({
       trackNumber: t.trackNumber,
       trackName: t.title,
-      trackTimeMillis: null,
+      trackTimeMillis: t.durationMs || null, section: t.section || '', s: t.s || '',
       youtubeLink: t.youtubeLink || ''
     }));
     mergeTrackLinkOverrides(item, tracks);
@@ -27210,7 +27252,8 @@ function renderTracklistBody(item, tracks) {
   let listenedCount = 0;
   let anyCredits = false;
 
-  let html = tracks.map(t => {
+  let lastSection = '';
+  let html = tracks.map((t, pos) => {
     const tNum = t.trackNumber || 0;
     const tData = (item.trackData && item.trackData[tNum]) ? item.trackData[tNum] : {};
     const rating = tData.rating || 0;
@@ -27236,10 +27279,11 @@ function renderTracklistBody(item, tracks) {
     // return a confidently-wrong unrelated track as the right one. A
     // YouTube link (if the person added one) is the only playback option.
     const manual = isManualAlbum(item);
-    return `
+    const sec = t.section || '', secHtml = sec && sec !== lastSection ? `<div class="track-section-header">${escapeHtml(sec)}</div>` : ''; lastSection = sec;
+    return `${secHtml}
       <div class="track-row-wrap${selected ? ' selected' : ''}" data-track="${tNum}" data-track-key="${rowKey}">
         <div class="track-row">
-          <span class="track-num">${tNum}</span>
+          <span class="track-num">${pos + 1}</span>
           <div class="track-info-main">
              ${(!manual || t.spotifyLink) ? `<button type="button" class="track-play-btn" data-track-name="${escapeHtml(t.trackName || '')}" title="Play on Spotify" aria-label="Play ${escapeHtml(t.trackName || '')} on Spotify">\u25b6</button>` : ''}
              ${t.youtubeLink ? `<button type="button" class="track-play-yt-btn" data-youtube-link="${escapeHtml(t.youtubeLink)}" data-track-name="${escapeHtml(t.trackName || '')}" title="Play on YouTube" aria-label="Play ${escapeHtml(t.trackName || '')} on YouTube">▶ YT</button>` : ''}
@@ -27283,6 +27327,7 @@ function renderTracklistBody(item, tracks) {
   }
 
   const allListened = tracks.length > 0 && listenedCount === tracks.length;
+  html += `${tlSourceLine(item)}`;
   html += `
     <div class="tracklist-footer">
       <span class="track-total-label">Total Duration</span>
@@ -28152,95 +28197,268 @@ async function doAddSearch() {
    already-dense form feel too cluttered. Batch-deleting several tracks at
    once is still available from the release's own Tracks view: select
    multiple rows there and right-click → Remove from tracklist.) */
+// BEGIN tl-ui
+// ---- the tracklist editor (Add form, Edit form, and the deck's "+ Add track"): rows you can paste, drag, insert, time, and give headings to ----
+// Saved (manualTracks): [{ trackNumber, title, youtubeLink, spotifyLink, durationMs?, section?, s, at? }]. s = where the list came from (typed, pasted, spotify,
+// musicbrainz, itunes, lookup); at = the date it was last saved here. Every field after spotifyLink is optional, so older lists still read.
+function tlC(side) { return side === 'add' ? el.addTracksRows : el.editTracksRows; }
+function tlTools(side) { return document.getElementById(side + 'TlTools'); }
+function tlMinNext(item) { return item && item.trackData ? Math.max(0, ...Object.keys(item.trackData).map(Number).filter(n => isFinite(n))) : 0; }
+function tlSideMinNext(side) { return side === 'edit' && activeItem ? tlMinNext(activeItem) : 0; }
+function tlTrackRows(c) { return [...c.querySelectorAll('.tracklist-builder-row')]; }
+function tlStatus(side, html) { const b = tlTools(side); if (!b) return; const s = b.querySelector('.tl-status'); s.hidden = !html; s.innerHTML = html || ''; }
+function tlRefreshRowLinks(row) { if (!row) return; const has = !!(row.querySelector('.tracklist-builder-yt').value.trim() || row.querySelector('.tracklist-builder-sp').value.trim()); row.querySelector('.tracklist-builder-links-toggle').classList.toggle('has-links', has); }
+function tlExpandLinks(row, open) { if (!row) return; const box = row.querySelector('.tracklist-builder-links'), t = row.querySelector('.tracklist-builder-links-toggle'); box.hidden = !open; t.setAttribute('aria-expanded', open ? 'true' : 'false'); }
+function tlPersist(rows, defaultSource) {                         // what is written to the sheet: only what has a value, each track tagged with where it came from, the first with the date
+  const today = new Date().toISOString().slice(0, 10);
+  return (rows || []).map((t, i) => {
+    const o = { trackNumber: t.trackNumber, title: t.title, youtubeLink: t.youtubeLink || '', spotifyLink: t.spotifyLink || '' };
+    if (t.durationMs > 0) o.durationMs = Math.round(t.durationMs);
+    if (t.section) o.section = t.section;
+    o.s = t.s || defaultSource || 'typed'; if (i === 0) o.at = today;
+    return o;
+  });
+}
 function tracklistBuilderRowHtml(track, idx) {
+  const t = track || {}, ms = t.durationMs || 0;
   return `
-    <div class="tracklist-builder-row" data-idx="${idx}" data-track-number="${track?.trackNumber ?? ''}" data-duration-ms="${track?.durationMs || ''}">
+    <div class="tracklist-builder-row" data-idx="${idx}" data-track-number="${t.trackNumber ?? ''}" data-duration-ms="${ms || ''}" data-source="${escapeHtml(t.s || '')}">
+      <span class="tracklist-builder-handle" draggable="true" title="Drag to move this track" aria-hidden="true">\u2807</span>
       <span class="tracklist-builder-num">${idx + 1}</span>
-      <input type="text" class="tracklist-builder-title" placeholder="Track title" value="${escapeHtml(track?.title || '')}">
-      <div class="tracklist-builder-link-group">
-        <input type="text" class="tracklist-builder-yt" placeholder="YouTube link (optional)" value="${escapeHtml(track?.youtubeLink || '')}">
-        <button type="button" class="tracklist-builder-match-btn" data-match-kind="youtube" title="Find a YouTube match for this track" aria-label="Find a YouTube match for this track">Match</button>
+      <input type="text" class="tracklist-builder-title" placeholder="Track title" value="${escapeHtml(t.title || '')}">
+      <input type="text" class="tracklist-builder-time" inputmode="numeric" placeholder="0:00" aria-label="Length, minutes and seconds" value="${escapeHtml(tlFormatTime(ms))}">
+      <span class="tracklist-builder-tools">
+        <button type="button" class="tracklist-builder-up" aria-label="Move up" title="Move up">\u2191</button>
+        <button type="button" class="tracklist-builder-down" aria-label="Move down" title="Move down">\u2193</button>
+        <button type="button" class="tracklist-builder-links-toggle${(t.youtubeLink || t.spotifyLink) ? ' has-links' : ''}" aria-expanded="false" title="YouTube and Spotify links for this track">Links</button>
+        <button type="button" class="tracklist-builder-insert" aria-label="Insert a track below" title="Insert a track below">+</button>
+        <button type="button" class="tracklist-builder-remove" aria-label="Remove track" title="Remove track">\u2715</button>
+      </span>
+      <div class="tracklist-builder-links" hidden>
+        <div class="tracklist-builder-link-group">
+          <input type="text" class="tracklist-builder-yt" placeholder="YouTube link (optional)" value="${escapeHtml(t.youtubeLink || '')}">
+          <button type="button" class="tracklist-builder-match-btn" data-match-kind="youtube" title="Find a YouTube match for this track" aria-label="Find a YouTube match for this track">Match</button>
+        </div>
+        <div class="tracklist-builder-link-group">
+          <input type="text" class="tracklist-builder-sp" placeholder="Spotify link (optional)" value="${escapeHtml(t.spotifyLink || '')}">
+          <button type="button" class="tracklist-builder-match-btn" data-match-kind="spotify" title="Find a Spotify match for this track" aria-label="Find a Spotify match for this track">Match</button>
+        </div>
       </div>
-      <div class="tracklist-builder-link-group">
-        <input type="text" class="tracklist-builder-sp" placeholder="Spotify link (optional)" value="${escapeHtml(track?.spotifyLink || '')}">
-        <button type="button" class="tracklist-builder-match-btn" data-match-kind="spotify" title="Find a Spotify match for this track" aria-label="Find a Spotify match for this track">Match</button>
-      </div>
-      <button type="button" class="tracklist-builder-remove" aria-label="Remove track" title="Remove track">✕</button>
       <div class="tracklist-builder-match-panel" hidden></div>
+    </div>
+  `;
+}
+function tracklistBuilderSectionHtml(label) {
+  return `
+    <div class="tracklist-builder-section">
+      <span class="tracklist-builder-handle" draggable="true" title="Drag to move this heading" aria-hidden="true">\u2807</span>
+      <input type="text" class="tracklist-builder-section-title" placeholder="Heading: Disc 2, Side B, Bonus tracks\u2026" aria-label="Heading" value="${escapeHtml(label || '')}">
+      <span class="tracklist-builder-tools">
+        <button type="button" class="tracklist-builder-up" aria-label="Move heading up" title="Move up">\u2191</button>
+        <button type="button" class="tracklist-builder-down" aria-label="Move heading down" title="Move down">\u2193</button>
+        <button type="button" class="tracklist-builder-section-remove" aria-label="Remove heading" title="Remove heading">\u2715</button>
+      </span>
     </div>
   `;
 }
 function renderTracklistBuilderRows(container, tracks) {
   const list = (tracks && tracks.length) ? tracks : [{}]; // always start with at least one blank row
-  container.innerHTML = list.map((t, i) => tracklistBuilderRowHtml(t, i)).join('');
+  let html = '', section = '', pos = 0;
+  list.forEach(t => {
+    const sec = (t && t.section) || '';
+    if (sec !== section) { html += tracklistBuilderSectionHtml(sec); section = sec; }                 // a heading wherever the section changes
+    html += tracklistBuilderRowHtml(t, pos++);
+  });
+  container.innerHTML = html;
 }
-function addTracklistBuilderRow(container) {
-  const idx = container.children.length;
-  container.insertAdjacentHTML('beforeend', tracklistBuilderRowHtml({}, idx));
+function renumberTracklistBuilderRows(container) {                // the visible 1, 2, 3 is the POSITION (a track's number, its identity, is kept apart in data-track-number)
+  tlTrackRows(container).forEach((row, i) => { row.dataset.idx = i; row.querySelector('.tracklist-builder-num').textContent = i + 1; });
 }
-// A row carried over from an existing tracklist (data-track-number set —
-// see loadCurrentTracklistIntoBuilder/renderTracklistBuilderRows) keeps
-// that original track number, so any rating/note/genre/link already saved
-// against it via trackData stays attached to the right track instead of
-// silently jumping to whatever ends up at that position after rows are
-// added/removed/reordered. A brand-new row (typed from scratch, or added
-// via "+ Add track"/Enter) has no original number and gets the next one
-// free after every number already in use.
-function collectTracklistBuilderRows(container) {
-  const rows = [...container.querySelectorAll('.tracklist-builder-row')]
-    .map(row => ({
-      trackNumber: row.dataset.trackNumber ? Number(row.dataset.trackNumber) : null,
-      title: row.querySelector('.tracklist-builder-title').value.trim(),
-      youtubeLink: row.querySelector('.tracklist-builder-yt').value.trim(),
-      spotifyLink: row.querySelector('.tracklist-builder-sp').value.trim()
-    }))
-    .filter(t => t.title); // drop rows nobody filled in
-  let nextNum = rows.reduce((max, t) => Math.max(max, t.trackNumber || 0), 0) + 1;
+function addTracklistBuilderRow(container, afterNode, track) {
+  const html = tracklistBuilderRowHtml(track || {}, tlTrackRows(container).length);
+  if (afterNode) afterNode.insertAdjacentHTML('afterend', html); else container.insertAdjacentHTML('beforeend', html);
+  renumberTracklistBuilderRows(container);
+  return afterNode ? afterNode.nextElementSibling : container.lastElementChild;
+}
+// A row carried over from an existing tracklist keeps its original track number (data-track-number), so any rating/note/genre/link saved against it
+// via trackData stays attached to the right track however rows are added, removed or reordered. A brand-new row gets the next number nobody has used:
+// past every number in the rows and (opts.minNext) every number the album still holds data for, so it can never inherit a deleted track's data.
+function collectTracklistBuilderRows(container, opts) {
+  const rows = []; let section = '';
+  [...container.children].forEach(node => {
+    if (node.classList.contains('tracklist-builder-section')) { section = node.querySelector('.tracklist-builder-section-title').value.trim(); return; }
+    if (!node.classList.contains('tracklist-builder-row')) return;
+    const title = node.querySelector('.tracklist-builder-title').value.trim(); if (!title) return;   // drop rows nobody filled in
+    rows.push({ trackNumber: node.dataset.trackNumber ? Number(node.dataset.trackNumber) : null, title, youtubeLink: node.querySelector('.tracklist-builder-yt').value.trim(), spotifyLink: node.querySelector('.tracklist-builder-sp').value.trim(),
+      durationMs: Number(node.dataset.durationMs) || 0, section, s: node.dataset.source || '' });
+  });
+  let nextNum = Math.max((opts && opts.minNext) || 0, ...rows.map(t => t.trackNumber || 0), 0) + 1;
   return rows.map(t => t.trackNumber ? t : { ...t, trackNumber: nextNum++ });
 }
-// Renumbers the visible "1. 2. 3…" labels after a row is removed — purely
-// cosmetic, collectTracklistBuilderRows() renumbers again on save regardless.
-function renumberTracklistBuilderRows(container) {
-  [...container.querySelectorAll('.tracklist-builder-row')].forEach((row, i) => {
-    row.dataset.idx = i;
-    row.querySelector('.tracklist-builder-num').textContent = i + 1;
-  });
+function tlFillRow(row, t) {
+  row.querySelector('.tracklist-builder-title').value = t.title || ''; row.dataset.durationMs = t.durationMs || ''; row.querySelector('.tracklist-builder-time').value = tlFormatTime(t.durationMs); row.dataset.source = t.s || '';
 }
-// One delegated listener per container (add/edit) covers: remove-row
-// buttons, (Enter key in the last row) auto-adding a fresh blank row so
-// entering a tracklist doesn't require reaching for the mouse between every
-// track, and now the per-row YouTube/Spotify match buttons (see
-// handleTracklistMatchBtnClick). wireTracklistBuilderContainer() is called
-// once per container at init — see bindEvents(). getArtist is a callback
-// (not a fixed string) since the artist field can change after the form is
-// first shown — always read fresh at click time.
+function tlInsertParsed(c, row, text) {                          // text pasted straight into a title box: one row each, from this row on
+  const parsed = tlParseText(text); if (!parsed.tracks.length) return false;
+  let after = row;
+  parsed.tracks.forEach((t, i) => {
+    const tr = Object.assign({}, t, { s: 'pasted' });
+    if (i === 0 && !row.querySelector('.tracklist-builder-title').value.trim()) tlFillRow(row, tr);
+    else { after.insertAdjacentHTML('afterend', tracklistBuilderRowHtml(tr, 0)); after = after.nextElementSibling; }
+  });
+  renumberTracklistBuilderRows(c); after.querySelector('.tracklist-builder-title').focus(); return true;
+}
 function wireTracklistBuilderContainer(container, getArtist) {
   container.addEventListener('click', (e) => {
+    const node = e.target.closest('.tracklist-builder-row, .tracklist-builder-section');
     const removeBtn = e.target.closest('.tracklist-builder-remove');
     if (removeBtn) {
-      const rows = container.querySelectorAll('.tracklist-builder-row');
-      if (rows.length <= 1) { // keep at least one row so the section never looks broken/empty
-        removeBtn.closest('.tracklist-builder-row').querySelectorAll('input').forEach(i => i.value = '');
-        return;
+      if (tlTrackRows(container).length <= 1) { // keep at least one row so the section never looks broken/empty
+        node.querySelectorAll('input').forEach(i => i.value = ''); node.dataset.durationMs = ''; tlRefreshRowLinks(node); return;
       }
-      removeBtn.closest('.tracklist-builder-row').remove();
-      renumberTracklistBuilderRows(container);
-      return;
+      node.remove(); renumberTracklistBuilderRows(container); return;
     }
+    if (e.target.closest('.tracklist-builder-section-remove')) { node.remove(); renumberTracklistBuilderRows(container); return; }
+    if (e.target.closest('.tracklist-builder-up')) { const p = node.previousElementSibling; if (p) container.insertBefore(node, p); renumberTracklistBuilderRows(container); return; }
+    if (e.target.closest('.tracklist-builder-down')) { const n = node.nextElementSibling; if (n) container.insertBefore(n, node); renumberTracklistBuilderRows(container); return; }
+    if (e.target.closest('.tracklist-builder-insert')) { addTracklistBuilderRow(container, node).querySelector('.tracklist-builder-title').focus(); return; }
+    if (e.target.closest('.tracklist-builder-links-toggle')) { tlExpandLinks(node, node.querySelector('.tracklist-builder-links').hidden); return; }
     const matchBtn = e.target.closest('.tracklist-builder-match-btn');
     if (matchBtn) { handleTracklistMatchBtnClick(matchBtn, getArtist || (() => '')); return; }
   });
   container.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter') return;
-    if (!e.target.matches('.tracklist-builder-title, .tracklist-builder-yt, .tracklist-builder-sp')) return;
-    const row = e.target.closest('.tracklist-builder-row');
-    if (row === container.lastElementChild) {
-      e.preventDefault();
-      addTracklistBuilderRow(container);
-      container.lastElementChild.querySelector('.tracklist-builder-title').focus();
-    }
+    if (e.key !== 'Enter' || !e.target.matches('.tracklist-builder-title, .tracklist-builder-time, .tracklist-builder-yt, .tracklist-builder-sp')) return;
+    e.preventDefault();
+    const rows = tlTrackRows(container), i = rows.indexOf(e.target.closest('.tracklist-builder-row'));
+    if (i === rows.length - 1) addTracklistBuilderRow(container).querySelector('.tracklist-builder-title').focus();      // Enter in the last row starts the next: typing a list never needs the mouse
+    else rows[i + 1].querySelector('.tracklist-builder-title').focus();
   });
+  container.addEventListener('change', (e) => {
+    if (!e.target.matches('.tracklist-builder-time')) return;
+    const row = e.target.closest('.tracklist-builder-row'), v = e.target.value.trim(), ms = tlParseTime(v);
+    if (!v) row.dataset.durationMs = ''; else if (ms) row.dataset.durationMs = ms; else e.target.value = tlFormatTime(Number(row.dataset.durationMs) || 0);     // not a time (m:ss): put back what was there
+    if (ms) e.target.value = tlFormatTime(ms);
+  });
+  container.addEventListener('input', (e) => { if (e.target.matches('.tracklist-builder-yt, .tracklist-builder-sp')) tlRefreshRowLinks(e.target.closest('.tracklist-builder-row')); });
+  container.addEventListener('paste', (e) => {                    // several lines pasted into a title box become several rows
+    if (!e.target.matches('.tracklist-builder-title')) return;
+    const text = ((e.clipboardData || window.clipboardData).getData('text') || '');
+    if (!/\n/.test(text.trim())) return;
+    if (tlInsertParsed(container, e.target.closest('.tracklist-builder-row'), text)) e.preventDefault();
+  });
+  let dragged = null;                                              // reordering: grab the handle, the row follows the pointer
+  container.addEventListener('dragstart', (e) => {
+    const h = e.target.closest ? e.target.closest('.tracklist-builder-handle') : null; if (!h) return;
+    dragged = h.parentElement; dragged.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'tracklist-row');
+    try { e.dataTransfer.setDragImage(dragged, 12, 12); } catch (err) { /* no drag image */ }
+  });
+  container.addEventListener('dragover', (e) => {
+    if (!dragged) return; e.preventDefault();
+    const over = e.target.closest('.tracklist-builder-row, .tracklist-builder-section'); if (!over || over === dragged) return;
+    const r = over.getBoundingClientRect(); container.insertBefore(dragged, e.clientY > r.top + r.height / 2 ? over.nextSibling : over);
+  });
+  container.addEventListener('drop', (e) => { if (dragged) e.preventDefault(); });
+  container.addEventListener('dragend', () => { if (dragged) { dragged.classList.remove('dragging'); dragged = null; renumberTracklistBuilderRows(container); } });
 }
+// ---- paste a list / fill from a source / headings ----
+function tlToolsHtml() {
+  return `
+    <div class="tl-tools-bar">
+      <span class="tl-fill-label">Fill from</span>
+      <button type="button" class="chip-btn" data-tl-fill="spotify">Spotify</button>
+      <button type="button" class="chip-btn" data-tl-fill="musicbrainz">MusicBrainz</button>
+      <button type="button" class="chip-btn" data-tl-fill="itunes">iTunes</button>
+      <button type="button" class="chip-btn" data-tl-heading="1" title="Add a heading such as Disc 2, Side B or Bonus tracks">+ Heading</button>
+    </div>
+    <details class="tl-paste">
+      <summary>Paste a list\u2026</summary>
+      <textarea class="tl-paste-text" rows="6" aria-label="Paste a tracklist" placeholder="1. Opening track  3:12&#10;2. Second song  4:40&#10;Disc 2&#10;1. Another disc opener  2:58"></textarea>
+      <div class="tl-preview" aria-live="polite"></div>
+      <div class="tl-paste-actions"><button type="button" class="chip-btn" data-tl-paste="replace">Use this list</button><button type="button" class="chip-btn" data-tl-paste="append">Add to the end</button></div>
+    </details>
+    <div class="tb-match-status tl-status" hidden role="status" aria-live="polite"></div>`;
+}
+function tlInitTools(side) {
+  const box = tlTools(side); if (!box) return; box.innerHTML = tlToolsHtml();
+  box.addEventListener('click', (e) => {
+    const f = e.target.closest('[data-tl-fill]'); if (f) { tlFetchSource(side, f.dataset.tlFill); return; }
+    const p = e.target.closest('[data-tl-paste]'); if (p) { tlPasteApply(side, p.dataset.tlPaste); return; }
+    if (e.target.closest('[data-tl-use]')) { const pend = tlPending[side]; if (pend) { tlPending[side] = null; tlApplyTracks(side, pend.tracks, pend.kind, 'replace'); } return; }
+    if (e.target.closest('[data-tl-dismiss]')) { tlPending[side] = null; tlStatus(side, ''); return; }
+    if (e.target.closest('[data-tl-heading]')) { const c = tlC(side); c.insertAdjacentHTML('beforeend', tracklistBuilderSectionHtml('')); c.lastElementChild.querySelector('input').focus(); }
+  });
+  box.querySelector('.tl-paste-text').addEventListener('input', () => tlPastePreview(side));
+}
+function tlResetTools(side) {
+  const box = tlTools(side); if (!box || !box.querySelector('.tl-paste-text')) return;
+  box.querySelector('.tl-paste-text').value = ''; box.querySelector('.tl-preview').textContent = ''; box.querySelector('.tl-paste').open = false; tlPending[side] = null; tlSeq[side]++; tlStatus(side, '');
+}
+function tlPastePreview(side) {
+  const box = tlTools(side), r = tlParseText(box.querySelector('.tl-paste-text').value), out = box.querySelector('.tl-preview');
+  if (!r.tracks.length) { out.textContent = box.querySelector('.tl-paste-text').value.trim() ? 'No tracks found in that text.' : ''; return; }
+  const bits = [`${r.tracks.length} track${r.tracks.length === 1 ? '' : 's'}`]; if (r.notes.sections) bits.push(`${r.notes.sections} heading${r.notes.sections === 1 ? '' : 's'}`); if (r.notes.withTimes) bits.push(`${r.notes.withTimes} with times`);
+  out.textContent = bits.join(' \u00b7 ') + ': ' + r.tracks.slice(0, 3).map(t => t.title).join(', ') + (r.tracks.length > 3 ? '\u2026' : '');
+}
+function tlPasteApply(side, mode) {
+  const box = tlTools(side), r = tlParseText(box.querySelector('.tl-paste-text').value);
+  if (!r.tracks.length) { tlStatus(side, 'There are no tracks in that text to use.'); return; }
+  tlApplyTracks(side, r.tracks, 'pasted', mode);
+  box.querySelector('.tl-paste-text').value = ''; box.querySelector('.tl-preview').textContent = ''; box.querySelector('.tl-paste').open = false;
+}
+// Puts a list into the editor. Replacing keeps the number (and links) of any track whose title matches one already in the list, so its ratings and notes stay with it.
+function tlApplyTracks(side, tracks, kind, mode) {
+  const c = tlC(side), minNext = tlSideMinNext(side), current = collectTracklistBuilderRows(c, { minNext });
+  const tagged = tracks.map(t => Object.assign({}, t, { s: kind }));
+  let rows, note = '', label = TL_SOURCE_TEXT[kind] || kind;
+  if (mode === 'append') { const a = tlAssignNumbers([], tagged, Math.max(minNext, ...current.map(r => r.trackNumber || 0))); rows = current.concat(a.rows); note = `Added ${tagged.length} track${tagged.length === 1 ? '' : 's'} to the end.`; }
+  else {
+    const a = tlAssignNumbers(current, tagged, minNext); rows = a.rows;
+    const item = side === 'edit' ? activeItem : null, had = (n) => { const d = item && item.trackData && item.trackData[n]; return !!(d && (d.rating || d.note || d.listened || d.genre || d.rymRating)); };
+    const lost = a.dropped.filter(r => had(r.trackNumber));
+    note = `Using the list ${label}: ${rows.length} track${rows.length === 1 ? '' : 's'}.` + (a.matched ? ` ${a.matched} of them were already here, so their ratings, notes and links stay.` : '') + (lost.length ? ` ${lost.length} track${lost.length === 1 ? '' : 's'} that had ratings or notes ${lost.length === 1 ? 'is' : 'are'} not in the new list (${lost.slice(0, 3).map(r => r.title).join(', ')}${lost.length > 3 ? '\u2026' : ''}): their data stays saved but is no longer shown.` : '');
+  }
+  renderTracklistBuilderRows(c, rows); tlStatus(side, escapeHtml(note));
+}
+async function tlItunesTracks(artist, title) {
+  try {
+    const hit = await findItunesAlbum({ artist, title }, (u) => fetchWithTimeout(u)); if (!hit || !hit.collectionId) return [];
+    const data = await (await fetchWithTimeout(`https://itunes.apple.com/lookup?id=${hit.collectionId}&entity=song&limit=200`)).json();
+    return (data.results || []).filter(r => r.wrapperType === 'track').sort((a, b) => (a.discNumber || 1) - (b.discNumber || 1) || (a.trackNumber || 0) - (b.trackNumber || 0))
+      .map(r => ({ title: r.trackName, durationMs: r.trackTimeMillis || 0, section: (r.discCount || 1) > 1 ? 'Disc ' + (r.discNumber || 1) : '' }));
+  } catch (e) { return []; }
+}
+async function tlFetchSource(side, kind) {
+  const f = (n) => (document.getElementById(side + n) || { value: '' }).value.trim(), artist = f('Artist'), title = f('Title'), link = f('Link'), label = TL_SOURCE_TEXT[kind].replace(/^from /, '');
+  if (!artist || !title) { tlStatus(side, 'Fill in the artist and title first.'); return; }
+  const seq = ++tlSeq[side]; tlPending[side] = null; tlStatus(side, `Looking on ${escapeHtml(label)}\u2026`);
+  let tracks = [];
+  try {
+    if (kind === 'spotify') { const m = await spotifyFindAlbumTracklist(artist, title); tracks = m ? m.tracks : []; }
+    else if (kind === 'musicbrainz') {
+      const id = (link.match(/musicbrainz\.org\/release\/([a-f0-9-]+)/i) || [])[1];
+      if (!id) { tlStatus(side, 'MusicBrainz needs the exact release: paste its musicbrainz.org/release/\u2026 address into Link first.'); return; }
+      tracks = await mbFetchTracklistForRelease(id);
+    } else tracks = await tlItunesTracks(artist, title);
+  } catch (e) { tracks = []; }
+  if (seq !== tlSeq[side]) return;                                  // asked for something else meanwhile
+  if (!tracks.length) { tlStatus(side, `${escapeHtml(label)} has no tracklist for this release${kind === 'spotify' ? ' (or Spotify isn\u2019t connected)' : ''}.`); return; }
+  tlPending[side] = { kind, tracks: tracks.map(t => ({ title: t.title, durationMs: t.durationMs || 0, spotifyLink: t.spotifyLink || '', section: t.section || '' })) };
+  const total = tlFormatTime(tracks.reduce((s, t) => s + (t.durationMs || 0), 0));
+  tlStatus(side, `${escapeHtml(label)} has ${tracks.length} track${tracks.length === 1 ? '' : 's'}${total ? ' \u00b7 ' + total : ''}. <button type="button" class="chip-btn" data-tl-use>Use this list</button> <button type="button" class="chip-btn" data-tl-dismiss>Dismiss</button>`);
+}
+function tlSourceLine(item) {                                       // under the deck's tracklist: where this list came from
+  if (!item || !isManualAlbum(item)) return '';
+  const text = tlSourceText(item.manualTracks); if (!text) return '';
+  const at = (item.manualTracks.find(t => t && t.at) || {}).at;
+  return `<p class="tracklist-source">Tracklist ${escapeHtml(text)}${at ? ' \u00b7 saved ' + escapeHtml(rymDateText(at)) : ''}</p>`;
+}
+function tlAddTrackFromDeck(item) {                                 // the deck's "+ Add track": the same editor as Edit, with the current list loaded and a new row ready
+  if (!item) return; openEditModal();
+  if (!isManualAlbum(item)) loadCurrentTracklistIntoBuilder();
+  const row = addTracklistBuilderRow(el.editTracksRows), input = row.querySelector('.tracklist-builder-title');
+  setTimeout(() => { row.scrollIntoView({ block: 'center' }); input.focus(); }, 60);
+}
+// END tl-ui
 
 // YouTube's picker only works once an API key is configured (\u2699 \u2192
 // YouTube API\u2026) — without one, its button falls back to the original
@@ -28328,6 +28546,7 @@ function showAddForm(prefill) {
   el.addToast.textContent = '';
   addMatchSeq++; addMatchLast = null; addMatchLastSig = ''; addMatchStatus('');      // a different release: nothing from the last one may carry over
   renderTracklistBuilderRows(el.addTracksRows, prefill.manualTracks || []);
+  tlResetTools('add');
   if ((prefill.manualTracks || []).length && state.autoMatchOnAdd) autoMatchAddForm();
   addDupState = { verdict: 'none', matches: [], confirmed: false, sig: '' }; addDupRefresh();      // is this already in the crate?
   hideAddSpotifyMatchBanner();
@@ -28484,7 +28703,7 @@ async function saveNewAlbum() {
   // isManualAlbum/hasManualTracklist) and permanently block that
   // auto-lookup from ever showing anything. Omitting the field entirely
   // leaves the new row's ManualTracks cell untouched/blank instead.
-  if (manualTracks.length) payload.ManualTracks = JSON.stringify(manualTracks);
+  if (manualTracks.length) payload.ManualTracks = JSON.stringify(tlPersist(manualTracks, 'typed'));
   try {
     const addRes = await postUpdate(payload);
     rymAfterAdd(payload, addRes);
@@ -28528,6 +28747,7 @@ function openEditModal() {
   el.editCover.value = activeItem.cover || '';
   el.editToast.textContent = '';
   renderTracklistBuilderRows(el.editTracksRows, activeItem.manualTracks || []);
+  tlResetTools('edit');
 }
 
 function closeEditModal() { el.editOverlay.hidden = true; }
@@ -28538,7 +28758,7 @@ async function saveEditAlbum() {
   const title = el.editTitle.value.trim();
   if (!artist || !title) { flashToast(el.editToast, 'Artist and title are required'); return; }
 
-  const manualTracks = collectTracklistBuilderRows(el.editTracksRows);
+  const manualTracks = tlPersist(collectTracklistBuilderRows(el.editTracksRows, { minNext: tlMinNext(activeItem) }), 'typed');
   // Same reasoning as saveNewAlbum: only actually write ManualTracks when
   // there's a reason to — either the builder has real rows in it, or the
   // album was already manual before this save (so an empty builder here
@@ -33056,6 +33276,30 @@ html, body {
   .deck-rym-hist { margin-top: 8px; font-size: 12px; color: var(--text-dim); } .deck-rym-hist summary { cursor: pointer; } .deck-rym-hist[open] summary { margin-bottom: 6px; }
   .rym-spark { color: var(--accent); max-width: 100%; height: auto; display: block; }
   .rym-hist-line { margin: 6px 0; } .rym-hist-table { border-collapse: collapse; margin-top: 6px; font-variant-numeric: tabular-nums; } .rym-hist-table th { text-align: left; font-weight: 600; padding: 2px 12px 2px 0; } .rym-hist-table td { padding: 2px 12px 2px 0; }
+  /* ---- tracklist editor ---- */
+  .tracklist-builder-rows .tracklist-builder-row { display: grid; grid-template-columns: 14px 22px minmax(0, 1fr) 66px auto; gap: 4px 6px; align-items: center; }
+  .tracklist-builder-handle { cursor: grab; color: var(--text-dim); text-align: center; user-select: none; font-size: 14px; line-height: 1; }
+  .tracklist-builder-time { width: 100%; box-sizing: border-box; text-align: right; font-family: 'IBM Plex Mono', monospace; background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 6px; color: var(--text); padding: 6px 8px; font-size: 13px; }
+  .tracklist-builder-time:focus, .tracklist-builder-section-title:focus { outline: none; border-color: var(--accent); }
+  .tracklist-builder-tools { display: inline-flex; gap: 3px; }
+  .tracklist-builder-tools button { background: transparent; border: 1px solid var(--line); border-radius: 6px; color: var(--text-dim); padding: 4px 7px; font-size: 12px; cursor: pointer; line-height: 1.2; }
+  .tracklist-builder-tools button:hover { color: var(--accent); border-color: var(--accent); }
+  .tracklist-builder-tools .tracklist-builder-remove:hover, .tracklist-builder-section-remove:hover { color: #E5734A; border-color: #E5734A; }
+  .tracklist-builder-links-toggle.has-links { color: var(--accent); border-color: var(--accent); }
+  .tracklist-builder-rows .tracklist-builder-links { grid-column: 3 / -1; display: flex; gap: 6px; flex-wrap: wrap; }
+  .tracklist-builder-rows .tracklist-builder-links[hidden] { display: none; }
+  .tracklist-builder-rows .tracklist-builder-match-panel { grid-column: 1 / -1; }
+  .tracklist-builder-section { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 6px; align-items: center; margin-top: 8px; }
+  .tracklist-builder-section-title { background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 6px; color: var(--text); padding: 6px 8px; font-size: 13px; font-weight: 600; }
+  .tracklist-builder-row.dragging, .tracklist-builder-section.dragging { opacity: .45; }
+  @media (max-width: 600px) { .tracklist-builder-rows .tracklist-builder-row { grid-template-columns: 22px minmax(0, 1fr) 60px; } .tracklist-builder-section { grid-template-columns: minmax(0, 1fr) auto; } .tracklist-builder-handle { display: none; } .tracklist-builder-rows .tracklist-builder-tools { grid-column: 1 / -1; justify-content: flex-end; } .tracklist-builder-rows .tracklist-builder-links { grid-column: 1 / -1; } }
+  .tl-tools { display: flex; flex-direction: column; gap: 6px; text-transform: none; letter-spacing: normal; font-weight: 400; }      /* it sits inside a form block styled as a small all-caps label: this is not a label */
+  .tl-tools-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: var(--text-dim); }
+  .tl-paste summary { cursor: pointer; font-size: 12px; color: var(--accent); }
+  .tl-paste-text { width: 100%; box-sizing: border-box; margin-top: 6px; background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 6px; color: var(--text); padding: 8px; font: 12.5px/1.5 'IBM Plex Mono', monospace; resize: vertical; }
+  .tl-preview { font-size: 12px; color: var(--text-dim); margin: 4px 0; min-height: 1em; } .tl-paste-actions { display: flex; gap: 6px; }
+  .track-section-header { margin: 14px 0 2px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); }
+  .tracklist-source { margin: 10px 0 0; font-size: 12px; color: var(--text-dim); }
   /* ---- Stats map ---- */
   .snd-mapwrap { padding: 0 4px 24px; min-width: 0; }
   .smap-toolbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; margin: 10px 0 6px; }
