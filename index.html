@@ -19,7 +19,55 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.35.1
+  CURRENT_VERSION: 1.37.0
+
+  1.37.0 — 2026-10-24 — Pull releases in from Rate Your Music: a release page, or a whole genre (needs the add-on, now 1.7.0).
+
+          HOW: on RateYourMusic the add-on adds a "Send to CRATE" button to a RELEASE page (that release, with its genres, date and tracklist), and to its page panel on GENRE,
+            ARTIST and CHART pages (every release listed there). Nothing is sent just by visiting a page, only when you press it. What you send waits in the add-on; CRATE
+            collects it when it opens, and when you come back to its tab, and shows a bar: "Rate Your Music: 24 releases waiting from Progressive Rock (genre page) · Review ·
+            Not now · Discard". ⚙ → "Import from Rate Your Music…" does the same on demand (and says what to do if nothing is waiting or the add-on doesn't answer).
+          REVIEW IS THE IMPORT REVIEW you already know: every release marked new / already in your crate / another edition / repeated, only the new ones ticked, the totals, progress
+            with Cancel, a failure list with Retry. Nothing is added until you press Add. A note at the top says where they came from.
+          WHAT COMES WITH A RELEASE: artist, title, type (Album, EP, Single, Compilation, Mixtape; videos aren't kept), the date (a full date from a release page, the year from a
+            list), the RYM address (so RYM ratings find it afterwards), and genres: on a release page its PRIMARY and SECONDARY genres; on a genre or chart page the row's own genres
+            if it shows any, otherwise the page's genre ("Progressive Rock", or the g: part of a chart's address). A release page also brings its tracklist, with lengths and Disc
+            / Side headings, tagged as from Rate Your Music: imported tracks now keep lengths and headings (they used to carry only number, title and links).
+          IF SOMETHING GOES WRONG the batch stays waiting: it is released from the add-on only when everything went through, so a stopped or part-failed import can be reviewed again
+            and the ones that went in show as already here. Sending the same page again replaces its earlier batch instead of piling up. Up to 300 releases per page.
+          ALSO IN THIS VERSION: CRATE now checks for waiting releases once its catalog has loaded as well as when the add-on says hello (the hello can arrive before CRATE is listening and is then lost).
+          VERIFIED: the add-on's row, date, title, cleaning and outbox logic (29 checks); the whole chain with the REAL extension in Chromium on pages built several ways (a release page, a
+            genre page whose rows have no recognisable class names, a chart page, an artist page; with a video row, a repeated row, a nav link, a "related" sidebar, a hostile title) (26);
+            what the real extension collected, handed to CRATE through its own CRATE-side script, reviewed, imported, and cleared on both sides (9); and CRATE's side with stand-ins for the
+            add-on, including silence, a spoofed sender, hostile data, a failed add and a discard (27).
+          NOT VERIFIED against real RateYourMusic, whose pages can't be seen from here: how it names things. The release page is read from the page title ("Fragile by Yes - …"), a
+            "Released" row, and genre links (release_pri_genres / release_sec_genres, else the info table's), falling back to the address; list pages are read as the release links on the
+            page, each with the smallest row around it (the add-on's existing discography markup is tried first). It sends what is ON the page: a chart or genre page shows one page of
+            results at a time, so send each page you want. If a page isn't read right, the add-on's options have selectors, and what it can't find it leaves out rather than guesses.
+
+
+  1.36.0 — 2026-10-24 — Tracklist editor, stage 3: Rate Your Music as a source (needs the add-on, now 1.6.0).
+
+          HOW: the editor's "Fill from" row has a new RYM button. The browser add-on saves each release page's tracklist as you browse RateYourMusic (titles,
+            order, lengths, Disc / Side headings, and a track's own rating where the page shows one); the button asks it for the one that is THIS release's, shows what
+            it found ("Rate Your Music has 10 tracks · 38:12, with ratings for 8 (saved 23 Oct 2026)") and waits for "Use this list", like the other sources.
+          WHICH RELEASE: found by the release's saved RYM address first, otherwise by artist + title + type, the same careful rules the ratings use: a tracklist for the
+            SINGLE is never offered for the album. If the add-on hasn't seen this release's page yet, it says so and links to it on RYM; if it doesn't answer at all (not installed,
+            not connected, or older than 1.6), it says that, after a short wait, and what to check.
+          YOUR DATA STAYS WITH ITS SONG: using it works exactly like pasting a list: tracks you already had keep their numbers by title (so their ratings, notes and ticks stay), their
+            old length if RYM's page gave none, and you are warned about any track with ratings or notes that isn't in the new list.
+          TRACK RATINGS: where RYM shows a rating for a track, saving (in Edit) adds it as that track's RYM rating, but ONLY where the track has none of its own: a rating you typed is never
+            replaced. The deck's bold-the-best then applies to them as it does to ones you typed. (The Add form can't hold track ratings yet, so there it says to add them from Edit.)
+          FIXED IN THE ADD-ON ALONG THE WAY: the browser's extension storage returns an object's keys in alphabetical order, so a saved tracklist was judged "different" from the
+            same page seen again and rewritten on every visit; they are now compared by value.
+          VERIFIED: the add-on's row reading and merging (21 checks), the whole chain with the REAL extension in Chromium: pages built five different ways (a list, a table with Disc
+            headings, plain lines with Side B, markup it can't recognise but a selector can, a page with no tracklist and a decoy "related releases" list) read, kept, handed to
+            CRATE, used and saved (17 + 8 checks); and CRATE's side with stand-ins for the add-on, including silence, a spoofed sender, hostile data and the wrong release type (26).
+            NOT VERIFIED against real RateYourMusic: its page markup can't be seen from here. The add-on takes list items or table rows that carry a length and picks the biggest
+            group (ignoring "related" areas), reading each row's pieces in order; failing that it reads the area as text. The add-on's options have a selector for a track row, and
+            nothing is saved rather than guessed when it can't find a tracklist.
+          STILL TO COME (stage 2): a side-by-side comparison of the sources (counts, extra bonus tracks).
+
 
   1.35.1 — 2026-10-23 — Player: no more empty band at the top, and a floating player can no longer end up off-screen.
 
@@ -6307,6 +6355,7 @@
           <button type="button" id="menuYoutubeApi">YouTube API…</button>
           <button type="button" id="menuExportCrate">Export crate…</button>
           <button type="button" id="menuImportCrate">Import crate…</button>
+          <button type="button" id="menuImportRym">Import from Rate Your Music…</button>
           <button type="button" id="menuSoundAnalysis">Sound analysis…</button>
           <button type="button" id="menuRymRatings">RYM ratings &amp; genres…</button>
           <button type="button" id="menuUpdateLog">Update log…</button>
@@ -6870,6 +6919,7 @@
 <!-- The deck: modal detail / rating / tracklist / diary view -->
 <!-- Quiet, non-blocking notifications (e.g. background Last.fm sync) -->
 <div id="globalToast" class="global-toast" hidden></div>
+<div id="rymInbox" class="rym-inbox" role="status" hidden></div>
 
 <!-- Persistent mini player — stays docked at the bottom of the screen once
      you hit Play, independent of the deck (so you can close the album
@@ -8049,6 +8099,7 @@
         <p id="cxImpError" class="cx-error" role="alert" hidden></p>
       </div>
       <div id="cxImpReview" class="cx-review" hidden>
+        <p id="cxImpSource" class="cx-source" hidden></p>
         <div id="cxImpSummary" class="lfr-summary" role="status" aria-live="polite"></div>
         <fieldset class="cx-group cx-compact"><legend>What to bring in</legend>
           <label><input type="checkbox" id="cxImpTracks"> Tracklists</label>
@@ -8113,7 +8164,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.35.1';
+const APP_VERSION = '1.37.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -8573,6 +8624,8 @@ function initRymRatings() {
     if (e.source !== window || e.origin !== window.location.origin) return;       // only this page itself, never another frame or site
     const d = e.data; if (!d || d.source !== 'crate-addon') return;
     if (d.type === 'rym-genres' && Array.isArray(d.genres)) { rymHandleGenres(rymCleanGenres(d.genres)); return; }
+    if (d.type === 'rym-tracklists' && Array.isArray(d.tracklists)) { rymTracklistsArrived(rymCleanTracklists(d.tracklists)); return; }
+    if (d.type === 'rym-outbox' && Array.isArray(d.batches)) { rymOutboxArrived(rymCleanOutbox(d.batches)); return; }
     if (d.type !== 'rym-ratings' || !Array.isArray(d.ratings)) return;
     const s = (x) => String(x == null ? '' : x).slice(0, 200), clean = d.ratings.slice(0, 20000).map(x => ({ p: s(x && x.p), a: Number(x && x.a), n: Number(x && x.n) || 0, ar: s(x && x.ar), ti: s(x && x.ti), ty: s(x && x.ty), y: s(x && x.y), t: Number(x && x.t) || 0, h: Array.isArray(x && x.h) ? rymHistNorm(x.h.slice(0, 400)) : [] })).filter(x => x.a > 0 && x.a <= 5);
     rymHandleAddon(clean);
@@ -8743,7 +8796,7 @@ function tlSourceText(tracks) {                               // "from Spotify" 
   return !codes.length ? '' : codes.length === 1 ? TL_SOURCE_TEXT[codes[0]] : 'from more than one source';
 }
 // END tl-core
-const tlPending = { add: null, edit: null }, tlSeq = { add: 0, edit: 0 };      // a list on offer from a source / the last source lookup asked for, per editor
+const tlPending = { add: null, edit: null }, tlSeq = { add: 0, edit: 0 }, rymTlWaiters = [], rymOutWaiters = [], rymOutState = { batches: [], present: false, asked: false, last: 0, dismissed: '' };      // a list on offer from a source / the last source lookup asked for, per editor
 
 // BEGIN genre-role
 // ---- which of a release's genres a genre FILTER looks at ----
@@ -21955,6 +22008,9 @@ function cxNormalizeRelease(raw, idx) {
       if (!t || typeof t !== 'object') { dropped++; return; }
       const title = str(t.title); if (!title) { dropped++; return; }
       const nt = { n: Number(t.n) || i + 1, title };
+      if (Number(t.durationMs) > 0) nt.durationMs = Math.round(Number(t.durationMs));
+      const sec = str(t.section).slice(0, 40); if (sec) nt.section = sec;
+      if (t.s === 'rym') nt.s = 'rym';
       ['spotify', 'youtube', 'soundcloud'].forEach(k => {
         const v = str(t[k]); if (!v) return;
         const clean = cxCleanUrl(v);
@@ -22000,13 +22056,15 @@ function cxShape(rel, opts) {                                  // what an import
   if (rel.link && !opts.links[cxLinkKind(rel.link) || 'other']) s.link = '';
   if (rel.rymLink && !opts.links.other) s.rymLink = '';
   if (!opts.cover) s.cover = '';
-  s.tracks = opts.tracks ? (rel.tracks || []).map(t => { const nt = { n: t.n, title: t.title }; ['spotify', 'youtube', 'soundcloud'].forEach(k => { if (t[k] && opts.links[k]) nt[k] = t[k]; }); return nt; }) : [];
+  s.tracks = opts.tracks ? (rel.tracks || []).map(t => { const nt = { n: t.n, title: t.title }; if (t.durationMs) nt.durationMs = t.durationMs; if (t.section) nt.section = t.section; if (t.s) nt.s = t.s; ['spotify', 'youtube', 'soundcloud'].forEach(k => { if (t[k] && opts.links[k]) nt[k] = t[k]; }); return nt; }) : [];
   return s;
 }
 function cxAddPayload(s) {
   const p = { action: 'addAlbum', Artist: s.artist, Title: s.title, Type: s.type || 'Album', ReleaseDate: s.releaseDate, Recorded: s.recorded, Genre: s.genre, SecondaryGenre: s.secondaryGenre,
     Region: s.region, Location: s.location, Label: s.label, Catalog: s.catalog, Descriptor: s.descriptor, Scene: s.scene, Movement: s.movement, Link: s.link, RymLink: s.rymLink, Cover: s.cover };
-  if (s.tracks.length) p.ManualTracks = JSON.stringify(s.tracks.map(t => ({ trackNumber: t.n, title: t.title, youtubeLink: t.youtube || '', spotifyLink: t.spotify || '' })));   // only when there are songs: an empty list would stop the app looking the tracklist up
+  if (s.tracks.length) p.ManualTracks = JSON.stringify(s.tracks.some(t => t.durationMs || t.section || t.s)
+    ? tlPersist(s.tracks.map(t => ({ trackNumber: t.n, title: t.title, youtubeLink: t.youtube || '', spotifyLink: t.spotify || '', durationMs: t.durationMs, section: t.section, s: t.s })), 'rym')       // lengths, headings and where the list came from, as the editor saves them
+    : s.tracks.map(t => ({ trackNumber: t.n, title: t.title, youtubeLink: t.youtube || '', spotifyLink: t.spotify || '' })));   // only when there are songs: an empty list would stop the app looking the tracklist up
   return p;
 }
 function cxSoundcloudUpdates(s) { const u = {}; (s.tracks || []).forEach(t => { if (t.soundcloud) u[t.n] = { soundcloudLink: t.soundcloud }; }); return u; }   // SoundCloud links live with the per-song data, set after the release exists
@@ -23238,7 +23296,7 @@ function cxExportBind() {
 // ----- import -----
 function openCxImport() {
   cxImp = { releases: null, meta: null, selected: new Set(), filter: 'all', view: cxLoadView(), running: false, cancel: false, added: [], failed: [] };
-  cxEl('cxImpText').value = ''; cxEl('cxImpFile').value = ''; cxEl('cxImpError').hidden = true;
+  cxEl('cxImpText').value = ''; cxEl('cxImpFile').value = ''; cxEl('cxImpError').hidden = true; cxEl('cxImpSource').hidden = true;
   cxSetBoxes('cxImp', cxLoadOpts());
   el.layoutMenu.hidden = true;
   cxImpShow('cxImpPick'); cxEl('cxImportOverlay').hidden = false;
@@ -23383,6 +23441,7 @@ async function cxImpRun(list) {                // list: [{ idx, shaped }]
   cxEl('cxImpProgText').textContent = st.failed.length || notTried ? 'Import finished with problems' : 'Import finished';
   cxEl('cxImpResult').innerHTML = lines.join('<br>'); cxEl('cxImpResult').hidden = false;
   cxEl('cxImpRetry').hidden = !st.failed.length;
+  if (st.rym && st.added.length && !st.failed.length && !notTried) rymBatchDone(st.rym.ids);       // everything went through: the add-on can forget it (if anything failed or was stopped it stays, and the added ones show as already here)
   if (st.added.length) flashGlobalToast(`Imported ${cxN(st.added.length, 'release')}.`);
 }
 function cxImportBind() {
@@ -23423,6 +23482,7 @@ function cxImportBind() {
 function initCrateExchange() {
   cxEl('menuExportCrate').addEventListener('click', openCxExport);
   cxEl('menuImportCrate').addEventListener('click', openCxImport);
+  cxEl('menuImportRym').addEventListener('click', rymImportFromMenu);
 }
 
 /* ---------- Duplicate protection when adding ----------
@@ -23505,13 +23565,21 @@ function addonPublish() {
     window.postMessage({ source: 'crate-app', type: 'index', version: 1, appVersion: APP_VERSION, items: addonItems() }, window.location.origin);
   } catch (e) { /* best effort: it only matters when an add-on is listening */ }
 }
-function addonPublishIfChanged() { if (state.raw && state.raw.length && state.raw !== addonLastRaw) { addonLastRaw = state.raw; addonPublish(); } }
+function addonPublishIfChanged() { if (state.raw && state.raw.length && state.raw !== addonLastRaw) { addonLastRaw = state.raw; addonPublish(); if (!rymOutState.asked) { rymOutState.asked = true; rymCheckOutbox(); } } }
 function initAddonBridge() {
   document.documentElement.setAttribute('data-crate-bridge', APP_VERSION);      // lets the add-on tell a CRATE that supports it from an older one (or from some other page) when nothing arrives
   window.addEventListener('message', (e) => {
     if (e.source !== window || e.origin !== window.location.origin) return;          // only this page itself, never another frame or site
     const d = e.data;
-    if (d && d.source === 'crate-addon' && d.type === 'request-index') addonPublish();
+    if (d && d.source === 'crate-addon' && d.type === 'request-index') { addonPublish(); rymCheckOutbox(); }       // the add-on is here: see whether anything was sent from Rate Your Music
+  });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && rymOutState.present) rymCheckOutbox(); });
+  const inbox = document.getElementById('rymInbox');
+  if (inbox) inbox.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.hasAttribute('data-rym-review')) openRymImport(rymOutState.batches[0]);
+    else if (b.hasAttribute('data-rym-later')) { rymOutState.dismissed = rymOutState.batches.map(x => x.id).join(','); renderRymInbox(); }
+    else if (b.hasAttribute('data-rym-discard')) rymBatchDone(rymOutState.batches.map(x => x.id));
   });
   const btn = document.getElementById('menuShareAddon');
   if (!btn) return;
@@ -28321,7 +28389,7 @@ function tlPersist(rows, defaultSource) {                         // what is wri
 function tracklistBuilderRowHtml(track, idx) {
   const t = track || {}, ms = t.durationMs || 0;
   return `
-    <div class="tracklist-builder-row" data-idx="${idx}" data-track-number="${t.trackNumber ?? ''}" data-duration-ms="${ms || ''}" data-source="${escapeHtml(t.s || '')}">
+    <div class="tracklist-builder-row" data-idx="${idx}" data-track-number="${t.trackNumber ?? ''}" data-duration-ms="${ms || ''}" data-source="${escapeHtml(t.s || '')}" data-rym-rating="${t.rymRating ? escapeHtml(String(t.rymRating)) : ''}">
       <span class="tracklist-builder-handle" draggable="true" title="Drag to move this track" aria-hidden="true">\u2807</span>
       <span class="tracklist-builder-num">${idx + 1}</span>
       <input type="text" class="tracklist-builder-title" placeholder="Track title" value="${escapeHtml(t.title || '')}">
@@ -28389,13 +28457,13 @@ function collectTracklistBuilderRows(container, opts) {
     if (!node.classList.contains('tracklist-builder-row')) return;
     const title = node.querySelector('.tracklist-builder-title').value.trim(); if (!title) return;   // drop rows nobody filled in
     rows.push({ trackNumber: node.dataset.trackNumber ? Number(node.dataset.trackNumber) : null, title, youtubeLink: node.querySelector('.tracklist-builder-yt').value.trim(), spotifyLink: node.querySelector('.tracklist-builder-sp').value.trim(),
-      durationMs: Number(node.dataset.durationMs) || 0, section, s: node.dataset.source || '' });
+      durationMs: Number(node.dataset.durationMs) || 0, section, s: node.dataset.source || '', rymRating: Number(node.dataset.rymRating) || 0 });
   });
   let nextNum = Math.max((opts && opts.minNext) || 0, ...rows.map(t => t.trackNumber || 0), 0) + 1;
   return rows.map(t => t.trackNumber ? t : { ...t, trackNumber: nextNum++ });
 }
 function tlFillRow(row, t) {
-  row.querySelector('.tracklist-builder-title').value = t.title || ''; row.dataset.durationMs = t.durationMs || ''; row.querySelector('.tracklist-builder-time').value = tlFormatTime(t.durationMs); row.dataset.source = t.s || '';
+  row.querySelector('.tracklist-builder-title').value = t.title || ''; row.dataset.durationMs = t.durationMs || ''; row.querySelector('.tracklist-builder-time').value = tlFormatTime(t.durationMs); row.dataset.source = t.s || ''; row.dataset.rymRating = t.rymRating || '';
 }
 function tlInsertParsed(c, row, text) {                          // text pasted straight into a title box: one row each, from this row on
   const parsed = tlParseText(text); if (!parsed.tracks.length) return false;
@@ -28467,6 +28535,7 @@ function tlToolsHtml() {
       <button type="button" class="chip-btn" data-tl-fill="spotify">Spotify</button>
       <button type="button" class="chip-btn" data-tl-fill="musicbrainz">MusicBrainz</button>
       <button type="button" class="chip-btn" data-tl-fill="itunes">iTunes</button>
+      <button type="button" class="chip-btn" data-tl-fill="rym" title="The tracklist the browser add-on saved from this release\u2019s page on Rate Your Music">RYM</button>
       <button type="button" class="chip-btn" data-tl-heading="1" title="Add a heading such as Disc 2, Side B or Bonus tracks">+ Heading</button>
     </div>
     <details class="tl-paste">
@@ -28516,6 +28585,8 @@ function tlApplyTracks(side, tracks, kind, mode) {
     const lost = a.dropped.filter(r => had(r.trackNumber));
     note = `Using the list ${label}: ${rows.length} track${rows.length === 1 ? '' : 's'}.` + (a.matched ? ` ${a.matched} of them were already here, so their ratings, notes and links stay.` : '') + (lost.length ? ` ${lost.length} track${lost.length === 1 ? '' : 's'} that had ratings or notes ${lost.length === 1 ? 'is' : 'are'} not in the new list (${lost.slice(0, 3).map(r => r.title).join(', ')}${lost.length > 3 ? '\u2026' : ''}): their data stays saved but is no longer shown.` : '');
   }
+  const ratedRows = rows.filter(r => r.rymRating > 0).length;
+  if (ratedRows) note += side === 'edit' ? ` Rate Your Music\u2019s ratings for ${ratedRows} of the tracks are added when you save (only where a track has none of its own yet).` : ` Rate Your Music rates ${ratedRows} of the tracks: add them from Edit once the album is saved.`;
   renderTracklistBuilderRows(c, rows); tlStatus(side, escapeHtml(note));
 }
 async function tlItunesTracks(artist, title) {
@@ -28529,6 +28600,7 @@ async function tlItunesTracks(artist, title) {
 async function tlFetchSource(side, kind) {
   const f = (n) => (document.getElementById(side + n) || { value: '' }).value.trim(), artist = f('Artist'), title = f('Title'), link = f('Link'), label = TL_SOURCE_TEXT[kind].replace(/^from /, '');
   if (!artist || !title) { tlStatus(side, 'Fill in the artist and title first.'); return; }
+  if (kind === 'rym') { tlFetchRym(side, artist, title); return; }
   const seq = ++tlSeq[side]; tlPending[side] = null; tlStatus(side, `Looking on ${escapeHtml(label)}\u2026`);
   let tracks = [];
   try {
@@ -28544,6 +28616,104 @@ async function tlFetchSource(side, kind) {
   tlPending[side] = { kind, tracks: tracks.map(t => ({ title: t.title, durationMs: t.durationMs || 0, spotifyLink: t.spotifyLink || '', section: t.section || '' })) };
   const total = tlFormatTime(tracks.reduce((s, t) => s + (t.durationMs || 0), 0));
   tlStatus(side, `${escapeHtml(label)} has ${tracks.length} track${tracks.length === 1 ? '' : 's'}${total ? ' \u00b7 ' + total : ''}. <button type="button" class="chip-btn" data-tl-use>Use this list</button> <button type="button" class="chip-btn" data-tl-dismiss>Dismiss</button>`);
+}
+// ---- RYM as a tracklist source: asking the add-on for what it saw on the release's RateYourMusic page ----
+function rymAskTracklists(ms) {                                  // -> the add-on's tracklists, or null if it didn't answer in time (not installed, not connected, or too old)
+  return new Promise((resolve) => {
+    const w = { resolve, timer: setTimeout(() => { const i = rymTlWaiters.indexOf(w); if (i >= 0) rymTlWaiters.splice(i, 1); resolve(null); }, ms || 2500) };
+    rymTlWaiters.push(w);
+    try { window.postMessage({ source: 'crate-app', type: 'request-rym-tracklists' }, window.location.origin); } catch (e) { /* no add-on */ }
+  });
+}
+function rymTracklistsArrived(list) { rymTlWaiters.splice(0).forEach(w => { clearTimeout(w.timer); w.resolve(list); }); }
+function rymCleanTracklists(list) {                              // whatever arrives is untrusted: only text and numbers, bounded
+  const str = (x, n) => typeof x === 'string' ? x.slice(0, n) : '';
+  return (Array.isArray(list) ? list : []).slice(0, 400).map(e => ({ p: str(e && e.p, 200), ar: str(e && e.ar, 200), ti: str(e && e.ti, 200), ty: str(e && e.ty, 30), u: str(e && e.u, 300), t: Number(e && e.t) || 0,
+    tracks: (Array.isArray(e && e.tracks) ? e.tracks : []).slice(0, 200).map(t => ({ title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), rating: rymNum(t && t.rating) })).filter(t => t.title) })).filter(e => e.p && e.tracks.length >= 2);
+}
+function tlRymPick(list, probe) {                                // the add-on's tracklist for THIS release: by its saved RYM address, else artist + title + type (the rules the ratings use); the newest if several
+  const idx = rymBuildIndex([probe], dupKey); let best = null;
+  (list || []).forEach(e => { const m = rymMatchEntry(idx, { p: e.p, ar: e.ar, ti: e.ti, ty: e.ty }); if (m && m.item && (!best || (e.t || 0) >= (best.t || 0))) best = e; });
+  return best;
+}
+async function tlFetchRym(side, artist, title) {
+  const seq = ++tlSeq[side]; tlPending[side] = null; tlStatus(side, 'Asking the add-on what it saw on Rate Your Music\u2026');
+  const list = await rymAskTracklists();
+  if (seq !== tlSeq[side]) return;                               // asked for something else meanwhile
+  if (list === null) { tlStatus(side, 'No answer from the add-on. It has to be installed, connected to this CRATE, and version 1.6 or newer.'); return; }
+  const f = (n) => ((document.getElementById(side + n) || {}).value || '').trim(), rymLink = f('RymLink');
+  const hit = tlRymPick(list, { artist, title, type: f('Type'), releaseDate: '', rymLink });
+  if (!hit) {
+    const href = rymLink || rymSearchUrl({ artist, title });
+    tlStatus(side, `The add-on hasn\u2019t seen this release\u2019s page on Rate Your Music yet. <a href="${escapeHtml(href)}" target="_blank" rel="noopener">Open it there \u2197</a>, then press RYM again.`); return;
+  }
+  tlPending[side] = { kind: 'rym', tracks: hit.tracks.map(t => ({ title: t.title, durationMs: t.durationMs, section: t.section, rymRating: t.rating || 0 })) };
+  const total = tlFormatTime(hit.tracks.reduce((s, t) => s + (t.durationMs || 0), 0)), rated = hit.tracks.filter(t => t.rating).length, when = hit.t ? rymDateText(new Date(hit.t).toISOString()) : '';
+  tlStatus(side, `Rate Your Music has ${hit.tracks.length} track${hit.tracks.length === 1 ? '' : 's'}${total ? ' \u00b7 ' + total : ''}${rated ? `, with ratings for ${rated}` : ''}${when ? ' (saved ' + escapeHtml(when) + ')' : ''}. <button type="button" class="chip-btn" data-tl-use>Use this list</button> <button type="button" class="chip-btn" data-tl-dismiss>Dismiss</button>`);
+}
+// RYM's own rating of a track fills in where the track has none (never over one you typed); then the deck's bold-the-best applies to it as it does to typed ones
+async function tlApplyTrackRatings(item, rows) {
+  const todo = (rows || []).filter(r => r.rymRating > 0 && r.trackNumber);
+  if (!todo.length || !item) return;
+  item.trackData = item.trackData || {}; let n = 0;
+  todo.forEach(r => { const td = item.trackData[r.trackNumber] || (item.trackData[r.trackNumber] = {}); if (!(td.rymRating > 0)) { td.rymRating = rymNum(r.rymRating); n++; } });
+  if (!n) return;
+  try { await postUpdate({ row: item.row, trackData: JSON.stringify(item.trackData) }); flashGlobalToast(`Added Rate Your Music ratings to ${n} track${n === 1 ? '' : 's'}.`); }
+  catch (err) { flashGlobalToast('Couldn\u2019t save the track ratings \u2014 try again.'); }
+}
+// ---- releases sent from RateYourMusic pages by the browser add-on ("Send to CRATE") ----
+// They wait in the add-on until asked for; here they are shown in a bar and reviewed through the same import review a crate file uses
+// (new / already in your crate / repeated, ticking, progress, Cancel, Retry). Nothing is added until you press Add there.
+function rymAskOutbox(ms) {                                      // -> the batches waiting in the add-on, or null if it didn't answer in time (not installed, not connected, or older than 1.7)
+  return new Promise((resolve) => {
+    const w = { resolve, timer: setTimeout(() => { const i = rymOutWaiters.indexOf(w); if (i >= 0) rymOutWaiters.splice(i, 1); resolve(null); }, ms || 2500) };
+    rymOutWaiters.push(w);
+    try { window.postMessage({ source: 'crate-app', type: 'request-rym-outbox' }, window.location.origin); } catch (e) { /* no add-on */ }
+  });
+}
+function rymCleanOutbox(list) {                                  // untrusted: only text and numbers, bounded, and only types CRATE has
+  const str = (x, n) => typeof x === 'string' ? x.slice(0, n) : '', TYPES = ['Album', 'EP', 'Single', 'Compilation', 'Live', 'Mixtape'];
+  return (Array.isArray(list) ? list : []).slice(0, 12).map(b => ({
+    id: str(b && b.id, 40), t: Number(b && b.t) || 0, kind: b && b.kind === 'release' ? 'release' : 'list', genre: str(b && b.genre, 100).trim(),
+    source: { url: str(b && b.source && b.source.url, 300), title: str(b && b.source && b.source.title, 200).trim() },
+    releases: (Array.isArray(b && b.releases) ? b.releases : []).slice(0, 600).map(r => ({
+      artist: str(r && r.artist, 200).trim(), title: str(r && r.title, 200).trim(), type: TYPES.includes(r && r.type) ? r.type : 'Album', releaseDate: /^\d{4}(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?)?$/.test(r && r.releaseDate) ? r.releaseDate : '',
+      genre: str(r && r.genre, 200).trim(), secondaryGenre: str(r && r.secondaryGenre, 200).trim(), rymLink: /^https:\/\/rateyourmusic\.com\/release\//.test(str(r && r.rymLink, 300)) ? str(r.rymLink, 300) : '',
+      tracks: (Array.isArray(r && r.tracks) ? r.tracks : []).slice(0, 200).map((t, i) => ({ n: i + 1, title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), s: 'rym' })).filter(t => t.title) })).filter(r => r.artist && r.title).slice(0, 300) })).filter(b => b.id && b.releases.length);
+}
+function rymOutboxArrived(batches) {
+  rymOutState.batches = batches; rymOutState.present = true; renderRymInbox();
+  rymOutWaiters.splice(0).forEach(w => { clearTimeout(w.timer); w.resolve(batches); });
+}
+async function rymCheckOutbox() {                                // quietly: when the add-on says hello, and when you come back to this tab
+  const now = Date.now(); if (now - rymOutState.last < 1500) return; rymOutState.last = now;
+  await rymAskOutbox();
+}
+function renderRymInbox() {
+  const bar = document.getElementById('rymInbox'); if (!bar) return;
+  const bs = rymOutState.batches, key = bs.map(b => b.id).join(',');
+  if (!bs.length || rymOutState.dismissed === key) { bar.hidden = true; bar.innerHTML = ''; return; }
+  const n = bs.reduce((s, b) => s + b.releases.length, 0), first = bs[0];
+  bar.innerHTML = `<span>Rate Your Music: <b>${n}</b> release${n === 1 ? '' : 's'} waiting${first.source.title ? ' from ' + escapeHtml(first.source.title) : ''}${bs.length > 1 ? ` and ${bs.length - 1} more page${bs.length > 2 ? 's' : ''}` : ''}.</span> <button type="button" class="chip-btn" data-rym-review>Review</button> <button type="button" class="chip-btn" data-rym-later>Not now</button> <button type="button" class="chip-btn" data-rym-discard title="Throw away what was sent from Rate Your Music">Discard</button>`;
+  bar.hidden = false;
+}
+function rymBatchDone(ids) {                                     // taken (or thrown away): the add-on forgets them, and so does the bar
+  const gone = new Set(ids);
+  rymOutState.batches = rymOutState.batches.filter(b => !gone.has(b.id)); renderRymInbox();
+  try { window.postMessage({ source: 'crate-app', type: 'rym-outbox-done', ids: [...gone] }, window.location.origin); } catch (e) { /* no add-on */ }
+}
+function openRymImport(batch) {
+  if (!batch) return;
+  openCxImport();
+  cxImpRead(JSON.stringify({ format: CX_FORMAT, version: CX_VERSION, releases: batch.releases.map(r => Object.assign({}, r, { tracks: r.tracks && r.tracks.length >= 2 ? r.tracks : [] })) }));
+  if (cxImp) { cxImp.rym = { ids: [batch.id] }; const src = cxEl('cxImpSource'); src.textContent = `From Rate Your Music: ${batch.source.title || 'a page you sent'}${batch.genre ? ' \u00b7 genre ' + batch.genre : ''}. Nothing is added until you press Add.`; src.hidden = false; }
+}
+async function rymImportFromMenu() {
+  el.layoutMenu.hidden = true;
+  const list = await rymAskOutbox();
+  if (list === null) { flashGlobalToast('No answer from the add-on. It has to be installed, connected to this CRATE, and version 1.7 or newer.'); return; }
+  if (!list.length) { flashGlobalToast('Nothing is waiting from Rate Your Music. On one of its release, genre, artist or chart pages, press \u201cSend to CRATE\u201d.'); return; }
+  openRymImport(list[0]);
 }
 function tlSourceLine(item) {                                       // under the deck's tracklist: where this list came from
   if (!item || !isManualAlbum(item)) return '';
@@ -28857,7 +29027,8 @@ async function saveEditAlbum() {
   const title = el.editTitle.value.trim();
   if (!artist || !title) { flashToast(el.editToast, 'Artist and title are required'); return; }
 
-  const manualTracks = tlPersist(collectTracklistBuilderRows(el.editTracksRows, { minNext: tlMinNext(activeItem) }), 'typed');
+  const rawRows = collectTracklistBuilderRows(el.editTracksRows, { minNext: tlMinNext(activeItem) });
+  const manualTracks = tlPersist(rawRows, 'typed');
   // Same reasoning as saveNewAlbum: only actually write ManualTracks when
   // there's a reason to — either the builder has real rows in it, or the
   // album was already manual before this save (so an empty builder here
@@ -28923,6 +29094,7 @@ async function saveEditAlbum() {
     activeItem.cover = payload.Cover;
     activeItem.manualTracks = manualTracks;
     activeItem.hasManualTracklist = shouldBeManual;
+    tlApplyTrackRatings(activeItem, rawRows);       // track ratings that came from Rate Your Music (filled in synchronously, saved right after)
     
     const newKey = artKey(activeItem);
 
@@ -34309,6 +34481,10 @@ html, body {
 
   .import-scroll { max-height: 180px; overflow-y: auto; margin-bottom: 4px; }
 
+  .rym-inbox { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 150; max-width: min(92vw, 640px); display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 14px; background: var(--panel, #1B212B); color: var(--text); border: 1px solid var(--accent, #D6A24C); border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.45); font-size: 13px; }
+  .rym-inbox[hidden] { display: none; }
+  .cx-source { margin: 0 0 8px; padding: 6px 10px; border-left: 3px solid var(--accent, #D6A24C); background: rgba(214,162,76,.08); font-size: 12px; color: var(--text-dim); }
+  .cx-source[hidden] { display: none; }
   .global-toast {
     position: fixed; bottom: 20px; right: 20px; z-index: 200;
     background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 8px;
