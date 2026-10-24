@@ -19,7 +19,58 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.31.1
+  CURRENT_VERSION: 1.33.0
+
+  1.33.0 — 2026-10-23 — RYM rating history: a record of how each release's rating on Rate Your Music changes over time.
+
+          WHAT IS KEPT: for each release, a list of readings: when, RYM's average, and how many ratings it was based on. A reading is added when
+            the average CHANGES (even by 0.01) or the number of ratings has moved by 5% or more (the count creeps up all the time while the average
+            barely moves, so every tick would bury the signal). At most one reading a day: a later one the same day replaces that day's. Up to 120
+            readings a release; past that the oldest after the very first go first, so where it started and the recent readings stay.
+          WHERE YOU SEE IT: the album page has an "RYM history" line under the RYM rating ("RYM history · 4 readings · −0.14 since 7 Apr 2026"); open it
+            for a line chart (hover a dot for its date, value and count), how it has moved over about 90 days, and a table of the readings, latest first.
+            Hovering the "RYM 3.72" chip on a card also says where it started ("first saved 3.80 on 7 Apr 2026"). ⚙ → RYM ratings & genres… counts
+            the releases that have a history.
+          WHERE READINGS COME FROM: a rating you type is a reading (dated now). The browser add-on (version 1.5.0, update it) now keeps its OWN trail for each
+            release it sees on RateYourMusic, so a change it notices while CRATE is closed is not lost; CRATE joins that trail to what it has (no
+            duplicates) whenever it asks. Readings are recorded only when you actually look at the release on RYM (or type a value): there is no
+            background checking, so a rating you never visit has no readings in between.
+          A RATING YOU TYPED IS STILL NEVER OVERWRITTEN, but what RYM says is recorded in the history beside it, so you can see the two diverge.
+          REQUIRES AN UPDATED APPS SCRIPT (apps-script-backend.gs: a new RymHistory column, created on demand; redeploy as a new version). Until then
+            nothing is lost: the record is kept in this browser and sent to the sheet by itself once the backend can take it.
+          Also changed in the script: a batch write that carries only a history no longer risks clearing the rating (the old batch read "no rating
+            given" as "clear it").
+          VERIFIED: the rules for what is kept and merged (25 checks), the rating plan with history (27), the page in a browser (26), the backend script
+            against a stand-in sheet (12), the add-on's trail (24) and, with the real extension in Chromium, a rating that moved between two visits
+            reaching CRATE's album page (28). NOT VERIFIED against real RateYourMusic (its markup can't be seen from here). Not included yet: history is not in
+            the export file, and there is no sort or filter by how much a rating has moved.
+
+
+  1.32.0 — 2026-10-23 — Genre descriptions from Rate Your Music: filled in for you, with RYM's version kept.
+
+          HOW: CRATE can't read RateYourMusic itself (RYM blocks that). The browser add-on (now version 1.4.0, update it) saves the description
+            text when you open a genre's page on RYM, and CRATE picks it up by itself, like the ratings. A genre you have no description for
+            gets RYM's; "Get it from RYM ↗" on an empty genre page opens that genre's RYM page, and the description appears when you come
+            back to CRATE's tab.
+          NEVER OVERWRITTEN: a description that has any text in it is never changed by this. RYM's version is saved SEPARATELY beside it
+            (with the date it was saved and the page address), so editing your own text never loses it. On the genre page's About card:
+            "From Rate Your Music · saved 23 Oct 2026 · open on RYM" when it is RYM's text; "Rate Your Music has a different description"
+            with Show (reads it under yours) and Use RYM's (replacing something you wrote takes a second press) when it isn't. If RYM changes its
+            text later, the saved version is refreshed and offered; your description is not silently rewritten. A genre that is only
+            tagged on your releases gets its entry the first time something is saved for it. Matching is by the genre's name or its RYM address
+            only, never guessed (Jazz-Rock finds "Jazz Rock").
+          ⚙ → RYM ratings & genres… (renamed): a Genre descriptions section with the fill-in switch (on by default) and what the add-on has handed over.
+          IMPORTANT, UPDATE THE APPS SCRIPT (apps-script-backend.gs): all your genres and their descriptions are saved as ONE value, and a spreadsheet
+            cell holds at most 50,000 characters. A few dozen descriptions can already be near that; filling in hundreds of genres is far over it, and
+            the save to your sheet then fails (quietly: the text stays on this device only). The new script stores a long taxonomy in several
+            cells and reads it back whole (tested with 400 long descriptions, 869,000 characters, where the old script fails), and reads a taxonomy
+            saved by the old script as it is. Redeploy it as a new version. If you haven't, CRATE tells you once, when your genre data passes the limit.
+          VERIFIED: the rules for what may be filled (17 checks), the page (37), the add-on's reading of RYM genre pages with the real extension in
+            Chromium, including a comment box that looks like a description, "Read more" clutter, line-break-only layouts, sub-pages and the off
+            switch (24), the add-on's text handling (17) and the backend's chunked storage (13). NOT VERIFIED against real RateYourMusic: its genre
+            page markup can't be seen from here. The add-on looks for a box whose class or id says description/about/summary and takes the longest
+            plain text in it; if RYM's layout differs it says so on the page and in its options (a selector box under Advanced fixes it).
+
 
   1.31.1 — 2026-10-23 — MusicBrainz "Years active" chart: it now carries on by itself when MusicBrainz answers 503.
 
@@ -6187,7 +6238,7 @@
           <button type="button" id="menuExportCrate">Export crate…</button>
           <button type="button" id="menuImportCrate">Import crate…</button>
           <button type="button" id="menuSoundAnalysis">Sound analysis…</button>
-          <button type="button" id="menuRymRatings">RYM ratings…</button>
+          <button type="button" id="menuRymRatings">RYM ratings &amp; genres…</button>
           <button type="button" id="menuUpdateLog">Update log…</button>
           <div class="menu-divider"></div>
           <button type="button" id="menuSignOut">Sign out</button>
@@ -6921,6 +6972,7 @@
           <input type="text" inputmode="numeric" id="deckRymVotes" placeholder="ratings" aria-label="Number of RYM ratings (optional)">
           <a id="deckRymOpen" target="_blank" rel="noopener">find ↗</a>
         </div>
+        <details class="deck-rym-hist" id="deckRymHist" hidden><summary id="deckRymHistSum"></summary><div id="deckRymHistBody"></div></details>
       </div>
 
       <div class="deck-heading">
@@ -7784,7 +7836,7 @@
 <!-- Export / import a crate (see "Export / import a crate" in the script) -->
 <div id="rymOverlay" class="arrange-overlay" hidden>
   <div class="arrange-modal add-modal cx-modal" role="dialog" aria-modal="true" aria-labelledby="rymTitle">
-    <div class="arrange-header"><div><h2 id="rymTitle">RYM ratings</h2><p class="sm-sub">What each release is rated on Rate Your Music, shown next to your own rating, with the best ones in bold.</p></div><button id="rymClose" class="modal-x" aria-label="Close">✕</button></div>
+    <div class="arrange-header"><div><h2 id="rymTitle">RYM ratings &amp; genres</h2><p class="sm-sub">What each release is rated on Rate Your Music, shown next to your own rating, with the best ones in bold — and genre descriptions filled in from Rate Your Music.</p></div><button id="rymClose" class="modal-x" aria-label="Close">✕</button></div>
     <div class="arrange-body sm-body">
       <div class="cx-scroll">
         <p id="rymCoverage" class="snd-coverage" role="status"></p>
@@ -7797,6 +7849,10 @@
           <div class="snd-row"><button type="button" id="rymAddonCheck" class="config-btn">Check now</button><button type="button" id="rymApplyPending" class="config-btn" hidden></button></div>
           <label class="snd-opt"><input type="checkbox" id="rymAuto"><span><b>Apply them automatically</b><small>Ratings the add-on copies from RateYourMusic pages you browse fill in on their own. A rating you typed is never replaced.</small></span></label>
           <div id="rymLastWrap" hidden><p class="sm-dim">Last added:</p><ul id="rymLast" class="rym-last"></ul></div>
+        </fieldset>
+        <fieldset class="cx-group"><legend>Genre descriptions</legend>
+          <label class="snd-opt"><input type="checkbox" id="rymGenreAuto"><span><b>Fill in empty genre descriptions from RYM</b><small>When the add-on has seen a genre's page on Rate Your Music, a genre with no description of its own gets RYM's. A description you wrote is never changed: RYM's version is kept beside it on the genre page, to read or to use.</small></span></label>
+          <p id="rymGenreStatus" class="sm-dim" role="status"></p>
         </fieldset>
         <fieldset class="cx-group"><legend>Type them in</legend>
           <div class="snd-grid">
@@ -7982,7 +8038,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.31.1';
+const APP_VERSION = '1.33.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -8087,6 +8143,107 @@ const PREF_KEY = 'crate_prefs_slot_v1';
 // field wrapper in the form itself carries a matching data-add-field
 // attribute (see the HTML) so this stays purely declarative — no per-field
 // show/hide code to maintain as fields get added or removed.
+// BEGIN rym-hist-core
+// ---- The history of a release's RYM rating: [[time in ms, average, how many ratings], ...], oldest first ----
+// A new point is kept when the average CHANGES, or the number of ratings has moved by 5% or more (RYM's count creeps up all the time while its
+// average hardly moves, so logging every tick would bury the signal). At most one point per (UTC) day: a later reading the same day replaces
+// that day's point. At most `cap` points: past that the second-oldest go first, so the very first reading and the recent ones stay.
+const RYM_HIST_CAP = 120, RYM_HIST_VOTES_STEP = 0.05, RYM_DAY_MS = 86400000;
+function rymHistPoint(p) {                                   // one point cleaned, or null: [ms, average 0.01-5 (2 places), count (whole, never negative)]
+  if (!Array.isArray(p)) return null;
+  const t = Math.round(Number(p[0])), a = Math.round(Number(p[1]) * 100) / 100, n = Math.max(0, Math.round(Number(p[2]) || 0));
+  return isFinite(t) && t > 0 && isFinite(a) && a > 0 && a <= 5 ? [t, a, n] : null;
+}
+function rymHistNorm(list, cap) {                            // untrusted list -> clean, oldest first, exact duplicates removed, one point a day (the latest), capped
+  const pts = (Array.isArray(list) ? list : []).map(rymHistPoint).filter(Boolean).sort((x, y) => x[0] - y[0]), out = [];
+  pts.forEach(p => {
+    const last = out[out.length - 1];
+    if (last && Math.floor(last[0] / RYM_DAY_MS) === Math.floor(p[0] / RYM_DAY_MS)) out[out.length - 1] = p;     // same day: the later one stands
+    else out.push(p);
+  });
+  const c = cap || RYM_HIST_CAP; while (out.length > c) out.splice(1, 1);
+  return out;
+}
+const rymHistSame = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+function rymHistRecord(hist, point, cap) {                   // a NEW reading: kept only when it is worth keeping -> { hist, changed }
+  const h = rymHistNorm(hist, cap), p = rymHistPoint(point); if (!p) return { hist: h, changed: false };
+  if (!h.length) return { hist: [p], changed: true };
+  if (h.some(q => Math.floor(q[0] / RYM_DAY_MS) === Math.floor(p[0] / RYM_DAY_MS) && q[1] === p[1] && q[2] === p[2])) return { hist: h, changed: false };      // already there (the same figures that day, whatever the time): nothing to record
+  const last = h[h.length - 1];
+  if (p[0] < last[0]) { const m = rymHistNorm(h.concat([p]), cap); return { hist: m, changed: !rymHistSame(m, h) }; }       // out of order (merging old with new): just place it
+  const moved = p[2] > 0 && (last[2] <= 0 || Math.abs(p[2] - last[2]) / last[2] >= RYM_HIST_VOTES_STEP);
+  if (p[1] === last[1] && !moved) return { hist: h, changed: false };
+  const m = rymHistNorm(h.concat([p]), cap); return { hist: m, changed: !rymHistSame(m, h) };       // (a reading from the same day as the last one replaces it: the normaliser keeps one point a day)
+}
+function rymHistMerge(lists, cap) {                          // the union of several records of the same release (yours, the add-on's, the copy kept here)
+  const all = []; (lists || []).forEach(l => { if (Array.isArray(l)) l.forEach(p => all.push(p)); });
+  return rymHistNorm(all, cap);
+}
+function rymHistSummary(hist, now) {                         // what to say about it
+  const h = rymHistNorm(hist); if (!h.length) return null;
+  const first = h[0], last = h[h.length - 1], t = now || Date.now();
+  const ref = h.filter(p => p[0] <= t - 90 * RYM_DAY_MS).pop() || null;                      // the reading nearest to (and not after) 90 days ago
+  return { count: h.length, first: { t: first[0], a: first[1], n: first[2] }, last: { t: last[0], a: last[1], n: last[2] }, delta: Math.round((last[1] - first[1]) * 100) / 100,
+    days: Math.round((last[0] - first[0]) / RYM_DAY_MS), d90: ref ? { t: ref[0], a: ref[1], delta: Math.round((last[1] - ref[1]) * 100) / 100 } : null };
+}
+function rymHistSvg(hist, w, h) {                            // a small line chart: average against time (self-contained SVG, colours from CSS)
+  const pts = rymHistNorm(hist); if (!pts.length) return '';
+  const W = w || 280, H = h || 76, L = 30, R = 8, T = 8, B = 16, t0 = pts[0][0], t1 = pts[pts.length - 1][0];
+  let lo = Math.min(...pts.map(p => p[1])), hi = Math.max(...pts.map(p => p[1])); if (hi - lo < 0.2) { const mid = (hi + lo) / 2; lo = mid - 0.1; hi = mid + 0.1; } else { const pad = (hi - lo) * 0.12; lo -= pad; hi += pad; }
+  const X = (t) => t1 === t0 ? (L + (W - L - R) / 2) : L + (t - t0) / (t1 - t0) * (W - L - R), Y = (a) => T + (hi - a) / (hi - lo) * (H - T - B);
+  const f = (v) => Math.round(v * 10) / 10, day = (t) => new Date(t).toISOString().slice(0, 10);
+  const line = pts.length > 1 ? `<polyline fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" points="${pts.map(p => f(X(p[0])) + ',' + f(Y(p[1]))).join(' ')}"/>` : '';
+  const dots = pts.map(p => `<circle cx="${f(X(p[0]))}" cy="${f(Y(p[1]))}" r="2.6" fill="currentColor"><title>${day(p[0])}: ${p[1].toFixed(2)}${p[2] ? ' (' + p[2].toLocaleString('en-US') + ' ratings)' : ''}</title></circle>`).join('');
+  const lab = (a, y) => `<text x="${L - 4}" y="${f(y + 3)}" text-anchor="end" font-size="9" fill="currentColor" opacity=".6">${a.toFixed(2)}</text>`;
+  const dates = `<text x="${L}" y="${H - 3}" font-size="9" fill="currentColor" opacity=".6">${day(t0)}</text>` + (t1 > t0 ? `<text x="${W - R}" y="${H - 3}" font-size="9" text-anchor="end" fill="currentColor" opacity=".6">${day(t1)}</text>` : '');
+  return `<svg class="rym-spark" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="RYM rating over time, ${pts.length} reading${pts.length === 1 ? '' : 's'}">${lab(hi, T)}${lab(lo, H - B)}${line}${dots}${dates}</svg>`;
+}
+// END rym-hist-core
+
+// BEGIN rym-hist-data
+// ---- the record of a rating's changes: kept in this browser too, until the sheet confirms it (an Apps Script from before this feature ignores the field) ----
+const RYM_HIST_LOCAL_KEY = 'crate_rym_hist_v1';
+let rymHistLocalCache = null;
+function rymHistLocalAll() { if (!rymHistLocalCache) { try { const o = JSON.parse(localStorage.getItem(RYM_HIST_LOCAL_KEY) || '{}'); rymHistLocalCache = o && typeof o === 'object' ? o : {}; } catch (e) { rymHistLocalCache = {}; } } return rymHistLocalCache; }
+function rymHistLocalSave() { try { localStorage.setItem(RYM_HIST_LOCAL_KEY, JSON.stringify(rymHistLocalCache || {})); } catch (e) { /* not kept */ } }
+function rymHistLocalSet(item) { const all = rymHistLocalAll(), k = artKey(item); if (item.rymHist && item.rymHist.length) all[k] = item.rymHist; else delete all[k]; rymHistLocalSave(); }
+function rymHistLocalClear(item) { const all = rymHistLocalAll(), k = artKey(item); if (all[k]) { delete all[k]; rymHistLocalSave(); } }
+function rymParseHist(v) { if (!v) return []; try { return rymHistNorm(JSON.parse(String(v))); } catch (e) { return []; } }
+function rymMergeHistLocal() {                                    // on load: whatever the copy kept here has that the sheet doesn't is joined to it, and sent when the backend can take it
+  const all = rymHistLocalAll(); let flush = false;
+  (state.raw || []).forEach(it => {
+    it.rymHist = rymHistNorm(it.rymHist);
+    const l = all[artKey(it)]; if (!l) return;
+    const merged = rymHistMerge([it.rymHist, l]);
+    if (rymHistSame(merged, it.rymHist)) { delete all[artKey(it)]; return; }          // the sheet already has all of it
+    it.rymHist = merged; it._rymHistLocal = true; flush = true;
+  });
+  rymHistLocalSave();
+  if (flush && state.backendRymHist) rymFlushHist();
+}
+function rymFlushHist() { const list = (state.raw || []).filter(it => it._rymHistLocal && it.rymHist && it.rymHist.length).map(it => ({ item: it, hist: it.rymHist })); if (list.length) rymSaveHistBatch(list); }
+async function rymSaveHistBatch(list) {                           // [{ item, hist }]: history only, no rating touched
+  list.forEach(u => { u.item.rymHist = u.hist; rymHistLocalSet(u.item); u.item._rymHistLocal = true; });
+  rymRefreshViews();
+  for (let i = 0; i < list.length; i += 100) {
+    const part = list.slice(i, i + 100);
+    try { const d = await postUpdate({ action: 'setRymRatings', items: part.map(u => ({ row: u.item.row, rymHistory: JSON.stringify(u.hist) })) });
+      if (d && d.histSaved) { part.forEach(u => { rymHistLocalClear(u.item); u.item._rymHistLocal = false; }); state.backendRymHist = true; } else state.backendRymHist = false; }
+    catch (e) { /* kept here, sent next time */ }
+  }
+}
+function rymPaintHist(item) {                                     // the album page's history: a line chart, the change, and the readings
+  const box = rymEl('deckRymHist'); if (!box) return;
+  const h = rymHistNorm(item && item.rymHist); box.hidden = h.length === 0; if (!h.length) return;
+  const S = rymHistSummary(h), day = (t) => rymDateText(new Date(t).toISOString());
+  const move = S.count < 2 ? 'one reading, ' + day(S.last.t) : (S.delta > 0 ? '+' : S.delta < 0 ? '\u2212' : '\u00b1') + Math.abs(S.delta).toFixed(2) + ' since ' + day(S.first.t);
+  rymEl('deckRymHistSum').textContent = `RYM history \u00b7 ${S.count} reading${S.count === 1 ? '' : 's'} \u00b7 ${move}`;
+  const rows = h.slice().reverse().slice(0, 15).map(pt => `<tr><td>${escapeHtml(day(pt[0]))}</td><td>${pt[1].toFixed(2)}</td><td>${pt[2] ? pt[2].toLocaleString() : '\u2014'}</td></tr>`).join('');
+  const d90 = S.d90 ? `<p class="rym-hist-line">${S.d90.delta === 0 ? 'No change' : (S.d90.delta > 0 ? 'Up ' : 'Down ') + Math.abs(S.d90.delta).toFixed(2)} since ${escapeHtml(day(S.d90.t))}, the reading about 90 days ago or earlier.</p>` : '';
+  rymEl('deckRymHistBody').innerHTML = rymHistSvg(h, 280, 76) + d90 + `<table class="rym-hist-table"><thead><tr><th>Date</th><th>RYM average</th><th>Ratings</th></tr></thead><tbody>${rows}</tbody></table>` + (h.length > 15 ? `<p class="rym-hist-line">The latest 15 of ${h.length} readings.</p>` : '');
+}
+// END rym-hist-data
+
 // BEGIN rym-core
 // ---- RYM ratings: the pure parts (no page, no storage), so they can be tested on their own ----
 // A release's RYM rating is a number from 0.01 to 5 (0 / blank = none). It comes from two places and remembers which:
@@ -8127,17 +8284,24 @@ function rymMatchEntry(index, entry) {
   return { item: cands[0], how: 'title' };
 }
 // What to do with a batch of entries (newest first wins per release). Never touches a rating you typed.
-function rymPlan(index, entries) {
-  const out = { updates: [], skippedManual: 0, ambiguous: 0, unmatched: 0, unchanged: 0 }, best = new Map();
+function rymPlan(index, entries, now) {
+  const out = { updates: [], histOnly: [], skippedManual: 0, ambiguous: 0, unmatched: 0, unchanged: 0 }, best = new Map();
   (entries || []).forEach(e => {
     const rating = rymNum(e.a); if (!rating) return;
     const m = rymMatchEntry(index, e); if (!m) { out.unmatched++; return; } if (m.ambiguous) { out.ambiguous++; return; }
-    const prev = best.get(m.item); if (!prev || (e.t || 0) >= (prev.t || 0)) best.set(m.item, { item: m.item, rating, votes: rymVotesNum(e.n), how: m.how, t: e.t || 0 });
+    const prev = best.get(m.item); if (!prev || (e.t || 0) >= (prev.t || 0)) best.set(m.item, { item: m.item, rating, votes: rymVotesNum(e.n), how: m.how, t: e.t || 0, h: e.h });
   });
   best.forEach(b => {
+    // The history: the add-on's own trail (which already ends with this reading) joined to what the release already has. An add-on with no trail gives just this reading.
+    // It is kept even for a rating you typed (that rating is left alone, but what RYM said still goes in the record).
+    const have = rymHistNorm(b.item.rymHist), trail = Array.isArray(b.h) && b.h.length ? b.h : null;
+    let hist = rymHistMerge([have, trail || []]);
+    if (!trail) hist = rymHistRecord(hist, [b.t || now || Date.now(), b.rating, b.votes]).hist;
+    const histChanged = !rymHistSame(hist, have); let rated = false;
     if (b.item.rymSrc === 'm' && b.item.rymRating) out.skippedManual++;
     else if (b.item.rymRating === b.rating && (b.item.rymVotes || 0) === b.votes) out.unchanged++;
-    else out.updates.push({ item: b.item, rating: b.rating, votes: b.votes, how: b.how, was: b.item.rymRating || 0 });
+    else { out.updates.push({ item: b.item, rating: b.rating, votes: b.votes, how: b.how, was: b.item.rymRating || 0, hist }); rated = true; }
+    if (histChanged && !rated) out.histOnly.push({ item: b.item, hist });
   });
   return out;
 }
@@ -8162,6 +8326,7 @@ function rymMergeLocal() {                                       // a rating the
   const all = rymLocalAll(); let flush = false;
   (state.raw || []).forEach(it => { const l = all[artKey(it)]; if (!l) return; if (!it.rymRating) { it.rymRating = rymNum(l.r); it.rymVotes = rymVotesNum(l.n); it.rymSrc = l.s === 'a' ? 'a' : 'm'; it._rymLocal = true; flush = true; } else delete all[artKey(it)]; });
   if (flush && state.backendRym) rymFlushLocal();
+  rymMergeHistLocal();
   if (rymMergedFor && rymMergedFor.length) { clearTimeout(rymReqTimer); rymReqTimer = setTimeout(rymRequestFromAddon, 1500); }          // the library just loaded: ask the add-on (if any) what it has seen
 }
 async function rymFlushLocal() {                                  // the backend now supports it: send what only this browser had
@@ -8175,8 +8340,9 @@ function rymRefreshViews() {                                      // redraw the 
 }
 function rymChipHtml(item) {
   if (!state.rymShowNext || !item || !item.rymRating) return '';
-  const v = item.rymVotes ? ` (${item.rymVotes.toLocaleString()} ratings)` : '';
-  return `<span class="rym-chip" title="Rate Your Music average${v}${item.rymSrc === 'm' ? ', typed by you' : ''}">RYM ${item.rymRating.toFixed(2)}</span>`;
+  const v = item.rymVotes ? ` (${item.rymVotes.toLocaleString()} ratings)` : '', H = item.rymHist && item.rymHist.length > 1 ? item.rymHist : null;
+  const was = H ? ` \u00b7 first saved ${H[0][1].toFixed(2)} on ${rymDateText(new Date(H[0][0]).toISOString())}` : '';
+  return `<span class="rym-chip" title="Rate Your Music average${v}${item.rymSrc === 'm' ? ', typed by you' : ''}${was}">RYM ${item.rymRating.toFixed(2)}</span>`;
 }
 function rymBoldClass(item) { return item && rymIsBold(item.rymRating, state.rymBoldAlbum, state.rymBold) ? ' rym-bold' : ''; }
 function rymBoldTrackClass(t) { return t && rymIsBold(t.rymRating, state.rymBoldTrack, state.rymBold) ? ' rym-bold' : ''; }
@@ -8184,20 +8350,26 @@ function rymBoldTrackClass(t) { return t && rymIsBold(t.rymRating, state.rymBold
 async function rymSaveItem(item, rating, votes, src) {
   rating = rymNum(rating); votes = rating ? rymVotesNum(votes) : 0;
   item.rymRating = rating; item.rymVotes = votes; item.rymSrc = rating ? (src || 'm') : ''; item._rymLocal = false;
+  const hr = rating ? rymHistRecord(item.rymHist, [Date.now(), rating, votes]) : { hist: item.rymHist || [], changed: false };      // a typed rating goes in the record too
+  if (hr.changed) { item.rymHist = hr.hist; rymHistLocalSet(item); }
   rymLocalSet(item); rymRefreshViews();                           // first keep a copy here: nothing typed is ever lost
   try {
-    const d = await postUpdate({ row: item.row, rymRating: rating || '', rymVotes: votes || '', rymSrc: item.rymSrc });
+    const body = { row: item.row, rymRating: rating || '', rymVotes: votes || '', rymSrc: item.rymSrc };
+    if (hr.changed) body.rymHistory = JSON.stringify(item.rymHist);
+    const d = await postUpdate(body);
+    if (hr.changed) { if (d && d.histSaved) { rymHistLocalClear(item); state.backendRymHist = true; } else { state.backendRymHist = false; item._rymHistLocal = true; } }
     if (d && d.rymSaved) { rymLocalClear(item); state.backendRym = true; return { ok: true }; }
     item._rymLocal = !!rating; state.backendRym = false; return { ok: true, localOnly: true };
-  } catch (err) { item._rymLocal = !!rating; return { ok: false, error: err }; }
+  } catch (err) { item._rymLocal = !!rating; if (hr.changed) item._rymHistLocal = true; return { ok: false, error: err }; }
 }
-async function rymSaveBatch(updates, src) {                       // updates: [{ item, rating, votes }]
-  updates.forEach(u => { u.item.rymRating = u.rating; u.item.rymVotes = u.votes; u.item.rymSrc = src; u.item._rymLocal = false; rymLocalSet(u.item); });
+async function rymSaveBatch(updates, src) {                       // updates: [{ item, rating, votes, hist }]
+  updates.forEach(u => { u.item.rymRating = u.rating; u.item.rymVotes = u.votes; u.item.rymSrc = src; u.item._rymLocal = false; rymLocalSet(u.item); if (u.hist) { u.item.rymHist = u.hist; rymHistLocalSet(u.item); u.item._rymHistLocal = true; } });
   rymRefreshViews(); let saved = 0, localOnly = false;
   for (let i = 0; i < updates.length; i += 150) {
     const part = updates.slice(i, i + 150);
-    try { const d = await postUpdate({ action: 'setRymRatings', items: part.map(u => ({ row: u.item.row, rymRating: u.rating, rymVotes: u.votes || '', rymSrc: src })) });
-      if (d && d.rymSaved) { part.forEach(u => rymLocalClear(u.item)); saved += part.length; state.backendRym = true; } else { localOnly = true; part.forEach(u => { u.item._rymLocal = true; }); state.backendRym = false; } }
+    try { const d = await postUpdate({ action: 'setRymRatings', items: part.map(u => { const o = { row: u.item.row, rymRating: u.rating, rymVotes: u.votes || '', rymSrc: src }; if (u.hist) o.rymHistory = JSON.stringify(u.hist); return o; }) });
+      if (d && d.rymSaved) { part.forEach(u => rymLocalClear(u.item)); saved += part.length; state.backendRym = true; } else { localOnly = true; part.forEach(u => { u.item._rymLocal = true; }); state.backendRym = false; }
+      if (d && d.histSaved) { part.forEach(u => { if (u.hist) { rymHistLocalClear(u.item); u.item._rymHistLocal = false; } }); state.backendRymHist = true; } else if (d) state.backendRymHist = false; }
     catch (e) { part.forEach(u => { u.item._rymLocal = true; }); localOnly = true; }
   }
   return { saved, localOnly };
@@ -8214,6 +8386,7 @@ async function rymApplyPlan(plan) {
 async function rymHandleAddon(list) {
   rymState.addonSeen = true; rymState.lastAt = Date.now(); rymState.lastTotal = (list || []).length;
   const plan = rymPlan(rymIndex(), list || []); rymState.plan = plan;
+  if (plan.histOnly.length) await rymSaveHistBatch(plan.histOnly);         // what RYM said is recorded even where no rating changes (and where the rating is one you typed)
   if (plan.updates.length && state.rymAuto) {
     await rymApplyPlan(plan); rymState.pending = null;
     flashGlobalToast(`Added RYM ratings to ${plan.updates.length} release${plan.updates.length === 1 ? '' : 's'} from what you browsed on RateYourMusic.`);
@@ -8226,8 +8399,8 @@ function rymAfterAdd(payload, res) {                               // a rating t
   if (res && res.rymSaved) { state.backendRym = true; return; }
   rymLocalAll()[artKey({ artist: payload.Artist, title: payload.Title })] = { r, n: rymVotesNum(payload.RymVotes), s: 'm', t: Date.now() }; rymLocalSave(); rymNoteLocalOnly();
 }
-function rymRequestFromAddon() { try { window.postMessage({ source: 'crate-app', type: 'request-rym-ratings' }, window.location.origin); } catch (e) { /* no add-on */ } }
-function rymCoverage() { const raw = state.raw || [], has = raw.filter(r => r.rymRating); return { total: raw.length, has: has.length, typed: has.filter(r => r.rymSrc === 'm').length, auto: has.filter(r => r.rymSrc === 'a').length }; }
+function rymRequestFromAddon() { rymLastReq = Date.now(); try { window.postMessage({ source: 'crate-app', type: 'request-rym-ratings' }, window.location.origin); window.postMessage({ source: 'crate-app', type: 'request-rym-genres' }, window.location.origin); } catch (e) { /* no add-on */ } }
+function rymCoverage() { const raw = state.raw || [], has = raw.filter(r => r.rymRating); return { total: raw.length, has: has.length, typed: has.filter(r => r.rymSrc === 'm').length, auto: has.filter(r => r.rymSrc === 'a').length, hist: raw.filter(r => r.rymHist && r.rymHist.length >= 2).length }; }
 // END rym-data
 
 // BEGIN rym-ui
@@ -8237,7 +8410,7 @@ let rymQEShown = 40;
 function openRymDialog() { rymQEShown = 40; rymRenderSettings(); rymEl('rymOverlay').hidden = false; el.layoutMenu.hidden = true; rymPaintDialog(); rymRequestFromAddon(); }
 function closeRymDialog() { const ov = rymEl('rymOverlay'); if (ov && !ov.hidden) ov.hidden = true; }
 function rymRenderSettings() {
-  rymEl('rymShowNext').checked = !!state.rymShowNext; rymEl('rymBold').checked = !!state.rymBold; rymEl('rymAuto').checked = !!state.rymAuto;
+  rymEl('rymGenreAuto').checked = !!state.rymGenreAuto; rymEl('rymShowNext').checked = !!state.rymShowNext; rymEl('rymBold').checked = !!state.rymBold; rymEl('rymAuto').checked = !!state.rymAuto;
   rymEl('rymBoldAlbum').value = String(state.rymBoldAlbum); rymEl('rymBoldTrack').value = String(state.rymBoldTrack);
 }
 function rymQueue() {
@@ -8251,11 +8424,14 @@ function rymQueue() {
 }
 function rymPaintCoverage() {
   const ov = rymEl('rymOverlay'); if (!ov || ov.hidden) return; const c = rymCoverage();
-  rymEl('rymCoverage').textContent = c.total ? `${c.has.toLocaleString()} of ${c.total.toLocaleString()} releases have an RYM rating (${c.typed.toLocaleString()} typed by you, ${c.auto.toLocaleString()} from the add-on).` : 'Your crate is empty.';
+  rymEl('rymCoverage').textContent = c.total ? `${c.has.toLocaleString()} of ${c.total.toLocaleString()} releases have an RYM rating (${c.typed.toLocaleString()} typed by you, ${c.auto.toLocaleString()} from the add-on).${c.hist ? ' ' + c.hist.toLocaleString() + ' ' + (c.hist === 1 ? 'has' : 'have') + ' a history of changes.' : ''}` : 'Your crate is empty.';
 }
 function rymPaintDialog() {
   const ov = rymEl('rymOverlay'); if (!ov || ov.hidden) return;
   rymPaintCoverage();
+  { const g = rymState.genres, kept = Object.values(state.genreTaxonomy || {}).filter(e => e && e.rym && e.rym.text).length, pl = g && g.plan;
+    rymEl('rymGenreStatus').textContent = !g || !g.seen ? 'No answer about genres from the add-on yet. Open a genre\u2019s page on RateYourMusic (for example rateyourmusic.com/genre/progressive-rock/) with the add-on installed, then press Check now.'
+      : `The add-on has ${g.total.toLocaleString()} genre description${g.total === 1 ? '' : 's'}. ${kept.toLocaleString()} of your genres have RYM\u2019s version saved${pl ? ` (last check: ${pl.filled} filled in, ${pl.refreshed} refreshed beside your own text, ${pl.unchanged} already up to date${pl.unmatched ? `, ${pl.unmatched} for genres you don\u2019t have` : ''})` : ''}.`; }
   const st = rymEl('rymAddonStatus');
   st.textContent = rymState.addonSeen ? `The add-on has handed over ${rymState.lastTotal.toLocaleString()} rating${rymState.lastTotal === 1 ? '' : 's'} from RateYourMusic pages you've browsed${rymState.plan ? ` (${rymState.plan.updates.length} new or changed, ${rymState.plan.unchanged} already up to date${rymState.plan.skippedManual ? `, ${rymState.plan.skippedManual} left alone because you typed them` : ''}${rymState.plan.unmatched ? `, ${rymState.plan.unmatched} not in your crate` : ''}${rymState.plan.ambiguous ? `, ${rymState.plan.ambiguous} too ambiguous to place` : ''})` : ''}.`
     : 'No answer from the add-on yet. It answers when it is installed (version 1.3 or newer), connected to this CRATE, and has seen ratings on RateYourMusic pages. Browse some artist pages, genre pages or release pages there, then press Check.';
@@ -8294,6 +8470,7 @@ function deckRymPaint(item) {                                   // the album pag
   if (document.activeElement !== vot) vot.value = item.rymVotes ? String(item.rymVotes) : '';
   const a = rymEl('deckRymOpen'); a.href = item.rymLink && item.rymLink.trim() ? item.rymLink.trim() : rymSearchUrl(item); a.textContent = item.rymLink ? 'open \u2197' : 'find \u2197';
   el.deckTitle.classList.toggle('rym-bold', !!rymBoldClass(item));
+  rymPaintHist(item);
 }
 async function deckRymSave() {
   if (!activeItem) return; const val = rymNum(rymEl('deckRym').value);
@@ -8312,17 +8489,109 @@ function initRymRatings() {
   rymEl('rymQEMore').addEventListener('click', () => { rymQEShown += 40; rymPaintQE(); });
   rymEl('rymAddonCheck').addEventListener('click', () => { rymRequestFromAddon(); flashGlobalToast('Asked the add-on for the ratings it has seen.'); });
   rymEl('rymApplyPending').addEventListener('click', async () => { const p = rymState.pending; if (!p) return; await rymApplyPlan(p); rymState.pending = null; flashGlobalToast(`Added ${p.updates.length} RYM rating${p.updates.length === 1 ? '' : 's'}.`); rymPaintDialog(); });
+  setting('rymGenreAuto', 'rymGenreAuto');
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - rymLastReq > 8000) rymRequestFromAddon(); });      // coming back from a RateYourMusic tab: ask again, so what it just saved shows up
   rymEl('deckRym').addEventListener('change', deckRymSave); rymEl('deckRymVotes').addEventListener('change', deckRymSave);
   ['deckRym', 'deckRymVotes'].forEach(id => rymEl(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } }));        // Enter commits either box
   // the add-on answers a request with the ratings it has seen on RateYourMusic pages
   window.addEventListener('message', (e) => {
     if (e.source !== window || e.origin !== window.location.origin) return;       // only this page itself, never another frame or site
-    const d = e.data; if (!d || d.source !== 'crate-addon' || d.type !== 'rym-ratings' || !Array.isArray(d.ratings)) return;
-    const s = (x) => String(x == null ? '' : x).slice(0, 200), clean = d.ratings.slice(0, 20000).map(x => ({ p: s(x && x.p), a: Number(x && x.a), n: Number(x && x.n) || 0, ar: s(x && x.ar), ti: s(x && x.ti), ty: s(x && x.ty), y: s(x && x.y), t: Number(x && x.t) || 0 })).filter(x => x.a > 0 && x.a <= 5);
+    const d = e.data; if (!d || d.source !== 'crate-addon') return;
+    if (d.type === 'rym-genres' && Array.isArray(d.genres)) { rymHandleGenres(rymCleanGenres(d.genres)); return; }
+    if (d.type !== 'rym-ratings' || !Array.isArray(d.ratings)) return;
+    const s = (x) => String(x == null ? '' : x).slice(0, 200), clean = d.ratings.slice(0, 20000).map(x => ({ p: s(x && x.p), a: Number(x && x.a), n: Number(x && x.n) || 0, ar: s(x && x.ar), ti: s(x && x.ti), ty: s(x && x.ty), y: s(x && x.y), t: Number(x && x.t) || 0, h: Array.isArray(x && x.h) ? rymHistNorm(x.h.slice(0, 400)) : [] })).filter(x => x.a > 0 && x.a <= 5);
     rymHandleAddon(clean);
   });
 }
 // END rym-ui
+
+// BEGIN rym-genre-core
+// ---- RYM genre descriptions: which of your genres a description captured by the add-on belongs to, and what may be done with it ----
+// Each genre in your taxonomy can hold  description  (the text you see and edit) and  rym  = { text, url, at } (the description as Rate Your Music
+// had it when the add-on last saw it: kept apart from yours, so editing your own text never loses it). The rules:
+//   - an EMPTY description is filled in from RYM (if "fill in" is on). A description that has any text is never changed by this.
+//   - the saved RYM version is refreshed whenever the add-on brings a different text, and kept for you to read or to choose ("Use RYM's").
+function rymGenreSlug(label) { return String(label == null ? '' : label).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
+function rymGenreUrl(label) { const s = rymGenreSlug(label); return s ? 'https://rateyourmusic.com/genre/' + s + '/' : ''; }
+// knownLabels: every genre CRATE knows (taxonomy + the ones on your releases). entries: [{ s: RYM slug, n: name RYM gives it, d: text, u: address, t: when }].
+function rymGenrePlan(taxonomy, knownLabels, entries, opts) {
+  const o = opts || {}, keyFn = o.keyFn || (g => String(g || '').trim().toLowerCase()), tax = taxonomy || {};
+  const byKey = new Map(), bySlug = new Map();
+  (knownLabels || []).forEach(l => { if (!l) return; byKey.set(keyFn(l), l); const s = rymGenreSlug(l); if (s && !bySlug.has(s)) bySlug.set(s, l); });
+  const out = { items: [], unmatched: 0, unchanged: 0, filled: 0, refreshed: 0 }, best = new Map();
+  (entries || []).forEach(e => {
+    const text = typeof (e && e.d) === 'string' ? e.d.trim() : ''; if (text.length < 20) return;                       // real text only: not a number, not a scrap
+    const label = (e.n && byKey.get(keyFn(e.n))) || (e.s && bySlug.get(rymGenreSlug(e.s))) || (e.n && bySlug.get(rymGenreSlug(e.n))) || null;
+    if (!label) { out.unmatched++; return; }
+    const prev = best.get(label); if (!prev || (e.t || 0) >= (prev.t || 0)) best.set(label, { label, text, url: String(e.u || ''), t: e.t || 0 });
+  });
+  best.forEach(b => {
+    const key = keyFn(b.label), entry = tax[key] || null, saved = entry && entry.rym, empty = !entry || !String(entry.description || '').trim();
+    const fill = !!o.auto && empty, sameSaved = !!(saved && saved.text === b.text);
+    if (sameSaved && !fill) { out.unchanged++; return; }
+    out.items.push({ label: b.label, key, rym: { text: b.text, url: b.url || (saved && saved.url) || '', at: b.t ? new Date(b.t).toISOString() : (saved && saved.at) || new Date(0).toISOString() }, fill });
+    if (fill) out.filled++; else out.refreshed++;
+  });
+  return out;
+}
+// what to say on the genre page: how your description stands against RYM's saved version
+function rymGenreState(entry) {
+  const text = String(entry && entry.description || '').trim(), r = entry && entry.rym && entry.rym.text ? entry.rym : null;
+  if (!r) return { kind: text ? 'none-mine' : 'none-empty' };
+  if (!text) return { kind: 'rym-only', rym: r };
+  return { kind: text === r.text ? 'same' : 'differs', rym: r };
+}
+// END rym-genre-core
+
+// BEGIN rym-genre
+// ---- RYM genre descriptions in the page: taking in what the add-on saw, and showing it on the genre page ----
+let rymLastReq = 0, rymTaxWarned = false;
+function rymCleanGenres(list) {                                   // whatever arrives is treated as untrusted: only text, bounded
+  const t = (x, n) => typeof x === 'string' ? x.slice(0, n) : '';                  // text only: a number or an object where text should be is dropped, not turned into text
+  return (list || []).slice(0, 2000).map(x => ({ s: t(x && x.s, 200), n: t(x && x.n, 200), d: t(x && x.d, 9000), u: t(x && x.u, 300), t: Number(x && x.t) || 0 }));
+}
+async function rymHandleGenres(list) {
+  const g = rymState.genres = rymState.genres || { seen: false, total: 0, at: 0, plan: null, last: [] };
+  g.seen = true; g.total = list.length; g.at = Date.now();
+  const plan = g.plan = rymGenrePlan(state.genreTaxonomy, getAllKnownGenres(state.genreTaxonomy).map(x => x.label), list, { auto: state.rymGenreAuto, keyFn: genreTaxonomyKey });
+  if (plan.items.length) {
+    plan.items.forEach(it => {
+      const e = state.genreTaxonomy[it.key] || (state.genreTaxonomy[it.key] = { label: it.label, parents: [] });
+      e.rym = it.rym; if (it.fill) e.description = it.rym.text;     // only an EMPTY description is ever filled (the plan decides), and RYM's version is kept beside it either way
+    });
+    saveGenreTaxonomy(state.genreTaxonomy);
+    g.last = plan.items.filter(i => i.fill).map(i => i.label);
+    if (plan.filled) flashGlobalToast(`Filled in ${plan.filled} genre description${plan.filled === 1 ? '' : 's'} from Rate Your Music.`);
+    try { if (state.activeGenreTab && giShowing(state.activeGenreTab)) giRenderAbout(state.activeGenreTab, giUi(state.activeGenreTab)); if (el.genreDescElement && !el.genreDescElement.hidden) renderGenreDescElement(); } catch (e) { /* the genre page is not up */ }
+  }
+  rymPaintDialog();
+}
+function rymWarnTaxonomyBig(tax) {                                // an Apps Script from before 1.32 can't store this much: say so once, instead of failing quietly
+  if (rymTaxWarned || state.backendTaxChunks) return; let n = 0; try { n = JSON.stringify(tax).length; } catch (e) { /* ignore */ }
+  if (n > 45000) { rymTaxWarned = true; flashGlobalToast('Your genre descriptions are now too long to sync to one spreadsheet cell. Update apps-script-backend.gs (see the update log); they are kept on this device meanwhile.'); }
+}
+function rymDateText(iso) { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); }
+function rymParas(text) { return String(text || '').split(/\n{2,}/).map(x => '<p>' + escapeHtml(x.trim()) + '</p>').join(''); }
+function rymGenreAboutNote(genre, entry, ui) {                    // the line under a genre's About text: how your description stands against RYM's saved version
+  const st = rymGenreState(entry), r = st.rym, when = r ? rymDateText(r.at) : '', link = r && r.url ? ` \u00b7 <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener">open on RYM \u2197</a>` : '';
+  const shown = ui.rymShown && r ? `<div class="gi-rym-text">${rymParas(r.text)}</div>` : '';
+  if (st.kind === 'same') return `<p class="gi-rym-note">From Rate Your Music${when ? ' \u00b7 saved ' + escapeHtml(when) : ''}${link}</p>`;
+  if (st.kind === 'differs' || st.kind === 'rym-only') {
+    const use = ui.rymConfirm && st.kind === 'differs' ? 'Replace mine? Press again' : 'Use RYM\u2019s';
+    return `<p class="gi-rym-note">${st.kind === 'differs' ? 'Rate Your Music has a different description' : 'Rate Your Music has a description'}${when ? ' (saved ' + escapeHtml(when) + ')' : ''}. <button type="button" class="ai-link-btn" data-gi="rym-show">${ui.rymShown ? 'Hide' : 'Show'}</button> <button type="button" class="ai-link-btn" data-gi="rym-use">${use}</button>${link}</p>${shown}`;
+  }
+  if (st.kind === 'none-empty') { const u = rymGenreUrl(genre); return u ? `<p class="gi-rym-note">Rate Your Music may have one: <a href="${escapeHtml(u)}" target="_blank" rel="noopener" title="Opens RYM's page for this genre. With the browser add-on, CRATE fills the description in when you come back.">Get it from RYM \u2197</a></p>` : ''; }
+  return '';
+}
+function giUseRymDescription(genre) {
+  const key = genreTaxonomyKey(genre), entry = state.genreTaxonomy[key], ui = giUi(genre); if (!entry || !entry.rym || !entry.rym.text) return;
+  const mine = String(entry.description || '').trim();
+  if (mine && mine !== entry.rym.text && !ui.rymConfirm) { ui.rymConfirm = true; giRenderAbout(genre, ui); return; }          // replacing something you wrote takes a second press
+  entry.description = entry.rym.text; ui.rymConfirm = false; saveGenreTaxonomy(state.genreTaxonomy); giRenderAbout(genre, ui);
+  if (el.genreDescElement && !el.genreDescElement.hidden) renderGenreDescElement();
+  flashGlobalToast('Using the Rate Your Music description.');
+}
+// END rym-genre
 
 const ADD_FORM_FIELD_OPTIONS = {
   artist: 'Artist',
@@ -8481,7 +8750,7 @@ const state = {
   // once rather than per-row, matching the reference this was built from.
   showTrackCredits: false,
   chartGenre: null, // last-selected genre in the Release Chart element (Main panel) — see renderChartElement()
-  rymBold: true, rymBoldAlbum: 3.8, rymBoldTrack: 3.8, rymShowNext: true, rymAuto: true, rymMin: 0, rymMissingOnly: false, backendRym: false,   // RYM ratings (see rym-data)
+  rymBold: true, rymBoldAlbum: 3.8, rymBoldTrack: 3.8, rymShowNext: true, rymAuto: true, rymMin: 0, rymMissingOnly: false, backendRym: false, backendRymHist: false, backendTaxChunks: false, rymGenreAuto: true,   // RYM ratings (see rym-data)
   firstGenreOnly: false, // when on, a genre only counts if it is the FIRST one listed on a release (left-panel genre filter, genre: searches, Release Chart) — see filterGenreTags
   genreSearchMode: 'loose', // how strictly genre: searches match — 'exact' | 'subgenres' | 'loose', see genreSearchMatches / the ⇅ popover's "Genre search"
   shuffle: false, // player's Shuffle toggle (persisted) — see setShuffle(); applies to the crate queue, standalone YouTube/SoundCloud queues, and Spotify's own album playback
@@ -8967,6 +9236,7 @@ function loadGenreTaxonomy() {
 function saveGenreTaxonomy(taxonomy, opts) {
   try { localStorage.setItem(GENRE_TAXONOMY_KEY, JSON.stringify(taxonomy)); }
   catch (e) { /* ignore */ }
+  if (!opts || !opts.skipSync) rymWarnTaxonomyBig(taxonomy);
   // Synced to the backend (per-account, not per-browser — see doGet/
   // doPost's own genreTaxonomy/saveGenreTaxonomy handling) unless this
   // call is just refreshing the local cache FROM a value already received
@@ -10952,7 +11222,7 @@ function loadPrefs() {
     if (typeof p.shuffle === 'boolean') state.shuffle = p.shuffle;
     if (['exact', 'subgenres', 'loose'].includes(p.genreSearchMode)) state.genreSearchMode = p.genreSearchMode;
     if (typeof p.firstGenreOnly === 'boolean') state.firstGenreOnly = p.firstGenreOnly;
-    ['rymBold', 'rymShowNext', 'rymAuto', 'rymMissingOnly'].forEach(k => { if (typeof p[k] === 'boolean') state[k] = p[k]; });
+    ['rymBold', 'rymShowNext', 'rymAuto', 'rymMissingOnly', 'rymGenreAuto'].forEach(k => { if (typeof p[k] === 'boolean') state[k] = p[k]; });
     ['rymBoldAlbum', 'rymBoldTrack'].forEach(k => { if (rymNum(p[k])) state[k] = rymNum(p[k]); });
     if ([0, 3, 3.5, 3.8, 4, 4.5].includes(Number(p.rymMin))) state.rymMin = Number(p.rymMin);
     if (p.panelWidths) state.panelWidths = Object.assign({}, state.panelWidths, p.panelWidths);
@@ -11033,7 +11303,7 @@ function savePrefs() {
       shuffle: state.shuffle,
       genreSearchMode: state.genreSearchMode,
       firstGenreOnly: state.firstGenreOnly,
-      rymBold: state.rymBold, rymShowNext: state.rymShowNext, rymAuto: state.rymAuto, rymMissingOnly: state.rymMissingOnly, rymBoldAlbum: state.rymBoldAlbum, rymBoldTrack: state.rymBoldTrack, rymMin: state.rymMin,
+      rymGenreAuto: state.rymGenreAuto, rymBold: state.rymBold, rymShowNext: state.rymShowNext, rymAuto: state.rymAuto, rymMissingOnly: state.rymMissingOnly, rymBoldAlbum: state.rymBoldAlbum, rymBoldTrack: state.rymBoldTrack, rymMin: state.rymMin,
       statsMode: state.statsMode,
       rightPanelShowQueue: state.rightPanelShowQueue,
       rightPanelShowHistory: state.rightPanelShowHistory,
@@ -11180,7 +11450,9 @@ async function fetchCatalog() {
 
     // Inside fetchCatalog(), update the state.raw mapping:
       state.catalogFetchedAt = Date.now();      // so the duplicate check knows how fresh its copy of the crate is
-      state.backendRym = !!(data && data.rym);          // the backend says it can store RYM ratings
+      state.backendTaxChunks = !!(data && data.taxChunks);          // the backend stores a long genre taxonomy in pieces
+      state.backendRym = !!(data && data.rym);
+      state.backendRymHist = !!(data && data.rymHist);        // the backend stores the history column          // the backend says it can store RYM ratings
       state.raw = (data.rows || [])
         .filter(r => r.Artist && r.Title)
         .map((r, i) => ({
@@ -11217,7 +11489,7 @@ async function fetchCatalog() {
           review: r.Review || '',
           link: r.Link ? String(r.Link).trim() : '',
           rymLink: r.RymLink ? String(r.RymLink).trim() : '',
-          rymRating: rymNum(r.RymRating), rymVotes: rymVotesNum(r.RymVotes), rymSrc: rymNum(r.RymRating) ? (r.RymSrc === 'a' ? 'a' : 'm') : '',
+          rymRating: rymNum(r.RymRating), rymVotes: rymVotesNum(r.RymVotes), rymSrc: rymNum(r.RymRating) ? (r.RymSrc === 'a' ? 'a' : 'm') : '', rymHist: rymParseHist(r.RymHistory),
           dateAdded: r.DateAdded || '',
           catalog: r.Catalog ? String(r.Catalog).trim() : 'CRT-' + String(i + 1).padStart(3, '0'),
           // Free-text release descriptor (e.g. "Deluxe Edition", "2024
@@ -23783,7 +24055,7 @@ function giRenderAbout(genre, ui) {
     const paras = parasHtml.map(h => '<p>' + h + '</p>').join('');
     body = `<div id="giDesc" class="gi-desc${ui.descOpen ? '' : ' clamped'}">${paras}</div><button type="button" id="giMore" class="ai-link-btn gi-more" data-gi="more" hidden>${ui.descOpen ? 'Show less' : 'Read more'}</button>`;
   }
-  $gi('giAbout').innerHTML = `<div class="gi-card-label">About</div>${body}`;
+  $gi('giAbout').innerHTML = `<div class="gi-card-label">About</div>${body}${ui.editing ? '' : rymGenreAboutNote(genre, entry, ui)}`;
   if (ui.editing) { const ta = $gi('giDescInput'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }
   const d = $gi('giDesc'), more = $gi('giMore');
   if (d && more) more.hidden = !(ui.descOpen || d.scrollHeight > d.clientHeight + 4);   // only offer "Read more" when the text is actually cut
@@ -23865,6 +24137,8 @@ function giClick(e) {
     else if (a === 'edit') { ui.editing = true; ui.descOpen = true; giRenderAbout(genre, ui); }
     else if (a === 'cancel-desc') { ui.editing = false; giRenderAbout(genre, ui); }
     else if (a === 'save-desc') giSaveDescription(genre);
+    else if (a === 'rym-show') { ui.rymShown = !ui.rymShown; giRenderAbout(genre, ui); }
+    else if (a === 'rym-use') giUseRymDescription(genre);
     else if (a === 'more') { ui.descOpen = !ui.descOpen; giRenderAbout(genre, ui); }
     else if (a === 'year') { if (act.dataset.n === '0') return; ui.year = ui.year === Number(act.dataset.year) ? null : Number(act.dataset.year); const items = genreReleasesOf(genre, ui.includeSub); giRenderChart(genre, ui, items); giRenderReleases(genre, ui, items); }
     else if (a === 'clear-year') { ui.year = null; const items = genreReleasesOf(genre, ui.includeSub); giRenderChart(genre, ui, items); giRenderReleases(genre, ui, items); }
@@ -32777,6 +33051,11 @@ html, body {
   .rym-qe-input, .rym-qe-votes { width: 100%; box-sizing: border-box; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; font: inherit; font-size: 13px; }
   .rym-qe-stat { font-size: 11px; color: var(--text-dim); } .rym-qe-stat.ok { color: #6FBF8E; } .rym-qe-stat.bad { color: #E5734A; }
   @media (max-width: 900px) { .rym-qe-row { grid-template-columns: minmax(0, 1fr) 70px 70px; } .rym-qe-name { grid-column: 1 / -1; } .rym-qe-row a { grid-column: 1 / 2; } .rym-qe-stat { grid-column: 1 / -1; } }
+  .gi-rym-note { margin: 10px 0 0; font-size: 12px; color: var(--text-dim); } .gi-rym-note a { color: var(--accent); } .gi-rym-note .ai-link-btn { margin: 0 10px 0 4px; }
+  .gi-rym-text { margin: 8px 0 0; padding: 4px 12px; border-left: 2px solid var(--line); font-size: 13px; color: var(--text-dim); } .gi-rym-text p { margin: 6px 0; }
+  .deck-rym-hist { margin-top: 8px; font-size: 12px; color: var(--text-dim); } .deck-rym-hist summary { cursor: pointer; } .deck-rym-hist[open] summary { margin-bottom: 6px; }
+  .rym-spark { color: var(--accent); max-width: 100%; height: auto; display: block; }
+  .rym-hist-line { margin: 6px 0; } .rym-hist-table { border-collapse: collapse; margin-top: 6px; font-variant-numeric: tabular-nums; } .rym-hist-table th { text-align: left; font-weight: 600; padding: 2px 12px 2px 0; } .rym-hist-table td { padding: 2px 12px 2px 0; }
   /* ---- Stats map ---- */
   .snd-mapwrap { padding: 0 4px 24px; min-width: 0; }
   .smap-toolbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; margin: 10px 0 6px; }
