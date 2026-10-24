@@ -19,7 +19,47 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.34.0
+  CURRENT_VERSION: 1.35.1
+
+  1.35.1 — 2026-10-23 — Player: no more empty band at the top, and a floating player can no longer end up off-screen.
+
+          WHAT YOU SAW: with the player docked at the top (Layout → Player controls in the top panel) the page left an empty 85px band above the tabs and the
+            player was nowhere to be seen. Two separate faults produce exactly that picture:
+          1. THE SPACE WAS RESERVED WHETHER OR NOT THE PLAYER WAS THERE. The player starts hidden and only appears when playback starts (and "Disconnect
+             Spotify" hides it again), but the 85px at the top was reserved by the DOCKED-AT-TOP setting alone. So an idle player docked at the top left a blank
+             band; so did a player you had detached into a floating window. Now the space is reserved only while the player is docked at the top AND showing AND
+             not floating. (Side effect, intended: with the top dock, the page shifts down by the player's height when playback starts, instead of keeping a
+             permanent blank strip.) The default bottom dock is unchanged.
+          2. A FLOATING PLAYER COULD COME BACK OFF-SCREEN. A detached player's position is saved in pixels and was restored as it was, so after a smaller window,
+             another screen or a bad saved value it could sit entirely outside the screen, unreachable (its dock button goes with it). Its position is now kept
+             wholly on screen: when it is restored, when it is shown (its size is only known then), and whenever the window changes size; the corrected position
+             is saved, so it stays put. A position that is fine is never moved.
+          To get a stuck player back WITHOUT waiting for this: open the browser console and type  setPlayerDetached(false)  (it docks the player again).
+          VERIFIED in a browser (22 checks): an idle and a playing player docked at the top, floating on screen, floating at x = 2600 on a 1920 screen (your
+            screenshot's state), off the top-left, hidden at an impossible position and then shown, a window made smaller, junk saved values, docking again, the
+            bottom dock, and a phone. 11 of them fail on 1.35.0, including both of the faults above.
+
+
+  1.35.0 — 2026-10-23 — A genre can count as primary, as secondary, or as either.
+
+          A release has two genre lists: Genre (primary: the main flavour of the music, and there can be several, such as Progressive Rock and Psychedelic
+            Rock) and Secondary Genre (influences that colour it without dominating, such as Jazz Rock). Until now every genre filter looked at both lists glued
+            together, so it couldn't tell "Jazz Rock is what this IS" from "Jazz Rock is a flavour in it". "First genre only" (which is about position in the
+            list, not about role) was the nearest thing.
+          NEW: ⇅ menu → Genre search → "A genre counts when it's": primary or secondary (the default: nothing changes until you pick something else) · primary
+            only · secondary only. It shapes the left panel's genre filter AND its genre tree (a genre only appears, with a count, if some release has it in
+            that role, so a count never promises what clicking it can't show), genre: / -genre: searches, the Release Chart, and the panel title
+            ("Jazz Rock (secondary genres only)"). The Export dialog has the same choice next to its genre filter; it is saved with saved filters (older
+            saved filters count both lists, as before) and noted in the file's filter note.
+          "First genre only" stays, and combines with it by taking the first genre of whatever list is left: secondary only + first genre only means the
+            first SECONDARY genre. A release with nothing in the chosen list simply isn't in it; "Unknown" still means a release with no genres at all, in
+            every setting, so choosing "secondary only" does not turn every release without a secondary genre into "Unknown".
+          NOT CHANGED (they still count both lists): a genre page's own release list and top artists, "Play all" / "Export N releases…" from a genre's
+            right-click menu, Group by genre, and the Stats map's genre axes and network. Say if you want the choice to reach any of these.
+          VERIFIED in a browser (30 checks): every combination on a six-release crate built to tell the cases apart (two primaries, a secondary, a release with
+            only a secondary, a release with no genre), the search terms, the tree, the Release Chart, the title, the menu, saved preferences (nonsense falls
+            back to "either") and the Export dialog; four deliberately broken versions (filter, tree, export and the Unknown rule ignoring the setting) were each caught.
+
 
   1.34.0 — 2026-10-23 — A better tracklist editor, the same one in the Add form, the Edit form and the deck's "+ Add track" (stage 1 of 3).
 
@@ -6509,6 +6549,8 @@
               <label class="arrange-row"><input type="checkbox" id="sortRymMissing"> Missing an RYM rating</label>
               <div class="menu-divider"></div>
               <div class="menu-section-title">Genre search</div>
+              <label class="arrange-row genre-role-row">A genre counts when it’s <select id="genreRoleSelect" class="rym-menu-select"><option value="any">primary or secondary</option><option value="primary">primary only</option><option value="secondary">secondary only</option></select></label>
+              <p id="genreRoleHint" class="menu-hint" hidden></p>
               <label class="arrange-row"><input type="checkbox" id="firstGenreOnlyToggle"> First genre only</label>
               <p id="firstGenreHint" class="menu-hint" hidden></p>
               <button type="button" class="genre-search-option" data-genre-mode="exact">Exact genre only</button>
@@ -7959,6 +8001,7 @@
           <div class="cx-filter-grid">
             <label class="cx-field cx-wide">Genre <input type="text" id="cxFGenre" list="cxGenreList" placeholder="e.g. Funk Rock  (comma for several: any of them)" autocomplete="off"></label>
             <div class="cx-field cx-wide cx-checks"><label><input type="checkbox" id="cxFGenreSub" checked> Include sub-genres</label><label><input type="checkbox" id="cxFGenreFirst"> First genre only</label></div>
+            <label class="cx-field cx-wide">A genre counts when it’s <select id="cxFGenreRole"><option value="any">primary or secondary</option><option value="primary">primary only</option><option value="secondary">secondary only</option></select></label>
             <label class="cx-field">Year from <input type="number" id="cxFYearFrom" inputmode="numeric" min="1000" max="2999" placeholder="e.g. 1970"></label>
             <label class="cx-field">Year to <input type="number" id="cxFYearTo" inputmode="numeric" min="1000" max="2999" placeholder="e.g. 1979"></label>
             <div class="cx-field cx-wide"><span>Or a decade</span><div id="cxDecades" class="cx-chips" role="group" aria-label="Decades"></div></div>
@@ -8070,7 +8113,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.34.0';
+const APP_VERSION = '1.35.1';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -8702,6 +8745,28 @@ function tlSourceText(tracks) {                               // "from Spotify" 
 // END tl-core
 const tlPending = { add: null, edit: null }, tlSeq = { add: 0, edit: 0 };      // a list on offer from a source / the last source lookup asked for, per editor
 
+// BEGIN genre-role
+// ---- which of a release's genres a genre FILTER looks at ----
+// A release has a Genre list (primary: the main flavour of the music, and there can be several) and a Secondary Genre list (influences that colour it without
+// dominating). A filter can look at:  any (both lists together: how filters have always worked, the default) · primary (only the Genre list) · secondary (only the
+// Secondary Genre list). "First genre only" then takes the first of whatever list is left. A release with nothing in the chosen list simply isn't in it (no tags);
+// a release with no genres at all still has the single placeholder tag "Unknown", as before.
+function genreTagsForRole(r, role) {
+  if (role !== 'primary' && role !== 'secondary') return getGenreList(combinedGenreStr(r));
+  const own = getGenreList(role === 'primary' ? r.genre : r.genre2);
+  if (own[0] !== 'Unknown') return own;
+  return getGenreList(combinedGenreStr(r))[0] === 'Unknown' ? ['Unknown'] : [];
+}
+const GENRE_ROLE_TEXT = { any: 'primary or secondary', primary: 'primary only', secondary: 'secondary only' };
+const GENRE_ROLE_HINTS = { any: '', primary: 'Only a release\u2019s Genre list counts (its main flavour, however many there are): left panel, genre: searches and the Release Chart.', secondary: 'Only a release\u2019s Secondary Genre list counts (the influences that colour it without dominating): left panel, genre: searches and the Release Chart.' };
+const FIRST_GENRE_HINTS = { any: 'A genre only counts when it is the release\u2019s first one: left panel, genre: searches and the Release Chart.', primary: 'A genre only counts when it is the release\u2019s first primary genre: left panel, genre: searches and the Release Chart.', secondary: 'A genre only counts when it is the release\u2019s first secondary genre: left panel, genre: searches and the Release Chart.' };
+function genreFilterSuffix(role, first) {                    // for the panel title: '' when nothing narrows it
+  const r = role === 'primary' || role === 'secondary' ? role : '';
+  if (!r && !first) return '';
+  return ' (' + (first ? 'first ' : '') + (r ? r + ' ' : '') + 'genre' + (first ? '' : 's') + ' only)';
+}
+// END genre-role
+
 const ADD_FORM_FIELD_OPTIONS = {
   artist: 'Artist',
   title: 'Release name',
@@ -8860,6 +8925,7 @@ const state = {
   showTrackCredits: false,
   chartGenre: null, // last-selected genre in the Release Chart element (Main panel) — see renderChartElement()
   rymBold: true, rymBoldAlbum: 3.8, rymBoldTrack: 3.8, rymShowNext: true, rymAuto: true, rymMin: 0, rymMissingOnly: false, backendRym: false, backendRymHist: false, backendTaxChunks: false, rymGenreAuto: true,   // RYM ratings (see rym-data)
+  genreRole: 'any',   // which of a release's genres a genre filter looks at: 'any' (Genre + Secondary Genre), 'primary' (Genre only), 'secondary' (Secondary Genre only) — see genre-role
   firstGenreOnly: false, // when on, a genre only counts if it is the FIRST one listed on a release (left-panel genre filter, genre: searches, Release Chart) — see filterGenreTags
   genreSearchMode: 'loose', // how strictly genre: searches match — 'exact' | 'subgenres' | 'loose', see genreSearchMatches / the ⇅ popover's "Genre search"
   shuffle: false, // player's Shuffle toggle (persisted) — see setShuffle(); applies to the crate queue, standalone YouTube/SoundCloud queues, and Spotify's own album playback
@@ -9627,7 +9693,7 @@ function genrePositionWeight(i) {
 function buildGenreTree(sourceRaw, taxonomy) {
   const ownCount = new Map(); // normKey -> {label, count}
   sourceRaw.forEach(item => {
-    getGenreList(combinedGenreStr(item)).forEach((g, i) => {
+    genreTagsForRole(item, state.genreRole).forEach((g, i) => {      // the genres in the chosen role, weighted by their position in THAT list, so a count never promises what clicking it can't show
       const key = genreTaxonomyKey(g);
       const weight = genrePositionWeight(i);
       if (!ownCount.has(key)) ownCount.set(key, { label: g, count: 0 });
@@ -9955,6 +10021,17 @@ function bindEvents() {
     renderSortFilterMenu();
     if (typeof renderChartElement === 'function') { try { renderChartElement(); } catch (e) { /* chart not showing */ } }
     flashGlobalToast('First genre only: ' + (state.firstGenreOnly ? 'on' : 'off'));
+  });
+
+  document.getElementById('genreRoleSelect').addEventListener('change', (e) => {
+    state.genreRole = ['primary', 'secondary'].includes(e.target.value) ? e.target.value : 'any';
+    savePrefs();
+    buildLeftList();   // the left panel's genre tree counts the chosen role too
+    applyFiltersSort();
+    updateMainLabel(); // the panel title says "(primary genres only)" etc. while it's in effect
+    renderSortFilterMenu();
+    if (typeof renderChartElement === 'function') { try { renderChartElement(); } catch (err) { /* chart not showing */ } }
+    flashGlobalToast('A genre counts when it\u2019s: ' + GENRE_ROLE_TEXT[state.genreRole]);
   });
 
   el.refreshBtn.addEventListener('click', () => fetchCatalog());
@@ -10722,6 +10799,7 @@ function bindEvents() {
   el.miniPlayerDetachBtn.addEventListener('click', () => setPlayerDetached(true));
   el.miniPlayerDockBtn.addEventListener('click', () => setPlayerDetached(false));
   initPlayerDrag();
+  initPlayerFit();
   initMobileDrawers();
   initMobileOverflowMenu();
   initSeekDrag();
@@ -11333,6 +11411,7 @@ function loadPrefs() {
     if (typeof p.shuffle === 'boolean') state.shuffle = p.shuffle;
     if (['exact', 'subgenres', 'loose'].includes(p.genreSearchMode)) state.genreSearchMode = p.genreSearchMode;
     if (typeof p.firstGenreOnly === 'boolean') state.firstGenreOnly = p.firstGenreOnly;
+    if (['any', 'primary', 'secondary'].includes(p.genreRole)) state.genreRole = p.genreRole;
     ['rymBold', 'rymShowNext', 'rymAuto', 'rymMissingOnly', 'rymGenreAuto'].forEach(k => { if (typeof p[k] === 'boolean') state[k] = p[k]; });
     ['rymBoldAlbum', 'rymBoldTrack'].forEach(k => { if (rymNum(p[k])) state[k] = rymNum(p[k]); });
     if ([0, 3, 3.5, 3.8, 4, 4.5].includes(Number(p.rymMin))) state.rymMin = Number(p.rymMin);
@@ -11413,7 +11492,7 @@ function savePrefs() {
       playlistFolderMap: state.playlistFolderMap,
       shuffle: state.shuffle,
       genreSearchMode: state.genreSearchMode,
-      firstGenreOnly: state.firstGenreOnly,
+      firstGenreOnly: state.firstGenreOnly, genreRole: state.genreRole,
       rymGenreAuto: state.rymGenreAuto, rymBold: state.rymBold, rymShowNext: state.rymShowNext, rymAuto: state.rymAuto, rymMissingOnly: state.rymMissingOnly, rymBoldAlbum: state.rymBoldAlbum, rymBoldTrack: state.rymBoldTrack, rymMin: state.rymMin,
       statsMode: state.statsMode,
       rightPanelShowQueue: state.rightPanelShowQueue,
@@ -12669,7 +12748,7 @@ function updateMainLabel() {
   }
   
   // Example output: "Artist: Daft Punk · Tracks"
-  el.mainPanelLabel.textContent = `${prefixes[state.navFilter.mode]}${label}${state.navFilter.mode === 'genre' && state.firstGenreOnly ? ' (first genre only)' : ''} · ${baseLabel}`;
+  el.mainPanelLabel.textContent = `${prefixes[state.navFilter.mode]}${label}${state.navFilter.mode === 'genre' ? genreFilterSuffix(state.genreRole, state.firstGenreOnly) : ''} · ${baseLabel}`;
 }
 
 /* ---------- Filter chips ---------- */
@@ -12919,7 +12998,7 @@ function getSearchTerms() {
 // order they're written. A release with no genre at all has the single placeholder tag "Unknown" and so matches no real genre.
 // Used by the left-panel genre filter, genre:/-genre: search terms and the Release Chart, so they always agree with each other.
 function filterGenreTags(r) {
-  const tags = getGenreList(combinedGenreStr(r));
+  const tags = genreTagsForRole(r, state.genreRole);        // which list(s) count: primary, secondary or both (⇅ menu → "A genre counts when it's")
   return state.firstGenreOnly ? tags.slice(0, 1) : tags;
 }
 
@@ -13085,7 +13164,8 @@ function renderSortFilterMenu() {
   el.firstGenreOnlyToggle.checked = state.firstGenreOnly;
   rymEl('sortRymMin').value = String(state.rymMin); rymEl('sortRymMissing').checked = state.rymMissingOnly;
   el.firstGenreHint.hidden = !state.firstGenreOnly;          // only worth the space while it's in effect
-  el.firstGenreHint.textContent = 'A genre only counts when it is the release\u2019s first one: left panel, genre: searches and the Release Chart.';
+  el.firstGenreHint.textContent = FIRST_GENRE_HINTS[state.genreRole] || FIRST_GENRE_HINTS.any;
+  { const gr = document.getElementById('genreRoleSelect'), grh = document.getElementById('genreRoleHint'); gr.value = state.genreRole; grh.hidden = state.genreRole === 'any'; grh.textContent = GENRE_ROLE_HINTS[state.genreRole] || ''; }
 }
 
 const GENRE_SEARCH_HINTS = {
@@ -15254,7 +15334,8 @@ function setPlayerDetached(detached) {
   el.miniPlayer.classList.toggle('detached', detached);
   el.miniPlayerDragHandle.hidden = !detached;
   if (detached) {
-    const pos = loadSpotifyPlayerPrefs().pos || defaultDetachedPos();
+    const saved = loadSpotifyPlayerPrefs().pos, pos = clampDetachedPos(saved || defaultDetachedPos());
+    if (saved && (pos.x !== Number(saved.x) || pos.y !== Number(saved.y))) saveSpotifyPlayerPrefs({ pos });      // a position that was off screen (or not a position at all) is replaced by the corrected one
     el.miniPlayer.style.left = pos.x + 'px';
     el.miniPlayer.style.top = pos.y + 'px';
     el.miniPlayer.style.right = 'auto';
@@ -15271,6 +15352,23 @@ function setPlayerDetached(detached) {
   saveSpotifyPlayerPrefs({ detached });
 }
 
+// A floating player's position is saved in pixels, so it can come back somewhere that no longer exists (a smaller window, another screen, a saved
+// value that was never valid). Keep it wholly on screen: clamped when it is applied, again when it is shown (its size is only known then), and when the
+// window changes size. What it is moved to is saved, so it stays fixed.
+function clampDetachedPos(pos) {
+  const b = el.miniPlayer, w = (b && b.offsetWidth) || 300, h = (b && b.offsetHeight) || 190, m = 8;
+  const x = Number(pos && pos.x), y = Number(pos && pos.y);
+  return { x: Math.min(Math.max(m, isFinite(x) ? x : m), Math.max(m, window.innerWidth - w - m)), y: Math.min(Math.max(m, isFinite(y) ? y : m), Math.max(m, window.innerHeight - h - m)) };
+}
+function fitDetachedPlayer() {
+  const b = el.miniPlayer; if (!b || b.hidden || !b.classList.contains('detached')) return;
+  const r = b.getBoundingClientRect(), p = clampDetachedPos({ x: r.left, y: r.top });
+  if (Math.abs(p.x - r.left) > 0.5 || Math.abs(p.y - r.top) > 0.5) { b.style.left = p.x + 'px'; b.style.top = p.y + 'px'; saveSpotifyPlayerPrefs({ pos: p }); }
+}
+function initPlayerFit() {
+  window.addEventListener('resize', fitDetachedPlayer);
+  new MutationObserver(fitDetachedPlayer).observe(el.miniPlayer, { attributes: true, attributeFilter: ['hidden', 'class'] });       // shown, or just detached
+}
 function initPlayerDrag() {
   let dragging = false, startX = 0, startY = 0, origX = 0, origY = 0;
   function onDown(e) {
@@ -22937,7 +23035,7 @@ function cxReadFilters() {
   yf = Number.isFinite(yf) ? yf : null; yt = Number.isFinite(yt) ? yt : null;
   if (yf !== null && yt !== null && yf > yt) { const t = yf; yf = yt; yt = t; swapped = true; }
   const typeBoxes = [...cxEl('cxFTypes').querySelectorAll('input')], checked = typeBoxes.filter(b => b.checked).map(b => b.value);
-  return { genres: cxTerms(v('cxFGenre')), genreSub: ch('cxFGenreSub'), genreFirst: ch('cxFGenreFirst'), yearFrom: yf, yearTo: yt, yearsSwapped: swapped,
+  return { genres: cxTerms(v('cxFGenre')), genreSub: ch('cxFGenreSub'), genreFirst: ch('cxFGenreFirst'), genreRole: v('cxFGenreRole') || 'any', yearFrom: yf, yearTo: yt, yearsSwapped: swapped,
     artists: cxTerms(v('cxFArtist'), cxKnownArtistKeys), artistPart: ch('cxFArtistPart'), types: typeBoxes.length && checked.length !== typeBoxes.length ? checked : null,
     labels: cxTerms(v('cxFLabel')), ratingMin: Number(v('cxFRating')) || 0, addedFrom: v('cxFAddedFrom'), addedTo: v('cxFAddedTo'), query: v('cxFQuery') };
 }
@@ -22946,7 +23044,7 @@ function cxFilterTests(f) {
   const T = [];
   if (cxPinned) T.push({ label: 'Selection', test: (r) => cxPinned.has(r.row) });
   if (f.genres.length) T.push({ label: 'Genre', test: (r) => {
-    let tags = getGenreList(combinedGenreStr(r)); if (f.genreFirst) tags = tags.slice(0, 1);
+    let tags = genreTagsForRole(r, f.genreRole); if (f.genreFirst) tags = tags.slice(0, 1);
     return tags.some(tag => f.genres.some(g => f.genreSub ? genreMatchesFilter(state.genreTaxonomy, tag, g) : genreTaxonomyKey(tag) === genreTaxonomyKey(g)));
   } });
   if (f.yearFrom !== null || f.yearTo !== null) T.push({ label: 'Years', test: (r) => { const y = cxItemYear(r); return y !== null && (f.yearFrom === null || y >= f.yearFrom) && (f.yearTo === null || y <= f.yearTo); } });
@@ -22964,7 +23062,7 @@ function cxFilterTests(f) {
 function cxDescribeFilters(f) {          // recorded in the file (the importer ignores it) so you can tell later how it was made
   const d = {};
   if (cxPinned) d.selection = `${cxPinned.size} releases picked on the map`;
-  if (f.genres.length) { d.genre = f.genres.join(', '); d.includeSubGenres = f.genreSub; if (f.genreFirst) d.firstGenreOnly = true; }
+  if (f.genres.length) { d.genre = f.genres.join(', '); d.includeSubGenres = f.genreSub; if (f.genreFirst) d.firstGenreOnly = true; if (f.genreRole === 'primary' || f.genreRole === 'secondary') d.genreCountsWhen = GENRE_ROLE_TEXT[f.genreRole]; }
   if (f.yearFrom !== null) d.yearFrom = f.yearFrom; if (f.yearTo !== null) d.yearTo = f.yearTo;
   if (f.artists.length) { d.artist = f.artists.map(cxQuoteTerm).join(', '); if (f.artistPart) d.partialArtistNames = true; }
   if (f.types) d.types = f.types; if (f.labels.length) d.label = f.labels.join(', '); if (f.ratingMin) d.ratingAtLeast = f.ratingMin;
@@ -22984,7 +23082,7 @@ function cxFilterSlug(f) {                // a readable bit for the file name: c
 function cxFiltersInit() {
   cxPinned = null;               // fresh each time the dialog opens, so a filtered subset is never exported by accident; the pick-lists come from the whole crate
   ['cxFGenre', 'cxFYearFrom', 'cxFYearTo', 'cxFArtist', 'cxFLabel', 'cxFAddedFrom', 'cxFAddedTo', 'cxFQuery'].forEach(id => { cxEl(id).value = ''; });
-  cxEl('cxFRating').value = '0'; cxEl('cxFGenreSub').checked = true; cxEl('cxFGenreFirst').checked = false; cxEl('cxFArtistPart').checked = false;
+  cxEl('cxFRating').value = '0'; cxEl('cxFGenreSub').checked = true; cxEl('cxFGenreFirst').checked = false; cxEl('cxFGenreRole').value = 'any'; cxEl('cxFArtistPart').checked = false;
   const gc = new Map(), ac = new Set(), tc = new Map(), dc = new Map();
   cxKnownArtistKeys = new Set(state.raw.map(r => cxArtistKey(r.artist)).filter(Boolean));
   cxEl('cxPresetNote').hidden = true; cxEl('cxPresetSaveRow').hidden = true; cxPresetMsg('');
@@ -23018,12 +23116,13 @@ function cxLoadPresets() {
 function cxStorePresets(list) { try { localStorage.setItem(CX_PRESETS_KEY, JSON.stringify(list.slice(-CX_PRESET_MAX))); } catch (e) { /* not remembered */ } }
 function cxFormState() {                         // exactly what is in the boxes, so applying a preset restores what was typed
   const v = (id) => cxEl(id).value, ch = (id) => cxEl(id).checked, boxes = [...cxEl('cxFTypes').querySelectorAll('input')], on = boxes.filter(b => b.checked).map(b => b.value);
-  return { genre: v('cxFGenre'), genreSub: ch('cxFGenreSub'), genreFirst: ch('cxFGenreFirst'), yearFrom: v('cxFYearFrom'), yearTo: v('cxFYearTo'), artist: v('cxFArtist'), artistPart: ch('cxFArtistPart'),
+  return { genre: v('cxFGenre'), genreSub: ch('cxFGenreSub'), genreFirst: ch('cxFGenreFirst'), genreRole: v('cxFGenreRole') || 'any', yearFrom: v('cxFYearFrom'), yearTo: v('cxFYearTo'), artist: v('cxFArtist'), artistPart: ch('cxFArtistPart'),
     types: boxes.length && on.length !== boxes.length ? on : null, label: v('cxFLabel'), rating: v('cxFRating'), addedFrom: v('cxFAddedFrom'), addedTo: v('cxFAddedTo'), query: v('cxFQuery') };
 }
+// (a filter saved before the genre-role choice existed has no genreRole, and counts both lists, as it always did)
 function cxApplyFormState(f) {
   const set = (id, val) => { cxEl(id).value = val == null ? '' : String(val); }, chk = (id, val) => { cxEl(id).checked = !!val; };
-  set('cxFGenre', f.genre); chk('cxFGenreSub', f.genreSub !== false); chk('cxFGenreFirst', f.genreFirst); set('cxFYearFrom', f.yearFrom); set('cxFYearTo', f.yearTo);
+  set('cxFGenre', f.genre); chk('cxFGenreSub', f.genreSub !== false); chk('cxFGenreFirst', f.genreFirst); cxEl('cxFGenreRole').value = ['primary', 'secondary'].includes(f.genreRole) ? f.genreRole : 'any'; set('cxFYearFrom', f.yearFrom); set('cxFYearTo', f.yearTo);
   set('cxFArtist', f.artist); chk('cxFArtistPart', f.artistPart); set('cxFLabel', f.label); cxEl('cxFRating').value = String(f.rating || '0'); set('cxFAddedFrom', f.addedFrom); set('cxFAddedTo', f.addedTo); set('cxFQuery', f.query);
   cxEl('cxFTypes').querySelectorAll('input').forEach(b => { b.checked = !Array.isArray(f.types) || f.types.includes(b.value); });     // a type the crate no longer has is simply not offered
 }
@@ -32879,7 +32978,7 @@ html, body {
      above it instead of below. :has() (already used elsewhere in this
      file, e.g. the quick-actions overlay rule further down) avoids
      needing a second JS-toggled body class just for this. */
-  body:has(.mini-player.docked-top) #app { padding-bottom: 0; padding-top: 96px; }
+  body:has(.mini-player.docked-top:not(.detached):not([hidden])) #app { padding-bottom: 0; padding-top: 96px; }
 
   /* Base layout is now a column: main row on top, timeline strip below. */
   .mini-player { flex-direction: column; align-items: stretch; gap: 6px; padding: 8px 44px 10px 12px; }
@@ -33131,9 +33230,9 @@ html, body {
        strip starts right under the bar (85px tall) instead of overlapping it. The leading `html` is
        deliberate: a later, equally specific safe-area rule for this same state (padding-top: 96px) would
        otherwise win by source order and leave an 11px gap. */
-    html body:has(.mini-player.docked-top) #app { padding-top: 85px; }
-    body:has(.mini-player.docked-top) .tab-bar { margin-top: 0; }
-    body:has(.mini-player.docked-top) { --tab-bar-h: 38px; }
+    html body:has(.mini-player.docked-top:not(.detached):not([hidden])) #app { padding-top: 85px; }
+    body:has(.mini-player.docked-top:not(.detached):not([hidden])) .tab-bar { margin-top: 0; }
+    body:has(.mini-player.docked-top:not(.detached):not([hidden])) { --tab-bar-h: 38px; }
   }
   .tab-quick-open { position: fixed; z-index: 320; width: 270px; padding: 8px; background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 12px 28px rgba(0,0,0,0.45); }
   .tab-quick-open-input { width: 100%; box-sizing: border-box; background: var(--bg); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 7px 10px; font: 13px 'Inter', sans-serif; outline: none; }
@@ -33300,6 +33399,8 @@ html, body {
   .tl-preview { font-size: 12px; color: var(--text-dim); margin: 4px 0; min-height: 1em; } .tl-paste-actions { display: flex; gap: 6px; }
   .track-section-header { margin: 14px 0 2px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); }
   .tracklist-source { margin: 10px 0 0; font-size: 12px; color: var(--text-dim); }
+  label.arrange-row.genre-role-row { display: block; } label.arrange-row.genre-role-row .rym-menu-select { display: block; width: 100%; max-width: 236px; box-sizing: border-box; margin: 4px 0 0; }      /* a block, not a flex row (the two-class selector is needed: .arrange-row { display: flex } comes later in the sheet): the menu sizes itself to its widest UNWRAPPED row, and label + dropdown side by side made it wider than a phone */
+  #sortFilterMenu { max-width: calc(100vw - 16px); }      /* never wider than the screen (it is anchored at the right, so a wider menu would run off the left) */
   /* ---- Stats map ---- */
   .snd-mapwrap { padding: 0 4px 24px; min-width: 0; }
   .smap-toolbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; margin: 10px 0 6px; }
@@ -34798,7 +34899,7 @@ html, body {
      bar docked there needs top padding against that instead of bottom
      padding against the home-indicator strip. */
   .mini-player.docked-top { padding-bottom: 10px; padding-top: calc(10px + env(safe-area-inset-top)); }
-  body:has(.mini-player.docked-top) #app { padding-bottom: 0; padding-top: calc(96px + env(safe-area-inset-top)); }
+  body:has(.mini-player.docked-top:not(.detached):not([hidden])) #app { padding-bottom: 0; padding-top: calc(96px + env(safe-area-inset-top)); }
   /* On mobile the fixed bottom tab bar (see --mobile-navbar-h in the
      topbar-declutter block above) also needs to be cleared — this has to
      be re-declared here, after the unconditional rule right above, rather
@@ -34811,7 +34912,7 @@ html, body {
        bottom regardless of where the player docks, so #app's bottom
        padding only needs to clear THAT now, not the player too; the
        player's own height moves to the top padding instead. */
-    body:has(.mini-player.docked-top) #app { padding-bottom: var(--mobile-navbar-h); padding-top: calc(96px + env(safe-area-inset-top, 0px)); }
+    body:has(.mini-player.docked-top:not(.detached):not([hidden])) #app { padding-bottom: var(--mobile-navbar-h); padding-top: calc(96px + env(safe-area-inset-top, 0px)); }
   }
   @media (max-width: 620px) {
     .mini-player { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
@@ -34862,7 +34963,7 @@ html, body {
        SHEET clearing a bottom-docked player, so with the player docked at
        Top instead they just reserve a little more space than strictly
        needed rather than anything actually breaking. */
-    body:has(.mini-player.docked-top) #app { padding-bottom: var(--mobile-navbar-h); padding-top: calc(64px + env(safe-area-inset-top, 0px)); }
+    body:has(.mini-player.docked-top:not(.detached):not([hidden])) #app { padding-bottom: var(--mobile-navbar-h); padding-top: calc(64px + env(safe-area-inset-top, 0px)); }
     body.has-mini-player .deck { max-height: calc(88vh - var(--mobile-navbar-h) - 64px - env(safe-area-inset-bottom, 0px)); }
     /* +14px beyond the exact reserved height (mini player + nav bar), so
        the sheet's own bottom edge has some visible breathing room above
