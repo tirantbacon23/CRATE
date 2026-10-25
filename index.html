@@ -19,7 +19,25 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.40.2
+  CURRENT_VERSION: 1.40.3
+
+  1.40.3 — 2026-10-25 — The cover from the release page (found by its own text), and the label and catalogue number from the page's issue line (the page itself is unchanged; this needs the add-on, now 1.9.2).
+
+          WHAT YOU SHOWED: a release page whose cover is `<div class="coverart_115524"><img srcset="//cdn.sonemic.net/i/600/w/…/swervedriver-sandblasted-Cover-Art.jpg, … 2x" src="//cdn.sonemic.net/…" alt="Cover art for
+            Sandblasted by Swervedriver">`, and a label and catalogue number that sit in `<span class="issue_label" title="Homestead / HMS 166-2">`, not in the info table.
+          COVER: the add-on took the FIRST picture on the page whose box was called "coverart…" (and skipped anything inside a block whose class mentions reviews, related, and so on). Other releases' thumbnails can carry the
+            same class names, so on a page like yours it could miss your cover or, worse, take another release's. It now looks first for the picture whose own text names THIS release ("Cover art for <title> by <artist>"),
+            preferring one that also names the artist and is not in an ignored area, and only then falls back to the old class names and the page's share image. The address is resolved from the protocol-relative "//cdn…" form.
+          LABEL AND CATALOGUE NUMBER: read from the issue line: the label link's text, and what follows it as the number ("Homestead", "HMS 166-2"); several labels give "A, B" and the number after the last one; with no
+            label link the plain text is split at its last " / "; the info table's own Label row still wins if it exists. (The "In collection, On wishlist, Used to own, (not cataloged)" you saw was your own cataloguing box
+            being read as the catalogue number; that was fixed in 1.40.2 and cannot come back, since the info table is the only place besides the issue line that is looked in.)
+          DIAGNOSE now lists every picture that looks like a cover (its text, its address, its box's class, and whether it sits in an ignored area) and the issue line's own markup.
+          VERIFIED: a page built from your markup with the real extension, with a decoy thumbnail of another release placed BEFORE your cover, a decoy with the same title by another artist, and your cover inside a block
+            called "reviews": your cover (the 600 picture) is chosen; label and catalogue number from the link form, the plain-text form, a label alone, two labels and a number, no issue line, and a Label row in the info table
+            (11 checks); breaking the text search brings back the wrong picture. NOT VERIFIED, and I can't from here: that the picture host will load for CRATE. A host that refuses pictures requested from other websites would
+            refuse the check, the cards and the deck alike. If that is happening, an import's result says "N covers couldn't be loaded from here" (and an update says the cover "couldn't be loaded from here"); if instead the cover
+            is simply never offered, it was the reading, which this fixes.
+
 
   1.40.2 — 2026-10-25 — Split releases: all 19 tracks (not 4 called "Dropdead"), a catalogue number that was really your own cataloguing box, and "Swirlies / & Dropdead" (needs the add-on, now 1.9.1).
 
@@ -8344,7 +8362,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.40.2';
+const APP_VERSION = '1.40.3';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
