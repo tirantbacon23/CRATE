@@ -19,7 +19,52 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.38.3
+  CURRENT_VERSION: 1.40.0
+
+  1.40.0 — 2026-10-25 — Faster imports that run in the background; bigger covers, and covers on update; label, catalogue number and descriptors; and the tracklists that wouldn't pull (needs the add-on, now 1.9.0; the speed-up and the descriptors field also need the backend script re-deployed).
+
+          TRACKS THAT WOULDN'T PULL (your Beat Happening compilation): the page puts a track's rating and vote count BEFORE its number and title ("4.0", "11", "1", "Our Secret", "lyrics", "2:51"), and the add-on
+            assumed number, title, length, rating. It took "4.0" for the title, saw every title was a number and (rightly) saved nothing. It now works out what each piece IS (a number, a rating, a vote count, a
+            length, a title: the first piece with a letter in it that comes before the length) instead of trusting the order, so either order reads the same. Your 27 tracks, in the layout your Diagnose report showed, come out whole.
+          COVER ON UPDATE: "Update from this page" now has a Cover row: it fills a blank cover, or swaps RYM's own smaller picture for a larger one. A cover from anywhere else (Spotify, say) is never replaced.
+          BIGGER COVERS: a Rate Your Music picture's address says its size ("…/i/300/…"). The add-on takes the larger of the cover on the page and the page's share image, and CRATE then tries larger sizes of the same
+            picture (1200, 800, 600, 500) and keeps the first that actually loads, for imports and updates alike. A cover that won't load from here is still never saved (a broken picture would be worse than none).
+          LABEL, CATALOGUE NUMBER, DESCRIPTORS: read off the release page (the "Label", "Catalog #" and "Descriptors" rows) and carried through sends and updates. Label and catalogue number fill their existing fields (an
+            automatic CRT-007 number counts as blank; a value that differs from yours is offered unticked). The descriptors go in a NEW field, "RYM descriptors", shown in the release's details and searchable, and NOT
+            in the existing "Descriptor" field: that one is the edition label ("Deluxe Edition") and the duplicate check compares it, so putting mood tags there could make an album look like a different edition of itself.
+          SPEED: an import used to go strictly one release at a time: a cover check (up to 6 seconds if the picture was slow), then a full round trip to your sheet, for each. Now covers are checked six at a time up front,
+            and releases are added 25 to a request (one write per group). 57 releases are 3 requests, not 57. Needs the backend script updated (a new "addAlbums" action, in apps-script-backend.gs): with the old script
+            it notices ("Missing row number", before anything is written) and goes one at a time as before. A group that FAILS midway fails alone and is never re-sent one by one (it may have been written).
+          IN THE BACKGROUND: the import dialog has "Keep working": it hides the dialog without stopping the run, and a small bar (bottom left) shows the progress with a Cancel, then "57 releases added · Details · ×" when done.
+            "Apply all" shows its progress in the same bar.
+          NOT DONE / UNKNOWN: I could not reproduce a 15-second rhythm exactly; what I found is the one-at-a-time loop above, so how much faster it is on your sheet depends on your sheet (3 requests instead of 57 is the point).
+            The info rows (Label, Catalog #, Descriptors) are found by their heading text because I haven't seen the real markup: if a page still gives none, the add-on popup's Diagnose now includes the info table's own
+            markup and what it read back. Releases already in your crate keep their covers until you update them; "RYM descriptors" stays empty until a release is sent or updated.
+          VERIFIED: the add-on's row reading (50 checks incl. your real rows) and a 27-track page built like your Diagnose report, with the real extension, plus label/catalogue/descriptors/larger cover from a table and a div
+            layout (9); the backend's group add (11); CRATE's details, covers and duplicate check (14); and the speed behaviour: 57 in 3 requests, covers six at a time, an old script, a failing group, background,
+            Details and Cancel on the bar (20). Each guard broken on purpose and caught.
+
+
+  1.39.0 — 2026-10-25 — Batch update from Rate Your Music; and tracklists saved from "Update from this page" now really reach your sheet.
+
+          THE BUG (this is why a tracklist "still didn't get pulled"): saving a tracklist from the update review, and from "Remove from tracklist" on a song, sent it to your sheet without saying what kind of write it was.
+            The backend's default branch only handles ratings, reviews, track data and the RYM rating, so it answered "ok" and wrote NOTHING. CRATE kept the tracklist in memory (the deck showed it, the toast said
+            "Tracklist updated") until the next reload of the sheet, and then it was gone ("No tracklist found for this release"). It is now sent as editAlbum, which the backend does write. Nothing else sent without an
+            action had this problem (ratings, reviews, track data, RYM ratings are all handled there). The Edit form, Add and Import were never affected. If you updated tracklists this way before, they did not stick:
+            "Fill tracklists from Rate Your Music…" (below) will put them back from what the add-on has seen.
+          BATCH UPDATE, 1: when two or more updates are waiting from release pages, the bar gets "Apply all N". It applies only what is NEW in each (a blank filled, a date made more precise, a tracklist where there
+            is none) and never anything that differs from what you have: a release with a difference keeps waiting, so you can open it and choose. A release that is not in your crate is skipped (and released from the
+            bar). It says what happened: "Updated 2 releases (6 changes); 1 not in your crate; 1 has differences left for you to review."
+          BATCH UPDATE, 2: ⚙ → "Fill tracklists from Rate Your Music…": for every release in your crate with NO saved tracklist whose tracklist the add-on has already seen on Rate Your Music while you browsed
+            (matched by its saved RYM link, else artist + title + type), it asks first, showing how many and a few examples, then saves them (lengths, headings, and RYM's track ratings where a track has none).
+            It leaves alone any release that already has a saved tracklist, and any tracklist that looks wrong (titles that are numbers). Those releases switch from the automatic lookup to the saved list. Run again, it finds nothing left.
+          WHAT IT DOES NOT DO: it does not open Rate Your Music pages for you. Only what you have already viewed can be used, and the add-on saves a tracklist when you open a release's page. (Fetching pages on its own would be
+            automated browsing of a site that doesn't welcome it.) It does not yet batch-update dates, genres or covers from a genre/artist/chart LIST page; say if you want that.
+          VERIFIED against a backend that behaves like yours (only editAlbum writes release fields, and a bare update ignores them), which my earlier test backend did not: the blank-tracklist update from your screenshots
+            (21 tracks) now survives a reload of the sheet, and fails with the old send (5 + 2 checks); the batch (17): four waiting updates, one filling blanks plus a tracklist, one tracklist only, one that differs
+            (left alone, still waiting), one not owned; Fill tracklists for the right releases only (declined, accepted, run twice). Changing the batch to apply differences too, or sending the tracklist the old way,
+            is caught. NOT VERIFIED against your real sheet.
+
 
   1.38.3 — 2026-10-24 — "Update from the page" no longer adds a second copy; artist names that picked up the page's wording are fixed and can be tidied (needs the add-on, now 1.8.3).
 
@@ -6447,6 +6492,7 @@
           <button type="button" id="menuImportCrate">Import crate…</button>
           <button type="button" id="menuImportRym">Import from Rate Your Music…</button>
           <button type="button" id="menuTidyNames">Tidy artist names…</button>
+          <button type="button" id="menuFillTracklists">Fill tracklists from Rate Your Music…</button>
           <button type="button" id="menuSoundAnalysis">Sound analysis…</button>
           <button type="button" id="menuRymRatings">RYM ratings &amp; genres…</button>
           <button type="button" id="menuUpdateLog">Update log…</button>
@@ -7011,6 +7057,7 @@
 <!-- Quiet, non-blocking notifications (e.g. background Last.fm sync) -->
 <div id="globalToast" class="global-toast" hidden></div>
 <div id="rymInbox" class="rym-inbox" role="status" hidden></div>
+<div id="bgStatus" class="bg-status" role="status" aria-live="polite" hidden><span id="bgStatusText"></span><i class="bg-status-track"><b id="bgStatusFill"></b></i><button type="button" id="bgStatusCancel" class="chip-btn" hidden>Cancel</button><button type="button" id="bgStatusView" class="chip-btn" hidden>Details</button><button type="button" id="bgStatusClose" class="chip-btn" hidden aria-label="Dismiss">×</button></div>
 <div id="rymUpdateOverlay" class="arrange-overlay" hidden>
   <div class="arrange-modal add-modal cx-modal" role="dialog" aria-modal="true" aria-labelledby="rymUpdTitle">
     <div class="arrange-header"><div><h2 id="rymUpdTitle">Update from Rate Your Music</h2><p class="sm-sub" id="rymUpdSub"></p></div><button id="rymUpdClose" class="modal-x" aria-label="Close">✕</button></div>
@@ -8221,7 +8268,7 @@
         <p id="cxImpProgText" role="status" aria-live="polite"></p>
         <div class="gi-mb-bar cx-bar"><i id="cxImpBar" style="width:0%;animation:none"></i></div>
         <div id="cxImpResult" class="lfr-summary" hidden></div>
-        <div class="lfr-foot"><span></span><span class="lfr-foot-right"><button type="button" id="cxImpCancel" class="ai-link-btn">Cancel</button><button type="button" id="cxImpRetry" class="ai-link-btn" hidden>Retry failed</button><button type="button" id="cxImpDone" class="config-btn">Done</button></span></div>
+        <div class="lfr-foot"><span></span><span class="lfr-foot-right"><button type="button" id="cxImpBg" class="ai-link-btn" title="Hide this and keep using CRATE: a small bar shows the progress">Keep working</button><button type="button" id="cxImpCancel" class="ai-link-btn">Cancel</button><button type="button" id="cxImpRetry" class="ai-link-btn" hidden>Retry failed</button><button type="button" id="cxImpDone" class="config-btn">Done</button></span></div>
       </div>
     </div>
   </div>
@@ -8264,7 +8311,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.38.3';
+const APP_VERSION = '1.40.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -11819,6 +11866,7 @@ async function fetchCatalog() {
           genre: r.Genre || '',
           genre2: r.SecondaryGenre || '',
           label: r.Label ? String(r.Label).trim() : '',
+          rymDescriptors: r.RymDescriptors ? String(r.RymDescriptors).trim() : '',          // Rate Your Music's descriptors (lo-fi, melodic…): their own field, because "Descriptor" is the EDITION label the duplicate check compares
           region: r.Region ? String(r.Region).trim() : '',
           // Where it happened — formed, recorded (studio), or played
           // (venue). Free text, geocoded client-side for the Map viewer
@@ -13005,7 +13053,7 @@ function numericClauseMatches(actual, clause) {
 function releaseSearchTextNoTracks(r) {
   const year = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getUTCFullYear() : '';
   const genres = getGenreList(combinedGenreStr(r)).join(' ');
-  return `${r.artist} ${r.title} ${year} ${r.catalog} ${r.descriptor || ''} ${r.scene || ''} ${r.movement || ''} ${genres}`.toLowerCase();
+  return `${r.artist} ${r.title} ${year} ${r.catalog} ${r.descriptor || ''} ${r.rymDescriptors || ''} ${r.scene || ''} ${r.movement || ''} ${genres}`.toLowerCase();
 }
 
 function combinedSearchText(r) {
@@ -19515,7 +19563,7 @@ function currentTracklistAsManualRows(item) {
 // reasoning as collectTracklistBuilderRows) so trackData saved against
 // them — rating/note/genre/other saved links — stays attached correctly;
 // a brand-new row gets the next number free after every number in use.
-async function saveManualTracklist(item, rows) {
+async function saveManualTracklist(item, rows, quiet) {
   let nextNum = Math.max(tlMinNext(item), ...rows.map(t => t.trackNumber || 0), 0) + 1;       // past every number the album still holds data for, so a new track can't inherit a removed one's
   const manualTracks = tlPersist(rows
     .filter(t => t.title && t.title.trim())
@@ -19526,13 +19574,15 @@ async function saveManualTracklist(item, rows) {
       spotifyLink: (t.spotifyLink || '').trim(),
       durationMs: t.durationMs || 0, section: t.section || '', s: t.s || ''
     })), 'lookup');
-  await postUpdate({ row: item.row, ManualTracks: JSON.stringify(manualTracks) });
+  // editAlbum, not a bare update: the backend's no-action branch only knows rating, review, trackData and the RYM rating, so a tracklist sent without an action was answered "ok" and NEVER WRITTEN to the sheet
+  // (it showed until the next reload, then vanished). editAlbum writes just the fields it is given.
+  await postUpdate({ action: 'editAlbum', row: item.row, ManualTracks: JSON.stringify(manualTracks) });
   item.manualTracks = manualTracks;
   item.hasManualTracklist = true;
   delete state.trackCache[artKey(item)];
   refreshLinkFlagsFor(item);   // songs were added/removed: the release may now have (or no longer have) unlinked ones
   if (activeItem === item) await loadTracklist(item);
-  flashGlobalToast('Tracklist updated');
+  if (!quiet) flashGlobalToast('Tracklist updated');
 }
 
 // "⤓ Load current tracklist" in the Edit modal — swaps the builder's
@@ -22067,7 +22117,7 @@ function cxBuildExport(items, opts, meta) {
     put('releaseDate', it.releaseDate); put('recorded', it.recordedDate); put('genre', it.genre); put('secondaryGenre', it.genre2);
     put('region', it.region); put('location', it.location); put('label', it.label);
     if (it.catalog && !CX_AUTO_CATALOG.test(String(it.catalog).trim())) put('catalog', it.catalog);
-    put('descriptor', it.descriptor); put('scene', it.scene); put('movement', it.movement);
+    put('descriptor', it.descriptor); put('rymDescriptors', it.rymDescriptors); put('scene', it.scene); put('movement', it.movement);
     const lk = cxLinkKind(it.link); if (it.link && opts.links[lk]) put('link', it.link);
     if (it.rymLink && opts.links.other) put('rymLink', it.rymLink);
     if (opts.cover) put('cover', it.cover);
@@ -22087,12 +22137,12 @@ function cxCounts(releases) {
 }
 function cxNormalizeRelease(raw, idx) {
   const str = (v) => (v == null ? '' : String(v)).trim();
-  const r = { idx, artist: '', title: '', type: '', releaseDate: '', recorded: '', genre: '', secondaryGenre: '', region: '', location: '', label: '', catalog: '', descriptor: '', scene: '', movement: '', link: '', rymLink: '', cover: '', tracks: [], problems: [], warnings: [] };
+  const r = { idx, artist: '', title: '', type: '', releaseDate: '', recorded: '', genre: '', secondaryGenre: '', region: '', location: '', label: '', catalog: '', descriptor: '', rymDescriptors: '', scene: '', movement: '', link: '', rymLink: '', cover: '', tracks: [], problems: [], warnings: [] };
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { r.problems.push('Not a release entry'); r.invalid = true; return r; }
   r.artist = str(raw.artist); r.title = str(raw.title); r.type = str(raw.type);
   r.recorded = str(raw.recorded != null ? raw.recorded : raw.recordedDate); r.releaseDate = str(raw.releaseDate);
   r.genre = str(raw.genre); r.secondaryGenre = str(raw.secondaryGenre != null ? raw.secondaryGenre : raw.genre2);
-  ['region', 'location', 'label', 'catalog', 'descriptor', 'scene', 'movement'].forEach(k => { r[k] = str(raw[k]); });
+  ['region', 'location', 'label', 'catalog', 'descriptor', 'rymDescriptors', 'scene', 'movement'].forEach(k => { r[k] = str(raw[k]); });
   if (!r.artist) r.problems.push('Missing artist');
   if (!r.title) r.problems.push('Missing title');
   [['releaseDate', 'release date'], ['recorded', 'recorded date']].forEach(([k, label]) => {
@@ -22161,7 +22211,7 @@ function cxShape(rel, opts) {                                  // what an import
 }
 function cxAddPayload(s) {
   const p = { action: 'addAlbum', Artist: s.artist, Title: s.title, Type: s.type || 'Album', ReleaseDate: s.releaseDate, Recorded: s.recorded, Genre: s.genre, SecondaryGenre: s.secondaryGenre,
-    Region: s.region, Location: s.location, Label: s.label, Catalog: s.catalog, Descriptor: s.descriptor, Scene: s.scene, Movement: s.movement, Link: s.link, RymLink: s.rymLink, Cover: s.cover };
+    Region: s.region, Location: s.location, Label: s.label, Catalog: s.catalog, Descriptor: s.descriptor, RymDescriptors: s.rymDescriptors, Scene: s.scene, Movement: s.movement, Link: s.link, RymLink: s.rymLink, Cover: s.cover };
   if (s.tracks.length) p.ManualTracks = JSON.stringify(s.tracks.some(t => t.durationMs || t.section || t.s)
     ? tlPersist(s.tracks.map(t => ({ trackNumber: t.n, title: t.title, youtubeLink: t.youtube || '', spotifyLink: t.spotify || '', durationMs: t.durationMs, section: t.section, s: t.s })), 'rym')       // lengths, headings and where the list came from, as the editor saves them
     : s.tracks.map(t => ({ trackNumber: t.n, title: t.title, youtubeLink: t.youtube || '', spotifyLink: t.spotify || '' })));   // only when there are songs: an empty list would stop the app looking the tracklist up
@@ -23405,7 +23455,7 @@ function openCxImport() {
 function closeCxImport() {
   const ov = cxEl('cxImportOverlay'); if (!ov || ov.hidden) return;
   if (cxImp && cxImp.running) { cxImp.cancel = true; return; }          // while adding, closing means "stop after the one in progress"
-  ov.hidden = true; cxImp = null;
+  ov.hidden = true; cxImp = null; bgStatusHide();
 }
 
 // ----- covers in the review -----
@@ -23513,22 +23563,47 @@ function cxImpRender() {
 }
 async function cxImpRun(list) {                // list: [{ idx, shaped }]
   const st = cxImp; st.running = true; st.cancel = false; st.added = []; st.failed = []; st.coverOk = 0; st.coverMiss = 0;
-  cxImpShow('cxImpProgress'); cxEl('cxImpResult').hidden = true; cxEl('cxImpCancel').hidden = false; cxEl('cxImpCancel').disabled = false;
-  const total = list.length;
-  for (let i = 0; i < total; i++) {
+  cxImpShow('cxImpProgress'); cxEl('cxImpResult').hidden = true; cxEl('cxImpCancel').hidden = false; cxEl('cxImpCancel').disabled = false; cxEl('cxImpBg').hidden = false; bgStatusHide();
+  const total = list.length, say = (text, pct) => { cxEl('cxImpProgText').textContent = text; cxEl('cxImpBar').style.width = `${Math.round(pct)}%`; bgStatus(text, pct, { cancel: true }); };
+  // 1. Rate Your Music covers are checked together, six at a time, before anything is written: one slow picture no longer holds up every release behind it, and a cover is saved only if it
+  //    really loads from here (the deck shows a saved cover as it is, with no fallback), in the largest size that does.
+  if (st.rym) {
+    const pending = list.filter(it => it.shaped.cover), all = pending.length; let checked = 0;
+    const worker = async () => {
+      while (pending.length && !st.cancel) {
+        const it = pending.shift(), good = await rymBestCover(it.shaped.cover); checked++;
+        if (good) { st.coverOk++; if (good !== it.shaped.cover) it.shaped = Object.assign({}, it.shaped, { cover: good }); } else { it.shaped = Object.assign({}, it.shaped, { cover: '' }); st.coverMiss++; }
+        say(`Checking covers \u2014 ${checked} of ${all}`, all ? checked / all * 15 : 0);
+      }
+    };
+    await Promise.all(Array.from({ length: 6 }, worker));
+  }
+  // 2. The rows go in groups of 25 in ONE request each (one write for the group, instead of a full round trip per release). A script that doesn't know the group request answers "Missing row
+  //    number" before writing anything: then, and from then on, they go one at a time as before. A request that FAILS midway is not repeated one by one (it may have been written).
+  let useBatch = state.backendAddMany !== false, i = 0;
+  const unauthorized = (e) => /unauthorized/i.test(String((e && e.message) || e));
+  while (i < total) {
     if (st.cancel) break;
-    const it = list[i];
-    cxEl('cxImpProgText').textContent = `Adding ${i + 1} of ${total} \u2014 ${it.shaped.artist} \u2014 ${it.shaped.title}`;
-    cxEl('cxImpBar').style.width = `${Math.round(i / total * 100)}%`;
-    if (st.rym && it.shaped.cover) {                        // a cover from Rate Your Music is saved only if it really loads from here: the deck shows a saved cover as it is, with no fallback, so a broken one would be worse than none
-      cxEl('cxImpProgText').textContent += ' \u2014 checking its cover';
-      if (await cxProbe(it.shaped.cover)) st.coverOk++; else { it.shaped = Object.assign({}, it.shaped, { cover: '' }); st.coverMiss++; }
+    const pct = 15 + i / total * 85;
+    if (useBatch) {
+      const group = list.slice(i, i + 25);
+      say(`Adding ${i + 1}\u2013${i + group.length} of ${total}`, pct);
+      try {
+        const res = await postUpdate({ action: 'addAlbums', albums: group.map(it => { const p = cxAddPayload(it.shaped); delete p.action; return p; }) });
+        if (res && Array.isArray(res.albumIds) && res.albumIds.length === group.length) { group.forEach((it, k) => st.added.push({ idx: it.idx, albumId: res.albumIds[k] || '', shaped: it.shaped })); state.backendAddMany = true; i += group.length; continue; }
+        state.backendAddMany = false; useBatch = false;                                   // an answer that isn't a group answer: an older script
+      } catch (e) {
+        if (/Missing row number/i.test(String((e && e.message) || e))) { state.backendAddMany = false; useBatch = false; }       // an older script (nothing was written)
+        else { group.forEach(it => st.failed.push({ idx: it.idx, shaped: it.shaped, error: String((e && e.message) || e) })); i += group.length; if (unauthorized(e)) break; continue; }
+      }
     }
+    const it = list[i]; say(`Adding ${i + 1} of ${total} \u2014 ${it.shaped.artist} \u2014 ${it.shaped.title}`, pct);
     try { const res = await postUpdate(cxAddPayload(it.shaped)); st.added.push({ idx: it.idx, albumId: (res && res.albumId) || '', shaped: it.shaped }); }
-    catch (e) { st.failed.push({ idx: it.idx, shaped: it.shaped, error: String((e && e.message) || e) }); if (/unauthorized/i.test(String(e && e.message))) break; }
+    catch (e) { st.failed.push({ idx: it.idx, shaped: it.shaped, error: String((e && e.message) || e) }); if (unauthorized(e)) break; }
+    i++;
   }
   const notTried = total - st.added.length - st.failed.length;
-  cxEl('cxImpBar').style.width = '100%'; cxEl('cxImpProgText').textContent = 'Finishing\u2026'; cxEl('cxImpCancel').hidden = true;
+  cxEl('cxImpBar').style.width = '100%'; cxEl('cxImpProgText').textContent = 'Finishing\u2026'; cxEl('cxImpCancel').hidden = true; cxEl('cxImpBg').hidden = true; bgStatus('Finishing\u2026', 100, {});
   try { await fetchCatalog(); } catch (e) { console.warn('refresh after import failed', e); }
   // SoundCloud links live with the per-song data, which needs the release to exist: attach them now.
   let scFailed = 0;
@@ -23548,10 +23623,12 @@ async function cxImpRun(list) {                // list: [{ idx, shaped }]
   cxEl('cxImpRetry').hidden = !st.failed.length;
   if (st.rym && st.added.length && !st.failed.length && !notTried) rymBatchDone(st.rym.ids);       // everything went through: the add-on can forget it (if anything failed or was stopped it stays, and the added ones show as already here)
   if (st.added.length) flashGlobalToast(`Imported ${cxN(st.added.length, 'release')}.`);
+  if (cxEl('cxImportOverlay').hidden) bgStatus(`${cxN(st.added.length, 'release')} added${st.failed.length ? `, ${st.failed.length} failed` : ''}${notTried ? `, ${notTried} not attempted` : ''}`, 100, { view: true, close: true, always: true });          // finished while you were elsewhere
 }
 function cxImportBind() {
   const ov = cxEl('cxImportOverlay'); ov.dataset.bound = '1';
   cxEl('cxImportClose').addEventListener('click', closeCxImport);
+  cxEl('cxImpBg').addEventListener('click', () => { cxEl('cxImportOverlay').hidden = true; if (cxImp && cxImp.running) bgStatus(cxEl('cxImpProgText').textContent, parseFloat(cxEl('cxImpBar').style.width) || 0, { cancel: true }); });          // hide the dialog, not stop the run
   ov.addEventListener('mousedown', (e) => { if (e.target === ov && !(cxImp && cxImp.running)) closeCxImport(); });
   cxEl('cxImpChoose').addEventListener('click', () => cxEl('cxImpFile').click());
   cxEl('cxImpFile').addEventListener('change', async () => { const f = cxEl('cxImpFile').files[0]; if (f) cxImpRead(await f.text()); });
@@ -23589,6 +23666,7 @@ function initCrateExchange() {
   cxEl('menuImportCrate').addEventListener('click', openCxImport);
   cxEl('menuImportRym').addEventListener('click', rymImportFromMenu);
   cxEl('menuTidyNames').addEventListener('click', rymTidyNames);
+  cxEl('menuFillTracklists').addEventListener('click', rymFillTracklists);
 }
 
 /* ---------- Duplicate protection when adding ----------
@@ -23685,10 +23763,18 @@ function initAddonBridge() {
   window.addEventListener('focus', () => { if (rymOutState.present) rymCheckOutbox(); });                         // CRATE in its own window: coming back to it counts too
   setInterval(() => { if (!document.hidden && rymOutState.present) rymCheckOutbox(); }, 20000);                   // and a quiet look now and then while it is open
   [['rymUpdClose', rymUpdateClose], ['rymUpdCancel', rymUpdateClose], ['rymUpdApply', () => rymApplyUpdate()]].forEach(([id, fn]) => { const x = document.getElementById(id); if (x) x.addEventListener('click', fn); });
+  const bgBar = document.getElementById('bgStatus');
+  if (bgBar) bgBar.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.id === 'bgStatusCancel' && cxImp) cxImp.cancel = true;
+    else if (b.id === 'bgStatusView') { const ov = document.getElementById('cxImportOverlay'); if (ov) ov.hidden = false; bgStatusHide(); }
+    else if (b.id === 'bgStatusClose') bgStatusHide();
+  });
   const inbox = document.getElementById('rymInbox');
   if (inbox) inbox.addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.hasAttribute('data-rym-review')) openRymBatch(rymOutState.batches[0]);
+    else if (b.hasAttribute('data-rym-applyall')) rymUpdateAllWaiting();
     else if (b.hasAttribute('data-rym-later')) { rymOutState.dismissed = rymOutState.batches.map(x => x.id).join(','); renderRymInbox(); }
     else if (b.hasAttribute('data-rym-discard')) rymBatchDone(rymOutState.batches.map(x => x.id));
   });
@@ -25592,6 +25678,7 @@ function openDeck(item) {
   const metaParts = [year, genreDisplayStr(item), item.region, item.label].filter(Boolean);
   const recordedMeta = formatRecordedDate(item);
   if (recordedMeta) metaParts.push('Recorded ' + recordedMeta);
+  if (item.rymDescriptors) metaParts.push('RYM: ' + item.rymDescriptors);
   el.deckMeta.textContent = metaParts.join(' · ');
 
   if (dateVal(item.dateAdded) !== -Infinity) {
@@ -28780,6 +28867,15 @@ async function tlApplyTrackRatings(item, rows) {
 // ---- releases sent from RateYourMusic pages by the browser add-on ("Send to CRATE") ----
 // They wait in the add-on until asked for; here they are shown in a bar and reviewed through the same import review a crate file uses
 // (new / already in your crate / repeated, ticking, progress, Cancel, Retry). Nothing is added until you press Add there.
+// A small progress bar for work that carries on while you use CRATE. While the import dialog is showing its own progress the bar stays hidden (unless asked for).
+function bgStatus(text, pct, opts) {
+  const bar = document.getElementById('bgStatus'); if (!bar) return; opts = opts || {};
+  const ov = document.getElementById('cxImportOverlay');
+  if (!opts.always && ov && !ov.hidden) { bar.hidden = true; return; }
+  bar.hidden = false; document.getElementById('bgStatusText').textContent = text; document.getElementById('bgStatusFill').style.width = (pct == null ? 100 : Math.max(0, Math.min(100, pct))) + '%';
+  document.getElementById('bgStatusCancel').hidden = !opts.cancel; document.getElementById('bgStatusView').hidden = !opts.view; document.getElementById('bgStatusClose').hidden = !opts.close;
+}
+function bgStatusHide() { const bar = document.getElementById('bgStatus'); if (bar) bar.hidden = true; }
 function rymAskOutbox(ms) {                                      // -> the batches waiting in the add-on, or null if it didn't answer in time (not installed, not connected, or older than 1.7)
   return new Promise((resolve) => {
     const w = { resolve, timer: setTimeout(() => { const i = rymOutWaiters.indexOf(w); if (i >= 0) rymOutWaiters.splice(i, 1); resolve(null); }, ms || 2500) };
@@ -28794,7 +28890,7 @@ function rymCleanOutbox(list) {                                  // untrusted: o
     source: { url: str(b && b.source && b.source.url, 300), title: str(b && b.source && b.source.title, 200).trim() },
     releases: (Array.isArray(b && b.releases) ? b.releases : []).slice(0, 600).map(r => ({
       artist: rymTidyName(str(r && r.artist, 200).trim()), title: rymTidyName(str(r && r.title, 200).trim()), type: TYPES.includes(r && r.type) ? r.type : 'Album', releaseDate: /^\d{4}(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?)?$/.test(r && r.releaseDate) ? r.releaseDate : '',
-      genre: str(r && r.genre, 200).trim(), secondaryGenre: str(r && r.secondaryGenre, 200).trim(), rymLink: /^https:\/\/rateyourmusic\.com\/release\//.test(str(r && r.rymLink, 300)) ? str(r.rymLink, 300) : '', cover: /^https:\/\/[^\s"'<>]+$/.test(str(r && r.cover, 500)) ? str(r.cover, 500) : '',
+      genre: str(r && r.genre, 200).trim(), secondaryGenre: str(r && r.secondaryGenre, 200).trim(), label: str(r && r.label, 200).trim(), catalog: /^CRT-\d+$/i.test(str(r && r.catalog, 100).trim()) ? '' : str(r && r.catalog, 100).trim(), rymDescriptors: str(r && r.descriptor, 500).trim(), rymLink: /^https:\/\/rateyourmusic\.com\/release\//.test(str(r && r.rymLink, 300)) ? str(r.rymLink, 300) : '', cover: /^https:\/\/[^\s"'<>]+$/.test(str(r && r.cover, 500)) ? str(r.cover, 500) : '',
       tracks: (Array.isArray(r && r.tracks) ? r.tracks : []).slice(0, 200).map((t, i) => ({ n: i + 1, title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), s: 'rym', rating: rymNum(t && t.rating) })).filter(t => t.title), rymRating: rymNum(r && r.rymRating), rymVotes: Math.max(0, Math.round(Number(r && r.rymVotes) || 0)) })).filter(r => r.artist && r.title).slice(0, 300) })).filter(b => b.id && b.releases.length);
 }
 function rymOutboxArrived(batches) {
@@ -28812,8 +28908,9 @@ function renderRymInbox() {
   const bs = rymOutState.batches, key = bs.map(b => b.id).join(',');
   if (!bs.length || rymOutState.dismissed === key) { bar.hidden = true; bar.innerHTML = ''; return; }
   const n = bs.reduce((s, b) => s + b.releases.length, 0), first = bs[0];
+  const ups = bs.filter(b => b.kind === 'update').length;
   const what = first.kind === 'update' ? `details for <b>${escapeHtml(first.source.title || 'a release')}</b> are waiting to update your crate` : `<b>${n}</b> release${n === 1 ? '' : 's'} waiting${first.source.title ? ' from ' + escapeHtml(first.source.title) : ''}`;
-  bar.innerHTML = `<span>Rate Your Music: ${what}${bs.length > 1 ? ` and ${bs.length - 1} more page${bs.length > 2 ? 's' : ''}` : ''}.</span> <button type="button" class="chip-btn" data-rym-review>Review</button> <button type="button" class="chip-btn" data-rym-later>Not now</button> <button type="button" class="chip-btn" data-rym-discard title="Throw away what was sent from Rate Your Music">Discard</button>`;
+  bar.innerHTML = `<span>Rate Your Music: ${what}${bs.length > 1 ? ` and ${bs.length - 1} more page${bs.length > 2 ? 's' : ''}` : ''}.</span> <button type="button" class="chip-btn" data-rym-review>Review</button>${ups > 1 ? ` <button type="button" class="chip-btn" data-rym-applyall title="Apply what is new in all ${ups} updates (blanks filled, dates made more precise, tracklists added). Anything that differs from what you have is left for you to review.">Apply all ${ups}</button>` : ''} <button type="button" class="chip-btn" data-rym-later>Not now</button> <button type="button" class="chip-btn" data-rym-discard title="Throw away what was sent from Rate Your Music">Discard</button>`;
   bar.hidden = false;
 }
 function rymBatchDone(ids) {                                     // taken (or thrown away): the add-on forgets them, and so does the bar
@@ -28823,6 +28920,14 @@ function rymBatchDone(ids) {                                     // taken (or th
 }
 // BEGIN rym-update
 // A name that picked up the page's own wording ("Ulver (Album, Trip Hop): Reviews, Ratings, Credits, Song list" from a release page's title) -> "Ulver". Any other name comes back as it was.
+// A Rate Your Music picture's address says its size ("https://e.snmc.io/i/300/s/…"): the candidates to try, largest first, ending with the address itself. Whether a size exists is found by trying it.
+function rymPictureSize(u) { const m = /\/i\/(\d{2,4})\//.exec(String(u || '')); return m ? Number(m[1]) : 0; }
+function rymCoverCandidates(u) {
+  const s = String(u == null ? '' : u).trim(); if (!s) return [];
+  const m = /^(https:\/\/[^\/]+\/i\/)(\d{2,4})(\/.*)$/.exec(s), out = [];
+  if (m) [1200, 800, 600, 500].forEach(n => { if (n > Number(m[2])) out.push(m[1] + n + m[3]); });
+  out.push(s); return out;
+}
 function rymTidyName(s) {
   const t = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
   if (!/Reviews,?\s*Ratings/i.test(t)) return t;
@@ -28847,6 +28952,15 @@ function rymUpdatePlan(item, rel, oldRows, minNext) {
     const set = (s) => s.split(',').map(lc).filter(Boolean).sort().join('|');
     if (!c) add(key, label, '', n, 'fill'); else if (set(c) !== set(n)) add(key, label, c, n, 'differs');
   });
+  [['label', 'Label', item.label, rel.label], ['catalog', 'Catalogue number', /^CRT-\d+$/i.test(String(item.catalog || '').trim()) ? '' : item.catalog, rel.catalog], ['rymDescriptors', 'RYM descriptors', item.rymDescriptors, rel.rymDescriptors]].forEach(([key, label, cur, nw]) => {
+    const c = String(cur || '').trim(), n = String(nw || '').trim(); if (!n) return;        // (an automatic CRT-007 number says nothing, so it counts as blank)
+    if (!c) add(key, label, '', n, 'fill'); else if (lc(c) !== lc(n)) add(key, label, c, n, 'differs');
+  });
+  const cc = String(item.cover || '').trim(), nc = String(rel.cover || '').trim();
+  if (nc) {
+    if (!cc) add('cover', 'Cover', '', 'Rate Your Music\u2019s picture', 'fill', { url: nc });
+    else if (rymPictureSize(cc) && rymPictureSize(nc) > rymPictureSize(cc) && cc.split('/')[2] === nc.split('/')[2]) add('cover', 'Cover', 'a smaller picture', 'a larger one from Rate Your Music', 'refine', { url: nc });       // only RYM's own smaller picture is upgraded; a cover from anywhere else is left alone
+  }
   const cl = String(item.rymLink || '').trim(), nl = String(rel.rymLink || '').trim();
   if (nl) { if (!cl) add('rymLink', 'RYM link', '', nl, 'fill'); else if (rymPathOfUrl(cl) !== rymPathOfUrl(nl)) add('rymLink', 'RYM link', cl, nl, 'differs'); }
   const nt = (rel.tracks || []).filter(t => t && t.title);
@@ -28886,22 +29000,78 @@ async function openRymUpdate(batch) {
     : '<p>Nothing new on that page: what Rate Your Music shows matches what is already in your crate.</p>';
   apply.hidden = !plan.length;
 }
+async function rymWritePicks(item, picks, quiet) {            // write exactly the chosen fields of a release (and its tracklist), nothing else: shared by the review and the batch
+  const map = { label: ['Label', 'label'], catalog: ['Catalog', 'catalog'], rymDescriptors: ['RymDescriptors', 'rymDescriptors'], artist: ['Artist', 'artist'], date: ['ReleaseDate', 'releaseDate'], genre: ['Genre', 'genre'], genre2: ['SecondaryGenre', 'genre2'], rymLink: ['RymLink', 'rymLink'] }, payload = { action: 'editAlbum', row: item.row };
+  picks.forEach(p => { if (map[p.key]) payload[map[p.key][0]] = p.proposed; });          // only what was ticked: the backend leaves every other field as it is
+  const cv = picks.find(p => p.key === 'cover'); let coverUrl = '', coverMissed = false;
+  if (cv) { coverUrl = await rymBestCover(cv.url); if (coverUrl) payload.Cover = coverUrl; else coverMissed = true; }          // saved only if it loads from here (the largest size that does): the deck shows a saved cover as it is
+  if (Object.keys(payload).length > 2) { await postUpdate(payload); picks.forEach(p => { if (map[p.key]) item[map[p.key][1]] = p.proposed; }); if (coverUrl) item.cover = coverUrl; }
+  const tr = picks.find(p => p.key === 'tracks');
+  if (tr) { await saveManualTracklist(item, tr.rows, quiet); await tlApplyTrackRatings(item, tr.rows); }          // numbers kept by title; RYM's track ratings only where a track has none
+  return { coverMissed };
+}
+async function rymBestCover(url) {                                  // the largest size of this picture that really loads from here, or '' if none does
+  for (const c of rymCoverCandidates(url)) { if (await cxProbe(c)) return c; }
+  return '';
+}
 async function rymApplyUpdate() {
   const st = rymUpd; if (!st) return;
   const $ = (id) => document.getElementById(id), chosen = new Set([...document.querySelectorAll('#rymUpdBody [data-upd]:checked')].map(c => c.dataset.upd));
   if (!chosen.size) { $('rymUpdMsg').textContent = 'Nothing is ticked.'; return; }
   const item = st.item, picks = st.plan.filter(p => chosen.has(p.key)); $('rymUpdApply').disabled = true; $('rymUpdMsg').textContent = 'Updating\u2026';
   try {
-    const map = { artist: ['Artist', 'artist'], date: ['ReleaseDate', 'releaseDate'], genre: ['Genre', 'genre'], genre2: ['SecondaryGenre', 'genre2'], rymLink: ['RymLink', 'rymLink'] }, payload = { action: 'editAlbum', row: item.row };
-    picks.forEach(p => { if (map[p.key]) payload[map[p.key][0]] = p.proposed; });          // only what was ticked: the backend leaves every other field as it is
-    if (Object.keys(payload).length > 2) { await postUpdate(payload); picks.forEach(p => { if (map[p.key]) item[map[p.key][1]] = p.proposed; }); }
-    const tr = picks.find(p => p.key === 'tracks');
-    if (tr) { await saveManualTracklist(item, tr.rows); await tlApplyTrackRatings(item, tr.rows); }          // numbers kept by title; RYM's track ratings only where a track has none
+    const wr = await rymWritePicks(item, picks);
     rymBatchDone([st.batch.id]);
-    flashGlobalToast(`Updated \u201c${item.title}\u201d from Rate Your Music: ${picks.map(p => p.label.toLowerCase()).join(', ')}.`);
+    flashGlobalToast(`Updated \u201c${item.title}\u201d from Rate Your Music: ${picks.filter(p => p.key !== 'cover' || !wr.coverMissed).map(p => p.label.toLowerCase()).join(', ')}.${wr.coverMissed ? ' The cover couldn’t be loaded from here, so it was left as it was.' : ''}`);
     rymUpdateClose();
     try { await fetchCatalog(); } catch (e) { /* the sheet is updated; the list refreshes next time */ }
   } catch (e) { $('rymUpdMsg').textContent = 'Couldn\u2019t update \u2014 try again.'; $('rymUpdApply').disabled = false; }
+}
+// "Apply all": every waiting update, at once, with only what is NEW ticked (a blank filled, a date made more precise, a tracklist where there is none). Anything that DIFFERS from what you
+// have is never applied here: that release keeps waiting so you can review it on its own.
+async function rymUpdateAllWaiting() {
+  const ups = rymOutState.batches.filter(b => b.kind === 'update'); if (!ups.length) return;
+  const r = { updated: 0, fields: 0, same: 0, missing: 0, review: 0, failed: 0 }, done = [];
+  flashGlobalToast(`Updating ${ups.length} release${ups.length === 1 ? '' : 's'} from Rate Your Music\u2026`);
+  for (const [bi, b] of ups.entries()) {
+    bgStatus(`Updating from Rate Your Music \u2014 ${bi + 1} of ${ups.length}`, bi / ups.length * 100, { always: true });
+    const rel = b.releases && b.releases[0]; if (!rel) { done.push(b.id); continue; }
+    try {
+      const hit = rymMatchEntry(rymBuildIndex(state.raw, dupKey), { p: rel.rymLink, ar: rel.artist, ti: rel.title, ty: rel.type, y: String(rel.releaseDate || '').slice(0, 4) });
+      if (!hit || !hit.item) { if (hit && hit.ambiguous) r.review++; else { r.missing++; done.push(b.id); } continue; }
+      const item = hit.item;
+      if (rel.tracks && rel.tracks.length >= 2) { try { await getTracksFor(item); } catch (e) { /* nothing to compare with */ } }
+      const plan = rymUpdatePlan(item, rel, currentTracklistAsManualRows(item), tlMinNext(item)), picks = plan.filter(p => p.checked);
+      if (picks.length) { await rymWritePicks(item, picks, true); r.updated++; r.fields += picks.length; } else if (!plan.length) r.same++;
+      if (plan.length > picks.length) r.review++; else done.push(b.id);
+    } catch (e) { r.failed++; }                                           // it stays waiting: try again
+  }
+  if (done.length) rymBatchDone(done);
+  bgStatusHide();
+  try { await fetchCatalog(); } catch (e) { /* the sheet is updated; the list refreshes next time */ }
+  const parts = [`Updated ${r.updated} release${r.updated === 1 ? '' : 's'}${r.updated ? ` (${r.fields} change${r.fields === 1 ? '' : 's'})` : ''}`];
+  if (r.same) parts.push(`${r.same} already up to date`); if (r.missing) parts.push(`${r.missing} not in your crate`);
+  if (r.review) parts.push(`${r.review} ${r.review === 1 ? 'has' : 'have'} differences left for you to review`); if (r.failed) parts.push(`${r.failed} couldn\u2019t be updated \u2014 try again`);
+  flashGlobalToast(parts.join('; ') + '.');
+}
+// "Fill tracklists from Rate Your Music": releases with no saved tracklist, for which the add-on has seen the tracklist on Rate Your Music while you browsed
+async function rymFillTracklists() {
+  el.layoutMenu.hidden = true;
+  const list = await rymAskTracklists();
+  if (list === null) { flashGlobalToast('No answer from the add-on. It has to be installed, connected to this CRATE, and version 1.6 or newer.'); return; }
+  const good = list.filter(e => !e.wrong), cands = [];
+  state.raw.forEach(it => { if (isManualAlbum(it)) return; const e = tlRymPick(good, { artist: it.artist, title: it.title, type: it.type, releaseDate: it.releaseDate, rymLink: it.rymLink }); if (e) cands.push({ it, e }); });
+  if (!cands.length) { flashGlobalToast('Nothing to fill: none of the releases without a saved tracklist is one the add-on has seen on Rate Your Music. Open their release pages there (it saves the tracklist as you browse), then try again.'); return; }
+  const sample = cands.slice(0, 4).map(c => `${c.it.artist} \u2014 ${c.it.title} (${c.e.tracks.length} tracks)`).join('\n');
+  if (!confirm(`${cands.length} release${cands.length === 1 ? '' : 's'} in your crate ${cands.length === 1 ? 'has' : 'have'} no saved tracklist, and the add-on has seen ${cands.length === 1 ? 'its' : 'their'} tracklist${cands.length === 1 ? '' : 's'} on Rate Your Music.\n\nFill ${cands.length === 1 ? 'it' : 'them'} from there?\n\n${sample}${cands.length > 4 ? '\n\u2026' : ''}\n\nThey switch from the automatic lookup to the saved list (with lengths and headings); nothing else about them changes.`)) return;
+  flashGlobalToast(`Filling ${cands.length} tracklist${cands.length === 1 ? '' : 's'}\u2026`);
+  let ok = 0, failed = 0;
+  for (const c of cands) {
+    try { const rows = tlAssignNumbers([], c.e.tracks.map(t => ({ title: t.title, durationMs: t.durationMs || 0, section: t.section || '', s: 'rym', rymRating: t.rating || 0 })), tlMinNext(c.it)).rows; await saveManualTracklist(c.it, rows, true); await tlApplyTrackRatings(c.it, rows); ok++; }
+    catch (e) { failed++; }
+  }
+  try { await fetchCatalog(); } catch (e) { /* the sheet is updated; the list refreshes next time */ }
+  flashGlobalToast(`Filled ${ok} tracklist${ok === 1 ? '' : 's'}${failed ? `; ${failed} couldn\u2019t be saved \u2014 try again` : ''}.`);
 }
 function openRymBatch(batch) { if (!batch) return; if (batch.kind === 'update') openRymUpdate(batch); else openRymImport(batch); }
 function openRymImport(batch) {
@@ -34696,6 +34866,10 @@ html, body {
 
   .import-scroll { max-height: 180px; overflow-y: auto; margin-bottom: 4px; }
 
+  .bg-status { position: fixed; left: 16px; bottom: 96px; z-index: 160; max-width: min(92vw, 520px); display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--panel, #1B212B); color: var(--text); border: 1px solid var(--line, #3a4352); border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.45); font-size: 12px; }
+  .bg-status[hidden] { display: none; }
+  .bg-status-track { flex: 1 1 80px; min-width: 60px; height: 4px; background: rgba(255,255,255,.12); border-radius: 2px; overflow: hidden; }
+  .bg-status-track b { display: block; height: 100%; width: 0; background: var(--accent, #D6A24C); transition: width .25s; }
   .rym-inbox { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 150; max-width: min(92vw, 640px); display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 14px; background: var(--panel, #1B212B); color: var(--text); border: 1px solid var(--accent, #D6A24C); border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.45); font-size: 13px; }
   .rym-inbox[hidden] { display: none; }
   .cx-source { margin: 0 0 8px; padding: 6px 10px; border-left: 3px solid var(--accent, #D6A24C); background: rgba(214,162,76,.08); font-size: 12px; color: var(--text-dim); }
