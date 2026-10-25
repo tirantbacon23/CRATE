@@ -19,7 +19,43 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.38.1
+  CURRENT_VERSION: 1.38.3
+
+  1.38.3 — 2026-10-24 — "Update from the page" no longer adds a second copy; artist names that picked up the page's wording are fixed and can be tidied (needs the add-on, now 1.8.3).
+
+          WHAT YOU SAW: updating from a release's RYM page added a NEW release, and the artist field was filled with "Mecca Normal (Album, Slacker Rock): Reviews, Ratings, Credits, Song list". The same text was
+            in your earlier screenshots as the artist of Ulver's and the Keith Tippett Group's releases.
+          CAUSE: the add-on read the artist off the page's TITLE, which on RYM reads "Title by Artist (Album, Genre): Reviews, Ratings, Credits, Song list - Rate Your Music". I had assumed the shorter "Title by Artist - Reviews…",
+            so everything after "by" became the artist. A name like that never matches the release already in your crate (saved under the right artist, or under the same wrong one with a different link), so the update flow
+            said it wasn't there and a send showed it as new.
+          NOW: the add-on reads the real wording (the artist; the type and the primary genres from the bracket, used for the genre when the page's own genre links can't be found) and still reads the older wording; a name
+            that picked up the page's text is cleaned wherever the add-on handles it (what it sends, what it matches on a release page). CRATE cleans names as they arrive, and its name matching ignores that wording, so a release
+            already in your crate WITH a polluted artist is found: the update review opens on it instead of offering to add it, and a send of a release you already have shows it as already in your crate.
+          REPAIRING WHAT IS ALREADY SAVED: the update review now proposes the clean "Artist name" first, ticked, when the saved one carries the wording. And ⚙ → "Tidy artist names…" fixes every such release in one go: it
+            says how many and shows a few as old → new, asks first, changes only the artist field of each (nothing else about the release), and reports how many were done; one the sheet refuses keeps its old name, so running it
+            again finds it.
+          NOT DONE: if you already ended up with TWO copies of a release (the original with the polluted name, and the new one that update/send created), tidying makes them look like what they are, duplicates; remove
+            the extra one yourself (the duplicate checks will show them).
+          VERIFIED: the page-title reading and the name tidier (53 checks in the add-on's logic, each new rule broken on purpose and caught); the real extension on a release page with the real wording, sending the
+            right artist/type/genre/date and recognising a release saved under a polluted name (6); and CRATE: an update finding a polluted release and fixing its artist, a polluted name arriving from an older add-on,
+            a send of an owned release, the tidy tool incl. declining, nothing to tidy, and one refused edit (15). Taking out the name matching brings your symptom back ("isn't in your crate"). NOT VERIFIED against real
+            RateYourMusic: I haven't seen a real page title; the wording is taken from what ended up in your artist field.
+
+
+  1.38.2 — 2026-10-24 — Tracklists from Rate Your Music no longer come through with the ratings as the titles (needs the add-on, now 1.8.2).
+
+          WHAT YOU SAW: a tracklist pulled from a release page had every title replaced by that track's RATING (3.4, 3.5, 4.0…) while the lengths were right (the Keith Tippett Group page, with its A1…B6 vinyl numbers).
+          WHAT WAS WRONG (two faults in the add-on, reproduced here): it skips anything inside an element whose class name mentions "credit" so that track credits aren't read as songs, but that can also
+            swallow a real title; the rating was then the first piece of text left, and the add-on accepted it as the title. And nothing ever stopped a rating, or a vote count, from being taken as a title.
+          NOW: a rating can no longer be a title (a rating-shaped piece after a length, or before a "|" and a count, is the rating; a bare number after a rating or a length is a vote count), so a row whose
+            title can't be found gives no track instead of a wrong one. If the first reading finds fewer than two tracks, or titles that are numbers, the add-on reads the page again ignoring "credit" class names;
+            if that is no better it saves nothing. A wrong copy an older version kept is removed (or replaced by the right one) the next time you open that release page. And CRATE refuses to offer a saved
+            tracklist whose titles are mostly numbers: it says it looks wrong and what to do, instead of letting you use it. The add-on popup's Diagnose now says when the second reading was needed.
+          TO FIX A LIST THAT CAME OUT WRONG: install the new add-on, open that release's page on RateYourMusic once, then in CRATE open the album, Edit, press RYM, Use this list (your tracks keep their numbers by title).
+          VERIFIED: the row logic (42 checks, each new rule broken on purpose and caught), the Keith Tippett tracklist rebuilt four ways with the REAL extension (a bare-text title, a link, a link whose class mentions
+            "credit", loose text), a page with no findable title (saves nothing), a wrong stored copy removed and replaced, and CRATE refusing a list of numbers (28). NOT VERIFIED against real RateYourMusic: I
+            can't see its markup, so the "credit" class is my best explanation for what you saw, not a certainty. If a page still reads wrong, the add-on popup's Diagnose gives each row's pieces and markup.
+
 
   1.38.1 — 2026-10-24 — The add-on now hears when you delete the last release (and understands an empty crate) (needs the add-on, now 1.8.1).
 
@@ -6410,6 +6446,7 @@
           <button type="button" id="menuExportCrate">Export crate…</button>
           <button type="button" id="menuImportCrate">Import crate…</button>
           <button type="button" id="menuImportRym">Import from Rate Your Music…</button>
+          <button type="button" id="menuTidyNames">Tidy artist names…</button>
           <button type="button" id="menuSoundAnalysis">Sound analysis…</button>
           <button type="button" id="menuRymRatings">RYM ratings &amp; genres…</button>
           <button type="button" id="menuUpdateLog">Update log…</button>
@@ -8227,7 +8264,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.38.1';
+const APP_VERSION = '1.38.3';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -21966,7 +22003,7 @@ function dupFold(s) { return String(s == null ? '' : s).normalize('NFD').replace
 function dupWords(s) { return dupFold(s).replace(/[^\p{L}\p{N}]+/gu, ' ').trim(); }       // letters and digits in ANY script, so titles in other alphabets don't all collapse to nothing
 function dupKey(artist, title) {
   const raw = String(title == null ? '' : title), stripped = raw.replace(/\s*[\(\[][^\)\]]*[\)\]]/g, ' ');
-  const a = dupWords(artist).replace(/^the /, ''), t = (dupWords(stripped) || dupWords(raw)).replace(/^the /, '');
+  const a = dupWords(String(artist == null ? '' : artist).replace(/(?:\s*\([^()]*\))?\s*:\s*Reviews,?\s*Ratings[\s\S]*$/i, '')).replace(/^the /, ''), t = (dupWords(stripped) || dupWords(raw)).replace(/^the /, '');       // (an artist that picked up a release page's wording: "Ulver (Album, Trip Hop): Reviews, Ratings…" is Ulver)
   return a && t ? a + '::' + t : '';
 }
 function dupEditionText(x) {
@@ -23551,6 +23588,7 @@ function initCrateExchange() {
   cxEl('menuExportCrate').addEventListener('click', openCxExport);
   cxEl('menuImportCrate').addEventListener('click', openCxImport);
   cxEl('menuImportRym').addEventListener('click', rymImportFromMenu);
+  cxEl('menuTidyNames').addEventListener('click', rymTidyNames);
 }
 
 /* ---------- Duplicate protection when adding ----------
@@ -28699,10 +28737,14 @@ function rymAskTracklists(ms) {                                  // -> the add-o
   });
 }
 function rymTracklistsArrived(list) { rymTlWaiters.splice(0).forEach(w => { clearTimeout(w.timer); w.resolve(list); }); }
+function rymTracklistLooksWrong(tracks) {                        // titles that are mostly numbers are ratings or counts read as titles: never offer such a list
+  const t = Array.isArray(tracks) ? tracks : []; if (t.length < 2) return false;
+  return t.filter(x => /^\d{1,3}(?:[.,]\d{1,2})?$/.test(String(x && x.title || '').trim())).length / t.length >= 0.5;
+}
 function rymCleanTracklists(list) {                              // whatever arrives is untrusted: only text and numbers, bounded
   const str = (x, n) => typeof x === 'string' ? x.slice(0, n) : '';
   return (Array.isArray(list) ? list : []).slice(0, 400).map(e => ({ p: str(e && e.p, 200), ar: str(e && e.ar, 200), ti: str(e && e.ti, 200), ty: str(e && e.ty, 30), u: str(e && e.u, 300), t: Number(e && e.t) || 0,
-    tracks: (Array.isArray(e && e.tracks) ? e.tracks : []).slice(0, 200).map(t => ({ title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), rating: rymNum(t && t.rating) })).filter(t => t.title) })).filter(e => e.p && e.tracks.length >= 2);
+    tracks: (Array.isArray(e && e.tracks) ? e.tracks : []).slice(0, 200).map(t => ({ title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), rating: rymNum(t && t.rating) })).filter(t => t.title) })).filter(e => e.p && e.tracks.length >= 2).map(e => Object.assign(e, { wrong: rymTracklistLooksWrong(e.tracks) }));
 }
 function tlRymPick(list, probe) {                                // the add-on's tracklist for THIS release: by its saved RYM address, else artist + title + type (the rules the ratings use); the newest if several
   const idx = rymBuildIndex([probe], dupKey); let best = null;
@@ -28720,6 +28762,7 @@ async function tlFetchRym(side, artist, title) {
     const href = rymLink || rymSearchUrl({ artist, title });
     tlStatus(side, `The add-on hasn\u2019t seen this release\u2019s page on Rate Your Music yet. <a href="${escapeHtml(href)}" target="_blank" rel="noopener">Open it there \u2197</a>, then press RYM again.`); return;
   }
+  if (hit.wrong) { tlStatus(side, 'The add-on saved a tracklist for this release that looks wrong (its titles are numbers, most likely ratings). Update the add-on, open the release\u2019s page on Rate Your Music again, then press RYM again.'); return; }
   tlPending[side] = { kind: 'rym', tracks: hit.tracks.map(t => ({ title: t.title, durationMs: t.durationMs, section: t.section, rymRating: t.rating || 0 })) };
   const total = tlFormatTime(hit.tracks.reduce((s, t) => s + (t.durationMs || 0), 0)), rated = hit.tracks.filter(t => t.rating).length, when = hit.t ? rymDateText(new Date(hit.t).toISOString()) : '';
   tlStatus(side, `Rate Your Music has ${hit.tracks.length} track${hit.tracks.length === 1 ? '' : 's'}${total ? ' \u00b7 ' + total : ''}${rated ? `, with ratings for ${rated}` : ''}${when ? ' (saved ' + escapeHtml(when) + ')' : ''}. <button type="button" class="chip-btn" data-tl-use>Use this list</button> <button type="button" class="chip-btn" data-tl-dismiss>Dismiss</button>`);
@@ -28750,7 +28793,7 @@ function rymCleanOutbox(list) {                                  // untrusted: o
     id: str(b && b.id, 40), t: Number(b && b.t) || 0, kind: b && b.kind === 'release' ? 'release' : b && b.kind === 'update' ? 'update' : 'list', genre: str(b && b.genre, 100).trim(),
     source: { url: str(b && b.source && b.source.url, 300), title: str(b && b.source && b.source.title, 200).trim() },
     releases: (Array.isArray(b && b.releases) ? b.releases : []).slice(0, 600).map(r => ({
-      artist: str(r && r.artist, 200).trim(), title: str(r && r.title, 200).trim(), type: TYPES.includes(r && r.type) ? r.type : 'Album', releaseDate: /^\d{4}(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?)?$/.test(r && r.releaseDate) ? r.releaseDate : '',
+      artist: rymTidyName(str(r && r.artist, 200).trim()), title: rymTidyName(str(r && r.title, 200).trim()), type: TYPES.includes(r && r.type) ? r.type : 'Album', releaseDate: /^\d{4}(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?)?$/.test(r && r.releaseDate) ? r.releaseDate : '',
       genre: str(r && r.genre, 200).trim(), secondaryGenre: str(r && r.secondaryGenre, 200).trim(), rymLink: /^https:\/\/rateyourmusic\.com\/release\//.test(str(r && r.rymLink, 300)) ? str(r.rymLink, 300) : '', cover: /^https:\/\/[^\s"'<>]+$/.test(str(r && r.cover, 500)) ? str(r.cover, 500) : '',
       tracks: (Array.isArray(r && r.tracks) ? r.tracks : []).slice(0, 200).map((t, i) => ({ n: i + 1, title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), s: 'rym', rating: rymNum(t && t.rating) })).filter(t => t.title), rymRating: rymNum(r && r.rymRating), rymVotes: Math.max(0, Math.round(Number(r && r.rymVotes) || 0)) })).filter(r => r.artist && r.title).slice(0, 300) })).filter(b => b.id && b.releases.length);
 }
@@ -28779,12 +28822,20 @@ function rymBatchDone(ids) {                                     // taken (or th
   try { window.postMessage({ source: 'crate-app', type: 'rym-outbox-done', ids: [...gone] }, window.location.origin); } catch (e) { /* no add-on */ }
 }
 // BEGIN rym-update
+// A name that picked up the page's own wording ("Ulver (Album, Trip Hop): Reviews, Ratings, Credits, Song list" from a release page's title) -> "Ulver". Any other name comes back as it was.
+function rymTidyName(s) {
+  const t = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  if (!/Reviews,?\s*Ratings/i.test(t)) return t;
+  return t.replace(/\s*[-\u2013\u2014|]\s*Rate Your Music\s*$/i, '').replace(/(?:\s*:\s*|\s[-\u2013\u2014|]\s*)Reviews,?\s*Ratings.*$/i, '').replace(/\s*\([^()]*\)\s*$/, '').trim() || t;
+}
 // ---- "Update from this page": what a Rate Your Music page could add to a release you already have ----
 // One proposal per field: your value, RYM's value, and a kind: 'fill' (yours is blank), 'refine' (RYM's agrees but is more precise: a full date for a year, lengths for a
 // list that has none) or 'differs' (they disagree: offered but never ticked for you). Nothing is proposed where they already agree, or where yours is already the more precise.
 function rymUpdatePlan(item, rel, oldRows, minNext) {
   const out = [], lc = (s) => String(s || '').trim().toLowerCase();
   const add = (key, label, current, proposed, kind, extra) => out.push(Object.assign({ key, label, current, proposed, kind, checked: kind !== 'differs' }, extra || {}));
+  const ca = String(item.artist || '').trim(), ta = rymTidyName(ca);
+  if (ta && ta !== ca) add('artist', 'Artist name', ca, ta, 'refine');         // the saved artist picked up the page's wording: offered first, ticked
   const cd = String(item.releaseDate || '').trim(), nd = String(rel.releaseDate || '').trim();
   if (nd && nd !== cd) {
     if (!cd) add('date', 'Release date', '', nd, 'fill');
@@ -28841,7 +28892,7 @@ async function rymApplyUpdate() {
   if (!chosen.size) { $('rymUpdMsg').textContent = 'Nothing is ticked.'; return; }
   const item = st.item, picks = st.plan.filter(p => chosen.has(p.key)); $('rymUpdApply').disabled = true; $('rymUpdMsg').textContent = 'Updating\u2026';
   try {
-    const map = { date: ['ReleaseDate', 'releaseDate'], genre: ['Genre', 'genre'], genre2: ['SecondaryGenre', 'genre2'], rymLink: ['RymLink', 'rymLink'] }, payload = { action: 'editAlbum', row: item.row };
+    const map = { artist: ['Artist', 'artist'], date: ['ReleaseDate', 'releaseDate'], genre: ['Genre', 'genre'], genre2: ['SecondaryGenre', 'genre2'], rymLink: ['RymLink', 'rymLink'] }, payload = { action: 'editAlbum', row: item.row };
     picks.forEach(p => { if (map[p.key]) payload[map[p.key][0]] = p.proposed; });          // only what was ticked: the backend leaves every other field as it is
     if (Object.keys(payload).length > 2) { await postUpdate(payload); picks.forEach(p => { if (map[p.key]) item[map[p.key][1]] = p.proposed; }); }
     const tr = picks.find(p => p.key === 'tracks');
@@ -28865,6 +28916,18 @@ async function rymImportFromMenu() {
   if (list === null) { flashGlobalToast('No answer from the add-on. It has to be installed, connected to this CRATE, and version 1.7 or newer.'); return; }
   if (!list.length) { flashGlobalToast('Nothing is waiting from Rate Your Music. On one of its release, genre, artist or chart pages, press \u201cSend to CRATE\u201d.'); return; }
   openRymBatch(list[0]);
+}
+async function rymTidyNames() {                                     // ⚙ → "Tidy artist names…": releases whose saved artist picked up a Rate Your Music page's wording
+  el.layoutMenu.hidden = true;
+  const bad = state.raw.filter(it => rymTidyName(it.artist) !== String(it.artist || '').trim());
+  if (!bad.length) { flashGlobalToast('No artist names to tidy: none of them has the \u201c(Album, \u2026): Reviews, Ratings\u2026\u201d text from a Rate Your Music page.'); return; }
+  const sample = bad.slice(0, 3).map(it => `\u201c${it.artist}\u201d \u2192 \u201c${rymTidyName(it.artist)}\u201d`).join('\n');
+  if (!confirm(`${bad.length} release${bad.length === 1 ? '' : 's'} in your crate ${bad.length === 1 ? 'has' : 'have'} an artist name that includes text copied from a Rate Your Music page.\n\nTidy ${bad.length === 1 ? 'it' : 'them'}?\n\n${sample}${bad.length > 3 ? '\n\u2026' : ''}\n\nOnly the artist name is changed.`)) return;
+  flashGlobalToast(`Tidying ${bad.length} artist name${bad.length === 1 ? '' : 's'}\u2026`);
+  let ok = 0, failed = 0;
+  for (const it of bad) { try { await postUpdate({ action: 'editAlbum', row: it.row, Artist: rymTidyName(it.artist) }); ok++; } catch (e) { failed++; } }          // one field each: the backend leaves everything else as it is
+  try { await fetchCatalog(); } catch (e) { /* the sheet is updated; the list refreshes next time */ }
+  flashGlobalToast(`Tidied ${ok} artist name${ok === 1 ? '' : 's'}${failed ? `; ${failed} couldn\u2019t be changed \u2014 try again` : ''}.`);
 }
 function tlSourceLine(item) {                                       // under the deck's tracklist: where this list came from
   if (!item || !isManualAlbum(item)) return '';
