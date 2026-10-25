@@ -19,7 +19,22 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.37.0
+  CURRENT_VERSION: 1.37.1
+
+  1.37.1 — 2026-10-24 — Covers for releases pulled from Rate Your Music (needs the add-on, now 1.7.2).
+
+          WHAT WAS WRONG: a release pulled from RYM arrived with no cover of its own, so CRATE fell back to searching iTunes for one, and that only finds well-known albums.
+          NOW: the add-on also sends the cover picture RYM shows (on a release page: the cover element, else the page's share image; on a genre, artist or chart page: the picture in the
+            row's release link, the biggest size the picture offers, lazy-loaded pictures included). A row with several pictures and none in the release link gets none rather than maybe the wrong one.
+          ONLY A COVER THAT WORKS IS SAVED: the deck shows a saved cover as it is, with no fallback, so a dead or blocked picture would show as broken, worse than nothing. So as each release is
+            added CRATE first checks that its RYM cover really loads from here; if it does it is saved, if not it is left blank and CRATE looks for one itself as before. The import result says
+            how many were saved and how many couldn't be loaded. The review already shows the RYM cover for a release when it loads. Untick "Cover art links" in the review to skip them.
+          ALSO: the cover check now gives up on a picture that never answers after about 6 seconds, so one slow image server can't hold up an import (this applies to crate-file imports too).
+          VERIFIED: the add-on's cover picking (40 checks in all) and, with the REAL extension on pages built several ways (14), covers from a link, a lazy-loaded picture, a size list, a share
+            image, a related-releases picture (refused), a blank stand-in (refused), an http picture (never kept) and the options' selector; and CRATE's side (8): a good, a dead (404), an insecure
+            and a script cover; covers switched off; a picture that never answers. NOT VERIFIED: whether RYM's image server will show its pictures on other sites at all. If it refuses, the check
+            leaves every cover blank and nothing is broken, and the import result will say that none could be loaded. Thumbnails from a list may also be small; if so tell me what size you see.
+
 
   1.37.0 — 2026-10-24 — Pull releases in from Rate Your Music: a release page, or a whole genre (needs the add-on, now 1.7.0).
 
@@ -8164,7 +8179,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.37.0';
+const APP_VERSION = '1.37.1';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -23319,7 +23334,7 @@ const cxCoverCache = new Map(), cxCoverInflight = new Map(), cxCoverWait = [];
 let cxCoverBusy = 0, cxCoverObs = null;
 function cxLoadView() { try { const v = localStorage.getItem(CX_VIEW_KEY); return v === 'grid' || v === 'off' ? v : 'list'; } catch (e) { return 'list'; } }
 function cxCoverKey(r) { return dupKey(r.artist, r.title) + '|' + (r.cover || '') + '|' + (r.link || ''); }
-function cxProbe(url) { return new Promise(res => { const im = new Image(); im.onload = () => res(true); im.onerror = () => res(false); im.src = url; }); }
+function cxProbe(url) { return new Promise(res => { let done = false; const end = (ok) => { if (!done) { done = true; clearTimeout(t); res(ok); } }; const im = new Image(), t = setTimeout(() => end(false), 6000); im.onload = () => end(true); im.onerror = () => end(false); im.src = url; }); }       // (a picture that never answers must not hold up a whole import)
 function cxResolveCover(r) {
   const key = cxCoverKey(r);
   if (cxCoverCache.has(key)) return Promise.resolve(cxCoverCache.get(key));
@@ -23412,7 +23427,7 @@ function cxImpRender() {
   cxCoverObserve();
 }
 async function cxImpRun(list) {                // list: [{ idx, shaped }]
-  const st = cxImp; st.running = true; st.cancel = false; st.added = []; st.failed = [];
+  const st = cxImp; st.running = true; st.cancel = false; st.added = []; st.failed = []; st.coverOk = 0; st.coverMiss = 0;
   cxImpShow('cxImpProgress'); cxEl('cxImpResult').hidden = true; cxEl('cxImpCancel').hidden = false; cxEl('cxImpCancel').disabled = false;
   const total = list.length;
   for (let i = 0; i < total; i++) {
@@ -23420,6 +23435,10 @@ async function cxImpRun(list) {                // list: [{ idx, shaped }]
     const it = list[i];
     cxEl('cxImpProgText').textContent = `Adding ${i + 1} of ${total} \u2014 ${it.shaped.artist} \u2014 ${it.shaped.title}`;
     cxEl('cxImpBar').style.width = `${Math.round(i / total * 100)}%`;
+    if (st.rym && it.shaped.cover) {                        // a cover from Rate Your Music is saved only if it really loads from here: the deck shows a saved cover as it is, with no fallback, so a broken one would be worse than none
+      cxEl('cxImpProgText').textContent += ' \u2014 checking its cover';
+      if (await cxProbe(it.shaped.cover)) st.coverOk++; else { it.shaped = Object.assign({}, it.shaped, { cover: '' }); st.coverMiss++; }
+    }
     try { const res = await postUpdate(cxAddPayload(it.shaped)); st.added.push({ idx: it.idx, albumId: (res && res.albumId) || '', shaped: it.shaped }); }
     catch (e) { st.failed.push({ idx: it.idx, shaped: it.shaped, error: String((e && e.message) || e) }); if (/unauthorized/i.test(String(e && e.message))) break; }
   }
@@ -23435,6 +23454,7 @@ async function cxImpRun(list) {                // list: [{ idx, shaped }]
   }
   st.running = false;
   const lines = [`<b>${cxN(st.added.length, 'release')}</b> added${notTried ? `, ${notTried} not attempted (stopped)` : ''}${st.failed.length ? `, <b>${st.failed.length}</b> failed` : ''}.`];
+  if (st.rym && (st.coverOk || st.coverMiss)) lines.push(`Covers from Rate Your Music: <b>${st.coverOk}</b> saved${st.coverMiss ? `, ${st.coverMiss} couldn\u2019t be loaded from here, so CRATE will look for ${st.coverMiss === 1 ? 'that one' : 'those'} itself` : ''}.`);
   if (st.skipped && st.skipped.length) lines.push(`${cxN(st.skipped.length, 'release')} skipped \u2014 already in your crate: ${st.skipped.map(r => escapeHtml(r.artist + ' \u2014 ' + r.title)).join(', ')}.`);
   if (scFailed) lines.push(`${cxN(scFailed, 'release')} added, but their SoundCloud song links couldn\u2019t be attached.`);
   if (st.failed.length) lines.push(`<ul class="cx-fails">${st.failed.map(f => `<li>${escapeHtml(f.shaped.artist)} \u2014 ${escapeHtml(f.shaped.title)}: ${escapeHtml(f.error)}</li>`).join('')}</ul>`);
@@ -28678,7 +28698,7 @@ function rymCleanOutbox(list) {                                  // untrusted: o
     source: { url: str(b && b.source && b.source.url, 300), title: str(b && b.source && b.source.title, 200).trim() },
     releases: (Array.isArray(b && b.releases) ? b.releases : []).slice(0, 600).map(r => ({
       artist: str(r && r.artist, 200).trim(), title: str(r && r.title, 200).trim(), type: TYPES.includes(r && r.type) ? r.type : 'Album', releaseDate: /^\d{4}(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?)?$/.test(r && r.releaseDate) ? r.releaseDate : '',
-      genre: str(r && r.genre, 200).trim(), secondaryGenre: str(r && r.secondaryGenre, 200).trim(), rymLink: /^https:\/\/rateyourmusic\.com\/release\//.test(str(r && r.rymLink, 300)) ? str(r.rymLink, 300) : '',
+      genre: str(r && r.genre, 200).trim(), secondaryGenre: str(r && r.secondaryGenre, 200).trim(), rymLink: /^https:\/\/rateyourmusic\.com\/release\//.test(str(r && r.rymLink, 300)) ? str(r.rymLink, 300) : '', cover: /^https:\/\/[^\s"'<>]+$/.test(str(r && r.cover, 500)) ? str(r.cover, 500) : '',
       tracks: (Array.isArray(r && r.tracks) ? r.tracks : []).slice(0, 200).map((t, i) => ({ n: i + 1, title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), s: 'rym' })).filter(t => t.title) })).filter(r => r.artist && r.title).slice(0, 300) })).filter(b => b.id && b.releases.length);
 }
 function rymOutboxArrived(batches) {
