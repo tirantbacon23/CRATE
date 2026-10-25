@@ -19,7 +19,40 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.40.0
+  CURRENT_VERSION: 1.40.2
+
+  1.40.2 — 2026-10-25 — Split releases: all 19 tracks (not 4 called "Dropdead"), a catalogue number that was really your own cataloguing box, and "Swirlies / & Dropdead" (needs the add-on, now 1.9.1).
+
+          WHAT YOU SENT (the Swirlies / Dropdead split): the add-on read 4 tracks, all titled "Dropdead", the deck showed those four, the catalogue number came out as "In collection, On wishlist, Used to own, (not
+            cataloged)", and the artist was saved as "Swirlies / & Dropdead". Three separate faults, all found from your Diagnose report:
+          1. TRACKS. On a split release each row is an artist link and a song link side by side ("Dropdead", " - Suck"). The second piece starts with a dash, which my reader takes for a sub-item ("- Piece One 3:58") and folds
+            away, leaving the artist alone as the title. Each row's title is now read as ONE piece ("Dropdead - Suck", as the page shows it), without the lyrics button, credits or length. And only 4 of the 19 rows were even
+            recognised: a rated row starts with its rating and this release has no lengths, so nothing marked it as a track. A row now counts if it has a track number (first, or just after a rating and its vote count) and a title.
+          2. CATALOGUE NUMBER. The page has a "Catalog" heading in YOUR cataloguing box (In collection / On wishlist / Used to own); I read that. Label, catalogue number and descriptors are now looked for only in the
+            release's own info table, and never in that box.
+          3. ARTIST. In a list (genre, chart, artist page) several artists were always joined with " & ". They are now joined the way the page writes them: "A / B" for a split, "A, B", else "A & B". The full release date was
+            also being read as just the year when the day and month sit as text beside the year's link ("4 May 1991"); it now reads 1991-05-04.
+          REPAIRING WHAT YOU ALREADY HAVE: open the release's page on RYM and press "Update CRATE from this page". A tracklist whose tracks all have the same title (four called "Dropdead") now counts as blank, so the real
+            tracklist is offered TICKED, "fills a blank", instead of unticked as a difference (and "Apply all" applies it). The review also offers the artist name when yours differs from RYM's only in the separators
+            ("Swirlies / & Dropdead" -> "Swirlies / Dropdead"), ticked; a different case or accent is left alone.
+          VERIFIED: a page built from your Diagnose report with the real extension (19 rows, rated and unrated, vinyl numbers, artist + song links, no lengths, your cataloguing box next to the info table): 19 tracks as
+            "Artist - Song" with the right ratings, the full date, genres, descriptors, no catalogue number, the 1200 cover from cdn.sonemic.net (11); the update plan (21 checks, with the cases that must NOT change); and
+            CRATE repairing a release holding the broken list, in the review and with "Apply all" (6). Each of the three reading fixes was broken on purpose and caught. NOT VERIFIED: a Label row (this release has none: its info
+            table lists no label), and releases with several labels or catalogue numbers.
+
+
+  1.40.1 — 2026-10-25 — One review for everything you've sent, not one per page (works with the add-on you have; no new add-on needed).
+
+          WHAT YOU SAW: sending 15 releases from one RYM page and 15 from the next gave two separate import reviews, each of 15. Each page you send is kept as its own batch and "Review" opened only the first.
+          NOW: "Review" (and ⚙ → "Import from Rate Your Music…") opens ONE review of everything waiting that adds releases: 15 + 15 is one review of 30. A release that is on more than one page (same RYM address, else
+            same artist and title) is listed once, with the blanks of one filled from the other (a label from one page, a cover from the other), and the note at the top says so ("3 releases were on more than one page and are
+            listed once"). Two releases with the same name but different RYM addresses (two editions) stay two entries. They are in the order you sent them. Adding releases them ALL from the add-on; if the add-on's add fails,
+            all the pages stay waiting.
+          UPDATES ("Update CRATE from this page") are not merged into that: they are reviewed one at a time, or all at once with "Apply all" (it appears when two or more are waiting). When both kinds are waiting, Review opens
+            the combined import first.
+          VERIFIED (10 checks, breaking the combining brings your symptom back: a review of 15): the bar counting 30, one review of 27 for two overlapping pages of 15, in order, the note, blanks filled across pages, all ticked,
+            added as 25 + 2, both pages released, editions kept apart, and both pages staying waiting when the add fails.
+
 
   1.40.0 — 2026-10-25 — Faster imports that run in the background; bigger covers, and covers on update; label, catalogue number and descriptors; and the tracklists that wouldn't pull (needs the add-on, now 1.9.0; the speed-up and the descriptors field also need the backend script re-deployed).
 
@@ -8311,7 +8344,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.40.0';
+const APP_VERSION = '1.40.2';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -28940,7 +28973,8 @@ function rymUpdatePlan(item, rel, oldRows, minNext) {
   const out = [], lc = (s) => String(s || '').trim().toLowerCase();
   const add = (key, label, current, proposed, kind, extra) => out.push(Object.assign({ key, label, current, proposed, kind, checked: kind !== 'differs' }, extra || {}));
   const ca = String(item.artist || '').trim(), ta = rymTidyName(ca);
-  if (ta && ta !== ca) add('artist', 'Artist name', ca, ta, 'refine');         // the saved artist picked up the page's wording: offered first, ticked
+  if (ta && ta !== ca) add('artist', 'Artist name', ca, ta, 'refine');
+  else if (ca && rel.artist && ca.toLowerCase() !== String(rel.artist).trim().toLowerCase() && ca.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '') === String(rel.artist).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')) add('artist', 'Artist name', ca, String(rel.artist).trim(), 'refine');          // the same artists, written with different separators ("Swirlies / & Dropdead" for "Swirlies / Dropdead"): offered, ticked; a different CASE is left alone         // the saved artist picked up the page's wording: offered first, ticked
   const cd = String(item.releaseDate || '').trim(), nd = String(rel.releaseDate || '').trim();
   if (nd && nd !== cd) {
     if (!cd) add('date', 'Release date', '', nd, 'fill');
@@ -28969,7 +29003,9 @@ function rymUpdatePlan(item, rel, oldRows, minNext) {
     const asg = tlAssignNumbers(old, nt.map(t => ({ title: t.title, durationMs: t.durationMs || 0, section: t.section || '', s: 'rym', rymRating: t.rating || 0 })), minNext);
     const ok = old.map(r => tlKey(r.title)).join('|'), nk = nt.map(t => tlKey(t.title)).join('|');
     let kind = null;
+    const broken = old.length >= 3 && new Set(old.map(r => tlKey(r.title))).size === 1;          // three or more tracks all with the same title (four called "Dropdead") is a wrong list, not one of yours: it counts as blank
     if (!old.length) kind = 'fill';
+    else if (broken && nt.length > old.length) kind = 'fill';
     else if (ok !== nk) kind = 'differs';
     else if (nt.some((t, i) => t.durationMs > 0 && !(old[i].durationMs > 0))) kind = 'refine';
     if (kind) add('tracks', 'Tracklist', old.length ? `${old.length} track${old.length === 1 ? '' : 's'}` : '', `${nt.length} tracks`, kind, { rows: asg.rows, matched: asg.matched, fresh: asg.fresh, dropped: asg.dropped.map(d => d.title) });
@@ -29073,12 +29109,32 @@ async function rymFillTracklists() {
   try { await fetchCatalog(); } catch (e) { /* the sheet is updated; the list refreshes next time */ }
   flashGlobalToast(`Filled ${ok} tracklist${ok === 1 ? '' : 's'}${failed ? `; ${failed} couldn\u2019t be saved \u2014 try again` : ''}.`);
 }
-function openRymBatch(batch) { if (!batch) return; if (batch.kind === 'update') openRymUpdate(batch); else openRymImport(batch); }
+// Everything waiting that ADDS releases, as ONE batch: 15 sent from one page and 15 from the next are one review of 30, not two. A release on more than one page (same RYM address, else the same artist and
+// title) is listed once, with the blanks of one filled from the other. Oldest page first, so the review reads in the order you sent them.
+function rymMergeBatches(batches) {
+  const list = (batches || []).filter(b => b && b.kind !== 'update' && b.releases && b.releases.length); if (!list.length) return null;
+  const seen = new Map(), out = []; let dupes = 0;
+  list.slice().reverse().forEach(b => b.releases.forEach(r => {
+    const k = rymPathOfUrl(r.rymLink) || ('t:' + dupKey(r.artist, r.title)), first = seen.get(k);
+    if (!first) { const c = Object.assign({}, r); seen.set(k, c); out.push(c); return; }
+    dupes++;
+    Object.keys(r).forEach(f => { if (f === 'tracks') { if ((!first.tracks || !first.tracks.length) && r.tracks && r.tracks.length) first.tracks = r.tracks; } else if (!String(first[f] == null ? '' : first[f]).trim() && String(r[f] == null ? '' : r[f]).trim()) first[f] = r[f]; });
+  }));
+  const names = list.slice().reverse().map(b => b.source && b.source.title).filter(Boolean);
+  return { id: list[0].id, ids: list.map(b => b.id), kind: 'list', genre: list.length === 1 ? list[0].genre : '', source: { url: '', title: list.length === 1 ? (names[0] || '') : `${list.length} pages (${names.slice(0, 3).join('; ')}${names.length > 3 ? '; \u2026' : ''})` }, releases: out, dupes };
+}
+function openRymBatch(batch) {
+  if (!batch) return;
+  const merged = rymMergeBatches(rymOutState.batches);
+  if (merged) openRymImport(merged);                                    // anything that adds releases: ONE review of all of it (updates are reviewed one by one, or with "Apply all")
+  else if (batch.kind === 'update') openRymUpdate(batch);
+  else openRymImport(batch);
+}
 function openRymImport(batch) {
   if (!batch) return;
   openCxImport();
   cxImpRead(JSON.stringify({ format: CX_FORMAT, version: CX_VERSION, releases: batch.releases.map(r => Object.assign({}, r, { tracks: r.tracks && r.tracks.length >= 2 ? r.tracks : [] })) }));
-  if (cxImp) { cxImp.rym = { ids: [batch.id] }; const src = cxEl('cxImpSource'); src.textContent = `From Rate Your Music: ${batch.source.title || 'a page you sent'}${batch.genre ? ' \u00b7 genre ' + batch.genre : ''}. Nothing is added until you press Add.`; src.hidden = false; }
+  if (cxImp) { cxImp.rym = { ids: batch.ids || [batch.id] }; const src = cxEl('cxImpSource'); src.textContent = `From Rate Your Music: ${batch.source.title || 'a page you sent'}${batch.genre ? ' \u00b7 genre ' + batch.genre : ''}.${batch.dupes ? ` ${batch.dupes} release${batch.dupes === 1 ? ' was' : 's were'} on more than one page and ${batch.dupes === 1 ? 'is' : 'are'} listed once.` : ''} Nothing is added until you press Add.`; src.hidden = false; }
 }
 async function rymImportFromMenu() {
   el.layoutMenu.hidden = true;
