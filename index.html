@@ -19,7 +19,28 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.42.0
+  CURRENT_VERSION: 1.43.0
+
+  1.43.0 — 2026-10-25 — "Update from Rate Your Music": a button on a release, and on a selection of releases, that has the add-on open each Rate Your Music page in a background tab, read it, and close it (needs the add-on, now 1.10.0).
+
+          WHERE: a release's page has an "update ↻" button beside its RYM link (shown when the release has a Rate Your Music link), and the right-click menu on an album card has "Update from Rate Your Music". Select several
+            cards (Ctrl-click or Shift-click) and right-click one of them: it says "Update 3 selected from Rate Your Music…". One release just goes; several ask first (how many, how long, and that nothing changes until you press
+            Apply), and releases with no RYM link are skipped and counted.
+          WHAT IT DOES: the add-on opens the pages ONE AT A TIME in a background tab, lets each settle, reads it exactly as "Update CRATE from this page" does, closes it, waits, and opens the next. The updates arrive in the bar
+            as waiting updates, so "Apply all" (what is new only: blanks filled, never what differs) or Review does the rest. Nothing is changed in CRATE by the run itself. A status bar at the bottom left shows the progress with
+            a Cancel; what was read before a cancel or a stop is kept. Each page it visits also records its rating, rank and tracklist for CRATE, as a visit of your own would.
+          MADE TO BE SLOW AND TO STOP, because this is automated visiting of a site that discourages it and that uses anti-bot checks: a pause of 8 to 15 seconds between pages (never less than 6, whatever a page asks for: only
+            a setting no web page can set lifts that); at most 25 pages in a run and 120 in 24 hours; only https://rateyourmusic.com/release/… addresses are ever opened (not another site, an artist page, javascript:, http or a
+            look-alike domain). It STOPS at the first page that asks for a check ("Just a moment…", a captcha) or can't be read or times out, and leaves THAT page open in front of you instead of closing it; a page that no longer
+            exists is skipped and the run goes on; closing the page yourself ends the run. It is not hidden: it is you pressing a button, and it behaves like you opening those links one after another, slowly.
+          NO NEW PERMISSION: the add-on still asks only for storage and scripting (opening and closing tabs needs none). It gains a background script, which is what carries the run on while you do something else.
+          ALSO CHANGED: the waiting list held 12 batches and now holds 60 (the add-on's and CRATE's): a run of 25 would otherwise have lost 13.
+          VERIFIED, in three layers: the REAL extension against a local stand-in for rateyourmusic.com (18 checks: one at a time never two open, in order, with a pause, the update each page leaves, a check page stops it and stays open
+            and the next is never requested, a 404 is skipped, only RYM release addresses, cut to 25, busy, the daily limit, closing the page, an ordinary visit is not a run); the bridge between CRATE and the add-on with CRATE's
+            real code (11); CRATE's side with a stub add-on (22: the button, the menu, a selection and its question, the cap, progress, cancel, every refusal). Breaking the pause floor, the stop-at-a-check rule and the address rule
+            is caught (the first attempt wasn't, which was a flaw in my test; it is fixed). NOT VERIFIED, and I can't from here: how the real Rate Your Music behaves toward background tabs; whether its check pages look like
+            "Just a moment…" (anything else is still caught as "couldn't be read", after 25 seconds, and stops the run the same way); and the real timings. Try it on two or three releases first.
+
 
   1.42.0 — 2026-10-25 — Bold means what it means on Rate Your Music: a release ranked in RYM's overall top 7,500, not one with a high rating (needs the add-on, now 1.9.3, and the backend script re-deployed).
 
@@ -7321,6 +7342,7 @@
           <input type="text" inputmode="decimal" id="deckRym" placeholder="–" aria-label="Rate Your Music rating (0.01 to 5)">
           <input type="text" inputmode="numeric" id="deckRymVotes" placeholder="ratings" aria-label="Number of RYM ratings (optional)">
           <a id="deckRymOpen" target="_blank" rel="noopener">find ↗</a>
+          <button type="button" id="deckRymUpdate" class="deck-rym-update" title="Opens this release's Rate Your Music page in a background tab, reads it and closes it. Nothing changes until you press Apply." hidden>update ↻</button>
         </div>
         <details class="deck-rym-hist" id="deckRymHist" hidden><summary id="deckRymHistSum"></summary><div id="deckRymHistBody"></div></details>
       </div>
@@ -8392,7 +8414,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.42.0';
+const APP_VERSION = '1.43.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -8839,6 +8861,7 @@ function deckRymPaint(item) {                                   // the album pag
   if (document.activeElement !== inp) inp.value = item.rymRating ? item.rymRating.toFixed(2) : '';
   if (document.activeElement !== vot) vot.value = item.rymVotes ? String(item.rymVotes) : '';
   const a = rymEl('deckRymOpen'); a.href = item.rymLink && item.rymLink.trim() ? item.rymLink.trim() : rymSearchUrl(item); a.textContent = item.rymLink ? 'open \u2197' : 'find \u2197';
+  rymEl('deckRymUpdate').hidden = !rymUpdateUrl(item);
   el.deckTitle.classList.toggle('rym-bold', !!rymBoldClass(item));
   rymPaintHist(item);
 }
@@ -8855,6 +8878,7 @@ function initRymRatings() {
   ov.addEventListener('mousedown', (e) => { if (e.target === ov) closeRymDialog(); });
   const setting = (id, key, num) => rymEl(id).addEventListener('change', (e) => { if (num) { const v = rymNum(e.target.value); if (!v) { e.target.value = String(state[key]); return; } state[key] = v; } else state[key] = e.target.checked; savePrefs(); rymRefreshViews(); });
   setting('rymShowNext', 'rymShowNext'); setting('rymBold', 'rymBold'); setting('rymAuto', 'rymAuto'); rymEl('rymBoldRank').addEventListener('change', (e) => { const v = rymVotesNum(e.target.value); if (!v) { e.target.value = String(state.rymBoldRank); return; } state.rymBoldRank = v; savePrefs(); rymRefreshViews(); });
+  rymEl('deckRymUpdate').addEventListener('click', () => { if (activeItem) rymFetchUpdates([activeItem]); });
   rymEl('rymQEFilter').addEventListener('change', () => { rymQEShown = 40; rymPaintQE(); }); rymEl('rymQESort').addEventListener('change', () => { rymQEShown = 40; rymPaintQE(); });
   rymEl('rymQEMore').addEventListener('click', () => { rymQEShown += 40; rymPaintQE(); });
   rymEl('rymAddonCheck').addEventListener('click', () => { rymRequestFromAddon(); flashGlobalToast('Asked the add-on for the ratings it has seen.'); });
@@ -16926,6 +16950,7 @@ function openAlbumCardContextMenu(item, x, y) {
 
   const menu = document.createElement('div');
   menu.className = 'panel-mode-menu now-playing-add-menu album-card-menu';
+  const selItems = (state.selectedAlbums.size > 1 && state.selectedAlbums.has(String(item.row))) ? state.raw.filter(r => state.selectedAlbums.has(String(r.row))) : [item];
   menu.innerHTML = `
     <div class="menu-section-title">${escapeHtml(item.title)}</div>
     <button type="button" data-card-action="play">▶ Play now</button>
@@ -16938,6 +16963,7 @@ function openAlbumCardContextMenu(item, x, y) {
     <div class="menu-divider"></div>
     <button type="button" data-card-action="spotify">Open on Spotify ↗</button>
     <button type="button" data-card-action="rym">View on RateYourMusic ↗</button>
+    <button type="button" data-card-action="rymUpdate">${selItems.length > 1 ? `Update ${selItems.length} selected from Rate Your Music\u2026` : 'Update from Rate Your Music'}</button>
     <button type="button" data-card-action="match">Match songs to Spotify / YouTube…</button>
     ${state.activePlaylistId ? '<div class="menu-divider"></div><button type="button" class="remove-menu-btn" data-card-action="removeFromPlaylist">Remove from playlist</button>' : ''}
     <div class="menu-divider"></div>
@@ -16976,6 +17002,7 @@ function openAlbumCardContextMenu(item, x, y) {
     else if (action === 'queue') queueAlbumTracks(item);
     else if (action === 'spotify') openAlbumOnSpotify(item);
     else if (action === 'rym') openAlbumOnRym(item);
+    else if (action === 'rymUpdate') rymFetchUpdates(selItems);
     else if (action === 'match') openSongMatcher(item);
     else if (action === 'removeFromPlaylist') removeAlbumFromActivePlaylist(item);
     else if (action === 'delete') deleteAlbumFromContextMenu(item);
@@ -23881,7 +23908,8 @@ function initAddonBridge() {
   const bgBar = document.getElementById('bgStatus');
   if (bgBar) bgBar.addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b) return;
-    if (b.id === 'bgStatusCancel' && cxImp) cxImp.cancel = true;
+    if (b.id === 'bgStatusCancel' && rymFetchState.active) rymFetchCancel();
+    else if (b.id === 'bgStatusCancel' && cxImp) cxImp.cancel = true;
     else if (b.id === 'bgStatusView') { const ov = document.getElementById('cxImportOverlay'); if (ov) ov.hidden = false; bgStatusHide(); }
     else if (b.id === 'bgStatusClose') bgStatusHide();
   });
@@ -28990,6 +29018,46 @@ function bgStatus(text, pct, opts) {
   bar.hidden = false; document.getElementById('bgStatusText').textContent = text; document.getElementById('bgStatusFill').style.width = (pct == null ? 100 : Math.max(0, Math.min(100, pct))) + '%';
   document.getElementById('bgStatusCancel').hidden = !opts.cancel; document.getElementById('bgStatusView').hidden = !opts.view; document.getElementById('bgStatusClose').hidden = !opts.close;
 }
+// ---- "Update from Rate Your Music": the add-on opens the release pages ONE AT A TIME in a background tab, reads each as "Update CRATE from this page" does, and closes it. The add-on paces it (8-15 seconds between
+// pages), caps it (25 a run, 120 a day) and stops at the first page that asks for a check. Nothing is changed here by it: the pages' details arrive as waiting updates, to Review or "Apply all". ----
+const rymFetchState = { active: false, total: 0, ackTimer: 0 };
+function rymUpdateUrl(item) { const p = rymPathOfUrl(item && item.rymLink); return p ? 'https://rateyourmusic.com' + p + '/' : ''; }
+function rymFetchWhy(reason, r) {
+  return ({ busy: 'An update from Rate Your Music is already running.', nothing: 'None of those has a usable Rate Your Music link.', daily: `The add-on keeps to 120 pages a day, and ${(r && r.left) || 0} ${(r && r.left) === 1 ? 'is' : 'are'} left today.`,
+    challenge: 'Rate Your Music asked for a check on the page it opened. That page is in front of you: pass it, then try again a little later.', timeout: 'a page didn\u2019t finish loading in time.', unreadable: 'a page couldn\u2019t be read.',
+    closed: 'you closed the page while it was being read.', noanswer: 'The add-on didn\u2019t answer. Update it to 1.10 or later and check it is connected to this page.' })[reason] || `something went wrong (${reason || 'unknown'}).`;
+}
+function rymFetchUpdates(items) {
+  items = (items || []).filter(Boolean); const todo = items.filter(it => rymUpdateUrl(it)), noLink = items.length - todo.length;
+  if (!todo.length) { flashGlobalToast(items.length === 1 ? 'This release has no Rate Your Music link to open. Add one in Edit, or open its page on RYM and use \u201cUpdate CRATE from this page\u201d.' : 'None of those has a Rate Your Music link to open.'); return; }
+  if (rymFetchState.active) { flashGlobalToast(rymFetchWhy('busy')); return; }
+  const use = todo.slice(0, 25), over = todo.length - use.length;
+  if (use.length > 1) {
+    const mins = Math.max(1, Math.round(use.length * 14.5 / 60));
+    if (!confirm(`Open ${use.length} Rate Your Music pages, one at a time, each in a background tab that closes itself, and read them?\n\nIt takes about ${mins} minute${mins === 1 ? '' : 's'}: there is a pause of 8 to 15 seconds between pages, on purpose, so Rate Your Music isn\u2019t hit quickly. If it asks for a check, the run stops and shows you that page.\n\nNothing in CRATE changes until you press Apply.${noLink ? `\n\n${noLink} without a Rate Your Music link ${noLink === 1 ? 'is' : 'are'} skipped.` : ''}${over ? `\n\n${over} more than 25: do ${over === 1 ? 'that one' : 'those'} in another run.` : ''}`)) return;
+  }
+  window.postMessage({ source: 'crate-app', type: 'rym-fetch-start', items: use.map(it => ({ id: it.row, url: rymUpdateUrl(it) })) }, window.location.origin);
+  clearTimeout(rymFetchState.ackTimer); rymFetchState.ackTimer = setTimeout(() => { if (!rymFetchState.active) flashGlobalToast(rymFetchWhy('noanswer')); }, 3000);
+}
+function rymFetchCancel() { window.postMessage({ source: 'crate-app', type: 'rym-fetch-cancel' }, window.location.origin); }
+function rymFetchProgress(d) {
+  const n = d.total || 0, plural = n === 1 ? '' : 's';
+  if (d.state === 'starting' || d.state === 'loading' || d.state === 'gap') {
+    rymFetchState.active = true; rymFetchState.total = n; bgStatus(`Reading Rate Your Music pages \u2014 ${d.done} of ${n}${d.state === 'gap' ? ' (pausing between pages)' : ''}`, n ? d.done / n * 100 : 0, { always: true, cancel: true }); return;
+  }
+  rymFetchState.active = false;
+  if (d.state === 'done') { bgStatus(`Read ${d.ok} of ${n} page${plural}${d.skipped ? ` (${d.skipped} no longer on Rate Your Music)` : ''}. Apply all, or Review, in the bar.`, 100, { always: true, close: true }); flashGlobalToast(`Read ${d.ok} Rate Your Music page${d.ok === 1 ? '' : 's'}: press \u201cApply all\u201d (or Review) in the bar to put the updates in.`); }
+  else if (d.state === 'cancelled') bgStatus(`Stopped: read ${d.ok} of ${n} page${plural}. What was read is waiting in the bar.`, 100, { always: true, close: true });
+  else if (d.state === 'stopped') { const why = rymFetchWhy(d.reason); bgStatus(`Stopped after ${d.ok} of ${n}: ${why}`, 100, { always: true, close: true }); flashGlobalToast(`Stopped after reading ${d.ok} of ${n}: ${why}`); }
+}
+window.addEventListener('message', (e) => {
+  if (e.source !== window || e.origin !== window.location.origin) return;
+  const d = e.data; if (!d || d.source !== 'crate-addon') return;
+  if (d.type === 'rym-fetch-ack' && d.for === 'rym-fetch-start') {
+    clearTimeout(rymFetchState.ackTimer); const r = d.resp || {};
+    if (r.ok) { rymFetchState.active = true; rymFetchState.total = r.accepted || 0; bgStatus(`Reading Rate Your Music pages \u2014 0 of ${r.accepted}`, 0, { always: true, cancel: true }); } else flashGlobalToast(rymFetchWhy(r.reason, r));
+  } else if (d.type === 'rym-fetch-progress') rymFetchProgress(d);
+});
 function bgStatusHide() { const bar = document.getElementById('bgStatus'); if (bar) bar.hidden = true; }
 function rymAskOutbox(ms) {                                      // -> the batches waiting in the add-on, or null if it didn't answer in time (not installed, not connected, or older than 1.7)
   return new Promise((resolve) => {
@@ -29000,7 +29068,7 @@ function rymAskOutbox(ms) {                                      // -> the batch
 }
 function rymCleanOutbox(list) {                                  // untrusted: only text and numbers, bounded, and only types CRATE has
   const str = (x, n) => typeof x === 'string' ? x.slice(0, n) : '', TYPES = ['Album', 'EP', 'Single', 'Compilation', 'Live', 'Mixtape'];
-  return (Array.isArray(list) ? list : []).slice(0, 12).map(b => ({
+  return (Array.isArray(list) ? list : []).slice(0, 60).map(b => ({
     id: str(b && b.id, 40), t: Number(b && b.t) || 0, kind: b && b.kind === 'release' ? 'release' : b && b.kind === 'update' ? 'update' : 'list', genre: str(b && b.genre, 100).trim(),
     source: { url: str(b && b.source && b.source.url, 300), title: str(b && b.source && b.source.title, 200).trim() },
     releases: (Array.isArray(b && b.releases) ? b.releases : []).slice(0, 600).map(r => ({
@@ -35006,6 +35074,9 @@ html, body {
 
   .import-scroll { max-height: 180px; overflow-y: auto; margin-bottom: 4px; }
 
+  .deck-rym-update { background: none; border: 1px solid var(--line); color: var(--text-dim); border-radius: 6px; font-size: 11px; padding: 2px 8px; margin-left: 6px; cursor: pointer; }
+  .deck-rym-update:hover { color: var(--accent); border-color: var(--accent); }
+  .deck-rym-update[hidden] { display: none; }
   .bg-status { position: fixed; left: 16px; bottom: 96px; z-index: 160; max-width: min(92vw, 520px); display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--panel, #1B212B); color: var(--text); border: 1px solid var(--line, #3a4352); border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.45); font-size: 12px; }
   .bg-status[hidden] { display: none; }
   .bg-status-track { flex: 1 1 80px; min-width: 60px; height: 4px; background: rgba(255,255,255,.12); border-radius: 2px; overflow: hidden; }
