@@ -19,7 +19,35 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.43.0
+  CURRENT_VERSION: 1.43.2
+
+  1.43.2 — 2026-10-26 — Tracklists: a side called just "A" no longer becomes the title "A", and a title like "1490" is pulled (needs the add-on, now 1.10.1; the page itself is unchanged).
+
+          WHAT YOU SAW: a track on a side numbered only "A" got the title "A", while "B1" and "B2" gave their real titles; and a track called "1490" was missing.
+          CAUSE, ONE WEAKNESS TWICE: the reader tells a track NUMBER from a TITLE by what each looks like. It knew numbers like 3, 03., A1 and B2, but not a side on its own: "A" has a letter in it, so it was taken for the title
+            and the real one was dropped. And a title made only of digits ("1490") was accepted only when the row had two digit pieces (the number and the title); next to a vinyl number (A1, B2) there is just one.
+          NOW: a side letter on its own (A to H, and AA/BB for a double A-side) is the track number whenever the row has something else that can be the title: a piece with letters, or digits after it. A track REALLY called
+            "A" still keeps its title (with a number of its own before it, "1" "A"; on a numbered side, "B2" "A"; or alone with a length). A title of digits is pulled whenever the row has a number piece of any kind (3, A1, 1-04,
+            a side letter), and a row whose only number is a side letter, or whose only title is 4+ digits ("1490"), now counts as a track row at all even with no length and no rating. A row with only digits and a length and no
+            number ("1490", "3:20") is still not a track, as before, so the guards against ratings and vote counts being read as titles are unchanged.
+          VERIFIED: 20 rows by hand and 5 new unit checks (55 in all), and the real extension on a page with sides A, B1, B2, C1 (title 1490), D, E, with lengths and without, with the rating first, and tracks really named "A"
+            (6 checks); breaking each rule is caught (one of my first two break-tests wasn't, which showed my page didn't exercise it; I added the page that does). Full regression: see below. NOT VERIFIED: a title of only 1-3
+            digits next to a bare number ("7" "99") is read as before, which is right for "7 / 99" but would be wrong for a number you wanted as a title when the real number is missing from the page.
+
+
+  1.43.1 — 2026-10-26 — The cover from the release page (cdn.sonemic.net) replaces the small one from a genre list (e.snmc.io). Page only: no new add-on or backend.
+
+          WHAT YOU SAW: a release that came from a genre page kept that page's small picture, and updating it from its own release page didn't replace it. Rate Your Music serves pictures from two addresses: the older e.snmc.io
+            (what its lists and genre pages show, small) and the current cdn.sonemic.net (what a release page shows).
+          TWO CAUSES, BOTH FIXED: (1) "Update from Rate Your Music" only offered a better cover when the old and new pictures were on the SAME address, so e.snmc.io was never replaced by cdn.sonemic.net. (2) When the same release was
+            on two pages you sent (the genre page and its own page), the review kept whichever picture it saw FIRST, which was the genre page's.
+          THE RULE NOW, for both: the cdn.sonemic.net picture replaces an e.snmc.io one, and never with a SMALLER size (an e.snmc.io 1200 is kept against a cdn 600, and it never goes back to the old address); within one address the
+            larger size wins and an equal one changes nothing. Then, as before, CRATE tries larger sizes of the chosen picture (1200, 800, 600, 500) and saves the largest that really loads. A cover from anywhere else (Spotify,
+            iTunes) is never touched, and an address that only looks like RYM's (e.snmc.io.evil.com) isn't RYM's.
+          VERIFIED: the rule on its own (26 checks including these), and in the browser with CRATE's real code (11): a release holding the e.snmc.io 300 cover and a release page with the cdn 600 one offers the Cover ticked and saves
+            the cdn picture in the largest size that loads; a Spotify cover and a larger e.snmc.io one are left alone; the same release on two pages, in either order, holds the release page's picture. Putting the old same-address
+            rule back fails both. NOT VERIFIED: that cdn.sonemic.net loads for you at 1200 (CRATE only saves a size it could load, so the worst case is the 600 it was handed, or none).
+
 
   1.43.0 — 2026-10-25 — "Update from Rate Your Music": a button on a release, and on a selection of releases, that has the add-on open each Rate Your Music page in a background tab, read it, and close it (needs the add-on, now 1.10.0).
 
@@ -8414,7 +8442,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.43.0';
+const APP_VERSION = '1.43.2';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -29105,6 +29133,14 @@ function rymBatchDone(ids) {                                     // taken (or th
 // A name that picked up the page's own wording ("Ulver (Album, Trip Hop): Reviews, Ratings, Credits, Song list" from a release page's title) -> "Ulver". Any other name comes back as it was.
 // A Rate Your Music picture's address says its size ("https://e.snmc.io/i/300/s/…"): the candidates to try, largest first, ending with the address itself. Whether a size exists is found by trying it.
 function rymPictureSize(u) { const m = /\/i\/(\d{2,4})\//.exec(String(u || '')); return m ? Number(m[1]) : 0; }
+// Rate Your Music serves pictures from two hosts: the older e.snmc.io (what its lists and genre pages show, small) and the current cdn.sonemic.net (what a release page shows). Of two pictures of one release,
+// the cdn.sonemic.net one replaces an e.snmc.io one (never with a SMALLER size); within one host the larger size wins. A cover from anywhere else (Spotify, iTunes…) is not RYM's and is never judged here.
+function rymImageHost(u) { try { return new URL(String(u || '')).hostname.toLowerCase(); } catch (e) { return ''; } }
+function rymIsRymImage(u) { const h = rymImageHost(u); return h === 'e.snmc.io' || h === 'cdn.sonemic.net' || /\.(snmc\.io|sonemic\.net)$/.test(h); }
+function rymCoverBetter(a, b) {                                   // is picture a worth keeping instead of picture b?
+  const ha = rymImageHost(a) === 'cdn.sonemic.net' ? 1 : 0, hb = rymImageHost(b) === 'cdn.sonemic.net' ? 1 : 0, sa = rymPictureSize(a), sb = rymPictureSize(b);
+  return ha !== hb ? (ha > hb && sa >= sb) : sa > sb;
+}
 function rymCoverCandidates(u) {
   const s = String(u == null ? '' : u).trim(); if (!s) return [];
   const m = /^(https:\/\/[^\/]+\/i\/)(\d{2,4})(\/.*)$/.exec(s), out = [];
@@ -29143,7 +29179,7 @@ function rymUpdatePlan(item, rel, oldRows, minNext) {
   const cc = String(item.cover || '').trim(), nc = String(rel.cover || '').trim();
   if (nc) {
     if (!cc) add('cover', 'Cover', '', 'Rate Your Music\u2019s picture', 'fill', { url: nc });
-    else if (rymPictureSize(cc) && rymPictureSize(nc) > rymPictureSize(cc) && cc.split('/')[2] === nc.split('/')[2]) add('cover', 'Cover', 'a smaller picture', 'a larger one from Rate Your Music', 'refine', { url: nc });       // only RYM's own smaller picture is upgraded; a cover from anywhere else is left alone
+    else if (rymIsRymImage(cc) && rymIsRymImage(nc) && rymCoverBetter(nc, cc)) add('cover', 'Cover', rymImageHost(cc) === 'e.snmc.io' ? 'a smaller picture from a Rate Your Music list' : 'a smaller picture', 'the one from the release page', 'refine', { url: nc });       // only RYM's own picture is replaced by RYM's better one; a cover from anywhere else is left alone
   }
   const cl = String(item.rymLink || '').trim(), nl = String(rel.rymLink || '').trim();
   if (nl) { if (!cl) add('rymLink', 'RYM link', '', nl, 'fill'); else if (rymPathOfUrl(cl) !== rymPathOfUrl(nl)) add('rymLink', 'RYM link', cl, nl, 'differs'); }
@@ -29268,7 +29304,7 @@ function rymMergeBatches(batches) {
     const k = rymPathOfUrl(r.rymLink) || ('t:' + dupKey(r.artist, r.title)), first = seen.get(k);
     if (!first) { const c = Object.assign({}, r); seen.set(k, c); out.push(c); return; }
     dupes++;
-    Object.keys(r).forEach(f => { if (f === 'tracks') { if ((!first.tracks || !first.tracks.length) && r.tracks && r.tracks.length) first.tracks = r.tracks; } else if (!String(first[f] == null ? '' : first[f]).trim() && String(r[f] == null ? '' : r[f]).trim()) first[f] = r[f]; });
+    Object.keys(r).forEach(f => { if (f === 'tracks') { if ((!first.tracks || !first.tracks.length) && r.tracks && r.tracks.length) first.tracks = r.tracks; } else if (f === 'cover') { if (r.cover && (!first.cover || (rymIsRymImage(first.cover) && rymIsRymImage(r.cover) && rymCoverBetter(r.cover, first.cover)))) first.cover = r.cover; } else if (!String(first[f] == null ? '' : first[f]).trim() && String(r[f] == null ? '' : r[f]).trim()) first[f] = r[f]; });          // (the release page's cdn.sonemic.net picture beats the genre page's small e.snmc.io one, whichever came first)
   }));
   const names = list.slice().reverse().map(b => b.source && b.source.title).filter(Boolean);
   return { id: list[0].id, ids: list.map(b => b.id), kind: 'list', genre: list.length === 1 ? list[0].genre : '', source: { url: '', title: list.length === 1 ? (names[0] || '') : `${list.length} pages (${names.slice(0, 3).join('; ')}${names.length > 3 ? '; \u2026' : ''})` }, releases: out, dupes };
