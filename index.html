@@ -19,7 +19,37 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.40.3
+  CURRENT_VERSION: 1.42.0
+
+  1.42.0 — 2026-10-25 — Bold means what it means on Rate Your Music: a release ranked in RYM's overall top 7,500, not one with a high rating (needs the add-on, now 1.9.3, and the backend script re-deployed).
+
+          WHAT WAS WRONG: in 1.31.0 I made an album bold when its RYM rating was at least 3.8 (and a track likewise). That was my own rule, not RYM's.
+          NOW: an album is bold when its overall RANK on RYM is within the top N (7,500 by default; ⚙ → RYM ratings… → "Bold the top-ranked" changes N). A rating has no part in it, and tracks are no longer bold at all (RYM has
+            no such mark on a track, so none is made up). I read "ranked #7500 or below" as rank 7,500 or better, #1 to #7,500, with #7,500 itself included. If you meant the other way round, tell me: it is one line.
+          WHERE THE RANK COMES FROM: the release page's info table says "Ranked #40 for 1991, #1,475 overall". The add-on keeps the OVERALL number (never the year's) beside the rating whenever you open a release page,
+            and CRATE saves it. A release is bold once its rank is known, so existing releases need a visit to their RYM page (or "Update CRATE from this page") first; until then they are not bold, rather than guessed at.
+          HOW IT IS SAVED: on its own, in a new RymRank column, by a new small action in the backend script (setRymRanks) that cannot touch a rating: a rating you typed is never changed by a rank, and a rank with the
+            same rating is saved without rewriting the rating. With the older script the rank is kept on this device (and shown) until the script is updated, with no error.
+          FIXED ALONG THE WAY (found by the test): the page was throwing away any field of the add-on's entries it didn't know, so a rank would have been lost on arrival; it is kept now.
+          VERIFIED: the add-on reads the overall rank (not the year's) from a release page with the real extension, keeps it when a later list-page sighting has none, and updates it when only the rank moved (7); the
+            backend writes it to its own column and never touches a rating, skips junk, caps a request at 500 (6); CRATE saves ranks on their own action, doesn't re-send an unchanged one, keeps a rank beside a typed
+            rating, copes with an older script and with a reload, bolds #312 and #7,500 but not #9,800 or an unranked release, and reads a rank already in the sheet (13); the rating tests are rewritten to the new rule (62).
+            Breaking each safeguard, including the #7,500 boundary, is caught. NOT VERIFIED: the rule itself beyond what you told me, and the real "Ranked" row on a page other than the one in your Diagnose report.
+
+
+  1.41.0 — 2026-10-25 — Search for a track on YouTube or Spotify, to find it yourself.
+
+          WHERE: right-click (or long-press) a track in the deck, the peek or a playlist: Search ▸ now has "Search \u201c<track>\u201d on YouTube \u2197" and "… on Spotify \u2197" under the existing Find artist / Open
+            discography. Each opens a new tab with the search done. On an album's own menu the same two items search the album. In "Edit track properties…" there is a "Search \u2197" beside the YouTube link field and
+            another beside the Spotify one: find the track, then paste its address into the field. That one searches the title as it is typed in the dialog at that moment, so a title you are correcting is searched as corrected.
+          WHAT IS SEARCHED: the artist and the title ("Radiohead Karma Police"). A split release's or a compilation's tracks that are already written "Artist - Song" are searched as they are, with no artist put in front
+            (a "Various Artists" or "Swirlies / Dropdead" in front would only spoil it); an ordinary album's "Roundabout - Live" keeps its artist. With several tracks selected, Search searches the album.
+          NO ACCOUNT, NO LOOKUP: these are plain search addresses opened in your browser (youtube.com/results?search_query=… and open.spotify.com/search/…), so nothing is fetched, saved or matched by CRATE, and nothing
+            changes about how a track is played.
+          VERIFIED: the real track menu, album menu and properties dialog (11 checks) with the new tab captured: the exact addresses for YouTube and Spotify, an apostrophe, a split release, a compilation, an ordinary
+            album's dash, the album search, the title as typed, and that the dialog stays open and its link field untouched; breaking the split/compilation rule or the as-typed rule is caught. NOT VERIFIED: what YouTube
+            and Spotify do with those addresses on your device (Spotify may offer to open its app instead of the web page).
+
 
   1.40.3 — 2026-10-25 — The cover from the release page (found by its own text), and the label and catalogue number from the page's issue line (the page itself is unchanged; this needs the add-on, now 1.9.2).
 
@@ -8164,7 +8194,7 @@
         <p id="rymCoverage" class="snd-coverage" role="status"></p>
         <fieldset class="cx-group"><legend>How it shows</legend>
           <label class="snd-opt"><input type="checkbox" id="rymShowNext"><span><b>Show it next to my rating</b><small>On cards and lists as “RYM 3.65”.</small></span></label>
-          <label class="snd-opt"><input type="checkbox" id="rymBold"><span><b>Bold the best</b><small>An album is bold when its RYM rating is at least <input type="text" inputmode="decimal" id="rymBoldAlbum" class="rym-num"> and a track when its RYM rating is at least <input type="text" inputmode="decimal" id="rymBoldTrack" class="rym-num">. Releases without a rating are never bold.</small></span></label>
+          <label class="snd-opt"><input type="checkbox" id="rymBold"><span><b>Bold the top-ranked</b><small>Like Rate Your Music: a release is bold when it is ranked within RYM\u2019s overall top <input type="text" inputmode="numeric" id="rymBoldRank" class="rym-num"> (its rank is saved when you visit its page, or update it from there). Releases with no known rank are never bold.</small></span></label>
         </fieldset>
         <fieldset class="cx-group"><legend>From the browser add-on</legend>
           <p id="rymAddonStatus" class="sm-dim" role="status"></p>
@@ -8362,7 +8392,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.40.3';
+const APP_VERSION = '1.42.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -8609,13 +8639,14 @@ function rymMatchEntry(index, entry) {
 }
 // What to do with a batch of entries (newest first wins per release). Never touches a rating you typed.
 function rymPlan(index, entries, now) {
-  const out = { updates: [], histOnly: [], skippedManual: 0, ambiguous: 0, unmatched: 0, unchanged: 0 }, best = new Map();
+  const out = { updates: [], histOnly: [], ranks: [], skippedManual: 0, ambiguous: 0, unmatched: 0, unchanged: 0 }, best = new Map();
   (entries || []).forEach(e => {
     const rating = rymNum(e.a); if (!rating) return;
     const m = rymMatchEntry(index, e); if (!m) { out.unmatched++; return; } if (m.ambiguous) { out.ambiguous++; return; }
-    const prev = best.get(m.item); if (!prev || (e.t || 0) >= (prev.t || 0)) best.set(m.item, { item: m.item, rating, votes: rymVotesNum(e.n), how: m.how, t: e.t || 0, h: e.h });
+    const prev = best.get(m.item); if (!prev || (e.t || 0) >= (prev.t || 0)) best.set(m.item, { item: m.item, rating, votes: rymVotesNum(e.n), rank: rymVotesNum(e.k), how: m.how, t: e.t || 0, h: e.h });
   });
   best.forEach(b => {
+    if (b.rank > 0 && b.rank !== (b.item.rymRank || 0)) out.ranks.push({ item: b.item, rank: b.rank });          // a rank is a fact about RYM, saved even where a rating you typed is left alone
     // The history: the add-on's own trail (which already ends with this reading) joined to what the release already has. An add-on with no trail gives just this reading.
     // It is kept even for a rating you typed (that rating is left alone, but what RYM said still goes in the record).
     const have = rymHistNorm(b.item.rymHist), trail = Array.isArray(b.h) && b.h.length ? b.h : null;
@@ -8629,8 +8660,8 @@ function rymPlan(index, entries, now) {
   });
   return out;
 }
-// bold marks: a release (or track) whose RYM rating reaches the threshold
-function rymIsBold(rating, threshold, on) { const r = rymNum(rating); return !!(on && r && r >= threshold - 1e-9); }
+// bold marks: like Rate Your Music, a release is bold when its overall RANK is within the top N (7,500 by default). It has nothing to do with a rating.
+function rymIsBoldRank(rank, limit, on) { const k = rymVotesNum(rank); return !!(on && k && k <= limit); }
 // END rym-core
 
 // BEGIN rym-data
@@ -8647,6 +8678,7 @@ function rymLocalSet(item) { const k = artKey(item), all = rymLocalAll(); if (it
 function rymLocalClear(item) { const all = rymLocalAll(), k = artKey(item); if (all[k]) { delete all[k]; rymLocalSave(); } }
 function rymMergeLocal() {                                       // a rating the sheet doesn't have yet (backend not updated, or not saved yet) is shown from the copy kept here
   if (rymMergedFor === state.raw) return; rymMergedFor = state.raw;
+  { const rl = rymRankLocal(); (state.raw || []).forEach(it => { const l = rl[artKey(it)]; if (l && !it.rymRank) it.rymRank = rymVotesNum(l.k); }); }          // a rank the sheet doesn't have yet is shown from the copy kept here
   const all = rymLocalAll(); let flush = false;
   (state.raw || []).forEach(it => { const l = all[artKey(it)]; if (!l) return; if (!it.rymRating) { it.rymRating = rymNum(l.r); it.rymVotes = rymVotesNum(l.n); it.rymSrc = l.s === 'a' ? 'a' : 'm'; it._rymLocal = true; flush = true; } else delete all[artKey(it)]; });
   if (flush && state.backendRym) rymFlushLocal();
@@ -8668,8 +8700,8 @@ function rymChipHtml(item) {
   const was = H ? ` \u00b7 first saved ${H[0][1].toFixed(2)} on ${rymDateText(new Date(H[0][0]).toISOString())}` : '';
   return `<span class="rym-chip" title="Rate Your Music average${v}${item.rymSrc === 'm' ? ', typed by you' : ''}${was}">RYM ${item.rymRating.toFixed(2)}</span>`;
 }
-function rymBoldClass(item) { return item && rymIsBold(item.rymRating, state.rymBoldAlbum, state.rymBold) ? ' rym-bold' : ''; }
-function rymBoldTrackClass(t) { return t && rymIsBold(t.rymRating, state.rymBoldTrack, state.rymBold) ? ' rym-bold' : ''; }
+function rymBoldClass(item) { return item && rymIsBoldRank(item.rymRank, state.rymBoldRank, state.rymBold) ? ' rym-bold' : ''; }
+function rymBoldTrackClass(t) { return ''; }          // RYM bolds a release by its rank; there is no such mark on a track, so none is made up
 // Save one release's RYM rating. src: 'm' typed, 'a' from the add-on. Returns { ok, localOnly }.
 async function rymSaveItem(item, rating, votes, src) {
   rating = rymNum(rating); votes = rating ? rymVotesNum(votes) : 0;
@@ -8701,6 +8733,19 @@ async function rymSaveBatch(updates, src) {                       // updates: [{
 function rymNoteLocalOnly() { if (rymState.localOnlyWarned) return; rymState.localOnlyWarned = true; flashGlobalToast('Saved on this device only: your Apps Script backend needs the RYM update (see the update log).'); }
 // ---- what the add-on saw on RateYourMusic ----
 function rymIndex() { if (rymAddonIndexFor !== state.raw || !rymAddonIndex) { rymAddonIndex = rymBuildIndex(state.raw || [], dupKey); rymAddonIndexFor = state.raw; } return rymAddonIndex; }
+const RYM_RANK_KEY = 'crate_rym_rank_v1';
+function rymRankLocal() { try { const o = JSON.parse(localStorage.getItem(RYM_RANK_KEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
+function rymRankLocalSave(o) { try { localStorage.setItem(RYM_RANK_KEY, JSON.stringify(o)); } catch (e) { /* not kept */ } }
+async function rymSaveRanks(list) {                              // [{ item, rank }]: the overall rank the add-on saw on a release page
+  if (!list || !list.length) return;
+  const loc = rymRankLocal(); list.forEach(u => { u.item.rymRank = u.rank; loc[artKey(u.item)] = { k: u.rank, t: Date.now() }; }); rymRankLocalSave(loc); rymRefreshViews();
+  for (let i = 0; i < list.length; i += 150) {
+    const part = list.slice(i, i + 150);
+    try { const d = await postUpdate({ action: 'setRymRanks', items: part.map(u => ({ row: u.item.row, rymRank: u.rank })) });
+      if (d && d.rankSaved) { const l2 = rymRankLocal(); part.forEach(u => { delete l2[artKey(u.item)]; }); rymRankLocalSave(l2); } }
+    catch (e) { /* an older script ("Missing row number") or no connection: the rank stays on this device until the sheet has the column */ }
+  }
+}
 async function rymApplyPlan(plan) {
   const r = await rymSaveBatch(plan.updates, 'a');
   rymState.last = plan.updates.map(u => ({ artist: u.item.artist, title: u.item.title, rating: u.rating, was: u.was }));
@@ -8710,6 +8755,7 @@ async function rymApplyPlan(plan) {
 async function rymHandleAddon(list) {
   rymState.addonSeen = true; rymState.lastAt = Date.now(); rymState.lastTotal = (list || []).length;
   const plan = rymPlan(rymIndex(), list || []); rymState.plan = plan;
+  if (plan.ranks.length) await rymSaveRanks(plan.ranks);
   if (plan.histOnly.length) await rymSaveHistBatch(plan.histOnly);         // what RYM said is recorded even where no rating changes (and where the rating is one you typed)
   if (plan.updates.length && state.rymAuto) {
     await rymApplyPlan(plan); rymState.pending = null;
@@ -8735,7 +8781,7 @@ function openRymDialog() { rymQEShown = 40; rymRenderSettings(); rymEl('rymOverl
 function closeRymDialog() { const ov = rymEl('rymOverlay'); if (ov && !ov.hidden) ov.hidden = true; }
 function rymRenderSettings() {
   rymEl('rymGenreAuto').checked = !!state.rymGenreAuto; rymEl('rymShowNext').checked = !!state.rymShowNext; rymEl('rymBold').checked = !!state.rymBold; rymEl('rymAuto').checked = !!state.rymAuto;
-  rymEl('rymBoldAlbum').value = String(state.rymBoldAlbum); rymEl('rymBoldTrack').value = String(state.rymBoldTrack);
+  rymEl('rymBoldRank').value = String(state.rymBoldRank);
 }
 function rymQueue() {
   const mode = rymEl('rymQEFilter').value, sort = rymEl('rymQESort').value;
@@ -8808,7 +8854,7 @@ function initRymRatings() {
   rymEl('rymClose').addEventListener('click', closeRymDialog);
   ov.addEventListener('mousedown', (e) => { if (e.target === ov) closeRymDialog(); });
   const setting = (id, key, num) => rymEl(id).addEventListener('change', (e) => { if (num) { const v = rymNum(e.target.value); if (!v) { e.target.value = String(state[key]); return; } state[key] = v; } else state[key] = e.target.checked; savePrefs(); rymRefreshViews(); });
-  setting('rymShowNext', 'rymShowNext'); setting('rymBold', 'rymBold'); setting('rymAuto', 'rymAuto'); setting('rymBoldAlbum', 'rymBoldAlbum', true); setting('rymBoldTrack', 'rymBoldTrack', true);
+  setting('rymShowNext', 'rymShowNext'); setting('rymBold', 'rymBold'); setting('rymAuto', 'rymAuto'); rymEl('rymBoldRank').addEventListener('change', (e) => { const v = rymVotesNum(e.target.value); if (!v) { e.target.value = String(state.rymBoldRank); return; } state.rymBoldRank = v; savePrefs(); rymRefreshViews(); });
   rymEl('rymQEFilter').addEventListener('change', () => { rymQEShown = 40; rymPaintQE(); }); rymEl('rymQESort').addEventListener('change', () => { rymQEShown = 40; rymPaintQE(); });
   rymEl('rymQEMore').addEventListener('click', () => { rymQEShown += 40; rymPaintQE(); });
   rymEl('rymAddonCheck').addEventListener('click', () => { rymRequestFromAddon(); flashGlobalToast('Asked the add-on for the ratings it has seen.'); });
@@ -8825,7 +8871,7 @@ function initRymRatings() {
     if (d.type === 'rym-tracklists' && Array.isArray(d.tracklists)) { rymTracklistsArrived(rymCleanTracklists(d.tracklists)); return; }
     if (d.type === 'rym-outbox' && Array.isArray(d.batches)) { rymOutboxArrived(rymCleanOutbox(d.batches)); return; }
     if (d.type !== 'rym-ratings' || !Array.isArray(d.ratings)) return;
-    const s = (x) => String(x == null ? '' : x).slice(0, 200), clean = d.ratings.slice(0, 20000).map(x => ({ p: s(x && x.p), a: Number(x && x.a), n: Number(x && x.n) || 0, ar: s(x && x.ar), ti: s(x && x.ti), ty: s(x && x.ty), y: s(x && x.y), t: Number(x && x.t) || 0, h: Array.isArray(x && x.h) ? rymHistNorm(x.h.slice(0, 400)) : [] })).filter(x => x.a > 0 && x.a <= 5);
+    const s = (x) => String(x == null ? '' : x).slice(0, 200), clean = d.ratings.slice(0, 20000).map(x => ({ p: s(x && x.p), a: Number(x && x.a), n: Number(x && x.n) || 0, ar: s(x && x.ar), ti: s(x && x.ti), ty: s(x && x.ty), y: s(x && x.y), k: rymVotesNum(x && x.k), t: Number(x && x.t) || 0, h: Array.isArray(x && x.h) ? rymHistNorm(x.h.slice(0, 400)) : [] })).filter(x => x.a > 0 && x.a <= 5);
     rymHandleAddon(clean);
   });
 }
@@ -9175,7 +9221,7 @@ const state = {
   // once rather than per-row, matching the reference this was built from.
   showTrackCredits: false,
   chartGenre: null, // last-selected genre in the Release Chart element (Main panel) — see renderChartElement()
-  rymBold: true, rymBoldAlbum: 3.8, rymBoldTrack: 3.8, rymShowNext: true, rymAuto: true, rymMin: 0, rymMissingOnly: false, backendRym: false, backendRymHist: false, backendTaxChunks: false, rymGenreAuto: true,   // RYM ratings (see rym-data)
+  rymBold: true, rymBoldRank: 7500, rymShowNext: true, rymAuto: true, rymMin: 0, rymMissingOnly: false, backendRym: false, backendRymHist: false, backendTaxChunks: false, rymGenreAuto: true,   // RYM ratings (see rym-data)
   genreRole: 'any',   // which of a release's genres a genre filter looks at: 'any' (Genre + Secondary Genre), 'primary' (Genre only), 'secondary' (Secondary Genre only) — see genre-role
   firstGenreOnly: false, // when on, a genre only counts if it is the FIRST one listed on a release (left-panel genre filter, genre: searches, Release Chart) — see filterGenreTags
   genreSearchMode: 'loose', // how strictly genre: searches match — 'exact' | 'subgenres' | 'loose', see genreSearchMatches / the ⇅ popover's "Genre search"
@@ -11664,7 +11710,7 @@ function loadPrefs() {
     if (typeof p.firstGenreOnly === 'boolean') state.firstGenreOnly = p.firstGenreOnly;
     if (['any', 'primary', 'secondary'].includes(p.genreRole)) state.genreRole = p.genreRole;
     ['rymBold', 'rymShowNext', 'rymAuto', 'rymMissingOnly', 'rymGenreAuto'].forEach(k => { if (typeof p[k] === 'boolean') state[k] = p[k]; });
-    ['rymBoldAlbum', 'rymBoldTrack'].forEach(k => { if (rymNum(p[k])) state[k] = rymNum(p[k]); });
+    if (rymVotesNum(p.rymBoldRank)) state.rymBoldRank = rymVotesNum(p.rymBoldRank);
     if ([0, 3, 3.5, 3.8, 4, 4.5].includes(Number(p.rymMin))) state.rymMin = Number(p.rymMin);
     if (p.panelWidths) state.panelWidths = Object.assign({}, state.panelWidths, p.panelWidths);
     if (p.fields) state.fields = Object.assign(state.fields, p.fields);
@@ -11744,7 +11790,7 @@ function savePrefs() {
       shuffle: state.shuffle,
       genreSearchMode: state.genreSearchMode,
       firstGenreOnly: state.firstGenreOnly, genreRole: state.genreRole,
-      rymGenreAuto: state.rymGenreAuto, rymBold: state.rymBold, rymShowNext: state.rymShowNext, rymAuto: state.rymAuto, rymMissingOnly: state.rymMissingOnly, rymBoldAlbum: state.rymBoldAlbum, rymBoldTrack: state.rymBoldTrack, rymMin: state.rymMin,
+      rymGenreAuto: state.rymGenreAuto, rymBold: state.rymBold, rymShowNext: state.rymShowNext, rymAuto: state.rymAuto, rymMissingOnly: state.rymMissingOnly, rymBoldRank: state.rymBoldRank, rymMin: state.rymMin,
       statsMode: state.statsMode,
       rightPanelShowQueue: state.rightPanelShowQueue,
       rightPanelShowHistory: state.rightPanelShowHistory,
@@ -11931,7 +11977,7 @@ async function fetchCatalog() {
           review: r.Review || '',
           link: r.Link ? String(r.Link).trim() : '',
           rymLink: r.RymLink ? String(r.RymLink).trim() : '',
-          rymRating: rymNum(r.RymRating), rymVotes: rymVotesNum(r.RymVotes), rymSrc: rymNum(r.RymRating) ? (r.RymSrc === 'a' ? 'a' : 'm') : '', rymHist: rymParseHist(r.RymHistory),
+          rymRank: rymVotesNum(r.RymRank), rymRating: rymNum(r.RymRating), rymVotes: rymVotesNum(r.RymVotes), rymSrc: rymNum(r.RymRating) ? (r.RymSrc === 'a' ? 'a' : 'm') : '', rymHist: rymParseHist(r.RymHistory),
           dateAdded: r.DateAdded || '',
           catalog: r.Catalog ? String(r.Catalog).trim() : 'CRT-' + String(i + 1).padStart(3, '0'),
           // Free-text release descriptor (e.g. "Deluxe Edition", "2024
@@ -16394,7 +16440,7 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
   playlistBtn.addEventListener('mouseleave', scheduleCloseAddToPlaylistSubmenu);
 
   const searchBtn = menu.querySelector('[data-track-menu-action="search"]');
-  searchBtn.addEventListener('mouseenter', () => openAlbumSearchSubmenu(searchBtn, item));
+  searchBtn.addEventListener('mouseenter', () => openAlbumSearchSubmenu(searchBtn, item, isMultiSelect ? '' : trackName));
   searchBtn.addEventListener('mouseleave', scheduleCloseAlbumSearchSubmenu);
 
   menu.addEventListener('click', (e) => {
@@ -16402,7 +16448,7 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
     if (!btn) return;
     const action = btn.dataset.trackMenuAction;
 
-    if (action === 'search') { openAlbumSearchSubmenu(btn, item); return; } // tap-to-open for touch
+    if (action === 'search') { openAlbumSearchSubmenu(btn, item, isMultiSelect ? '' : trackName); return; } // tap-to-open for touch
     if (action === 'playlist') { openAddToPlaylistSubmenu(btn, trackPlaylistItems); return; } // tap-to-open for touch
 
     closeNowPlayingAddMenu();
@@ -16665,11 +16711,11 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
           <input type="text" id="trackPropsLength" placeholder="m:ss" value="${links.lengthMs ? formatMs(links.lengthMs) : (currentLengthMs ? formatMs(currentLengthMs) : '')}">
         </div>
         <div class="track-props-field">
-          <label for="trackPropsYoutube">YouTube link</label>
+          <label for="trackPropsYoutube">YouTube link <a href="#" class="track-props-search" data-track-search="yt">Search \u2197</a></label>
           <input type="text" id="trackPropsYoutube" placeholder="https://youtube.com/watch?v=..." value="${escapeHtml(links.youtubeLink || '')}">
         </div>
         <div class="track-props-field">
-          <label for="trackPropsSpotify">Spotify link</label>
+          <label for="trackPropsSpotify">Spotify link <a href="#" class="track-props-search" data-track-search="sp">Search \u2197</a></label>
           <input type="text" id="trackPropsSpotify" placeholder="https://open.spotify.com/track/..." value="${escapeHtml(links.spotifyLink || '')}">
         </div>
         <div class="track-props-field">
@@ -16725,6 +16771,11 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
   const youtubeInput = overlay.querySelector('#trackPropsYoutube');
   const spotifyInput = overlay.querySelector('#trackPropsSpotify');
   const rymInput = overlay.querySelector('#trackPropsRym');
+  overlay.addEventListener('click', (e) => {                                            // "Search" beside a link field: a web search for the title as it is typed now, to find the track and paste its address
+    const a = e.target.closest('[data-track-search]'); if (!a) return; e.preventDefault();
+    const typed = (overlay.querySelector('#trackPropsName') || {}).value;
+    openWebSearch(a.dataset.trackSearch, item, (typed || trackName || '').trim());
+  });
   const soundcloudInput = overlay.querySelector('#trackPropsSoundcloud');
   nameInput.focus();
   nameInput.select();
@@ -16943,7 +16994,16 @@ function openAlbumCardContextMenu(item, x, y) {
 let albumSearchSubmenuEl = null;
 let albumSearchSubmenuCloseTimer = null;
 
-function openAlbumSearchSubmenu(anchorEl, item) {
+// Web searches to find a track (or, with no track, the album) yourself. The text is the artist and the title, except that a split release's or compilation's "Artist - Song" titles already name the artist.
+function webSearchQuery(item, trackName) {
+  const t = String(trackName || '').trim(), a = String((item && item.artist) || '').trim();
+  if (!t) return `${a} ${(item && item.title) || ''}`.trim();
+  if (/ - /.test(t) && (item.type === 'Compilation' || /\//.test(a) || /^various\b/i.test(a))) return t;
+  return `${a} ${t}`.trim();
+}
+function webSearchUrl(site, q) { return site === 'sp' ? `https://open.spotify.com/search/${encodeURIComponent(q)}` : `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`; }
+function openWebSearch(site, item, trackName) { window.open(webSearchUrl(site, webSearchQuery(item, trackName)), '_blank', 'noopener,noreferrer'); }
+function openAlbumSearchSubmenu(anchorEl, item, trackName) {
   clearTimeout(albumSearchSubmenuCloseTimer);
   closeAlbumSearchSubmenu();
 
@@ -16952,6 +17012,9 @@ function openAlbumSearchSubmenu(anchorEl, item) {
   menu.innerHTML = `
     <button type="button" data-search-action="find">Find artist "${escapeHtml(item.artist)}"</button>
     <button type="button" data-search-action="discog">Open discography</button>
+    <div class="menu-divider"></div>
+    <button type="button" data-search-action="yt">Search \u201c${escapeHtml(trackName || item.title)}\u201d on YouTube \u2197</button>
+    <button type="button" data-search-action="sp">Search \u201c${escapeHtml(trackName || item.title)}\u201d on Spotify \u2197</button>
   `;
   document.body.appendChild(menu);
 
@@ -16976,6 +17039,7 @@ function openAlbumSearchSubmenu(anchorEl, item) {
     closeNowPlayingAddMenu(); // also closes this submenu — see closeNowPlayingAddMenu
     if (action === 'find') openArtistInArtistView(item.artist, { showAll: false });
     else if (action === 'discog') openArtistInArtistView(item.artist, { showAll: true });
+    else if (action === 'yt' || action === 'sp') openWebSearch(action, item, trackName);
   });
 
   albumSearchSubmenuEl = menu;
@@ -33224,6 +33288,8 @@ html, body {
      (Add album, Edit details, …), just narrower. */
   .track-props-modal { max-width: 400px; }
   .track-props-field { padding: 6px 0 4px; display: flex; flex-direction: column; gap: 6px; }
+  .track-props-search { margin-left: 8px; color: var(--accent); text-transform: none; letter-spacing: 0; text-decoration: none; font-size: 11px; }
+  .track-props-search:hover { text-decoration: underline; }
   .track-props-field label {
     font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-dim);
     text-transform: uppercase; letter-spacing: 0.5px;
