@@ -19,7 +19,36 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.46.0
+  CURRENT_VERSION: 1.46.2
+
+  1.46.2 — 2026-10-27 — Scrobbles from YouTube tracks played in CRATE were never sent, for two reasons. Both fixed. Page only: no new add-on or backend.
+
+          WHY NOTHING WAS SCROBBLED: (1) when a YouTube track started, the scrobble tracker identified it by a "url" that CRATE's YouTube queue items don't have (they hold the video id and the track name), so it never started:
+            no "now playing", no timer, nothing to send when the track ended. (2) Even had it started, every request to Last.fm left out the account's session key, which Last.fm requires for anything written to an account,
+            so each scrobble would have been refused (the refusal was only written to the browser's console). Both are fixed: each play is tracked from the moment it starts, and the session key is sent and signed with the request.
+          ALSO FIXED in the same code: time spent PAUSED or buffering no longer counts as listening (it used the clock since the track started); the scrobble is sent the moment Last.fm's rule is met (half the track or 4 minutes,
+            whichever is less, and the track must be over 30 seconds) instead of only when a track ends, so skipping ahead or closing the player afterwards no longer loses it; playing the SAME track again now scrobbles it again;
+            a track CRATE has no real name for ("Now playing") or no artist for is not sent rather than scrobbled under a made-up name; and if Last.fm refuses a scrobble CRATE tries twice more and then SAYS SO, naming the track and
+            suggesting you reconnect the account, instead of failing silently.
+          NOT CHANGED: Spotify and SoundCloud playback (Last.fm's own Spotify connection normally covers Spotify). Plays from before this version are not sent retroactively. The artist sent is the release's artist, so a track
+            on a compilation goes under the compilation's artist.
+          VERIFIED (20 checks in the browser, with a stand-in for Last.fm and a controllable clock): "now playing" with artist, track and album; no scrobble at 90 s of a 200 s track, one at 105 s with the time it STARTED, the
+            session key and a correct signature, and only once even when the track then ends; under 30 s never; a 10-minute track at 4 minutes; paused time not counted; skipping before half way sends nothing and the next track is
+            announced and scrobbled; skipping after keeps it without doubling it; the same track again scrobbles twice; closing early sends nothing, and no stray timer fires later; no connected account sends nothing; a track with no real
+            name or no artist is not sent; a track played from a playlist scrobbles under its own artist and album; Last.fm refusing it leads to three tries and a message. Putting back the tracker never starting, the missing session key, or
+            the clock running while paused each fails the test. NOT VERIFIED: against the real Last.fm (this machine has no network) or the real YouTube player's events; if "Last.fm didn't accept the scrobble" appears, the
+            connection needs redoing in the settings (or the API key and secret there are wrong).
+
+
+  1.46.1 — 2026-10-26 — In the update queue, what differs from what you have now arrives TICKED, so one press of Apply takes it all. Page only: no new add-on or backend.
+
+          WHAT CHANGED: the safe changes (a blank filled, a better cover, a fuller tracklist) were already applied by themselves as each page was read. What DIFFERS from what you have (your label "K" against RYM's "K Records",
+            a different genre) was left unticked for you to tick one by one. It now starts ticked: "Apply 2 ticked" is ready as soon as the pages are read, and you untick whatever you want to keep.
+          STILL YOUR PRESS: nothing is written until you press Apply. The update log (on the album page) keeps what each value was and what it became, with the old value, so a change can be put back by hand.
+          NOTE: this means one press can replace values you have typed (genres you chose yourself, say) with Rate Your Music's. If you'd rather decide each one, turn it off: ⚙ → RYM ratings… → "Tick the differences too".
+          VERIFIED (39 checks in all for the queue): differences arrive ticked and nothing is written yet; a row opened shows its difference ticked and says so; unticking one keeps it ("Apply 1 ticked") and one press applies
+            only what is ticked, leaving the other release "Needs a look" and its update waiting; the setting turns it off and is remembered; it is on in a fresh CRATE. Putting the old behaviour back fails three checks.
+
 
   1.46.0 — 2026-10-26 — Which releases have had their first update from Rate Your Music, and a log of every update to each (needs the backend script re-deployed: two new columns; page only otherwise, no new add-on).
 
@@ -8239,6 +8268,7 @@
     <div class="arrange-body">
       <p class="arrange-hint">Used for the "Match" button on the tracklist builder and "Edit track properties…" to search YouTube for real candidate videos instead of opening a search tab. Get a free API key: Google Cloud Console → create/select a project → enable "YouTube Data API v3" → Credentials → Create API key. The free tier is limited (100 searches/day), so matching only runs when you click it, never automatically. Stored only in this browser.</p>
       <label class="add-field">API key <input type="text" id="youtubeApiKey" autocomplete="off"></label>
+      <label class="add-field" style="flex-direction:row;gap:8px;align-items:flex-start"><input type="checkbox" id="ytUseAddon"> <span style="text-transform:none;letter-spacing:normal">Use the <b>CRATE for YouTube</b> add-on when it is connected: no quota and no key needed. <small id="ytAddonLine" style="display:block;opacity:.75;text-transform:none;letter-spacing:normal"></small></span></label>
       <div class="log-form-actions">
         <button id="youtubeApiSaveBtn" class="save-btn">Save</button>
         <button id="youtubeApiCancelBtn" class="cancel-btn">Cancel</button>
@@ -8306,6 +8336,7 @@
         <fieldset class="cx-group"><legend>How it shows</legend>
           <label class="snd-opt"><input type="checkbox" id="rymShowNext"><span><b>Show it next to my rating</b><small>On cards and lists as “RYM 3.65”.</small></span></label>
           <label class="snd-opt"><input type="checkbox" id="rymQueueMode"><span><b>Review updates in the queue</b><small>One screen for every \u201cUpdate from Rate Your Music\u201d, one release or many: what is safe (filling blanks, a better cover, a fuller tracklist) is applied as each page is read, and only what DIFFERS from what you have is left for you. Off: each update is reviewed on its own screen and nothing is applied until you press Apply.</small></span></label>
+          <label class="snd-opt"><input type="checkbox" id="rymTickDiffs"><span><b>Tick the differences too</b><small>In the update queue, what DIFFERS from what you have (your label \u201cK\u201d against RYM\u2019s \u201cK Records\u201d) starts ticked, so one press of \u201cApply\u201d takes them all. Nothing is applied until you press it, and the update log keeps what each value was. Off: they start unticked and you tick the ones you want.</small></span></label>
           <label class="snd-opt"><input type="checkbox" id="rymBold"><span><b>Bold the top-ranked</b><small>Like Rate Your Music: a release is bold when it is ranked within RYM\u2019s overall top <input type="text" inputmode="numeric" id="rymBoldRank" class="rym-num"> (its rank is saved when you visit its page, or update it from there). Releases with no known rank are never bold.</small></span></label>
         </fieldset>
         <fieldset class="cx-group"><legend>From the browser add-on</legend>
@@ -8504,7 +8535,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.46.0';
+const APP_VERSION = '1.46.2';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -8905,7 +8936,7 @@ let rymQEShown = 40;
 function openRymDialog() { rymQEShown = 40; rymRenderSettings(); rymEl('rymOverlay').hidden = false; el.layoutMenu.hidden = true; rymPaintDialog(); rymRequestFromAddon(); }
 function closeRymDialog() { const ov = rymEl('rymOverlay'); if (ov && !ov.hidden) ov.hidden = true; }
 function rymRenderSettings() {
-  rymEl('rymGenreAuto').checked = !!state.rymGenreAuto; rymEl('rymShowNext').checked = !!state.rymShowNext; rymEl('rymBold').checked = !!state.rymBold; rymEl('rymQueueMode').checked = !!state.rymQueueMode; rymEl('rymAuto').checked = !!state.rymAuto;
+  rymEl('rymGenreAuto').checked = !!state.rymGenreAuto; rymEl('rymShowNext').checked = !!state.rymShowNext; rymEl('rymBold').checked = !!state.rymBold; rymEl('rymQueueMode').checked = !!state.rymQueueMode; rymEl('rymTickDiffs').checked = !!state.rymTickDiffs; rymEl('rymAuto').checked = !!state.rymAuto;
   rymEl('rymBoldRank').value = String(state.rymBoldRank);
 }
 function rymQueue() {
@@ -8988,7 +9019,7 @@ function initRymRatings() {
   rymEl('rymClose').addEventListener('click', closeRymDialog);
   ov.addEventListener('mousedown', (e) => { if (e.target === ov) closeRymDialog(); });
   const setting = (id, key, num) => rymEl(id).addEventListener('change', (e) => { if (num) { const v = rymNum(e.target.value); if (!v) { e.target.value = String(state[key]); return; } state[key] = v; } else state[key] = e.target.checked; savePrefs(); rymRefreshViews(); });
-  setting('rymShowNext', 'rymShowNext'); setting('rymBold', 'rymBold'); setting('rymQueueMode', 'rymQueueMode'); setting('rymAuto', 'rymAuto'); rymEl('rymBoldRank').addEventListener('change', (e) => { const v = rymVotesNum(e.target.value); if (!v) { e.target.value = String(state.rymBoldRank); return; } state.rymBoldRank = v; savePrefs(); rymRefreshViews(); });
+  setting('rymShowNext', 'rymShowNext'); setting('rymBold', 'rymBold'); setting('rymQueueMode', 'rymQueueMode'); setting('rymTickDiffs', 'rymTickDiffs'); setting('rymAuto', 'rymAuto'); rymEl('rymBoldRank').addEventListener('change', (e) => { const v = rymVotesNum(e.target.value); if (!v) { e.target.value = String(state.rymBoldRank); return; } state.rymBoldRank = v; savePrefs(); rymRefreshViews(); });
   rymEl('deckRymUpdate').addEventListener('click', () => { if (activeItem) rymFetchUpdates([activeItem]); });
   rymEl('rymQEFilter').addEventListener('change', () => { rymQEShown = 40; rymPaintQE(); }); rymEl('rymQESort').addEventListener('change', () => { rymQEShown = 40; rymPaintQE(); });
   rymEl('rymQEMore').addEventListener('click', () => { rymQEShown += 40; rymPaintQE(); });
@@ -9356,7 +9387,7 @@ const state = {
   // once rather than per-row, matching the reference this was built from.
   showTrackCredits: false,
   chartGenre: null, // last-selected genre in the Release Chart element (Main panel) — see renderChartElement()
-  rymBold: true, rymBoldRank: 7500, rymQueueMode: !window.__CRATE_LEGACY_REVIEW, rymShowNext: true, rymAuto: true, rymMin: 0, rymMissingOnly: false, backendRym: false, backendRymHist: false, backendTaxChunks: false, rymGenreAuto: true,   // RYM ratings (see rym-data)
+  rymBold: true, rymBoldRank: 7500, rymQueueMode: !window.__CRATE_LEGACY_REVIEW, rymTickDiffs: true, rymShowNext: true, rymAuto: true, rymMin: 0, rymMissingOnly: false, backendRym: false, backendRymHist: false, backendTaxChunks: false, rymGenreAuto: true,   // RYM ratings (see rym-data)
   genreRole: 'any',   // which of a release's genres a genre filter looks at: 'any' (Genre + Secondary Genre), 'primary' (Genre only), 'secondary' (Secondary Genre only) — see genre-role
   firstGenreOnly: false, // when on, a genre only counts if it is the FIRST one listed on a release (left-panel genre filter, genre: searches, Release Chart) — see filterGenreTags
   genreSearchMode: 'loose', // how strictly genre: searches match — 'exact' | 'subgenres' | 'loose', see genreSearchMatches / the ⇅ popover's "Genre search"
@@ -11844,7 +11875,7 @@ function loadPrefs() {
     if (['exact', 'subgenres', 'loose'].includes(p.genreSearchMode)) state.genreSearchMode = p.genreSearchMode;
     if (typeof p.firstGenreOnly === 'boolean') state.firstGenreOnly = p.firstGenreOnly;
     if (['any', 'primary', 'secondary'].includes(p.genreRole)) state.genreRole = p.genreRole;
-    ['rymBold', 'rymShowNext', 'rymAuto', 'rymMissingOnly', 'rymGenreAuto', 'rymQueueMode'].forEach(k => { if (typeof p[k] === 'boolean') state[k] = p[k]; });
+    ['rymBold', 'rymShowNext', 'rymAuto', 'rymMissingOnly', 'rymGenreAuto', 'rymQueueMode', 'rymTickDiffs'].forEach(k => { if (typeof p[k] === 'boolean') state[k] = p[k]; });
     if (rymVotesNum(p.rymBoldRank)) state.rymBoldRank = rymVotesNum(p.rymBoldRank);
     if ([0, 3, 3.5, 3.8, 4, 4.5].includes(Number(p.rymMin))) state.rymMin = Number(p.rymMin);
     if (p.panelWidths) state.panelWidths = Object.assign({}, state.panelWidths, p.panelWidths);
@@ -11925,7 +11956,7 @@ function savePrefs() {
       shuffle: state.shuffle,
       genreSearchMode: state.genreSearchMode,
       firstGenreOnly: state.firstGenreOnly, genreRole: state.genreRole,
-      rymGenreAuto: state.rymGenreAuto, rymBold: state.rymBold, rymQueueMode: state.rymQueueMode, rymShowNext: state.rymShowNext, rymAuto: state.rymAuto, rymMissingOnly: state.rymMissingOnly, rymBoldRank: state.rymBoldRank, rymMin: state.rymMin,
+      rymGenreAuto: state.rymGenreAuto, rymBold: state.rymBold, rymQueueMode: state.rymQueueMode, rymTickDiffs: state.rymTickDiffs, rymShowNext: state.rymShowNext, rymAuto: state.rymAuto, rymMissingOnly: state.rymMissingOnly, rymBoldRank: state.rymBoldRank, rymMin: state.rymMin,
       statsMode: state.statsMode,
       rightPanelShowQueue: state.rightPanelShowQueue,
       rightPanelShowHistory: state.rightPanelShowHistory,
@@ -21840,7 +21871,71 @@ async function smSpotifyForRelease(item, songs) {
   return { status: 'done', albumName: useAlbum ? albumName : '', albumUrl, fit, byIdx, searched: songs.filter(s => byIdx[s.idx] && byIdx[s.idx][0].source === 'search').length };
 }
 
-// ----- YouTube -----
+// ----- The "CRATE for YouTube" add-on: asks YouTube's own pages instead of its API (no quota, no key). It answers three questions: a video search, a playlist search, a playlist's videos. -----
+const ytAddon = { ready: false, version: '', state: 'idle', reason: '', queue: 0, nextAt: 0, today: 0, cap: 0, pending: new Map(), seq: 0, poll: 0 };
+const ytAddonSay = (type, extra) => window.postMessage(Object.assign({ source: 'crate-app', type }, extra || {}), window.location.origin);
+function ytUseAddon() { let off = false; try { off = localStorage.getItem('crate_yt_use_addon') === '0'; } catch (e) { /* default: on */ } return !!(ytAddon.ready && !off); }
+function ytAddonWhy(reason) {
+  return ({ consent: 'YouTube is asking its cookie question. That page is open in front of you: answer it once, then press Continue.', check: 'YouTube says it has noticed unusual traffic. That page is open in front of you: pass the check there, then press Continue, or Cancel and wait a while.',
+    unreadable: 'the add-on couldn\u2019t understand a YouTube page (YouTube may have changed it). Open that page and use the add-on\u2019s Diagnose button, and send me what it shows.', timeout: 'a YouTube page took too long to load.', closed: 'the YouTube page was closed while it was being read.',
+    daily: 'the add-on\u2019s limit of 250 YouTube pages a day is used up.', busy: 'too many questions are waiting in the add-on.', noanswer: 'the add-on didn\u2019t answer. Is it installed and connected to this page?', cancelled: 'it was cancelled.', bad: 'that question wasn\u2019t valid.' })[reason] || `something went wrong (${reason || 'unknown'}).`;
+}
+function ytAddonErrText(e) { const m = /^addon: (.*)$/.exec(String((e && e.message) || e)); return m ? ytAddonWhy(m[1]) : String((e && e.message) || e); }
+function ytAddonRequest(op) {                                       // resolves with the items, or rejects with Error('addon: <reason>')
+  return new Promise((resolve, reject) => {
+    const reqId = 'r' + Date.now().toString(36) + (++ytAddon.seq), pr = { resolve, reject, accepted: false, timer: 0 };
+    pr.arm = (ms) => { clearTimeout(pr.timer); pr.timer = setTimeout(() => { ytAddon.pending.delete(reqId); reject(new Error('addon: noanswer')); }, ms); };
+    pr.arm(5000); ytAddon.pending.set(reqId, pr); ytAddonSay('yt-request', { reqId, op });
+    if (!ytAddon.poll) ytAddon.poll = setInterval(() => {            // while something waits: ask for a result that may have been missed, and wake the add-on's background
+      if (!ytAddon.pending.size) { clearInterval(ytAddon.poll); ytAddon.poll = 0; return; }
+      ytAddon.pending.forEach((q, id) => { if (q.accepted) ytAddonSay('yt-get', { reqId: id }); }); ytAddonSay('yt-hello');
+    }, 10000);
+  });
+}
+const ytAddonContinue = () => ytAddonSay('yt-continue'), ytAddonCancel = () => ytAddonSay('yt-cancel'), ytAddonHello = () => ytAddonSay('yt-hello');
+window.addEventListener('message', (e) => {
+  if (e.source !== window || e.origin !== window.location.origin) return;
+  const d = e.data; if (!d || d.source !== 'crate-addon' || typeof d.type !== 'string' || d.type.slice(0, 3) !== 'yt-') return;
+  const redraw = () => { if (typeof smState !== 'undefined' && smState) smRender(); };
+  if (d.type === 'yt-script') ytAddonHello();
+  else if (d.type === 'yt-ready') { ytAddon.ready = !!d.ok; ytAddon.version = d.version || ''; if (d.state) ytAddon.state = d.state; ytAddon.today = d.today || 0; ytAddon.cap = d.cap || 0; redraw(); }
+  else if (d.type === 'yt-accepted') {
+    const pr = ytAddon.pending.get(d.reqId); if (!pr) return; const r = d.resp || {};
+    if (!r.ok) { ytAddon.pending.delete(d.reqId); clearTimeout(pr.timer); pr.reject(new Error('addon: ' + (r.reason || 'noanswer'))); } else { pr.accepted = true; pr.arm(150000); }
+  } else if (d.type === 'yt-result') {
+    if (d.pending) return; const pr = ytAddon.pending.get(d.reqId); if (!pr) return; ytAddon.pending.delete(d.reqId); clearTimeout(pr.timer);
+    if (d.ok) pr.resolve(d.items || []); else pr.reject(new Error('addon: ' + (d.reason || 'failed')));
+  } else if (d.type === 'yt-state') {
+    ytAddon.state = d.state; ytAddon.reason = d.reason || ''; ytAddon.queue = d.queue || 0; ytAddon.nextAt = d.nextAt || 0;
+    ytAddon.pending.forEach(pr => { if (pr.accepted) pr.arm(d.state === 'stopped' ? 1800000 : 150000); });          // waiting for YOU is not a reason to give up for half an hour
+    redraw();
+  }
+});
+setTimeout(ytAddonHello, 800); setTimeout(ytAddonHello, 3500);
+function ytAddonPaintDialog() {
+  const cb = document.getElementById('ytUseAddon'), line = document.getElementById('ytAddonLine'); if (!cb || !line) return;
+  let off = false; try { off = localStorage.getItem('crate_yt_use_addon') === '0'; } catch (e) { /* on */ }
+  cb.checked = !off; ytAddonHello();
+  line.textContent = ytAddon.ready ? `Found: version ${ytAddon.version}, ${ytAddon.today} of ${ytAddon.cap} pages used today.${off ? ' (Switched off here: the API is used.)' : ''}` : 'Not found: install it and connect it to this page (it says how in its options).';
+  setTimeout(() => { if (line.isConnected && ytAddon.ready) line.textContent = `Found: version ${ytAddon.version}, ${ytAddon.today} of ${ytAddon.cap} pages used today.${off ? ' (Switched off here: the API is used.)' : ''}`; }, 700);
+}
+(function wireYtAddonSwitch() {
+  const cb = document.getElementById('ytUseAddon'), menu = document.getElementById('menuYoutubeApi');
+  if (cb) cb.addEventListener('change', () => { try { localStorage.setItem('crate_yt_use_addon', cb.checked ? '1' : '0'); } catch (e) { /* not kept */ } ytAddonPaintDialog(); if (typeof smState !== 'undefined' && smState) smRender(); });
+  if (menu) menu.addEventListener('click', ytAddonPaintDialog);
+})();
+function ytAddonIdleHtml() {
+  return `<div class="sm-status"><span>This looks for the album\u2019s playlist on YouTube and matches every song in one go, through the CRATE for YouTube add-on: no quota and no key. It reads YouTube\u2019s pages one at a time, with a pause of 9 to 15 seconds between them, so it takes about half a minute (${ytAddon.today} of ${ytAddon.cap} pages used today).</span><button type="button" class="config-btn" data-sm="run-youtube">Find on YouTube</button></div>`;
+}
+function ytAddonLoadingHtml() {
+  if (ytAddon.state === 'stopped') return `<div class="sm-status" role="alert"><span>${escapeHtml(ytAddonWhy(ytAddon.reason))}</span><button type="button" class="config-btn" data-sm="yt-continue">Continue</button><button type="button" class="ai-link-btn" data-sm="yt-cancel">Cancel</button></div>`;
+  const secs = ytAddon.nextAt ? Math.max(0, Math.round((ytAddon.nextAt - Date.now()) / 1000)) : 0;
+  return `<div class="sm-status" role="status" aria-live="polite"><span>Looking on YouTube through the add-on\u2026${ytAddon.queue > 1 ? ` ${ytAddon.queue} pages to read` : ''}${ytAddon.state === 'gap' && secs ? `, pausing ${secs} s before the next one (on purpose)` : ''}</span><div class="gi-mb-bar"><i></i></div></div>`;
+}
+async function smYtPlaylistSearchViaAddon(q) {                       // the add-on's answer in the shape the API gives, so the matcher's own ranking runs unchanged
+  const r = await ytAddonRequest({ kind: 'search-playlist', q });
+  return { items: r.map(pl => ({ id: { playlistId: pl.id }, snippet: { title: pl.title, channelTitle: pl.channel } })) };
+}
 async function smYtApi(path, params, cost) {
   const key = loadYoutubeApiKey();
   const res = await fetch(`https://www.googleapis.com/youtube/v3/${path}?${new URLSearchParams(Object.assign({}, params, { key })).toString()}`);
@@ -21863,9 +21958,10 @@ async function smYtDetails(ids) {         // length, whether it can be embedded 
   return out;
 }
 async function smYoutubeForRelease(item, songs) {
-  if (!loadYoutubeApiKey()) return { status: 'nokey' };
+  const viaAddon = ytUseAddon();
+  if (!viaAddon && !loadYoutubeApiKey()) return { status: 'nokey' };
   const clean = item.title.replace(/\s*\[.*?\]|\s*\(.*?\)/g, '').trim();
-  const found = await smYtApi('search', { part: 'snippet', type: 'playlist', maxResults: 5, q: `${item.artist} ${clean}` }, 100);
+  const found = viaAddon ? await smYtPlaylistSearchViaAddon(`${item.artist} ${clean}`) : await smYtApi('search', { part: 'snippet', type: 'playlist', maxResults: 5, q: `${item.artist} ${clean}` }, 100);
   const stripAlbum = (t) => String(t || '').replace(/^album\s*[-\u2013:]\s*/i, '');
   const lists = (found.items || []).filter(it => it.id && it.id.playlistId && it.snippet).map(it => ({
     id: it.id.playlistId, title: it.snippet.title, channel: it.snippet.channelTitle,
@@ -21873,6 +21969,10 @@ async function smYoutubeForRelease(item, songs) {
   })).filter(l => l.rank >= 0.6).sort((a, b) => b.rank - a.rank).slice(0, 2);
   const playlists = [];
   for (const l of lists) {
+    if (viaAddon) {                                                  // the playlist's page, read by the add-on: no quota
+      const pv = await ytAddonRequest({ kind: 'playlist', id: l.id });
+      playlists.push({ id: l.id, name: l.title, channel: l.channel, tracks: pv.map(v => ({ id: v.id, title: v.title, channel: v.channel || l.channel, durationMs: v.durationMs || 0, blocked: false, index: v.index })) }); continue;
+    }
     let vids = [], page = '', pages = 0;
     do {
       const d = await smYtApi('playlistItems', Object.assign({ part: 'snippet', maxResults: 50, playlistId: l.id }, page ? { pageToken: page } : {}), 1);
@@ -21902,10 +22002,16 @@ async function smYoutubeSearchSongs(item, songs, idxs, onStep) {     // 100 quot
   const added = {};
   for (const idx of idxs) {
     const s = songs.find(x => x.idx === idx); if (!s) continue;
-    const d = await smYtApi('search', { part: 'snippet', type: 'video', maxResults: 5, q: `${item.artist} ${s.title}` }, 100);
-    const ids = (d.items || []).filter(it => it.id && it.id.videoId).map(it => it.id.videoId);
-    const details = ids.length ? await smYtDetails(ids) : new Map();
-    const cands = ids.map(id => { const dt = details.get(id) || {}; return { id, title: dt.title || '', channel: dt.channel || '', durationMs: dt.durationMs || 0, blocked: !!dt.blocked, index: 0 }; });
+    let cands;
+    if (ytUseAddon()) {                                              // a video search through the add-on: the results already carry their lengths, so no second call
+      const r = await ytAddonRequest({ kind: 'search-video', q: `${item.artist} ${s.title}` });
+      cands = r.slice(0, 8).map(v => ({ id: v.id, title: v.title, channel: v.channel, durationMs: v.durationMs || 0, blocked: false, index: 0 }));
+    } else {
+      const d = await smYtApi('search', { part: 'snippet', type: 'video', maxResults: 5, q: `${item.artist} ${s.title}` }, 100);
+      const ids = (d.items || []).filter(it => it.id && it.id.videoId).map(it => it.id.videoId);
+      const details = ids.length ? await smYtDetails(ids) : new Map();
+      cands = ids.map(id => { const dt = details.get(id) || {}; return { id, title: dt.title || '', channel: dt.channel || '', durationMs: dt.durationMs || 0, blocked: !!dt.blocked, index: 0 }; });
+    }
     const top = smTopCands(s, cands, 35, 4).map(c => Object.assign(c, { source: 'search' }));
     if (top.length) added[idx] = top;
     if (onStep) onStep(idx, top);
@@ -21968,7 +22074,7 @@ async function smRunYoutube() {
     if (smState !== st) return;
     st.youtube = r;
     if (r.status === 'done') st.pick.youtube = smDefaultPicks('youtube');
-  } catch (e) { if (smState !== st) return; st.youtube = { status: /^quota$/.test(e.message) ? 'quota' : 'error', error: String((e && e.message) || e), byIdx: {} }; }
+  } catch (e) { if (smState !== st) return; st.youtube = { status: /^quota$/.test(e.message) ? 'quota' : 'error', error: ytAddonErrText(e), byIdx: {} }; }
   smRender();
 }
 async function smSearchYoutubeRemaining() {
@@ -21982,7 +22088,7 @@ async function smSearchYoutubeRemaining() {
       if (top.length) { st.youtube.byIdx[idx] = top; if (top[0].band === 'confident' && !smHas(st.songs.find(s => s.idx === idx), 'youtube')) st.pick.youtube[idx] = top[0].id; }
       st.youtube.searching.done++; smRender();
     });
-  } catch (e) { if (smState === st) st.youtube.searchError = /^quota$/.test(e.message) ? 'YouTube\u2019s daily quota is used up \u2014 it resets at midnight Pacific time.' : String((e && e.message) || e); }
+  } catch (e) { if (smState === st) st.youtube.searchError = /^quota$/.test(e.message) ? 'YouTube\u2019s daily quota is used up \u2014 it resets at midnight Pacific time.' : ytAddonErrText(e); }
   if (smState === st) { delete st.youtube.searching; smRender(); }
 }
 function smPickCounts() { const st = smState; return st ? { spotify: st.songs.filter(s => st.pick.spotify[s.idx]).length, youtube: st.songs.filter(s => st.pick.youtube[s.idx]).length } : { spotify: 0, youtube: 0 }; }
@@ -21998,9 +22104,11 @@ function smStatusHtml(kind) {
   const label = kind === 'spotify' ? 'Spotify' : 'YouTube';
   if (r.status === 'loading' || r.status === 'idle') {
     if (kind === 'youtube' && r.status === 'idle') {
+      if (ytUseAddon()) return ytAddonIdleHtml();
       if (!loadYoutubeApiKey()) return `<div class="sm-status"><span>Matching on YouTube needs a free API key.</span><button type="button" class="config-btn" data-sm="setup-youtube">Set up YouTube API\u2026</button></div>`;
       return `<div class="sm-status"><span>This looks for the album\u2019s playlist on YouTube and matches every song in one go \u2014 about 100 of YouTube\u2019s 10,000 daily quota units (${smYtQuotaUsed().toLocaleString()} used today by this app).</span><button type="button" class="config-btn" data-sm="run-youtube">Find on YouTube</button></div>`;
     }
+    if (kind === 'youtube' && ytUseAddon() && r.status === 'loading') return ytAddonLoadingHtml();
     return `<div class="sm-status" role="status" aria-live="polite"><span>Looking on ${label}\u2026</span><div class="gi-mb-bar"><i></i></div></div>`;
   }
   if (r.status === 'nocreds') return `<div class="sm-status"><span>Matching on Spotify needs a free Client ID and Secret.</span><button type="button" class="config-btn" data-sm="setup-spotify">Set up Spotify API\u2026</button></div>`;
@@ -22013,7 +22121,7 @@ function smStatusHtml(kind) {
   else src = r.playlistTitle ? `Matched against the playlist <a href="${escapeHtml(r.playlistUrl)}" target="_blank" rel="noopener">\u201c${escapeHtml(r.playlistTitle)}\u201d \u2197</a> (${escapeHtml(r.playlistChannel || '')}).` : 'No album playlist on YouTube fits this tracklist.';
   const left = st.songs.filter(s => !(r.byIdx[s.idx] && r.byIdx[s.idx].length)).length;
   let extra = '';
-  if (kind === 'youtube' && left && !r.searching) extra = `<button type="button" class="config-btn" data-sm="search-youtube">Search individually for ${left} song${left === 1 ? '' : 's'} (about ${(left * 100).toLocaleString()} quota units; ${smYtQuotaUsed().toLocaleString()} used today)</button>`;
+  if (kind === 'youtube' && left && !r.searching) extra = `<button type="button" class="config-btn" data-sm="search-youtube">Search individually for ${left} song${left === 1 ? '' : 's'} (${ytUseAddon() ? `through the add-on: no quota, about ${Math.max(1, Math.round(left * 12 / 60))} min` : `about ${(left * 100).toLocaleString()} quota units; ${smYtQuotaUsed().toLocaleString()} used today`})</button>`;
   if (r.searching) extra = `<span role="status" aria-live="polite">Searching\u2026 ${r.searching.done} of ${r.searching.total}</span>`;
   if (r.searchError) extra += `<span class="sm-warn">${escapeHtml(r.searchError)}</span>`;
   return `<div class="sm-status"><span>${src} <b>${found}</b> of ${st.songs.length} songs matched: ${c.confident} confident, ${c.likely} likely, ${c.weak} weak.</span>${extra}</div>`;
@@ -22112,6 +22220,8 @@ function smBind() {
     if (a === 'run-youtube' || a === 'retry-youtube') smRunYoutube();
     else if (a === 'retry-spotify') smRunSpotify();
     else if (a === 'search-youtube') smSearchYoutubeRemaining();
+    else if (a === 'yt-continue') ytAddonContinue();
+    else if (a === 'yt-cancel') ytAddonCancel();
     else if (a === 'setup-spotify') { closeSongMatcher(); el.menuSpotifyApi.click(); }
     else if (a === 'setup-youtube') { closeSongMatcher(); el.menuYoutubeApi.click(); }
     else if (a === 'more') { st.open = st.open === idx ? null : idx; smRender(); }
@@ -29275,7 +29385,7 @@ async function rymQIngest(b) {
   e.applied = made.map(rymQChip); e.rest = rest; e.coverMissed = !!wr.coverMissed; e.cover1 = item.cover || ''; e.note = '';
   e.state = rest.length ? 'review' : made.length ? 'applied' : 'same';
   if (!made.length && !item.rymUpdated) { try { await rymMarkUpdated(item); } catch (er) { /* the flag is set next time */ } }          // read, and nothing needed changing: it has still had its first update
-  rest.forEach(p => { const k = e.key + '|' + p.key; if (!rymQ.ticks.has(k)) rymQ.ticks.set(k, false); });
+  rest.forEach(p => { const k = e.key + '|' + p.key; if (!rymQ.ticks.has(k)) rymQ.ticks.set(k, !!state.rymTickDiffs); });          // (ticked from the start unless you turned that off: nothing is applied until you press Apply)
   if (!rest.length) rymBatchDone([b.id]);
   if (made.length) rymRefreshViews();
   if (!rymQ.open && !rymFetchState.active) flashGlobalToast(`Updated \u201c${item.title}\u201d from Rate Your Music: ${made.length ? made.map(rymQChip).join(', ') : 'nothing new'}${rest.length ? `; ${rest.length} difference${rest.length === 1 ? '' : 's'} left for you in Review` : ''}${wr.coverMissed ? '; the cover couldn\u2019t be loaded from here' : ''}.`);
@@ -29348,7 +29458,7 @@ function rymQRowHtml(e) {
     detail = `<div class="rymq-detail">`
       + (changed ? `<div class="rymq-dlabel">Cover</div><div class="rymq-covrow" style="gap:14px">${rymQThumb(e.cover0, e, 'mid')}<span class="rymq-cap">${e.cover0 ? `${rymQEsc(rymImageHost(e.cover0) || 'your cover')}<br>${rymPictureSize(e.cover0) ? rymPictureSize(e.cover0) + ' px' : 'size unknown'}` : 'no cover yet'}</span>${RYMQ_ICON.arrow}${rymQThumb(e.cover1, e, 'huge')}<span class="rymq-cap" style="color:#7FC2B2">${rymQEsc(rymImageHost(e.cover1))}<br>${rymPictureSize(e.cover1) || '?'} px \u00b7 from the release page</span></div>` : '')
       + (e.applied.length ? `<div class="rymq-dlabel">Applied automatically</div><div class="rymq-chips">${e.applied.map(c => `<span class="rymq-chip">${rymQEsc(c)}</span>`).join('')}</div>` : '')
-      + (has ? `<div class="rymq-dlabel">Differs from what you have \u2014 tick to apply</div>${e.rest.map(p => `<label class="rymq-field"><input type="checkbox" class="rymq-cb" data-q-tick="${rymQEsc(e.key + '|' + p.key)}" ${rymQ.ticks.get(e.key + '|' + p.key) ? 'checked="checked" ' : ''}aria-label="Apply ${rymQEsc(p.label)}"><span class="rymq-fl">${rymQEsc(p.label)}</span><span class="rymq-cur">${rymQEsc(p.current || 'blank')}</span>${RYMQ_ICON.arrow}<span>${rymQEsc(p.proposed)}</span></label>`).join('')}` : '')
+      + (has ? `<div class="rymq-dlabel">Differs from what you have \u2014 ${state.rymTickDiffs ? 'ticked: untick what you want to keep' : 'tick to apply'}</div>${e.rest.map(p => `<label class="rymq-field"><input type="checkbox" class="rymq-cb" data-q-tick="${rymQEsc(e.key + '|' + p.key)}" ${rymQ.ticks.get(e.key + '|' + p.key) ? 'checked="checked" ' : ''}aria-label="Apply ${rymQEsc(p.label)}"><span class="rymq-fl">${rymQEsc(p.label)}</span><span class="rymq-cur">${rymQEsc(p.current || 'blank')}</span>${RYMQ_ICON.arrow}<span>${rymQEsc(p.proposed)}</span></label>`).join('')}` : '')
       + (e.coverMissed ? `<div class="rymq-note">The cover couldn\u2019t be loaded from here, so it was left as it was. The picture host may be refusing requests from this page.</div>` : '')
       + (!e.applied.length && !has && !e.coverMissed ? `<div class="rymq-cap" style="padding:8px 0">${rymQEsc(e.note || 'Nothing new on the release page.')}</div>` : '')
       + `</div>`;
@@ -30289,7 +30399,7 @@ function ensureYtPlayer() {
 
 function onYtPlayerStateChange(e) {
   if (e.data === YT.PlayerState.ENDED) {
-    maybeSubmitYtScrobble(); // see if this play qualifies (Last.fm's own 50%/4-min rule) before anything below moves on to a different track
+    ytScrobbleFlush(); // it ended: counts if it was played for half its length or 4 minutes (Last.fm's rule), before anything below moves on to another track
     if (ytQueueIndex < ytQueue.length - 1) { playYtQueueIndex(ytQueueIndex + 1); return; }
     setYtPlayPauseUI(true);
     // This video standing in for the current entry of a "Play playlist"
@@ -30304,19 +30414,10 @@ function onYtPlayerStateChange(e) {
   if (e.data === YT.PlayerState.PLAYING) {
     setYtPlayPauseUI(false);
     ytDuration = ytPlayer.getDuration() || 0;
-    // Last.fm scrobble tracking — only reset the start-time timer (and
-    // fire track.updateNowPlaying) when this is genuinely a DIFFERENT
-    // track from the one already being tracked, not on every resume from
-    // pause or seek, both of which also fire PLAYING. Identified by the
-    // track's own YouTube URL rather than trying to derive some other key.
-    const currentUrl = ytQueue[ytQueueIndex] && ytQueue[ytQueueIndex].url;
-    if (currentUrl && currentUrl !== ytScrobbleTrackKey) {
-      ytScrobbleTrackKey = currentUrl;
-      ytScrobbleStartedAt = Date.now();
-      ytScrobbleNowPlaying();
-    }
+    ytScrobbleResume();          // Last.fm: the clock for THIS play runs while it plays (and the "now playing" is sent the first time)
   }
-  else if (e.data === YT.PlayerState.PAUSED) setYtPlayPauseUI(true);
+  else if (e.data === YT.PlayerState.PAUSED) { setYtPlayPauseUI(true); ytScrobblePause(); }
+  else if (e.data === YT.PlayerState.BUFFERING) ytScrobblePause();
 }
 
 function setYtPlayPauseUI(paused) {
@@ -30368,6 +30469,7 @@ function openYoutubePlayer(url, trackName, tracks, item) {
 // container regardless of which engine is playing.
 function playYtQueueIndex(i) {
   if (i < 0 || i >= ytQueue.length) return;
+  ytScrobbleFlush();             // the track being left counts if it had been played enough
   // A YouTube video starting stops Spotify AND SoundCloud so no two engines
   // play at once — see stopOtherEngines (this used to pause Spotify only).
   stopOtherEngines('youtube');
@@ -30380,6 +30482,7 @@ function playYtQueueIndex(i) {
   el.miniPlayerTitle.textContent = q.trackName;
   el.miniPlayerTitle.title = q.trackName;
   refreshMiniPlayerMeta();
+  ytScrobbleBegin(q);            // a fresh record for this play (also when it is the same track again)
 
   ytDuration = 0;
   ensureYtPlayer().then(player => { player.loadVideoById(q.videoId); player.playVideo(); });
@@ -30392,6 +30495,7 @@ function playYtQueueIndex(i) {
 // master player itself; whatever plays next (Spotify, or nothing) decides
 // that the same way it always did.
 function closeYoutubePlayer() {
+  ytScrobbleFlush(); ytScrobble = null;
   if (ytPlayer && ytPlayer.stopVideo) { try { ytPlayer.stopVideo(); } catch (e) { /* not ready yet — nothing to stop */ } }
   ytQueue = []; ytQueueIndex = -1;
   ytPlayingForCrateQueue = false; // stopped manually/handed off — don't let a stray advance land on the playlist queue later
@@ -30622,6 +30726,10 @@ function saveYoutubeApiKey(key) {
 // the free tier's quota (100 searches/day) would drain almost immediately
 // if this fired for every track a form happened to show.
 async function youtubeSearchCandidates(artist, title) {
+  if (ytUseAddon()) {                                               // through the add-on when it is connected: no quota
+    try { const r = await ytAddonRequest({ kind: 'search-video', q: `${artist} ${title}` }); return r.slice(0, 10).map(v => ({ id: v.id, title: v.title, channel: v.channel, thumbnail: '' })); }
+    catch (e) { console.warn('YouTube add-on search failed', e); return []; }
+  }
   const apiKey = loadYoutubeApiKey();
   if (!apiKey) return [];
   const q = `${artist} ${title}`;
@@ -30879,6 +30987,7 @@ async function lastfmApiCall(method, params, isPost) {
   const { apiKey, sharedSecret } = loadLastfmScrobbleCreds();
   if (!apiKey || !sharedSecret) return null;
   const allParams = Object.assign({ method, api_key: apiKey }, params);
+  if (isPost && !/^auth\./.test(method)) { const sk = loadLastfmScrobbleSession().sessionKey; if (sk) allParams.sk = sk; }          // writing to an account (a scrobble, "now playing") must carry that account's session key, and be signed WITH it
   allParams.api_sig = lastfmApiSig(allParams, sharedSecret);
   allParams.format = 'json';
   const qs = new URLSearchParams(allParams).toString();
@@ -30953,36 +31062,55 @@ function renderLastfmScrobbleModalState() {
 }
 
 // ---- Actually submitting scrobbles for YouTube playback ----
-// Last.fm's own eligibility rule: a track must play for at least half its
-// duration, or 4 minutes, whichever is LESS, and must itself be longer
-// than 30 seconds — enforced here before ever calling track.scrobble
-// rather than relying on Last.fm to reject an ineligible one.
-let ytScrobbleTrackKey = null; // identity of the track currently being tracked for scrobble purposes (its YouTube URL) — reset whenever the actual track changes, not on every pause/resume/seek
-let ytScrobbleStartedAt = 0; // ms epoch — when THIS track first started playing
+// Last.fm's rule: a track counts once it has really PLAYED for half its length or 4 minutes, whichever is less, and it must be longer than 30 seconds.
+// Every time a YouTube track STARTS (a new one, the next one, or the same one again: playYtQueueIndex) a fresh record is begun. Time is counted only while it is actually playing (not paused or buffering).
+// The scrobble is sent the moment the rule is met (a timer), stamped with when the track STARTED, so skipping ahead, stopping or closing afterwards loses nothing; when a track ends, is skipped or is closed
+// before that, it is checked once more and then dropped.
+let ytScrobble = null;   // { videoId, artist, track, album, startedAt (ms, first PLAYING), playedMs, resumedAt (ms; 0 = not playing now), duration (s), sent, tries, timer }
+const YT_SCROBBLE_NO_NAME = ['', 'now playing', 'untitled track'];       // stand-in names CRATE shows when it has no real track name: never sent to Last.fm
 function ytScrobbleEligible(durationSec, elapsedSec) {
   if (!durationSec || durationSec < 30) return false;
   return elapsedSec >= Math.min(240, durationSec / 2);
 }
-async function maybeSubmitYtScrobble() {
-  const session = loadLastfmScrobbleSession();
-  if (!session.sessionKey || !ytScrobbleTrackKey || !ytScrobbleStartedAt) return;
-  const elapsedSec = (Date.now() - ytScrobbleStartedAt) / 1000;
-  if (!ytScrobbleEligible(ytDuration, elapsedSec)) return;
-  const artist = (nowPlayingItem && nowPlayingItem.artist) || (currentSpotifyTrack && currentSpotifyTrack.artists && currentSpotifyTrack.artists[0] && currentSpotifyTrack.artists[0].name) || '';
-  const track = el.miniPlayerTitle.textContent || '';
-  if (!artist || !track) return; // nothing sensible to scrobble
-  await lastfmApiCall('track.scrobble', {
-    artist, track, timestamp: Math.floor(ytScrobbleStartedAt / 1000),
-    album: nowPlayingItem ? nowPlayingItem.title : ''
-  }, true);
+function ytScrobbleUsable(r) { return !!(r && r.artist && !YT_SCROBBLE_NO_NAME.includes(String(r.track || '').trim().toLowerCase()) && loadLastfmScrobbleSession().sessionKey); }
+function ytScrobbleBegin(q) {                                    // a track is starting
+  const it = nowPlayingItem;
+  ytScrobble = { videoId: q.videoId, artist: (it && it.artist) || '', track: String(q.trackName || '').trim(), album: it ? it.title : '', startedAt: 0, playedMs: 0, resumedAt: 0, duration: 0, sent: false, tries: 0, timer: 0 };
 }
-function ytScrobbleNowPlaying() {
-  const session = loadLastfmScrobbleSession();
-  if (!session.sessionKey) return;
-  const artist = (nowPlayingItem && nowPlayingItem.artist) || '';
-  const track = el.miniPlayerTitle.textContent || '';
-  if (!artist || !track) return;
-  lastfmApiCall('track.updateNowPlaying', { artist, track, album: nowPlayingItem ? nowPlayingItem.title : '' }, true);
+function ytScrobblePlayedMs(r) { return r.playedMs + (r.resumedAt ? Date.now() - r.resumedAt : 0); }
+function ytScrobbleResume() {                                    // the player says PLAYING (start, resume after a pause, after a seek)
+  const r = ytScrobble; if (!r || r.sent) return;
+  try { r.duration = (ytPlayer && ytPlayer.getDuration && ytPlayer.getDuration()) || r.duration; } catch (e) { /* keep what we had */ }
+  if (!r.startedAt) { r.startedAt = Date.now(); ytScrobbleNowPlaying(r); }
+  if (!r.resumedAt) r.resumedAt = Date.now();
+  ytScrobbleSchedule(r);
+}
+function ytScrobblePause() {                                     // paused, buffering or ended: the time so far is kept, the clock stops
+  const r = ytScrobble; if (!r) return;
+  if (r.resumedAt) { r.playedMs += Date.now() - r.resumedAt; r.resumedAt = 0; }
+  clearTimeout(r.timer); r.timer = 0;
+}
+function ytScrobbleSchedule(r) {                                 // when the rule will be met if it keeps playing
+  clearTimeout(r.timer); r.timer = 0;
+  if (r.sent || !r.duration || r.duration < 30) return;
+  const need = Math.min(240, r.duration / 2) * 1000 - ytScrobblePlayedMs(r);
+  r.timer = setTimeout(() => { if (ytScrobble === r) ytScrobbleSubmit(r); }, Math.max(0, need) + 50);
+}
+function ytScrobbleFlush() { const r = ytScrobble; if (!r) return; ytScrobblePause(); ytScrobbleSubmit(r); }          // the track ended, was skipped or was closed: counts only if the rule was met
+async function ytScrobbleSubmit(r) {
+  if (r.sent || !r.startedAt) return;
+  if (!ytScrobbleEligible(r.duration, ytScrobblePlayedMs(r) / 1000 + 0.25)) return;
+  r.sent = true;                                                  // it has qualified: from here it is sent once, or (with no connected account, or no real name or artist) dropped, never held back for later
+  if (!ytScrobbleUsable(r)) return;
+  const res = await lastfmApiCall('track.scrobble', { artist: r.artist, track: r.track, timestamp: Math.floor(r.startedAt / 1000), album: r.album || '' }, true);
+  if (res) return;
+  r.sent = false; r.tries++;                                      // Last.fm didn't take it (a hiccup, or the connection has lapsed): twice more, then say so
+  if (r.tries < 3) setTimeout(() => ytScrobbleSubmit(r), 5000 * r.tries);
+  else { r.sent = true; flashGlobalToast(`Last.fm didn\u2019t accept the scrobble of \u201c${r.track}\u201d. If this keeps happening, reconnect your Last.fm account in the settings.`); }
+}
+function ytScrobbleNowPlaying(r) {
+  if (!ytScrobbleUsable(r)) return;
+  lastfmApiCall('track.updateNowPlaying', { artist: r.artist, track: r.track, album: r.album || '' }, true);
 }
 
 function loadSpotifyCreds() {
