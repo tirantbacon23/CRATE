@@ -19,7 +19,65 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.43.2
+  CURRENT_VERSION: 1.46.0
+
+  1.46.0 — 2026-10-26 — Which releases have had their first update from Rate Your Music, and a log of every update to each (needs the backend script re-deployed: two new columns; page only otherwise, no new add-on).
+
+          THE FLAG: each release remembers whether it has had its FIRST update from Rate Your Music, and when (a new "RymUpdated" column). A release whose page was read counts as updated even if nothing needed changing.
+            Its page (the album view, under the RYM rating) says "Updated from RYM · first 27 Oct 2026 · 3 updates logged", or "Not updated from RYM yet", or "nothing needed changing".
+          THE LOG: every update that changed something is kept (a new "RymUpdateLog" column): when, how it was applied (automatically in the queue, reviewed by you, or applied together), and each change as what it was and
+            what it became ("Date 1993 → 1993-03-03", "Label K → K Records"). Open the line on the album page to read it, newest first. A cover that couldn't be loaded is not logged (it wasn't changed). The log keeps the
+            30 newest updates and always fits a sheet cell (the oldest go first); values are shortened to 60 characters.
+          FINDING WHAT HASN'T BEEN UPDATED: search "updated:never" (or "updated:yes", or "-updated:never") in the catalogue. And ⚙ → "Update releases not yet updated from Rate Your Music…" starts the queue on the ones that
+            have a Rate Your Music link and no first update, 25 at a time (it tells you how many there are, and how many have no link to open); run it again for the next 25.
+          NOT KNOWN: releases you updated BEFORE this version have no record, so they count as "never" and will be read again: harmless, since an update only fills what is blank or better and never overwrites what you have.
+          IF THE SCRIPT ISN'T RE-DEPLOYED: the sheet ignores the two new columns, so the flag and the most recent five entries per release are kept on this device instead and shown from there; they are not on the sheet
+            and don't travel to another browser until it is re-deployed.
+          VERIFIED: the backend writes both columns on an edit and on a group add and leaves them alone otherwise (3 new checks, 14 in all); in the browser with CRATE's real code (19): the first update sets the flag and writes
+            entry one in the same save, a reload keeps both, a second update adds an entry without moving the first date, a page that needed nothing still sets the flag with no log entry, differences you apply get their own
+            entry with your old value, a cover that failed isn't logged, the search, the menu entry (25 of 36, the link-less one mentioned), the size limit (40 updates leave the newest 30), a sheet without the columns, markup
+            shown as text, no history for a release with no link, and the old one-screen review logs too. Moving the first date, or logging a cover that wasn't saved, fails a test. NOT VERIFIED: against your real sheet.
+
+
+  1.45.0 — 2026-10-26 — The update queue: one screen for every "Update from Rate Your Music", with the safe changes applied as each page is read; "Continue" after a check; and the reason a cover wasn't being replaced (needs the add-on, now 1.11.0, for Continue and the per-release progress).
+
+          THE QUEUE: "update ↻", the card menu, a selection and the bar's Review all open the same dialog, even for ONE release. It lists every release with your cover → the one from the release page (and both sizes),
+            the release, a status, and what changed. The status follows the run: Queued, Reading…, Next in 9 s (the pause), then Updated, Needs a look, Up to date, or Skipped (a page that no longer exists). Click a row for
+            the field-by-field detail and the larger covers. "Keep working" hides the dialog while the run goes on (the small bar shows it, with Details to come back). Escape closes it.
+          AUTO-APPLY: as each page is read, what is SAFE is written at once: a blank filled, a more precise date, a larger cover, a fuller tracklist, a label or catalogue number where you have none. What DIFFERS from what you
+            have (your label "K" against RYM's "K Records", a different genre) is never applied by itself: it is left in the queue, unticked, and the update stays waiting; open the row, tick what you want, "Apply N ticked",
+            or "Leave the differences as they are". An update with nothing left to decide is let go on its own, so the bar only ever mentions what needs you.
+          CONTINUE AFTER A CHECK: when Rate Your Music asks for a check the run stops on that page, which is left open in front of you, and an amber banner says so. Pass the check there, then "Continue with the other N": the
+            add-on tries that page again and carries on with the releases it hadn't reached (the ones already read are not read again); "Stop here" ends the run. It is also offered after a page that timed out.
+          THE COVER THAT WASN'T REPLACED: found two real faults in what I gave you before, though I can't see your real picture host from here. (1) "Apply all" threw away the result of a cover that couldn't be loaded: it counted
+            it as a change that had been made, said nothing, and the release kept its small picture, every time. It is now neither counted nor silent: the queue shows "cover couldn't be loaded" on that release, with the reason
+            when you open it, and Apply all's message says how many. (2) Pictures were requested with CRATE's address as the referrer, which a picture host can refuse to serve to another website while serving it fine to
+            someone who opens it directly (as when you pasted me the address). Pictures from e.snmc.io and cdn.sonemic.net are now requested without one, on the cards, the deck and the cover check; and the check asks for
+            all the sizes at once instead of one after another. IF A RELEASE STILL SHOWS "cover couldn't be loaded", the host is refusing even that, and I need to know.
+          A SWITCH: ⚙ → RYM ratings… → "Review updates in the queue". Off, each update is reviewed on its own screen and nothing is applied until you press Apply, as before. (The tests written for the old screen still run in that mode.)
+          VERIFIED: the queue in the browser with CRATE's real code (33 checks, and I looked at it rendered): a single release, auto-apply writing the label, number, date and the cover as the cdn picture in its largest size;
+            a difference left alone, then ticked and applied; "up to date"; a run of five through queued, reading, pausing and a skipped page; Keep working and Details; Cancel; the check banner with Continue and Stop here; a
+            cover that can't load; markup in a title shown as text; Escape; the pictures asked for without a referrer; and the setting off. With the real extension (23): Continue retries the page that asked and does not start over,
+            closes the page it left open, and is refused when there is nothing to continue; the run reports how each page went. Breaking "differences are never applied", "a cover that failed is not counted", and "Continue
+            doesn't restart" is caught. NOT VERIFIED: how your real picture host answers; the real timings; and the queue on a phone (it is laid out for a narrow screen but I have only looked at a desktop one).
+
+
+  1.44.0 — 2026-10-26 — Where you are in the catalogue is kept when a release is added, removed or edited, so you don't have to scroll back to find it. Page only: no new add-on or backend.
+
+          WHAT YOU SAW: after adding or removing a release, the catalogue jumped back to the top.
+          CAUSE: every add, remove, import, edit and "Refresh" reloads the catalogue, and a reload begins by putting up a "loading" state, which clears the view; by the time the cards were drawn again, the scroll position was gone.
+          NOW: just before a reload does that, CRATE remembers the release at the top of your view (and the few after it) and how far each sits below the top, and after the cards are drawn again it puts the first of them that is
+            still there back at the same height. It identifies a release by its id (or artist + title + date if it has none), because the sheet's row numbers shift up when one is deleted, so a row number can't be remembered.
+            If you removed the very release you were looking at, the next one stays where it was; if everything in view is gone, the old distance from the top is used (kept inside the list). The left-hand genre list keeps its
+            place too. The same care is taken when a RYM rating arrives (which redraws the cards) and when you save an edit.
+          NOT CHANGED: changing the sort, grouping, view or searching behave exactly as before (they never went to the top on their own). Only the Albums view of the catalogue is covered; playlists, the artist view and the
+            other tabs keep their own scrolling. Adding a release that sorts into the top of the list pushes every card along by one place, and the release you were looking at stays at the same height while the ones beside it
+            reflow around it.
+          VERIFIED, in the browser with CRATE's real code, on a 150-release catalogue scrolled well down (19 checks), with and without release ids, and with the sheet shifting its rows after a delete: removing a release above the
+            view; adding one that sorts to the very top; removing the release you are looking at; a RYM rating arriving; grouped by year; the list view; staying at the top when at the top; the left list. Putting the old
+            behaviour back (taking the position after the loading state) fails four of them with the jump to the top. NOT VERIFIED: against your real sheet's timing (a slow reload shows the loading screen while it waits, and
+            the position is put back when it ends), and a very large catalogue where images are still loading as it is put back.
+
 
   1.43.2 — 2026-10-26 — Tracklists: a side called just "A" no longer becomes the title "A", and a title like "1490" is pulled (needs the add-on, now 1.10.1; the page itself is unchanged).
 
@@ -6623,6 +6681,7 @@
           <button type="button" id="menuImportRym">Import from Rate Your Music…</button>
           <button type="button" id="menuTidyNames">Tidy artist names…</button>
           <button type="button" id="menuFillTracklists">Fill tracklists from Rate Your Music…</button>
+          <button type="button" id="menuUpdateNever">Update releases not yet updated from Rate Your Music…</button>
           <button type="button" id="menuSoundAnalysis">Sound analysis…</button>
           <button type="button" id="menuRymRatings">RYM ratings &amp; genres…</button>
           <button type="button" id="menuUpdateLog">Update log…</button>
@@ -7187,6 +7246,7 @@
 <!-- Quiet, non-blocking notifications (e.g. background Last.fm sync) -->
 <div id="globalToast" class="global-toast" hidden></div>
 <div id="rymInbox" class="rym-inbox" role="status" hidden></div>
+<div id="rymQOverlay" class="rymq-overlay" hidden><div class="rymq-dialog" id="rymQDialog" role="dialog" aria-modal="true" aria-labelledby="rymQTitle"></div></div>
 <div id="bgStatus" class="bg-status" role="status" aria-live="polite" hidden><span id="bgStatusText"></span><i class="bg-status-track"><b id="bgStatusFill"></b></i><button type="button" id="bgStatusCancel" class="chip-btn" hidden>Cancel</button><button type="button" id="bgStatusView" class="chip-btn" hidden>Details</button><button type="button" id="bgStatusClose" class="chip-btn" hidden aria-label="Dismiss">×</button></div>
 <div id="rymUpdateOverlay" class="arrange-overlay" hidden>
   <div class="arrange-modal add-modal cx-modal" role="dialog" aria-modal="true" aria-labelledby="rymUpdTitle">
@@ -7372,6 +7432,7 @@
           <a id="deckRymOpen" target="_blank" rel="noopener">find ↗</a>
           <button type="button" id="deckRymUpdate" class="deck-rym-update" title="Opens this release's Rate Your Music page in a background tab, reads it and closes it. Nothing changes until you press Apply." hidden>update ↻</button>
         </div>
+        <details class="deck-rym-hist" id="deckRymLog" hidden><summary id="deckRymLogSum"></summary><div id="deckRymLogBody"></div></details>
         <details class="deck-rym-hist" id="deckRymHist" hidden><summary id="deckRymHistSum"></summary><div id="deckRymHistBody"></div></details>
       </div>
 
@@ -8244,6 +8305,7 @@
         <p id="rymCoverage" class="snd-coverage" role="status"></p>
         <fieldset class="cx-group"><legend>How it shows</legend>
           <label class="snd-opt"><input type="checkbox" id="rymShowNext"><span><b>Show it next to my rating</b><small>On cards and lists as “RYM 3.65”.</small></span></label>
+          <label class="snd-opt"><input type="checkbox" id="rymQueueMode"><span><b>Review updates in the queue</b><small>One screen for every \u201cUpdate from Rate Your Music\u201d, one release or many: what is safe (filling blanks, a better cover, a fuller tracklist) is applied as each page is read, and only what DIFFERS from what you have is left for you. Off: each update is reviewed on its own screen and nothing is applied until you press Apply.</small></span></label>
           <label class="snd-opt"><input type="checkbox" id="rymBold"><span><b>Bold the top-ranked</b><small>Like Rate Your Music: a release is bold when it is ranked within RYM\u2019s overall top <input type="text" inputmode="numeric" id="rymBoldRank" class="rym-num"> (its rank is saved when you visit its page, or update it from there). Releases with no known rank are never bold.</small></span></label>
         </fieldset>
         <fieldset class="cx-group"><legend>From the browser add-on</legend>
@@ -8442,7 +8504,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.43.2';
+const APP_VERSION = '1.46.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -8728,6 +8790,7 @@ function rymLocalSet(item) { const k = artKey(item), all = rymLocalAll(); if (it
 function rymLocalClear(item) { const all = rymLocalAll(), k = artKey(item); if (all[k]) { delete all[k]; rymLocalSave(); } }
 function rymMergeLocal() {                                       // a rating the sheet doesn't have yet (backend not updated, or not saved yet) is shown from the copy kept here
   if (rymMergedFor === state.raw) return; rymMergedFor = state.raw;
+  { const L = rymLogLocalAll(); (state.raw || []).forEach(it => { const l = L[artKey(it)]; if (!l) return; if (!it.rymUpdated && l.u) it.rymUpdated = l.u; if (!(it.rymUpdateLog || []).length && l.l && l.l.length) it.rymUpdateLog = rymParseLog(l.l); }); }          // what the sheet doesn't hold yet is shown from the copy kept here
   { const rl = rymRankLocal(); (state.raw || []).forEach(it => { const l = rl[artKey(it)]; if (l && !it.rymRank) it.rymRank = rymVotesNum(l.k); }); }          // a rank the sheet doesn't have yet is shown from the copy kept here
   const all = rymLocalAll(); let flush = false;
   (state.raw || []).forEach(it => { const l = all[artKey(it)]; if (!l) return; if (!it.rymRating) { it.rymRating = rymNum(l.r); it.rymVotes = rymVotesNum(l.n); it.rymSrc = l.s === 'a' ? 'a' : 'm'; it._rymLocal = true; flush = true; } else delete all[artKey(it)]; });
@@ -8742,7 +8805,7 @@ async function rymFlushLocal() {                                  // the backend
 }
 function rymRefreshViews() {                                      // redraw the cards/lists and the open album page, once, shortly after the last change
   clearTimeout(rymViewTimer);
-  rymViewTimer = setTimeout(() => { try { if (typeof renderGrid === 'function') renderGrid(); if (activeItem) deckRymPaint(activeItem); rymPaintCoverage(); } catch (e) { /* views not up yet */ } }, 350);
+  rymViewTimer = setTimeout(() => { try { if (typeof renderGrid === 'function') keepGridPlace(() => renderGrid()); if (activeItem) deckRymPaint(activeItem); rymPaintCoverage(); } catch (e) { /* views not up yet */ } }, 350);
 }
 function rymChipHtml(item) {
   if (!state.rymShowNext || !item || !item.rymRating) return '';
@@ -8783,6 +8846,18 @@ async function rymSaveBatch(updates, src) {                       // updates: [{
 function rymNoteLocalOnly() { if (rymState.localOnlyWarned) return; rymState.localOnlyWarned = true; flashGlobalToast('Saved on this device only: your Apps Script backend needs the RYM update (see the update log).'); }
 // ---- what the add-on saw on RateYourMusic ----
 function rymIndex() { if (rymAddonIndexFor !== state.raw || !rymAddonIndex) { rymAddonIndex = rymBuildIndex(state.raw || [], dupKey); rymAddonIndexFor = state.raw; } return rymAddonIndex; }
+// ---- Updates from Rate Your Music, remembered: a FLAG for whether a release has had its first update, and a LOG of every update that changed something ----
+// RymUpdated = when it was first read and updated (blank = never). RymUpdateLog = a list of { t: when, s: how, c: [{ k: field, l: its name, a: before, b: after }] }, newest last, kept inside a sheet cell's limit.
+const RYM_LOG_MAX = 30, RYM_LOG_LOCAL_KEY = 'crate_rym_log_v1';
+function rymParseLog(v) { let a = v; if (typeof v === 'string') { try { a = JSON.parse(v || '[]'); } catch (e) { a = []; } } return Array.isArray(a) ? a.filter(x => x && x.t && Array.isArray(x.c)).slice(-RYM_LOG_MAX) : []; }
+function rymLogEntry(rows, src) { return { t: Date.now(), s: src || 'update', c: rows.map(p => ({ k: String(p.key), l: String(p.label || p.key).slice(0, 30), a: String(p.current == null ? '' : p.current).slice(0, 60), b: String(p.proposed == null ? '' : p.proposed).slice(0, 60) })) }; }
+function rymLogJson(log) { let l = log.slice(-RYM_LOG_MAX), j = JSON.stringify(l); while (j.length > 40000 && l.length > 1) { l = l.slice(1); j = JSON.stringify(l); } return j; }          // (a sheet cell holds 50,000 characters: the oldest entries go first)
+function rymLogLocalAll() { try { const o = JSON.parse(localStorage.getItem(RYM_LOG_LOCAL_KEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
+function rymLogLocalSet(item) { const o = rymLogLocalAll(); o[artKey(item)] = { u: item.rymUpdated || '', l: (item.rymUpdateLog || []).slice(-5) }; try { localStorage.setItem(RYM_LOG_LOCAL_KEY, JSON.stringify(o)); } catch (e) { /* not kept */ } }          // (a copy kept here, for a sheet that doesn't have the columns yet)
+async function rymMarkUpdated(item) {                              // a release was read and needed nothing: it has still had its first update
+  if (item.rymUpdated) return; const at = new Date().toISOString();
+  await postUpdate({ action: 'editAlbum', row: item.row, RymUpdated: at }); item.rymUpdated = at; rymLogLocalSet(item);
+}
 const RYM_RANK_KEY = 'crate_rym_rank_v1';
 function rymRankLocal() { try { const o = JSON.parse(localStorage.getItem(RYM_RANK_KEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
 function rymRankLocalSave(o) { try { localStorage.setItem(RYM_RANK_KEY, JSON.stringify(o)); } catch (e) { /* not kept */ } }
@@ -8830,7 +8905,7 @@ let rymQEShown = 40;
 function openRymDialog() { rymQEShown = 40; rymRenderSettings(); rymEl('rymOverlay').hidden = false; el.layoutMenu.hidden = true; rymPaintDialog(); rymRequestFromAddon(); }
 function closeRymDialog() { const ov = rymEl('rymOverlay'); if (ov && !ov.hidden) ov.hidden = true; }
 function rymRenderSettings() {
-  rymEl('rymGenreAuto').checked = !!state.rymGenreAuto; rymEl('rymShowNext').checked = !!state.rymShowNext; rymEl('rymBold').checked = !!state.rymBold; rymEl('rymAuto').checked = !!state.rymAuto;
+  rymEl('rymGenreAuto').checked = !!state.rymGenreAuto; rymEl('rymShowNext').checked = !!state.rymShowNext; rymEl('rymBold').checked = !!state.rymBold; rymEl('rymQueueMode').checked = !!state.rymQueueMode; rymEl('rymAuto').checked = !!state.rymAuto;
   rymEl('rymBoldRank').value = String(state.rymBoldRank);
 }
 function rymQueue() {
@@ -8883,6 +8958,14 @@ function rymPaintQE() {
   });
   const more = rymEl('rymQEMore'); more.hidden = list.length <= rymQEShown; more.textContent = `Show ${Math.min(40, list.length - rymQEShown)} more`;
 }
+function rymLogSrc(sv) { return ({ queue: 'applied automatically', review: 'you reviewed it', together: 'applied together' })[sv] || 'updated'; }
+function rymPaintLog(item) {                                    // the album page's "updated from RYM" flag and history
+  const d = rymEl('deckRymLog'); if (!d) return; if (!item || !(item.rymLink || '').trim()) { d.hidden = true; return; }
+  const log = item.rymUpdateLog || [], first = item.rymUpdated, fmt = (t) => new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  d.hidden = false;
+  rymEl('deckRymLogSum').textContent = first ? `Updated from RYM \u00b7 first ${fmt(first)} \u00b7 ${log.length ? `${log.length} update${log.length === 1 ? '' : 's'} logged` : 'nothing needed changing'}` : 'Not updated from RYM yet';
+  rymEl('deckRymLogBody').innerHTML = log.length ? log.slice().reverse().map(e => `<div class="rym-log-entry"><div class="rym-log-when">${escapeHtml(fmt(e.t))} \u00b7 ${escapeHtml(rymLogSrc(e.s))}</div>${e.c.map(c => `<div class="rym-log-ch"><b>${escapeHtml(c.l)}</b> ${c.a ? escapeHtml(c.a) + ' \u2192 ' : ''}${escapeHtml(c.b)}</div>`).join('')}</div>`).join('') : `<div class="rym-log-none">${first ? 'Its Rate Your Music page was read and matched what you have.' : 'Use \u201cupdate \u21bb\u201d to read its Rate Your Music page.'}</div>`;
+}
 function deckRymPaint(item) {                                   // the album page's RYM row
   const inp = rymEl('deckRym'); if (!inp || !item) return;
   const vot = rymEl('deckRymVotes');                              // never overwrite a box you are in the middle of typing in
@@ -8891,7 +8974,7 @@ function deckRymPaint(item) {                                   // the album pag
   const a = rymEl('deckRymOpen'); a.href = item.rymLink && item.rymLink.trim() ? item.rymLink.trim() : rymSearchUrl(item); a.textContent = item.rymLink ? 'open \u2197' : 'find \u2197';
   rymEl('deckRymUpdate').hidden = !rymUpdateUrl(item);
   el.deckTitle.classList.toggle('rym-bold', !!rymBoldClass(item));
-  rymPaintHist(item);
+  rymPaintHist(item); rymPaintLog(item);
 }
 async function deckRymSave() {
   if (!activeItem) return; const val = rymNum(rymEl('deckRym').value);
@@ -8905,7 +8988,7 @@ function initRymRatings() {
   rymEl('rymClose').addEventListener('click', closeRymDialog);
   ov.addEventListener('mousedown', (e) => { if (e.target === ov) closeRymDialog(); });
   const setting = (id, key, num) => rymEl(id).addEventListener('change', (e) => { if (num) { const v = rymNum(e.target.value); if (!v) { e.target.value = String(state[key]); return; } state[key] = v; } else state[key] = e.target.checked; savePrefs(); rymRefreshViews(); });
-  setting('rymShowNext', 'rymShowNext'); setting('rymBold', 'rymBold'); setting('rymAuto', 'rymAuto'); rymEl('rymBoldRank').addEventListener('change', (e) => { const v = rymVotesNum(e.target.value); if (!v) { e.target.value = String(state.rymBoldRank); return; } state.rymBoldRank = v; savePrefs(); rymRefreshViews(); });
+  setting('rymShowNext', 'rymShowNext'); setting('rymBold', 'rymBold'); setting('rymQueueMode', 'rymQueueMode'); setting('rymAuto', 'rymAuto'); rymEl('rymBoldRank').addEventListener('change', (e) => { const v = rymVotesNum(e.target.value); if (!v) { e.target.value = String(state.rymBoldRank); return; } state.rymBoldRank = v; savePrefs(); rymRefreshViews(); });
   rymEl('deckRymUpdate').addEventListener('click', () => { if (activeItem) rymFetchUpdates([activeItem]); });
   rymEl('rymQEFilter').addEventListener('change', () => { rymQEShown = 40; rymPaintQE(); }); rymEl('rymQESort').addEventListener('change', () => { rymQEShown = 40; rymPaintQE(); });
   rymEl('rymQEMore').addEventListener('click', () => { rymQEShown += 40; rymPaintQE(); });
@@ -9273,7 +9356,7 @@ const state = {
   // once rather than per-row, matching the reference this was built from.
   showTrackCredits: false,
   chartGenre: null, // last-selected genre in the Release Chart element (Main panel) — see renderChartElement()
-  rymBold: true, rymBoldRank: 7500, rymShowNext: true, rymAuto: true, rymMin: 0, rymMissingOnly: false, backendRym: false, backendRymHist: false, backendTaxChunks: false, rymGenreAuto: true,   // RYM ratings (see rym-data)
+  rymBold: true, rymBoldRank: 7500, rymQueueMode: !window.__CRATE_LEGACY_REVIEW, rymShowNext: true, rymAuto: true, rymMin: 0, rymMissingOnly: false, backendRym: false, backendRymHist: false, backendTaxChunks: false, rymGenreAuto: true,   // RYM ratings (see rym-data)
   genreRole: 'any',   // which of a release's genres a genre filter looks at: 'any' (Genre + Secondary Genre), 'primary' (Genre only), 'secondary' (Secondary Genre only) — see genre-role
   firstGenreOnly: false, // when on, a genre only counts if it is the FIRST one listed on a release (left-panel genre filter, genre: searches, Release Chart) — see filterGenreTags
   genreSearchMode: 'loose', // how strictly genre: searches match — 'exact' | 'subgenres' | 'loose', see genreSearchMatches / the ⇅ popover's "Genre search"
@@ -11761,7 +11844,7 @@ function loadPrefs() {
     if (['exact', 'subgenres', 'loose'].includes(p.genreSearchMode)) state.genreSearchMode = p.genreSearchMode;
     if (typeof p.firstGenreOnly === 'boolean') state.firstGenreOnly = p.firstGenreOnly;
     if (['any', 'primary', 'secondary'].includes(p.genreRole)) state.genreRole = p.genreRole;
-    ['rymBold', 'rymShowNext', 'rymAuto', 'rymMissingOnly', 'rymGenreAuto'].forEach(k => { if (typeof p[k] === 'boolean') state[k] = p[k]; });
+    ['rymBold', 'rymShowNext', 'rymAuto', 'rymMissingOnly', 'rymGenreAuto', 'rymQueueMode'].forEach(k => { if (typeof p[k] === 'boolean') state[k] = p[k]; });
     if (rymVotesNum(p.rymBoldRank)) state.rymBoldRank = rymVotesNum(p.rymBoldRank);
     if ([0, 3, 3.5, 3.8, 4, 4.5].includes(Number(p.rymMin))) state.rymMin = Number(p.rymMin);
     if (p.panelWidths) state.panelWidths = Object.assign({}, state.panelWidths, p.panelWidths);
@@ -11842,7 +11925,7 @@ function savePrefs() {
       shuffle: state.shuffle,
       genreSearchMode: state.genreSearchMode,
       firstGenreOnly: state.firstGenreOnly, genreRole: state.genreRole,
-      rymGenreAuto: state.rymGenreAuto, rymBold: state.rymBold, rymShowNext: state.rymShowNext, rymAuto: state.rymAuto, rymMissingOnly: state.rymMissingOnly, rymBoldRank: state.rymBoldRank, rymMin: state.rymMin,
+      rymGenreAuto: state.rymGenreAuto, rymBold: state.rymBold, rymQueueMode: state.rymQueueMode, rymShowNext: state.rymShowNext, rymAuto: state.rymAuto, rymMissingOnly: state.rymMissingOnly, rymBoldRank: state.rymBoldRank, rymMin: state.rymMin,
       statsMode: state.statsMode,
       rightPanelShowQueue: state.rightPanelShowQueue,
       rightPanelShowHistory: state.rightPanelShowHistory,
@@ -11907,6 +11990,34 @@ function saveCoverageCache() {
 
 /* ---------- Fetch ---------- */
 
+// ---- Where you are in the catalogue, kept across a CHANGE to it (a release added, removed or edited, a reload, a RYM rating arriving). Rebuilding the cards used to send the view to the top. ----
+// Before the rebuild: remember the first release in view and the few after it (by id, else artist + title + date: sheet rows shift when one is deleted, so a row number can't be remembered), and how far each
+// sits below the top of the view. After it: put the first of them that is still there back at the same place. If a release was removed from the very spot you were at, the next one takes its place; if
+// nothing from the view is left, the old distance from the top is used (kept inside the list). Filtering, sorting and searching are NOT this: they still start from the top.
+function gridPlaceKey(item) { return item ? (item.albumId ? 'id:' + item.albumId : 'k:' + artKey(item) + '|' + (item.releaseDate || item.year || '')) : ''; }
+function captureGridPlace() {
+  const wrap = document.getElementById('gridWrap'); if (!wrap || state.activePlaylistId || state.activeTab !== 'albums' || wrap.scrollTop <= 0) return null;          // at the top there is nothing to keep
+  const top = wrap.getBoundingClientRect().top, byRow = new Map((state.raw || []).map(r => [String(r.row), r])), seen = [];
+  for (const c of el.gridContainer.querySelectorAll('[data-album-row]')) {
+    const r = c.getBoundingClientRect(); if (r.bottom <= top + 1) continue;
+    const it = byRow.get(c.dataset.albumRow); if (!it) continue;
+    seen.push({ key: gridPlaceKey(it), off: r.top - top }); if (seen.length >= 14) break;
+  }
+  return { scrollTop: wrap.scrollTop, seen };
+}
+function restoreGridPlace(place) {
+  const wrap = document.getElementById('gridWrap'); if (!wrap || !place) return;
+  const top = wrap.getBoundingClientRect().top, byKey = new Map(), cardOf = new Map();
+  (state.raw || []).forEach(r => { const k = gridPlaceKey(r); if (!byKey.has(k)) byKey.set(k, r); });
+  el.gridContainer.querySelectorAll('[data-album-row]').forEach(c => cardOf.set(c.dataset.albumRow, c));
+  for (const s of place.seen) {
+    const it = byKey.get(s.key), c = it && cardOf.get(String(it.row)); if (!c) continue;
+    wrap.scrollTop += (c.getBoundingClientRect().top - top) - s.off; return;
+  }
+  wrap.scrollTop = Math.min(place.scrollTop, Math.max(0, wrap.scrollHeight - wrap.clientHeight));
+}
+function gridPlaceSnapshot() { const left = document.getElementById('leftList'); return { place: captureGridPlace(), leftTop: left ? left.scrollTop : 0 }; }          // (taken BEFORE anything that clears the view, such as the reload's "loading" state)
+function keepGridPlace(fn, snap) { snap = snap || gridPlaceSnapshot(); const out = fn(); restoreGridPlace(snap.place); const left = document.getElementById('leftList'); if (left && snap.leftTop) left.scrollTop = snap.leftTop; return out; }
 async function fetchCatalog() {
   if (!CONFIG.SCRIPT_URL || CONFIG.SCRIPT_URL.indexOf('PASTE_YOUR') === 0) {
     showState('setup', 'albums');
@@ -11924,6 +12035,7 @@ async function fetchCatalog() {
   // finish and reflect the current data either way.
   if (fetchCatalogInFlight) return;
   fetchCatalogInFlight = true;
+  const placeBefore = gridPlaceSnapshot();          // where you are, before the loading state clears the view
 
   showState('loading', 'albums');
   // If it's taking a while, say so explicitly rather than leaving the
@@ -12029,7 +12141,7 @@ async function fetchCatalog() {
           review: r.Review || '',
           link: r.Link ? String(r.Link).trim() : '',
           rymLink: r.RymLink ? String(r.RymLink).trim() : '',
-          rymRank: rymVotesNum(r.RymRank), rymRating: rymNum(r.RymRating), rymVotes: rymVotesNum(r.RymVotes), rymSrc: rymNum(r.RymRating) ? (r.RymSrc === 'a' ? 'a' : 'm') : '', rymHist: rymParseHist(r.RymHistory),
+          rymRank: rymVotesNum(r.RymRank), rymUpdated: r.RymUpdated ? String(r.RymUpdated).trim() : '', rymUpdateLog: rymParseLog(r.RymUpdateLog), rymRating: rymNum(r.RymRating), rymVotes: rymVotesNum(r.RymVotes), rymSrc: rymNum(r.RymRating) ? (r.RymSrc === 'a' ? 'a' : 'm') : '', rymHist: rymParseHist(r.RymHistory),
           dateAdded: r.DateAdded || '',
           catalog: r.Catalog ? String(r.Catalog).trim() : 'CRT-' + String(i + 1).padStart(3, '0'),
           // Free-text release descriptor (e.g. "Deluxe Edition", "2024
@@ -12153,10 +12265,7 @@ async function fetchCatalog() {
       if (!livePlaylistIds.has(pid)) delete state.playlistFolderMap[pid];
     });
 
-    buildLeftList();
-    renderPlaylistSidebar();
-    updateMainLabel();
-    applyFiltersSort();
+    keepGridPlace(() => { buildLeftList(); renderPlaylistSidebar(); updateMainLabel(); applyFiltersSort(); }, placeBefore);          // (a reload after an add, a remove or an edit keeps you where you were)
     prefetchArt(state.raw);
     if (state.activeTab === 'artist') { renderArtistList(); renderArtistDetail(); }
     checkAlbumAnniversaries();
@@ -13111,6 +13220,7 @@ function updateMainLabel() {
 //   field:"value with spaces"
 //   year:2022 / year:>2020 / year:>=2020 / year:<2020 / year:<=2020 / year:2020-2022
 //   rating:>=4 / rating:4 (same operators as year)
+//   updated:never / updated:yes   (has it had its first update from Rate Your Music?)
 //   -term / -field:value   excludes matches instead of requiring them
 //   "exact phrase"          a plain quoted phrase, matched as one substring
 //   plain words             same old behavior: substring match against
@@ -13125,7 +13235,8 @@ const SEARCH_FIELD_ALIASES = {
   track: 'track', song: 'track',
   descriptor: 'descriptor', descriptors: 'descriptor',
   scene: 'scene', movement: 'movement', movements: 'movement', scenes: 'scene',
-  rym: 'rym'
+  rym: 'rym',
+  updated: 'updated'
 };
 
 // Manual tokenizer (rather than one big regex) so quoted phrases, an
@@ -13270,6 +13381,7 @@ function searchTokenMatches(r, token) {
   if (canonicalField === 'rating') {
     return numericClauseMatches(r.rating || 0, parseNumericClause(value));
   }
+  if (canonicalField === 'updated') { const v = String(value).toLowerCase(); if (['never', 'no', 'none', 'not'].includes(v)) return !r.rymUpdated; if (['yes', 'done', 'rym', 'updated'].includes(v)) return !!r.rymUpdated; return false; }          // updated:never / updated:yes (has it had its first update from Rate Your Music?)
   if (canonicalField === 'rym') { const v = String(value).toLowerCase(); if (v === 'none' || v === 'missing') return !r.rymRating; return numericClauseMatches(r.rymRating || 0, parseNumericClause(value)); }
   if (canonicalField === 'genre') return genreSearchMatches(r, value);
   if (canonicalField === 'track') {
@@ -23639,6 +23751,12 @@ const cxCoverCache = new Map(), cxCoverInflight = new Map(), cxCoverWait = [];
 let cxCoverBusy = 0, cxCoverObs = null;
 function cxLoadView() { try { const v = localStorage.getItem(CX_VIEW_KEY); return v === 'grid' || v === 'off' ? v : 'list'; } catch (e) { return 'list'; } }
 function cxCoverKey(r) { return dupKey(r.artist, r.title) + '|' + (r.cover || '') + '|' + (r.link || ''); }
+// Rate Your Music's picture hosts may refuse a request that says it comes from another website (a referrer), yet serve the same picture to someone who opens it directly. So any <img>'s src set to a
+// Rate Your Music address is requested without one (this covers the cards, the deck, and the cover check below).
+(function () {
+  const d = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src'); if (!d || !d.set) return;
+  Object.defineProperty(HTMLImageElement.prototype, 'src', { configurable: true, enumerable: d.enumerable, get: d.get, set(v) { try { if (rymIsRymImage(v)) this.referrerPolicy = 'no-referrer'; } catch (e) { /* not an address */ } d.set.call(this, v); } });
+})();
 function cxProbe(url) { return new Promise(res => { let done = false; const end = (ok) => { if (!done) { done = true; clearTimeout(t); res(ok); } }; const im = new Image(), t = setTimeout(() => end(false), 6000); im.onload = () => end(true); im.onerror = () => end(false); im.src = url; }); }       // (a picture that never answers must not hold up a whole import)
 function cxResolveCover(r) {
   const key = cxCoverKey(r);
@@ -23837,6 +23955,7 @@ function initCrateExchange() {
   cxEl('menuImportRym').addEventListener('click', rymImportFromMenu);
   cxEl('menuTidyNames').addEventListener('click', rymTidyNames);
   cxEl('menuFillTracklists').addEventListener('click', rymFillTracklists);
+  cxEl('menuUpdateNever').addEventListener('click', rymUpdateNever);
 }
 
 /* ---------- Duplicate protection when adding ----------
@@ -23938,7 +24057,7 @@ function initAddonBridge() {
     const b = e.target.closest('button'); if (!b) return;
     if (b.id === 'bgStatusCancel' && rymFetchState.active) rymFetchCancel();
     else if (b.id === 'bgStatusCancel' && cxImp) cxImp.cancel = true;
-    else if (b.id === 'bgStatusView') { const ov = document.getElementById('cxImportOverlay'); if (ov) ov.hidden = false; bgStatusHide(); }
+    else if (b.id === 'bgStatusView') { if (state.rymQueueMode && rymQ.entries.length && !(typeof cxImp !== 'undefined' && cxImp)) rymQOpen(); else { const ov = document.getElementById('cxImportOverlay'); if (ov) ov.hidden = false; } bgStatusHide(); }
     else if (b.id === 'bgStatusClose') bgStatusHide();
   });
   const inbox = document.getElementById('rymInbox');
@@ -29064,11 +29183,14 @@ function rymFetchUpdates(items) {
     const mins = Math.max(1, Math.round(use.length * 14.5 / 60));
     if (!confirm(`Open ${use.length} Rate Your Music pages, one at a time, each in a background tab that closes itself, and read them?\n\nIt takes about ${mins} minute${mins === 1 ? '' : 's'}: there is a pause of 8 to 15 seconds between pages, on purpose, so Rate Your Music isn\u2019t hit quickly. If it asks for a check, the run stops and shows you that page.\n\nNothing in CRATE changes until you press Apply.${noLink ? `\n\n${noLink} without a Rate Your Music link ${noLink === 1 ? 'is' : 'are'} skipped.` : ''}${over ? `\n\n${over} more than 25: do ${over === 1 ? 'that one' : 'those'} in another run.` : ''}`)) return;
   }
+  if (state.rymQueueMode) rymQBegin(use);
   window.postMessage({ source: 'crate-app', type: 'rym-fetch-start', items: use.map(it => ({ id: it.row, url: rymUpdateUrl(it) })) }, window.location.origin);
-  clearTimeout(rymFetchState.ackTimer); rymFetchState.ackTimer = setTimeout(() => { if (!rymFetchState.active) flashGlobalToast(rymFetchWhy('noanswer')); }, 3000);
+  clearTimeout(rymFetchState.ackTimer); rymFetchState.ackTimer = setTimeout(() => { if (!rymFetchState.active) { flashGlobalToast(rymFetchWhy('noanswer')); if (state.rymQueueMode) rymQAbort(); } }, 3000);
 }
 function rymFetchCancel() { window.postMessage({ source: 'crate-app', type: 'rym-fetch-cancel' }, window.location.origin); }
+function rymFetchContinue() { window.postMessage({ source: 'crate-app', type: 'rym-fetch-continue' }, window.location.origin); }
 function rymFetchProgress(d) {
+  if (state.rymQueueMode && rymQ.runEntries.length) { rymQProgress(d); return; }
   const n = d.total || 0, plural = n === 1 ? '' : 's';
   if (d.state === 'starting' || d.state === 'loading' || d.state === 'gap') {
     rymFetchState.active = true; rymFetchState.total = n; bgStatus(`Reading Rate Your Music pages \u2014 ${d.done} of ${n}${d.state === 'gap' ? ' (pausing between pages)' : ''}`, n ? d.done / n * 100 : 0, { always: true, cancel: true }); return;
@@ -29083,9 +29205,208 @@ window.addEventListener('message', (e) => {
   const d = e.data; if (!d || d.source !== 'crate-addon') return;
   if (d.type === 'rym-fetch-ack' && d.for === 'rym-fetch-start') {
     clearTimeout(rymFetchState.ackTimer); const r = d.resp || {};
-    if (r.ok) { rymFetchState.active = true; rymFetchState.total = r.accepted || 0; bgStatus(`Reading Rate Your Music pages \u2014 0 of ${r.accepted}`, 0, { always: true, cancel: true }); } else flashGlobalToast(rymFetchWhy(r.reason, r));
+    if (r.ok) { rymFetchState.active = true; rymFetchState.total = r.accepted || 0; if (!state.rymQueueMode) bgStatus(`Reading Rate Your Music pages \u2014 0 of ${r.accepted}`, 0, { always: true, cancel: true }); } else { flashGlobalToast(rymFetchWhy(r.reason, r)); if (state.rymQueueMode) rymQAbort(); }
+  } else if (d.type === 'rym-fetch-ack' && d.for === 'rym-fetch-continue') {
+    const r = d.resp || {}; if (r.ok) { rymFetchState.active = true; if (rymQ.run) rymQ.run.state = 'starting'; rymQRender(); } else flashGlobalToast('There is nothing to continue: start the update again.');
   } else if (d.type === 'rym-fetch-progress') rymFetchProgress(d);
 });
+// ================= The update queue: one dialog for every "Update from Rate Your Music" (one release or many) =================
+// As each page is read its details arrive as an update. In the queue they are APPLIED AT ONCE where that is safe (a blank filled, a better cover, a fuller tracklist: the "fill" and "refine" changes), and what
+// DIFFERS from what you have is left, unticked, for you. Nothing here ever overwrites a value of yours by itself.
+const rymQ = { open: false, entries: [], runEntries: [], run: null, seen: new Set(), chain: Promise.resolve(), expanded: new Set(), ticks: new Map(), timer: 0 };
+const rymQEsc = (v) => escapeHtml(String(v == null ? '' : v));
+function rymQKey(item) { return rymPathOfUrl(item && item.rymLink) || ('row' + (item && item.row)); }
+function rymQEntryFor(item, create) {
+  const key = rymQKey(item); let e = rymQ.entries.find(x => x.key === key);
+  if (!e && create) { e = { key, row: item.row, state: 'queued', applied: [], rest: [], note: '', batchId: '', cover0: item.cover || '', cover1: '', coverMissed: false }; rymQ.entries.push(e); }
+  if (e) { e.row = item.row; e.title = item.title; e.artist = item.artist; e.meta = [String(item.releaseDate || item.year || '').slice(0, 4), item.type].filter(Boolean).join(' \u00b7 '); }
+  return e;
+}
+function rymQBatchHasRest(id) { return rymQ.entries.some(e => e.batchId === id && e.rest.length); }
+function rymQChip(p) { return p.key === 'tracks' ? `tracklist ${p.proposed}` : p.key === 'cover' ? 'cover \u2191' : p.key === 'genre2' ? 'secondary genre' : p.key === 'rymLink' ? 'RYM link' : p.key === 'catalog' ? 'cat. no.' : p.key === 'rymDescriptors' ? 'descriptors' : p.key === 'date' ? 'date' : String(p.label || p.key).toLowerCase(); }
+function rymQBegin(use) {                                       // a run is starting: its releases are queued, and the dialog is in front
+  const keep = rymQ.entries.filter(e => e.rest.length && !use.some(it => rymQKey(it) === e.key));          // differences still waiting from before stay in the list
+  rymQ.entries = []; rymQ.runEntries = use.map(it => rymQEntryFor(it, true)); keep.forEach(e => { rymQ.entries.push(e); });
+  rymQ.run = { state: 'starting', total: use.length, done: 0, ok: 0, skipped: 0, reason: '', nextAt: 0, i: 0 }; rymQ.open = true; rymQ.expanded.clear(); rymQRender();
+}
+function rymQAbort() { rymQ.entries = rymQ.entries.filter(e => !rymQ.runEntries.includes(e) || e.state !== 'queued'); rymQ.runEntries = []; rymQ.run = null; rymQ.open = false; rymQRender(); }
+function rymQOpen() { rymQ.open = true; rymQRender(); }
+function rymQHide() { rymQ.open = false; rymQRender(); rymQMirror(); }
+function rymQMirror() {                                         // the dialog is hidden but a run is going: the small bar at the bottom shows it
+  if (rymQ.open || !rymQ.run || !rymFetchState.active) return;
+  bgStatus(`Updating from Rate Your Music \u2014 ${rymQ.run.done} of ${rymQ.run.total}`, rymQ.run.total ? rymQ.run.done / rymQ.run.total * 100 : 0, { always: true, cancel: true, view: true });
+}
+function rymQProgress(d) {
+  const run = rymQ.run = Object.assign(rymQ.run || {}, { state: d.state, total: d.total, done: d.done, ok: d.ok, skipped: d.skipped, reason: d.reason || '', nextAt: d.nextAt || 0, i: d.i || 0 });
+  rymFetchState.active = d.state === 'starting' || d.state === 'loading' || d.state === 'gap';
+  const E = rymQ.runEntries, open = ['queued', 'reading', 'waiting', 'check', 'error'];
+  if (Array.isArray(d.items)) d.items.forEach((st, i) => { const e = E[i]; if (!e) return; if (st === 'missing') { e.state = 'skipped'; e.note = 'no longer on Rate Your Music'; } else if (st === 'ok' && open.includes(e.state)) e.state = 'read'; });
+  E.forEach((e, i) => { if (i >= (d.i || 0) && ['reading', 'waiting', 'check', 'error'].includes(e.state)) e.state = 'queued'; });
+  const cur = E[d.i || 0];
+  if (cur && open.includes(cur.state)) {
+    if (d.state === 'loading') cur.state = 'reading'; else if (d.state === 'gap') cur.state = 'waiting';
+    else if (d.state === 'stopped') { cur.state = d.reason === 'challenge' ? 'check' : 'error'; cur.note = rymFetchWhy(d.reason); }
+  }
+  if (d.state === 'cancelled') E.forEach(e => { if (open.includes(e.state)) { e.state = 'skipped'; e.note = 'not read: stopped'; } });
+  clearInterval(rymQ.timer); if (d.state === 'gap' && rymQ.open) rymQ.timer = setInterval(() => { if (!rymQ.open || !rymQ.run || rymQ.run.state !== 'gap') clearInterval(rymQ.timer); else rymQRender(); }, 1000);
+  rymQRender();
+  if (!rymQ.open) { if (rymFetchState.active) rymQMirror(); else { const c = rymQCounts(); bgStatus(`Rate Your Music update finished: ${c.updated} updated${c.review ? `, ${c.review} need a look` : ''}.`, 100, { always: true, close: true, view: true }); } }
+}
+function rymQIngestAll() {                                      // every update that has arrived and not yet been taken is read, matched to your release and applied
+  if (!state.rymQueueMode) return;
+  const ups = rymOutState.batches.filter(b => b.kind === 'update' && !rymQ.seen.has(b.id)); if (!ups.length) return;
+  ups.forEach(b => rymQ.seen.add(b.id));
+  rymQ.chain = rymQ.chain.then(async () => { for (const b of ups) { try { await rymQIngest(b); } catch (e) { rymQ.seen.delete(b.id); } rymQRender(); } renderRymInbox(); });
+}
+async function rymQIngest(b) {
+  const rel = b.releases && b.releases[0]; if (!rel) { rymBatchDone([b.id]); return; }
+  const pathKey = rymPathOfUrl(rel.rymLink) || rymPathOfUrl(b.source && b.source.url);
+  const hit = rymMatchEntry(rymBuildIndex(state.raw, dupKey), { p: rel.rymLink, ar: rel.artist, ti: rel.title, ty: rel.type, y: String(rel.releaseDate || '').slice(0, 4) });
+  if (!hit || !hit.item) {
+    const e = rymQ.entries.find(x => x.key === pathKey);
+    if (hit && hit.ambiguous) { if (e) { e.state = 'error'; e.note = 'more than one release of yours matches'; } return; }          // stays waiting: it can't be decided here
+    if (e) { e.state = 'skipped'; e.note = 'not in your crate'; } rymBatchDone([b.id]); return;
+  }
+  const item = hit.item, e = rymQEntryFor(item, true), before = item.cover || ''; e.batchId = b.id; if (e.cover0 === undefined) e.cover0 = before;
+  if (rel.tracks && rel.tracks.length >= 2) { try { await getTracksFor(item); } catch (er) { /* nothing to compare with */ } }
+  const plan = rymUpdatePlan(item, rel, currentTracklistAsManualRows(item), tlMinNext(item)), picks = plan.filter(p => p.checked), rest = plan.filter(p => !p.checked);
+  let wr = { coverMissed: false }; if (picks.length) wr = await rymWritePicks(item, picks, true, 'queue');
+  const made = picks.filter(p => p.key !== 'cover' || !wr.coverMissed);
+  e.applied = made.map(rymQChip); e.rest = rest; e.coverMissed = !!wr.coverMissed; e.cover1 = item.cover || ''; e.note = '';
+  e.state = rest.length ? 'review' : made.length ? 'applied' : 'same';
+  if (!made.length && !item.rymUpdated) { try { await rymMarkUpdated(item); } catch (er) { /* the flag is set next time */ } }          // read, and nothing needed changing: it has still had its first update
+  rest.forEach(p => { const k = e.key + '|' + p.key; if (!rymQ.ticks.has(k)) rymQ.ticks.set(k, false); });
+  if (!rest.length) rymBatchDone([b.id]);
+  if (made.length) rymRefreshViews();
+  if (!rymQ.open && !rymFetchState.active) flashGlobalToast(`Updated \u201c${item.title}\u201d from Rate Your Music: ${made.length ? made.map(rymQChip).join(', ') : 'nothing new'}${rest.length ? `; ${rest.length} difference${rest.length === 1 ? '' : 's'} left for you in Review` : ''}${wr.coverMissed ? '; the cover couldn\u2019t be loaded from here' : ''}.`);
+}
+function rymQCounts() {
+  const c = { total: rymQ.entries.length, updated: 0, review: 0, same: 0, left: 0, skipped: 0 };
+  rymQ.entries.forEach(e => { if (e.state === 'applied') c.updated++; else if (e.state === 'review') c.review++; else if (e.state === 'same') c.same++; else if (e.state === 'skipped') c.skipped++; else c.left++; });
+  return c;
+}
+function rymQTicked() { const out = []; rymQ.entries.forEach(e => e.rest.forEach(p => { if (rymQ.ticks.get(e.key + '|' + p.key)) out.push({ e, p }); })); return out; }
+async function rymQApplyTicked() {
+  const chosen = rymQTicked(); if (!chosen.length) return; let n = 0, miss = 0;
+  const byEntry = new Map(); chosen.forEach(({ e, p }) => { if (!byEntry.has(e)) byEntry.set(e, []); byEntry.get(e).push(p); });
+  for (const [e, rows] of byEntry) {
+    const item = state.raw.find(x => x.row === e.row); if (!item) continue;
+    try {
+      const wr = await rymWritePicks(item, rows, true, 'review'); const made = rows.filter(p => p.key !== 'cover' || !wr.coverMissed);
+      e.applied = e.applied.concat(made.map(rymQChip)); e.rest = e.rest.filter(p => !rows.includes(p)); n += made.length; if (wr.coverMissed) { miss++; e.coverMissed = true; }
+      rows.forEach(p => rymQ.ticks.delete(e.key + '|' + p.key)); e.cover1 = item.cover || '';
+      if (!e.rest.length) { e.state = 'applied'; if (e.batchId) rymBatchDone([e.batchId]); }
+    } catch (err) { e.note = 'couldn\u2019t be saved: try again'; }
+  }
+  rymRefreshViews(); renderRymInbox(); rymQRender();
+  flashGlobalToast(`Applied ${n} change${n === 1 ? '' : 's'}${miss ? `; ${miss} cover${miss === 1 ? '' : 's'} couldn\u2019t be loaded from here` : ''}.`);
+}
+function rymQDismissRest() {                                    // "leave them as they are": the differences are dropped and the updates are let go
+  const ids = []; rymQ.entries.forEach(e => { if (e.rest.length) { e.rest.forEach(p => rymQ.ticks.delete(e.key + '|' + p.key)); e.rest = []; e.state = e.applied.length ? 'applied' : 'same'; e.note = 'differences left as they are'; if (e.batchId) ids.push(e.batchId); } });
+  if (ids.length) rymBatchDone(ids); rymQRender();
+}
+const RYMQ_ICON = {
+  ok: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7FC2B2" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  live: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D6A24C" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>',
+  pause: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B93A0" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M9 5v14M15 5v14"/></svg>',
+  queue: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B93A0" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="7"/></svg>',
+  skip: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B93A0" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 12h12"/></svg>',
+  warn: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#E3AE4A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.2v.1"/></svg>',
+  arrow: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B93A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>'
+};
+function rymQStatus(e) {
+  const run = rymQ.run, secs = run && run.nextAt ? Math.max(0, Math.round((run.nextAt - Date.now()) / 1000)) : 0, n = (e.applied.length), r = e.rest.length;
+  switch (e.state) {
+    case 'queued': return ['queue', 'Queued', ''];
+    case 'reading': return ['live', 'Reading\u2026', 'page open in the background'];
+    case 'waiting': return ['pause', secs ? `Next in ${secs} s` : 'Next up', 'pausing between pages'];
+    case 'read': return ['ok', 'Read', 'applying\u2026'];
+    case 'applied': return ['ok', 'Updated', `${n} change${n === 1 ? '' : 's'} applied`];
+    case 'review': return ['warn', 'Needs a look', `${r} difference${r === 1 ? '' : 's'}${n ? ` \u00b7 ${n} applied` : ''}`];
+    case 'same': return ['ok', 'Up to date', e.note || 'nothing new'];
+    case 'skipped': return ['skip', 'Skipped', e.note || ''];
+    case 'check': return ['warn', 'Check needed', 'open in your browser'];
+    default: return ['warn', 'Couldn\u2019t be read', e.note || ''];
+  }
+}
+function rymQThumb(url, e, cls) {
+  const init = (String(e.artist || '?').match(/\b\w/g) || ['?']).slice(0, 2).join('').toUpperCase();
+  return url ? `<img class="rymq-img ${cls || ''}" src="${rymQEsc(url)}" ${rymIsRymImage(url) ? 'referrerpolicy="no-referrer" ' : ''}alt="" loading="lazy" data-q-init="${rymQEsc(init)}">` : `<div class="rymq-ph ${cls || ''}" aria-hidden="true">${rymQEsc(init)}</div>`;
+}
+function rymQCoverCell(e) {
+  const changed = e.cover1 && e.cover1 !== e.cover0, a = rymPictureSize(e.cover0), b = rymPictureSize(e.cover1);
+  return `<div class="rymq-cov"><div class="rymq-covrow">${rymQThumb(e.cover0, e)}${changed ? RYMQ_ICON.arrow + rymQThumb(e.cover1, e, 'big') : ''}</div>${changed ? `<div class="rymq-cap">${e.cover0 ? (a || 'smaller') : 'none'} \u2192 ${b || 'new'}</div>` : ''}</div>`;
+}
+function rymQRowHtml(e) {
+  const [kind, text, sub] = rymQStatus(e), open = rymQ.expanded.has(e.key), has = e.rest.length > 0;
+  const all = has && e.rest.every(p => rymQ.ticks.get(e.key + '|' + p.key)), some = has && e.rest.some(p => rymQ.ticks.get(e.key + '|' + p.key));
+  const chips = e.applied.map(c => `<span class="rymq-chip">${rymQEsc(c)}</span>`).concat(e.rest.map(p => `<span class="rymq-chip diff">${rymQEsc(String(p.label || p.key).toLowerCase())} differs</span>`), e.coverMissed ? ['<span class="rymq-chip diff">cover couldn\u2019t be loaded</span>'] : []).join('');
+  const dim = ['same', 'skipped', 'queued'].includes(e.state);
+  let detail = '';
+  if (open) {
+    const changed = e.cover1 && e.cover1 !== e.cover0;
+    detail = `<div class="rymq-detail">`
+      + (changed ? `<div class="rymq-dlabel">Cover</div><div class="rymq-covrow" style="gap:14px">${rymQThumb(e.cover0, e, 'mid')}<span class="rymq-cap">${e.cover0 ? `${rymQEsc(rymImageHost(e.cover0) || 'your cover')}<br>${rymPictureSize(e.cover0) ? rymPictureSize(e.cover0) + ' px' : 'size unknown'}` : 'no cover yet'}</span>${RYMQ_ICON.arrow}${rymQThumb(e.cover1, e, 'huge')}<span class="rymq-cap" style="color:#7FC2B2">${rymQEsc(rymImageHost(e.cover1))}<br>${rymPictureSize(e.cover1) || '?'} px \u00b7 from the release page</span></div>` : '')
+      + (e.applied.length ? `<div class="rymq-dlabel">Applied automatically</div><div class="rymq-chips">${e.applied.map(c => `<span class="rymq-chip">${rymQEsc(c)}</span>`).join('')}</div>` : '')
+      + (has ? `<div class="rymq-dlabel">Differs from what you have \u2014 tick to apply</div>${e.rest.map(p => `<label class="rymq-field"><input type="checkbox" class="rymq-cb" data-q-tick="${rymQEsc(e.key + '|' + p.key)}" ${rymQ.ticks.get(e.key + '|' + p.key) ? 'checked="checked" ' : ''}aria-label="Apply ${rymQEsc(p.label)}"><span class="rymq-fl">${rymQEsc(p.label)}</span><span class="rymq-cur">${rymQEsc(p.current || 'blank')}</span>${RYMQ_ICON.arrow}<span>${rymQEsc(p.proposed)}</span></label>`).join('')}` : '')
+      + (e.coverMissed ? `<div class="rymq-note">The cover couldn\u2019t be loaded from here, so it was left as it was. The picture host may be refusing requests from this page.</div>` : '')
+      + (!e.applied.length && !has && !e.coverMissed ? `<div class="rymq-cap" style="padding:8px 0">${rymQEsc(e.note || 'Nothing new on the release page.')}</div>` : '')
+      + `</div>`;
+  }
+  return `<div class="rymq-item"><div class="rymq-row${dim ? ' dim' : ''}" data-q-row="${rymQEsc(e.key)}" role="button" tabindex="0" aria-expanded="${open}">`
+    + `<div>${has ? `<input type="checkbox" class="rymq-cb" data-q-all="${rymQEsc(e.key)}" ${all ? 'checked="checked" ' : ''}aria-label="Apply the differences for ${rymQEsc(e.title)}" ${some && !all ? 'data-partial="1" ' : ''}>` : ''}</div>`
+    + rymQCoverCell(e)
+    + `<div class="rymq-name"><b>${rymQEsc(e.title)}</b><i>${rymQEsc(e.artist)}${e.meta ? ' \u00b7 ' + rymQEsc(e.meta) : ''}</i></div>`
+    + `<div class="rymq-st ${kind}"><div>${RYMQ_ICON[kind] || ''}<span>${rymQEsc(text)}</span></div>${sub ? `<small>${rymQEsc(sub)}</small>` : ''}</div>`
+    + `<div class="rymq-chips">${chips}</div></div>${detail}</div>`;
+}
+function rymQRender() {
+  const ov = document.getElementById('rymQOverlay'), dlg = document.getElementById('rymQDialog'); if (!ov || !dlg) return;
+  ov.hidden = !rymQ.open; if (!rymQ.open) return;
+  const list0 = dlg.querySelector('.rymq-list'), keep = list0 ? list0.scrollTop : 0, run = rymQ.run, c = rymQCounts(), active = rymFetchState.active;
+  const secs = run && run.nextAt ? Math.max(0, Math.round((run.nextAt - Date.now()) / 1000)) : 0;
+  const sub = run ? `${run.total} release${run.total === 1 ? '' : 's'} \u00b7 ${c.updated} updated${c.review ? ` \u00b7 ${c.review} need a look` : ''}${c.left ? ` \u00b7 ${c.left} left` : ''}` : `${c.total} release${c.total === 1 ? '' : 's'} \u00b7 ${c.updated} updated \u00b7 ${c.review} need a look`;
+  let prog = '';
+  if (run) {
+    const pct = run.total ? Math.round(run.done / run.total * 100) : 0;
+    const line = run.state === 'starting' ? 'Starting\u2026' : run.state === 'loading' ? `Reading page ${Math.min(run.done + 1, run.total)} of ${run.total}` : run.state === 'gap' ? `Read ${run.done} of ${run.total} \u00b7 pausing ${secs} s before the next page, on purpose` : run.state === 'done' ? `Finished: ${run.ok} read${run.skipped ? `, ${run.skipped} skipped` : ''}. Nothing was changed except what is listed.` : run.state === 'cancelled' ? `Stopped: ${run.ok} read.` : `Stopped after ${run.ok} of ${run.total}.`;
+    prog = `<div class="rymq-progress"><div class="rymq-track"><b style="width:${run.state === 'done' ? 100 : pct}%"></b></div><div class="rymq-pline"><span>${rymQEsc(line)}</span>${active ? '<button type="button" class="rymq-btn" data-q-act="cancel">Cancel</button>' : ''}</div></div>`;
+  }
+  let banner = '';
+  if (run && run.state === 'stopped') {
+    const left = run.total - run.done, can = ['challenge', 'timeout', 'unreadable', 'closed'].includes(run.reason);
+    banner = `<div class="rymq-banner" role="alert"><div style="display:flex;gap:10px;align-items:flex-start">${RYMQ_ICON.warn}<div><b>${run.reason === 'challenge' ? `Rate Your Music asked for a check on page ${run.done + 1}` : `The update stopped on page ${run.done + 1}`}</b><span>${run.reason === 'challenge' ? 'That page is open in front of you. Pass the check there, then continue. What was already read is kept.' : rymQEsc(rymFetchWhy(run.reason))}</span></div></div><div style="display:flex;gap:8px;flex:none"><button type="button" class="rymq-btn" data-q-act="stop">Stop here</button>${can && left > 0 ? `<button type="button" class="rymq-btn primary" data-q-act="continue">Continue with the other ${left}</button>` : ''}</div></div>`;
+  }
+  const ticked = rymQTicked().length, foot = `${c.updated} updated automatically${c.review ? ` \u00b7 ${c.review} need a look` : ''}${c.same ? ` \u00b7 ${c.same} already up to date` : ''}${c.skipped ? ` \u00b7 ${c.skipped} skipped` : ''}`;
+  dlg.innerHTML = `<div class="rymq-head"><div><div class="rymq-title" id="rymQTitle">UPDATE FROM RATE YOUR MUSIC</div><div class="rymq-sub">${rymQEsc(sub)}</div></div><div class="rymq-head-btns">${active ? '<button type="button" class="rymq-btn" data-q-act="hide">Keep working</button>' : ''}<button type="button" class="rymq-x" data-q-act="hide" aria-label="Close">\u00d7</button></div></div>`
+    + prog + banner
+    + `<div class="rymq-cols"><div></div><div>Cover: yours \u2192 RYM</div><div>Release</div><div>Status</div><div>What changed</div></div>`
+    + `<div class="rymq-list">${rymQ.entries.length ? rymQ.entries.map(rymQRowHtml).join('') : '<div class="rymq-cap" style="padding:24px">Nothing in the queue.</div>'}</div>`
+    + `<div class="rymq-foot"><span>${rymQEsc(foot)}</span><div>${c.review ? '<button type="button" class="rymq-btn" data-q-act="dismiss">Leave the differences as they are</button>' : ''}<button type="button" class="rymq-btn primary" data-q-act="apply" ${ticked ? '' : 'disabled="disabled"'}>${ticked ? `Apply ${ticked} ticked` : 'Apply ticked'}</button></div></div>`;
+  dlg.querySelectorAll('input[data-partial]').forEach(i => { i.indeterminate = true; });
+  const list1 = dlg.querySelector('.rymq-list'); if (list1) list1.scrollTop = keep;
+}
+(function wireRymQueue() {
+  const ov = document.getElementById('rymQOverlay'); if (!ov) return;
+  ov.addEventListener('click', (e) => {
+    if (e.target === ov) { rymQHide(); return; }
+    const act = e.target.closest('[data-q-act]');
+    if (act) {
+      const a = act.dataset.qAct;
+      if (a === 'hide') rymQHide(); else if (a === 'cancel') rymFetchCancel(); else if (a === 'continue') rymFetchContinue();
+      else if (a === 'stop') { rymFetchCancel(); if (rymQ.run) { rymQ.run.state = 'cancelled'; rymFetchState.active = false; rymQ.runEntries.forEach(x => { if (['queued', 'waiting', 'reading', 'check', 'error'].includes(x.state)) { x.state = 'skipped'; x.note = 'not read: stopped'; } }); } rymQRender(); }
+      else if (a === 'apply') rymQApplyTicked(); else if (a === 'dismiss') rymQDismissRest();
+      return;
+    }
+    const tick = e.target.closest('[data-q-tick]'); if (tick) { rymQ.ticks.set(tick.dataset.qTick, tick.checked); rymQRender(); return; }
+    const all = e.target.closest('[data-q-all]'); if (all) { const en = rymQ.entries.find(x => x.key === all.dataset.qAll); if (en) en.rest.forEach(p => rymQ.ticks.set(en.key + '|' + p.key, all.checked)); rymQRender(); return; }
+    if (e.target.closest('label.rymq-field')) return;
+    const row = e.target.closest('[data-q-row]'); if (row) { const k = row.dataset.qRow; if (rymQ.expanded.has(k)) rymQ.expanded.delete(k); else rymQ.expanded.add(k); rymQRender(); }
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && rymQ.open) rymQHide(); });          // (wherever the focus is)
+  ov.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[data-q-row]')) { e.preventDefault(); e.target.click(); } });
+  ov.addEventListener('error', (e) => { const im = e.target; if (im && im.classList && im.classList.contains('rymq-img')) { const ph = document.createElement('div'); ph.className = im.className.replace('rymq-img', 'rymq-ph'); ph.textContent = im.dataset.qInit || '?'; im.replaceWith(ph); } }, true);
+})();
 function bgStatusHide() { const bar = document.getElementById('bgStatus'); if (bar) bar.hidden = true; }
 function rymAskOutbox(ms) {                                      // -> the batches waiting in the add-on, or null if it didn't answer in time (not installed, not connected, or older than 1.7)
   return new Promise((resolve) => {
@@ -29105,7 +29426,7 @@ function rymCleanOutbox(list) {                                  // untrusted: o
       tracks: (Array.isArray(r && r.tracks) ? r.tracks : []).slice(0, 200).map((t, i) => ({ n: i + 1, title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), s: 'rym', rating: rymNum(t && t.rating) })).filter(t => t.title), rymRating: rymNum(r && r.rymRating), rymVotes: Math.max(0, Math.round(Number(r && r.rymVotes) || 0)) })).filter(r => r.artist && r.title).slice(0, 300) })).filter(b => b.id && b.releases.length);
 }
 function rymOutboxArrived(batches) {
-  rymOutState.batches = batches; rymOutState.present = true; renderRymInbox();
+  rymOutState.batches = batches; rymOutState.present = true; renderRymInbox(); rymQIngestAll();
   rymOutWaiters.splice(0).forEach(w => { clearTimeout(w.timer); w.resolve(batches); });
 }
 async function rymCheckOutbox() {                                // quietly: when the add-on says hello, and when you come back to this tab
@@ -29116,12 +29437,12 @@ async function rymCheckOutbox() {                                // quietly: whe
 }
 function renderRymInbox() {
   const bar = document.getElementById('rymInbox'); if (!bar) return;
-  const bs = rymOutState.batches, key = bs.map(b => b.id).join(',');
+  const bs = state.rymQueueMode ? rymOutState.batches.filter(b => b.kind !== 'update' || rymQBatchHasRest(b.id)) : rymOutState.batches, key = bs.map(b => b.id).join(',');          // (in the queue, only an update with something LEFT to decide is waiting: the rest is applied as it arrives)
   if (!bs.length || rymOutState.dismissed === key) { bar.hidden = true; bar.innerHTML = ''; return; }
   const n = bs.reduce((s, b) => s + b.releases.length, 0), first = bs[0];
   const ups = bs.filter(b => b.kind === 'update').length;
-  const what = first.kind === 'update' ? `details for <b>${escapeHtml(first.source.title || 'a release')}</b> are waiting to update your crate` : `<b>${n}</b> release${n === 1 ? '' : 's'} waiting${first.source.title ? ' from ' + escapeHtml(first.source.title) : ''}`;
-  bar.innerHTML = `<span>Rate Your Music: ${what}${bs.length > 1 ? ` and ${bs.length - 1} more page${bs.length > 2 ? 's' : ''}` : ''}.</span> <button type="button" class="chip-btn" data-rym-review>Review</button>${ups > 1 ? ` <button type="button" class="chip-btn" data-rym-applyall title="Apply what is new in all ${ups} updates (blanks filled, dates made more precise, tracklists added). Anything that differs from what you have is left for you to review.">Apply all ${ups}</button>` : ''} <button type="button" class="chip-btn" data-rym-later>Not now</button> <button type="button" class="chip-btn" data-rym-discard title="Throw away what was sent from Rate Your Music">Discard</button>`;
+  const what = first.kind === 'update' ? (state.rymQueueMode ? `<b>${ups}</b> update${ups === 1 ? '' : 's'} ${ups === 1 ? 'has' : 'have'} differences from your crate left for you to decide` : `details for <b>${escapeHtml(first.source.title || 'a release')}</b> are waiting to update your crate`) : `<b>${n}</b> release${n === 1 ? '' : 's'} waiting${first.source.title ? ' from ' + escapeHtml(first.source.title) : ''}`;
+  bar.innerHTML = `<span>Rate Your Music: ${what}${bs.length > 1 ? ` and ${bs.length - 1} more page${bs.length > 2 ? 's' : ''}` : ''}.</span> <button type="button" class="chip-btn" data-rym-review>Review</button>${ups > 1 && !state.rymQueueMode ? ` <button type="button" class="chip-btn" data-rym-applyall title="Apply what is new in all ${ups} updates (blanks filled, dates made more precise, tracklists added). Anything that differs from what you have is left for you to review.">Apply all ${ups}</button>` : ''} <button type="button" class="chip-btn" data-rym-later>Not now</button> <button type="button" class="chip-btn" data-rym-discard title="Throw away what was sent from Rate Your Music">Discard</button>`;
   bar.hidden = false;
 }
 function rymBatchDone(ids) {                                     // taken (or thrown away): the add-on forgets them, and so does the bar
@@ -29222,19 +29543,21 @@ async function openRymUpdate(batch) {
     : '<p>Nothing new on that page: what Rate Your Music shows matches what is already in your crate.</p>';
   apply.hidden = !plan.length;
 }
-async function rymWritePicks(item, picks, quiet) {            // write exactly the chosen fields of a release (and its tracklist), nothing else: shared by the review and the batch
+async function rymWritePicks(item, picks, quiet, src) {            // write exactly the chosen fields of a release (and its tracklist), nothing else: shared by the review and the batch
   const map = { label: ['Label', 'label'], catalog: ['Catalog', 'catalog'], rymDescriptors: ['RymDescriptors', 'rymDescriptors'], artist: ['Artist', 'artist'], date: ['ReleaseDate', 'releaseDate'], genre: ['Genre', 'genre'], genre2: ['SecondaryGenre', 'genre2'], rymLink: ['RymLink', 'rymLink'] }, payload = { action: 'editAlbum', row: item.row };
   picks.forEach(p => { if (map[p.key]) payload[map[p.key][0]] = p.proposed; });          // only what was ticked: the backend leaves every other field as it is
   const cv = picks.find(p => p.key === 'cover'); let coverUrl = '', coverMissed = false;
   if (cv) { coverUrl = await rymBestCover(cv.url); if (coverUrl) payload.Cover = coverUrl; else coverMissed = true; }          // saved only if it loads from here (the largest size that does): the deck shows a saved cover as it is
-  if (Object.keys(payload).length > 2) { await postUpdate(payload); picks.forEach(p => { if (map[p.key]) item[map[p.key][1]] = p.proposed; }); if (coverUrl) item.cover = coverUrl; }
+  const madeRows = picks.filter(p => p.key !== 'cover' || !coverMissed); let nextLog = null, firstAt = '';          // what was really changed goes in the log (a cover that could not be loaded was not)
+  if (madeRows.length) { nextLog = rymParseLog(item.rymUpdateLog).concat([rymLogEntry(madeRows, src)]).slice(-RYM_LOG_MAX); payload.RymUpdateLog = rymLogJson(nextLog); if (!item.rymUpdated) { firstAt = new Date().toISOString(); payload.RymUpdated = firstAt; } }
+  if (Object.keys(payload).length > 2) { await postUpdate(payload); picks.forEach(p => { if (map[p.key]) item[map[p.key][1]] = p.proposed; }); if (coverUrl) item.cover = coverUrl; if (nextLog) { item.rymUpdateLog = nextLog; if (firstAt) item.rymUpdated = firstAt; rymLogLocalSet(item); } }
   const tr = picks.find(p => p.key === 'tracks');
   if (tr) { await saveManualTracklist(item, tr.rows, quiet); await tlApplyTrackRatings(item, tr.rows); }          // numbers kept by title; RYM's track ratings only where a track has none
   return { coverMissed };
 }
-async function rymBestCover(url) {                                  // the largest size of this picture that really loads from here, or '' if none does
-  for (const c of rymCoverCandidates(url)) { if (await cxProbe(c)) return c; }
-  return '';
+async function rymBestCover(url) {                                  // the largest size of this picture that really loads from here, or '' if none does (all sizes asked at once: a host that refuses costs one wait, not five)
+  const cands = rymCoverCandidates(url), ok = await Promise.all(cands.map(c => cxProbe(c))), i = ok.findIndex(Boolean);
+  return i < 0 ? '' : cands[i];
 }
 async function rymApplyUpdate() {
   const st = rymUpd; if (!st) return;
@@ -29242,7 +29565,7 @@ async function rymApplyUpdate() {
   if (!chosen.size) { $('rymUpdMsg').textContent = 'Nothing is ticked.'; return; }
   const item = st.item, picks = st.plan.filter(p => chosen.has(p.key)); $('rymUpdApply').disabled = true; $('rymUpdMsg').textContent = 'Updating\u2026';
   try {
-    const wr = await rymWritePicks(item, picks);
+    const wr = await rymWritePicks(item, picks, undefined, 'review');
     rymBatchDone([st.batch.id]);
     flashGlobalToast(`Updated \u201c${item.title}\u201d from Rate Your Music: ${picks.filter(p => p.key !== 'cover' || !wr.coverMissed).map(p => p.label.toLowerCase()).join(', ')}.${wr.coverMissed ? ' The cover couldn’t be loaded from here, so it was left as it was.' : ''}`);
     rymUpdateClose();
@@ -29253,7 +29576,7 @@ async function rymApplyUpdate() {
 // have is never applied here: that release keeps waiting so you can review it on its own.
 async function rymUpdateAllWaiting() {
   const ups = rymOutState.batches.filter(b => b.kind === 'update'); if (!ups.length) return;
-  const r = { updated: 0, fields: 0, same: 0, missing: 0, review: 0, failed: 0 }, done = [];
+  const r = { updated: 0, fields: 0, same: 0, missing: 0, review: 0, failed: 0, coverMissed: 0 }, done = [];
   flashGlobalToast(`Updating ${ups.length} release${ups.length === 1 ? '' : 's'} from Rate Your Music\u2026`);
   for (const [bi, b] of ups.entries()) {
     bgStatus(`Updating from Rate Your Music \u2014 ${bi + 1} of ${ups.length}`, bi / ups.length * 100, { always: true });
@@ -29264,7 +29587,7 @@ async function rymUpdateAllWaiting() {
       const item = hit.item;
       if (rel.tracks && rel.tracks.length >= 2) { try { await getTracksFor(item); } catch (e) { /* nothing to compare with */ } }
       const plan = rymUpdatePlan(item, rel, currentTracklistAsManualRows(item), tlMinNext(item)), picks = plan.filter(p => p.checked);
-      if (picks.length) { await rymWritePicks(item, picks, true); r.updated++; r.fields += picks.length; } else if (!plan.length) r.same++;
+      if (picks.length) { const wr = await rymWritePicks(item, picks, true, 'together'); const made = picks.length - (wr.coverMissed ? 1 : 0); if (wr.coverMissed) r.coverMissed++; if (made) { r.updated++; r.fields += made; } } else if (!plan.length) r.same++;
       if (plan.length > picks.length) r.review++; else done.push(b.id);
     } catch (e) { r.failed++; }                                           // it stays waiting: try again
   }
@@ -29273,10 +29596,18 @@ async function rymUpdateAllWaiting() {
   try { await fetchCatalog(); } catch (e) { /* the sheet is updated; the list refreshes next time */ }
   const parts = [`Updated ${r.updated} release${r.updated === 1 ? '' : 's'}${r.updated ? ` (${r.fields} change${r.fields === 1 ? '' : 's'})` : ''}`];
   if (r.same) parts.push(`${r.same} already up to date`); if (r.missing) parts.push(`${r.missing} not in your crate`);
-  if (r.review) parts.push(`${r.review} ${r.review === 1 ? 'has' : 'have'} differences left for you to review`); if (r.failed) parts.push(`${r.failed} couldn\u2019t be updated \u2014 try again`);
+  if (r.review) parts.push(`${r.review} ${r.review === 1 ? 'has' : 'have'} differences left for you to review`); if (r.failed) parts.push(`${r.failed} couldn\u2019t be updated \u2014 try again`); if (r.coverMissed) parts.push(`${r.coverMissed} cover${r.coverMissed === 1 ? '' : 's'} couldn\u2019t be loaded from here and ${r.coverMissed === 1 ? 'was' : 'were'} left as ${r.coverMissed === 1 ? 'it was' : 'they were'}`);
   flashGlobalToast(parts.join('; ') + '.');
 }
 // "Fill tracklists from Rate Your Music": releases with no saved tracklist, for which the add-on has seen the tracklist on Rate Your Music while you browsed
+function rymUpdateNever() {                                      // every release with a Rate Your Music link that has never had its first update, 25 at a time
+  el.layoutMenu.hidden = true;
+  const never = state.raw.filter(it => !it.rymUpdated && rymUpdateUrl(it)), noLink = state.raw.filter(it => !it.rymUpdated && !rymUpdateUrl(it)).length;
+  if (!never.length) { flashGlobalToast(noLink ? `Every release with a Rate Your Music link has had its first update (${noLink} have no link to open).` : 'Every release has had its first update from Rate Your Music.'); return; }
+  const use = never.slice(0, 25);
+  flashGlobalToast(`${never.length} release${never.length === 1 ? '' : 's'} with a Rate Your Music link ${never.length === 1 ? 'has' : 'have'} not had a first update yet${noLink ? ` (and ${noLink} ${noLink === 1 ? 'has' : 'have'} no link to open)` : ''}${never.length > use.length ? `: starting with ${use.length}; run it again for the rest` : ''}.`);
+  rymFetchUpdates(use);
+}
 async function rymFillTracklists() {
   el.layoutMenu.hidden = true;
   const list = await rymAskTracklists();
@@ -29312,8 +29643,8 @@ function rymMergeBatches(batches) {
 function openRymBatch(batch) {
   if (!batch) return;
   const merged = rymMergeBatches(rymOutState.batches);
-  if (merged) openRymImport(merged);                                    // anything that adds releases: ONE review of all of it (updates are reviewed one by one, or with "Apply all")
-  else if (batch.kind === 'update') openRymUpdate(batch);
+  if (merged) openRymImport(merged);                                    // anything that adds releases: ONE review of all of it
+  else if (batch.kind === 'update') { if (state.rymQueueMode) rymQOpen(); else openRymUpdate(batch); }          // updates: the queue (or, if you turned it off, one screen each)
   else openRymImport(batch);
 }
 function openRymImport(batch) {
@@ -29753,8 +30084,7 @@ async function saveEditAlbum() {
     setTimeout(() => {
       closeEditModal();
       openDeck(activeItem); // Refreshes deck text instantly
-      buildLeftList();
-      applyFiltersSort();
+      keepGridPlace(() => { buildLeftList(); applyFiltersSort(); });
     }, 700);
   } catch (err) {
     flashToast(el.editToast, 'Couldn\u2019t save — try again');
@@ -35110,9 +35440,49 @@ html, body {
 
   .import-scroll { max-height: 180px; overflow-y: auto; margin-bottom: 4px; }
 
+  .rym-log-entry { padding: 6px 0; border-top: 1px solid var(--line, #2A313C); font: 12px Inter, sans-serif; } .rym-log-when { font: 11px 'IBM Plex Mono', monospace; color: var(--text-dim, #8B93A0); margin-bottom: 3px; } .rym-log-ch { padding: 1px 0; } .rym-log-ch b { font: 10.5px 'IBM Plex Mono', monospace; letter-spacing: .4px; text-transform: uppercase; color: var(--text-dim, #8B93A0); font-weight: 500; margin-right: 6px; } .rym-log-none { font: 12px Inter, sans-serif; color: var(--text-dim, #8B93A0); padding: 6px 0; }
   .deck-rym-update { background: none; border: 1px solid var(--line); color: var(--text-dim); border-radius: 6px; font-size: 11px; padding: 2px 8px; margin-left: 6px; cursor: pointer; }
   .deck-rym-update:hover { color: var(--accent); border-color: var(--accent); }
   .deck-rym-update[hidden] { display: none; }
+  .rymq-overlay { position: fixed; inset: 0; z-index: 400; background: rgba(8,10,14,0.72); display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .rymq-overlay[hidden] { display: none; }
+  .rymq-dialog { width: min(960px, 100%); max-height: calc(100vh - 40px); display: flex; flex-direction: column; background: var(--bg-card, #1B212B); border: 1px solid var(--line, #2A313C); border-radius: 12px; overflow: hidden; color: var(--text, #EDE7DC); }
+  .rymq-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 20px 24px 14px; flex: none; }
+  .rymq-title { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 1px; line-height: 1; }
+  .rymq-sub { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--text-dim, #8B93A0); margin-top: 8px; }
+  .rymq-head-btns { display: flex; gap: 8px; align-items: center; flex: none; }
+  .rymq-btn { background: transparent; color: var(--text, #EDE7DC); border: 1px solid #3a4352; font: 500 13px Inter, sans-serif; padding: 7px 12px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
+  .rymq-btn:hover { border-color: var(--accent, #D6A24C); }
+  .rymq-btn.primary { background: var(--accent, #D6A24C); color: #12161C; border-color: var(--accent, #D6A24C); font-weight: 600; }
+  .rymq-btn[disabled] { opacity: .45; cursor: default; }
+  .rymq-x { background: transparent; border: 0; color: var(--text-dim, #8B93A0); font-size: 22px; line-height: 1; padding: 4px 8px; cursor: pointer; }
+  .rymq-progress { padding: 0 24px 14px; flex: none; }
+  .rymq-track { height: 6px; background: var(--line, #2A313C); border-radius: 3px; overflow: hidden; }
+  .rymq-track b { display: block; height: 100%; background: var(--accent, #D6A24C); transition: width .25s; }
+  .rymq-pline { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 10px; font: 12px 'IBM Plex Mono', monospace; }
+  .rymq-banner { margin: 0 24px 14px; padding: 12px 14px; background: #3A2E14; border: 1px solid #6b5420; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex: none; }
+  .rymq-banner b { display: block; font: 600 13px Inter, sans-serif; } .rymq-banner span { display: block; font: 12.5px/1.45 Inter, sans-serif; color: #cfc6b4; margin-top: 3px; }
+  .rymq-cols, .rymq-row { display: grid; grid-template-columns: 22px 150px minmax(0, 1fr) 150px minmax(0, 300px); gap: 14px; align-items: center; padding: 10px 24px; }
+  .rymq-cols { padding-top: 8px; padding-bottom: 8px; border-top: 1px solid var(--line, #2A313C); background: var(--bg, #12161C); flex: none; font: 10px 'IBM Plex Mono', monospace; letter-spacing: .6px; text-transform: uppercase; color: var(--text-dim, #8B93A0); }
+  .rymq-list { overflow-y: auto; flex: 1 1 auto; min-height: 0; }
+  .rymq-item { border-top: 1px solid var(--line, #2A313C); }
+  .rymq-row { cursor: pointer; } .rymq-row:hover { background: rgba(255,255,255,0.02); } .rymq-row.dim { opacity: .62; }
+  .rymq-cov { display: flex; flex-direction: column; gap: 4px; } .rymq-covrow { display: flex; align-items: center; gap: 7px; }
+  .rymq-img, .rymq-ph { width: 44px; height: 44px; border-radius: 4px; object-fit: cover; flex: none; background: #2a313c; } .rymq-img.big, .rymq-ph.big { width: 60px; height: 60px; } .rymq-img.huge, .rymq-ph.huge { width: 100px; height: 100px; } .rymq-img.mid, .rymq-ph.mid { width: 72px; height: 72px; }
+  .rymq-ph { display: flex; align-items: center; justify-content: center; font: 600 14px 'IBM Plex Mono', monospace; color: var(--accent, #D6A24C); border: 1px solid var(--line, #2A313C); background: var(--bg, #12161C); }
+  .rymq-cap { font: 10px 'IBM Plex Mono', monospace; color: var(--text-dim, #8B93A0); }
+  .rymq-name { min-width: 0; } .rymq-name b { display: block; font: 600 13px Inter, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .rymq-name i { display: block; font: normal 11px 'IBM Plex Mono', monospace; color: var(--text-dim, #8B93A0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 3px; }
+  .rymq-st { display: flex; flex-direction: column; gap: 3px; font: 600 12px Inter, sans-serif; } .rymq-st div { display: flex; align-items: center; gap: 7px; } .rymq-st small { font: 10.5px 'IBM Plex Mono', monospace; color: var(--text-dim, #8B93A0); padding-left: 21px; font-weight: 400; }
+  .rymq-st.ok { color: #7FC2B2; } .rymq-st.live { color: var(--accent, #D6A24C); } .rymq-st.warn { color: #E3AE4A; } .rymq-st.pause, .rymq-st.queue, .rymq-st.skip { color: var(--text-dim, #8B93A0); }
+  .rymq-chips { display: flex; flex-wrap: wrap; gap: 5px; } .rymq-chip { font: 11px/1 'IBM Plex Mono', monospace; padding: 5px 7px; border-radius: 4px; white-space: nowrap; background: #1E3532; color: #7FC2B2; } .rymq-chip.diff { background: #3A2E14; color: #E3AE4A; }
+  .rymq-cb { width: 16px; height: 16px; accent-color: var(--accent, #D6A24C); margin: 0; }
+  .rymq-detail { background: var(--bg, #12161C); padding: 8px 24px 16px 60px; border-top: 1px solid var(--line, #2A313C); }
+  .rymq-dlabel { font: 10.5px 'IBM Plex Mono', monospace; letter-spacing: .5px; text-transform: uppercase; color: var(--text-dim, #8B93A0); margin: 10px 0 6px; }
+  .rymq-field { display: grid; grid-template-columns: 20px 130px minmax(0, 1fr) 20px minmax(0, 1.2fr); gap: 12px; align-items: center; padding: 7px 0; border-top: 1px solid var(--line, #2A313C); font: 13px Inter, sans-serif; cursor: pointer; }
+  .rymq-field .rymq-fl { font: 10.5px 'IBM Plex Mono', monospace; letter-spacing: .5px; text-transform: uppercase; color: var(--text-dim, #8B93A0); } .rymq-field .rymq-cur { color: var(--text-dim, #8B93A0); }
+  .rymq-note { font: 12.5px/1.5 Inter, sans-serif; color: #E3AE4A; margin: 8px 0 2px; }
+  .rymq-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 24px; border-top: 1px solid var(--line, #2A313C); background: var(--bg, #12161C); flex: none; } .rymq-foot > span { font: 12px 'IBM Plex Mono', monospace; color: var(--text-dim, #8B93A0); } .rymq-foot > div { display: flex; gap: 10px; }
+  @media (max-width: 760px) { .rymq-cols { display: none; } .rymq-row { grid-template-columns: 22px minmax(0, 1fr); } .rymq-row .rymq-cov, .rymq-row .rymq-st, .rymq-row .rymq-chips { grid-column: 2; } .rymq-detail { padding-left: 24px; } .rymq-field { grid-template-columns: 20px minmax(0, 1fr); } }
   .bg-status { position: fixed; left: 16px; bottom: 96px; z-index: 160; max-width: min(92vw, 520px); display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--panel, #1B212B); color: var(--text); border: 1px solid var(--line, #3a4352); border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.45); font-size: 12px; }
   .bg-status[hidden] { display: none; }
   .bg-status-track { flex: 1 1 80px; min-width: 60px; height: 4px; background: rgba(255,255,255,.12); border-radius: 2px; overflow: hidden; }
