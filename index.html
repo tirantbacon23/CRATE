@@ -19,7 +19,92 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.47.0
+  CURRENT_VERSION: 1.50.0
+
+  1.50.0 — 2026-10-27 — Merge duplicates: find releases that are the same, keep the best of each, and fold them into one. NEEDS THE BACKEND SCRIPT RE-DEPLOYED (one new action, "mergeAlbums"); the add-ons are unchanged.
+
+          WHERE: ⚙ → "Find and merge duplicates…". It lists groups of likely duplicates, most certain first: "Same album" (the artist and title match, ignoring case, accents, "The", "&" and bracketed edition notes, and nothing else differs: the same rules the
+            add-time duplicate check uses), "Same Rate Your Music page" (different titles, one RYM link: a typo, say), and "Different editions?" (the same album with a different edition, catalogue number or year: often deliberate, so it is last and never assumed).
+          NOTHING IS MERGED FOR YOU. Open a group and the releases sit side by side: pick the one to KEEP (it starts on the one with the most attached to it: a rating, listens, playlist places, a tracklist, a cover), and only the fields they DISAGREE on are laid out
+            for you to choose, one choice per field (your review can also keep BOTH, yours first). What merely fills a gap is filled in without asking and listed under "other fields", marked "filled in from another"; the RYM descriptors of both are combined, the
+            update logs are combined, and the earliest first-update date is kept. A merge never writes an empty value over one that is there, and only the fields that actually change the kept release are sent. The summary says what will happen (releases removed,
+            playlist items that move across, diary entries that follow) and the button needs a SECOND press ("Really merge? Press again"), disarming itself after five seconds.
+          WHAT THE SERVER DOES (one request, the new "mergeAlbums" action): it first checks that every row is still the exact release the page showed (id, artist and title), and if ANY is not (the crate changed in another tab or on another device) it refuses and changes
+            nothing at all. Then it writes the merged fields to the kept release (never its date added or id), moves the playlist items that pointed at the duplicates to it (an item that would make the kept release appear twice in one playlist is dropped),
+            re-points diary entries logged under a duplicate's different title (unless another release still has that text), and only then deletes the duplicates, last row first.
+          A SAFETY NET: before anything is sent, a copy of everything removed (every field) is kept on THIS device (the last 15 merges). "Recently merged" at the bottom has "Put back what was removed", which re-adds those releases as NEW ones. Their places in playlists and
+            their diary entries are NOT restored, and they get a new date added. If the answer never arrives (a network failure) it says it can't confirm whether the merge happened and keeps the copy; if the server refuses, or doesn't know the action yet (an
+            un-redeployed backend script), it says so plainly and keeps nothing, because nothing happened.
+          "NOT DUPLICATES" takes a group off the list for good (kept on this device).
+          LIMITS: a group shows at most 11 releases (one to keep and ten to fold in); playlist places and diary entries are matched by album id and by artist/title text, as the rest of CRATE does; the lists of listens (scrobbles) are by name and are untouched.
+          VERIFIED: the backend action (18 checks against a stand-in spreadsheet, including refusing with NOTHING changed for a wrong id, a wrong title, a row past the end, the same row twice, the kept release among the removed, and a stale keeper; playlist items kept,
+            moved and de-duplicated; diary entries; the kept release below the duplicates; releases that never got an id; only the allowed columns), and the page (29 browser checks: the groups and their order, the side-by-side view, the default keeper, which fields
+            are offered, the summary, the second press and its timeout, exactly what is sent, each field choice and "keep both", keeping the other release, the stale, old-backend and network-failure answers, the safety copy and putting back, "not duplicates", markup shown
+            as text, an empty list). A wrong default keeper, no second press, or treating editions as exact each fails a test. NOT VERIFIED: against your real spreadsheet (and its real Apps Script limits); looked at in the browser with test data only, not on a phone.
+
+
+  1.49.0 — 2026-10-27 — Pick by mood: choose how it should feel, and CRATE finds what in your crate fits. Page only: the backend and the add-ons are unchanged.
+
+          WHERE: ⚙ → "Pick by mood…". A dialog with every shared sense from the descriptors (sadness, anger, fear & dread, joy, calm, slow, dreamy & ethereal, noise & distortion...), by category, each with how many of your releases have it (the ones
+            with none are dimmed). Pick one or several; on the right, what fits appears at once.
+          HOW IT RANKS: a release "fits a sense" when any of its descriptors is in that sense. The more of the senses you picked it fits, the higher it goes; then the more of its descriptors that fit; then what you rated highest. Each row shows the descriptors
+            that matched, and "2 of 3" when you picked several. "Must fit every sense I pick" keeps only the ones that fit them all; "Not listened to yet" leaves out anything you've logged in the diary (and the counts beside the senses follow it).
+          TYPE A FEELING instead: a word like "sorrowful", "joyous" or "eerie" (or half of a descriptor, "melan") finds the shared sense that means it and picks it, saying which ("sorrowful" → sadness). A word the thesaurus doesn't know says so.
+          WHAT YOU CAN DO WITH THE RESULT: click one to open it; "Surprise me" plays one of the ten best fits at random and says what it played and why; "Play these" queues up to 100 of the matches, shuffled; "Save as playlist…" opens the new-playlist dialog
+            with them in it (up to 100), named after the senses ("Mood: sadness + slow"). What you picked is remembered when you reopen it. Escape or a click outside closes it.
+          IT NEEDS DESCRIPTORS: it can only match a release that has some, and says how many of yours do ("7 of your 8 releases"). Updating releases from Rate Your Music, or adding descriptors in a release's details, widens it; with none anywhere it says so and what to do.
+          VERIFIED: 25 browser checks (the senses and their counts; nothing picked; picking one, two, "must fit every"; "not listened to yet" and the counts following it; clear; a typed feeling by meaning, by descriptor, by half a word, and an unknown word;
+            a sense none of your releases has; Surprise me, Play these, and Save as playlist each checked for exactly what they hand on; reopening; opening a result; markup in a title or descriptor shown as text; Escape and clicking outside; a crate with no
+            descriptors). Reversing the ranking, ignoring "must fit every sense", or switching the thesaurus lookup off each fails a test. Looked at in the browser with test data only; NOT looked at on a phone (the layout stacks on a narrow screen), and not yet tried on
+            your real crate, where how well it works depends on how many of your releases have descriptors.
+
+
+  1.48.0 — 2026-10-27 — Descriptors: browse your crate by them, grouped by what they describe, and get suggestions as you fill them in. Page only: the backend and the add-ons are unchanged.
+
+          A "DESCRIPTORS" MODE IN THE LEFT BROWSER (the Albums / Artists / Genres menu): every descriptor in your releases, counted, GROUPED BY CATEGORY: Mood & emotion, Lyrics & theme, Vocals, Tempo & rhythm, Texture & timbre, Instruments,
+            Style & production, Setting & atmosphere, and "Other (yours)" for any that aren't in that list. Each group can be folded away. Picking one narrows the grid ("Descriptor: lo-fi"), the same way a genre or artist does, and the menu's own
+            sort (name or count) applies inside each group. Beside a playlist it lists the descriptors of THAT playlist's albums, and picking one narrows the playlist. Spellings that mean the same count together ("Melancholy" with "melancholic",
+            "lo fi" with "lo-fi", "male vocalist" with "male vocals"), and capitals don't matter.
+          A "RYM DESCRIPTORS" FIELD IN THE ADD AND EDIT FORMS (it had no field at all before: those only arrived from Rate Your Music updates and imports). It is separate from the existing "Descriptor" field, which is for EDITION notes ("Deluxe
+            Edition", "Remastered") and is what the duplicate check compares: mixing them would have made two copies of an album look like different editions. The new field can be shown or hidden with the other add-form fields in the settings.
+          SUGGESTIONS AS YOU TYPE: the words that fit what you are typing, grouped under their category, those you use most first (with how many of your releases have each), never one already in the field, and including words that are only in YOUR
+            crate. Click into the empty field and it offers what you use most. Arrow keys, Enter or Tab take one, Escape closes. A ☰ button beside the field opens every descriptor by category as chips (the count of your releases beside each, the ones in
+            the field lit), with a filter; click to add or take out. Saving tidies the list: RYM's spelling for the ones it knows, no repeats, no stray commas, all lower case.
+          LIKE A THESAURUS, BY SHARED SENSE: inside each category the descriptors are grouped by what they have in common, as an Oxford thesaurus puts words under one meaning: under Mood & emotion, "sadness" holds melancholic, sad, bittersweet, gloomy...; "anger"
+            holds angry, aggressive, rebellious, defiant; then fear & dread, joy, calm, passion & desire, and so on (in the left browser and in the ☰ list). Each shared sense also knows the plain words that MEAN it without being a descriptor: type "sorrowful" and the
+            suggestions offer the sadness ones (marked "≈ sorrowful"); type "joyous" in the ☰ filter and it shows the joy group, saying no descriptor is called that. With a descriptor already in the field, an empty word offers "Similar to melancholic": the others of its sense.
+          THE CATEGORIES ARE MY OWN GROUPING (Rate Your Music doesn't sort its descriptors on its pages) and the list of over 300 is from my knowledge of theirs, not copied from the site: a few will be missing and a few sit where you may not agree.
+            Anything missing still works: it is counted, suggested and found from your own crate under "Other (yours)".
+          ALSO FIXED: the message in the right-hand panel when both Up Next and Last.fm History are switched off showed raw code (a backslash, the letter u and four digits) instead of a dash and the settings cog; it has been like that for a long time.
+          ALSO FIXED: explanatory text under three settings I added in earlier versions (the bold-by-rank option, "Review updates in the queue", "Tick the differences too") and under two older settings, the cog icon in the panel message, and the descriptor ☰ button showed raw code (a backslash, the letter u and four digits) instead of quote marks and symbols. Found by scanning the loaded page's text, which is now a check in the test suite.
+          NOT CHANGED: Rate Your Music updates and imports write descriptors exactly as before (and are not tidied by the new rules), and the release page still shows them as one line, not yet grouped.
+          VERIFIED: 31 browser checks (the mode and its groups in order with counts; aliases and capitals counted together; the unknown ones under Other; a pick narrowing the grid and clearing; folding a category; sorting within one; inside a playlist,
+            scoped and narrowing; the field in the add and edit forms; suggestions for an empty field, for a typed word, taking one with Enter, Tab and a click, never offering one already there, words from your own crate, Escape; the ☰ browser, its chips,
+            its filter and Escape; saving tidied on add and on edit; markup in a descriptor shown as text and never run). Breaking the pick, the alias handling or the saving tidy each fails a test. Looked at in the browser with test data only; NOT looked at on a phone.
+
+
+  1.47.1 — 2026-10-27 — YouTube lookups are remembered (so they stop eating your quota), the quota meter now counts every search, and the "CRATE for YouTube" add-on that this page already had support for is delivered for you to install if you want it. Page and a new, separate add-on (crate-youtube-addon.zip, 1.0.0); the backend and the RYM add-on are unchanged.
+
+          WHAT I FOUND, plainly: the page already contained the code that talks to a "CRATE for YouTube" add-on (a setting, the matcher's wording, the requests) with NO changelog entry, and the add-on itself was never delivered to you: it only existed in my working folder. I can't find
+            the step that added either (the add-on is written in the same style as the RYM one, and its files date from before the last session summary). So I reviewed every line of the add-on (below), ran its tests, wrote a new test of its page bridge with both add-ons on
+            one page, and I am delivering it now, documented, as an opt-in. Until you install it the page behaves as before.
+          WHY THE QUOTA GOES: YouTube allows 10,000 units a day; a search costs 100, reading a playlist or video details 1. CRATE already used the cheap way (one search for the album's playlist, then every song from it: about 100 units a release, so roughly 90 releases a day), but it
+            forgot every lookup: opening "Match songs" on a release a second time paid the 100 again. And the track picker's own search (100 a time) was not counted on the meter at all.
+          REMEMBERED (the API route): an album's playlist lookup, one song's own search, and the track picker's search are kept on this device for 14 days (7 when nothing was found), so asking again costs nothing; the matcher says so ("looked up on … and is remembered, so it costs
+            nothing now"). An error or a quota refusal is never kept. Capitals, spacing and "[Deluxe Edition]" make no difference. Up to 200 lookups are kept (the oldest go first, also if the browser's store is full). ⚙ → YouTube API… now shows today's use and how many lookups are remembered, with
+            "Forget remembered lookups". Through the add-on nothing is kept by the page: the add-on has its own memory (3 days for a search, 7 for a playlist).
+          THE METER NOW COUNTS the track picker's searches (100 units each); it counted none before, which hid the main thing using the quota. It counts only what CRATE itself does with your key.
+          THE ADD-ON "CRATE for YouTube" (optional, separate): finds videos and an album's playlist without the API and without a key, by reading YouTube's own search and playlist pages in a background tab, ONE at a time, 9 to 15 seconds apart (it never goes under 8, and CRATE cannot ask for less), at most 250
+            pages in 24 hours and 60 waiting questions, remembering every answer. It opens only YouTube search and playlist addresses (checked three times), does nothing on a page you opened yourself, stops at the first cookie question, "unusual traffic" page or page it can't understand and leaves that page in front
+            of you (Continue or Cancel, in CRATE or in the add-on), and sends nothing anywhere except back to your own CRATE page. It asks for no account. Install: chrome://extensions, Developer mode, Load unpacked, then its options: type CRATE's address and press Connect. The matcher then uses it by itself.
+          WHAT TO KNOW BEFORE YOU USE IT: this reads pages that YouTube's terms say only its API may be used for. It is slow and small on purpose, your browser's cookies go with every page it opens, YouTube may show a check, and YouTube changes its pages without notice, which can stop it working until it is
+            updated (its toolbar button "Diagnose this page" shows what it can and can't read, so a change can be repaired from what it reports). If you'd rather not, don't install it: the memory above still saves quota.
+          REVIEWED: all of the add-on's code, by reading it: no network calls of its own, no dynamic code, no host other than youtube.com (and your own CRATE address, which you give it), the permissions 'storage' and 'scripting' only, and an address allow-list that is checked again in the background.
+          VERIFIED: the remembered lookups in the browser against a stand-in for YouTube's API, counting every request and every unit (22 checks: a repeat costs nothing; editions and capitals are the same album; expiry; a refusal is not kept; "nothing found" is kept for 7 days; a song's search; the picker's
+            search and its meter; the settings line and the forget button; the size limit; damaged and full storage; the add-on route untouched); the add-on in a real Chrome against a stand-in YouTube (21 checks, which existed); its page bridge, with the RYM add-on's bridge on the same page (11 checks: they don't get in each
+            each other's way; what the page asks is trimmed; unknown messages are ignored). Breaking the memory, the meter or the normalisation, or the bridge's trimming, each fails a test. NOT VERIFIED: anything against the real YouTube (this machine has no network), so the add-on's reading of
+            the real pages is untested until you try it; and the quota numbers are YouTube's published ones, not measured on your key.
+
 
   1.47.0 — 2026-10-27 — Playlists get the same browsing, grouping and sorting as the Music panel, and the playlists are listed in the far-left strip under the playlist icon. Page only: no new add-on or backend.
 
@@ -196,8 +281,8 @@
 
   1.41.0 — 2026-10-25 — Search for a track on YouTube or Spotify, to find it yourself.
 
-          WHERE: right-click (or long-press) a track in the deck, the peek or a playlist: Search ▸ now has "Search \u201c<track>\u201d on YouTube \u2197" and "… on Spotify \u2197" under the existing Find artist / Open
-            discography. Each opens a new tab with the search done. On an album's own menu the same two items search the album. In "Edit track properties…" there is a "Search \u2197" beside the YouTube link field and
+          WHERE: right-click (or long-press) a track in the deck, the peek or a playlist: Search ▸ now has "Search “<track>” on YouTube ↗" and "… on Spotify ↗" under the existing Find artist / Open
+            discography. Each opens a new tab with the search done. On an album's own menu the same two items search the album. In "Edit track properties…" there is a "Search ↗" beside the YouTube link field and
             another beside the Spotify one: find the track, then paste its address into the field. That one searches the title as it is typed in the dialog at that moment, so a title you are correcting is searched as corrected.
           WHAT IS SEARCHED: the artist and the title ("Radiohead Karma Police"). A split release's or a compilation's tracks that are already written "Artist - Song" are searched as they are, with no artist put in front
             (a "Various Artists" or "Swirlies / Dropdead" in front would only spoil it); an ordinary album's "Roundabout - Live" keeps its artist. With several tracks selected, Search searches the album.
@@ -2788,7 +2873,7 @@
           first allowed panel, allowed panels shown in parentheses; drag is
           still how you reach any OTHER allowed panel), and a global
           stacked-vs-tabs toggle at the top — MusicBee's own "stack *"
-          setting. #arrangeModal widened (420px \u2192 820px, 90vw) since the
+          setting. #arrangeModal widened (420px → 820px, 90vw) since the
           reference's two-column structure needed real room, with a mobile
           fallback stacking the columns instead below 700px.
 
@@ -2973,11 +3058,11 @@
 
   1.29.139 — 2026-09-26 — Tweak: tightened remaining excess vertical space
           in the Map modal's header area, on top of 1.29.118's earlier
-          map-vs-table proportion fix. Intro hint's bottom margin 8px \u2192
+          map-vs-table proportion fix. Intro hint's bottom margin 8px →
           4px (new #mapIntroHint id, scoped so it doesn't affect the
           shared .arrange-hint class used everywhere else), the toolbar
-          row's bottom margin 8px \u2192 4px, the time-toolbar row's 6px \u2192
-          4px, and the location/album count line's margin 8px \u2192 4px
+          row's bottom margin 8px → 4px, the time-toolbar row's 6px →
+          4px, and the location/album count line's margin 8px → 4px
           top and bottom. Reclaims roughly 18px total, handed back to the
           map itself.
 
@@ -3265,7 +3350,7 @@
           piling on more 429s. NEW_RELEASE_CONCURRENCY (New Release
           Radar's parallel-artist-check limit, the likely source of the
           initial burst — each artist fires an artist search AND an
-          albums lookup) reduced 4 \u2192 2 as the complementary proactive
+          albums lookup) reduced 4 → 2 as the complementary proactive
           half, alongside the reactive backoff.
 
   1.29.123 — 2026-09-26 — Bugfix (partial — see chat): "Spotify lookup
@@ -3312,9 +3397,9 @@
           actually written.
 
   1.29.121 — 2026-09-26 — Tweak: Playlist Explorer rows made noticeably
-          denser (padding 7px/6px \u2192 4px/6px, gap 10px \u2192 7px, title font
-          13px \u2192 12px, smaller folder caret/icon, tighter folder indent
-          22px \u2192 18px) to fit more rows on screen at once, matching a
+          denser (padding 7px/6px → 4px/6px, gap 10px → 7px, title font
+          13px → 12px, smaller folder caret/icon, tighter folder indent
+          22px → 18px) to fit more rows on screen at once, matching a
           reference screenshot's tighter list density. Scoped specifically
           to .playlist-sidebar-row/.playlist-folder-row — the base
           .left-row rules (Albums/Artists/Genres list) are untouched.
@@ -3339,9 +3424,9 @@
           untouched — the filter targets .leaflet-tile-pane specifically.
 
   1.29.119 — 2026-09-26 — Feature: Compact left nav (icons only) — new
-          checkbox in \u2699 \u2192 Panels configuration…, under Show Categories.
+          checkbox in ⚙ → Panels configuration…, under Show Categories.
           Shrinks the far-left Music/Playlist Explorer rail down to just
-          fit its icons (148px \u2192 52px) and hides the text labels, which
+          fit its icons (148px → 52px) and hides the text labels, which
           stay available as native tooltips via a new `title` attribute on
           each button. state.leftNavCompact, persisted.
 
@@ -3369,7 +3454,7 @@
           floor (min-height 220px, up from 140px); the table is capped at
           a 190px max-height so it can't balloon and steal space back,
           scrolling internally instead. Default window size increased
-          680\u00d7600 \u2192 900\u00d7720 (still user-resizable via the existing
+          680×600 → 900×720 (still user-resizable via the existing
           drag handle) so there's simply more room overall. Toolbar
           vertical spacing tightened slightly too. Mobile's own layout
           (full-screen, auto width/height) is untouched by any of this.
@@ -3462,7 +3547,7 @@
           operator are back to album-level genre only.
 
           Genre tree styling: root genres now render bold/full-brightness;
-          children get a "\u21b3" connector, shrink slightly, and dim
+          children get a "↳" connector, shrink slightly, and dim
           progressively with depth — parent vs. child reads at a glance
           instead of only being implied by indentation.
 
@@ -3945,7 +4030,7 @@
   1.29.91 — 2026-09-16 — Feature: Last.fm History is now customizable both
           ways asked for. (1) Which fields show per row — new "Panel
           Settings…" button (configureHistoryBtn) next to its checkbox in
-          \u2699 \u2192 Panels configuration…, using the exact same
+          ⚙ → Panels configuration…, using the exact same
           renderConfigSlots()/state.fields mechanism the queue and mini
           player already use (new mode: 'lastfmHistory', 3 slots — line 1/
           2 read as title/subtitle, line 3 sits right-aligned). New
@@ -3956,7 +4041,7 @@
           either kind. Defaults (Track/Artist/Date) match the previous
           hardcoded layout, so nothing changes until customized.
 
-          (2) Layout: a new \u2261/\u2637 toggle in the History section's own
+          (2) Layout: a new ≡/☷ toggle in the History section's own
           panel-bar switches between the existing flat chronological list
           and a new grouped-by-day view (day headers, entries nested
           underneath) — state.lastfmHistoryLayout, persisted. Both
@@ -3985,7 +4070,7 @@
           previous single-select dropdown that only showed one at a time.
           state.rightPanelView (a string) replaced with two independent
           booleans, state.rightPanelShowQueue/rightPanelShowHistory, each
-          with its own checkbox in \u2699 \u2192 Panels configuration\u2026 — rebuilt
+          with its own checkbox in ⚙ → Panels configuration… — rebuilt
           as a proper boxed "right panel" section (matching "main panel"/
           "bottom player" below it) instead of the old dropdown-plus-a-
           disabled-checkbox-with-overlapping-text row. Turning both off
@@ -3995,7 +4080,7 @@
           sync completion hooks updated to match.
 
   1.29.88 — 2026-09-16 — Feature: right panel is now configurable, not
-          hardcoded to "Up Next". New ⚙ \u2192 Panels configuration\u2026
+          hardcoded to "Up Next". New ⚙ → Panels configuration…
           "Right panel shows" dropdown, alongside the existing queue —
           "Up Next (queue)" (unchanged) or the new "Last.fm History": a
           chronological feed of every scrobble (state.scrobbles), most
@@ -4129,17 +4214,17 @@
           Genres list now also surfaces everything beneath it in the
           hierarchy, not just albums tagged with that exact genre string.
 
-          New ⚙ \u2192 "Genre Taxonomy\u2026" editor lists every genre CRATE
+          New ⚙ → "Genre Taxonomy…" editor lists every genre CRATE
           knows about (tagged on an album, or purely organizational) with
-          a "falls under" field per genre \u2014 blank means top-level.
+          a "falls under" field per genre — blank means top-level.
           Autocompletes from existing genre names but accepts anything
           typed, so a parent doesn't need to already be tagged on an
           album itself. Seeded with a modest starter set of common,
           widely-known genre relationships (DEFAULT_GENRE_TAXONOMY) on
-          first run only \u2014 fully editable/removable, same as anything
+          first run only — fully editable/removable, same as anything
           added by hand. Per-browser (localStorage,
           crate_genre_taxonomy_v1), same as Spotify/Discogs/YouTube API
-          settings \u2014 not crate data, doesn't round-trip through the
+          settings — not crate data, doesn't round-trip through the
           backend.
 
           Core pieces: genreMatchesFilter() (genre IS the filter, or has
@@ -4147,7 +4232,7 @@
           backs the actual navFilter match, replacing a plain string-
           equality check. The left panel's Genres list (buildGenreTree())
           is now a real indented tree instead of a flat list, with each
-          genre's count AGGREGATED to include every descendant's \u2014
+          genre's count AGGREGATED to include every descendant's —
           "Rock" shows a count that includes Alternative Rock and
           Shoegaze tagged albums, consistent with what clicking it now
           actually surfaces. wouldCreateGenreCycle() blocks an edit that
@@ -4442,7 +4527,7 @@
   1.29.60 — 2026-09-16 — Feature: YouTube matching now works the same way
           Spotify's does — real candidate videos to preview and pick from,
           not just "open a search tab and paste the link back". Needs a
-          free YouTube Data API v3 key (new \u2699 \u2192 YouTube API\u2026 panel,
+          free YouTube Data API v3 key (new ⚙ → YouTube API… panel,
           same pattern as the existing Discogs token setup) since actually
           scraping YouTube's search results client-side isn't something
           this app does (no CORS access from a page like this anyway, and
@@ -4464,11 +4549,11 @@
           results additionally show a small thumbnail.
 
   1.29.59 — 2026-09-16 — Tweak: the per-row track-match button (1.29.56)
-          was a bare 22px circle with just a "\u25b8" glyph and no visible
+          was a bare 22px circle with just a "▸" glyph and no visible
           label — reported as genuinely hard to spot next to the link
           fields. Now a labeled "Match" pill button instead, same position
           and behavior (tooltip/aria-label unchanged), with the tracklist
-          builder's link-group column widened slightly (140px \u2192 170px
+          builder's link-group column widened slightly (140px → 170px
           min-width) so the wider button doesn't crowd the link input.
 
   1.29.58 — 2026-09-16 — Bugfix: adding a release could offer ("Found a
@@ -4505,17 +4590,17 @@
           elapsed since spotifyLastStateAt — the same math
           getEstimatedPosition() already does), which reflects where
           playback actually is right now regardless of when the last event
-          landed. Bumped CRATE_QUEUE_END_THRESHOLD_MS 1500 \u2192 2500ms for
+          landed. Bumped CRATE_QUEUE_END_THRESHOLD_MS 1500 → 2500ms for
           event/poll delivery latency now that the comparison itself is
           accurate.
 
   1.29.56 — 2026-09-16 — Feature: the tracklist builder (Add album, Edit
-          album, and "\u2913 Load current tracklist") now has a small \u25b8
+          album, and "⤓ Load current tracklist") now has a small ▸
           button next to each row's YouTube and Spotify link fields.
           YouTube has no search API wired up, so its button just opens a
           real YouTube search in a new tab (artist + this row's title) to
           eyeball and paste back. Spotify's opens the same inline candidate
-          picker "Edit track properties\u2026" got in 1.29.54 — preview with \u25b6,
+          picker "Edit track properties…" got in 1.29.54 — preview with ▶,
           "Use this" to fill the row's Spotify field — scoped to that one
           row via a new .tracklist-builder-match-panel that only appears
           under the row whose button was clicked (only one open at a time).
@@ -4564,7 +4649,7 @@
           troubleshooting tool, not just a raw link field to paste into.
           Opening it for a non-manual-album track auto-loads its top 10
           Spotify search candidates (spotifyTrackCandidates, cached) as a
-          scrollable list — each row can be previewed with \u25b6
+          scrollable list — each row can be previewed with ▶
           (showMiniPlayer, doesn't touch the crate queue) and picked with
           "Use this", which fills the Spotify link field above; still needs
           the modal's own Save to actually persist, same as every other
@@ -4591,8 +4676,8 @@
 
   1.29.53 — 2026-09-16 — Feature: right-clicking a track (deck tracklist,
           flat Tracks table, or "Album and Tracks" view — all three already
-          funnel into openTrackContextMenu) now offers "\u2713 Confirm Spotify
-          match" and "\u21bb Try next Spotify match", for when the automatic
+          funnel into openTrackContextMenu) now offers "✓ Confirm Spotify
+          match" and "↻ Try next Spotify match", for when the automatic
           fuzzy search (spotifyTrackId) lands on the wrong recording — a
           cover, a live/remix take, or a same-titled different song.
           spotifyTrackId now caches the FULL list of search candidates
@@ -6732,6 +6817,8 @@
           <button type="button" id="menuTidyNames">Tidy artist names…</button>
           <button type="button" id="menuFillTracklists">Fill tracklists from Rate Your Music…</button>
           <button type="button" id="menuUpdateNever">Update releases not yet updated from Rate Your Music…</button>
+          <button type="button" id="menuPickMood">Pick by mood…</button>
+          <button type="button" id="menuMergeDupes">Find and merge duplicates…</button>
           <button type="button" id="menuSoundAnalysis">Sound analysis…</button>
           <button type="button" id="menuRymRatings">RYM ratings &amp; genres…</button>
           <button type="button" id="menuUpdateLog">Update log…</button>
@@ -6816,6 +6903,7 @@
               <button type="button" data-mode="album">Albums</button>
               <button type="button" data-mode="artist">Artists</button>
               <button type="button" data-mode="genre">Genres</button>
+              <button type="button" data-mode="descriptor">Descriptors</button>
 
               <div class="menu-divider"></div>
               <div class="menu-section-title">Sort by</div>
@@ -7144,7 +7232,7 @@
           <p id="trackInfoEmpty" class="queue-empty">Nothing playing right now.</p>
         </div>
       </div>
-      <p id="rightPanelEmptyMsg" class="diary-empty" hidden>Nothing enabled here \u2014 turn on Up Next or Last.fm History in \u2699 \u2192 Panels configuration\u2026</p>
+      <p id="rightPanelEmptyMsg" class="diary-empty" hidden>Nothing enabled here — turn on Up Next or Last.fm History in ⚙ → Panels configuration…</p>
     </section>
   </div>
 
@@ -7297,6 +7385,18 @@
 <!-- Quiet, non-blocking notifications (e.g. background Last.fm sync) -->
 <div id="globalToast" class="global-toast" hidden></div>
 <div id="rymInbox" class="rym-inbox" role="status" hidden></div>
+<div id="descSuggest" class="desc-suggest" role="listbox" hidden></div>
+<div id="mergeOverlay" class="mg-overlay" hidden><div class="mg-dialog" role="dialog" aria-modal="true" aria-labelledby="mgTitle">
+  <div class="mg-head"><div><div class="mg-title" id="mgTitle">MERGE DUPLICATES</div><div class="mg-sub" id="mgSub"></div></div><button type="button" class="mg-x" id="mgClose" aria-label="Close">×</button></div>
+  <div class="mg-body" id="mgBody"></div>
+</div></div>
+<div id="moodOverlay" class="mood-overlay" hidden><div class="mood-dialog" role="dialog" aria-modal="true" aria-labelledby="moodTitle">
+  <div class="mood-head"><div><div class="mood-title" id="moodTitle">PICK BY MOOD</div><div class="mood-sub">Choose how it should feel. CRATE finds what in your crate fits.</div></div><button type="button" class="mood-x" id="moodClose" aria-label="Close">×</button></div>
+  <div class="mood-controls"><input type="text" id="moodFeel" placeholder="Type a feeling: sorrowful, joyous, eerie…" autocomplete="off" aria-label="Type a feeling and press Enter"><label><input type="checkbox" id="moodAll"> Must fit every sense I pick</label><label><input type="checkbox" id="moodFresh"> Not listened to yet</label><button type="button" id="moodClear" class="mood-btn">Clear</button></div>
+  <p class="mood-msg" id="moodMsg" role="status"></p>
+  <div class="mood-body"><div class="mood-senses" id="moodSenses"></div><div class="mood-results" id="moodResults"></div></div>
+</div></div>
+<div id="descBrowseOverlay" class="desc-overlay" hidden><div class="desc-dialog" role="dialog" aria-modal="true" aria-labelledby="descBrowseTitle"><div class="desc-head"><div><div class="desc-title" id="descBrowseTitle">DESCRIPTORS</div><div class="desc-sub">Pick the ones that fit. The number is how many of your releases already have it.</div></div><div class="desc-head-btns"><input type="search" id="descBrowseFilter" class="desc-filter" placeholder="Filter…" aria-label="Filter descriptors" autocomplete="off"><button type="button" id="descBrowseDone" class="desc-btn primary">Done</button></div></div><div id="descBrowseBody" class="desc-body"></div></div></div>
 <div id="rymQOverlay" class="rymq-overlay" hidden><div class="rymq-dialog" id="rymQDialog" role="dialog" aria-modal="true" aria-labelledby="rymQTitle"></div></div>
 <div id="bgStatus" class="bg-status" role="status" aria-live="polite" hidden><span id="bgStatusText"></span><i class="bg-status-track"><b id="bgStatusFill"></b></i><button type="button" id="bgStatusCancel" class="chip-btn" hidden>Cancel</button><button type="button" id="bgStatusView" class="chip-btn" hidden>Details</button><button type="button" id="bgStatusClose" class="chip-btn" hidden aria-label="Dismiss">×</button></div>
 <div id="rymUpdateOverlay" class="arrange-overlay" hidden>
@@ -7676,7 +7776,7 @@
          element's own modal (Panel Settings…/Customize Layout…) opens via
          the ⚙ button on its chip above instead of a button here. -->
     <div class="pane-config-box">
-      <div class="pane-config-box-header"><span class="pane-icon">\u2699</span> element options</div>
+      <div class="pane-config-box-header"><span class="pane-icon">⚙</span> element options</div>
       <div class="pane-config-box-body">
         <div class="arrange-row arrange-row-sub" id="queueViewModeRow">
           <label class="arrange-row-label" for="queueViewModeSelect">Up Next (Queue) view</label>
@@ -7951,6 +8051,7 @@
         <label class="add-field" data-add-field="label">Label <input type="text" id="addLabel"></label>
 		<label class="add-field" data-add-field="catalog">Catalog No. <input type="text" id="addCatalog"></label> <!-- 👈 ADD THIS -->
         <label class="add-field" data-add-field="descriptor">Descriptor <input type="text" id="addDescriptor" placeholder="e.g. Deluxe Edition, Remastered"></label>
+        <label class="add-field" data-add-field="rymDescriptors">RYM descriptors <span class="desc-field"><input type="text" id="addRymDescriptors" placeholder="e.g. melancholic, lo-fi, male vocals"><button type="button" class="desc-browse-btn" data-desc-browse="addRymDescriptors" title="Browse descriptors by category" aria-label="Browse descriptors by category">☰</button></span></label>
         <label class="add-field" data-add-field="scene">Scene <input type="text" id="addScene" placeholder="e.g. Madchester, Seattle grunge scene"></label>
         <label class="add-field" data-add-field="movement">Movement <input type="text" id="addMovement" placeholder="e.g. Post-Punk, British Invasion"></label>
         <label class="add-field" data-add-field="link">Link <input type="text" id="addLink" placeholder="https://…"></label>
@@ -8136,6 +8237,7 @@
         <label class="add-field">Label <input type="text" id="editLabel"></label>
 		<label class="add-field">Catalog No. <input type="text" id="editCatalog"></label> <!-- 👈 ADD THIS -->
         <label class="add-field">Descriptor <input type="text" id="editDescriptor" placeholder="e.g. Deluxe Edition, Remastered"></label>
+        <label class="add-field">RYM descriptors <span class="desc-field"><input type="text" id="editRymDescriptors" placeholder="e.g. melancholic, lo-fi, male vocals"><button type="button" class="desc-browse-btn" data-desc-browse="editRymDescriptors" title="Browse descriptors by category" aria-label="Browse descriptors by category">☰</button></span></label>
         <label class="add-field">Scene <input type="text" id="editScene" placeholder="e.g. Madchester, Seattle grunge scene"></label>
         <label class="add-field">Movement <input type="text" id="editMovement" placeholder="e.g. Post-Punk, British Invasion"></label>
         <label class="add-field">Link <input type="text" id="editLink" placeholder="https://…"></label>
@@ -8171,7 +8273,7 @@
     <div class="arrange-body">
 
       <div id="lastfmSetup">
-        <p class="arrange-hint">Reads your public scrobble history and logs listens against albums already in your crate. Needs a free Last.fm API key (from last.fm/api/account/create — you only need the "API key" value, not the secret). After this first import, CRATE will quietly check for new scrobbles each time you open it \u2014 no need to come back to this screen.</p>
+        <p class="arrange-hint">Reads your public scrobble history and logs listens against albums already in your crate. Needs a free Last.fm API key (from last.fm/api/account/create — you only need the "API key" value, not the secret). After this first import, CRATE will quietly check for new scrobbles each time you open it — no need to come back to this screen.</p>
         <label class="add-field">Last.fm username <input type="text" id="lastfmUsername" autocomplete="off"></label>
         <label class="add-field">API key <input type="text" id="lastfmApiKey" autocomplete="off"></label>
         <label class="add-field">Only import scrobbles since
@@ -8291,6 +8393,8 @@
       <p class="arrange-hint">Used for the "Match" button on the tracklist builder and "Edit track properties…" to search YouTube for real candidate videos instead of opening a search tab. Get a free API key: Google Cloud Console → create/select a project → enable "YouTube Data API v3" → Credentials → Create API key. The free tier is limited (100 searches/day), so matching only runs when you click it, never automatically. Stored only in this browser.</p>
       <label class="add-field">API key <input type="text" id="youtubeApiKey" autocomplete="off"></label>
       <label class="add-field" style="flex-direction:row;gap:8px;align-items:flex-start"><input type="checkbox" id="ytUseAddon"> <span style="text-transform:none;letter-spacing:normal">Use the <b>CRATE for YouTube</b> add-on when it is connected: no quota and no key needed. <small id="ytAddonLine" style="display:block;opacity:.75;text-transform:none;letter-spacing:normal"></small></span></label>
+      <p class="arrange-hint" id="ytQuotaLine"></p>
+      <div class="log-form-actions" style="justify-content:flex-start;margin-bottom:10px"><button type="button" id="ytCacheClearBtn" class="cancel-btn">Forget remembered lookups</button></div>
       <div class="log-form-actions">
         <button id="youtubeApiSaveBtn" class="save-btn">Save</button>
         <button id="youtubeApiCancelBtn" class="cancel-btn">Cancel</button>
@@ -8357,9 +8461,9 @@
         <p id="rymCoverage" class="snd-coverage" role="status"></p>
         <fieldset class="cx-group"><legend>How it shows</legend>
           <label class="snd-opt"><input type="checkbox" id="rymShowNext"><span><b>Show it next to my rating</b><small>On cards and lists as “RYM 3.65”.</small></span></label>
-          <label class="snd-opt"><input type="checkbox" id="rymQueueMode"><span><b>Review updates in the queue</b><small>One screen for every \u201cUpdate from Rate Your Music\u201d, one release or many: what is safe (filling blanks, a better cover, a fuller tracklist) is applied as each page is read, and only what DIFFERS from what you have is left for you. Off: each update is reviewed on its own screen and nothing is applied until you press Apply.</small></span></label>
-          <label class="snd-opt"><input type="checkbox" id="rymTickDiffs"><span><b>Tick the differences too</b><small>In the update queue, what DIFFERS from what you have (your label \u201cK\u201d against RYM\u2019s \u201cK Records\u201d) starts ticked, so one press of \u201cApply\u201d takes them all. Nothing is applied until you press it, and the update log keeps what each value was. Off: they start unticked and you tick the ones you want.</small></span></label>
-          <label class="snd-opt"><input type="checkbox" id="rymBold"><span><b>Bold the top-ranked</b><small>Like Rate Your Music: a release is bold when it is ranked within RYM\u2019s overall top <input type="text" inputmode="numeric" id="rymBoldRank" class="rym-num"> (its rank is saved when you visit its page, or update it from there). Releases with no known rank are never bold.</small></span></label>
+          <label class="snd-opt"><input type="checkbox" id="rymQueueMode"><span><b>Review updates in the queue</b><small>One screen for every “Update from Rate Your Music”, one release or many: what is safe (filling blanks, a better cover, a fuller tracklist) is applied as each page is read, and only what DIFFERS from what you have is left for you. Off: each update is reviewed on its own screen and nothing is applied until you press Apply.</small></span></label>
+          <label class="snd-opt"><input type="checkbox" id="rymTickDiffs"><span><b>Tick the differences too</b><small>In the update queue, what DIFFERS from what you have (your label “K” against RYM’s “K Records”) starts ticked, so one press of “Apply” takes them all. Nothing is applied until you press it, and the update log keeps what each value was. Off: they start unticked and you tick the ones you want.</small></span></label>
+          <label class="snd-opt"><input type="checkbox" id="rymBold"><span><b>Bold the top-ranked</b><small>Like Rate Your Music: a release is bold when it is ranked within RYM’s overall top <input type="text" inputmode="numeric" id="rymBoldRank" class="rym-num"> (its rank is saved when you visit its page, or update it from there). Releases with no known rank are never bold.</small></span></label>
         </fieldset>
         <fieldset class="cx-group"><legend>From the browser add-on</legend>
           <p id="rymAddonStatus" class="sm-dim" role="status"></p>
@@ -8541,7 +8645,7 @@
   <div class="arrange-modal add-modal genre-taxonomy-modal">
     <div class="arrange-header"><h2>Genre Taxonomy</h2><button id="genreTaxonomyClose" class="modal-x" aria-label="Close">✕</button></div>
     <div class="arrange-body">
-      <p class="arrange-hint">Set which broader genre each one falls under \u2014 e.g. Shoegaze under Alternative Rock, itself under Rock. A genre can have more than one parent too (Glam Punk under both Punk Rock and Glam Rock \u2014 separate multiple with commas, same as the Genre/Secondary Genre fields elsewhere). Filtering by a parent genre then also surfaces everything beneath it in the hierarchy, and the left panel's Genres list shows the tree with counts that include the whole branch. Leave a genre's field blank for top-level (no parent). Stored only in this browser.</p>
+      <p class="arrange-hint">Set which broader genre each one falls under — e.g. Shoegaze under Alternative Rock, itself under Rock. A genre can have more than one parent too (Glam Punk under both Punk Rock and Glam Rock — separate multiple with commas, same as the Genre/Secondary Genre fields elsewhere). Filtering by a parent genre then also surfaces everything beneath it in the hierarchy, and the left panel's Genres list shows the tree with counts that include the whole branch. Leave a genre's field blank for top-level (no parent). Stored only in this browser.</p>
       <datalist id="genreTaxonomyDatalist"></datalist>
       <div id="genreTaxonomyList" class="genre-taxonomy-list"></div>
       <div class="log-form-actions">
@@ -8557,7 +8661,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.47.0';
+const APP_VERSION = '1.50.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -9265,6 +9369,7 @@ const ADD_FORM_FIELD_OPTIONS = {
   label: 'Label',
   catalog: 'Catalog No.',
   descriptor: 'Descriptor',
+  rymDescriptors: 'RYM descriptors',
   scene: 'Scene',
   movement: 'Movement',
   link: 'Link',
@@ -9362,6 +9467,7 @@ const state = {
   // regular library's view mode. 'list' | 'tracks' | 'albumTracks' |
   // 'covers' | 'artists' — see renderPlaylistBody().
   playlistViewMode: 'list',
+  descCollapsed: new Set(),               // the descriptor categories folded away in the left browser
   playlistSort: 'playlist',               // how the open playlist is sorted: 'playlist' = its own order (drag to reorder), or any of the library's sorts
   // Which view the far-left Music/Playlists nav rail has selected for the
   // thumbnail-browser column (#leftPanel): 'music' shows the Albums/
@@ -10819,11 +10925,12 @@ function bindEvents() {
 
   el.menuYoutubeApi.addEventListener('click', () => {
     el.youtubeApiKey.value = loadYoutubeApiKey();
-    el.youtubeApiStatus.hidden = true;
+    el.youtubeApiStatus.hidden = true; ytPaintQuotaLine();
     el.youtubeApiOverlay.hidden = false;
     el.layoutMenu.hidden = true;
   });
   el.youtubeApiClose.addEventListener('click', () => { el.youtubeApiOverlay.hidden = true; });
+  document.getElementById('ytCacheClearBtn').addEventListener('click', () => { ytCacheClear(); ytPaintQuotaLine(); flashGlobalToast('Forgot the remembered YouTube lookups: the next ones will be looked up again.'); });
   el.youtubeApiCancelBtn.addEventListener('click', () => { el.youtubeApiOverlay.hidden = true; });
   el.youtubeApiSaveBtn.addEventListener('click', () => {
     const key = el.youtubeApiKey.value.trim();
@@ -12806,6 +12913,460 @@ function playFilteredReleases() {
   playAlbumsReplacingQueue(state.filtered.slice());
 }
 
+// ================= Descriptors: a lookup grouped by category, and suggestions as you fill the field in =================
+// Rate Your Music's descriptors (melancholic, lo-fi, male vocals...) sorted by what they describe. The list is a starting point, not a rule: whatever is in YOUR crate
+// that isn't in it lands under "Other (yours)" and is suggested and counted all the same.
+const DESC_TAX = [
+  { id: 'mood', label: 'Mood & emotion', groups: [
+    ['sadness', ['melancholic', 'sad', 'bittersweet', 'depressive', 'gloomy', 'somber'], ['sorrowful', 'mournful', 'blue', 'doleful', 'woeful', 'downcast', 'dejected', 'glum', 'miserable', 'heartbroken']],
+    ['longing & nostalgia', ['nostalgic', 'longing', 'yearning', 'sentimental'], ['wistful', 'homesick', 'pining', 'reminiscent', 'yearn', 'sentiment']],
+    ['solitude', ['lonely', 'alienating', 'introspective'], ['isolated', 'solitary', 'withdrawn', 'reflective', 'pensive', 'contemplative', 'solitude']],
+    ['anger', ['angry', 'aggressive', 'rebellious', 'defiant'], ['furious', 'hostile', 'enraged', 'belligerent', 'wrathful', 'fierce', 'rage', 'bitter', 'militant']],
+    ['fear & dread', ['anxious', 'paranoid', 'tense', 'suspenseful', 'ominous', 'menacing', 'eerie', 'haunting', 'disturbing'], ['scary', 'frightening', 'creepy', 'sinister', 'uneasy', 'nervous', 'foreboding', 'spooky', 'unsettling', 'fear', 'terrifying', 'dread']],
+    ['darkness', ['dark', 'bleak', 'brooding', 'apocalyptic', 'cold'], ['grim', 'desolate', 'black', 'sombre', 'bleakness', 'doom', 'dismal']],
+    ['joy', ['joyful', 'happy', 'euphoric', 'ecstatic', 'carefree', 'uplifting', 'optimistic', 'hopeful', 'triumphant'], ['joyous', 'cheerful', 'elated', 'jubilant', 'glad', 'sunny', 'upbeat', 'merry', 'blissful', 'joy', 'delighted', 'positive']],
+    ['humour & play', ['playful', 'humorous', 'whimsical', 'quirky', 'sarcastic'], ['funny', 'witty', 'silly', 'comic', 'jokey', 'tongue-in-cheek', 'zany', 'goofy', 'humour', 'comedic', 'cheeky']],
+    ['calm', ['serene', 'peaceful', 'calm', 'relaxing', 'soothing', 'mellow'], ['tranquil', 'placid', 'restful', 'gentle', 'chilled', 'still', 'peace', 'easygoing']],
+    ['passion & desire', ['romantic', 'passionate', 'sensual', 'sexual', 'erotic'], ['amorous', 'steamy', 'seductive', 'lustful', 'tender', 'intimate', 'loving', 'desire', 'sultry', 'lust']],
+    ['intensity & drama', ['intense', 'epic', 'anthemic', 'energetic', 'cathartic', 'confident'], ['powerful', 'dramatic', 'grand', 'stirring', 'forceful', 'vigorous', 'soaring', 'bombastic', 'fiery', 'cathartic release']],
+    ['mystery', ['mysterious'], ['enigmatic', 'puzzling', 'otherworldly', 'magical', 'secretive', 'mystery', 'unknowable']]
+  ] },
+  { id: 'theme', label: 'Lyrics & theme', groups: [
+    ['love & relationships', ['love', 'heartbreak', 'relationships', 'friendship', 'family'], ['romance', 'affection', 'breakup', 'marriage', 'devotion', 'divorce', 'kinship', 'parents']],
+    ['loss & death', ['loss', 'death', 'grief'], ['mourning', 'bereavement', 'funeral', 'mortality', 'dying', 'afterlife', 'passing']],
+    ['politics & society', ['politics', 'protest', 'anti-war', 'war', 'social commentary', 'conscious', 'feminism', 'identity', 'poverty', 'crime', 'violence'], ['political', 'activism', 'injustice', 'revolution', 'inequality', 'resistance', 'justice', 'society', 'racism', 'class', 'gender', 'poor']],
+    ['faith & the unseen', ['religious', 'spirituality', 'occult', 'mythology'], ['religion', 'god', 'prayer', 'faith', 'mystic', 'magic', 'witchcraft', 'folklore', 'spiritual', 'church', 'gospel lyrics', 'legend']],
+    ['the mind', ['existential', 'philosophical', 'depression', 'mental illness', 'addiction', 'alienation', 'self-reflection'], ['anxiety', 'therapy', 'psychology', 'despair', 'introspection', 'meaning of life', 'madness', 'insanity']],
+    ['vice & indulgence', ['sex', 'drugs', 'alcohol', 'partying'], ['hedonism', 'booze', 'intoxication', 'nightlife', 'debauchery', 'drinking', 'getting high', 'celebration']],
+    ['place & journey', ['nature', 'urban', 'city life', 'travel', 'road trip', 'space'], ['wilderness', 'countryside', 'street', 'highway', 'wanderlust', 'cosmos', 'journey', 'city', 'environment', 'wandering']],
+    ['youth & time', ['youth', 'coming of age', 'history', 'work', 'money'], ['adolescence', 'growing up', 'school', 'past', 'labor', 'wealth', 'teenage', 'childhood', 'jobs']],
+    ['imagination & story', ['surreal', 'fantasy', 'sci-fi', 'storytelling', 'poetic', 'literature', 'satirical', 'absurdist', 'cryptic', 'dystopian', 'conspiracy'], ['dream', 'fable', 'fiction', 'parable', 'allegory', 'narrative', 'future', 'satire', 'abstract', 'weird lyrics', 'tale']]
+  ] },
+  { id: 'vocals', label: 'Vocals', groups: [
+    ['voice type', ['male vocals', 'female vocals', 'mixed vocals', 'androgynous vocals', 'instrumental'], ['baritone', 'soprano', 'alto', 'tenor', 'vocalist', 'singer', 'no vocals', 'wordless', 'bass voice', 'vocal']],
+    ['soft & high', ['falsetto', 'breathy', 'whispered', 'crooning'], ['soft voice', 'hushed', 'delicate', 'airy voice', 'tender voice', 'whisper']],
+    ['harsh & loud', ['screaming', 'growling', 'raspy', 'shouting', 'nasal'], ['shrieking', 'gravelly', 'guttural', 'hoarse', 'yelling', 'screamo', 'rough voice', 'scream']],
+    ['spoken & rhythmic', ['spoken word', 'rapping', 'chanting', 'deadpan', 'monotone'], ['rap', 'mc', 'recitation', 'talking', 'flow', 'poetry reading', 'chant']],
+    ['group & trained', ['choir', 'vocal harmonies', 'operatic', 'a cappella', 'throat singing', 'yodeling'], ['chorus', 'gospel choir', 'harmony', 'choral', 'barbershop', 'harmonies', 'opera']],
+    ['expressive', ['soulful', 'melodic vocals'], ['emotive', 'bluesy', 'powerful voice', 'smooth voice', 'soul', 'expressive']],
+    ['processed', ['auto-tune', 'vocoder'], ['robotic voice', 'vocoded', 'pitch-corrected', 'synthetic voice', 'autotune', 'talkbox']]
+  ] },
+  { id: 'tempo', label: 'Tempo & rhythm', groups: [
+    ['slow', ['slow', 'plodding', 'slow burn', 'relaxed', 'laid-back'], ['sluggish', 'languid', 'unhurried', 'leisurely', 'crawling', 'dragging', 'lethargic', 'slow tempo', 'downtempo']],
+    ['middling', ['mid-tempo', 'steady', 'shuffle', 'swing', 'waltz', 'march'], ['moderate', 'medium', 'strolling', 'walking pace', 'medium tempo', 'even']],
+    ['fast', ['fast', 'uptempo', 'frenetic', 'driving', 'galloping', 'bouncy'], ['quick', 'rapid', 'speedy', 'breakneck', 'rushing', 'hectic', 'frantic', 'brisk', 'fast tempo', 'racing']],
+    ['groove', ['groovy', 'danceable', 'rhythmic', 'syncopated', 'polyrhythmic', 'breakbeat', 'four-on-the-floor', 'tribal'], ['funky', 'dance', 'beat', 'rhythm', 'swinging', 'groove', 'percussive']],
+    ['pattern', ['repetitive', 'stuttering', 'pulsing', 'trance-like', 'mechanical', 'building', 'off-kilter', 'odd time signatures'], ['looped', 'irregular', 'motorik', 'escalating', 'crescendo', 'cyclical', 'ostinato', 'uneven']]
+  ] },
+  { id: 'texture', label: 'Texture & timbre', groups: [
+    ['noise & distortion', ['noisy', 'distorted', 'fuzzy', 'harsh', 'abrasive', 'gritty', 'crunchy', 'saturated', 'buzzing', 'wall of sound'], ['loud', 'grungy', 'static', 'fuzz', 'overdriven', 'scratchy', 'rough', 'cacophonous', 'distortion', 'noise rock']],
+    ['lo-fi & murk', ['lo-fi', 'hazy', 'murky', 'muddy', 'crackly', 'woozy'], ['tape hiss', 'dusty', 'grainy', 'blurry', 'hissy', 'worn', 'low fidelity', 'dirty', 'smudged']],
+    ['dreamy & ethereal', ['dreamy', 'atmospheric', 'ethereal', 'shimmering', 'spacey', 'airy', 'reverb-heavy', 'echoing', 'cavernous', 'spacious'], ['floaty', 'otherworldly sound', 'heavenly', 'cloudy', 'weightless', 'expansive', 'dreamlike', 'angelic', 'reverberant', 'vast']],
+    ['rich & warm', ['lush', 'warm', 'rich', 'thick', 'velvety', 'smooth', 'soft', 'glossy'], ['plush', 'full', 'round', 'mellifluous', 'silky', 'creamy', 'gleaming', 'cosy', 'cozy', 'sumptuous']],
+    ['sparse & clean', ['sparse', 'minimalistic', 'thin', 'crisp', 'bright', 'sharp', 'polished', 'tinny', 'shrill'], ['bare', 'stripped-down', 'clean', 'clear', 'spartan', 'piercing', 'high-pitched', 'austere', 'brittle', 'stark', 'pristine']],
+    ['dense & heavy', ['dense', 'layered', 'heavy', 'claustrophobic', 'droning', 'metallic', 'resonant', 'ringing'], ['crowded', 'massive', 'weighty', 'oppressive', 'cluttered', 'sludgy', 'huge', 'drone']],
+    ['organic & synthetic', ['raw', 'organic', 'synthetic', 'jangly', 'glitchy'], ['natural', 'earthy', 'artificial', 'digital', 'robotic sound', 'chiming', 'unpolished', 'machine-made']]
+  ] },
+  { id: 'instr', label: 'Instruments', groups: [
+    ['strings', ['acoustic guitar', 'electric guitar', 'guitar-based', 'slide guitar', 'pedal steel', 'banjo', 'harp', 'sitar', 'violin', 'cello', 'string section', 'strings', 'upright bass'], ['fiddle', 'lute', 'mandolin', 'bass guitar', 'ukulele', 'double bass', 'viola', 'guitar', 'bass']],
+    ['keys', ['piano', 'organ', 'synthesizer', 'mellotron', 'accordion', 'harmonica', 'marimba', 'vibraphone', 'theremin'], ['keyboard', 'keys', 'rhodes', 'moog', 'electric piano', 'harpsichord', 'glockenspiel', 'xylophone', 'synth']],
+    ['winds & brass', ['flute', 'saxophone', 'trumpet', 'brass', 'horns'], ['clarinet', 'trombone', 'oboe', 'woodwind', 'bagpipes', 'tuba', 'french horn', 'sax']],
+    ['rhythm & electronics', ['drum machine', 'percussion', 'bass-heavy', 'sampling', 'turntables', 'orchestral', 'acoustic'], ['drums', 'beatbox', 'congas', '808', 'sampler', 'dj', 'scratching', 'orchestra', 'unplugged']]
+  ] },
+  { id: 'style', label: 'Style & production', groups: [
+    ['adventurous', ['experimental', 'avant-garde', 'eclectic', 'genre-bending', 'improvisational', 'noise', 'maximalist'], ['unconventional', 'innovative', 'weird', 'boundary-pushing', 'freeform', 'abstract sound', 'strange', 'unusual']],
+    ['ambitious', ['progressive', 'conceptual', 'technical', 'virtuosic', 'lengthy', 'cinematic'], ['proggy', 'intricate', 'skilled', 'suite', 'soundtrack', 'orchestrated', 'complex', 'elaborate', 'long']],
+    ['accessible', ['melodic', 'catchy', 'song-based', 'minimal'], ['hooky', 'tuneful', 'pop', 'singalong', 'memorable', 'simple', 'direct', 'catchiness']],
+    ['trippy', ['psychedelic', 'hypnotic', 'ambient', 'soundscapes', 'nocturnal'], ['trippy', 'mind-expanding', 'drifting', 'meditative', 'trance', 'background music', 'acid']],
+    ['how it was made', ['live', 'home-recorded', 'sample-based'], ['concert', 'bedroom', 'diy', 'field recording', 'studio', 'collage', 'cut-and-paste', 'live recording']]
+  ] },
+  { id: 'setting', label: 'Setting & atmosphere', groups: [
+    ['seasons & weather', ['summer', 'autumn', 'winter', 'spring', 'rainy'], ['sunny', 'snowy', 'stormy', 'foggy', 'holiday', 'christmas', 'fall', 'rain', 'snow']],
+    ['day & night', ['night', 'dawn', 'sunset'], ['midnight', 'twilight', 'morning', 'evening', 'dusk', 'sunrise', 'late night', 'daybreak']],
+    ['landscape', ['tropical', 'rural', 'desert', 'oceanic', 'pastoral'], ['beach', 'countryside', 'jungle', 'farm', 'sea', 'island', 'mountain', 'forest', 'ocean', 'seaside']],
+    ['sky & beyond', ['cosmic', 'celestial', 'futuristic'], ['stars', 'galaxy', 'space age', 'heavenly bodies', 'astral', 'future']],
+    ['era & world', ['industrial', 'retro', 'vintage', 'medieval', 'gothic'], ['factory', 'old-fashioned', 'renaissance', 'victorian', 'ancient', 'steampunk', 'dated', 'period']]
+  ] }
+];
+// the flat view the rest of the code uses (a category and all its descriptors), and the thesaurus view (each shared sense with its descriptors and the words that merely mean it)
+const DESC_CATS = DESC_TAX.map(c => ({ id: c.id, label: c.label, groups: c.groups.map(g => ({ head: g[0], words: g[1], syn: g[2] || [] })), words: [].concat(...c.groups.map(g => g[1])) }));
+const DESC_CONCEPTS = []; DESC_CATS.forEach(c => c.groups.forEach(g => DESC_CONCEPTS.push({ cat: c.id, head: g.head, words: g.words, syn: g.syn })));
+const DESC_ALIAS = { 'melancholy': 'melancholic', 'lofi': 'lo-fi', 'lo fi': 'lo-fi', 'male vocalist': 'male vocals', 'female vocalist': 'female vocals', 'male vocal': 'male vocals', 'female vocal': 'female vocals', 'psychedelia': 'psychedelic', 'noisey': 'noisy', 'dream-like': 'dreamy', 'sci fi': 'sci-fi', 'scifi': 'sci-fi', 'atmosphere': 'atmospheric', 'minimalist': 'minimalistic', 'religion': 'religious', 'political': 'politics', 'spiritual': 'spirituality', 'harmonies': 'vocal harmonies' };
+const descKey = (v) => { const k = String(v == null ? '' : v).toLowerCase().replace(/[_\s]+/g, ' ').trim(); return DESC_ALIAS[k] || k; };
+let DESC_CONCEPT_OF = null, DESC_WORDS = null;
+function descConceptOf(key) { if (!DESC_CONCEPT_OF) { DESC_CONCEPT_OF = new Map(); DESC_CONCEPTS.forEach(c => c.words.forEach(w => { if (!DESC_CONCEPT_OF.has(w)) DESC_CONCEPT_OF.set(w, c); })); } return DESC_CONCEPT_OF.get(key) || null; }
+function descGrp(key) { const c = descConceptOf(key); return c ? `${descCatLabel(c.cat)} \u00b7 ${c.head}` : descCatLabel(descCatOf(key)); }
+function descSynonymConcepts(q) {                                // the shared senses that a word means or names (not a descriptor itself): "sorrowful" -> sadness
+  if (!q || q.length < 3) return [];
+  if (!DESC_WORDS) { DESC_WORDS = new Set(); DESC_CONCEPTS.forEach(c => c.words.forEach(w => DESC_WORDS.add(w))); }
+  const out = []; DESC_CONCEPTS.forEach(c => { for (const w of c.syn.concat(c.head)) { const k = descKey(w); if (DESC_WORDS.has(k) && k !== q) continue; if (k === q || k.startsWith(q)) { out.push({ c, via: w }); break; } } });
+  return out;
+}
+let DESC_CAT_OF = null;
+function descCatOf(key) { if (!DESC_CAT_OF) { DESC_CAT_OF = new Map(); DESC_CATS.forEach(c => c.words.forEach(w => { if (!DESC_CAT_OF.has(w)) DESC_CAT_OF.set(w, c.id); })); } return DESC_CAT_OF.get(key) || 'other'; }
+const descCatLabel = (id) => (DESC_CATS.find(c => c.id === id) || { label: 'Other (yours)' }).label;
+function parseDescriptors(v) { const seen = new Set(), out = []; String(v == null ? '' : v).split(/[,;\n\u00b7]+/).forEach(t => { const label = t.trim().replace(/\s+/g, ' '); const k = descKey(label); if (label && !seen.has(k)) { seen.add(k); out.push(label); } }); return out; }
+function descNormalizeField(v) { return parseDescriptors(v).map(l => descKey(l)).join(', '); }          // what is saved: a clean, de-duplicated, lower-case list in RYM's own spelling where it is known
+function descLibrary(items) {                                    // every descriptor in these releases, counted
+  const m = new Map();
+  (items || []).forEach(r => parseDescriptors(r.rymDescriptors).forEach(l => { const k = descKey(l), e = m.get(k) || { key: k, label: k, count: 0 }; e.count++; m.set(k, e); }));
+  return m;
+}
+function descCandidates(token, have) {                           // suggestions for what is being typed, best first
+  const lib = descLibrary(state.raw), q = descKey(token), taken = new Set(have), all = [], known = new Set(), out = [], seen = new Set();
+  DESC_CATS.forEach(c => c.words.forEach(w => { if (!known.has(w)) { known.add(w); all.push({ key: w, cat: c.id }); } }));
+  lib.forEach(e => { if (!known.has(e.key)) all.push({ key: e.key, cat: descCatOf(e.key) }); });
+  const push = (key, sc, grp, via) => { if (taken.has(key) || seen.has(key)) return; seen.add(key); out.push({ key, cat: descCatOf(key), n: (lib.get(key) || {}).count || 0, sc, grp: grp || descGrp(key), via: via || '' }); };
+  if (!q && have.length) { const last = have[have.length - 1], con = descConceptOf(last); if (con) con.words.forEach(w => push(w, 2.5, 'Similar to ' + last)); }          // like a thesaurus: the others that mean what you just chose
+  all.forEach(a => {
+    const n = (lib.get(a.key) || {}).count || 0; let sc = 0;
+    if (!q) sc = n ? 1 : 0; else if (a.key.startsWith(q)) sc = 3; else if (a.key.split(/[\s-]+/).some(w => w.startsWith(q))) sc = 2; else if (a.key.includes(q)) sc = 1;
+    if (sc) push(a.key, sc);
+  });
+  if (q && out.length < 3) descSynonymConcepts(q).forEach(h => h.c.words.forEach(w => push(w, 1.5, `${descCatLabel(h.c.cat)} \u00b7 ${h.c.head}`, h.via)));          // not a descriptor: offer the ones that MEAN it
+  out.sort((x, y) => y.sc - x.sc || y.n - x.n || x.key.localeCompare(y.key));
+  if (!q && !out.length) DESC_CATS.forEach(c => c.words.slice(0, 2).forEach(w => push(w, 1)));          // nothing in your crate yet: a few from each category to start
+  return out.slice(0, q ? 10 : 8);
+}
+const descSug = { input: null, items: [], active: -1 };
+function descTokenAt(input) {                                    // the word being typed: between the separators either side of the cursor
+  const v = input.value, at = input.selectionStart == null ? v.length : input.selectionStart;
+  const start = Math.max(v.lastIndexOf(',', at - 1), v.lastIndexOf(';', at - 1)) + 1; let end = v.slice(at).search(/[,;]/); end = end < 0 ? v.length : at + end;
+  return { start, end, text: v.slice(start, end) };
+}
+function descSuggestHide() { const d = document.getElementById('descSuggest'); if (d) d.hidden = true; descSug.input = null; descSug.items = []; descSug.active = -1; }
+function descSuggestShow(input) {
+  const d = document.getElementById('descSuggest'); if (!d) return;
+  const t = descTokenAt(input), have = parseDescriptors(input.value.slice(0, t.start) + ',' + input.value.slice(t.end)).map(descKey);
+  const cands = descCandidates(t.text, have); if (!cands.length) { descSuggestHide(); return; }
+  const order = []; cands.forEach(c => { if (!order.includes(c.grp)) order.push(c.grp); });
+  const flat = []; let html = '';
+  order.forEach(g => { html += `<div class="desc-sug-head">${escapeHtml(g)}</div>`; cands.filter(c => c.grp === g).forEach(c => { html += `<div class="desc-sug" role="option" data-i="${flat.length}"><span>${escapeHtml(c.key)}</span>${c.via ? `<small>\u2248 ${escapeHtml(c.via)}</small>` : c.n ? `<small>${c.n}</small>` : ''}</div>`; flat.push(c); }); });
+  descSug.input = input; descSug.items = flat; descSug.active = 0; d.innerHTML = html;
+  const r = input.getBoundingClientRect(); d.style.left = r.left + 'px'; d.style.top = (r.bottom + 2) + 'px'; d.style.minWidth = Math.max(220, r.width) + 'px'; d.hidden = false;
+  d.querySelector('.desc-sug').classList.add('on');
+}
+function descSuggestMove(by) {
+  const d = document.getElementById('descSuggest'); if (!d || d.hidden || !descSug.items.length) return;
+  descSug.active = (descSug.active + by + descSug.items.length) % descSug.items.length;
+  d.querySelectorAll('.desc-sug').forEach(e => e.classList.toggle('on', Number(e.dataset.i) === descSug.active));
+  const on = d.querySelector('.desc-sug.on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest' });
+}
+function descInsert(input, key) {                                // the word being typed becomes the chosen descriptor, and the cursor moves on to the next
+  const t = descTokenAt(input), before = input.value.slice(0, t.start).replace(/\s+$/, ''), after = input.value.slice(t.end).replace(/^[\s,;]+/, '');
+  input.value = (before ? before + ' ' : '') + key + ', ' + (after ? after : ''); const pos = ((before ? before.length + 1 : 0) + key.length + 2);
+  try { input.setSelectionRange(pos, pos); } catch (e) { /* not a text field */ } input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+function descAttach(input) {
+  if (!input || input.dataset.descBound) return; input.dataset.descBound = '1'; input.setAttribute('autocomplete', 'off');
+  const show = () => descSuggestShow(input);
+  input.addEventListener('input', show); input.addEventListener('focus', show); input.addEventListener('click', show);
+  input.addEventListener('keydown', (e) => {
+    const d = document.getElementById('descSuggest'), open = d && !d.hidden && descSug.input === input;
+    if (e.key === 'ArrowDown' && open) { e.preventDefault(); descSuggestMove(1); }
+    else if (e.key === 'ArrowUp' && open) { e.preventDefault(); descSuggestMove(-1); }
+    else if ((e.key === 'Enter' || e.key === 'Tab') && open && descSug.items[descSug.active] && descTokenAt(input).text.trim()) { e.preventDefault(); descInsert(input, descSug.items[descSug.active].key); }
+    else if (e.key === 'Escape' && open) { e.stopPropagation(); descSuggestHide(); }
+  });
+  input.addEventListener('blur', () => setTimeout(descSuggestHide, 150));
+}
+const descBrowse = { input: null };
+function descBrowseRender() {
+  const body = document.getElementById('descBrowseBody'), f = descKey((document.getElementById('descBrowseFilter') || {}).value || ''); if (!body) return;
+  const lib = descLibrary(state.raw), on = new Set(parseDescriptors(descBrowse.input ? descBrowse.input.value : '').map(descKey)), known = new Set();
+  DESC_CATS.forEach(c => c.words.forEach(w => known.add(w)));
+  const direct = !f || [...known].some(w => w.includes(f)) || [...lib.keys()].some(w => w.includes(f));
+  const hits = !direct ? descSynonymConcepts(f) : [], via = new Map(hits.map(h => [h.c, h.via]));          // nothing is called that: show what MEANS it
+  const chip = (w) => { const n = (lib.get(w) || {}).count || 0; return `<button type="button" class="desc-chip${on.has(w) ? ' on' : ''}" data-d="${escapeHtml(w)}" aria-pressed="${on.has(w)}">${escapeHtml(w)}${n ? `<small>${n}</small>` : ''}</button>`; };
+  let html = hits.length ? `<p class="desc-meaning">No descriptor is called \u201c${escapeHtml(f)}\u201d; these mean the same.</p>` : '';
+  DESC_CATS.forEach(cat => {
+    let inner = '';
+    cat.groups.forEach(g => {
+      const con = DESC_CONCEPTS.find(c => c.cat === cat.id && c.head === g.head), v = via.get(con), ws = g.words.filter(w => !f || (direct ? w.includes(f) : v !== undefined));
+      if (ws.length) inner += `<div class="desc-concept"><span class="desc-concept-name">${escapeHtml(g.head)}${v ? ` <em>\u2248 ${escapeHtml(v)}</em>` : ''}</span><div class="desc-chips">${ws.map(chip).join('')}</div></div>`;
+    });
+    if (inner) html += `<div class="desc-group"><div class="desc-group-head">${escapeHtml(cat.label)}</div>${inner}</div>`;
+  });
+  const yours = []; lib.forEach(e => { if (!known.has(e.key) && (!f || e.key.includes(f))) yours.push(e.key); });
+  if (yours.length) html += `<div class="desc-group"><div class="desc-group-head">Other (yours)</div><div class="desc-chips">${yours.sort().map(chip).join('')}</div></div>`;
+  body.innerHTML = html || '<p class="left-empty">No descriptor matches.</p>';
+}
+function descBrowseOpen(inputId) {
+  const input = document.getElementById(inputId), ov = document.getElementById('descBrowseOverlay'); if (!input || !ov) return;
+  descBrowse.input = input; const f = document.getElementById('descBrowseFilter'); if (f) f.value = ''; descBrowseRender(); ov.hidden = false; if (f) f.focus();
+}
+function descBrowseClose() { const ov = document.getElementById('descBrowseOverlay'); if (ov) ov.hidden = true; if (descBrowse.input) { descBrowse.input.value = parseDescriptors(descBrowse.input.value).map(descKey).join(', '); descBrowse.input.dispatchEvent(new Event('input', { bubbles: true })); descSuggestHide(); } descBrowse.input = null; }
+(function wireDescriptors() {
+  ['addRymDescriptors', 'editRymDescriptors'].forEach(id => descAttach(document.getElementById(id)));
+  const sug = document.getElementById('descSuggest');
+  if (sug) { sug.addEventListener('mousedown', (e) => { const it = e.target.closest('.desc-sug'); if (!it) return; e.preventDefault(); if (descSug.input) { const c = descSug.items[Number(it.dataset.i)]; if (c) descInsert(descSug.input, c.key); } }); }
+  document.addEventListener('click', (e) => { const b = e.target.closest('[data-desc-browse]'); if (b) { e.preventDefault(); descBrowseOpen(b.dataset.descBrowse); } });
+  const ov = document.getElementById('descBrowseOverlay'); if (!ov) return;
+  ov.addEventListener('click', (e) => {
+    if (e.target === ov || e.target.id === 'descBrowseDone') { descBrowseClose(); return; }
+    const chip = e.target.closest('.desc-chip'); if (!chip || !descBrowse.input) return;
+    const k = chip.dataset.d, list = parseDescriptors(descBrowse.input.value).map(descKey), at = list.indexOf(k);
+    if (at >= 0) list.splice(at, 1); else list.push(k);
+    descBrowse.input.value = list.join(', '); descBrowseRender();
+  });
+  const f = document.getElementById('descBrowseFilter'); if (f) f.addEventListener('input', descBrowseRender);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && ov && !ov.hidden) { e.stopPropagation(); descBrowseClose(); } }, true);
+})();
+
+// ================= Pick by mood: choose how it should feel, and CRATE finds what in your crate fits =================
+// A release "fits a sense" when any of its descriptors is in that shared sense (sadness, calm, slow, dreamy & ethereal...). The more of the senses you pick it fits, and the more of its descriptors
+// that do, the higher it ranks; ties go to what you rated highest.
+const mood = { open: false, sel: new Set(), all: false, fresh: false, shown: 40, msg: '', last: [] };
+const moodKeyOf = (c) => c.cat + ':' + c.head;
+function moodIndex() {                                           // for each release with descriptors: which senses they fall in, and which descriptors fall in each
+  const out = [];
+  state.raw.forEach(r => {
+    const keys = parseDescriptors(r.rymDescriptors).map(descKey); if (!keys.length) return;
+    const bySense = new Map(); keys.forEach(k => { const c = descConceptOf(k); if (!c) return; const id = moodKeyOf(c); if (!bySense.has(id)) bySense.set(id, []); bySense.get(id).push(k); });
+    if (bySense.size) out.push({ item: r, bySense });
+  });
+  return out;
+}
+function moodResults() {
+  const sel = [...mood.sel], res = [];
+  moodIndex().forEach(({ item, bySense }) => {
+    if (mood.fresh && hasLoggedListen(item)) return;
+    const hit = sel.filter(id => bySense.has(id)); if (!hit.length || (mood.all && hit.length < sel.length)) return;
+    const words = []; hit.forEach(id => words.push(...bySense.get(id)));
+    res.push({ item, hit: hit.length, words, score: hit.length * 1000 + words.length * 10 });
+  });
+  res.sort((a, b) => b.score - a.score || (b.item.rating || 0) - (a.item.rating || 0) || (b.item.rymRating || 0) - (a.item.rymRating || 0) || a.item.title.localeCompare(b.item.title));
+  return res;
+}
+function moodFeeling(text) {                                     // a word for a feeling -> the shared sense(s) that mean it: "sorrowful" -> sadness, "melan" -> sadness
+  const q = descKey(text); if (!q) return;
+  let found = []; const con = descConceptOf(q);
+  if (con) found = [con]; else { found = descSynonymConcepts(q).map(h => h.c); if (!found.length && q.length >= 3) found = DESC_CONCEPTS.filter(c => c.words.some(w => w.startsWith(q))); }
+  if (!found.length) mood.msg = `Nothing in the thesaurus means \u201c${text.trim()}\u201d. Try another word, or pick from the list.`;
+  else { found.slice(0, 3).forEach(c => mood.sel.add(moodKeyOf(c))); mood.msg = `\u201c${text.trim()}\u201d \u2192 ${found.slice(0, 3).map(c => c.head).join(', ')}`; }
+}
+function moodThumb(item) {
+  const url = (state.artCache[artKey(item)] && state.artCache[artKey(item)].art) || item.cover || '';
+  const init = (String(item.artist || '?').match(/\b\w/g) || ['?']).slice(0, 2).join('').toUpperCase();
+  return url ? `<img class="mood-img" src="${escapeHtml(url)}" ${rymIsRymImage(url) ? 'referrerpolicy="no-referrer" ' : ''}alt="" loading="lazy" data-init="${escapeHtml(init)}">` : `<div class="mood-ph" aria-hidden="true">${escapeHtml(init)}</div>`;
+}
+function moodRender() {
+  const sensesEl = document.getElementById('moodSenses'), resEl = document.getElementById('moodResults'), msgEl = document.getElementById('moodMsg'); if (!sensesEl || !resEl) return;
+  const idx = moodIndex().filter(x => !mood.fresh || !hasLoggedListen(x.item)), counts = new Map();
+  idx.forEach(x => x.bySense.forEach((_, id) => counts.set(id, (counts.get(id) || 0) + 1)));
+  sensesEl.innerHTML = DESC_CATS.map(cat => `<div class="mood-cat"><div class="mood-cat-name">${escapeHtml(cat.label)}</div><div class="mood-chips">${cat.groups.map(g => { const id = cat.id + ':' + g.head, n = counts.get(id) || 0, on = mood.sel.has(id); return `<button type="button" class="mood-chip${on ? ' on' : ''}${n ? '' : ' none'}" data-s="${escapeHtml(id)}" aria-pressed="${on}">${escapeHtml(g.head)}<small>${n}</small></button>`; }).join('')}</div></div>`).join('');
+  msgEl.textContent = mood.msg || '';
+  const res = moodResults(); mood.last = res;
+  const withD = moodIndex().length, total = state.raw.length;
+  if (!mood.sel.size) {
+    resEl.innerHTML = `<div class="mood-empty"><b>Pick a sense on the left, or type a feeling above.</b><p>${withD ? `${withD} of your ${total} releases have descriptors to match on. Update more of them from Rate Your Music (update \u21bb) or add descriptors in a release\u2019s details to widen this.` : `None of your ${total} releases has descriptors yet. Update them from Rate Your Music (update \u21bb), or add descriptors in a release\u2019s details, and this will have something to choose from.`}</p></div>`; return;
+  }
+  const names = [...mood.sel].map(id => { const [c, h] = [id.slice(0, id.indexOf(':')), id.slice(id.indexOf(':') + 1)]; return h; });
+  const head = `<div class="mood-rhead"><span>${res.length} release${res.length === 1 ? '' : 's'} fit${res.length === 1 ? 's' : ''}${mood.sel.size > 1 ? (mood.all ? ' all ' + mood.sel.size + ' senses' : ' (best matches first)') : ''}</span><div class="mood-acts"><button type="button" class="mood-btn" data-m="surprise"${res.length ? '' : ' disabled'}>Surprise me</button><button type="button" class="mood-btn" data-m="play"${res.length ? '' : ' disabled'}>Play these</button><button type="button" class="mood-btn" data-m="save"${res.length ? '' : ' disabled'}>Save as playlist\u2026</button></div></div>`;
+  const rows = res.slice(0, mood.shown).map((r, i) => `<div class="mood-row" data-i="${i}" role="button" tabindex="0">${moodThumb(r.item)}<div class="mood-name"><b>${escapeHtml(r.item.title)}</b><i>${escapeHtml(r.item.artist)}${r.item.releaseDate ? ' \u00b7 ' + escapeHtml(String(r.item.releaseDate).slice(0, 4)) : ''}</i></div><div class="mood-words">${r.words.map(w => `<span class="mood-w">${escapeHtml(w)}</span>`).join('')}${mood.sel.size > 1 ? `<small>${r.hit} of ${mood.sel.size}</small>` : ''}</div></div>`).join('');
+  resEl.innerHTML = head + (res.length ? rows : `<div class="mood-empty"><b>Nothing fits that.</b><p>${mood.all ? 'Try without \u201cmust fit every sense\u201d, or take one of the senses off.' : 'None of your releases has descriptors in that sense yet.'}</p></div>`) + (res.length > mood.shown ? `<button type="button" class="mood-more" data-m="more">Show ${Math.min(40, res.length - mood.shown)} more</button>` : '');
+}
+function openMoodPicker() { mood.open = true; mood.shown = 40; document.getElementById('moodOverlay').hidden = false; moodRender(); const f = document.getElementById('moodFeel'); if (f) f.focus(); }
+function closeMoodPicker() { mood.open = false; const ov = document.getElementById('moodOverlay'); if (ov) ov.hidden = true; }
+function moodAct(kind) {
+  const res = mood.last; if (!res.length) return;
+  if (kind === 'surprise') { const pool = res.slice(0, 10), pick = pool[Math.floor(Math.random() * pool.length)]; closeMoodPicker(); flashGlobalToast(`Playing \u201c${pick.item.title}\u201d \u2014 ${pick.words.slice(0, 4).join(', ')}`); playAlbumReplacingQueue(pick.item); }
+  else if (kind === 'play') { const list = res.slice(0, 100).map(r => r.item); for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; } closeMoodPicker(); playAlbumsReplacingQueue(list); }
+  else if (kind === 'save') {
+    const names = [...mood.sel].map(id => id.slice(id.indexOf(':') + 1)).slice(0, 3).join(' + '), items = res.slice(0, 100).map(r => ({ itemType: 'album', row: r.item.row, albumId: r.item.albumId || '', trackNum: '', trackName: '' }));
+    closeMoodPicker(); openPlaylistModal('create', null, items); el.playlistNameInput.value = `Mood: ${names}`;
+  } else if (kind === 'more') { mood.shown += 40; moodRender(); }
+}
+(function wireMood() {
+  const ov = document.getElementById('moodOverlay'); if (!ov) return;
+  ov.addEventListener('click', (e) => {
+    if (e.target === ov || e.target.closest('#moodClose')) { closeMoodPicker(); return; }
+    const chip = e.target.closest('.mood-chip'); if (chip) { const id = chip.dataset.s; if (mood.sel.has(id)) mood.sel.delete(id); else mood.sel.add(id); mood.msg = ''; mood.shown = 40; moodRender(); return; }
+    const act = e.target.closest('[data-m]'); if (act) { moodAct(act.dataset.m); return; }
+    if (e.target.closest('#moodClear')) { mood.sel.clear(); mood.msg = ''; moodRender(); return; }
+    const row = e.target.closest('.mood-row'); if (row) { const r = mood.last[Number(row.dataset.i)]; if (r) { closeMoodPicker(); openDeck(r.item); } }
+  });
+  ov.addEventListener('change', (e) => { if (e.target.id === 'moodAll') { mood.all = e.target.checked; moodRender(); } else if (e.target.id === 'moodFresh') { mood.fresh = e.target.checked; moodRender(); } });
+  ov.addEventListener('keydown', (e) => {
+    if (e.target.id === 'moodFeel' && e.key === 'Enter') { e.preventDefault(); const f = e.target; moodFeeling(f.value); f.value = ''; moodRender(); }
+    else if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('mood-row')) { e.preventDefault(); e.target.click(); }
+  });
+  ov.addEventListener('error', (e) => { const im = e.target; if (im && im.classList && im.classList.contains('mood-img')) { const ph = document.createElement('div'); ph.className = 'mood-ph'; ph.textContent = im.dataset.init || '?'; im.replaceWith(ph); } }, true);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && mood.open) { e.stopPropagation(); closeMoodPicker(); } }, true);
+})();
+
+// ================= Merge duplicates: find releases that are the same, keep the best of each, and fold them into one =================
+// Groups come from the same rules as the add-time duplicate check (dupKey/dupCompare), plus releases that share one Rate Your Music page. Nothing is merged for you: you choose which release to keep, settle each field the
+// releases disagree on, and confirm twice. The merge itself happens on the server in ONE step that checks the rows are still what you saw, moves playlist items and diary entries across, and only then deletes. A copy of what is removed is kept
+// on this device so it can be put back.
+const MG_FIELDS = [
+  { p: 'artist', c: 'Artist', l: 'Artist' }, { p: 'title', c: 'Title', l: 'Title' }, { p: 'type', c: 'Type', l: 'Type' }, { p: 'releaseDate', c: 'ReleaseDate', l: 'Release date' }, { p: 'recordedDate', c: 'Recorded', l: 'Recorded' },
+  { p: 'genre', c: 'Genre', l: 'Genre' }, { p: 'genre2', c: 'SecondaryGenre', l: 'Secondary genre' }, { p: 'region', c: 'Region', l: 'Region' }, { p: 'location', c: 'Location', l: 'Location' }, { p: 'label', c: 'Label', l: 'Label' },
+  { p: 'catalog', c: 'Catalog', l: 'Catalogue no.' }, { p: 'descriptor', c: 'Descriptor', l: 'Edition' }, { p: 'rymDescriptors', c: 'RymDescriptors', l: 'RYM descriptors', kind: 'union' }, { p: 'scene', c: 'Scene', l: 'Scene' }, { p: 'movement', c: 'Movement', l: 'Movement' },
+  { p: 'link', c: 'Link', l: 'Link' }, { p: 'rymLink', c: 'RymLink', l: 'RYM link' }, { p: 'cover', c: 'Cover', l: 'Cover' }, { p: 'rating', c: 'Rating', l: 'Your rating', kind: 'num' }, { p: 'review', c: 'Review', l: 'Your review', both: true },
+  { p: 'rymRating', c: 'RymRating', l: 'RYM rating', kind: 'bundle' }, { p: 'manualTracks', c: 'ManualTracks', l: 'Tracklist', kind: 'tracks' }, { p: 'trackData', c: 'TrackData', l: 'Links on each song', kind: 'trackdata' },
+  { p: 'rymUpdated', c: 'RymUpdated', l: 'First RYM update', kind: 'earliest' }, { p: 'rymUpdateLog', c: 'RymUpdateLog', l: 'RYM update log', kind: 'log' }
+];
+const MG_LOG_KEY = 'crate_merge_log_v1', MG_IGN_KEY = 'crate_merge_ignore_v1';
+const mg = { open: false, groups: [], opened: null, keep: {}, choices: {}, armed: null, armTimer: 0, busy: false, msg: '' };
+const mgJson = (k) => { try { const a = JSON.parse(localStorage.getItem(k) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
+const mgLogGet = () => mgJson(MG_LOG_KEY), mgLogSet = (a) => { try { localStorage.setItem(MG_LOG_KEY, JSON.stringify(a.slice(-15))); } catch (e) { /* storage full: not kept */ } };
+const mgIgnored = () => new Set(mgJson(MG_IGN_KEY)), mgIgnore = (id) => { const a = [...mgIgnored(), id].slice(-300); try { localStorage.setItem(MG_IGN_KEY, JSON.stringify(a)); } catch (e) { /* not kept */ } };
+function mgFindGroups() {
+  const items = state.raw, parent = items.map((_, i) => i), find = (i) => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; }, join = (a, b) => { a = find(a); b = find(b); if (a !== b) parent[b] = a; };
+  const byKey = new Map(), byRym = new Map();
+  items.forEach((it, i) => { const k = dupKey(it.artist, it.title); if (k) { if (byKey.has(k)) join(byKey.get(k), i); else byKey.set(k, i); } const rp = rymPathOfUrl(it.rymLink); if (rp) { if (byRym.has(rp)) join(byRym.get(rp), i); else byRym.set(rp, i); } });
+  const by = new Map(); items.forEach((it, i) => { const r = find(i); if (!by.has(r)) by.set(r, []); by.get(r).push(it); });
+  const out = [], ign = mgIgnored();
+  by.forEach(list => {
+    if (list.length < 2) return; list.sort((a, b) => a.row - b.row); list = list.slice(0, 11);          // (the server takes one release to keep and up to ten to fold in)
+    const k0 = dupKey(list[0].artist, list[0].title); let tier;
+    if (list.every(x => dupKey(x.artist, x.title) === k0)) { tier = 'exact'; for (let i = 0; i < list.length && tier === 'exact'; i++) for (let j = i + 1; j < list.length; j++) if (dupCompare(list[i], list[j]).level !== 'exact') { tier = 'edition'; break; } } else tier = 'rym';
+    const id = list.map(x => x.albumId || 'r' + x.row).sort().join('|'); if (!ign.has(id)) out.push({ id, tier, items: list });
+  });
+  const rank = { exact: 0, rym: 1, edition: 2 }; out.sort((a, b) => rank[a.tier] - rank[b.tier] || a.items[0].artist.localeCompare(b.items[0].artist) || a.items[0].title.localeCompare(b.items[0].title));
+  return out;
+}
+function mgStats(it) {
+  const ids = it.albumId, pl = state.playlists.reduce((n, p) => n + p.items.filter(x => (x.albumId ? x.albumId === ids : String(x.row) === String(it.row))).length, 0);
+  return { plays: state.diary.filter(d => d.artist === it.artist && d.title === it.title).length, pl, tracks: (it.manualTracks || []).length, rating: Number(it.rating) || 0 };
+}
+function mgStatsText(it) { const s = mgStats(it), a = []; if (s.rating) a.push('\u2605' + s.rating); if (s.tracks) a.push(s.tracks + ' tracks'); if (s.pl) a.push(s.pl + ' in playlists'); if (s.plays) a.push(s.plays + ' listen' + (s.plays === 1 ? '' : 's')); return a.join(' \u00b7 ') || 'nothing attached'; }
+function mgRichness(it) { const s = mgStats(it); return (s.rating ? 3 : 0) + Math.min(s.plays, 5) * 2 + Math.min(s.pl, 5) * 2 + (s.tracks ? 2 : 0) + (it.cover ? 1 : 0) + (it.rymLink ? 1 : 0) + (it.label ? .5 : 0) + (it.rymRating ? 1 : 0) + ((it.rymUpdateLog || []).length ? 1 : 0); }
+function mgDefaultKeep(g) { let best = 0; g.items.forEach((it, i) => { if (mgRichness(it) > mgRichness(g.items[best])) best = i; }); return best; }          // the one with the most attached to it; a tie goes to the oldest row
+function mgGet(it, f) {                                          // one release's value for a field, as a plain string ('' = nothing there)
+  const v = it[f.p];
+  if (f.kind === 'num' || f.kind === 'bundle') { const n = Number(f.kind === 'bundle' ? it.rymRating : v) || 0; return n > 0 ? String(n) : ''; }
+  if (f.kind === 'tracks') return (it.manualTracks || []).length ? JSON.stringify(it.manualTracks.map(t => String((t && t.title) || '').toLowerCase())) : '';
+  if (f.kind === 'trackdata') return v && Object.keys(v).length ? JSON.stringify(v) : '';
+  if (f.kind === 'log') return Array.isArray(v) && v.length ? JSON.stringify(v) : '';
+  const t = String(v == null ? '' : v).trim(); if (f.p === 'type' && t === 'Unknown') return ''; if (f.p === 'catalog' && /^CRT-\d+$/i.test(t)) return ''; return t;
+}
+function mgShow(it, f) {
+  const v = mgGet(it, f); if (!v) return '';
+  if (f.kind === 'tracks') return `${it.manualTracks.length} tracks`; if (f.kind === 'trackdata') return `${Object.keys(it.trackData).length} songs with links`; if (f.kind === 'log') return `${it.rymUpdateLog.length} updates`;
+  if (f.kind === 'bundle') return `${it.rymRating}${Number(it.rymVotes) ? ' (' + Number(it.rymVotes).toLocaleString() + ' ratings)' : ''}`;
+  if (f.p === 'cover') { let h = ''; try { h = new URL(v).hostname.replace(/^www\./, ''); } catch (e) { h = v.slice(0, 30); } return h + (rymPictureSize(v) ? ' ' + rymPictureSize(v) : ''); }
+  return v.length > 90 ? v.slice(0, 88) + '\u2026' : v;
+}
+function mgColumnValues(it, f) {                                 // the sheet columns this field is made of, for this release
+  if (f.kind === 'bundle') return { RymRating: Number(it.rymRating) || '', RymVotes: Number(it.rymVotes) || '', RymRank: Number(it.rymRank) || '', RymSrc: it.rymRating ? (it.rymSrc || '') : '' };
+  if (f.kind === 'num') return { [f.c]: Number(it[f.p]) || 0 };
+  if (f.kind === 'tracks') return { [f.c]: (it.manualTracks || []).length ? JSON.stringify(it.manualTracks) : '' };
+  if (f.kind === 'trackdata') return { [f.c]: it.trackData && Object.keys(it.trackData).length ? JSON.stringify(it.trackData) : '' };
+  if (f.kind === 'log') return { [f.c]: (it.rymUpdateLog || []).length ? rymLogJson(it.rymUpdateLog) : '' };
+  return { [f.c]: mgGet(it, f) };
+}
+function mgColumns(it) { const o = {}; MG_FIELDS.forEach(f => Object.assign(o, mgColumnValues(it, f))); return o; }
+function mgPlan(items, keep, ch) {                               // what the merged release will be: row by row, and the columns to write on the one kept
+  const K = items[keep], order = [keep].concat(items.map((_, i) => i).filter(i => i !== keep)), rows = [], fields = {}; let conflicts = 0;
+  MG_FIELDS.forEach(f => {
+    const vals = items.map(it => mgGet(it, f)), filled = order.filter(i => vals[i] !== ''), row = { f, vals, shown: items.map(it => mgShow(it, f)), conflict: false, from: -1, text: '' }; let merged;
+    if (f.kind === 'union') { const seen = new Set(), t = []; order.forEach(i => parseDescriptors(items[i].rymDescriptors).forEach(x => { const k = descKey(x); if (!seen.has(k)) { seen.add(k); t.push(k); } })); merged = { [f.c]: t.join(', ') }; row.text = t.join(', '); }
+    else if (f.kind === 'trackdata') { const o = {}; order.slice().reverse().forEach(i => { const td = items[i].trackData || {}; Object.keys(td).forEach(k => { o[k] = Object.assign({}, o[k], td[k]); }); }); const n = Object.keys(o).length; merged = { [f.c]: n ? JSON.stringify(o) : '' }; row.text = n ? `${n} songs with links` : ''; }
+    else if (f.kind === 'log') { const seen = new Set(), all = []; order.forEach(i => (items[i].rymUpdateLog || []).forEach(e => { const k = e.t + '|' + e.s; if (!seen.has(k)) { seen.add(k); all.push(e); } })); all.sort((a, b) => a.t - b.t); const l = all.slice(-RYM_LOG_MAX); merged = { [f.c]: l.length ? rymLogJson(l) : '' }; row.text = l.length ? `${l.length} updates` : ''; }
+    else if (f.kind === 'earliest') { const d = filled.map(i => vals[i]).sort()[0] || ''; merged = { [f.c]: d }; row.text = d ? new Date(d).toLocaleDateString() : ''; }
+    else {
+      row.conflict = new Set(filled.map(i => vals[i].toLowerCase())).size > 1; let pick = ch[f.p]; if (pick === 'both' && !f.both) pick = undefined;
+      if (pick === 'both') { const parts = []; order.forEach(i => { const v = vals[i]; if (v && !parts.some(x => x.toLowerCase() === v.toLowerCase())) parts.push(v); }); merged = { [f.c]: parts.join('\n\n') }; row.from = 'both'; row.text = 'both'; }
+      else { const idx = (typeof pick === 'number' && vals[pick] !== '') ? pick : (filled.length ? filled[0] : keep); row.from = idx; merged = mgColumnValues(items[idx], f); row.text = row.shown[idx]; }
+    }
+    row.merged = merged; const had = mgColumnValues(K, f);
+    Object.keys(merged).forEach(col => { const v = merged[col]; if (v === '' || v == null) return; if (String(had[col]) !== String(v)) fields[col] = v; });          // only what CHANGES the kept release, and never an empty value over one that is there
+    if (row.conflict) conflicts++; rows.push(row);
+  });
+  return { rows, fields, conflicts };
+}
+function mgThumb(it, big) {
+  const url = (state.artCache[artKey(it)] && state.artCache[artKey(it)].art) || it.cover || '', init = (String(it.artist || '?').match(/\b\w/g) || ['?']).slice(0, 2).join('').toUpperCase();
+  return url ? `<img class="mg-img${big ? ' big' : ''}" src="${escapeHtml(url)}" ${rymIsRymImage(url) ? 'referrerpolicy="no-referrer" ' : ''}alt="" loading="lazy" data-init="${escapeHtml(init)}">` : `<div class="mg-ph${big ? ' big' : ''}" aria-hidden="true">${escapeHtml(init)}</div>`;
+}
+function mgCompareHtml(g, keep) {
+  const items = g.items, plan = mgPlan(items, keep, mg.choices[g.id] || {}), gid = escapeHtml(g.id), K = items[keep], losers = items.filter((_, i) => i !== keep);
+  const heads = items.map((it, i) => `<th class="${i === keep ? 'keep' : ''}">${mgThumb(it, true)}<label class="mg-keep"><input type="radio" name="mgk-${gid}" data-mg-keep="${i}"${i === keep ? ' checked' : ''}> Keep this one</label><small>${escapeHtml(it.title)}${it.descriptor ? ' [' + escapeHtml(it.descriptor) + ']' : ''}</small><small>${escapeHtml(mgStatsText(it))}</small></th>`).join('');
+  const crow = plan.rows.filter(r => r.conflict), both = crow.some(r => r.f.both);
+  const cell = (r, i) => `<td><label class="mg-cell${r.from === i ? ' on' : ''}${r.vals[i] === '' ? ' blank' : ''}"><input type="radio" name="mgf-${gid}-${r.f.p}" data-mg-pick="${r.f.p}:${i}"${r.from === i ? ' checked' : ''}${r.vals[i] === '' ? ' disabled' : ''}><span>${r.vals[i] === '' ? '\u2014' : escapeHtml(r.shown[i])}</span></label></td>`;
+  const body = crow.map(r => `<tr><th scope="row">${escapeHtml(r.f.l)}</th>${items.map((_, i) => cell(r, i)).join('')}${both ? (r.f.both ? `<td><label class="mg-cell${r.from === 'both' ? ' on' : ''}"><input type="radio" name="mgf-${gid}-${r.f.p}" data-mg-pick="${r.f.p}:both"${r.from === 'both' ? ' checked' : ''}><span>keep both</span></label></td>` : '<td></td>') : ''}</tr>`).join('');
+  const same = plan.rows.filter(r => !r.conflict && r.text !== '' && r.text != null).map(r => `<li><b>${escapeHtml(r.f.l)}</b> ${escapeHtml(r.text)}${typeof r.from === 'number' && r.from !== keep && r.from >= 0 ? ' <em>(filled in from another)</em>' : ''}</li>`).join('');
+  const ids = new Set(losers.map(l => l.albumId).filter(Boolean)), rowsS = new Set(losers.filter(l => !l.albumId).map(l => String(l.row)));
+  const moved = state.playlists.reduce((n, p) => n + p.items.filter(x => (x.albumId ? ids.has(x.albumId) : rowsS.has(String(x.row)))).length, 0);
+  const fa = plan.fields.Artist !== undefined ? plan.fields.Artist : K.artist, ft = plan.fields.Title !== undefined ? plan.fields.Title : K.title;
+  const follows = losers.reduce((n, l) => n + ((l.artist !== fa || l.title !== ft) ? state.diary.filter(d => d.artist === l.artist && d.title === l.title).length : 0), 0);
+  const armed = mg.armed === g.id;
+  return `<div class="mg-compare"><table class="mg-table"><thead><tr><th></th>${heads}${both ? '<th></th>' : ''}</tr></thead><tbody>${body || `<tr><td class="mg-none" colspan="${items.length + 1 + (both ? 1 : 0)}">These releases don\u2019t disagree on anything: the merge only fills gaps.</td></tr>`}</tbody></table>
+    ${crow.length ? `<p class="mg-hint">${crow.length} field${crow.length === 1 ? '' : 's'} where they differ: pick the one you want (it starts on the release you keep).</p>` : ''}
+    <details class="mg-same"><summary>${plan.rows.filter(r => !r.conflict && r.text).length} other fields (nothing to decide)</summary><ul>${same}</ul></details>
+    <div class="mg-foot"><span>Keeps \u201c${escapeHtml(K.title)}\u201d and removes ${losers.length} other release${losers.length === 1 ? '' : 's'}${moved ? ` \u00b7 ${moved} playlist item${moved === 1 ? '' : 's'} move${moved === 1 ? 's' : ''} across` : ''}${follows ? ` \u00b7 ${follows} diary entr${follows === 1 ? 'y' : 'ies'} follow${follows === 1 ? 's' : ''}` : ''}</span>
+    <button type="button" class="mg-btn ${armed ? 'danger' : 'primary'}" data-mg="merge" data-g="${gid}"${mg.busy ? ' disabled' : ''}>${armed ? 'Really merge? Press again' : `Merge ${items.length} into one`}</button></div></div>`;
+}
+function mgRender() {
+  const body = document.getElementById('mgBody'), sub = document.getElementById('mgSub'); if (!body) return; const keepTop = body.scrollTop;
+  sub.textContent = mg.groups.length ? `${mg.groups.length} group${mg.groups.length === 1 ? '' : 's'} of likely duplicates` : 'No duplicates found';
+  const TIER = { exact: ['Same album', 'exact'], rym: ['Same Rate Your Music page', 'rym'], edition: ['Different editions?', 'edition'] };
+  let h = mg.msg ? `<p class="mg-msg" role="status">${escapeHtml(mg.msg)}</p>` : '';
+  if (!mg.groups.length) h += '<div class="mg-empty"><b>No duplicates found.</b><p>Releases count as the same when the artist and title match (ignoring case, accents, \u201cThe\u201d, \u201c&\u201d and bracketed edition notes), or when they share one Rate Your Music page. Ones you marked \u201cnot duplicates\u201d are left out.</p></div>';
+  mg.groups.forEach(g => {
+    const open = mg.opened === g.id, keep = mg.keep[g.id] != null ? mg.keep[g.id] : mgDefaultKeep(g), t = TIER[g.tier], K = g.items[keep];
+    h += `<div class="mg-card${open ? ' open' : ''}"><div class="mg-card-head" data-mg-head="${escapeHtml(g.id)}" role="button" tabindex="0" aria-expanded="${open}"><span class="mg-tier ${t[1]}">${t[0]}</span><span class="mg-covers">${g.items.slice(0, 4).map(it => mgThumb(it)).join('')}</span><span class="mg-name"><b>${escapeHtml(K.title)}</b><i>${escapeHtml(K.artist)} \u00b7 ${g.items.length} releases</i></span><button type="button" class="mg-btn" data-mg="notdup" data-g="${escapeHtml(g.id)}">Not duplicates</button></div>${open ? mgCompareHtml(g, keep) : ''}</div>`;
+  });
+  const log = mgLogGet().slice().reverse();
+  if (log.length) h += `<div class="mg-log"><div class="mg-log-title">Recently merged</div>${log.map(e => `<div class="mg-log-row"><span>${escapeHtml(new Date(e.t).toLocaleDateString())} \u00b7 kept \u201c${escapeHtml(e.keeper.title)}\u201d by ${escapeHtml(e.keeper.artist)}; removed ${e.removed.length}</span>${e.restored ? '<em>put back</em>' : `<button type="button" class="mg-btn" data-mg="restore" data-t="${e.t}"${mg.busy ? ' disabled' : ''}>Put back what was removed</button>`}</div>`).join('')}<p class="mg-hint">Putting back re-adds the removed releases as new ones. Their places in playlists and their diary entries are not restored.</p></div>`;
+  body.innerHTML = h; body.scrollTop = keepTop;
+}
+function openMergeDialog() { mg.open = true; mg.msg = ''; mg.opened = null; mg.groups = mgFindGroups(); document.getElementById('mergeOverlay').hidden = false; mgRender(); }
+function closeMergeDialog() { if (mg.busy) return; mg.open = false; mg.armed = null; clearTimeout(mg.armTimer); const ov = document.getElementById('mergeOverlay'); if (ov) ov.hidden = true; }
+async function mgMerge(g) {
+  const keep = mg.keep[g.id] != null ? mg.keep[g.id] : mgDefaultKeep(g), plan = mgPlan(g.items, keep, mg.choices[g.id] || {}), K = g.items[keep], losers = g.items.filter((_, i) => i !== keep);
+  const ref = (it) => ({ row: it.row, id: it.albumId || '', artist: it.artist, title: it.title }), stamp = Date.now();
+  mg.busy = true; mg.armed = null; mg.msg = 'Merging\u2026'; mgRender();
+  const log = mgLogGet(); log.push({ t: stamp, keeper: { artist: K.artist, title: K.title }, removed: losers.map(mgColumns), restored: false }); mgLogSet(log);          // kept BEFORE anything is deleted, so it exists even if the answer never arrives
+  const dropEntry = () => mgLogSet(mgLogGet().filter(e => e.t !== stamp));
+  try {
+    const r = await postUpdate({ action: 'mergeAlbums', keeper: ref(K), losers: losers.map(ref), fields: plan.fields });
+    if (!r || typeof r.merged !== 'number') { dropEntry(); mg.msg = 'Nothing was changed: the backend script doesn\u2019t know how to merge yet. Paste the newest apps-script-backend.gs into your Apps Script and deploy it again.'; }
+    else {
+      mg.msg = `Merged ${g.items.length} into \u201c${K.title}\u201d${r.repointed ? ` \u00b7 ${r.repointed} playlist item${r.repointed === 1 ? '' : 's'} moved` : ''}${r.removedItems ? ` \u00b7 ${r.removedItems} duplicate playlist place${r.removedItems === 1 ? '' : 's'} dropped` : ''}${r.diaryFixed ? ` \u00b7 ${r.diaryFixed} diary entr${r.diaryFixed === 1 ? 'y' : 'ies'} moved` : ''}.`;
+      mg.opened = null; delete mg.keep[g.id]; delete mg.choices[g.id]; await fetchCatalog(); mg.groups = mgFindGroups();
+    }
+  } catch (err) {
+    const m = String((err && err.message) || err);
+    if (/stale/i.test(m)) { dropEntry(); mg.msg = 'Nothing was changed: your crate is no longer what this list was made from (changed in another tab or on another device). Close this and open it again.'; }
+    else if (/nothing to merge/i.test(m)) { dropEntry(); mg.msg = 'Nothing was changed: there was nothing to merge.'; }
+    else { mg.msg = 'Couldn\u2019t confirm whether the merge happened (' + m.slice(0, 80) + '). Check your crate before trying again; if the removed releases are gone, \u201cPut back what was removed\u201d below has them.'; }
+  }
+  mg.busy = false; mgRender();
+}
+async function mgRestore(t) {
+  const log = mgLogGet(), e = log.find(x => x.t === t); if (!e || e.restored || mg.busy) return; mg.busy = true; mg.msg = 'Putting them back\u2026'; mgRender();
+  try { for (const cols of e.removed) await postUpdate(Object.assign({ action: 'addAlbum' }, cols)); e.restored = true; mgLogSet(log); await fetchCatalog(); mg.groups = mgFindGroups(); mg.msg = `Put back ${e.removed.length} release${e.removed.length === 1 ? '' : 's'}. Playlist places and diary entries were not restored.`; }
+  catch (err) { mg.msg = 'Couldn\u2019t put them back: ' + String((err && err.message) || err).slice(0, 100); }
+  mg.busy = false; mgRender();
+}
+(function wireMerge() {
+  const ov = document.getElementById('mergeOverlay'); if (!ov) return;
+  const gOf = (id) => mg.groups.find(x => x.id === id);
+  ov.addEventListener('click', (e) => {
+    if (e.target === ov || e.target.closest('#mgClose')) { closeMergeDialog(); return; }
+    const act = e.target.closest('[data-mg]');
+    if (act) {
+      const k = act.dataset.mg, g = gOf(act.dataset.g);
+      if (k === 'notdup' && g) { mgIgnore(g.id); mg.groups = mg.groups.filter(x => x.id !== g.id); if (mg.opened === g.id) mg.opened = null; mg.msg = ''; mgRender(); }
+      else if (k === 'merge' && g && !mg.busy) { if (mg.armed === g.id) { clearTimeout(mg.armTimer); mgMerge(g); } else { mg.armed = g.id; clearTimeout(mg.armTimer); mg.armTimer = setTimeout(() => { mg.armed = null; mgRender(); }, 5000); mgRender(); } }
+      else if (k === 'restore') mgRestore(Number(act.dataset.t));
+      return;
+    }
+    const head = e.target.closest('[data-mg-head]'); if (head) { const id = head.dataset.mgHead; mg.opened = mg.opened === id ? null : id; mg.armed = null; mgRender(); }
+  });
+  ov.addEventListener('change', (e) => {
+    const card = e.target.closest('.mg-card'); if (!card) return; const id = card.querySelector('[data-mg-head]').dataset.mgHead; mg.armed = null;
+    if (e.target.dataset.mgKeep != null) { mg.keep[id] = Number(e.target.dataset.mgKeep); delete mg.choices[id]; mgRender(); }
+    else if (e.target.dataset.mgPick) { const [p, v] = e.target.dataset.mgPick.split(':'); (mg.choices[id] = mg.choices[id] || {})[p] = v === 'both' ? 'both' : Number(v); mgRender(); }
+  });
+  ov.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[data-mg-head]')) { e.preventDefault(); e.target.click(); } });
+  ov.addEventListener('error', (e) => { const im = e.target; if (im && im.classList && im.classList.contains('mg-img')) { const ph = document.createElement('div'); ph.className = im.className.replace('mg-img', 'mg-ph'); ph.textContent = im.dataset.init || '?'; im.replaceWith(ph); } }, true);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && mg.open) { e.stopPropagation(); closeMergeDialog(); } }, true);
+})();
+
 function buildLeftList() {
   const mode = state.leftMode;
   // Apply the chosen thumbnail size CSS class
@@ -12832,6 +13393,8 @@ if (mode === 'artist') {
       const y = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getUTCFullYear() : null;
       return y ? String(y) : 'Unknown';
     });
+  } else if (mode === 'descriptor') {
+    entries = [...descLibrary(sourceRaw).values()].map(e => ({ key: e.key, label: e.label, count: e.count, cat: descCatOf(e.key) }));          // every descriptor in the releases shown here, counted
   } else if (mode === 'genre') {
     // Hierarchical, aggregated-count tree (see buildGenreTree/Genre
     // Taxonomy above) rather than a flat per-genre count — entries come
@@ -12876,7 +13439,7 @@ if (mode === 'artist') {
   allRow.className = 'left-row left-row-all';
   allRow.tabIndex = 0;
   if (!state.navFilter && (!state.activePlaylistId || state.leftNavView === 'playlists')) allRow.classList.add('active');
-  const allLabel = mode === 'artist' ? 'All Artists' : mode === 'genre' ? 'All Genres' : 'All Albums';
+  const allLabel = mode === 'artist' ? 'All Artists' : mode === 'genre' ? 'All Genres' : mode === 'descriptor' ? 'All Descriptors' : 'All Albums';
   allRow.innerHTML = `
     <div class="left-row-text"><p class="left-row-title">${allLabel}</p></div>
     <span class="left-row-count">${sourceRaw.length}</span>`;
@@ -12930,6 +13493,24 @@ if (mode === 'artist') {
       header.textContent = `${gk} · ${groupEntries.length}`;
       el.leftList.appendChild(header);
       groupEntries.forEach(entry => el.leftList.appendChild(buildLeftRow(entry, mode)));
+    });
+  } else if (mode === 'descriptor') {                            // grouped by what they describe, each group can be folded away
+    const byCat = new Map(); entries.forEach(e => { if (!byCat.has(e.cat)) byCat.set(e.cat, []); byCat.get(e.cat).push(e); });
+    if (!entries.length) el.leftList.insertAdjacentHTML('beforeend', '<p class="left-empty">No descriptors yet. Add them to a release (RYM descriptors in its details), or update it from Rate Your Music.</p>');
+    DESC_CATS.map(c => c.id).concat('other').forEach(cid => {
+      const list = byCat.get(cid); if (!list) return; const folded = state.descCollapsed.has(cid), header = document.createElement('div');
+      header.className = 'left-group-header desc-cat-head'; header.tabIndex = 0; header.dataset.cat = cid; header.setAttribute('role', 'button'); header.setAttribute('aria-expanded', String(!folded));
+      header.textContent = `${folded ? '\u25b8' : '\u25be'} ${descCatLabel(cid)} \u00b7 ${list.length}`;
+      const flip = () => { if (state.descCollapsed.has(cid)) state.descCollapsed.delete(cid); else state.descCollapsed.add(cid); buildLeftList(); };
+      header.addEventListener('click', flip); header.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } });
+      el.leftList.appendChild(header);
+      if (folded) return;
+      if (cid === 'other') { list.forEach(entry => el.leftList.appendChild(buildLeftRow(entry, mode))); return; }
+      DESC_CONCEPTS.filter(c => c.cat === cid).forEach(con => {          // by shared sense, as a thesaurus would: "sadness", "anger", "joy"...
+        const rowsOf = list.filter(e => descConceptOf(e.key) === con); if (!rowsOf.length) return;
+        const sub = document.createElement('div'); sub.className = 'desc-concept-head'; sub.textContent = con.head; el.leftList.appendChild(sub);
+        rowsOf.forEach(entry => el.leftList.appendChild(buildLeftRow(entry, mode)));
+      });
     });
   } else {
     entries.forEach(entry => el.leftList.appendChild(buildLeftRow(entry, mode)));
@@ -13264,7 +13845,7 @@ function updateMainLabel() {
     return; 
   }
   
-  const prefixes = { artist: 'Artist: ', genre: 'Genre: ', album: 'Album: ' };
+  const prefixes = { artist: 'Artist: ', genre: 'Genre: ', album: 'Album: ', descriptor: 'Descriptor: ' };
   let label = state.navFilter.value;
   if (state.navFilter.mode === 'album') {
     const match = state.raw.find(r => r.row === state.navFilter.value);
@@ -13630,6 +14211,7 @@ function albumPassesBrowse(r, searchTerms) {          // does this album pass th
     const matchesNav = !state.navFilter || (
       state.navFilter.mode === 'artist' ? r.artist === state.navFilter.value :
       state.navFilter.mode === 'genre' ? filterGenreTags(r).some(g => genreMatchesFilter(state.genreTaxonomy, g, state.navFilter.value)) : 
+      state.navFilter.mode === 'descriptor' ? parseDescriptors(r.rymDescriptors).some(d => descKey(d) === state.navFilter.value) :
       r.row === state.navFilter.value
     );
 
@@ -21408,7 +21990,7 @@ function openArtistQuickOpen() {
   const menu = document.createElement('div');
   menu.className = 'tab-quick-open';
   menu.setAttribute('role', 'dialog'); menu.setAttribute('aria-label', 'Open artist');
-  menu.innerHTML = '<input type="search" class="tab-quick-open-input" placeholder="Open artist\u2026" autocomplete="off" aria-label="Open artist"><div class="tab-quick-open-list" role="listbox"></div>';
+  menu.innerHTML = '<input type="search" class="tab-quick-open-input" placeholder="Open artist…" autocomplete="off" aria-label="Open artist"><div class="tab-quick-open-list" role="listbox"></div>';
   document.body.appendChild(menu);
   tabQuickOpenEl = menu;
   const r = el.tabAddBtn.getBoundingClientRect();
@@ -21877,6 +22459,28 @@ const SM_YT_QUOTA_KEY = 'crate_youtube_quota_v1', SM_YT_DAILY = 10000;
 function smPacificDay() { try { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }); } catch (e) { return new Date().toISOString().slice(0, 10); } }   // YouTube's quota resets at midnight Pacific
 function smYtQuotaUsed() { try { const q = JSON.parse(localStorage.getItem(SM_YT_QUOTA_KEY) || '{}'); return q.day === smPacificDay() ? (q.used || 0) : 0; } catch (e) { return 0; } }
 function smYtQuotaAdd(n) { try { localStorage.setItem(SM_YT_QUOTA_KEY, JSON.stringify({ day: smPacificDay(), used: smYtQuotaUsed() + n })); } catch (e) { /* just not counted */ } }
+// ---- Remembering YouTube lookups (the API route): what was looked up once is not paid for again ----
+// An album's playlist lookup costs about 100 of the 10,000 daily units, a song's own search 100 more. They are kept on this device for 14 days (7 when nothing was found); an error or a quota refusal is never kept.
+const YT_CACHE_KEY = 'crate_yt_cache_v1', YT_CACHE_MAX = 200, YT_REL_TTL = 14 * 864e5, YT_NONE_TTL = 7 * 864e5;
+const ytCacheNorm = (v) => String(v == null ? '' : v).toLowerCase().replace(/\s+/g, ' ').trim();
+function ytCacheAll() { try { const o = JSON.parse(localStorage.getItem(YT_CACHE_KEY) || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch (e) { return {}; } }
+function ytCacheGet(key) { const e = ytCacheAll()[key]; return e && e.x > Date.now() && e.v ? e : null; }          // { t: when it was looked up, x: kept until, v: the answer }
+function ytCachePut(key, v, ttl) {
+  const o = ytCacheAll(), now = Date.now(); o[key] = { t: now, x: now + ttl, v };
+  Object.keys(o).forEach(k => { if (!(o[k].x > now)) delete o[k]; });
+  const ks = Object.keys(o); if (ks.length > YT_CACHE_MAX) ks.sort((a, b) => o[a].t - o[b].t).slice(0, ks.length - YT_CACHE_MAX).forEach(k => delete o[k]);
+  for (let tries = 0; tries < 4; tries++) {
+    try { localStorage.setItem(YT_CACHE_KEY, JSON.stringify(o)); return; }
+    catch (e) { const old = Object.keys(o).sort((a, b) => o[a].t - o[b].t); if (old.length <= 1) return; old.slice(0, Math.ceil(old.length / 2)).forEach(k => delete o[k]); }          // the browser's storage is full: the oldest half goes
+  }
+}
+function ytCacheCount() { const o = ytCacheAll(), now = Date.now(); return Object.keys(o).filter(k => o[k].x > now).length; }
+function ytCacheClear() { try { localStorage.removeItem(YT_CACHE_KEY); } catch (e) { /* nothing to clear */ } }
+function smRelKey(item) { return 'rel|' + ytCacheNorm(item.artist) + '|' + ytCacheNorm(String(item.title || '').replace(/\s*\[.*?\]|\s*\(.*?\)/g, '').trim()); }
+function ytPaintQuotaLine() {
+  const e = document.getElementById('ytQuotaLine'); if (!e) return; const used = smYtQuotaUsed(), n = ytCacheCount();
+  e.textContent = `Today CRATE has used about ${used.toLocaleString()} of YouTube\u2019s 10,000 daily units (it resets at midnight Pacific; searches made outside CRATE with the same key aren\u2019t counted). ${n} album and song lookup${n === 1 ? ' is' : 's are'} remembered, so looking ${n === 1 ? 'it' : 'them'} up again costs nothing.`;
+}
 let smState = null;
 let smLoadSeq = 0;
 
@@ -22040,13 +22644,15 @@ async function smYoutubeForRelease(item, songs) {
   const viaAddon = ytUseAddon();
   if (!viaAddon && !loadYoutubeApiKey()) return { status: 'nokey' };
   const clean = item.title.replace(/\s*\[.*?\]|\s*\(.*?\)/g, '').trim();
+  const relKey = smRelKey(item), cached = viaAddon ? null : ytCacheGet(relKey);          // the API route remembers an album it has looked up (the add-on keeps its own memory)
+  const playlists = cached ? cached.v.playlists : [];
+  if (!cached) {
   const found = viaAddon ? await smYtPlaylistSearchViaAddon(`${item.artist} ${clean}`) : await smYtApi('search', { part: 'snippet', type: 'playlist', maxResults: 5, q: `${item.artist} ${clean}` }, 100);
   const stripAlbum = (t) => String(t || '').replace(/^album\s*[-\u2013:]\s*/i, '');
   const lists = (found.items || []).filter(it => it.id && it.id.playlistId && it.snippet).map(it => ({
     id: it.id.playlistId, title: it.snippet.title, channel: it.snippet.channelTitle,
     rank: smSim(smCore(stripAlbum(it.snippet.title)), smCore(item.title)) + (/ - topic$/i.test(it.snippet.channelTitle || '') ? 0.1 : 0) + (smArtistMatch(item.artist, it.snippet.channelTitle) === 1 ? 0.05 : 0)
   })).filter(l => l.rank >= 0.6).sort((a, b) => b.rank - a.rank).slice(0, 2);
-  const playlists = [];
   for (const l of lists) {
     if (viaAddon) {                                                  // the playlist's page, read by the add-on: no quota
       const pv = await ytAddonRequest({ kind: 'playlist', id: l.id });
@@ -22064,6 +22670,8 @@ async function smYoutubeForRelease(item, songs) {
       return { id, title: v.snippet.title, channel: dt.channel || v.snippet.videoOwnerChannelTitle || l.channel, durationMs: dt.durationMs || 0, blocked: !!dt.blocked, index: i + 1 };
     }) });
   }
+    if (!viaAddon) ytCachePut(relKey, { playlists }, playlists.length ? YT_REL_TTL : YT_NONE_TTL);
+  }
   const best = smBestAlbum(songs, playlists);
   const byIdx = {};
   if (best && best.fit >= 55) {
@@ -22073,16 +22681,17 @@ async function smYoutubeForRelease(item, songs) {
       const others = smTopCands(s, all, 50, 6).filter(c => c.id !== m.cand.id).slice(0, 3);
       byIdx[s.idx] = [Object.assign({}, m.cand, { score: m.score, band: m.band, reasons: m.reasons, source: 'playlist' }), ...others.map(c => Object.assign(c, { source: 'playlist' }))];
     });
-    return { status: 'done', playlistTitle: best.album.name, playlistChannel: best.album.channel, playlistUrl: 'https://www.youtube.com/playlist?list=' + best.album.id, fit: best.fit, byIdx };
+    return { status: 'done', remembered: cached ? cached.t : 0, playlistTitle: best.album.name, playlistChannel: best.album.channel, playlistUrl: 'https://www.youtube.com/playlist?list=' + best.album.id, fit: best.fit, byIdx };
   }
-  return { status: 'done', playlistTitle: '', byIdx, none: true };
+  return { status: 'done', remembered: cached ? cached.t : 0, playlistTitle: '', byIdx, none: true };
 }
 async function smYoutubeSearchSongs(item, songs, idxs, onStep) {     // 100 quota units each: only ever on request
   const added = {};
   for (const idx of idxs) {
     const s = songs.find(x => x.idx === idx); if (!s) continue;
-    let cands;
-    if (ytUseAddon()) {                                              // a video search through the add-on: the results already carry their lengths, so no second call
+    let cands; const qk = 'song|' + ytCacheNorm(`${item.artist} ${s.title}`), hit = ytUseAddon() ? null : ytCacheGet(qk);
+    if (hit) cands = hit.v.cands;                                    // looked up before: nothing to pay
+    else if (ytUseAddon()) {                                              // a video search through the add-on: the results already carry their lengths, so no second call
       const r = await ytAddonRequest({ kind: 'search-video', q: `${item.artist} ${s.title}` });
       cands = r.slice(0, 8).map(v => ({ id: v.id, title: v.title, channel: v.channel, durationMs: v.durationMs || 0, blocked: false, index: 0 }));
     } else {
@@ -22090,6 +22699,7 @@ async function smYoutubeSearchSongs(item, songs, idxs, onStep) {     // 100 quot
       const ids = (d.items || []).filter(it => it.id && it.id.videoId).map(it => it.id.videoId);
       const details = ids.length ? await smYtDetails(ids) : new Map();
       cands = ids.map(id => { const dt = details.get(id) || {}; return { id, title: dt.title || '', channel: dt.channel || '', durationMs: dt.durationMs || 0, blocked: !!dt.blocked, index: 0 }; });
+      ytCachePut(qk, { cands }, cands.length ? YT_REL_TTL : YT_NONE_TTL);
     }
     const top = smTopCands(s, cands, 35, 4).map(c => Object.assign(c, { source: 'search' }));
     if (top.length) added[idx] = top;
@@ -22185,7 +22795,8 @@ function smStatusHtml(kind) {
     if (kind === 'youtube' && r.status === 'idle') {
       if (ytUseAddon()) return ytAddonIdleHtml();
       if (!loadYoutubeApiKey()) return `<div class="sm-status"><span>Matching on YouTube needs a free API key.</span><button type="button" class="config-btn" data-sm="setup-youtube">Set up YouTube API\u2026</button></div>`;
-      return `<div class="sm-status"><span>This looks for the album\u2019s playlist on YouTube and matches every song in one go \u2014 about 100 of YouTube\u2019s 10,000 daily quota units (${smYtQuotaUsed().toLocaleString()} used today by this app).</span><button type="button" class="config-btn" data-sm="run-youtube">Find on YouTube</button></div>`;
+      const known = smState && smState.item ? ytCacheGet(smRelKey(smState.item)) : null;
+      return `<div class="sm-status"><span>This looks for the album\u2019s playlist on YouTube and matches every song in one go \u2014 ${known ? `this album was looked up on ${new Date(known.t).toLocaleDateString()} and is remembered, so it costs nothing now` : 'about 100 of YouTube\u2019s 10,000 daily quota units'} (${smYtQuotaUsed().toLocaleString()} used today by this app).</span><button type="button" class="config-btn" data-sm="run-youtube">Find on YouTube</button></div>`;
     }
     if (kind === 'youtube' && ytUseAddon() && r.status === 'loading') return ytAddonLoadingHtml();
     return `<div class="sm-status" role="status" aria-live="polite"><span>Looking on ${label}\u2026</span><div class="gi-mb-bar"><i></i></div></div>`;
@@ -22225,7 +22836,7 @@ function smRowHtml(s, kind) {
   let moreBlock = '';
   if (st.open === s.idx && r.status === 'done') {
     moreBlock = `<div class="sm-others">${cands.map(c => `<label class="sm-alt"><input type="radio" name="sm-alt-${s.idx}" data-sm="alt" data-id="${escapeHtml(c.id)}"${picked === c.id ? ' checked' : ''}><span class="sm-cand"><span class="sm-cand-title">${escapeHtml(c.title)}</span><span class="sm-cand-sub">${escapeHtml([Array.isArray(c.artists) ? c.artists.join(', ') : c.channel, c.album, smLen(c.durationMs)].filter(Boolean).join(' \u00b7 '))}</span></span><span class="sm-score sm-${c.band}" title="${escapeHtml((c.reasons || []).join(', '))}">${c.score}</span><button type="button" class="sm-play" data-sm="preview" data-id="${escapeHtml(c.id)}" aria-label="Preview ${escapeHtml(c.title)}">\u25b6</button></label>`).join('') || '<p class="sm-dim">No candidates.</p>'}
-      <div class="sm-paste"><input type="text" class="sm-paste-input" data-sm="paste" placeholder="Or paste a ${kind === 'spotify' ? 'Spotify track' : 'YouTube'} link\u2026" aria-label="Paste a link for ${escapeHtml(s.title)}"><button type="button" class="ai-link-btn" data-sm="paste-use">Use</button></div></div>`;
+      <div class="sm-paste"><input type="text" class="sm-paste-input" data-sm="paste" placeholder="Or paste a ${kind === 'spotify' ? 'Spotify track' : 'YouTube'} link…" aria-label="Paste a link for ${escapeHtml(s.title)}"><button type="button" class="ai-link-btn" data-sm="paste-use">Use</button></div></div>`;
   }
   return `<div class="sm-row${picked ? ' picked' : ''}" data-idx="${s.idx}" data-track="${s.trackNum}"><div class="sm-check">${checkbox}</div>
     <div class="sm-song"><span class="sm-num">${s.trackNum}</span><span class="sm-title">${escapeHtml(s.title)}</span><span class="sm-len">${escapeHtml(smLen(s.durationMs))}</span>${have}</div>
@@ -24145,6 +24756,8 @@ function initCrateExchange() {
   cxEl('menuTidyNames').addEventListener('click', rymTidyNames);
   cxEl('menuFillTracklists').addEventListener('click', rymFillTracklists);
   cxEl('menuUpdateNever').addEventListener('click', rymUpdateNever);
+  cxEl('menuPickMood').addEventListener('click', () => { el.layoutMenu.hidden = true; openMoodPicker(); });
+  cxEl('menuMergeDupes').addEventListener('click', () => { el.layoutMenu.hidden = true; openMergeDialog(); });
 }
 
 /* ---------- Duplicate protection when adding ----------
@@ -24739,7 +25352,7 @@ function giRenderChart(genre, ui, items) {
   const legend = mbOn
     ? (mode === 'only' ? '' : `<span class="gi-legend"><i class="gi-swatch"></i>Your crate</span>`) + `<span class="gi-legend"><i class="gi-swatch gi-swatch-c"></i>MusicBrainz</span>`
     : `<span class="gi-legend"><i class="gi-swatch"></i>${escapeHtml(genre)}</span>` + (ui.compare ? `<span class="gi-legend"><i class="gi-swatch gi-swatch-c"></i>${escapeHtml(ui.compare)} <button type="button" class="gi-x" data-gi="clear-compare" aria-label="Stop comparing with ${escapeHtml(ui.compare)}">\u00d7</button></span>`
-        : `<input id="giCompare" class="gi-compare" type="text" list="giGenreOptions" placeholder="Compare to a genre\u2026" aria-label="Compare to a genre" autocomplete="off"><datalist id="giGenreOptions">${labels.map(l => `<option value="${escapeHtml(l)}"></option>`).join('')}</datalist>`);
+        : `<input id="giCompare" class="gi-compare" type="text" list="giGenreOptions" placeholder="Compare to a genre…" aria-label="Compare to a genre" autocomplete="off"><datalist id="giGenreOptions">${labels.map(l => `<option value="${escapeHtml(l)}"></option>`).join('')}</datalist>`);
   $gi('giChart').innerHTML = `
     <div class="gi-chart-head"><h2 class="gi-h2">Years active</h2>
       <div class="gi-chart-tools">
@@ -24924,7 +25537,7 @@ function giRenderAbout(genre, ui) {
   const text = (entry.description || '').trim();
   let body;
   if (ui.editing) {
-    body = `<textarea id="giDescInput" class="gi-desc-input" placeholder="Write a description for this genre\u2026" aria-label="Description of ${escapeHtml(genre)}">${escapeHtml(text)}</textarea>
+    body = `<textarea id="giDescInput" class="gi-desc-input" placeholder="Write a description for this genre…" aria-label="Description of ${escapeHtml(genre)}">${escapeHtml(text)}</textarea>
       <div class="gi-edit-actions"><button type="button" class="config-btn" data-gi="save-desc">Save</button><button type="button" class="ai-link-btn" data-gi="cancel-desc">Cancel</button><span class="gi-hint-inline">Names of other genres you have become links.</span></div>`;
   } else if (!text) {
     body = `<p class="ai-empty">No description yet. <button type="button" class="ai-link-btn" data-gi="edit">Write one</button> \u2014 other genres you mention become links to their pages.</p>`;
@@ -29096,7 +29709,7 @@ function tracklistBuilderSectionHtml(label) {
   return `
     <div class="tracklist-builder-section">
       <span class="tracklist-builder-handle" draggable="true" title="Drag to move this heading" aria-hidden="true">\u2807</span>
-      <input type="text" class="tracklist-builder-section-title" placeholder="Heading: Disc 2, Side B, Bonus tracks\u2026" aria-label="Heading" value="${escapeHtml(label || '')}">
+      <input type="text" class="tracklist-builder-section-title" placeholder="Heading: Disc 2, Side B, Bonus tracks…" aria-label="Heading" value="${escapeHtml(label || '')}">
       <span class="tracklist-builder-tools">
         <button type="button" class="tracklist-builder-up" aria-label="Move heading up" title="Move up">\u2191</button>
         <button type="button" class="tracklist-builder-down" aria-label="Move heading down" title="Move down">\u2193</button>
@@ -30105,6 +30718,7 @@ async function saveNewAlbum() {
     Location: el.addLocation.value.trim(), // 👈 Map viewer — REQUIRES BACKEND COLUMN, see 1.29.14 log entry
     Label: el.addLabel.value.trim(), Catalog: el.addCatalog.value.trim(), // 👈 ADD CATALOG
     Descriptor: el.addDescriptor.value.trim(),
+    RymDescriptors: descNormalizeField((document.getElementById('addRymDescriptors') || {}).value),
     Scene: el.addScene.value.trim(),
     Movement: el.addMovement.value.trim(),
     Link: el.addLink.value.trim(), RymLink: el.addRymLink.value.trim(), Cover: el.addCover.value.trim(),
@@ -30154,6 +30768,7 @@ function openEditModal() {
   el.editLabel.value = activeItem.label || '';
   el.editCatalog.value = activeItem.catalog || ''; // 👈 ADD THIS
   el.editDescriptor.value = activeItem.descriptor || '';
+  { const rd = document.getElementById('editRymDescriptors'); if (rd) rd.value = activeItem.rymDescriptors || ''; }
   el.editScene.value = activeItem.scene || '';
   el.editMovement.value = activeItem.movement || '';
   el.editLink.value = activeItem.link || '';
@@ -30203,6 +30818,7 @@ async function saveEditAlbum() {
     Label: el.editLabel.value.trim(),
     Catalog: el.editCatalog.value.trim(), // 👈 ADD THIS
     Descriptor: el.editDescriptor.value.trim(),
+    RymDescriptors: descNormalizeField((document.getElementById('editRymDescriptors') || {}).value),
     Scene: el.editScene.value.trim(),
     Movement: el.editMovement.value.trim(),
     Link: el.editLink.value.trim(),
@@ -30811,12 +31427,14 @@ async function youtubeSearchCandidates(artist, title) {
   }
   const apiKey = loadYoutubeApiKey();
   if (!apiKey) return [];
-  const q = `${artist} ${title}`;
+  const q = `${artist} ${title}`, ck = 'cand|' + ytCacheNorm(q), known = ytCacheGet(ck);
+  if (known) return known.v.list;                                    // looked up before: nothing to pay
   try {
     const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=10&q=${encodeURIComponent(q)}&key=${encodeURIComponent(apiKey)}`);
     if (!res.ok) return [];
+    smYtQuotaAdd(100);                                               // (this search was never counted on the meter before: it costs 100 units)
     const data = await res.json();
-    return (data.items || [])
+    const list = (data.items || [])
       .filter(it => it.id && it.id.videoId && it.snippet)
       .map(it => ({
         id: it.id.videoId,
@@ -30824,6 +31442,8 @@ async function youtubeSearchCandidates(artist, title) {
         channel: it.snippet.channelTitle,
         thumbnail: (it.snippet.thumbnails && (it.snippet.thumbnails.default || it.snippet.thumbnails.medium) || {}).url || ''
       }));
+    ytCachePut(ck, { list }, list.length ? YT_REL_TTL : YT_NONE_TTL);
+    return list;
   } catch (e) {
     console.warn('YouTube search failed', e);
     return [];
@@ -35662,6 +36282,69 @@ html, body {
   .deck-rym-update { background: none; border: 1px solid var(--line); color: var(--text-dim); border-radius: 6px; font-size: 11px; padding: 2px 8px; margin-left: 6px; cursor: pointer; }
   .deck-rym-update:hover { color: var(--accent); border-color: var(--accent); }
   .deck-rym-update[hidden] { display: none; }
+  .desc-overlay { position: fixed; inset: 0; z-index: 400; background: rgba(8,10,14,0.72); display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .desc-overlay[hidden] { display: none; }
+  .desc-dialog { width: min(960px, 100%); max-height: calc(100vh - 40px); display: flex; flex-direction: column; background: var(--bg-card, #1B212B); border: 1px solid var(--line, #2A313C); border-radius: 12px; overflow: hidden; color: var(--text, #EDE7DC); }
+  .desc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 20px 24px 14px; flex: none; }
+  .desc-title { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 1px; line-height: 1; }
+  .desc-sub { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--text-dim, #8B93A0); margin-top: 8px; }
+  .desc-head-btns { display: flex; gap: 8px; align-items: center; flex: none; }
+  .desc-btn { background: transparent; color: var(--text, #EDE7DC); border: 1px solid #3a4352; font: 500 13px Inter, sans-serif; padding: 7px 12px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
+  .desc-btn:hover { border-color: var(--accent, #D6A24C); }
+  .desc-btn.primary { background: var(--accent, #D6A24C); color: #12161C; border-color: var(--accent, #D6A24C); font-weight: 600; }
+  .desc-btn[disabled] { opacity: .45; cursor: default; }
+  .desc-field { display: flex; gap: 6px; align-items: stretch; width: 100%; } .desc-field input { flex: 1 1 auto; min-width: 0; }
+  .desc-browse-btn { flex: none; background: transparent; color: var(--text, #EDE7DC); border: 1px solid #3a4352; border-radius: 6px; padding: 0 10px; cursor: pointer; font-size: 14px; } .desc-browse-btn:hover { border-color: var(--accent, #D6A24C); }
+  .desc-suggest { position: fixed; z-index: 700; max-height: 320px; overflow-y: auto; background: var(--bg-card, #1B212B); border: 1px solid var(--line, #2A313C); border-radius: 8px; box-shadow: 0 10px 24px rgba(0,0,0,.45); padding: 4px 0; }
+  .desc-suggest[hidden] { display: none; }
+  .desc-sug-head { font: 10px 'IBM Plex Mono', monospace; letter-spacing: .6px; text-transform: uppercase; color: var(--text-dim, #8B93A0); padding: 8px 12px 3px; }
+  .desc-sug { display: flex; justify-content: space-between; gap: 14px; padding: 6px 12px; cursor: pointer; font: 13px Inter, sans-serif; } .desc-sug small { color: var(--text-dim, #8B93A0); font: 11px 'IBM Plex Mono', monospace; }
+  .desc-sug.on, .desc-sug:hover { background: var(--bg-elevated, #232A35); color: var(--accent, #D6A24C); }
+  .desc-dialog { width: min(820px, 100%); } .desc-filter { background: var(--bg, #12161C); color: var(--text, #EDE7DC); border: 1px solid #3a4352; border-radius: 7px; padding: 7px 10px; font: 13px Inter, sans-serif; width: 160px; }
+  #descBrowseOverlay { z-index: 650; } .desc-body { overflow-y: auto; padding: 4px 24px 22px; flex: 1 1 auto; min-height: 0; }
+  .desc-group { margin-top: 16px; } .desc-group-head { font: 11px 'IBM Plex Mono', monospace; letter-spacing: .6px; text-transform: uppercase; color: var(--accent, #D6A24C); margin-bottom: 8px; padding-bottom: 5px; border-bottom: 1px solid var(--line, #2A313C); }
+  .desc-chips { display: flex; flex-wrap: wrap; gap: 6px; } .desc-chip { background: var(--bg, #12161C); color: var(--text, #EDE7DC); border: 1px solid #3a4352; border-radius: 999px; padding: 5px 11px; font: 12.5px Inter, sans-serif; cursor: pointer; }
+  .desc-chip small { margin-left: 6px; color: var(--text-dim, #8B93A0); font: 10.5px 'IBM Plex Mono', monospace; } .desc-chip:hover { border-color: var(--accent, #D6A24C); } .desc-chip.on { background: #3A2E14; border-color: var(--accent, #D6A24C); color: var(--accent, #D6A24C); }
+  .desc-concept-head { font: 10.5px 'IBM Plex Mono', monospace; color: var(--text-dim, #8B93A0); padding: 9px 12px 2px 14px; letter-spacing: .3px; }
+  .desc-concept { display: flex; gap: 12px; align-items: baseline; margin: 7px 0; } .desc-concept-name { flex: none; width: 150px; font: 11px 'IBM Plex Mono', monospace; color: var(--text-dim, #8B93A0); } .desc-concept-name em { font-style: normal; color: var(--accent, #D6A24C); }
+  .desc-meaning { margin: 14px 0 0; font: 12.5px/1.5 Inter, sans-serif; color: var(--text-dim, #8B93A0); }
+  .mg-overlay { position: fixed; inset: 0; z-index: 430; background: rgba(8,10,14,0.72); display: flex; align-items: center; justify-content: center; padding: 20px; } .mg-overlay[hidden] { display: none; }
+  .mg-dialog { width: min(1100px, 100%); height: min(780px, calc(100vh - 40px)); display: flex; flex-direction: column; background: var(--bg-card, #1B212B); border: 1px solid var(--line, #2A313C); border-radius: 12px; overflow: hidden; color: var(--text, #EDE7DC); }
+  .mg-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 20px 24px 10px; flex: none; } .mg-title { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 1px; line-height: 1; } .mg-sub { font: 12px 'IBM Plex Mono', monospace; color: var(--text-dim, #8B93A0); margin-top: 8px; }
+  .mg-x { background: transparent; border: 0; color: var(--text-dim, #8B93A0); font-size: 24px; line-height: 1; cursor: pointer; padding: 2px 8px; } .mg-body { overflow-y: auto; padding: 4px 24px 24px; flex: 1 1 auto; min-height: 0; border-top: 1px solid var(--line, #2A313C); }
+  .mg-btn { background: transparent; color: var(--text, #EDE7DC); border: 1px solid #3a4352; font: 500 13px Inter, sans-serif; padding: 7px 12px; border-radius: 7px; cursor: pointer; white-space: nowrap; } .mg-btn:hover { border-color: var(--accent, #D6A24C); } .mg-btn[disabled] { opacity: .45; cursor: default; } .mg-btn.primary { background: var(--accent, #D6A24C); color: #12161C; border-color: var(--accent, #D6A24C); font-weight: 600; } .mg-btn.danger { background: #8a2f2f; border-color: #c24a4a; color: #fff; font-weight: 600; }
+  .mg-msg { margin: 14px 0 4px; padding: 10px 12px; border-radius: 8px; background: #1E3532; color: #cfe8e1; font: 13px/1.5 Inter, sans-serif; }
+  .mg-card { border: 1px solid var(--line, #2A313C); border-radius: 10px; margin-top: 12px; overflow: hidden; } .mg-card.open { border-color: #4a5566; }
+  .mg-card-head { display: flex; align-items: center; gap: 14px; padding: 10px 14px; cursor: pointer; } .mg-card-head:hover, .mg-card-head:focus { background: rgba(255,255,255,0.03); outline: 0; } .mg-name { flex: 1 1 auto; min-width: 0; } .mg-name b { display: block; font: 600 14px Inter, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .mg-name i { display: block; font: normal 11.5px 'IBM Plex Mono', monospace; color: var(--text-dim, #8B93A0); margin-top: 3px; }
+  .mg-tier { flex: none; font: 10.5px 'IBM Plex Mono', monospace; letter-spacing: .4px; text-transform: uppercase; padding: 5px 8px; border-radius: 4px; } .mg-tier.exact { background: #1E3532; color: #7FC2B2; } .mg-tier.rym { background: #1d2b44; color: #8fb4f0; } .mg-tier.edition { background: #3A2E14; color: #E3AE4A; }
+  .mg-covers { display: flex; gap: 4px; flex: none; } .mg-img, .mg-ph { width: 38px; height: 38px; border-radius: 4px; object-fit: cover; background: #2a313c; } .mg-img.big, .mg-ph.big { width: 64px; height: 64px; } .mg-ph { display: flex; align-items: center; justify-content: center; font: 600 12px 'IBM Plex Mono', monospace; color: var(--accent, #D6A24C); border: 1px solid var(--line, #2A313C); background: var(--bg, #12161C); }
+  .mg-compare { padding: 6px 14px 14px; border-top: 1px solid var(--line, #2A313C); background: var(--bg, #12161C); overflow-x: auto; } .mg-table { border-collapse: collapse; width: 100%; min-width: 520px; } .mg-table th, .mg-table td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line, #2A313C); font: 13px Inter, sans-serif; }
+  .mg-table thead th { vertical-align: bottom; } .mg-table thead th.keep { box-shadow: inset 0 -2px 0 var(--accent, #D6A24C); } .mg-table thead small { display: block; font: 11px 'IBM Plex Mono', monospace; color: var(--text-dim, #8B93A0); margin-top: 4px; font-weight: 400; } .mg-table tbody th { font: 10.5px 'IBM Plex Mono', monospace; letter-spacing: .4px; text-transform: uppercase; color: var(--text-dim, #8B93A0); width: 130px; font-weight: 500; }
+  .mg-keep { display: flex; gap: 6px; align-items: center; margin-top: 8px; font: 600 12px Inter, sans-serif; cursor: pointer; } .mg-table input[type=radio] { accent-color: var(--accent, #D6A24C); }
+  .mg-cell { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; padding: 4px 6px; border-radius: 6px; } .mg-cell.on { background: #3A2E14; color: var(--accent, #D6A24C); } .mg-cell.blank { opacity: .4; cursor: default; } .mg-none { color: var(--text-dim, #8B93A0); font: 13px Inter, sans-serif; }
+  .mg-hint { margin: 10px 0 0; font: 12px/1.5 Inter, sans-serif; color: var(--text-dim, #8B93A0); } .mg-same { margin-top: 10px; } .mg-same summary { cursor: pointer; font: 12.5px Inter, sans-serif; color: var(--text-dim, #8B93A0); } .mg-same ul { margin: 8px 0 0; padding-left: 18px; font: 12.5px/1.6 Inter, sans-serif; } .mg-same li b { font: 10.5px 'IBM Plex Mono', monospace; text-transform: uppercase; color: var(--text-dim, #8B93A0); font-weight: 500; margin-right: 6px; } .mg-same em { color: var(--accent, #D6A24C); font-style: normal; }
+  .mg-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line, #2A313C); } .mg-foot span { font: 12.5px 'IBM Plex Mono', monospace; color: var(--text-dim, #8B93A0); }
+  .mg-empty { padding: 36px 6px; font: 13px/1.6 Inter, sans-serif; color: var(--text-dim, #8B93A0); } .mg-empty b { color: var(--text, #EDE7DC); }
+  .mg-log { margin-top: 26px; border-top: 1px solid var(--line, #2A313C); padding-top: 14px; } .mg-log-title { font: 11px 'IBM Plex Mono', monospace; letter-spacing: .6px; text-transform: uppercase; color: var(--accent, #D6A24C); margin-bottom: 8px; } .mg-log-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 7px 0; font: 13px Inter, sans-serif; } .mg-log-row em { font-style: normal; color: var(--text-dim, #8B93A0); font: 12px 'IBM Plex Mono', monospace; }
+  .mood-overlay { position: fixed; inset: 0; z-index: 420; background: rgba(8,10,14,0.72); display: flex; align-items: center; justify-content: center; padding: 20px; } .mood-overlay[hidden] { display: none; }
+  .mood-dialog { width: min(1040px, 100%); height: min(760px, calc(100vh - 40px)); display: flex; flex-direction: column; background: var(--bg-card, #1B212B); border: 1px solid var(--line, #2A313C); border-radius: 12px; overflow: hidden; color: var(--text, #EDE7DC); }
+  .mood-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 20px 24px 8px; flex: none; } .mood-title { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 1px; line-height: 1; } .mood-sub { font: 12px 'IBM Plex Mono', monospace; color: var(--text-dim, #8B93A0); margin-top: 8px; }
+  .mood-x { background: transparent; border: 0; color: var(--text-dim, #8B93A0); font-size: 24px; line-height: 1; cursor: pointer; padding: 2px 8px; }
+  .mood-controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 8px 24px 4px; flex: none; } .mood-controls input[type=text] { flex: 1 1 240px; min-width: 200px; background: var(--bg, #12161C); color: var(--text, #EDE7DC); border: 1px solid #3a4352; border-radius: 8px; padding: 9px 12px; font: 14px Inter, sans-serif; } .mood-controls input[type=text]:focus { border-color: var(--accent, #D6A24C); outline: 0; }
+  .mood-controls label { font: 13px Inter, sans-serif; display: flex; gap: 7px; align-items: center; cursor: pointer; } .mood-controls input[type=checkbox] { accent-color: var(--accent, #D6A24C); }
+  .mood-btn { background: transparent; color: var(--text, #EDE7DC); border: 1px solid #3a4352; font: 500 13px Inter, sans-serif; padding: 7px 12px; border-radius: 7px; cursor: pointer; white-space: nowrap; } .mood-btn:hover { border-color: var(--accent, #D6A24C); } .mood-btn[disabled] { opacity: .4; cursor: default; }
+  .mood-msg { margin: 0; padding: 2px 24px 6px; min-height: 20px; font: 12.5px 'IBM Plex Mono', monospace; color: var(--accent, #D6A24C); flex: none; }
+  .mood-body { display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); flex: 1 1 auto; min-height: 0; border-top: 1px solid var(--line, #2A313C); }
+  .mood-senses { overflow-y: auto; padding: 8px 18px 18px 24px; border-right: 1px solid var(--line, #2A313C); } .mood-cat { margin-top: 14px; } .mood-cat-name { font: 10.5px 'IBM Plex Mono', monospace; letter-spacing: .6px; text-transform: uppercase; color: var(--text-dim, #8B93A0); margin-bottom: 6px; }
+  .mood-chips { display: flex; flex-wrap: wrap; gap: 6px; } .mood-chip { background: var(--bg, #12161C); color: var(--text, #EDE7DC); border: 1px solid #3a4352; border-radius: 999px; padding: 5px 11px; font: 12.5px Inter, sans-serif; cursor: pointer; } .mood-chip small { margin-left: 6px; color: var(--text-dim, #8B93A0); font: 10.5px 'IBM Plex Mono', monospace; } .mood-chip:hover { border-color: var(--accent, #D6A24C); } .mood-chip.none { opacity: .5; } .mood-chip.on { background: #3A2E14; border-color: var(--accent, #D6A24C); color: var(--accent, #D6A24C); opacity: 1; }
+  .mood-results { overflow-y: auto; padding: 8px 24px 20px; } .mood-rhead { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 0; position: sticky; top: 0; background: var(--bg-card, #1B212B); font: 12.5px 'IBM Plex Mono', monospace; color: var(--text-dim, #8B93A0); } .mood-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .mood-row { display: grid; grid-template-columns: 48px minmax(0, 1fr) minmax(0, 1.1fr); gap: 14px; align-items: center; padding: 8px 6px; border-top: 1px solid var(--line, #2A313C); cursor: pointer; } .mood-row:hover, .mood-row:focus { background: rgba(255,255,255,0.03); outline: 0; }
+  .mood-img, .mood-ph { width: 48px; height: 48px; border-radius: 4px; object-fit: cover; background: #2a313c; } .mood-ph { display: flex; align-items: center; justify-content: center; font: 600 14px 'IBM Plex Mono', monospace; color: var(--accent, #D6A24C); border: 1px solid var(--line, #2A313C); background: var(--bg, #12161C); }
+  .mood-name { min-width: 0; } .mood-name b { display: block; font: 600 14px Inter, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .mood-name i { display: block; font: normal 11.5px 'IBM Plex Mono', monospace; color: var(--text-dim, #8B93A0); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mood-words { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; } .mood-w { font: 11px/1 'IBM Plex Mono', monospace; padding: 5px 7px; border-radius: 4px; background: #3A2E14; color: var(--accent, #D6A24C); } .mood-words small { font: 10.5px 'IBM Plex Mono', monospace; color: var(--text-dim, #8B93A0); margin-left: 4px; }
+  .mood-empty { padding: 28px 4px; font: 13px/1.6 Inter, sans-serif; color: var(--text-dim, #8B93A0); } .mood-empty b { color: var(--text, #EDE7DC); font-weight: 600; } .mood-more { margin: 12px 0 0; width: 100%; background: transparent; color: var(--text-dim, #8B93A0); border: 1px dashed #3a4352; border-radius: 8px; padding: 9px; cursor: pointer; font: 13px Inter, sans-serif; }
+  @media (max-width: 760px) { .mood-body { grid-template-columns: 1fr; grid-template-rows: minmax(140px, 40%) minmax(0, 1fr); } .mood-senses { border-right: 0; border-bottom: 1px solid var(--line, #2A313C); } .mood-row { grid-template-columns: 44px minmax(0, 1fr); } .mood-words { grid-column: 2; } }
+  .desc-cat-head { cursor: pointer; user-select: none; } .desc-cat-head:hover { color: var(--accent, #D6A24C); }
   .rymq-overlay { position: fixed; inset: 0; z-index: 400; background: rgba(8,10,14,0.72); display: flex; align-items: center; justify-content: center; padding: 20px; }
   .rymq-overlay[hidden] { display: none; }
   .rymq-dialog { width: min(960px, 100%); max-height: calc(100vh - 40px); display: flex; flex-direction: column; background: var(--bg-card, #1B212B); border: 1px solid var(--line, #2A313C); border-radius: 12px; overflow: hidden; color: var(--text, #EDE7DC); }
