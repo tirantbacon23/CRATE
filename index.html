@@ -19,7 +19,38 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.51.1
+  CURRENT_VERSION: 1.51.3
+
+  1.51.3 — 2026-10-28 — The "CRATE for YouTube" add-on is much faster and runs in the background: it no longer opens a tab for each question. Needs add-on 1.1.0 (crate-youtube-addon.zip); the page change is only the wording in the song matcher. The backend and the RYM add-on are unchanged.
+
+          WHY IT WAS SLOW: every question opened a real browser tab, waited for it to load, and then waited a forced 9 to 15 seconds before the next: about 15 seconds each. An album costs two questions (find its playlist, read it), and each song searched on its own is another 15 seconds,
+            so a 12-song album could take several minutes.
+          WHAT IT DOES NOW: the data the add-on reads is already in the HTML YouTube sends for a search or playlist page, so the add-on's background script now ASKS FOR THE PAGE DIRECTLY (with your browser's cookies, as a tab would send) and reads it: about a second per question, nothing opening or
+            flashing on your screen, and it keeps working whatever you are doing. The pause between pages is 1.5 to 3 seconds (it was 9 to 15), never under 1 second, whatever CRATE asks. Four questions that used to take about a minute are answered in under 12 seconds in the test; the song matcher now says a
+            few seconds, not "half a minute".
+          WHAT DID NOT CHANGE: still one question at a time, still at most 250 pages a day (it counts every question, direct or by tab, and that limit, not the speed, is now what ends a long run; say if you want it raised), still remembers every answer (3 days for a search, 7 for a playlist), still only
+            opens YouTube search and playlist addresses, and still STOPS at the first cookie question, "unusual traffic" page or "too many requests" answer: it then opens that page in front of you to pass, and Continue retries it.
+          THE FALLBACK: if a page can't be read directly (YouTube changes what it sends), the add-on opens it in a background tab as before, with the old 9 to 15 second pause. In the add-on's options a new "Speed" switch ("Open a background tab for every page instead") turns the direct way off altogether.
+          THE RISK, plainly: asking for pages directly and faster means more requests per minute from your connection (about 20 a minute at most, against 4 before), to a site whose terms only allow its API. YouTube may be quicker to show a check, or to slow your connection for a while. It stops at the first check instead of
+            pushing on, but what YouTube does about it is up to YouTube. Turn the switch on if you'd rather go slowly.
+          VERIFIED: with the add-on in a real Chrome against a stand-in YouTube (32 checks: the 21 existing ones, all pinned to the tab path so the fallback stays covered, plus 11 new): four questions answered in under 12 seconds, no tab ever opened and every request arriving as a direct request, a pause of 1 to 3.5 seconds between
+            them, the same answers the tab gave, the fallback to a tab when a direct request gets nothing readable, a cookie question and a "too many requests" answer each stopping it and opening the page in front of you, Continue, the options switch; and the whole chain from CRATE's page through the real bridge (9 checks) and
+            the song matcher (19). Turning the direct way off, or removing the pause, each fails a test. NOT VERIFIED: against the real YouTube (this machine can't reach it), so whether YouTube serves a direct request the same data as a page, and how it reacts at this speed, is untested until you try it; if the direct way
+            can't read the real pages it falls back to tabs, which is slow but works, and the toolbar's "Diagnose this page" shows what it can read.
+
+
+  1.51.2 — 2026-10-28 — Fix: a track's number of ratings, written on the page as "6k", was being taken for the track's TITLE. Needs RYM add-on 1.12.2 (crate-rym-addon.zip). The backend and the YouTube add-on are unchanged.
+
+          WHAT WENT WRONG (your Rubber Soul report): on a release with many ratings, Rate Your Music abbreviates each track's count ("6k", "5k") and writes it between the rating and the track number. Add-ons 1.12.0 and 1.12.1 only knew counts written as plain numbers ("683", "1,234"), so
+            "6k" was left over and, being the first piece with a letter in it, was taken as the title: all 14 tracks came out called "6k" or "5k". I wrote that count-reading without ever seeing this form, which your Diagnose report showed me.
+          THE FIX: a count straight after a rating, however it is written ("683", "1,234", "6k", "1.2k", "1.5m"), is read as that rating's count and is never a title; "6k" is read as about 6000 (the page rounds it, so these counts are approximate), "1.2k" as 1200, "1.5m" as 1500000. A track really called
+            "6k" that does not follow a rating keeps its title. A list of titles that are mostly numbers or counts is also recognised as wrong and not offered.
+          RELEASES ALREADY AFFECTED: if an update from add-on 1.12.0 or 1.12.1 already saved titles like "6k" on a release, CRATE now counts a tracklist whose titles are mostly numbers or counts as NO tracklist, so the next update from Rate Your Music offers the real one as a ticked fill
+            (applied by itself in the queue) instead of a difference for you to decide. Run "update ↻" on those releases once you have add-on 1.12.2. A tracklist of yours with real titles that merely differ from RYM's is still left for you to decide.
+          VERIFIED: the three real rows from your report ("4.2", "6k", "A1", "Drive My Car" gives Drive My Car, 4.2, 6000); every count shape; a track really called "6k" and one called "Ok"; the "looks wrong" check; in a real Chrome with the extension loaded, a page built from your report's markup (14 tracks, rating then "6k"
+            then number then title): all 14 real titles, ratings and counts, in the page and when sent to CRATE; and on the page side, junk titles counting as no tracklist (even with the same number of tracks) while a real list of yours is left alone. Removing the fix reproduces your bug in the real-Chrome test.
+            NOT VERIFIED: other ways RYM might write a count (I have seen plain numbers and "Nk"); the next Diagnose report will show it if there are more.
+
 
   1.51.1 — 2026-10-28 — The Rate Your Music add-on's limit of 120 pages a day is removed. Needs RYM add-on 1.12.1 (crate-rym-addon.zip); the backend and the YouTube add-on are unchanged.
 
@@ -8693,7 +8724,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.51.1';
+const APP_VERSION = '1.51.3';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -22657,7 +22688,7 @@ function ytAddonPaintDialog() {
   if (menu) menu.addEventListener('click', ytAddonPaintDialog);
 })();
 function ytAddonIdleHtml() {
-  return `<div class="sm-status"><span>This looks for the album\u2019s playlist on YouTube and matches every song in one go, through the CRATE for YouTube add-on: no quota and no key. It reads YouTube\u2019s pages one at a time, with a pause of 9 to 15 seconds between them, so it takes about half a minute (${ytAddon.today} of ${ytAddon.cap} pages used today).</span><button type="button" class="config-btn" data-sm="run-youtube">Find on YouTube</button></div>`;
+  return `<div class="sm-status"><span>This looks for the album\u2019s playlist on YouTube and matches every song in one go, through the CRATE for YouTube add-on: no quota and no key. It reads YouTube\u2019s pages one at a time in the background, a couple of seconds apart, so it takes a few seconds (${ytAddon.today} of ${ytAddon.cap} pages used today).</span><button type="button" class="config-btn" data-sm="run-youtube">Find on YouTube</button></div>`;
 }
 function ytAddonLoadingHtml() {
   if (ytAddon.state === 'stopped') return `<div class="sm-status" role="alert"><span>${escapeHtml(ytAddonWhy(ytAddon.reason))}</span><button type="button" class="config-btn" data-sm="yt-continue">Continue</button><button type="button" class="ai-link-btn" data-sm="yt-cancel">Cancel</button></div>`;
@@ -30365,9 +30396,10 @@ function rymUpdatePlan(item, rel, oldRows, minNext) {
     const asg = tlAssignNumbers(old, nt.map(t => ({ title: t.title, durationMs: t.durationMs || 0, section: t.section || '', s: 'rym', rymRating: t.rating || 0, rymVotes: t.votes || 0 })), minNext);
     const ok = old.map(r => tlKey(r.title)).join('|'), nk = nt.map(t => tlKey(t.title)).join('|');
     let kind = null;
-    const broken = old.length >= 3 && new Set(old.map(r => tlKey(r.title))).size === 1;          // three or more tracks all with the same title (four called "Dropdead") is a wrong list, not one of yours: it counts as blank
+    const numTitles = old.length >= 3 && old.filter(r => /^\d{1,3}(?:[.,]\d{1,2})?[kKmM]?$/.test(String(r.title).trim())).length / old.length >= 0.5;          // most titles are numbers ("6k", "5k": a count read as a title by add-on 1.12.0/1.12.1): not a tracklist of yours
+    const broken = numTitles || (old.length >= 3 && new Set(old.map(r => tlKey(r.title))).size === 1);          // three or more tracks all with the same title (four called "Dropdead") is a wrong list, not one of yours: it counts as blank
     if (!old.length) kind = 'fill';
-    else if (broken && nt.length > old.length) kind = 'fill';
+    else if (broken && (numTitles || nt.length > old.length)) kind = 'fill';
     else if (ok !== nk) kind = 'differs';
     else if (nt.some((t, i) => t.durationMs > 0 && !(old[i].durationMs > 0))) kind = 'refine';
     if (kind) add('tracks', 'Tracklist', old.length ? `${old.length} track${old.length === 1 ? '' : 's'}` : '', `${nt.length} tracks`, kind, { rows: asg.rows, matched: asg.matched, fresh: asg.fresh, dropped: asg.dropped.map(d => d.title) });
