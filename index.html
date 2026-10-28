@@ -19,7 +19,41 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.51.3
+  CURRENT_VERSION: 1.53.0
+
+  1.53.0 — 2026-10-28 — Match songs for many releases: select several releases, have their songs matched on Spotify and YouTube at the same time, and choose exactly which matches are kept. No add-on and no backend change.
+
+          HOW YOU START IT: select two or more releases (click, shift-click, Ctrl+A; a bar appears: "N selected · Match songs… · Clear"), or right-click one of them ("Match songs for N selected…"), or ⚙ → "Match songs for many releases…" (which offers the current view when nothing is selected).
+          THE SETUP: which releases (the selected ones, or everything in the view); which services (Spotify, YouTube; YouTube says whether it will use the add-on or your API key and how many of the add-on's 250 daily pages are used); an estimate (Spotify about 4 seconds a release; YouTube two pages a release, one and a half more with
+            song-by-song searching, and a warning if that is more than is left today); an option to also search YouTube song by song for what the playlist misses (about one more page each; only offered with the add-on); and how to handle what it finds: "Let me choose what gets matched, song by song" (the default: nothing is saved until you press Apply),
+            or "Save the confident matches as they come, and let me choose the rest".
+          THE RUN: each service is its own LANE working through the releases at its own pace, at the same time. It uses the song matcher's own lookups, so the results are the ones "Match songs" would give for each release. A lane has its own progress card. If YouTube asks for a check, only the YouTube card says so (with the Continue button) while Spotify
+            carries on; if Spotify isn't connected, only that lane stops (with a Resume button) while YouTube finishes; when the add-on's daily limit is used up YouTube stops and says so. Pause and Stop apply to both. "Keep working" hides the window and leaves a strip above the player with both lanes' progress; it says when the run has finished.
+          THE SCREEN FOR CHOOSING: releases on the left with a tick each and a Spotify and YouTube result for each ("S 4/4", "Y 3/4", "Y no match"); filters (All songs, Confident, Needs a look, No match, Already linked) with counts; show or hide either service; "Tick all confident" and "Untick all". On the right the release's matched album and playlist, and a table of its songs with, for each song and
+            service, the match found (title, artist or channel, length, how much longer or shorter than yours) with a tick and a Confident, Likely or Weak tag. Ticks at the start of a song, at the head of a service's column, and per release (and the header ticks show whether everything under them is ticked). Where there is more than one candidate, "Choose…" opens them right under the song,
+            with "Neither". "No match" on YouTube has "Search YouTube…" for that one song. Only confident matches are ticked for you. A song that already has a link of that kind shows "Kept" and is never replaced. "Open in the song matcher…" hands the release over with what was already found (nothing is looked up again) and comes back when you close it.
+          THE FOOTER says exactly what Apply will write ("Will add 17 links (10 Spotify and 7 YouTube) to 5 releases"), how many need a look, have no match or are kept. APPLY saves one update per release. "Undo this batch" puts back every link the batch wrote (the previous values are kept in a log on this device, last batch only), and ⚙ → "Undo the last batch match…" does the same after a reload.
+          NOT BUILT, compared with the mockup: (1) the "Change album" / "Change playlist" menus and the full-release-video shortcut inside this screen: use "Open in the song matcher…" for those; (2) the third way of handling ("apply only the confident and skip the rest"): the two above cover it; (3) a choice of "releases with songs that have no links yet": the tracklists aren't known until each release is looked up,
+            so the choice is the selected releases or the current view; (4) the batch is held in memory: reloading the page loses the results (not the saved links, and not the undo log); (5) the 250-pages-a-day limit is the add-on's and is unchanged, and a long YouTube run will meet it.
+          VERIFIED: the decision logic in 14 unit checks (cell states, what is ticked, the estimate, what will be written); the whole feature in 61 browser checks with the two lookups faked and everything else real (selection and the bar, setup and estimates, both lanes at once, results in the list and the table, choosing, ticking, filters, per-song search, Kept songs, Apply writing only what is ticked, undo, auto-save, Pause/Resume/Stop,
+            Spotify not connected while YouTube finishes, a YouTube check, the daily limit, one service only, no tracklist, Keep working and the strip, the hand-over to the song matcher, discarding, the ⚙ entries, undo after a reload). Breaking each of nine things (both services at once, never replacing a link, the release ticks, Pause, one lane failing alone, undo, auto-save, the daily limit, what is ticked for you) fails a test.
+            NOT VERIFIED: against real Spotify and real YouTube at the size of a real batch. The lookups are the song matcher's own and are tested elsewhere, but how Spotify's rate limits and the add-on behave over dozens of releases is untested: start with five or ten and watch the lane cards.
+
+
+  1.52.0 — 2026-10-28 — Full-release videos: when one YouTube video is a whole release, say where each song starts and ends in it, and CRATE plays each song as its own part. No add-on and no backend change.
+
+          THE EDITOR: "Full-release video…" on a release's page (next to "Edit details"), in its right-click menu, and as a button under the YouTube link in a song's properties box. You give the video's link and, for each song, when it starts and when it ends (m:ss, h:mm:ss, or seconds). Three ways to fill the times:
+            (1) PLAY THE VIDEO HERE ("▶ Play it here") and press the clock ⏱ beside a song as it begins: it takes the player's time as that song's start, and as the end of the song before if that has none; the same beside an end.
+            (2) PASTE TIMES from the video's description ("Paste times…"): lines like "0:00 Drive My Car", "[2:30] Norwegian Wood", "3. 4:46 You Won't See Me", "Girl - 14:30", or a range "0:00 - 2:30 Title". With as many lines as songs they go by order; otherwise by title (capitals, punctuation and bracketed bits are ignored), and it says how many songs it matched.
+            (3) TYPE THEM, and use "Ends from next start" to make each song end where the next begins (the last ends where the video does, when the player has it).
+          A ▶ beside a song plays just that part. Times that aren't times, and an end not after its start, are marked in red and block Save; a start earlier than the song before it is noted. A song with no times is left as it was. The dialog leaves the mini-player usable underneath it, since that is how you use it.
+          HOW IT IS KEPT: in each song's own YouTube link, as "watch?v=ID&t=284&end=546" (YouTube itself starts the video at t=; end= is ignored by it), saved with the release's track data like any link. So it needs nothing new in your sheet, goes wherever the link goes, and opens at the right place if you click it in YouTube.
+          PLAYING: a song in a full-release video plays only its part: the player is told where to start and stop, the mini-player's bar and time show the song (1:00 into a 2:34 song, not 5:46 of a 40-minute video), seeking stays inside it, and when a part ends the next song starts at its own time. If the player doesn't stop at the end itself, CRATE notices and moves on, once.
+            Last.fm is told the song's length (not the video's), so a song scrobbles after half of ITS length. An ordinary album's links, queue and scrobbling are untouched (tested).
+          VERIFIED: the time, link and description parsing in 24 unit checks (every time format, round trips for 0 to 7300 seconds, descriptions in the styles above); the editor, saving (one save, one link per song), re-opening, the three entry points, the red marks, the clock buttons and the player's loading, position, duration, seeking, the move to the next part and the backup end check in 26 browser checks. Breaking each of eight things
+            (the offset, the stop time, the scrobble length, picking the clicked song, seeking, the backup end check, the saved end, the filled ends) fails a test. NOT VERIFIED: against the real YouTube player. The tests use a stand-in that records what CRATE asks of it, so whether the real player honours a stop time and fires its ended event as documented is untested, and the backup check
+            is there for exactly that; a video that can't be embedded, or is removed, behaves as it always did. Times typed are whole seconds. A tracklist from Spotify with no manual tracklist works too (links are stored per track number), but if the tracklist is later replaced and renumbered the times go with the old numbers.
+
 
   1.51.3 — 2026-10-28 — The "CRATE for YouTube" add-on is much faster and runs in the background: it no longer opens a tab for each question. Needs add-on 1.1.0 (crate-youtube-addon.zip); the page change is only the wording in the song matcher. The backend and the RYM add-on are unchanged.
 
@@ -6881,6 +6915,8 @@
           <button type="button" id="menuUpdateNever">Update releases not yet updated from Rate Your Music…</button>
           <button type="button" id="menuPickMood">Pick by mood…</button>
           <button type="button" id="menuMergeDupes">Find and merge duplicates…</button>
+          <button type="button" id="menuBatchMatch">Match songs for many releases…</button>
+          <button type="button" id="menuBatchUndo">Undo the last batch match…</button>
           <button type="button" id="menuSoundAnalysis">Sound analysis…</button>
           <button type="button" id="menuRymRatings">RYM ratings &amp; genres…</button>
           <button type="button" id="menuUpdateLog">Update log…</button>
@@ -7695,6 +7731,7 @@
       <a id="deckSoundcloudLink" class="deck-link deck-link-soundcloud" target="_blank" rel="noopener noreferrer">SoundCloud ↗</a>
       <a id="deckRymLink" class="deck-link deck-link-rym" target="_blank" rel="noopener noreferrer">RYM ↗</a>
       <button id="deckEditBtn" class="deck-btn" type="button">Edit details</button>
+      <button id="deckFullVideoBtn" class="deck-btn" type="button" title="One YouTube video that is the whole release: say where each song starts and ends in it">Full-release video…</button>
       <button id="deckPlaylistRemoveBtn" class="deck-btn" type="button" hidden>Remove from playlist</button>
     </div>
 
@@ -8484,6 +8521,26 @@
   </div>
 </div>
 
+<!-- Match songs for many releases: both services at once, and a screen to choose what is kept (see the "Match songs for many releases" block in the script) -->
+<div id="batchMatchOverlay" class="arrange-overlay" hidden><div id="bmModal" class="arrange-modal add-modal bm-modal" role="dialog" aria-modal="true" aria-labelledby="bmTitle"></div></div>
+<div id="bmStrip" class="bm-strip" role="status" hidden></div>
+<div id="albumSelBar" class="album-selbar" hidden><span id="albumSelCount"></span><button type="button" id="albumSelMatch" class="config-btn">Match songs…</button><button type="button" id="albumSelClear" class="chip-btn">Clear</button></div>
+
+<!-- Full-release video: one YouTube video that holds a whole release. Say where each song starts and ends in it (see the "Full-release video" block in the script). -->
+<div id="fullVideoOverlay" class="arrange-overlay" hidden>
+  <div class="arrange-modal add-modal fv-modal" role="dialog" aria-modal="true" aria-labelledby="fullVideoTitle">
+    <div class="arrange-header"><div><h2 id="fullVideoTitle">Full-release video</h2><p id="fullVideoSub" class="sm-sub"></p></div><button id="fullVideoClose" class="modal-x" aria-label="Close">✕</button></div>
+    <div class="arrange-body fv-body">
+      <div class="fv-url"><input type="text" id="fullVideoUrl" placeholder="https://www.youtube.com/watch?v=… (the video that is the whole release)" aria-label="Link to the full-release video" autocomplete="off"><button type="button" id="fullVideoOpenPlayer" class="chip-btn" title="Play it in CRATE's player, then press the clock beside a song as it begins">▶ Play it here</button><button type="button" id="fullVideoSearch" class="chip-btn" title="Look for the full album on YouTube">Search ↗</button></div>
+      <p class="fv-note">Say where each song starts and ends in the video. Play it with the button above, and press ⏱ beside a song as it begins; or paste the times from the video's description.</p>
+      <div class="fv-tools"><button type="button" id="fullVideoPasteBtn" class="chip-btn">Paste times…</button><button type="button" id="fullVideoEnds" class="chip-btn" title="Each song ends where the next one starts">Ends from next start</button><button type="button" id="fullVideoClear" class="chip-btn">Clear times</button><span id="fullVideoStatus" class="fv-note" role="status"></span></div>
+      <div id="fullVideoPasteBox" class="fv-paste" hidden><textarea id="fullVideoPasteText" rows="5" placeholder="Paste the video's description, one song per line, for example:&#10;0:00 Drive My Car&#10;2:30 Norwegian Wood&#10;4:46 You Won't See Me" aria-label="Times pasted from the video's description"></textarea><div class="fv-paste-row"><button type="button" id="fullVideoPasteApply" class="config-btn">Use these times</button><span id="fullVideoPasteMsg" class="fv-note" role="status"></span></div></div>
+      <div id="fullVideoList" class="fv-list"></div>
+      <div class="fv-footer"><span class="fv-note">Saved in each song's link, so it goes wherever the link goes.</span><span><button type="button" id="fullVideoCancel" class="chip-btn">Cancel</button> <button type="button" id="fullVideoSave" class="config-btn" disabled>Save</button></span></div>
+    </div>
+  </div>
+</div>
+
 <!-- Match songs — one dialog to find Spotify / YouTube links for every song of a release (see the "Match songs" block in
      the script). Opened by clicking a red ! flag, from a release's right-click menu, or from its album page. -->
 <div id="songMatchOverlay" class="arrange-overlay" hidden>
@@ -8724,7 +8781,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.51.3';
+const APP_VERSION = '1.53.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -15391,6 +15448,7 @@ function handleAlbumCardClick(e, item, card) {
   }
 
   cardEls.forEach(c => c.classList.toggle('selected', state.selectedAlbums.has(c.dataset.albumRow)));
+  updateAlbumSelBar();
 }
 
 // Ctrl/Cmd+A for the "Albums" and "Album covers" grid views — every
@@ -15402,6 +15460,7 @@ function selectAllVisibleAlbums() {
   cardEls.forEach(c => state.selectedAlbums.add(c.dataset.albumRow));
   state.lastSelectedAlbumRow = cardEls[cardEls.length - 1].dataset.albumRow;
   cardEls.forEach(c => c.classList.add('selected'));
+  updateAlbumSelBar();
 }
 
 function buildAlbumTrackGroup(item) {
@@ -15827,7 +15886,7 @@ function buildCard(item) {
       state.selectedAlbums.clear();
       state.selectedAlbums.add(rowStr);
       state.lastSelectedAlbumRow = rowStr;
-      el.gridContainer.querySelectorAll('.card[data-album-row]').forEach(c => c.classList.toggle('selected', c.dataset.albumRow === rowStr));
+      el.gridContainer.querySelectorAll('.card[data-album-row]').forEach(c => c.classList.toggle('selected', c.dataset.albumRow === rowStr)); updateAlbumSelBar();
     }
     openAlbumCardContextMenu(item, e.clientX, e.clientY);
   });
@@ -15845,7 +15904,7 @@ function buildCard(item) {
       state.selectedAlbums.clear();
       state.selectedAlbums.add(rowStr);
       state.lastSelectedAlbumRow = rowStr;
-      el.gridContainer.querySelectorAll('.card[data-album-row]').forEach(c => c.classList.toggle('selected', c.dataset.albumRow === rowStr));
+      el.gridContainer.querySelectorAll('.card[data-album-row]').forEach(c => c.classList.toggle('selected', c.dataset.albumRow === rowStr)); updateAlbumSelBar();
     }
     openQuickActions(item);
   });
@@ -16320,7 +16379,7 @@ function parseLengthToMs(str) {
 function getEstimatedPosition() {
   if (activePlayerEngine === 'youtube') {
     if (!ytPlayer || !ytPlayer.getCurrentTime) return 0;
-    try { return (ytPlayer.getCurrentTime() || 0) * 1000; } catch (e) { return 0; }
+    try { return Math.max(0, (ytPlayer.getCurrentTime() || 0) - (ytSeg.start || 0)) * 1000; } catch (e) { return 0; }          // (within the part, for a track in a full-release video)
   }
   if (activePlayerEngine === 'soundcloud') {
     // SoundCloud's Widget API only reports position async (getPosition's
@@ -16334,10 +16393,12 @@ function getEstimatedPosition() {
   return spotifyLastState.position + (Date.now() - spotifyLastStateAt);
 }
 
+function ytSegDurationMs() { const total = ytDuration || 0; if (!ytSeg.start && !ytSeg.end) return total * 1000; return Math.max(0, (ytSeg.end || total) - (ytSeg.start || 0)) * 1000; }          // a part of a video is as long as the part
+function ytSeekInSegment(sec) { ytPlayer.seekTo((ytSeg.start || 0) + sec, true); }
 function getCurrentDurationMs() {
   if (activePlayerEngine === 'youtube') {
     if (ytPlayer && ytPlayer.getDuration) { try { ytDuration = ytPlayer.getDuration() || ytDuration; } catch (e) {} }
-    return (ytDuration || 0) * 1000;
+    return ytSegDurationMs();
   }
   if (activePlayerEngine === 'soundcloud') {
     // scDuration is already in ms (SoundCloud's Widget API reports
@@ -16354,6 +16415,9 @@ function updateProgressUI() {
   if (activePlayerEngine === 'youtube') { if (!ytPlayer || !ytPlayer.getCurrentTime) return; }
   else if (activePlayerEngine === 'soundcloud') { if (!scWidget) return; }
   else if (!spotifyLastState) return;
+  if (activePlayerEngine === 'youtube' && ytSeg.end && !ytSeg.fired && Date.now() - ytSeg.loadedAt > 1500) {          // the player is meant to stop at the end of the part by itself; if it hasn't, move on
+    try { if ((ytPlayer.getCurrentTime() || 0) >= ytSeg.end + 0.3) { onYtPlayerStateChange({ data: YT.PlayerState.ENDED }); return; } } catch (e) { /* not ready */ }
+  }
   const duration = getCurrentDurationMs();
   const pos = duration ? Math.min(getEstimatedPosition(), duration) : getEstimatedPosition();
   const pct = duration ? (pos / duration) * 100 : 0;
@@ -16408,7 +16472,7 @@ function initSeekDrag() {
     document.removeEventListener('touchend', onUp);
     if (activePlayerEngine === 'youtube') {
       if (ytPlayer && ytPlayer.seekTo) {
-        try { ytPlayer.seekTo(previewRatio * (getCurrentDurationMs() / 1000), true); } catch (e) { /* not ready */ }
+        try { ytSeekInSegment(previewRatio * (getCurrentDurationMs() / 1000)); } catch (e) { /* not ready */ }
       }
     } else if (activePlayerEngine === 'soundcloud') {
       if (scWidget && scWidget.seekTo) {
@@ -16446,7 +16510,7 @@ function initSeekDrag() {
     if (activePlayerEngine === 'youtube') {
       if (!ytPlayer || !ytPlayer.seekTo) return;
       const posMs = Math.max(0, Math.min(duration, getEstimatedPosition() + delta));
-      try { ytPlayer.seekTo(posMs / 1000, true); updateProgressUI(); } catch (err) { /* not ready */ }
+      try { ytSeekInSegment(posMs / 1000); updateProgressUI(); } catch (err) { /* not ready */ }
     } else if (activePlayerEngine === 'soundcloud') {
       if (!scWidget || !scWidget.seekTo) return;
       const posMs = Math.max(0, Math.min(duration, getEstimatedPosition() + delta));
@@ -16489,7 +16553,7 @@ function initTrackInfoSeek() {
   async function commitSeek(ratio) {
     const seekMs = Math.round(ratio * getCurrentDurationMs());
     if (activePlayerEngine === 'youtube') {
-      if (ytPlayer && ytPlayer.seekTo) { try { ytPlayer.seekTo(seekMs / 1000, true); } catch (e) { /* not ready */ } }
+      if (ytPlayer && ytPlayer.seekTo) { try { ytSeekInSegment(seekMs / 1000); } catch (e) { /* not ready */ } }
     } else if (activePlayerEngine === 'soundcloud') {
       if (scWidget && scWidget.seekTo) { try { scWidget.seekTo(seekMs); scPosition = seekMs; } catch (e) { /* not ready */ } }
     } else if (spotifyPlayer && spotifyLastState) {
@@ -17632,6 +17696,7 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
         <div class="track-props-field">
           <label for="trackPropsYoutube">YouTube link <a href="#" class="track-props-search" data-track-search="yt">Search \u2197</a></label>
           <input type="text" id="trackPropsYoutube" placeholder="https://youtube.com/watch?v=..." value="${escapeHtml(links.youtubeLink || '')}">
+          <button type="button" class="chip-btn" data-track-props-action="fullvideo" style="margin-top:6px" title="This video is the whole release: say where each song starts and ends in it">Start and end in a full-release video…</button>
         </div>
         <div class="track-props-field">
           <label for="trackPropsSpotify">Spotify link <a href="#" class="track-props-search" data-track-search="sp">Search \u2197</a></label>
@@ -17828,6 +17893,7 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
     const btn = e.target.closest('button[data-track-props-action]');
     if (!btn) return;
     if (btn.dataset.trackPropsAction === 'save') doSave();
+    else if (btn.dataset.trackPropsAction === 'fullvideo') { const hint = youtubeInput.value.trim(); closeTrackPropertiesModal(); fvOpen(item, hint); }
     else closeTrackPropertiesModal();
   });
   overlay.querySelectorAll('input').forEach(inp => inp.addEventListener('keydown', (e) => {
@@ -17865,6 +17931,8 @@ function openAlbumCardContextMenu(item, x, y) {
     <button type="button" data-card-action="rym">View on RateYourMusic ↗</button>
     <button type="button" data-card-action="rymUpdate">${selItems.length > 1 ? `Update ${selItems.length} selected from Rate Your Music\u2026` : 'Update from Rate Your Music'}</button>
     <button type="button" data-card-action="match">Match songs to Spotify / YouTube…</button>
+    ${selItems.length > 1 ? `<button type="button" data-card-action="matchMany">Match songs for ${selItems.length} selected\u2026</button>` : ''}
+    <button type="button" data-card-action="fullVideo">Full-release video…</button>
     ${state.activePlaylistId ? '<div class="menu-divider"></div><button type="button" class="remove-menu-btn" data-card-action="removeFromPlaylist">Remove from playlist</button>' : ''}
     <div class="menu-divider"></div>
     <button type="button" class="remove-menu-btn" data-card-action="delete">Delete from crate</button>
@@ -17904,6 +17972,8 @@ function openAlbumCardContextMenu(item, x, y) {
     else if (action === 'rym') openAlbumOnRym(item);
     else if (action === 'rymUpdate') rymFetchUpdates(selItems);
     else if (action === 'match') openSongMatcher(item);
+    else if (action === 'matchMany') bmOpen({ ticked: selItems, view: (state.filtered || []).slice() });
+    else if (action === 'fullVideo') fvOpen(item);
     else if (action === 'removeFromPlaylist') removeAlbumFromActivePlaylist(item);
     else if (action === 'delete') deleteAlbumFromContextMenu(item);
   });
@@ -20980,7 +21050,7 @@ function playCrateTrackOnYoutube(myId, index, url, trackName) {
     return;
   }
   ytPlayingForCrateQueue = true;
-  ytQueue = [{ videoId, trackName }];
+  ytQueue = [Object.assign({ videoId, trackName }, ytSegOf(url))];
   ytQueueIndex = 0;
   playYtQueueIndex(0);
 }
@@ -22525,6 +22595,365 @@ function smRank(song, cands) {
 }
 // END song-match
 
+// BEGIN batch-match
+// Match songs for many releases. The song matcher's own lookups (smSpotifyForRelease, smYoutubeForRelease) are run for each release of a selection, both services at once,
+// and a screen lets you choose which matches are kept. These helpers decide what a song's cell says, what is ticked, and what will be written.
+function bmBandLabel(band) { return band === 'confident' ? 'Confident' : band === 'likely' ? 'Likely' : 'Weak'; }
+function bmDiffText(songMs, candMs) {                                // how much longer or shorter a candidate is than the song you have
+  if (!songMs || !candMs) return '';
+  const d = Math.round((candMs - songMs) / 1000), a = Math.abs(d);
+  if (a <= 1) return 'same length';
+  return (d > 0 ? '+' : '\u2212') + (a >= 60 ? Math.floor(a / 60) + ':' + String(a % 60).padStart(2, '0') : a + ' s');
+}
+function bmCell(has, res, idx) {                                     // what one song says for one service: kept | wait | error | none | confident | look
+  if (has) return { s: 'kept', cands: [] };                          // a link you already have is never replaced
+  if (!res || res.status === 'loading') return { s: 'wait', cands: [] };
+  if (res.status !== 'done') return { s: 'error', cands: [] };
+  const c = (res.byIdx && res.byIdx[idx]) || [];
+  if (!c.length) return { s: res.searching ? 'wait' : 'none', cands: [] };
+  return { s: c[0].band === 'confident' ? 'confident' : 'look', cands: c, top: c[0] };
+}
+function bmDefaultPick(cell) { return cell.s === 'confident' ? cell.top.id : ''; }          // only a confident match is ticked for you
+function bmSongMatches(statuses, filter) {                          // does a song (its status for each shown service) belong under a filter chip
+  if (filter === 'confident' || filter === 'look' || filter === 'none') return statuses.includes(filter);
+  if (filter === 'kept') return statuses.includes('kept');
+  return true;
+}
+function bmEstimate(o) {                                             // o: { releases, spotify, youtube, viaAddon, ytSongs, used, cap }
+  const out = { spotifySec: o.spotify ? Math.round(o.releases * 4) : 0, ytPages: 0, ytSec: 0, ytTotal: 0, over: false };
+  if (o.youtube) { out.ytPages = o.releases * 2 + (o.ytSongs ? Math.round(o.releases * 1.5) : 0); out.ytSec = Math.round(out.ytPages * 2.5); out.ytTotal = (o.used || 0) + out.ytPages; out.over = !!(o.viaAddon && o.cap && out.ytTotal > o.cap); }
+  return out;
+}
+function bmDur(sec) { const n = Math.max(1, sec); return n < 90 ? n + (n === 1 ? ' second' : ' seconds') : Math.round(n / 60) + ' minutes'; }
+function bmUpdates(songs, pick, res, linkOf) {                      // what is ticked -> { updates: { trackNum: { spotifyLink?, youtubeLink? } }, n }
+  const updates = {}; let n = 0;
+  ['spotify', 'youtube'].forEach(kind => songs.forEach(s => {
+    const id = pick[kind] && pick[kind][s.idx]; if (!id) return;
+    const list = (res[kind] && res[kind].byIdx && res[kind].byIdx[s.idx]) || [], c = list.find(x => x.id === id); if (!c) return;
+    (updates[s.trackNum] = updates[s.trackNum] || {})[kind === 'spotify' ? 'spotifyLink' : 'youtubeLink'] = linkOf(kind, c); n++;
+  }));
+  return { updates, n };
+}
+// END batch-match
+
+// ---- Match songs for many releases: the lanes and the screen ----
+let bm = null;                                                      // the batch in hand (null when there is none)
+const bmEl = (id) => document.getElementById(id);
+const BM_LOG_KEY = 'crate_bm_log_v1';
+let bmRaf = 0;
+function bmRedraw() { if (!bm || bmRaf) return; bmRaf = requestAnimationFrame(() => { bmRaf = 0; bmRender(); bmStripRender(); }); }
+const bmKinds = () => ['spotify', 'youtube'].filter(k => bm.svc[k]);
+const bmShownKinds = () => bmKinds().filter(k => bm.show[k]);
+const bmName = (k) => k === 'spotify' ? 'Spotify' : 'YouTube';
+const bmInitials = (t) => { const w = String(t || '').replace(/[^\p{L}\p{N} ]/gu, '').trim().split(/\s+/).filter(Boolean); return ((w[0] || '?')[0] + (w[1] ? w[1][0] : (w[0] || '')[1] || '')).toUpperCase(); };
+function bmSelectedItems() { return state.raw.filter(r => state.selectedAlbums.has(String(r.row))); }
+function updateAlbumSelBar() {
+  const bar = bmEl('albumSelBar'); if (!bar) return; const n = bmSelectedItems().length;
+  const ov = bmEl('batchMatchOverlay'); bar.hidden = n < 2 || !!(ov && !ov.hidden); if (n >= 2) bmEl('albumSelCount').textContent = `${n} selected`;          // (not over the batch window)
+}
+function bmOpen(sets) {                                             // sets: { ticked: [items] | null, view: [items] }
+  const ticked = sets.ticked && sets.ticked.length > 1 ? sets.ticked : null, items = ticked || sets.view || [];
+  if (!items.length) { flashGlobalToast('There are no releases to match: select some first (click, shift-click, or Ctrl+A in the library).'); return; }
+  if (bm && bm.view === 'run') { bmShow(); return; }
+  const mk = (it) => ({ row: String(it.row), item: it, songs: null, songsP: null, spotify: null, youtube: null, pick: { spotify: {}, youtube: {} }, include: true, st: { spotify: 'wait', youtube: 'wait' }, err: {}, applied: 0 });
+  bm = { view: 'setup', hidden: false, sets: { ticked, view: sets.view || [] }, scope: ticked ? 'ticked' : 'view', rels: items.map(mk), mk, svc: { spotify: true, youtube: true }, show: { spotify: true, youtube: true }, ytSongs: ytUseAddon(), mode: 'review',
+         filter: 'all', sel: String(items[0].row), open: null, paused: false, stopped: false, running: false, lanes: { spotify: { s: 'idle', msg: '' }, youtube: { s: 'idle', msg: '' } }, saved: 0, log: [], chain: Promise.resolve(), afterMatcher: null };
+  ytAddonHello(); bmEl('batchMatchOverlay').hidden = false; updateAlbumSelBar(); bmRender();
+}
+function bmShow() { if (!bm) return; bm.hidden = false; bmEl('batchMatchOverlay').hidden = false; updateAlbumSelBar(); bmRender(); bmStripRender(); }
+function bmHide() { if (!bm) return; bm.hidden = true; bmEl('batchMatchOverlay').hidden = true; updateAlbumSelBar(); bmStripRender(); }
+function bmPickTotals() {
+  const t = { n: 0, spotify: 0, youtube: 0, releases: 0 };
+  if (!bm) return t;
+  bm.rels.forEach(r => { if (!r.include) return; let any = 0; ['spotify', 'youtube'].forEach(k => { const c = Object.values(r.pick[k]).filter(Boolean).length; t[k] += c; any += c; }); t.n += any; if (any) t.releases++; });
+  return t;
+}
+function bmClose(force) {
+  if (!bm) { bmEl('batchMatchOverlay').hidden = true; updateAlbumSelBar(); return; }
+  if (bm.view === 'run' && bm.running && !force) { bmHide(); return; }                      // still working: closing the window is "keep working"
+  const t = bmPickTotals();
+  if (!force && bm.view === 'run' && t.n > 0 && !confirm(`Discard ${t.n} match${t.n === 1 ? '' : 'es'} you haven\u2019t applied?`)) return;
+  if (bm.running) { bm.stopped = true; ytAddonCancel(); }
+  bm = null; bmEl('batchMatchOverlay').hidden = true; updateAlbumSelBar(); bmStripRender();
+}
+// ----- the lanes: each service works through the releases at its own pace -----
+function bmSongs(rel) { return rel.songsP || (rel.songsP = smBuildSongs(rel.item).then(s => { rel.songs = s; return s; })); }
+function bmSetPicks(rel, kind) { rel.songs.forEach(s => { const id = bmDefaultPick(bmCell(smHas(s, kind), rel[kind], s.idx)); if (id) rel.pick[kind][s.idx] = id; }); }
+async function bmSearchRest(rel) {                                  // YouTube, song by song, for what the playlist didn't have
+  const idxs = rel.songs.filter(s => !smHas(s, 'youtube') && !((rel.youtube.byIdx[s.idx] || []).length)).map(s => s.idx).slice(0, 40);
+  if (!idxs.length) return;
+  rel.youtube.searching = true; bmRedraw();
+  try { await smYoutubeSearchSongs(rel.item, rel.songs, idxs, (idx, top) => { if (top.length) rel.youtube.byIdx[idx] = top; bmRedraw(); }); }
+  finally { delete rel.youtube.searching; }
+}
+async function bmRunLane(kind) {
+  const b = bm, lane = b.lanes[kind]; lane.s = 'work'; lane.msg = '';
+  for (const rel of b.rels) {
+    if (bm !== b) return;
+    if (rel.st[kind] !== 'wait') continue;
+    while (b.paused && !b.stopped && bm === b) await new Promise(r => setTimeout(r, 250));
+    if (bm !== b) return;
+    if (b.stopped) { lane.s = 'stopped'; lane.msg = 'Stopped.'; break; }
+    if (kind === 'youtube' && ytUseAddon() && ytAddon.cap && ytAddon.today >= ytAddon.cap - 1) { lane.s = 'stopped'; lane.msg = `The add-on\u2019s limit of ${ytAddon.cap} YouTube pages a day is used up. The rest wait: press Resume tomorrow.`; break; }
+    rel.st[kind] = 'work'; bmRedraw();
+    try {
+      const songs = await bmSongs(rel);
+      if (bm !== b) return;
+      if (!songs.length) { rel.st[kind] = 'skip'; rel.err[kind] = 'No tracklist'; bmRedraw(); continue; }
+      const r = kind === 'spotify' ? await smSpotifyForRelease(rel.item, songs) : await smYoutubeForRelease(rel.item, songs);
+      if (bm !== b) return;
+      if (r.status === 'nocreds' || r.status === 'nokey') {
+        rel.st[kind] = 'wait'; lane.s = 'stopped';
+        lane.msg = kind === 'spotify' ? 'Spotify isn\u2019t connected yet: connect it first (the song matcher shows how), then press Resume.' : 'YouTube isn\u2019t set up: install the CRATE for YouTube add-on or add an API key (\u2699 \u2192 YouTube API\u2026), then press Resume.';
+        break;
+      }
+      rel[kind] = r; rel.st[kind] = 'done';
+      if (r.status === 'done') {
+        bmSetPicks(rel, kind);
+        if (kind === 'youtube' && b.ytSongs) { try { await bmSearchRest(rel); } catch (e) { rel.err.youtube = ytAddonErrText(e); if (/daily|quota/i.test(String(e && e.message))) throw e; } bmSetPicks(rel, 'youtube'); }
+        if (b.mode === 'auto') bmApplyRel(rel, kind);
+      }
+    } catch (e) {
+      if (bm !== b) return;
+      const msg = kind === 'youtube' ? ytAddonErrText(e) : String((e && e.message) || e);
+      rel.st[kind] = 'error'; rel.err[kind] = msg;
+      if (/session expired|daily|quota/i.test(String((e && e.message) || e))) { rel.st[kind] = 'wait'; lane.s = 'stopped'; lane.msg = msg; break; }
+    }
+    bmRedraw();
+    if (kind === 'spotify') await new Promise(r => setTimeout(r, 120));
+  }
+  if (bm === b && lane.s === 'work') lane.s = 'done';
+  if (bm === b) { bmRedraw(); bmCheckDone(); }
+}
+function bmCheckDone() { if (bm && bm.running && bmKinds().every(k => bm.lanes[k].s !== 'work')) { bm.running = false; if (bm.hidden) flashGlobalToast('Matching songs has finished: open it to choose what to keep.'); bmRedraw(); } }
+function bmStart() {
+  const sp = bmEl('bmSvcSpotify').checked, yt = bmEl('bmSvcYoutube').checked;
+  if (!sp && !yt) { flashGlobalToast('Tick at least one service.'); return; }
+  bm.svc = { spotify: sp, youtube: yt }; bm.show = { spotify: sp, youtube: yt }; bm.view = 'run'; bm.running = true; bm.sel = bm.rels[0].row;
+  ['spotify', 'youtube'].forEach(k => { if (!bm.svc[k]) { bm.lanes[k] = { s: 'off', msg: '' }; bm.rels.forEach(r => { r.st[k] = 'skip'; }); } });
+  bmRender(); bmStripRender();
+  bmKinds().forEach(k => { bmRunLane(k); });
+}
+function bmResumeLane(kind) { if (!bm || bm.lanes[kind].s !== 'stopped') return; bm.stopped = false; bm.running = true; bmRunLane(kind); bmRender(); }
+// ----- applying what is ticked, and taking it back -----
+function bmApplyRel(rel, onlyKind) {
+  const b = bm;
+  b.chain = b.chain.then(async () => {
+    if (!rel.songs) return;
+    const pick = onlyKind ? { [onlyKind]: rel.pick[onlyKind] } : rel.pick;
+    const { updates, n } = bmUpdates(rel.songs, pick, { spotify: rel.spotify, youtube: rel.youtube }, (kind, c) => c.link || smCandLink(kind, c));
+    if (!n) return;
+    const prev = {}; Object.keys(updates).forEach(num => { const td = (rel.item.trackData || {})[num] || {}; prev[num] = {}; Object.keys(updates[num]).forEach(f => { prev[num][f] = td[f] || ''; }); });
+    const ok = await saveSongLinks(rel.item, updates);
+    if (!ok) return;
+    rel.songs.forEach(s => { const u = updates[s.trackNum]; if (u) { if (u.spotifyLink) s.spotifyLink = u.spotifyLink; if (u.youtubeLink) s.youtubeLink = u.youtubeLink; } });
+    ['spotify', 'youtube'].forEach(k => { if (!onlyKind || onlyKind === k) rel.pick[k] = {}; });
+    rel.applied += n; b.saved += n; b.log.push({ row: rel.row, artist: rel.item.artist, title: rel.item.title, prev }); bmSaveLog(); bmRedraw();
+  }).catch(() => { /* a failed save has already said so */ });
+  return b.chain;
+}
+function bmSaveLog() { try { localStorage.setItem(BM_LOG_KEY, JSON.stringify({ t: Date.now(), entries: bm ? bm.log : [] })); } catch (e) { /* not kept */ } }
+async function bmApply() {
+  if (!bm) return; const t = bmPickTotals(); if (!t.n) return; const before = bm.saved; bm.applying = true; bmRender();
+  for (const rel of bm.rels) { if (rel.include) await bmApplyRel(rel); }
+  bm.applying = false; const n = bm.saved - before; flashGlobalToast(`Saved ${n} link${n === 1 ? '' : 's'}${t.releases ? ` to ${t.releases} release${t.releases === 1 ? '' : 's'}` : ''}.`); bmRender(); bmStripRender();
+}
+async function bmUndoLast() {
+  let log = null; try { log = JSON.parse(localStorage.getItem(BM_LOG_KEY) || 'null'); } catch (e) { log = null; }
+  const entries = (log && log.entries) || [];
+  if (!entries.length) { flashGlobalToast('There is no batch match to undo.'); return; }
+  const n = entries.reduce((a, e) => a + Object.values(e.prev || {}).reduce((x, u) => x + Object.keys(u).length, 0), 0);
+  if (!confirm(`Put back the ${n} link${n === 1 ? '' : 's'} the last batch match changed, in ${entries.length} release${entries.length === 1 ? '' : 's'}?`)) return;
+  let done = 0, lost = 0;
+  for (const e of entries.slice().reverse()) {
+    const item = state.raw.find(r => String(r.row) === String(e.row) && r.artist === e.artist && r.title === e.title);
+    if (!item) { lost++; continue; }
+    if (await saveSongLinks(item, e.prev)) done++;
+  }
+  try { localStorage.removeItem(BM_LOG_KEY); } catch (e) { /* fine */ }
+  if (bm) { bm.log = []; bm.rels.forEach(r => { r.songsP = null; r.songs = null; }); bm.saved = 0; bmRedraw(); }
+  flashGlobalToast(`Put back ${done} release${done === 1 ? '' : 's'}${lost ? ` (${lost} could not be found)` : ''}.`);
+}
+function bmAfterMatcher() {                                         // the single-release matcher was opened from here and has closed
+  if (!bm || bm.afterMatcher == null) return; const rel = bm.rels.find(r => r.row === bm.afterMatcher); bm.afterMatcher = null;
+  const reopen = () => { bm.hidden = false; bmEl('batchMatchOverlay').hidden = false; updateAlbumSelBar(); bmRender(); bmStripRender(); };
+  if (!rel) { reopen(); return; }
+  smBuildSongs(rel.item).then(songs => { rel.songs = songs; rel.songsP = Promise.resolve(songs); ['spotify', 'youtube'].forEach(k => songs.forEach(s => { if (smHas(s, k)) delete rel.pick[k][s.idx]; })); reopen(); });
+}
+// ----- drawing -----
+const bmChip = (cls, t) => `<span class="bm-chip bm-${cls}">${t}</span>`;
+function bmSetupHtml() {
+  const sets = bm.sets, n = bm.rels.length, viaAddon = ytUseAddon(), key = !!loadYoutubeApiKey(), ytOk = viaAddon || key;
+  const est = bmEstimate({ releases: n, spotify: bm.svc.spotify, youtube: bm.svc.youtube && ytOk, viaAddon, ytSongs: bm.ytSongs && viaAddon, used: ytAddon.today || 0, cap: ytAddon.cap || 0 });
+  const opt = (name, val, on, title, sub, right) => `<label class="bm-opt${on ? ' on' : ''}"><input type="${name === 'bmScope' || name === 'bmMode' ? 'radio' : 'checkbox'}" name="${name}" value="${val}"${on ? ' checked' : ''} data-bm="setup"><span class="bm-opt-t">${title}${sub ? `<small>${sub}</small>` : ''}</span>${right ? `<span class="bm-m">${right}</span>` : ''}</label>`;
+  const scope = (sets.ticked ? opt('bmScope', 'ticked', bm.scope === 'ticked', 'The releases I have selected', '', String(sets.ticked.length)) : '') + opt('bmScope', 'view', bm.scope === 'view', 'Everything in the current view', '', String(sets.view.length));
+  const ytLine = viaAddon ? `Add-on found (version ${escapeHtml(ytAddon.version)}): ${ytAddon.today} of ${ytAddon.cap} pages used today.` : key ? 'Using your YouTube API key: a search for a single song costs 100 of today\u2019s quota units.' : 'Not set up: install the CRATE for YouTube add-on, or add an API key (\u2699 \u2192 YouTube API\u2026).';
+  const card = (k, title, line, blurb, est_, extra, disabled) => `<label class="bm-svc${bm.svc[k] && !disabled ? ' on' : ''}"><span class="bm-svc-h"><input type="checkbox" id="bmSvc${k === 'spotify' ? 'Spotify' : 'Youtube'}"${bm.svc[k] && !disabled ? ' checked' : ''}${disabled ? ' disabled' : ''} data-bm="setup"><b>${title}</b></span><span class="bm-svc-line">${line}</span><span class="bm-dim">${blurb}</span><span class="bm-m">${est_}</span>${extra || ''}</label>`;
+  const spEst = est.spotifySec ? `About ${bmDur(est.spotifySec)} for ${n} release${n === 1 ? '' : 's'}` : '';
+  const ytEst = est.ytPages ? `About ${bmDur(est.ytSec)} \u00b7 about ${est.ytPages} pages${viaAddon && ytAddon.cap ? `, ${est.ytTotal} of ${ytAddon.cap} for today` : ''}` : '';
+  const songsOpt = viaAddon ? `<span class="bm-sub"><input type="checkbox" id="bmYtSongs"${bm.ytSongs ? ' checked' : ''} data-bm="setup"> Also search song by song for what the playlist misses (about one more page each)</span>` : '';
+  return `<div class="bm-setup"><section><div class="bm-label">Which releases</div><div class="bm-opts">${scope}</div></section>
+    <section><div class="bm-label">Which services</div><div class="bm-svcs">${card('spotify', 'Spotify', 'Uses the connection the song matcher uses.', 'Looks the album up, then each song by title, artist and length.', spEst)}${card('youtube', 'YouTube', escapeHtml(ytLine), 'Finds the album\u2019s playlist first, then (if you choose) any songs it misses one by one.', ytEst, songsOpt, !ytOk)}</div>
+      ${est.over ? `<p class="bm-warn" role="alert">That is more pages than are left today. YouTube will stop at the limit and the rest wait: press Resume tomorrow. Spotify carries on.</p>` : ''}<p class="bm-dim">If YouTube asks for a check, only the YouTube side waits for you; Spotify carries on.</p></section>
+    <section><div class="bm-label">What to do with what it finds</div><div class="bm-opts">${opt('bmMode', 'review', bm.mode === 'review', 'Let me choose what gets matched, song by song', 'Nothing is saved until you press Apply.')}${opt('bmMode', 'auto', bm.mode === 'auto', 'Save the confident matches as they come, and let me choose the rest', 'A link you already have is never replaced. The last batch can be undone.')}</div></section></div>
+    <div class="bm-foot"><span class="bm-dim">It keeps running while you use CRATE. Keep this tab open.</span><span><button type="button" class="chip-btn" data-bm="cancel">Cancel</button> <button type="button" class="config-btn" data-bm="start">Start matching ${n} release${n === 1 ? '' : 's'}</button></span></div>`;
+}
+function bmLaneHtml(kind) {
+  const l = bm.lanes[kind]; if (l.s === 'off') return '';
+  const total = bm.rels.length, done = bm.rels.filter(r => r.st[kind] !== 'wait' && r.st[kind] !== 'work').length, pct = total ? Math.round(done / total * 100) : 0;
+  let conf = 0, look = 0; bm.rels.forEach(r => { if (r.st[kind] === 'done' && r.songs) r.songs.forEach(s => { const c = bmCell(smHas(s, kind), r[kind], s.idx); if (c.s === 'confident') conf++; else if (c.s === 'look' || c.s === 'none') look++; }); });
+  const stopped = kind === 'youtube' && ytAddon.state === 'stopped' && l.s === 'work';
+  let chip = { idle: ['wait', 'Waiting'], work: ['work', bm.paused ? 'Paused' : 'Working'], done: ['ok', 'Done'], stopped: ['look', 'Stopped'] }[l.s] || ['wait', ''];
+  if (stopped) chip = ['look', 'Paused: YouTube needs you'];
+  const extra = kind === 'youtube' && ytUseAddon() && ytAddon.cap ? `<div class="bm-m">${ytAddon.today} of ${ytAddon.cap} pages used today</div>` : '';
+  const msg = stopped ? `<div class="bm-lane-msg" role="alert">${escapeHtml(ytAddonWhy(ytAddon.reason))} <button type="button" class="chip-btn" data-bm="yt-continue">Continue</button></div>` : l.msg ? `<div class="bm-lane-msg" role="alert">${escapeHtml(l.msg)} ${l.s === 'stopped' ? `<button type="button" class="chip-btn" data-bm="lane-resume" data-kind="${kind}">Resume</button>` : ''}</div>` : '';
+  return `<div class="bm-lane"><div class="bm-lane-top"><b>${bmName(kind)}</b>${bmChip(chip[0], chip[1])}</div><div class="bm-bar"><i style="width:${pct}%"></i></div><div class="bm-lane-meta"><span class="bm-m">${done} of ${total} releases</span><span class="bm-dim">${conf} confident \u00b7 ${look} need a look</span></div>${extra}${msg}</div>`;
+}
+function bmTotals() {                                               // counts for the filter chips, over every release that has been looked up
+  const t = { all: 0, confident: 0, look: 0, none: 0, kept: 0 }, shown = bmShownKinds();
+  bm.rels.forEach(r => { if (!r.songs) return; r.songs.forEach(s => { const st = shown.map(k => bmCell(smHas(s, k), r[k], s.idx).s); if (st.every(x => x === 'wait')) return; t.all++; ['confident', 'look', 'none', 'kept'].forEach(f => { if (bmSongMatches(st, f)) t[f]++; }); }); });
+  return t;
+}
+function bmRelSummary(rel, kind) {
+  const st = rel.st[kind];
+  if (st === 'skip') return { t: rel.err[kind] || '\u2014', tone: 'dim' };
+  if (st === 'wait') return { t: '\u2026', tone: 'dim' };
+  if (st === 'work') return { t: 'working', tone: 'work' };
+  if (st === 'error') return { t: 'error', tone: 'look' };
+  const songs = rel.songs || [], cells = songs.map(s => bmCell(smHas(s, kind), rel[kind], s.idx));
+  const good = cells.filter(c => c.s === 'confident' || c.s === 'kept').length;
+  if (rel[kind] && rel[kind].status !== 'done') return { t: 'error', tone: 'look' };
+  if (songs.length && cells.every(c => c.s === 'none')) return { t: 'no match', tone: 'dim' };
+  return { t: `${good}/${songs.length}`, tone: good === songs.length ? 'ok' : 'look' };
+}
+function bmSideHtml() {
+  const shown = bmShownKinds();
+  const items = bm.rels.map(r => {
+    const mini = shown.map(k => { const s = bmRelSummary(r, k); return `<span class="bm-mini bm-${s.tone}">${k === 'spotify' ? 'S' : 'Y'} ${escapeHtml(s.t)}</span>`; }).join('');
+    return `<div class="bm-rel${r.row === bm.sel ? ' on' : ''}" data-bm="sel" data-row="${escapeHtml(r.row)}"><label class="bm-tick"><input type="checkbox" data-bm="inc" data-row="${escapeHtml(r.row)}"${r.include ? ' checked' : ''} aria-label="Include ${escapeHtml(r.item.title)}"></label><span class="bm-tile">${escapeHtml(bmInitials(r.item.title))}</span><span class="bm-rel-t"><b>${escapeHtml(r.item.title)}</b><span class="bm-dim">${escapeHtml(r.item.artist)}</span><span class="bm-minis">${mini}</span></span></div>`;
+  }).join('');
+  return `<div class="bm-side"><div class="bm-side-h"><span class="bm-label">Releases \u00b7 ${bm.rels.length}</span><span class="bm-m">${bm.rels.filter(r => r.include).length} included</span></div><div class="bm-side-list">${items}</div></div>`;
+}
+function bmCellHtml(rel, s, kind) {
+  const c = bmCell(smHas(s, kind), rel[kind], s.idx), nm = bmName(kind);
+  const row = escapeHtml(rel.row), da = `data-row="${row}" data-idx="${s.idx}" data-kind="${kind}"`;
+  if (c.s === 'kept') return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct"><div class="bm-t bm-dim">Already linked</div><div class="bm-m">your link stays</div></div>${bmChip('have', 'Kept')}</div>`;
+  if (c.s === 'wait') return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct bm-dim">${rel.st[kind] === 'skip' ? 'Not run' : 'Looking\u2026'}</div></div>`;
+  if (c.s === 'error') return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct bm-warn">${escapeHtml(rel.err[kind] || 'Could not look this up')}</div></div>`;
+  if (c.s === 'none') return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct bm-dim">No match</div>${kind === 'youtube' ? `<button type="button" class="chip-btn" data-bm="yt-song" ${da}>Search YouTube\u2026</button>` : ''}</div>`;
+  const pickId = rel.pick[kind][s.idx], ch = c.cands.find(x => x.id === pickId) || c.top, ticked = !!pickId;
+  const who = kind === 'spotify' ? (ch.artists || []).join(', ') : (ch.channel || ''), diff = bmDiffText(s.durationMs, ch.durationMs);
+  const open = bm.open && bm.open.row === rel.row && bm.open.idx === s.idx && bm.open.kind === kind;
+  return `<div class="bm-cell"><label class="bm-tick"><input type="checkbox" data-bm="tick" ${da}${ticked ? ' checked' : ''} aria-label="Use this ${nm} match"></label><div class="bm-ct"><div class="bm-t" title="${escapeHtml(ch.title)}">${escapeHtml(ch.title)}</div><div class="bm-m">${escapeHtml([who, smLen(ch.durationMs), diff].filter(Boolean).join(' \u00b7 '))}</div></div>${bmChip(ch.band === 'confident' ? 'ok' : ch.band === 'likely' ? 'work' : 'look', bmBandLabel(ch.band))}${c.cands.length > 1 ? `<button type="button" class="chip-btn" data-bm="choose" ${da}>${open ? 'Done' : 'Choose\u2026'}</button>` : ''}</div>`;
+}
+function bmDrawerHtml(rel, s, kind) {
+  const c = bmCell(smHas(s, kind), rel[kind], s.idx), name = `bmp-${rel.row}-${s.idx}-${kind}`, pickId = rel.pick[kind][s.idx], da = `data-row="${escapeHtml(rel.row)}" data-idx="${s.idx}" data-kind="${kind}"`;
+  const opts = c.cands.slice(0, 4).map(x => `<label class="bm-opt${pickId === x.id ? ' on' : ''}"><input type="radio" name="${name}" value="${escapeHtml(x.id)}" data-bm="pick" ${da}${pickId === x.id ? ' checked' : ''}><span class="bm-opt-t">${escapeHtml(x.title)}<small>${escapeHtml([kind === 'spotify' ? (x.artists || []).join(', ') : x.channel, smLen(x.durationMs), bmDiffText(s.durationMs, x.durationMs), bmBandLabel(x.band)].filter(Boolean).join(' \u00b7 '))}</small></span></label>`).join('');
+  return `<div class="bm-drawer"><div class="bm-dim">${bmName(kind)}: pick the right one for \u201c${escapeHtml(s.title)}\u201d, or neither.</div>${opts}<label class="bm-opt${!pickId ? ' on' : ''}"><input type="radio" name="${name}" value="" data-bm="pick" ${da}${!pickId ? ' checked' : ''}><span class="bm-opt-t">Neither: leave this song without a ${bmName(kind)} link</span></label></div>`;
+}
+function bmDetailHtml() {
+  const rel = bm.rels.find(r => r.row === bm.sel) || bm.rels[0]; if (!rel) return '<div class="bm-detail"></div>';
+  const shown = bmShownKinds(), it = rel.item;
+  const panel = (k) => {
+    const r = rel[k]; let title = '\u2026', meta = '';
+    if (rel.st[k] === 'done' && r) {
+      if (k === 'spotify') { title = r.albumName ? escapeHtml(r.albumName) : 'Matched song by song'; meta = r.albumName ? `album \u00b7 ${r.fit}% fit` : `${r.searched || 0} found by searching`; }
+      else { title = r.playlistTitle ? escapeHtml(r.playlistTitle) : 'No playlist found'; meta = r.playlistTitle ? `${escapeHtml(r.playlistChannel || '')} \u00b7 ${r.fit}% fit` : 'songs are searched one by one if you chose that'; }
+    } else if (rel.st[k] === 'skip') { title = escapeHtml(rel.err[k] || 'Not run'); } else if (rel.st[k] === 'error') { title = escapeHtml(rel.err[k] || 'Could not look this up'); } else if (rel.st[k] === 'work') { title = 'Looking\u2026'; }
+    return `<div class="bm-panel"><div class="bm-label">${bmName(k)}</div><div class="bm-panel-t">${title}</div><div class="bm-m">${meta}</div></div>`;
+  };
+  const filter = bm.filter, songs = (rel.songs || []).filter(s => bmSongMatches(shown.map(k => bmCell(smHas(s, k), rel[k], s.idx).s), filter));
+  const W = shown.length, cs = (k) => (rel.songs || []).filter(s => bmCell(smHas(s, k), rel[k], s.idx).cands.length);
+  const colOn = (k) => { const l = cs(k); return l.length > 0 && l.every(s => rel.pick[k][s.idx]); }, allOn = shown.length > 0 && shown.every(k => cs(k).length === 0 || colOn(k)) && shown.some(k => cs(k).length > 0);          // a header tick shows whether everything under it is ticked
+  const head = `<div class="bm-row bm-th bm-c${W}"><label class="bm-tick"><input type="checkbox" data-bm="tick-song-all"${allOn ? ' checked' : ''} aria-label="Tick every song"></label><span class="bm-label">#</span><span class="bm-label">Your song</span>${shown.map(k => `<span class="bm-label bm-colh"><label class="bm-tick"><input type="checkbox" data-bm="tick-col" data-kind="${k}"${colOn(k) ? ' checked' : ''} aria-label="Tick every ${bmName(k)} match"></label>${bmName(k)} match</span>`).join('')}</div>`;
+  const rows = songs.map(s => {
+    const drawers = shown.filter(k => bm.open && bm.open.row === rel.row && bm.open.idx === s.idx && bm.open.kind === k).map(k => bmDrawerHtml(rel, s, k)).join('');
+    const sticks = shown.filter(k => bmCell(smHas(s, k), rel[k], s.idx).cands.length).map(k => !!rel.pick[k][s.idx]);
+    return `<div class="bm-song"><div class="bm-row bm-c${W}"><label class="bm-tick"><input type="checkbox" data-bm="tick-song" data-row="${escapeHtml(rel.row)}" data-idx="${s.idx}"${sticks.length && sticks.every(Boolean) ? ' checked' : ''}${sticks.length ? '' : ' disabled'} aria-label="Match this song"></label><span class="bm-m">${s.trackNum}</span><div class="bm-ct"><div class="bm-t">${escapeHtml(s.title)}</div><div class="bm-m">${escapeHtml(smLen(s.durationMs) || 'no length')}</div></div>${shown.map(k => bmCellHtml(rel, s, k)).join('')}</div>${drawers}</div>`;
+  }).join('');
+  const empty = !rel.songs ? '<div class="bm-dim bm-pad">Waiting for this release\u2026</div>' : !songs.length ? '<div class="bm-dim bm-pad">No songs under this filter.</div>' : '';
+  const sum = rel.st.spotify === 'done' || rel.st.youtube === 'done' ? '' : '';
+  return `<div class="bm-detail"><div class="bm-rel-head"><span class="bm-tile bm-big">${escapeHtml(bmInitials(it.title))}</span><div><div class="bm-rt">${escapeHtml(it.title)}</div><div class="bm-dim">${escapeHtml(it.artist)} \u00b7 ${rel.songs ? rel.songs.length : '\u2026'} songs</div></div><button type="button" class="chip-btn bm-right" data-bm="matcher" data-row="${escapeHtml(rel.row)}" title="Open this release in the song matcher: change the album or playlist, search, add a link by hand">Open in the song matcher\u2026</button></div><div class="bm-panels">${shown.map(panel).join('')}</div>${head}<div class="bm-songs">${rows}${empty}${sum}</div></div>`;
+}
+function bmToolHtml() {
+  const t = bmTotals(), chipf = (f, label) => `<button type="button" class="bm-fchip${bm.filter === f ? ' on' : ''}" data-bm="filter" data-f="${f}">${label} ${t[f]}</button>`;
+  const show = ['spotify', 'youtube'].filter(k => bm.svc[k]).map(k => `<label class="bm-show"><input type="checkbox" data-bm="show" data-kind="${k}"${bm.show[k] ? ' checked' : ''}> ${bmName(k)}</label>`).join('');
+  return `<div class="bm-tool"><div class="bm-fchips">${chipf('all', 'All songs')}${chipf('confident', 'Confident')}${chipf('look', 'Needs a look')}${chipf('none', 'No match')}${chipf('kept', 'Already linked')}</div><div class="bm-tool-r"><span class="bm-dim">Show</span>${show}<button type="button" class="chip-btn" data-bm="tick-all">Tick all confident</button><button type="button" class="chip-btn" data-bm="untick-all">Untick all</button></div></div>`;
+}
+function bmFootHtml() {
+  const t = bmPickTotals(), a = [t.spotify ? `${t.spotify} Spotify` : '', t.youtube ? `${t.youtube} YouTube` : ''].filter(Boolean).join(' and ');
+  const tot = bmTotals();
+  return `<div class="bm-foot"><div><b>${t.n ? `Will add ${t.n} link${t.n === 1 ? '' : 's'} (${a}) to ${t.releases} release${t.releases === 1 ? '' : 's'}` : 'Nothing ticked yet'}</b><div class="bm-dim">${tot.look} need a look \u00b7 ${tot.none} have no match \u00b7 ${tot.kept} already linked and kept \u00b7 nothing is replaced${bm.saved ? ` \u00b7 ${bm.saved} saved so far` : ''}</div></div><span>${bm.saved ? '<button type="button" class="chip-btn" data-bm="undo">Undo this batch</button> ' : ''}<button type="button" class="chip-btn" data-bm="close">Close</button> <button type="button" class="config-btn" data-bm="apply"${t.n && !bm.applying ? '' : ' disabled'}>${bm.applying ? 'Saving\u2026' : `Apply ${t.n} link${t.n === 1 ? '' : 's'}`}</button></span></div>`;
+}
+function bmRender() {
+  const ov = bmEl('batchMatchOverlay'); if (!bm || !ov || ov.hidden) return;
+  const modal = bmEl('bmModal'), keep = {}; ['.bm-side-list', '.bm-songs'].forEach(q => { const e = modal.querySelector(q); if (e) keep[q] = e.scrollTop; });
+  const n = bm.rels.length;
+  const head = (title, sub, btns) => `<div class="arrange-header"><div><h2 id="bmTitle">${title}</h2><p class="sm-sub">${sub}</p></div><div class="bm-hbtns">${btns}</div></div>`;
+  if (bm.view === 'setup') { modal.innerHTML = head('Match songs for many releases', 'Find Spotify and YouTube links for the songs of every release you pick, in one run.', '<button type="button" class="modal-x" data-bm="cancel" aria-label="Close">\u2715</button>') + bmSetupHtml(); return; }
+  const ctl = bm.running ? `<button type="button" class="chip-btn" data-bm="${bm.paused ? 'resume' : 'pause'}">${bm.paused ? 'Resume' : 'Pause'}</button><button type="button" class="chip-btn" data-bm="stop">Stop</button>` : '';
+  modal.innerHTML = head(`${bm.running ? 'Matching songs' : 'Choose what gets matched'} \u00b7 ${n} release${n === 1 ? '' : 's'}`, `${bmKinds().map(bmName).join(' and ')}, song by song. Nothing is saved until you press Apply.${bm.mode === 'auto' ? ' (Confident matches are saved as they arrive.)' : ''}`, `${ctl}<button type="button" class="chip-btn" data-bm="hide">Keep working</button><button type="button" class="modal-x" data-bm="close" aria-label="Close">\u2715</button>`)
+    + `<div class="bm-lanes">${bmKinds().map(bmLaneHtml).join('')}</div>${bmToolHtml()}<div class="bm-main">${bmSideHtml()}${bmDetailHtml()}</div>${bmFootHtml()}`;
+  Object.keys(keep).forEach(q => { const e = modal.querySelector(q); if (e) e.scrollTop = keep[q]; });
+  if (bm.scrollDrawer) { bm.scrollDrawer = false; const dr = modal.querySelector('.bm-drawer'); if (dr) dr.scrollIntoView({ block: 'nearest' }); }          // a chooser just opened is shown in full
+}
+function bmStripRender() {
+  const s = bmEl('bmStrip'); if (!s) return; if (!bm || bm.view !== 'run' || !bm.hidden) { s.hidden = true; return; }
+  const lane = (k) => { const l = bm.lanes[k]; if (l.s === 'off') return ''; const total = bm.rels.length, done = bm.rels.filter(r => r.st[k] !== 'wait' && r.st[k] !== 'work').length, stopped = (k === 'youtube' && ytAddon.state === 'stopped' && l.s === 'work') || l.s === 'stopped';
+    return `<div class="bm-sl"><div class="bm-sl-t"><b>${bmName(k)}</b><span class="bm-m">${done} of ${total}${stopped ? ' \u00b7 waiting for you' : l.s === 'done' ? ' \u00b7 done' : ''}</span></div><div class="bm-bar${stopped ? ' warn' : ''}"><i style="width:${total ? Math.round(done / total * 100) : 0}%"></i></div></div>`; };
+  const t = bmPickTotals();
+  s.innerHTML = `<div class="bm-sh"><b>${bm.running ? 'Matching songs' : 'Matching finished'}</b><span class="bm-m">${bm.rels.length} releases${t.n ? ` \u00b7 ${t.n} ticked` : ''}</span></div>${bmKinds().map(lane).join('')}<button type="button" class="chip-btn" data-bm="show-dialog">${bm.running ? 'Open' : 'Review'}</button>`; s.hidden = false;
+}
+function bmSetPick(rel, idx, kind, id) { if (id) rel.pick[kind][idx] = id; else delete rel.pick[kind][idx]; }
+function bmClick(e) {
+  const t = e.target.closest('[data-bm]'); if (!t || !bm) return; const a = t.dataset.bm, relOf = () => bm.rels.find(r => r.row === t.dataset.row);
+  if (['setup', 'tick', 'tick-song', 'tick-col', 'tick-song-all', 'inc', 'show', 'pick'].includes(a)) return;           // those are inputs: handled on 'change'
+  if (a === 'sel') { if (e.target.closest('label,input')) return; bm.sel = t.dataset.row; bm.open = null; bmRender(); }
+  else if (a === 'hide') bmHide(); else if (a === 'close') bmClose(); else if (a === 'cancel') bmClose(true); else if (a === 'start') bmStart();
+  else if (a === 'pause') { bm.paused = true; bmRender(); } else if (a === 'resume') { bm.paused = false; bmRender(); }
+  else if (a === 'stop') { bm.stopped = true; ytAddonCancel(); bmRender(); }
+  else if (a === 'yt-continue') ytAddonContinue(); else if (a === 'lane-resume') bmResumeLane(t.dataset.kind);
+  else if (a === 'filter') { bm.filter = t.dataset.f; bmRender(); }
+  else if (a === 'tick-all') { bm.rels.forEach(r => { if (!r.songs) return; bmShownKinds().forEach(k => bmSetPicks(r, k)); }); bmRender(); bmStripRender(); }
+  else if (a === 'untick-all') { bm.rels.forEach(r => { r.pick = { spotify: {}, youtube: {} }; }); bmRender(); bmStripRender(); }
+  else if (a === 'choose') { const r = relOf(), idx = +t.dataset.idx, k = t.dataset.kind, o = bm.open; bm.open = o && o.row === r.row && o.idx === idx && o.kind === k ? null : { row: r.row, idx, kind: k }; bm.scrollDrawer = !!bm.open; bmRender(); }
+  else if (a === 'apply') bmApply(); else if (a === 'undo') bmUndoLast(); else if (a === 'show-dialog') bmShow();
+  else if (a === 'matcher') { const r = relOf(); if (!r) return; bm.afterMatcher = r.row; bmHide(); openSongMatcher(r.item, { prefetched: { spotify: r.spotify && r.spotify.status === 'done' ? r.spotify : null, youtube: r.youtube && r.youtube.status === 'done' ? r.youtube : null } }); }
+  else if (a === 'yt-song') {
+    const r = relOf(), idx = +t.dataset.idx; if (!r) return;
+    if (!ytUseAddon() && !confirm('Searching YouTube for one song costs 100 of today\u2019s quota units. Go ahead?')) return;
+    t.disabled = true; t.textContent = 'Searching\u2026';
+    smYoutubeSearchSongs(r.item, r.songs, [idx]).then(added => { if (added[idx] && r.youtube) { r.youtube.byIdx[idx] = added[idx]; if (added[idx][0].band === 'confident') r.pick.youtube[idx] = added[idx][0].id; } bmRedraw(); }).catch(err => { flashGlobalToast(ytAddonErrText(err)); bmRedraw(); });
+  }
+}
+function bmChange(e) {
+  const t = e.target.closest('[data-bm]'); if (!t || !bm) return; const a = t.dataset.bm, relOf = () => bm.rels.find(r => r.row === t.dataset.row);
+  if (a === 'setup') {
+    if (t.name === 'bmScope') { bm.scope = t.value; bm.rels = (t.value === 'ticked' ? bm.sets.ticked : bm.sets.view).map(bm.mk); bm.sel = bm.rels[0] ? bm.rels[0].row : ''; }
+    else if (t.name === 'bmMode') bm.mode = t.value; else if (t.id === 'bmYtSongs') bm.ytSongs = t.checked; else if (t.id === 'bmSvcSpotify') bm.svc.spotify = t.checked; else if (t.id === 'bmSvcYoutube') bm.svc.youtube = t.checked;
+    bmRender(); return;
+  }
+  if (a === 'inc') { const r = relOf(); if (r) r.include = t.checked; }
+  else if (a === 'show') { bm.show[t.dataset.kind] = t.checked; if (!bmShownKinds().length) { bm.show[t.dataset.kind] = true; } }
+  else if (a === 'tick') { const r = relOf(), k = t.dataset.kind, idx = +t.dataset.idx, c = bmCell(smHas(r.songs.find(s => s.idx === idx), k), r[k], idx); if (c.cands.length) bmSetPick(r, idx, k, t.checked ? (r.pick[k][idx] || c.top.id) : ''); }
+  else if (a === 'pick') { const r = relOf(); bmSetPick(r, +t.dataset.idx, t.dataset.kind, t.value); }
+  else if (a === 'tick-song') { const r = relOf(), idx = +t.dataset.idx; bmShownKinds().forEach(k => { const c = bmCell(smHas(r.songs.find(s => s.idx === idx), k), r[k], idx); if (c.cands.length) bmSetPick(r, idx, k, t.checked ? (r.pick[k][idx] || c.top.id) : ''); }); }
+  else if (a === 'tick-col') { const r = bm.rels.find(x => x.row === bm.sel), k = t.dataset.kind; if (r && r.songs) r.songs.forEach(s => { const c = bmCell(smHas(s, k), r[k], s.idx); if (c.cands.length) bmSetPick(r, s.idx, k, t.checked ? (r.pick[k][s.idx] || c.top.id) : ''); }); }
+  else if (a === 'tick-song-all') { const r = bm.rels.find(x => x.row === bm.sel); if (r && r.songs) r.songs.forEach(s => bmShownKinds().forEach(k => { const c = bmCell(smHas(s, k), r[k], s.idx); if (c.cands.length) bmSetPick(r, s.idx, k, t.checked ? (r.pick[k][s.idx] || c.top.id) : ''); })); }
+  bmRender(); bmStripRender();
+}
+(function wireBatchMatch() {
+  const ov = bmEl('batchMatchOverlay'), strip = bmEl('bmStrip'); if (!ov) return;
+  ov.addEventListener('click', bmClick); ov.addEventListener('change', bmChange); if (strip) strip.addEventListener('click', bmClick);
+  ov.addEventListener('mousedown', (e) => { if (e.target === ov && bm) { if (bm.view === 'setup') bmClose(true); else bmHide(); } });
+  ov.addEventListener('keydown', (e) => { if (e.key === 'Escape' && bm) { e.preventDefault(); if (bm.view === 'setup') bmClose(true); else bmHide(); } });
+  const mm = bmEl('menuBatchMatch'), mu = bmEl('menuBatchUndo'), sm = bmEl('albumSelMatch'), sc = bmEl('albumSelClear');
+  const open = () => { const sel = bmSelectedItems(); bmOpen({ ticked: sel.length > 1 ? sel : null, view: (state.filtered || []).slice() }); };
+  if (mm) mm.addEventListener('click', open); if (mu) mu.addEventListener('click', bmUndoLast); if (sm) sm.addEventListener('click', open);
+  if (sc) sc.addEventListener('click', () => { state.selectedAlbums.clear(); document.querySelectorAll('.card.selected').forEach(c => c.classList.remove('selected')); updateAlbumSelBar(); });
+})();
+
+
 /* ---------- Match songs ----------
    One dialog for a whole release instead of one song at a time. Spotify is matched ALBUM-first: the edition of the
    album that best explains your tracklist is found (up to four candidate editions are read in full), then songs are
@@ -22659,7 +23088,7 @@ const ytAddonContinue = () => ytAddonSay('yt-continue'), ytAddonCancel = () => y
 window.addEventListener('message', (e) => {
   if (e.source !== window || e.origin !== window.location.origin) return;
   const d = e.data; if (!d || d.source !== 'crate-addon' || typeof d.type !== 'string' || d.type.slice(0, 3) !== 'yt-') return;
-  const redraw = () => { if (typeof smState !== 'undefined' && smState) smRender(); };
+  const redraw = () => { if (typeof smState !== 'undefined' && smState) smRender(); if (typeof bmRedraw === 'function') bmRedraw(); };
   if (d.type === 'yt-script') ytAddonHello();
   else if (d.type === 'yt-ready') { ytAddon.ready = !!d.ok; ytAddon.version = d.version || ''; if (d.state) ytAddon.state = d.state; ytAddon.today = d.today || 0; ytAddon.cap = d.cap || 0; redraw(); }
   else if (d.type === 'yt-accepted') {
@@ -22823,6 +23252,7 @@ function closeSongMatcher(force) {
   const n = smState && smState.touched ? smPickCount() : 0;   // the confident matches are ticked FOR you; only a selection you changed yourself is worth a warning
   if (!force && n > 0 && !confirm(`Discard ${n} unsaved match${n === 1 ? '' : 'es'}?`)) return;
   el.songMatchOverlay.hidden = true; smLoadSeq++; smState = null;
+  if (typeof bmAfterMatcher === 'function') bmAfterMatcher();
 }
 async function smRunSpotify() {
   const st = smState; if (!st) return;
@@ -31120,6 +31550,61 @@ function youtubeSearchUrl(item) {
    drag/seek/queue patterns (initPlayerDrag/initSeekDrag/queue-panel CSS)
    rather than reusing them directly, since this one also owns a video
    area and its own YT.Player instance. */
+// BEGIN yt-segments
+// A full-release video: ONE YouTube video that holds a whole release. A song's link is that video plus where the song starts and ends in it, kept IN the link
+// ("watch?v=ID&t=284&end=546": YouTube itself starts at t= and ignores end=), so it goes wherever the link goes: saved, exported, played, matched.
+function ytParseTime(s) {                                           // "90", "1:30", "1:02:03", "1m30s", "90s" -> whole seconds; NaN when it isn't a time
+  const t = String(s == null ? '' : s).trim().toLowerCase().replace(/\s+/g, ''); if (!t) return NaN;
+  let m = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+(?:\.\d+)?)s?)?$/.exec(t);
+  if (m && (m[1] || m[2] || m[3])) { const v = (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0); return isFinite(v) ? Math.round(v) : NaN; }
+  m = /^(?:(\d{1,2}):)?(\d{1,3}):(\d{1,2})(?:\.\d+)?$/.exec(t); if (!m) return NaN;
+  const h = +m[1] || 0, mi = +m[2], se = +m[3]; if (se > 59 || (m[1] !== undefined && mi > 59)) return NaN;
+  return h * 3600 + mi * 60 + se;
+}
+function ytFormatTime(sec) {                                        // 284 -> "4:44", 3723 -> "1:02:03"
+  sec = Math.max(0, Math.round(Number(sec) || 0)); const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), x = sec % 60, two = (n) => String(n).padStart(2, '0');
+  return h ? h + ':' + two(m) + ':' + two(x) : m + ':' + two(x);
+}
+function youtubeSegmentFromUrl(url) {                               // { start, end } in seconds, 0 where the link says nothing
+  const out = { start: 0, end: 0 }; let u; try { u = new URL(String(url || '')); } catch (e) { return out; }
+  const q = u.searchParams, frag = /^#t=(.+)$/.exec(u.hash || '');
+  const s = ytParseTime(q.get('t') || q.get('start') || (frag ? frag[1] : '')), e = ytParseTime(q.get('end') || '');
+  if (s > 0) out.start = s; if (e > 0 && e > out.start) out.end = e; return out;
+}
+function youtubeLinkWithSegment(url, start, end) {                  // the video's plain link with where the song starts (and ends); '' when there is no video in it
+  const id = youtubeVideoIdFromUrl(url); if (!id) return '';
+  const s = Math.max(0, Math.round(Number(start) || 0)), e = Math.max(0, Math.round(Number(end) || 0));
+  return 'https://www.youtube.com/watch?v=' + id + (s > 0 ? '&t=' + s : '') + (e > s ? '&end=' + e : '');
+}
+const ytSegOf = (url) => { const g = youtubeSegmentFromUrl(url); return g.start || g.end ? g : {}; };          // what a queue entry carries: nothing for an ordinary link
+function ytParseTimestampList(text) {                               // a video description's "0:00 Song" lines -> [{ start, end, title }]
+  const out = [], TIME = /(?:\d{1,2}:)?\d{1,3}:\d{2}(?!\d)/g;
+  String(text || '').split(/\r?\n/).forEach(line => {
+    const times = line.match(TIME); if (!times) return;
+    const start = ytParseTime(times[0]); if (isNaN(start)) return;
+    let end = 0;
+    if (times.length >= 2) { const i1 = line.indexOf(times[0]), i2 = line.indexOf(times[1], i1 + times[0].length); if (/^\s*[-\u2013\u2014>]+\s*$/.test(line.slice(i1 + times[0].length, i2))) { const e = ytParseTime(times[1]); if (e > start) end = e; } }
+    let title = line;
+    [times[0]].concat(end ? [times[1]] : []).forEach(tm => { const esc = tm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); title = title.replace(new RegExp('[\\[\\(]\\s*' + esc + '\\s*[\\]\\)]'), ' ').replace(tm, ' '); });
+    title = title.replace(/\s+/g, ' ').replace(/^[\s\-\u2013\u2014|:.>\u2022*]+/, '').replace(/[\s\-\u2013\u2014|:.>\u2022*]+$/, '').replace(/^(?:#\d{1,3}|\d{1,3}\s*[.)\-\u2013\u2014:])\s*/, '').trim();
+    out.push({ start, end, title });
+  });
+  return out;
+}
+function ytAssignTimestamps(titles, parsed) {                       // each song's { start, end } or null: by order when there are as many lines as songs, else by title
+  if (parsed.length === titles.length) return parsed.map(p => ({ start: p.start, end: p.end }));
+  const norm = (x) => String(x || '').toLowerCase().replace(/\([^)]*\)|\[[^\]]*\]/g, ' ').replace(/[^\p{L}\p{N}]+/gu, ' ').trim(), used = new Set();
+  return titles.map(t => {
+    const n = norm(t); if (!n) return null; let hit = -1;
+    parsed.forEach((q, i) => { if (hit < 0 && !used.has(i) && norm(q.title) === n) hit = i; });
+    if (hit < 0) parsed.forEach((q, i) => { const pn = norm(q.title); if (hit < 0 && !used.has(i) && pn.length >= 3 && (pn.includes(n) || n.includes(pn))) hit = i; });
+    if (hit < 0) return null; used.add(hit); return { start: parsed[hit].start, end: parsed[hit].end };
+  });
+}
+function ytFillEnds(starts, total) {                                // starts in song order (seconds, or NaN) -> each song's end: where the next song that starts later begins; the last one ends at the video's end when that is known
+  return starts.map((s, i) => { if (!(s >= 0)) return NaN; for (let j = i + 1; j < starts.length; j++) if (starts[j] > s) return starts[j]; return total > s ? total : NaN; });
+}
+// END yt-segments
 function youtubeVideoIdFromUrl(url) {
   if (!url) return '';
   const patterns = [
@@ -31148,6 +31633,7 @@ let ytApiPromise = null;         // resolves once https://www.youtube.com/iframe
 let ytPlayerReadyPromise = null; // resolves once ytPlayer itself fires onReady
 let ytIsPaused = false;
 let ytDuration = 0;
+let ytSeg = { start: 0, end: 0, fired: true, loadedAt: 0 };          // the part of the video the current track is (a full-release video holds many tracks); fired: its end has been handled
 let ytLastKnownVolume = 80;      // remembered across sessions, shown on the master player's shared volume slider whenever activePlayerEngine is 'youtube'
 
 function loadYouTubeIframeApi() {
@@ -31193,6 +31679,7 @@ function ensureYtPlayer() {
 
 function onYtPlayerStateChange(e) {
   if (e.data === YT.PlayerState.ENDED) {
+    ytSeg.fired = true;
     ytScrobbleFlush(); // it ended: counts if it was played for half its length or 4 minutes (Last.fm's rule), before anything below moves on to another track
     if (ytQueueIndex < ytQueue.length - 1) { playYtQueueIndex(ytQueueIndex + 1); return; }
     setYtPlayPauseUI(true);
@@ -31245,17 +31732,131 @@ function openYoutubePlayer(url, trackName, tracks, item) {
 
   const ytTracks = (tracks || currentTracklistTracks || []).filter(t => t.youtubeLink && youtubeVideoIdFromUrl(t.youtubeLink));
   if (ytTracks.length) {
-    ytQueue = ytTracks.map(t => ({ videoId: youtubeVideoIdFromUrl(t.youtubeLink), trackName: t.trackName || 'Untitled track' }));
-    const idx = ytQueue.findIndex(q => q.videoId === videoId);
+    ytQueue = ytTracks.map(t => Object.assign({ videoId: youtubeVideoIdFromUrl(t.youtubeLink), trackName: t.trackName || 'Untitled track' }, ytSegOf(t.youtubeLink)));
+    const seg = youtubeSegmentFromUrl(url);          // (in a full-release video every song has the same video: the clicked one is told apart by where it starts)
+    let idx = ytQueue.findIndex(q => q.videoId === videoId && (q.start || 0) === seg.start && (q.end || 0) === seg.end);
+    if (idx === -1) idx = ytQueue.findIndex(q => q.videoId === videoId);
     ytQueueIndex = idx === -1 ? 0 : idx;
   } else {
-    ytQueue = [{ videoId, trackName: trackName || 'Now playing' }];
+    ytQueue = [Object.assign({ videoId, trackName: trackName || 'Now playing' }, ytSegOf(url))];
     ytQueueIndex = 0;
   }
 
   if (state.shuffle && ytQueue.length > 1) { ensureOrigSeq(ytQueue); shuffleTail(ytQueue, ytQueueIndex); } // the clicked track plays first; the rest of the album is shuffled
   playYtQueueIndex(ytQueueIndex);
 }
+
+// ---- Full-release video: one YouTube video that is the whole release. Say where each song starts and ends in it. ----
+let fv = null;                                                      // { item, rows: [{ n, title, start, end }] } while the dialog is open (start/end are what is typed)
+const fvEl = (id) => document.getElementById(id);
+async function fvOpen(item, hintUrl) {
+  if (!item) return;
+  let tracks = []; try { tracks = (await getTracksFor(item)) || []; } catch (e) { /* none */ }
+  tracks = tracks.filter(t => t && t.trackNumber);
+  if (!tracks.length) { flashGlobalToast('This release has no tracklist yet: add one first (Edit details, or Match songs).'); return; }
+  try { mergeTrackLinkOverrides(item, tracks); } catch (e) { /* as they are */ }
+  const counts = {}; tracks.forEach(t => { const id = youtubeVideoIdFromUrl(t.youtubeLink); if (id) counts[id] = (counts[id] || 0) + 1; });
+  const common = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0], shared = common && counts[common] >= 2 ? common : '';          // two songs on one video: that is the full-release video already
+  const hint = youtubeVideoIdFromUrl(hintUrl);
+  const id = hint || shared, url = id ? 'https://www.youtube.com/watch?v=' + id : '';
+  fv = { item, rows: tracks.map(t => { const same = id && youtubeVideoIdFromUrl(t.youtubeLink) === id, g = same ? youtubeSegmentFromUrl(t.youtubeLink) : { start: 0, end: 0 }; return { n: t.trackNumber, title: t.trackName || '', start: same ? ytFormatTime(g.start) : '', end: g.end ? ytFormatTime(g.end) : '' }; }) };
+  fvEl('fullVideoSub').textContent = `${item.artist} \u2014 ${item.title}`; fvEl('fullVideoUrl').value = url; fvEl('fullVideoPasteBox').hidden = true; fvEl('fullVideoPasteText').value = ''; fvEl('fullVideoPasteMsg').textContent = '';
+  fvRender(); fvEl('fullVideoOverlay').hidden = false;
+  (url ? document.querySelector('#fullVideoList [data-fv="start"]') : fvEl('fullVideoUrl')).focus();
+}
+function fvClose() { fvEl('fullVideoOverlay').hidden = true; fv = null; }
+function fvRender() {
+  if (!fv) return;
+  const field = (which, v, n) => `<span class="fv-time"><input type="text" data-fv="${which}" value="${escapeHtml(v)}" placeholder="${which === 'start' ? '0:00' : 'm:ss'}" aria-label="${which === 'start' ? 'Starts' : 'Ends'}, song ${n}" autocomplete="off"><button type="button" class="chip-btn" data-fv-now="${which}" title="Use the time the video is at now" aria-label="Use the video's time now">⏱</button></span>`;
+  fvEl('fullVideoList').innerHTML = '<div class="fv-row fv-head"><span>#</span><span>Song</span><span>Starts</span><span>Ends</span><span></span></div>' +
+    fv.rows.map((r, i) => `<div class="fv-row" data-i="${i}"><span class="sm-num">${escapeHtml(String(r.n))}</span><span class="sm-title">${escapeHtml(r.title)}</span>${field('start', r.start, r.n)}${field('end', r.end, r.n)}<button type="button" class="chip-btn" data-fv-play title="Play this part" aria-label="Play this part">▶</button></div>`).join('');
+  fvValidate();
+}
+function fvValidate() {                                             // reads what is typed, marks what is wrong, says what is there, and decides whether it can be saved
+  if (!fv) return { ok: false, rows: [] };
+  const url = fvEl('fullVideoUrl').value.trim(), id = youtubeVideoIdFromUrl(url); let bad = 0, has = 0, warn = 0, prev = -1; const rows = [];
+  fv.rows.forEach((r, i) => {
+    const node = document.querySelector(`#fullVideoList .fv-row[data-i="${i}"]`); if (!node) return;
+    const sIn = node.querySelector('[data-fv="start"]'), eIn = node.querySelector('[data-fv="end"]'); r.start = sIn.value; r.end = eIn.value;
+    const s = r.start.trim() ? ytParseTime(r.start) : null, e = r.end.trim() ? ytParseTime(r.end) : null;
+    const sBad = s !== null && isNaN(s), eBad = e !== null && (isNaN(e) || (s !== null && !isNaN(s) && e <= s));
+    sIn.classList.toggle('bad', sBad); eIn.classList.toggle('bad', eBad); if (sBad || eBad) bad++;
+    const sv = s !== null && !isNaN(s) ? s : null, ev = e !== null && !isNaN(e) ? e : null; if (sv !== null || ev !== null) has++;
+    if (sv !== null) { if (sv < prev) warn++; prev = Math.max(prev, sv); }
+    rows.push({ n: r.n, start: sv || 0, end: ev || 0, has: sv !== null || ev !== null });
+  });
+  const ok = !!id && !bad && has > 0;
+  fvEl('fullVideoStatus').textContent = !id ? 'Paste the full-release video\u2019s link above.' : bad ? `${bad} time${bad === 1 ? '' : 's'} to fix (in red).` : `${has} of ${fv.rows.length} songs have times.` + (warn ? ` ${warn} start${warn === 1 ? 's' : ''} earlier than a song before ${warn === 1 ? 'it' : 'them'}.` : '');
+  fvEl('fullVideoSave').disabled = !ok;
+  return { ok, url, id, rows };
+}
+function fvCurrentTime(id) {                                        // where the video is now, when CRATE's player has THIS video; else null
+  if (activePlayerEngine !== 'youtube' || !ytPlayer || !ytPlayer.getCurrentTime) return null;
+  const q = ytQueue[ytQueueIndex]; if (!q || q.videoId !== id) return null;
+  try { return Math.round(ytPlayer.getCurrentTime() || 0); } catch (e) { return null; }
+}
+function fvNow(which, i) {
+  const v = fvValidate(), id = youtubeVideoIdFromUrl(fvEl('fullVideoUrl').value.trim());
+  if (!id) { flashGlobalToast('Paste the full-release video\u2019s link first.'); return; }
+  const t = fvCurrentTime(id); if (t === null) { flashGlobalToast('Play the video with \u201c\u25b6 Play it here\u201d first, then press \u23f1 as a song begins.'); return; }
+  const rowEl = (k) => document.querySelector(`#fullVideoList .fv-row[data-i="${k}"]`);
+  rowEl(i).querySelector(`[data-fv="${which}"]`).value = ytFormatTime(t);
+  if (which === 'start' && i > 0) { const prevEnd = rowEl(i - 1).querySelector('[data-fv="end"]'); if (!prevEnd.value.trim()) prevEnd.value = ytFormatTime(t); }          // where one song starts the one before it ends
+  fvValidate();
+}
+function fvPlayPart(i) {
+  const v = fvValidate(); if (!v.id) { flashGlobalToast('Paste the full-release video\u2019s link first.'); return; }
+  const r = v.rows[i], link = youtubeLinkWithSegment(v.url, r && r.start, r && r.end);
+  openYoutubePlayer(link, fv.rows[i].title, [], fv.item);          // (just this part: an empty list so the rest of the album is not queued after it)
+}
+function fvApplyPaste() {
+  if (!fv) return; fvValidate();
+  const parsed = ytParseTimestampList(fvEl('fullVideoPasteText').value), msg = fvEl('fullVideoPasteMsg');
+  if (!parsed.length) { msg.textContent = 'No times found. Each line needs one, like 0:00 Song.'; return; }
+  const got = ytAssignTimestamps(fv.rows.map(r => r.title), parsed); let k = 0;
+  fv.rows.forEach((r, i) => { const g = got[i]; if (!g) return; r.start = ytFormatTime(g.start); r.end = g.end ? ytFormatTime(g.end) : ''; k++; });
+  const ends = ytFillEnds(fv.rows.map(r => r.start.trim() ? ytParseTime(r.start) : NaN), 0);
+  fv.rows.forEach((r, i) => { if (!r.end && !isNaN(ends[i])) r.end = ytFormatTime(ends[i]); });
+  msg.textContent = `Matched ${k} of ${fv.rows.length} songs` + (parsed.length !== fv.rows.length ? ` (the description has ${parsed.length} lines)` : '') + '.';
+  fvRender();
+}
+function fvEndsFromNext() {
+  if (!fv) return; fvValidate();
+  const id = youtubeVideoIdFromUrl(fvEl('fullVideoUrl').value.trim()); let total = 0;
+  if (id && ytQueue[ytQueueIndex] && ytQueue[ytQueueIndex].videoId === id && ytPlayer && ytPlayer.getDuration) { try { total = Math.round(ytPlayer.getDuration() || 0); } catch (e) { total = 0; } }          // the last song ends where the video does, when the player knows
+  const ends = ytFillEnds(fv.rows.map(r => r.start.trim() ? ytParseTime(r.start) : NaN), total);
+  fv.rows.forEach((r, i) => { if (r.start.trim() && !isNaN(ends[i])) r.end = ytFormatTime(ends[i]); });
+  fvRender();
+}
+async function fvSave() {
+  const v = fvValidate(); if (!v.ok || !fv) return;
+  const item = fv.item; item.trackData = item.trackData || {}; let n = 0;
+  v.rows.forEach(r => { if (!r.has) return; const td = item.trackData[r.n] || (item.trackData[r.n] = {}); td.youtubeLink = youtubeLinkWithSegment(v.url, r.start, r.end); n++; });          // (a song with no times is left as it was)
+  try { await postUpdate({ row: item.row, trackData: JSON.stringify(item.trackData) }); }
+  catch (err) { flashGlobalToast('Couldn\u2019t save \u2014 try again.'); return; }
+  if (currentTracklistTracks.length) mergeTrackLinkOverrides(item, currentTracklistTracks);
+  const cached = state.trackCache[artKey(item)]; if (cached && cached !== currentTracklistTracks) mergeTrackLinkOverrides(item, cached);
+  if (activeItem === item) renderTracklistBody(item, currentTracklistTracks);
+  flashGlobalToast(`Saved where ${n} song${n === 1 ? '' : 's'} start${n === 1 ? 's' : ''} and end${n === 1 ? 's' : ''} in the video.`); fvClose();
+}
+fvEl('deckFullVideoBtn').addEventListener('click', () => { if (activeItem) fvOpen(activeItem); });
+fvEl('fullVideoClose').addEventListener('click', fvClose); fvEl('fullVideoCancel').addEventListener('click', fvClose);
+fvEl('fullVideoOverlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) fvClose(); });
+fvEl('fullVideoOverlay').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); fvClose(); } });
+fvEl('fullVideoSave').addEventListener('click', fvSave);
+fvEl('fullVideoUrl').addEventListener('input', fvValidate);
+fvEl('fullVideoOpenPlayer').addEventListener('click', () => { const u = fvEl('fullVideoUrl').value.trim(); if (!youtubeVideoIdFromUrl(u)) { flashGlobalToast('Paste the full-release video\u2019s link first.'); return; } openYoutubePlayer(youtubeLinkWithSegment(u, 0, 0), fv ? `${fv.item.artist} \u2014 ${fv.item.title}` : 'Full-release video', [], fv && fv.item); });
+fvEl('fullVideoSearch').addEventListener('click', () => { if (fv) window.open('https://www.youtube.com/results?search_query=' + encodeURIComponent(`${fv.item.artist} ${fv.item.title} full album`), '_blank', 'noopener'); });
+fvEl('fullVideoPasteBtn').addEventListener('click', () => { const b = fvEl('fullVideoPasteBox'); b.hidden = !b.hidden; if (!b.hidden) fvEl('fullVideoPasteText').focus(); });
+fvEl('fullVideoPasteApply').addEventListener('click', fvApplyPaste);
+fvEl('fullVideoEnds').addEventListener('click', fvEndsFromNext);
+fvEl('fullVideoClear').addEventListener('click', () => { if (!fv) return; fv.rows.forEach(r => { r.start = ''; r.end = ''; }); fvRender(); });
+fvEl('fullVideoList').addEventListener('input', fvValidate);
+fvEl('fullVideoList').addEventListener('click', (e) => {
+  const row = e.target.closest('.fv-row[data-i]'); if (!row) return; const i = +row.dataset.i;
+  const now = e.target.closest('[data-fv-now]'); if (now) { fvNow(now.dataset.fvNow, i); return; }
+  if (e.target.closest('[data-fv-play]')) fvPlayPart(i);
+});
 
 // Shows/positions the master player the same way showMiniPlayer/
 // renderMiniPlayerTrack do for Spotify — same detach/drag prefs
@@ -31279,7 +31880,8 @@ function playYtQueueIndex(i) {
   ytScrobbleBegin(q);            // a fresh record for this play (also when it is the same track again)
 
   ytDuration = 0;
-  ensureYtPlayer().then(player => { player.loadVideoById(q.videoId); player.playVideo(); });
+  ytSeg = { start: q.start || 0, end: q.end || 0, fired: false, loadedAt: Date.now() };
+  ensureYtPlayer().then(player => { player.loadVideoById(q.start || q.end ? Object.assign({ videoId: q.videoId, startSeconds: q.start || 0 }, q.end ? { endSeconds: q.end } : {}) : q.videoId); player.playVideo(); });          // (a track inside a full-release video starts and stops at its own times)
   setYtPlayPauseUI(false);
 }
 
@@ -31873,12 +32475,12 @@ function ytScrobbleEligible(durationSec, elapsedSec) {
 function ytScrobbleUsable(r) { return !!(r && r.artist && !YT_SCROBBLE_NO_NAME.includes(String(r.track || '').trim().toLowerCase()) && loadLastfmScrobbleSession().sessionKey); }
 function ytScrobbleBegin(q) {                                    // a track is starting
   const it = nowPlayingItem;
-  ytScrobble = { videoId: q.videoId, artist: (it && it.artist) || '', track: String(q.trackName || '').trim(), album: it ? it.title : '', startedAt: 0, playedMs: 0, resumedAt: 0, duration: 0, sent: false, tries: 0, timer: 0 };
+  ytScrobble = { start: q.start || 0, end: q.end || 0, videoId: q.videoId, artist: (it && it.artist) || '', track: String(q.trackName || '').trim(), album: it ? it.title : '', startedAt: 0, playedMs: 0, resumedAt: 0, duration: 0, sent: false, tries: 0, timer: 0 };
 }
 function ytScrobblePlayedMs(r) { return r.playedMs + (r.resumedAt ? Date.now() - r.resumedAt : 0); }
 function ytScrobbleResume() {                                    // the player says PLAYING (start, resume after a pause, after a seek)
   const r = ytScrobble; if (!r || r.sent) return;
-  try { r.duration = (ytPlayer && ytPlayer.getDuration && ytPlayer.getDuration()) || r.duration; } catch (e) { /* keep what we had */ }
+  try { const d = (ytPlayer && ytPlayer.getDuration && ytPlayer.getDuration()) || 0; r.duration = (r.start || r.end) ? (Math.max(0, (r.end || d) - r.start) || r.duration) : (d || r.duration); } catch (e) { /* keep what we had */ }          // a track in a full-release video is as long as its part, not the whole video
   if (!r.startedAt) { r.startedAt = Date.now(); ytScrobbleNowPlaying(r); }
   if (!r.resumedAt) r.resumedAt = Date.now();
   ytScrobbleSchedule(r);
@@ -35558,6 +36160,84 @@ html, body {
     .cx-thumb { width: 44px; height: 44px; }
     .cx-grid { grid-template-columns: repeat(auto-fill, minmax(98px, 1fr)); gap: 8px; }
   }
+  /* ---- Match songs for many releases ---- */
+  .arrange-modal.bm-modal { max-width: none; width: min(1380px, 97vw); height: min(calc(100vh - 120px), 960px); min-height: 420px; display: flex; flex-direction: column; overflow: hidden; }
+  .bm-hbtns { display: flex; align-items: center; gap: 8px; flex: none; }
+  .bm-m { font: 12px/1.4 'IBM Plex Mono', monospace; color: var(--text-dim); }
+  .bm-dim { color: var(--text-dim); font-size: 13px; }
+  .bm-warn { color: #E5734A; font-size: 13px; }
+  .bm-label { font: 500 11px/1 'IBM Plex Mono', monospace; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
+  .bm-chip { flex: none; font: 500 11px/1 'IBM Plex Mono', monospace; letter-spacing: 0.04em; border: 1px solid currentColor; border-radius: 10px; padding: 4px 8px; white-space: nowrap; }
+  .bm-chip.bm-ok { color: #62C4C0; } .bm-chip.bm-work { color: var(--accent); } .bm-chip.bm-look { color: #E5734A; } .bm-chip.bm-wait, .bm-chip.bm-have { color: var(--text-dim); }
+  .bm-setup { flex: 1; min-height: 0; overflow-y: auto; padding: 22px 28px; display: flex; flex-direction: column; gap: 24px; }
+  .bm-setup section { display: flex; flex-direction: column; gap: 10px; }
+  .bm-opts { display: flex; flex-direction: column; gap: 8px; }
+  .bm-opt { display: flex; align-items: center; gap: 12px; min-height: 44px; box-sizing: border-box; padding: 8px 14px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+  .bm-opt.on { border-color: var(--accent); background: var(--bg-card); }
+  .bm-opt input { width: 16px; height: 16px; margin: 0; flex: none; accent-color: var(--accent); }
+  .bm-opt-t { flex: 1; min-width: 0; font-size: 14px; color: var(--text); } .bm-opt-t small { display: block; margin-top: 3px; font-size: 12px; color: var(--text-dim); }
+  .bm-svcs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .bm-svc { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+  .bm-svc.on { border-color: var(--accent); background: var(--bg-card); }
+  .bm-svc-h { display: flex; align-items: center; gap: 10px; font-size: 16px; } .bm-svc-h input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+  .bm-svc-line { font-size: 13px; color: var(--text); } .bm-sub { font-size: 13px; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .bm-foot { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 28px; border-top: 1px solid var(--line); }
+  .bm-lanes { flex: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 10px 28px; }
+  .bm-lane { display: flex; flex-direction: column; gap: 6px; padding: 9px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-card); }
+  .bm-lane-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; } .bm-lane-meta { display: flex; justify-content: space-between; gap: 10px; }
+  .bm-lane-msg { font-size: 13px; color: #E5734A; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .bm-bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; } .bm-bar i { display: block; height: 100%; background: var(--accent); } .bm-bar.warn i { background: #E5734A; }
+  .bm-tool { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 28px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .bm-fchips, .bm-tool-r { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .bm-fchip { background: transparent; color: var(--text); border: 1px solid var(--line); border-radius: 18px; height: 34px; padding: 0 14px; font-size: 13px; cursor: pointer; }
+  .bm-fchip.on { background: var(--accent); color: #14181D; border-color: var(--accent); }
+  .bm-show { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text); cursor: pointer; } .bm-show input { accent-color: var(--accent); }
+  .bm-main { flex: 1; min-height: 0; display: flex; }
+  .bm-side { width: 310px; flex: none; display: flex; flex-direction: column; border-right: 1px solid var(--line); min-height: 0; }
+  .bm-side-h { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px; }
+  .bm-side-list { flex: 1; min-height: 0; overflow-y: auto; padding: 0 6px 8px; display: flex; flex-direction: column; gap: 2px; }
+  .bm-rel { display: flex; align-items: center; gap: 4px; min-height: 60px; box-sizing: border-box; padding: 4px 8px 4px 0; border: 1px solid transparent; border-radius: 8px; cursor: pointer; }
+  .bm-rel.on { border-color: var(--accent); background: var(--bg-card); }
+  .bm-tick { display: flex; align-items: center; justify-content: center; width: 40px; height: 44px; flex: none; cursor: pointer; } .bm-tick input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+  .bm-tile { width: 32px; height: 32px; flex: none; border-radius: 6px; background: var(--bg-card); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font: 500 12px/1 'IBM Plex Mono', monospace; color: var(--text-dim); }
+  .bm-tile.bm-big { width: 52px; height: 52px; font-size: 20px; }
+  .bm-rel-t { display: flex; flex-direction: column; min-width: 0; flex: 1; margin-left: 8px; } .bm-rel-t b { font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bm-minis { display: flex; gap: 10px; margin-top: 4px; } .bm-mini { font: 500 11px/1 'IBM Plex Mono', monospace; color: var(--text-dim); } .bm-mini.bm-ok { color: #62C4C0; } .bm-mini.bm-look { color: #E5734A; } .bm-mini.bm-work { color: var(--accent); }
+  .bm-detail { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+  .bm-rel-head { flex: none; display: flex; align-items: center; gap: 14px; padding: 10px 20px; } .bm-rt { font-size: 19px; font-weight: 600; color: var(--text); } .bm-right { margin-left: auto; }
+  .bm-panels { flex: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; padding: 0 20px 10px; }
+  .bm-panel { display: flex; flex-direction: column; gap: 4px; padding: 9px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-card); } .bm-panel-t { font-size: 15px; font-weight: 600; color: var(--text); }
+  .bm-row { display: grid; gap: 12px; align-items: center; min-height: 56px; padding: 0 20px 0 8px; }
+  .bm-row.bm-c2 { grid-template-columns: 44px 32px minmax(0, 1.1fr) minmax(0, 1.5fr) minmax(0, 1.5fr); } .bm-row.bm-c1 { grid-template-columns: 44px 32px minmax(0, 1.1fr) minmax(0, 2.4fr); }
+  .bm-th { min-height: 44px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg-card); z-index: 1; }
+  .bm-colh { display: flex; align-items: center; gap: 4px; }
+  .bm-songs { flex: 1; min-height: 0; overflow-y: auto; } .bm-song { border-bottom: 1px solid var(--line); } .bm-pad { padding: 16px 20px; }
+  .bm-cell { display: flex; align-items: center; gap: 4px; min-width: 0; } .bm-ts { width: 40px; flex: none; }
+  .bm-ct { flex: 1; min-width: 0; } .bm-t { font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bm-drawer { margin: 0 20px 12px 52px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-card); display: flex; flex-direction: column; gap: 6px; }
+  .bm-strip { position: fixed; left: 50%; bottom: 100px; transform: translateX(-50%); z-index: 9000; display: flex; align-items: center; gap: 22px; padding: 10px 16px; background: var(--bg-card); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,0.4); min-width: min(720px, 92vw); }
+  .bm-sh { display: flex; flex-direction: column; } .bm-sl { flex: 1; min-width: 120px; } .bm-sl-t { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--text); margin-bottom: 5px; }
+  .album-selbar { position: fixed; left: 50%; bottom: 100px; transform: translateX(-50%); z-index: 50; display: flex; align-items: center; gap: 14px; padding: 8px 14px; background: var(--bg-card); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,0.4); font-size: 14px; color: var(--text); }
+  /* ---- Full-release video: where each song starts and ends inside one YouTube video ---- */
+  #fullVideoOverlay { bottom: 118px; }          /* the mini-player stays usable underneath: play the video there and press the clock beside a song as it begins */
+  .arrange-modal.fv-modal { max-width: 860px; width: min(96vw, 860px); overflow: hidden; height: min(calc(100vh - 190px), 780px); min-height: 340px; display: flex; flex-direction: column; }
+  .fv-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .fv-url { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; flex: 0 0 auto; }
+  .fv-url input { flex: 1 1 320px; min-width: 0; box-sizing: border-box; background: var(--bg-card); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 7px 9px; font: 12px 'IBM Plex Mono', monospace; }
+  .fv-note { font-size: 12px; color: var(--text-dim); margin: 8px 0 0; }
+  .fv-tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0; flex: 0 0 auto; }
+  .fv-tools .fv-note { margin: 0 0 0 4px; }
+  .fv-paste { flex: 0 0 auto; margin: 4px 0 8px; }
+  .fv-paste textarea { width: 100%; box-sizing: border-box; background: var(--bg-card); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 8px; font: 12px 'IBM Plex Mono', monospace; resize: vertical; }
+  .fv-paste-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+  .fv-list { flex: 1; min-height: 0; overflow-y: auto; border-top: 1px solid var(--line); }
+  .fv-row { display: grid; grid-template-columns: 28px minmax(120px, 1fr) 150px 150px 34px; gap: 6px 10px; align-items: center; padding: 7px 4px; border-bottom: 1px solid var(--line); }
+  .fv-head { font: 11px 'IBM Plex Mono', monospace; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; position: sticky; top: 0; background: var(--bg-card); z-index: 1; }
+  .fv-time { display: flex; gap: 4px; align-items: center; }
+  .fv-time input { width: 78px; box-sizing: border-box; background: var(--bg-card); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 5px 6px; font: 12px 'IBM Plex Mono', monospace; }
+  .fv-time input.bad { border-color: #E5734A; }
+  .fv-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 10px; flex: 0 0 auto; }
+  .fv-footer .fv-note { margin: 0; }
   /* ---- Match songs (see the "Match songs" block in the script) ---- */
   .link-flag[role="button"] { cursor: pointer; }
   .link-flag[role="button"]:hover { filter: brightness(1.15); }
