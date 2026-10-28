@@ -19,7 +19,28 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.53.0
+  CURRENT_VERSION: 1.54.0
+
+  1.54.0 — 2026-10-28 — "Labels" in the browser menu on the left: browse and filter by record label. No add-on and no backend change.
+
+          WHERE: the left browser's menu (the one that says Albums, Artists, Genres, Descriptors) has a new entry, Labels. It lists every record label among the releases shown, with how many releases each has, and "All Labels" at the top. Click a label to show only its releases (click it again to clear it); the heading above the list says "Label: Sub Pop"; double-click a label to play everything under it, as a genre does.
+            Name A–Z and Highest Count work as in the other modes. The list follows the search box (only the labels of the releases that match) and, beside an open playlist, lists that playlist's labels, and picking one narrows the playlist.
+          HOW LABELS ARE GROUPED: spelling doesn't make a second label: capitals, accents, punctuation and spacing are ignored ("Café Records", "Cafe records" and "Cafe Records." are one), and the commonest spelling is shown (on a tie, the one with more capitals). A release whose label field names two labels, written "Sub Pop / Rough Trade" or "Sire; Warner Bros.", is counted under each. Only " / " and ";" separate labels: a comma, an ampersand or a slash inside a
+            name ("Sub Pop, Inc.", "Bella Union & Co", "AC/DC Records") are part of it. Releases with no label are together under "(No label)", which is also the way to find the releases still missing one. Different names stay different: "Sub Pop" and "Sub Pop Records" are two entries.
+          NOT BUILT: a right-click menu on a label, a picture for each label, and "Group by label" for the Albums list. The existing search term label:name and the Filter dialog's label box still work as before, and match part of a name.
+          VERIFIED: the grouping rules in 10 unit checks (spelling, separators, no-label, counts, which spelling is shown); the feature in 16 browser checks (the menu entry and its position, the list with counts, merged spellings, a release on two labels found under both, "(No label)", the click, the click again, the heading, sorting, the search box, switching modes and back, double-click to play, an HTML-looking name shown as text, a playlist's own labels and narrowing it). Breaking the splitting, the spelling merge or the no-label entry each fails a test.
+            NOT VERIFIED: against your own labels. If your label field holds several labels in a form other than " / " or ";" (a comma list, say), they will show as one long entry: tell me the form and I'll add it.
+
+
+  1.53.1 — 2026-10-28 — Fix: "Apply N ticked" in the Update from Rate Your Music queue now applies every ticked release from one press, shows its progress, tries a failed save again, and says plainly which releases couldn't be saved. No add-on and no backend change.
+
+          WHAT YOU SAW: pressing "Apply 16 ticked" seemed to update only the first release, and you had to keep pressing it. I COULD NOT REPRODUCE the first part exactly: with a test sheet that answers instantly, one press applied all sixteen. What the code did have, and what fits what you describe on a real sheet where each save takes a second or two: the apply was one long silent loop (nothing on screen changed until
+            all sixteen were done, so it looked as though only the first had worked), the button stayed live (so each extra press started ANOTHER overlapping run over the same releases), a save that failed once (a busy sheet, a dropped connection) was given up on at once, and a release that failed to save showed nothing on its row (the note was only visible if you opened the row), so you couldn't tell which ones to press again for.
+          WHAT CHANGED: (1) while it works the button says "Applying 3 of 16…" and is switched off, and the release being saved says "Applying…" on its row; a second press can't start a second run; (2) a save that fails is tried again, up to three times with a short wait, before it is given up on; (3) a release that still can't be saved does not stop the others: it stays ticked, its row says "Not saved: press Apply to try again" (no need to open it),
+            and the message at the end says how many couldn't be saved; pressing Apply again then takes only those; (4) a release that is no longer in your crate is said to be so and skipped. What happens to the ones that do save is unchanged.
+          VERIFIED: in the browser with the sheet faked as slow (a quarter of a second a save), as refusing every release's first save, and as refusing two releases for good, plus a release removed from the crate: one press applies all sixteen with exactly sixteen saves; the progress and the switched-off button; extra presses start nothing; retries save everything from one press; two permanent failures leave fourteen applied and two ticked and labelled, and a later press saves just those two;
+            the old version (1.53.0) fails five of these checks and removing each part of the fix fails a test. NOT VERIFIED: against your real sheet. If a release still says "Not saved" after three tries, the sheet is refusing it for a reason I can't see from here: tell me what the row says and roughly how many were affected.
+
 
   1.53.0 — 2026-10-28 — Match songs for many releases: select several releases, have their songs matched on Spotify and YouTube at the same time, and choose exactly which matches are kept. No add-on and no backend change.
 
@@ -7002,6 +7023,7 @@
               <button type="button" data-mode="artist">Artists</button>
               <button type="button" data-mode="genre">Genres</button>
               <button type="button" data-mode="descriptor">Descriptors</button>
+              <button type="button" data-mode="label">Labels</button>
 
               <div class="menu-divider"></div>
               <div class="menu-section-title">Sort by</div>
@@ -8781,7 +8803,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.53.0';
+const APP_VERSION = '1.54.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -12964,6 +12986,11 @@ function buildLeftRow(entry, mode) {
     row.addEventListener('contextmenu', (e) => { e.preventDefault(); openArtistRowContextMenu(entry.label, e.clientX, e.clientY); });
     attachLongPress(row, (x, y) => openArtistRowContextMenu(entry.label, x, y));
   }
+  if (mode === 'label') {
+    row.addEventListener('dblclick', () => {          // the first click selected it and the second cleared it: select it again, then play what is shown
+      state.navFilter = { mode, value: entry.key }; exitPlaylistView(); buildLeftList(); updateMainLabel(); applyFiltersSort(); playFilteredReleases();
+    });
+  }
   if (mode === 'genre') {
     row.addEventListener('dblclick', (e) => {
       // Two quick clicks on the expand/collapse caret aren't a play gesture
@@ -13488,6 +13515,32 @@ async function mgRestore(t) {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && mg.open) { e.stopPropagation(); closeMergeDialog(); } }, true);
 })();
 
+// BEGIN label-browse
+// The left browser's "Labels" mode: one entry per record label, counted. A release can name more than one label ("Sire / Warner Bros."): it is counted under each. Spelling, capitals,
+// accents and punctuation don't make a second label ("Café Records", "Cafe records"); the commonest spelling is shown. Releases with no label are together under "(No label)".
+const LABEL_NONE = '~none';
+function labelKey(v) { return String(v == null ? '' : v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim(); }
+function labelParts(v) {                                            // "Sub Pop / Rough Trade" -> ["Sub Pop", "Rough Trade"] (only ' / ' and ';' separate: a comma or an ampersand can be part of a name)
+  const seen = new Set(), out = [];
+  String(v == null ? '' : v).split(/\s+\/\s+|\s*;\s*/).forEach(t => { const name = t.trim().replace(/\s+/g, ' '), k = labelKey(name); if (k && !seen.has(k)) { seen.add(k); out.push(name); } });
+  return out;
+}
+function labelKeysOf(r) { const k = labelParts(r && r.label).map(labelKey); return k.length ? k : [LABEL_NONE]; }
+function labelEntries(items) {                                      // [{ key, label, count, sample }]
+  const map = new Map(), caps = (t) => (t.match(/\p{Lu}/gu) || []).length;          // (a tie between spellings goes to the one with more capitals: "Parlophone", not "parlophone")
+  items.forEach(r => {
+    const parts = labelParts(r.label), list = parts.length ? parts : [null];
+    list.forEach(name => {
+      const k = name === null ? LABEL_NONE : labelKey(name); let e = map.get(k);
+      if (!e) { e = { key: k, spell: new Map(), count: 0, sample: r }; map.set(k, e); }
+      e.count++; if (name !== null) e.spell.set(name, (e.spell.get(name) || 0) + 1);
+    });
+  });
+  return [...map.values()].map(e => ({ key: e.key, label: e.key === LABEL_NONE ? '(No label)' : [...e.spell.entries()].sort((a, b) => b[1] - a[1] || caps(b[0]) - caps(a[0]) || a[0].localeCompare(b[0]))[0][0], count: e.count, sample: e.sample }));
+}
+// END label-browse
+function labelDisplayOf(key) { if (key === LABEL_NONE) return 'No label'; for (const r of state.raw) { const n = labelParts(r.label).find(x => labelKey(x) === key); if (n) return n; } return key; }
+
 function buildLeftList() {
   const mode = state.leftMode;
   // Apply the chosen thumbnail size CSS class
@@ -13514,6 +13567,8 @@ if (mode === 'artist') {
       const y = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getUTCFullYear() : null;
       return y ? String(y) : 'Unknown';
     });
+  } else if (mode === 'label') {
+    entries = labelEntries(sourceRaw).map(e => ({ key: e.key, label: e.label, sub: '', count: e.count, sampleKey: artKey(e.sample) }));          // every label among the releases shown here, counted
   } else if (mode === 'descriptor') {
     entries = [...descLibrary(sourceRaw).values()].map(e => ({ key: e.key, label: e.label, count: e.count, cat: descCatOf(e.key) }));          // every descriptor in the releases shown here, counted
   } else if (mode === 'genre') {
@@ -13560,7 +13615,7 @@ if (mode === 'artist') {
   allRow.className = 'left-row left-row-all';
   allRow.tabIndex = 0;
   if (!state.navFilter && (!state.activePlaylistId || state.leftNavView === 'playlists')) allRow.classList.add('active');
-  const allLabel = mode === 'artist' ? 'All Artists' : mode === 'genre' ? 'All Genres' : mode === 'descriptor' ? 'All Descriptors' : 'All Albums';
+  const allLabel = mode === 'artist' ? 'All Artists' : mode === 'genre' ? 'All Genres' : mode === 'descriptor' ? 'All Descriptors' : mode === 'label' ? 'All Labels' : 'All Albums';
   allRow.innerHTML = `
     <div class="left-row-text"><p class="left-row-title">${allLabel}</p></div>
     <span class="left-row-count">${sourceRaw.length}</span>`;
@@ -13966,8 +14021,8 @@ function updateMainLabel() {
     return; 
   }
   
-  const prefixes = { artist: 'Artist: ', genre: 'Genre: ', album: 'Album: ', descriptor: 'Descriptor: ' };
-  let label = state.navFilter.value;
+  const prefixes = { artist: 'Artist: ', genre: 'Genre: ', album: 'Album: ', descriptor: 'Descriptor: ', label: 'Label: ' };
+  let label = state.navFilter.mode === 'label' ? labelDisplayOf(state.navFilter.value) : state.navFilter.value;
   if (state.navFilter.mode === 'album') {
     const match = state.raw.find(r => r.row === state.navFilter.value);
     if (match) label = match.title;
@@ -14333,6 +14388,7 @@ function albumPassesBrowse(r, searchTerms) {          // does this album pass th
       state.navFilter.mode === 'artist' ? r.artist === state.navFilter.value :
       state.navFilter.mode === 'genre' ? filterGenreTags(r).some(g => genreMatchesFilter(state.genreTaxonomy, g, state.navFilter.value)) : 
       state.navFilter.mode === 'descriptor' ? parseDescriptors(r.rymDescriptors).some(d => descKey(d) === state.navFilter.value) :
+      state.navFilter.mode === 'label' ? labelKeysOf(r).includes(state.navFilter.value) :
       r.row === state.navFilter.value
     );
 
@@ -18756,7 +18812,7 @@ function describeActiveFilters() {
   if (state.query) parts.push(`the search "${state.query}"`);
   if (state.navFilter) {
     const modeLabel = state.navFilter.mode === 'genre' ? 'genre' : state.navFilter.mode === 'artist' ? 'artist' : state.navFilter.mode === 'year' ? 'year' : state.navFilter.mode;
-    parts.push(`the ${modeLabel} filter \u201c${state.navFilter.value}\u201d`);
+    parts.push(`the ${modeLabel} filter \u201c${state.navFilter.mode === 'label' ? labelDisplayOf(state.navFilter.value) : state.navFilter.value}\u201d`);
   }
   if (state.activeType && state.activeType !== 'All') parts.push(`the \u201c${state.activeType}\u201d type filter`);
   if (state.listenedOnly) parts.push('\u201cListened only\u201d');
@@ -30603,19 +30659,33 @@ function rymQCounts() {
 }
 function rymQTicked() { const out = []; rymQ.entries.forEach(e => e.rest.forEach(p => { if (rymQ.ticks.get(e.key + '|' + p.key)) out.push({ e, p }); })); return out; }
 async function rymQApplyTicked() {
-  const chosen = rymQTicked(); if (!chosen.length) return; let n = 0, miss = 0;
+  if (rymQ.applying) return;                                      // already working through them: a second press must not start a second run over the same releases
+  const chosen = rymQTicked(); if (!chosen.length) return; let n = 0, miss = 0, failed = 0, gone = 0;
   const byEntry = new Map(); chosen.forEach(({ e, p }) => { if (!byEntry.has(e)) byEntry.set(e, []); byEntry.get(e).push(p); });
-  for (const [e, rows] of byEntry) {
-    const item = state.raw.find(x => x.row === e.row); if (!item) continue;
-    try {
-      const wr = await rymWritePicks(item, rows, true, 'review'); const made = rows.filter(p => p.key !== 'cover' || !wr.coverMissed);
-      e.applied = e.applied.concat(made.map(rymQChip)); e.rest = e.rest.filter(p => !rows.includes(p)); n += made.length; if (wr.coverMissed) { miss++; e.coverMissed = true; }
-      rows.forEach(p => rymQ.ticks.delete(e.key + '|' + p.key)); e.cover1 = item.cover || '';
-      if (!e.rest.length) { e.state = 'applied'; if (e.batchId) rymBatchDone([e.batchId]); }
-    } catch (err) { e.note = 'couldn\u2019t be saved: try again'; }
-  }
+  rymQ.applying = { done: 0, total: byEntry.size }; rymQRender();
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  try {
+    for (const [e, rows] of byEntry) {
+      const item = state.raw.find(x => x.row === e.row);
+      if (!item) { e.note = 'no longer in your crate'; gone++; rymQ.applying.done++; continue; }
+      e.applying = true; rymQRender();
+      let wr = null;
+      for (let attempt = 0; attempt < 3 && !wr; attempt++) {         // a save that fails once (a busy sheet, a dropped connection) is tried again before it is given up on
+        try { wr = await rymWritePicks(item, rows, true, 'review'); }
+        catch (err) { if (/unauthorized/i.test(String((err && err.message) || ''))) break; if (attempt < 2) await sleep(600 * (attempt + 1)); }
+      }
+      e.applying = false;
+      if (wr) {                                                     // saved: what was ticked is applied, and the rest of this release (if any) stays for you
+        const made = rows.filter(p => p.key !== 'cover' || !wr.coverMissed);
+        e.applied = e.applied.concat(made.map(rymQChip)); e.rest = e.rest.filter(p => !rows.includes(p)); n += made.length; e.note = ''; if (wr.coverMissed) { miss++; e.coverMissed = true; }
+        rows.forEach(p => rymQ.ticks.delete(e.key + '|' + p.key)); e.cover1 = item.cover || '';
+        if (!e.rest.length) { e.state = 'applied'; if (e.batchId) rymBatchDone([e.batchId]); }
+      } else { e.note = 'couldn\u2019t be saved: try again'; failed++; }          // it stays ticked: pressing Apply again tries just the ones that failed
+      rymQ.applying.done++; rymQRender();
+    }
+  } finally { rymQ.applying = null; }
   rymRefreshViews(); renderRymInbox(); rymQRender();
-  flashGlobalToast(`Applied ${n} change${n === 1 ? '' : 's'}${miss ? `; ${miss} cover${miss === 1 ? '' : 's'} couldn\u2019t be loaded from here` : ''}.`);
+  flashGlobalToast(`Applied ${n} change${n === 1 ? '' : 's'}${miss ? `; ${miss} cover${miss === 1 ? '' : 's'} couldn\u2019t be loaded from here` : ''}${failed ? `; ${failed} release${failed === 1 ? '' : 's'} couldn\u2019t be saved and ${failed === 1 ? 'is' : 'are'} still ticked: press Apply to try again` : ''}${gone ? `; ${gone} ${gone === 1 ? 'is' : 'are'} no longer in your crate` : ''}.`);
 }
 function rymQDismissRest() {                                    // "leave them as they are": the differences are dropped and the updates are let go
   const ids = []; rymQ.entries.forEach(e => { if (e.rest.length) { e.rest.forEach(p => rymQ.ticks.delete(e.key + '|' + p.key)); e.rest = []; e.state = e.applied.length ? 'applied' : 'same'; e.note = 'differences left as they are'; if (e.batchId) ids.push(e.batchId); } });
@@ -30631,6 +30701,8 @@ const RYMQ_ICON = {
   arrow: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B93A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>'
 };
 function rymQStatus(e) {
+  if (e.applying) return ['live', 'Applying\u2026', 'saving to your sheet'];
+  if (e.state === 'review' && e.note) return ['warn', /saved/.test(e.note) ? 'Not saved' : 'Not applied', /saved/.test(e.note) ? 'press Apply to try again' : e.note];          // a release that could not be saved says so on its row, not only when opened
   const run = rymQ.run, secs = run && run.nextAt ? Math.max(0, Math.round((run.nextAt - Date.now()) / 1000)) : 0, n = (e.applied.length), r = e.rest.length;
   switch (e.state) {
     case 'queued': return ['queue', 'Queued', ''];
@@ -30667,6 +30739,7 @@ function rymQRowHtml(e) {
       + (has ? `<div class="rymq-dlabel">Differs from what you have \u2014 ${state.rymTickDiffs ? 'ticked: untick what you want to keep' : 'tick to apply'}</div>${e.rest.map(p => `<label class="rymq-field"><input type="checkbox" class="rymq-cb" data-q-tick="${rymQEsc(e.key + '|' + p.key)}" ${rymQ.ticks.get(e.key + '|' + p.key) ? 'checked="checked" ' : ''}aria-label="Apply ${rymQEsc(p.label)}"><span class="rymq-fl">${rymQEsc(p.label)}</span><span class="rymq-cur">${rymQEsc(p.current || 'blank')}</span>${RYMQ_ICON.arrow}<span>${rymQEsc(p.proposed)}</span></label>`).join('')}` : '')
       + (e.coverMissed ? `<div class="rymq-note">The cover couldn\u2019t be loaded from here, so it was left as it was. The picture host may be refusing requests from this page.</div>` : '')
       + (!e.applied.length && !has && !e.coverMissed ? `<div class="rymq-cap" style="padding:8px 0">${rymQEsc(e.note || 'Nothing new on the release page.')}</div>` : '')
+      + (e.note && (has || e.applied.length) ? `<div class="rymq-note" role="alert">${rymQEsc(e.note)}</div>` : '')          // (a release that couldn\u2019t be saved still has its differences: it says so)
       + `</div>`;
   }
   return `<div class="rymq-item"><div class="rymq-row${dim ? ' dim' : ''}" data-q-row="${rymQEsc(e.key)}" role="button" tabindex="0" aria-expanded="${open}">`
@@ -30698,7 +30771,7 @@ function rymQRender() {
     + prog + banner
     + `<div class="rymq-cols"><div></div><div>Cover: yours \u2192 RYM</div><div>Release</div><div>Status</div><div>What changed</div></div>`
     + `<div class="rymq-list">${rymQ.entries.length ? rymQ.entries.map(rymQRowHtml).join('') : '<div class="rymq-cap" style="padding:24px">Nothing in the queue.</div>'}</div>`
-    + `<div class="rymq-foot"><span>${rymQEsc(foot)}</span><div>${c.review ? '<button type="button" class="rymq-btn" data-q-act="dismiss">Leave the differences as they are</button>' : ''}<button type="button" class="rymq-btn primary" data-q-act="apply" ${ticked ? '' : 'disabled="disabled"'}>${ticked ? `Apply ${ticked} ticked` : 'Apply ticked'}</button></div></div>`;
+    + `<div class="rymq-foot"><span>${rymQEsc(foot)}</span><div>${c.review ? '<button type="button" class="rymq-btn" data-q-act="dismiss">Leave the differences as they are</button>' : ''}<button type="button" class="rymq-btn primary" data-q-act="apply" ${ticked && !rymQ.applying ? '' : 'disabled="disabled"'}>${rymQ.applying ? `Applying ${rymQ.applying.done} of ${rymQ.applying.total}\u2026` : ticked ? `Apply ${ticked} ticked` : 'Apply ticked'}</button></div></div>`;
   dlg.querySelectorAll('input[data-partial]').forEach(i => { i.indeterminate = true; });
   const list1 = dlg.querySelector('.rymq-list'); if (list1) list1.scrollTop = keep;
 }
