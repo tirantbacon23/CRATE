@@ -19,7 +19,18 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.57.1
+  CURRENT_VERSION: 1.58.0
+
+  1.58.0 — 2026-11-02 — Three changes to releases: no single-release song match when several are selected; "Selected genre only" for the genre you pick; sort (and show) releases by popularity. No add-on and no backend change.
+
+          1. SONG MATCH: with two or more releases selected, right-clicking one of them now offers only "Match songs for N selected…". The single-release "Match songs to Spotify / YouTube…" is gone from that menu (it is still there with one or none selected, and when you right-click a release that is not in the selection). "Full-release video…" and "Edit tracks…" are still listed with several selected: they act on the release you clicked.
+          2. SELECTED GENRE ONLY: ⇅ menu → Genre search → "Selected genre only (not its sub-genres)" (off by default, so nothing changes until you tick it, and it is remembered). With it on, the genre you pick in the left panel shows only releases tagged with THAT genre, not ones filed under it in the taxonomy (Rock shows Rock, not Alternative Rock or Shoegaze). It is applied everywhere that pick is used: the grid, "Closest genre match", the genre weight bar, the figures beside it, and
+            the left list's COUNTS (each genre's number becomes its own releases, so a number never promises what clicking it can't show; a parent with none of its own stays as a heading). The panel title says "(not sub-genres)". Not touched, because they have their own choices: genre: terms typed in the search box ("Exact genre only / Include sub-genres" buttons just below), and the Advanced Filter dialog's own sub-genres tick.
+          3. POPULARITY FOR RELEASES: ⇅ menu → "Most popular (RYM)" (also in the playlist sort) and a new field "RYM popularity" (pick it like any field; it shows "Popularity 83"). It is the track popularity worked out for releases: where a release's number of RYM ratings and its adjusted rating (pulled toward your library's average until it has about 25 ratings, so a 4.8 from 12 people doesn't beat a 4.0 from 30,000) stand among ALL the rated releases of your library, combined so it is high only if it
+            is high on both. Level ones are ordered by how many rated them. A release needs BOTH a rating and a count (from "Update from Rate Your Music") to have one; the rest come last. It is relative to your library and shifts as you add releases; with fewer than five rated releases the adjusted rating orders them. The 25 is a judgment, not a measurement.
+          VERIFIED: 27 browser checks and 3 unit checks: the menu in all four selection cases and the batch starting; the genre option (the grid, counts, title, a sub-genre, turning it off, closest genre match, remembered after a reload); the popularity sort against an independent calculation, how it re-ranks when the data changes, and the field text. Breaking five things (the menu entry, the genre match, the counts, the sort, saving the choice) fails a test. The earlier track-editor (111 checks) and YouTube-page (9) tests still pass.
+          NOT VERIFIED: how the ranking feels on your real library; the playlist sort menu itself (only its label); the new field in a card slot on screen (its text is checked, the slot is not). THE EARLIER FULL REGRESSION (109 suites) STILL CANNOT BE RE-RUN: those files were lost when my working files were cleared, so only the suites named above ran.
+
 
   1.57.1 — 2026-11-01 — The YouTube add-on's limit of 250 pages a day is gone (YouTube add-on 1.2.0), and CRATE's messages now read correctly without it.
 
@@ -7230,6 +7241,7 @@
               <button type="button" class="sort-filter-option" data-sort="rating">Top rated</button>
               <button type="button" class="sort-filter-option" data-sort="rym">Top RYM rated</button>
               <button type="button" class="sort-filter-option" data-sort="rymVotes">Most RYM ratings</button>
+              <button type="button" class="sort-filter-option" data-sort="rymPop" title="Where its rating and its number of ratings stand among your releases">Most popular (RYM)</button>
               <button type="button" class="sort-filter-option" data-sort="unrated">Unrated first</button>
               <button type="button" class="sort-filter-option" data-sort="added">Recently added</button>
               <button type="button" class="sort-filter-option" id="sortGenreMatchOption" data-sort="genreMatch" hidden>Closest genre match</button>
@@ -7245,6 +7257,8 @@
               <p id="genreRoleHint" class="menu-hint" hidden></p>
               <label class="arrange-row"><input type="checkbox" id="firstGenreOnlyToggle"> First genre only</label>
               <p id="firstGenreHint" class="menu-hint" hidden></p>
+              <label class="arrange-row"><input type="checkbox" id="genreNavExactToggle"> Selected genre only (not its sub-genres)</label>
+              <p id="genreNavExactHint" class="menu-hint" hidden>The genre you pick in the left panel shows only releases tagged with that genre itself, not ones filed under it. The number beside each genre counts just its own releases.</p>
               <button type="button" class="genre-search-option" data-genre-mode="exact">Exact genre only</button>
               <button type="button" class="genre-search-option" data-genre-mode="subgenres">Include sub-genres</button>
               <button type="button" class="genre-search-option" data-genre-mode="loose">Sub-genres + partial names</button>
@@ -8889,7 +8903,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.57.1';
+const APP_VERSION = '1.58.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -9577,10 +9591,10 @@ function genreTagsForRole(r, role) {
 const GENRE_ROLE_TEXT = { any: 'primary or secondary', primary: 'primary only', secondary: 'secondary only' };
 const GENRE_ROLE_HINTS = { any: '', primary: 'Only a release\u2019s Genre list counts (its main flavour, however many there are): left panel, genre: searches and the Release Chart.', secondary: 'Only a release\u2019s Secondary Genre list counts (the influences that colour it without dominating): left panel, genre: searches and the Release Chart.' };
 const FIRST_GENRE_HINTS = { any: 'A genre only counts when it is the release\u2019s first one: left panel, genre: searches and the Release Chart.', primary: 'A genre only counts when it is the release\u2019s first primary genre: left panel, genre: searches and the Release Chart.', secondary: 'A genre only counts when it is the release\u2019s first secondary genre: left panel, genre: searches and the Release Chart.' };
-function genreFilterSuffix(role, first) {                    // for the panel title: '' when nothing narrows it
-  const r = role === 'primary' || role === 'secondary' ? role : '';
-  if (!r && !first) return '';
-  return ' (' + (first ? 'first ' : '') + (r ? r + ' ' : '') + 'genre' + (first ? '' : 's') + ' only)';
+function genreFilterSuffix(role, first, exact) {              // for the panel title: '' when nothing narrows it
+  const r = role === 'primary' || role === 'secondary' ? role : '', tail = exact ? ' (not sub-genres)' : '';
+  if (!r && !first) return tail;
+  return ' (' + (first ? 'first ' : '') + (r ? r + ' ' : '') + 'genre' + (first ? '' : 's') + ' only)' + tail;
 }
 // END genre-role
 
@@ -9617,6 +9631,7 @@ const FIELD_OPTIONS = {
   rating: 'Rating (Stars)',
   rymRating: 'RYM rating',
   rymVotes: 'RYM ratings (count)',
+  rymPop: 'RYM popularity',
   type: 'Media Type (LP/EP)',
   catalog: 'Catalog Number',
   descriptor: 'Descriptor',
@@ -9746,6 +9761,7 @@ const state = {
   showTrackCredits: false,
   chartGenre: null, // last-selected genre in the Release Chart element (Main panel) — see renderChartElement()
   rymBold: true, rymBoldRank: 7500, rymQueueMode: !window.__CRATE_LEGACY_REVIEW, rymTickDiffs: true, rymShowNext: true, rymAuto: true, rymMin: 0, rymMissingOnly: false, backendRym: false, backendRymHist: false, backendTaxChunks: false, rymGenreAuto: true,   // RYM ratings (see rym-data)
+  genreNavExact: false, // when on, the genre picked in the left panel shows only releases tagged with THAT genre, not ones under it in the taxonomy (and the counts follow)
   genreRole: 'any',   // which of a release's genres a genre filter looks at: 'any' (Genre + Secondary Genre), 'primary' (Genre only), 'secondary' (Secondary Genre only) — see genre-role
   firstGenreOnly: false, // when on, a genre only counts if it is the FIRST one listed on a release (left-panel genre filter, genre: searches, Release Chart) — see filterGenreTags
   genreSearchMode: 'loose', // how strictly genre: searches match — 'exact' | 'subgenres' | 'loose', see genreSearchMatches / the ⇅ popover's "Genre search"
@@ -10450,6 +10466,12 @@ function genreMatchesFilter(taxonomy, genre, filterGenre) {
   if (genreTaxonomyKey(genre) === genreTaxonomyKey(filterGenre)) return true;
   return getGenreAncestors(taxonomy, genre).some(a => genreTaxonomyKey(a) === genreTaxonomyKey(filterGenre));
 }
+// The genre PICKED in the left panel: the genre itself and, unless "Selected genre only" is on (the ⇅ menu), everything under it. The grid, "Closest genre match", the genre weight bar and the stats
+// beside it all ask this one question, so they cannot disagree.
+function genreNavMatches(taxonomy, genre, filterGenre) {
+  if (genreTaxonomyKey(genre) === genreTaxonomyKey(filterGenre)) return true;
+  return !state.genreNavExact && genreMatchesFilter(taxonomy, genre, filterGenre);
+}
 
 // How strongly a release belongs to the currently-active genre nav-filter,
 // as a 0-1 weight — 1.0 if the filtered genre is the release's PRIMARY
@@ -10463,7 +10485,7 @@ function genreMatchesFilter(taxonomy, genre, filterGenre) {
 function genreFilterWeight(item) {
   if (!(state.navFilter && state.navFilter.mode === 'genre')) return null;
   const genres = getGenreList(combinedGenreStr(item));
-  const idx = genres.findIndex(g => genreMatchesFilter(state.genreTaxonomy, g, state.navFilter.value));
+  const idx = genres.findIndex(g => genreNavMatches(state.genreTaxonomy, g, state.navFilter.value));
   return idx === -1 ? null : 1 / (idx + 1);
 }
 
@@ -10718,7 +10740,7 @@ function buildGenreTree(sourceRaw, taxonomy) {
   const rows = [];
   function walk(key, depth) {
     const count = aggregatedCount(key, new Set());
-    if (count > 0) rows.push({ key: labelByKey.get(key), label: labelByKey.get(key), sub: '', count, depth });
+    if (count > 0) rows.push({ key: labelByKey.get(key), label: labelByKey.get(key), sub: '', count: state.genreNavExact ? (ownCount.get(key) || { count: 0 }).count : count, depth });          // "Selected genre only": the number is the genre's own releases, so it matches what clicking it shows (a parent with none of its own stays as a heading)
     (childrenOf.get(key) || [])
       .slice()
       .sort((a, b) => labelByKey.get(a).localeCompare(labelByKey.get(b)))
@@ -11004,6 +11026,17 @@ function bindEvents() {
     renderSortFilterMenu();
     if (typeof renderChartElement === 'function') { try { renderChartElement(); } catch (e) { /* chart not showing */ } }
     flashGlobalToast('First genre only: ' + (state.firstGenreOnly ? 'on' : 'off'));
+  });
+
+  document.getElementById('genreNavExactToggle').addEventListener('change', (e) => {
+    state.genreNavExact = e.target.checked;
+    savePrefs();
+    buildLeftList();   // the genre tree's counts follow: a genre's own releases only, or everything under it too
+    applyFiltersSort();
+    updateMainLabel(); // the panel title says "(not sub-genres)" while it's in effect
+    renderSortFilterMenu();
+    if (typeof renderChartElement === 'function') { try { renderChartElement(); } catch (err) { /* chart not showing */ } }
+    flashGlobalToast('Selected genre only: ' + (state.genreNavExact ? 'on' : 'off'));
   });
 
   document.getElementById('genreRoleSelect').addEventListener('change', (e) => {
@@ -12397,6 +12430,7 @@ function loadPrefs() {
     if (typeof p.shuffle === 'boolean') state.shuffle = p.shuffle;
     if (['exact', 'subgenres', 'loose'].includes(p.genreSearchMode)) state.genreSearchMode = p.genreSearchMode;
     if (typeof p.firstGenreOnly === 'boolean') state.firstGenreOnly = p.firstGenreOnly;
+    if (typeof p.genreNavExact === 'boolean') state.genreNavExact = p.genreNavExact;
     if (['any', 'primary', 'secondary'].includes(p.genreRole)) state.genreRole = p.genreRole;
     ['rymBold', 'rymShowNext', 'rymAuto', 'rymMissingOnly', 'rymGenreAuto', 'rymQueueMode', 'rymTickDiffs'].forEach(k => { if (typeof p[k] === 'boolean') state[k] = p[k]; });
     if (rymVotesNum(p.rymBoldRank)) state.rymBoldRank = rymVotesNum(p.rymBoldRank);
@@ -12478,7 +12512,7 @@ function savePrefs() {
       playlistFolderMap: state.playlistFolderMap,
       shuffle: state.shuffle,
       genreSearchMode: state.genreSearchMode,
-      firstGenreOnly: state.firstGenreOnly, genreRole: state.genreRole,
+      firstGenreOnly: state.firstGenreOnly, genreRole: state.genreRole, genreNavExact: state.genreNavExact,
       rymGenreAuto: state.rymGenreAuto, rymBold: state.rymBold, rymQueueMode: state.rymQueueMode, rymTickDiffs: state.rymTickDiffs, rymShowNext: state.rymShowNext, rymAuto: state.rymAuto, rymMissingOnly: state.rymMissingOnly, rymBoldRank: state.rymBoldRank, rymMin: state.rymMin,
       statsMode: state.statsMode,
       rightPanelShowQueue: state.rightPanelShowQueue,
@@ -14281,7 +14315,7 @@ function updateMainLabel() {
   }
   
   // Example output: "Artist: Daft Punk · Tracks"
-  el.mainPanelLabel.textContent = `${prefixes[state.navFilter.mode]}${label}${state.navFilter.mode === 'genre' ? genreFilterSuffix(state.genreRole, state.firstGenreOnly) : ''} · ${baseLabel}`;
+  el.mainPanelLabel.textContent = `${prefixes[state.navFilter.mode]}${label}${state.navFilter.mode === 'genre' ? genreFilterSuffix(state.genreRole, state.firstGenreOnly, state.genreNavExact) : ''} · ${baseLabel}`;
 }
 
 /* ---------- Filter chips ---------- */
@@ -14638,7 +14672,7 @@ function albumPassesBrowse(r, searchTerms) {          // does this album pass th
     
     const matchesNav = !state.navFilter || (
       state.navFilter.mode === 'artist' ? r.artist === state.navFilter.value :
-      state.navFilter.mode === 'genre' ? filterGenreTags(r).some(g => genreMatchesFilter(state.genreTaxonomy, g, state.navFilter.value)) : 
+      state.navFilter.mode === 'genre' ? filterGenreTags(r).some(g => genreNavMatches(state.genreTaxonomy, g, state.navFilter.value)) : 
       state.navFilter.mode === 'descriptor' ? parseDescriptors(r.rymDescriptors).some(d => descKey(d) === state.navFilter.value) :
       state.navFilter.mode === 'label' ? labelKeysOf(r).includes(state.navFilter.value) :
       r.row === state.navFilter.value
@@ -14649,6 +14683,16 @@ function albumPassesBrowse(r, searchTerms) {          // does this album pass th
 
     return matchesQuery && matchesNav && matchesListened && matchesRym;
 }
+// How popular a release is, from RYM's rating of it and the number of ratings (the same rules as for tracks, see track-popularity): where its number of ratings and its
+// adjusted rating stand among all the rated releases of THIS library, combined so it is high only if it is high on both. A release without a rating AND a count has none.
+let apopCache = null;
+function albumPopMap() {                                              // every rated release worked out together (they are ranked against each other); kept for a second so a sort doesn't redo it for every comparison
+  if (apopCache && Date.now() - apopCache.at < 1000) return apopCache.map;
+  const entries = (state.raw || []).filter(it => Number(it.rymRating) > 0 && Number(it.rymVotes) > 0).map(it => ({ key: String(it.row), album: String(it.row), rating: Number(it.rymRating), votes: Number(it.rymVotes) }));
+  apopCache = { at: Date.now(), map: tpopCompute(entries) }; return apopCache.map;
+}
+const albumPopOf = (it) => albumPopMap().get(String(it.row)) || null;
+const albumPopSortVal = (it) => { const v = albumPopOf(it); return v ? (v.pop === null ? v.wr : v.pop) : -1; };          // (with fewer than five rated releases there is nothing to rank against: the adjusted rating orders them); unrated ones come last
 function compareAlbumsBy(sortKey, a, b) {
   switch (sortKey) {
     case 'oldest': return dateVal(a.releaseDate) - dateVal(b.releaseDate);
@@ -14657,6 +14701,7 @@ function compareAlbumsBy(sortKey, a, b) {
     case 'rating': return b.rating - a.rating;
     case 'rym': return (b.rymRating || 0) - (a.rymRating || 0);
     case 'rymVotes': return (b.rymVotes || 0) - (a.rymVotes || 0);          // the most-rated first
+    case 'rymPop': return (albumPopSortVal(b) - albumPopSortVal(a)) || ((b.rymVotes || 0) - (a.rymVotes || 0));          // the most popular first; level ones by how many rated them
     case 'unrated': return a.rating - b.rating;
     case 'added': return dateVal(b.dateAdded) - dateVal(a.dateAdded);
     case 'genreMatch': return (genreFilterWeight(b) || 0) - (genreFilterWeight(a) || 0);
@@ -14665,7 +14710,7 @@ function compareAlbumsBy(sortKey, a, b) {
   }
 }
 // ---- ...and the playlist side of it ----
-const PLAYLIST_SORT_LABELS = { newest: 'Newest release', rymVotes: 'Most RYM ratings', oldest: 'Oldest release', artist: 'Artist A\u2013Z', title: 'Title A\u2013Z', rating: 'Top rated', rym: 'Top RYM rated', unrated: 'Unrated first', added: 'Recently added', genreMatch: 'Closest genre match' };
+const PLAYLIST_SORT_LABELS = { newest: 'Newest release', rymVotes: 'Most RYM ratings', rymPop: 'Most popular (RYM)', oldest: 'Oldest release', artist: 'Artist A\u2013Z', title: 'Title A\u2013Z', rating: 'Top rated', rym: 'Top RYM rated', unrated: 'Unrated first', added: 'Recently added', genreMatch: 'Closest genre match' };
 function activePlaylist() { return state.activePlaylistId ? (state.playlists.find(p => p.id === state.activePlaylistId) || null) : null; }
 function playlistScopeRaw(playlist) {                            // the albums that are in this playlist (an album once, whether it is there whole or by a track): what the browser on the left lists
   const seen = new Set(), out = [];
@@ -14736,6 +14781,7 @@ function renderSortFilterMenu() {
   });
   el.genreSearchHint.textContent = GENRE_SEARCH_HINTS[state.genreSearchMode] || '';
   el.firstGenreOnlyToggle.checked = state.firstGenreOnly;
+  { const gx = document.getElementById('genreNavExactToggle'), gxh = document.getElementById('genreNavExactHint'); gx.checked = !!state.genreNavExact; gxh.hidden = !state.genreNavExact; }
   rymEl('sortRymMin').value = String(state.rymMin); rymEl('sortRymMissing').checked = state.rymMissingOnly;
   el.firstGenreHint.hidden = !state.firstGenreOnly;          // only worth the space while it's in effect
   el.firstGenreHint.textContent = FIRST_GENRE_HINTS[state.genreRole] || FIRST_GENRE_HINTS.any;
@@ -14990,7 +15036,7 @@ function groupKeysFor(item, by) {
     // Rock-tagged album also happens to carry one of those as a
     // secondary genre, even though neither is nested under Rock at all.
     if (state.navFilter && state.navFilter.mode === 'genre') {
-      const relevant = genres.filter(g => genreMatchesFilter(state.genreTaxonomy, g, state.navFilter.value));
+      const relevant = genres.filter(g => genreNavMatches(state.genreTaxonomy, g, state.navFilter.value));
       // Shouldn't ever be empty in practice — an item only reaches this
       // grouping step under a genre filter because at least one of its
       // own genres already matched it (see searchFilteredRaw's
@@ -18280,7 +18326,7 @@ function openAlbumCardContextMenu(item, x, y) {
     <button type="button" data-card-action="spotify">Open on Spotify ↗</button>
     <button type="button" data-card-action="rym">View on RateYourMusic ↗</button>
     <button type="button" data-card-action="rymUpdate">${selItems.length > 1 ? `Update ${selItems.length} selected from Rate Your Music\u2026` : 'Update from Rate Your Music'}</button>
-    <button type="button" data-card-action="match">Match songs to Spotify / YouTube…</button>
+    ${selItems.length > 1 ? '' : '<button type="button" data-card-action="match">Match songs to Spotify / YouTube\u2026</button>'}
     ${selItems.length > 1 ? `<button type="button" data-card-action="matchMany">Match songs for ${selItems.length} selected\u2026</button>` : ''}
     <button type="button" data-card-action="fullVideo">Full-release video…</button>
     <button type="button" data-card-action="editTracks">Edit tracks…</button>
@@ -18976,6 +19022,7 @@ async function handleSpotifyAuthRedirect() {
 // Helper to get raw values for overlay tags
 function keyToVal(key, item) {
   if (!key || key === 'none') return "";
+  if (key === 'rymPop') { const v = albumPopOf(item); return v && v.pop !== null ? 'Popularity ' + Math.round(v.pop) : ''; }          // worked out, not stored (see albumPopMap)
   
   const year = (item.releaseDate && dateVal(item.releaseDate) !== -Infinity) 
                ? new Date(item.releaseDate).getUTCFullYear() : '';
@@ -19833,7 +19880,7 @@ function computeChartGenreYearData(genre) {
   const yearCounts = new Map();
   let matched = 0;
   state.raw.forEach(r => {
-    if (!filterGenreTags(r).some(g => genreMatchesFilter(state.genreTaxonomy, g, genre))) return;
+    if (!filterGenreTags(r).some(g => genreNavMatches(state.genreTaxonomy, g, genre))) return;
     matched++;
     const ms = dateVal(r.releaseDate);
     if (ms === -Infinity) return;
