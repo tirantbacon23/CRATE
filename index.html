@@ -19,7 +19,17 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.57.0
+  CURRENT_VERSION: 1.57.1
+
+  1.57.1 — 2026-11-01 — The YouTube add-on's limit of 250 pages a day is gone (YouTube add-on 1.2.0), and CRATE's messages now read correctly without it.
+
+          THE ADD-ON (CRATE for YouTube 1.2.0, a new zip and folder): it no longer refuses a question because 250 pages were read in the last 24 hours. It still counts them (its options screen says "N pages read in the last 24 hours (no daily limit)") and tells CRATE there is no limit. NOTHING ELSE ABOUT HOW IT READS CHANGED: one page at a time, 1.5 to 3 seconds apart when read directly (never under 1), remembered answers, a queue of
+            at most 60 questions, and a full stop at a cookie question, an "unusual traffic" page or a page it can't understand. To use it: remove the old add-on and load the new folder (or replace its files and reload it), then reconnect it to your CRATE address in its options and reload CRATE.
+          THE PAGE: with the new add-on, the YouTube line in the song matcher, the add-on settings line and the batch screens show how many pages were read instead of "N of 0"; the batch setup stops warning that a run is "more pages than are left today" and no longer shows an "of N for today" total. With an add-on that has not been updated (1.1.1 or older, still limited to 250) all of that reads as before, and the batch's stop at the limit is unchanged.
+          WHAT TO KNOW: the limit was a brake, and without it a very long run asks YouTube for a great many pages. If YouTube starts asking questions (a cookie page, "unusual traffic"), the add-on stops and tells you, as before; if that happens, wait a while rather than pressing Continue again and again.
+          VERIFIED: the real add-on (old 1.1.1 as the control, new 1.2.0) loaded in a real browser: with 300 pages already read the old one refuses a question ("daily") and reports a limit of 250, the new one accepts it, reports no limit (cap 0) and shows "300 pages read in the last 24 hours (no daily limit)"; the queue limit is unchanged (exactly 60 accepted, the 61st turned away as busy), and a page saying "unusual traffic" still stops it. The page: the messages and the batch estimate for no limit and for the old limited add-on (9 checks),
+            and a 5-way check that breaking each of those behaviours fails a test. NOT VERIFIED: a real long run against YouTube (the sandbox has no network), so how much YouTube tolerates is not known; the batch's own lane stopping at the limit was not run end to end (its condition is unchanged and only applies when the add-on reports a limit). The earlier full regression could not be re-run (my working files were cleared between sessions).
+
 
   1.57.0 — 2026-11-01 — Edit tracks: every track of a release in one grid, from the sketch. No add-on and no backend change.
 
@@ -8879,7 +8889,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.57.0';
+const APP_VERSION = '1.57.1';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -23458,7 +23468,7 @@ function bmSetupHtml() {
   const est = bmEstimate({ releases: n, spotify: bm.svc.spotify, youtube: bm.svc.youtube && ytOk, viaAddon, ytSongs: bm.ytSongs && viaAddon, used: ytAddon.today || 0, cap: ytAddon.cap || 0 });
   const opt = (name, val, on, title, sub, right) => `<label class="bm-opt${on ? ' on' : ''}"><input type="${name === 'bmScope' || name === 'bmMode' ? 'radio' : 'checkbox'}" name="${name}" value="${val}"${on ? ' checked' : ''} data-bm="setup"><span class="bm-opt-t">${title}${sub ? `<small>${sub}</small>` : ''}</span>${right ? `<span class="bm-m">${right}</span>` : ''}</label>`;
   const scope = (sets.ticked ? opt('bmScope', 'ticked', bm.scope === 'ticked', 'The releases I have selected', '', String(sets.ticked.length)) : '') + opt('bmScope', 'view', bm.scope === 'view', 'Everything in the current view', '', String(sets.view.length));
-  const ytLine = viaAddon ? `Add-on found (version ${escapeHtml(ytAddon.version)}): ${ytAddon.today} of ${ytAddon.cap} pages used today.` : key ? 'Using your YouTube API key: a search for a single song costs 100 of today\u2019s quota units.' : 'Not set up: install the CRATE for YouTube add-on, or add an API key (\u2699 \u2192 YouTube API\u2026).';
+  const ytLine = viaAddon ? `Add-on found (version ${escapeHtml(ytAddon.version)}): ${ytPagesNote()}.` : key ? 'Using your YouTube API key: a search for a single song costs 100 of today\u2019s quota units.' : 'Not set up: install the CRATE for YouTube add-on, or add an API key (\u2699 \u2192 YouTube API\u2026).';
   const card = (k, title, line, blurb, est_, extra, disabled) => `<label class="bm-svc${bm.svc[k] && !disabled ? ' on' : ''}"><span class="bm-svc-h"><input type="checkbox" id="bmSvc${k === 'spotify' ? 'Spotify' : 'Youtube'}"${bm.svc[k] && !disabled ? ' checked' : ''}${disabled ? ' disabled' : ''} data-bm="setup"><b>${title}</b></span><span class="bm-svc-line">${line}</span><span class="bm-dim">${blurb}</span><span class="bm-m">${est_}</span>${extra || ''}</label>`;
   const spEst = est.spotifySec ? `About ${bmDur(est.spotifySec)} for ${n} release${n === 1 ? '' : 's'}` : '';
   const ytEst = est.ytPages ? `About ${bmDur(est.ytSec)} \u00b7 about ${est.ytPages} pages${viaAddon && ytAddon.cap ? `, ${est.ytTotal} of ${ytAddon.cap} for today` : ''}` : '';
@@ -23476,7 +23486,7 @@ function bmLaneHtml(kind) {
   const stopped = kind === 'youtube' && ytAddon.state === 'stopped' && l.s === 'work';
   let chip = { idle: ['wait', 'Waiting'], work: ['work', bm.paused ? 'Paused' : 'Working'], done: ['ok', 'Done'], stopped: ['look', 'Stopped'] }[l.s] || ['wait', ''];
   if (stopped) chip = ['look', 'Paused: YouTube needs you'];
-  const extra = kind === 'youtube' && ytUseAddon() && ytAddon.cap ? `<div class="bm-m">${ytAddon.today} of ${ytAddon.cap} pages used today</div>` : '';
+  const extra = kind === 'youtube' && ytUseAddon() ? `<div class="bm-m">${ytPagesNote()}</div>` : '';
   const msg = stopped ? `<div class="bm-lane-msg" role="alert">${escapeHtml(ytAddonWhy(ytAddon.reason))} <button type="button" class="chip-btn" data-bm="yt-continue">Continue</button></div>` : l.msg ? `<div class="bm-lane-msg" role="alert">${escapeHtml(l.msg)} ${l.s === 'stopped' ? `<button type="button" class="chip-btn" data-bm="lane-resume" data-kind="${kind}">Resume</button>` : ''}</div>` : '';
   return `<div class="bm-lane"><div class="bm-lane-top"><b>${bmName(kind)}</b>${bmChip(chip[0], chip[1])}</div><div class="bm-bar"><i style="width:${pct}%"></i></div><div class="bm-lane-meta"><span class="bm-m">${done} of ${total} releases</span><span class="bm-dim">${conf} confident \u00b7 ${look} need a look</span></div>${extra}${msg}</div>`;
 }
@@ -23736,6 +23746,7 @@ async function smSpotifyForRelease(item, songs) {
 
 // ----- The "CRATE for YouTube" add-on: asks YouTube's own pages instead of its API (no quota, no key). It answers three questions: a video search, a playlist search, a playlist's videos. -----
 const ytAddon = { ready: false, version: '', state: 'idle', reason: '', queue: 0, nextAt: 0, today: 0, cap: 0, pending: new Map(), seq: 0, poll: 0 };
+const ytPagesNote = () => ytAddon.cap ? `${ytAddon.today} of ${ytAddon.cap} pages used today` : `${ytAddon.today} page${ytAddon.today === 1 ? '' : 's'} read in the last 24 hours (no daily limit)`;          // an add-on older than 1.2.0 still has a limit of 250 a day and says so; 1.2.0 and later say cap 0
 const ytAddonSay = (type, extra) => window.postMessage(Object.assign({ source: 'crate-app', type }, extra || {}), window.location.origin);
 function ytUseAddon() { let off = false; try { off = localStorage.getItem('crate_yt_use_addon') === '0'; } catch (e) { /* default: on */ } return !!(ytAddon.ready && !off); }
 function ytAddonWhy(reason) {
@@ -23779,8 +23790,8 @@ function ytAddonPaintDialog() {
   const cb = document.getElementById('ytUseAddon'), line = document.getElementById('ytAddonLine'); if (!cb || !line) return;
   let off = false; try { off = localStorage.getItem('crate_yt_use_addon') === '0'; } catch (e) { /* on */ }
   cb.checked = !off; ytAddonHello();
-  line.textContent = ytAddon.ready ? `Found: version ${ytAddon.version}, ${ytAddon.today} of ${ytAddon.cap} pages used today.${off ? ' (Switched off here: the API is used.)' : ''}` : 'Not found: install it and connect it to this page (it says how in its options).';
-  setTimeout(() => { if (line.isConnected && ytAddon.ready) line.textContent = `Found: version ${ytAddon.version}, ${ytAddon.today} of ${ytAddon.cap} pages used today.${off ? ' (Switched off here: the API is used.)' : ''}`; }, 700);
+  line.textContent = ytAddon.ready ? `Found: version ${ytAddon.version}, ${ytPagesNote()}.${off ? ' (Switched off here: the API is used.)' : ''}` : 'Not found: install it and connect it to this page (it says how in its options).';
+  setTimeout(() => { if (line.isConnected && ytAddon.ready) line.textContent = `Found: version ${ytAddon.version}, ${ytPagesNote()}.${off ? ' (Switched off here: the API is used.)' : ''}`; }, 700);
 }
 (function wireYtAddonSwitch() {
   const cb = document.getElementById('ytUseAddon'), menu = document.getElementById('menuYoutubeApi');
@@ -23788,7 +23799,7 @@ function ytAddonPaintDialog() {
   if (menu) menu.addEventListener('click', ytAddonPaintDialog);
 })();
 function ytAddonIdleHtml() {
-  return `<div class="sm-status"><span>This looks for the album\u2019s playlist on YouTube and matches every song in one go, through the CRATE for YouTube add-on: no quota and no key. It reads YouTube\u2019s pages one at a time in the background, a couple of seconds apart, so it takes a few seconds (${ytAddon.today} of ${ytAddon.cap} pages used today).</span><button type="button" class="config-btn" data-sm="run-youtube">Find on YouTube</button></div>`;
+  return `<div class="sm-status"><span>This looks for the album\u2019s playlist on YouTube and matches every song in one go, through the CRATE for YouTube add-on: no quota and no key. It reads YouTube\u2019s pages one at a time in the background, a couple of seconds apart, so it takes a few seconds (${ytPagesNote()}).</span><button type="button" class="config-btn" data-sm="run-youtube">Find on YouTube</button></div>`;
 }
 function ytAddonLoadingHtml() {
   if (ytAddon.state === 'stopped') return `<div class="sm-status" role="alert"><span>${escapeHtml(ytAddonWhy(ytAddon.reason))}</span><button type="button" class="config-btn" data-sm="yt-continue">Continue</button><button type="button" class="ai-link-btn" data-sm="yt-cancel">Cancel</button></div>`;
