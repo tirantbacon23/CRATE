@@ -19,7 +19,17 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.58.0
+  CURRENT_VERSION: 1.58.1
+
+  1.58.1 — 2026-11-02 — A release's full list of genres: the RYM add-on (1.12.3) no longer cuts it to four, and CRATE keeps it whole.
+
+          THE CAUSE (from the Diagnose report you sent, for Sweet Trip's "Seen / Unseen"): a release page lists its genres in two groups, primary and secondary, and either can be long. The add-on kept only the FIRST FOUR of each, and CRATE then cut whatever arrived at 200 characters (which could slice a name in half). Slacker Rock sits in that page's secondary group after the fourth entry (Glitch Pop, IDM, Neo-Psychedelia, ...), so it never reached you.
+          THE FIX: the add-on reads both lists whole (primary into Genre, secondary into Secondary genre, as CRATE has always kept them): up to 30 names each, each once, in RYM's order, no name cut. Chart and artist list pages too (their rows used the same four-name limit). CRATE takes them whole as well. The add-on's "Diagnose this page" now shows the secondary genres it read (your report couldn't, which is why the second list was invisible in it).
+          RELEASES YOU ALREADY HAVE: run Update from Rate Your Music on them again. Where your Genre or Secondary genre is EXACTLY the first four names of RYM's longer list (the fingerprint of the old limit), the full list is offered as a ticked "refine" row. Any other difference is still a "differs" row that is never ticked for you, so a list you trimmed yourself is not quietly extended; an empty field is filled as before.
+          TO USE IT: install add-on 1.12.3 (a new zip and folder; remove the old one and load the new folder, then reconnect it to your CRATE address in its options and reload CRATE). The page change alone does nothing for the pull, because the cut was made in the add-on.
+          VERIFIED: the real add-on, old 1.12.2 as the control and new 1.12.3, loaded in a real browser on a page built from the markup in your report (the control reproduces your symptom exactly: it keeps Glitch Pop, IDM, Neo-Psychedelia, Chillwave and loses the rest; the new one keeps all 17, over 200 characters, and six primary genres instead of four); the add-on's genre rules in 8 unit checks (and the old core.js fails them); the page keeping long lists whole and the update plan's rule in 11 checks. Breaking five things (the reader's limit, the add-on's cut, the page's cut, the refine rule and its first-four test) fails a test.
+          NOT VERIFIED: a real Rate Your Music page (the sandbox has no network): the fixture uses your report's real markup, but your report cut the page's secondary list off after "Neo-Psyche", so the names after it are my stand-ins; whether RYM ever shows a list longer than the 30 this keeps; the update plan on your real sheet. THE EARLIER FULL REGRESSION (109 suites) STILL CANNOT BE RE-RUN (those files were lost when my working files were cleared); the earlier suites I rebuilt (release features, YouTube page, track editor) pass.
+
 
   1.58.0 — 2026-11-02 — Three changes to releases: no single-release song match when several are selected; "Selected genre only" for the genre you pick; sort (and show) releases by popularity. No add-on and no backend change.
 
@@ -8903,7 +8913,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.58.0';
+const APP_VERSION = '1.58.1';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -31478,6 +31488,11 @@ function rymAskOutbox(ms) {                                      // -> the batch
     try { window.postMessage({ source: 'crate-app', type: 'request-rym-outbox' }, window.location.origin); } catch (e) { /* no add-on */ }
   });
 }
+function rymGenreStr(v) {                                      // a list of genres from the add-on: each once, at most 30, no name cut short. It used to be cut at 200 characters, which lost the tail of a long list (and could slice a name in half)
+  const seen = new Set(), out = [];
+  String(v == null ? '' : v).split(',').forEach(g => { const t = g.replace(/\s+/g, ' ').trim().slice(0, 80), k = t.toLowerCase(); if (t && !seen.has(k) && out.length < 30) { seen.add(k); out.push(t); } });
+  return out.join(', ');
+}
 function rymCleanOutbox(list) {                                  // untrusted: only text and numbers, bounded, and only types CRATE has
   const str = (x, n) => typeof x === 'string' ? x.slice(0, n) : '', TYPES = ['Album', 'EP', 'Single', 'Compilation', 'Live', 'Mixtape'];
   return (Array.isArray(list) ? list : []).slice(0, 60).map(b => ({
@@ -31485,7 +31500,7 @@ function rymCleanOutbox(list) {                                  // untrusted: o
     source: { url: str(b && b.source && b.source.url, 300), title: str(b && b.source && b.source.title, 200).trim() },
     releases: (Array.isArray(b && b.releases) ? b.releases : []).slice(0, 600).map(r => ({
       artist: rymTidyName(str(r && r.artist, 200).trim()), title: rymTidyName(str(r && r.title, 200).trim()), type: TYPES.includes(r && r.type) ? r.type : 'Album', releaseDate: /^\d{4}(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?)?$/.test(r && r.releaseDate) ? r.releaseDate : '',
-      genre: str(r && r.genre, 200).trim(), secondaryGenre: str(r && r.secondaryGenre, 200).trim(), label: str(r && r.label, 200).trim(), catalog: /^CRT-\d+$/i.test(str(r && r.catalog, 100).trim()) ? '' : str(r && r.catalog, 100).trim(), rymDescriptors: str(r && r.descriptor, 500).trim(), rymLink: /^https:\/\/rateyourmusic\.com\/release\//.test(str(r && r.rymLink, 300)) ? str(r.rymLink, 300) : '', cover: /^https:\/\/[^\s"'<>]+$/.test(str(r && r.cover, 500)) ? str(r.cover, 500) : '',
+      genre: rymGenreStr(r && r.genre), secondaryGenre: rymGenreStr(r && r.secondaryGenre), label: str(r && r.label, 200).trim(), catalog: /^CRT-\d+$/i.test(str(r && r.catalog, 100).trim()) ? '' : str(r && r.catalog, 100).trim(), rymDescriptors: str(r && r.descriptor, 500).trim(), rymLink: /^https:\/\/rateyourmusic\.com\/release\//.test(str(r && r.rymLink, 300)) ? str(r.rymLink, 300) : '', cover: /^https:\/\/[^\s"'<>]+$/.test(str(r && r.cover, 500)) ? str(r.cover, 500) : '',
       tracks: (Array.isArray(r && r.tracks) ? r.tracks : []).slice(0, 200).map((t, i) => ({ n: i + 1, title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), s: 'rym', rating: rymNum(t && t.rating), votes: rymNum(t && t.rating) ? rymVotesNum(t && t.votes) : 0 })).filter(t => t.title), rymRating: rymNum(r && r.rymRating), rymVotes: Math.max(0, Math.round(Number(r && r.rymVotes) || 0)) })).filter(r => r.artist && r.title).slice(0, 300) })).filter(b => b.id && b.releases.length);
 }
 function rymOutboxArrived(batches) {
@@ -31554,7 +31569,11 @@ function rymUpdatePlan(item, rel, oldRows, minNext) {
   [['genre', 'Genre', item.genre, rel.genre], ['genre2', 'Secondary genre', item.genre2, rel.secondaryGenre]].forEach(([key, label, cur, nw]) => {
     const c = String(cur || '').trim(), n = String(nw || '').trim(); if (!n) return;
     const set = (s) => s.split(',').map(lc).filter(Boolean).sort().join('|');
-    if (!c) add(key, label, '', n, 'fill'); else if (set(c) !== set(n)) add(key, label, c, n, 'differs');
+    if (!c) add(key, label, '', n, 'fill');
+    else if (set(c) !== set(n)) {
+      const cp = c.split(',').map(lc).filter(Boolean), np = n.split(',').map(lc).filter(Boolean);
+      add(key, label, c, n, (cp.length === 4 && np.length > 4 && cp.every((g, i) => g === np[i])) ? 'refine' : 'differs');          // yours is exactly the FIRST FOUR of RYM's longer list: what the add-on used to keep (it cut every list to four), so the rest is offered ticked; any other difference is still never ticked for you
+    }
   });
   [['label', 'Label', item.label, rel.label], ['catalog', 'Catalogue number', /^CRT-\d+$/i.test(String(item.catalog || '').trim()) ? '' : item.catalog, rel.catalog], ['rymDescriptors', 'RYM descriptors', item.rymDescriptors, rel.rymDescriptors]].forEach(([key, label, cur, nw]) => {
     const c = String(cur || '').trim(), n = String(nw || '').trim(); if (!n) return;        // (an automatic CRT-007 number says nothing, so it counts as blank)
