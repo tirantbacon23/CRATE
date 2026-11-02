@@ -19,7 +19,54 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.54.0
+  CURRENT_VERSION: 1.57.0
+
+  1.57.0 — 2026-11-01 — Edit tracks: every track of a release in one grid, from the sketch. No add-on and no backend change.
+
+          WHERE: the deck's "Edit tracks…" button (next to "Full-release video…") and "Edit tracks…" in a release's right-click menu. The existing tracklist builder and the per-track properties dialog are untouched and still there.
+          THE GRID: one row per track. Columns: side, title, length, Spotify, YouTube, genre, your rating (halves), listened, note; "Columns" also offers SoundCloud and the RYM rating · count (read-only); the choice is remembered. Changed cells are tinted with a dot on the row; the footer counts the changes and names the first problem (a length that isn't a time, a link that isn't a Spotify track / YouTube / SoundCloud link, a track
+            with data but no title), and Save stays off until there are none. Nothing is saved until Save. Undo and Redo cover the whole session. Find in titles narrows the rows. Cancel or Escape asks before discarding changes.
+          SPREADSHEET HABITS: Tab and Enter move between cells (Enter down the column, Shift+Enter up, the arrow keys too); Alt+Up / Alt+Down move a track; Ctrl+D fills down (from the cell above, or from the first selected track to the others); pasting several lines into a cell fills down the column and adds tracks at the end; drag the handle to reorder.
+          SELECTING TRACKS (tick, or shift-click for a range): a panel sets genre and rating, marks listened, clears Spotify/YouTube/SoundCloud links, moves up or down, deletes, and finds and replaces text in every title with a preview ("12 titles will change").
+          PASTE A TRACKLIST: reads the lines with the page's own tracklist reader. Three ways in: update my tracks by title (matching titles are corrected, links, ratings, notes and ticks stay, new ones are added in order, nothing is removed); add after the selected track; replace the whole tracklist (tracks that match keep their links and ratings; it says how many go and asks).
+          MATCH LINKS…: hides the editor, opens the song matcher for this release, and when it closes brings back the links it saved, except in cells you have edited yourself.
+          HOW A SAVE WORKS: ONE request writes the tracklist and the track data together, so it is saved whole or not at all (if the sheet refuses, the editor stays open with your changes). Only what changed is written. Two traps are handled: a link saved in a track's own data OVERRIDES the tracklist's link and an empty one falls through to it, so clearing a link clears it in both places (otherwise the old link reappears
+            after a reload); and a title or length typed over an old override removes the override. A length you did not touch is kept to the millisecond. A release whose tracklist comes from an automatic lookup is only turned into a tracklist you keep yourself if you change a title, length, side or the order or add or remove a track (the footer says so and Save asks); changing only ratings, genre, notes, ticks or links does not.
+          BUGS FOUND BY THE TESTS WHILE BUILDING IT, now fixed: leaving a cell with Tab redrew the grid and dropped the cursor; the Columns menu stayed open over the grid (clicks were blocked, and Escape did nothing once the cursor was lost).
+          VERIFIED: the rules (rows from tracks, what a save writes, problems, differences, find and replace, bulk edits, fill, moving, pasting a column, pasting a tracklist) in 35 unit checks; the screen in 76 browser checks against a fake sheet: opening, every value, columns, editing, problems, undo and redo, keyboard, adding, filtering, selecting, the panel, find and replace, dragging, pasting a column, the paste dialog's three ways, saving (one request; the exact tracklist and data written), clearing a link and
+            reloading, a release without a tracklist of its own (data only, then converting after a confirmation), adding and removing tracks, a failing save, cancelling, the song matcher coming back, the deck refreshing, the right-click entry. Breaking each of nine things (title override, link in both places, removed tracks' data, reordering, exact lengths, redraw on commit, the problem check, closing the menu, failed saves) fails a test.
+          NOT VERIFIED: against your real sheet (the fake one only mimics what I read in the backend script: editAlbum writes any column it is sent); real Spotify/iTunes tracklists (seeded stand-ins only); the real song matcher (a stand-in); phones; long tracklists (it redraws every row after most actions: tried with 7). THE EARLIER FULL REGRESSION (109 suites) COULD NOT BE RE-RUN: my working files were cleared between sessions, so only the checks above ran; the change to the rest of the page is a handful of additive lines (a button, a menu entry, one line in the matcher's close, styles). Please use the existing tracklist builder,
+            track properties and song matcher once and tell me if anything looks off.
+          NOT BUILT from the sketch: the link-cell popover with the candidates (links are pasted or filled by Match links…); column-mapping dropdowns in the paste dialog; sides from "A1"/"B1" prefixes (the page's tracklist reader takes them as numbers, and reads "Side A" headings); album artist, date, credits and RYM link columns; selecting and pasting across several columns; Ctrl+Z inside the grid (the Undo button does it).
+
+
+  1.56.0 — 2026-10-29 — Track popularity, worked out from Rate Your Music's rating of a track and the number of ratings behind it: three new columns for the Tracks view. No add-on and no backend change.
+
+          DOES IT MAKE SENSE? Partly, and the useful way to do it is not one blended number. A rating says how well a track is liked and the number of ratings says how many people have reached it; popularity is mostly the second. Three things shape the design. (1) A high rating from a handful of people means little (5.0 from 3 people should not beat 4.5 from 5,000), so ratings are ADJUSTED toward the library's average until a track has enough
+            ratings behind it. (2) Within one album, the counts of its tracks are nearly the same ("6k", "6k", "5k" on Rubber Soul), because the same people rate the whole album: across your library a count mostly says how well-known the ALBUM is, and what tells its tracks apart is their rating. (3) Counts of thousands are rounded by Rate Your Music, so small differences between big counts mean little.
+          WHERE: the three new Tracks-view columns (choose them like any column): "Adjusted rating (RYM)", "Popularity (RYM)" and "Vs album (RYM)" (all sort as numbers, tracks without a value last). I also renamed the two RYM columns from 1.51.0 to "Track rating (RYM)" and "Rating count (RYM)", because with five columns the old names were cut to the same words.
+          ADJUSTED RATING: (ratings x the track's rating + 25 x the library's average track rating) / (ratings + 25). With the library's average at 3.96, 4.5 from 3 people becomes 4.01, 4.6 from 5,800 stays 4.60 and 3.0 from 15 becomes 3.60.
+          POPULARITY, 0 to 100: where the track stands among all the rated tracks of YOUR library on number of ratings, and on adjusted rating, combined as the geometric mean of the two, so it is high only if the track is high on both (no weighting to argue about). It is RELATIVE TO YOUR LIBRARY: a good track on a little-known album scores low, and the numbers shift as you add releases. Shown only once the library has five tracks with both numbers.
+          VS ALBUM: how far the adjusted rating is above (+) or below (−) the average of its own album's rated tracks, e.g. +0.37 for the standout; it is only given for an album with three or more rated tracks. It is what finds the best track on an album.
+          ONLY tracks with BOTH a rating and a count are worked out; a rating you typed yourself, or a rating with no count, gives a blank, and does not affect anyone else's number. The counts come from the add-on (1.12.0 or later) when a release is updated from Rate Your Music: tracks you haven't updated since then have none.
+          VERIFIED: the maths in 14 unit checks (percentiles with ties, the adjusted rating against the formula, low counts pulled toward the average, popularity needing both, ordering, vs-album summing to zero, what is left out, the five-track minimum) and 11 browser checks against a second, independent calculation of the same rules (every number shown, blanks, the 4.5 from 3 people, the album rules, numeric sorting both ways, the numbers following changed data). Breaking the adjustment, the combining, the comparison with the album
+            or the one-second cache each fails a test. NOT VERIFIED: whether these numbers match your sense of which tracks are popular on your real library. The constants (25 ratings of prior weight, the three- and five-track minimums) are judgments, not measurements: if the ranking looks wrong to you, tell me which tracks and I'll look at it. NOT BUILT: the same for whole albums, a list of the most popular tracks, and using it to order playlists or shuffles.
+
+
+  1.55.0 — 2026-10-29 — Export and import the genre taxonomy, and a visible, safer sync to your account, so it persists across browsers and devices. No add-on and no backend change.
+
+          WHAT I FOUND: the taxonomy was already meant to follow you: every edit is saved to your account (the spreadsheet), and every browser takes that copy when it loads the catalog. Two things made that unreliable, and both would look exactly like "it doesn't persist". (1) A save that failed (a backend script older than 1.32, a taxonomy too long for it, a busy sheet, no connection) left only a console message: nothing told you
+            that this browser's copy was now the only one. (2) On every catalog load the account's copy REPLACED this browser's, so after a failed save the next load swapped your newer edits for the account's older copy, on any browser. I can't see your account, so I can't tell which of these happened to you.
+          WHERE: ⚙ → Genre Taxonomy now starts with "Back up, move and sync": Export to a file (crate-genre-taxonomy-<date>.json), Copy as text, Import…, Save to my account now, and Undo the last import (once you have imported). Under the buttons a note says how many genres, how big, and whether the account has this browser's copy: "Saved to your account on …", "Changes not saved yet", or "NOT saved to your account: the last try failed (why)",
+            or that it is too long for an old spreadsheet script (update apps-script-backend.gs).
+          IMPORT: choose a file or paste the copied text, press Read it, and it says how it compares with yours (new, different, the same, only yours) before anything changes, with three ways to bring it in and the result of each: (1) add what's new, keep mine where we differ (the default: a missing description of mine is filled in, nothing else of mine changes); (2) add what's new and use the imported version where we differ (a description of yours is
+            never blanked by an import that has none); (3) replace my whole taxonomy (it asks first, because genres only you have are removed). Your taxonomy as it was is kept first (on this device), so any import can be undone. An import is checked: every entry is rebuilt from the few fields it may have with their sizes capped, files that aren't a taxonomy (or are from a newer CRATE) are refused with a reason, at most 5,000 genres are read,
+            and a file that would put a genre under itself (A under B under C under A) has the one link that closes the loop left out, and says so. It also accepts a plain taxonomy without the envelope.
+          SAFER SYNC: (a) a failed save is now recorded and said once; "Save to my account now" tries again; (b) if this browser has changes the account never received, loading the catalog now KEEPS them and sends them again instead of replacing them with the account's older copy; (c) a browser that has its own taxonomy (made before this version, never sent) when the account has none puts it there once, so the next browser gets it; a browser still on the default sends nothing.
+          THE TRADE-OFF in (b): if two browsers both have unsent changes, each keeps its own and the last to send wins on the account: nothing is lost silently, but they won't merge by themselves. Export from one and Import into the other (option 1) to combine them. Not built: automatic merging between browsers, and saving single genres.
+          VERIFIED: the export, parsing, comparing, merging and loop-cutting logic in 19 unit checks; the dialog, a real file download, a real file import, paste, the three ways of importing, undo, refusals, a loop, a failing account (message once, note, unsent flag), local changes surviving a catalog load, retry, taking another browser's copy, the first send, no send from the default, and the too-long note in 26 browser checks. Breaking each of six things (keeping unsent changes, recording a failure, the keep-mine merge,
+            undo, the first send, loop cutting) fails a test. NOT VERIFIED: against your real account and backend script: if "Save to my account now" fails for you, the note under the buttons gives the backend's own reason; send it to me.
+
 
   1.54.0 — 2026-10-28 — "Labels" in the browser menu on the left: browse and filter by record label. No add-on and no backend change.
 
@@ -7754,6 +7801,7 @@
       <a id="deckRymLink" class="deck-link deck-link-rym" target="_blank" rel="noopener noreferrer">RYM ↗</a>
       <button id="deckEditBtn" class="deck-btn" type="button">Edit details</button>
       <button id="deckFullVideoBtn" class="deck-btn" type="button" title="One YouTube video that is the whole release: say where each song starts and ends in it">Full-release video…</button>
+      <button id="deckTrackGridBtn" class="deck-btn" type="button" title="Every track of this release in one grid: titles, lengths, links, genre, rating and notes">Edit tracks…</button>
       <button id="deckPlaylistRemoveBtn" class="deck-btn" type="button" hidden>Remove from playlist</button>
     </div>
 
@@ -8543,6 +8591,27 @@
   </div>
 </div>
 
+<div id="trackGridOverlay" class="arrange-overlay" hidden>
+  <div id="tgModal" class="arrange-modal tg-modal" role="dialog" aria-modal="true" aria-label="Edit tracks"></div>
+</div>
+<div id="tgPasteOverlay" class="arrange-overlay" hidden>
+  <div id="tgPasteModal" class="arrange-modal tg-paste-modal" role="dialog" aria-modal="true" aria-label="Paste a tracklist"></div>
+</div>
+
+<div id="taxImportOverlay" class="arrange-overlay" hidden>
+  <div class="arrange-modal add-modal tax-import-modal" role="dialog" aria-modal="true" aria-labelledby="taxImportTitle">
+    <div class="arrange-header"><h2 id="taxImportTitle">Import a genre taxonomy</h2><button id="taxImportClose" class="modal-x" aria-label="Close">✕</button></div>
+    <div class="arrange-body">
+      <p class="arrange-hint">Choose a file exported from CRATE (Genre Taxonomy → Export to a file), or paste the text from Copy as text. Nothing changes until you press Import.</p>
+      <div class="log-form-actions"><button type="button" id="taxImportPick" class="chip-btn">Choose a file…</button><input type="file" id="taxImportFile" accept=".json,application/json,text/plain" hidden></div>
+      <textarea id="taxImportText" rows="4" placeholder="…or paste the exported text here" aria-label="Exported taxonomy text"></textarea>
+      <div class="log-form-actions"><button type="button" id="taxImportRead" class="chip-btn">Read it</button></div>
+      <p id="taxImportMsg" class="arrange-hint" role="status"></p>
+      <div id="taxImportPlan" hidden></div>
+    </div>
+  </div>
+</div>
+
 <!-- Match songs for many releases: both services at once, and a screen to choose what is kept (see the "Match songs for many releases" block in the script) -->
 <div id="batchMatchOverlay" class="arrange-overlay" hidden><div id="bmModal" class="arrange-modal add-modal bm-modal" role="dialog" aria-modal="true" aria-labelledby="bmTitle"></div></div>
 <div id="bmStrip" class="bm-strip" role="status" hidden></div>
@@ -8787,13 +8856,20 @@
   <div class="arrange-modal add-modal genre-taxonomy-modal">
     <div class="arrange-header"><h2>Genre Taxonomy</h2><button id="genreTaxonomyClose" class="modal-x" aria-label="Close">✕</button></div>
     <div class="arrange-body">
-      <p class="arrange-hint">Set which broader genre each one falls under — e.g. Shoegaze under Alternative Rock, itself under Rock. A genre can have more than one parent too (Glam Punk under both Punk Rock and Glam Rock — separate multiple with commas, same as the Genre/Secondary Genre fields elsewhere). Filtering by a parent genre then also surfaces everything beneath it in the hierarchy, and the left panel's Genres list shows the tree with counts that include the whole branch. Leave a genre's field blank for top-level (no parent). Stored only in this browser.</p>
+      <p class="arrange-hint">Set which broader genre each one falls under — e.g. Shoegaze under Alternative Rock, itself under Rock. A genre can have more than one parent too (Glam Punk under both Punk Rock and Glam Rock — separate multiple with commas, same as the Genre/Secondary Genre fields elsewhere). Filtering by a parent genre then also surfaces everything beneath it in the hierarchy, and the left panel's Genres list shows the tree with counts that include the whole branch. Leave a genre's field blank for top-level (no parent). Saved to your account, so every browser you sign in on gets it (see Back up, move and sync).</p>
+      <div class="tax-io">
+        <div class="menu-section-title">Back up, move and sync</div>
+        <p class="arrange-hint">Your taxonomy is saved to your account (the spreadsheet) so every browser you sign in on gets it. Export it to keep a copy, or to carry it to another device; import one to add to this one or replace it.</p>
+        <div class="log-form-actions"><button type="button" id="taxExportBtn" class="chip-btn">Export to a file</button><button type="button" id="taxCopyBtn" class="chip-btn">Copy as text</button><button type="button" id="taxImportBtn" class="chip-btn">Import…</button><button type="button" id="taxSyncBtn" class="chip-btn">Save to my account now</button><button type="button" id="taxUndoBtn" class="chip-btn" hidden>Undo the last import</button></div>
+        <p id="taxSyncStatus" class="arrange-hint" role="status"></p>
+      </div>
       <datalist id="genreTaxonomyDatalist"></datalist>
       <div id="genreTaxonomyList" class="genre-taxonomy-list"></div>
       <div class="log-form-actions">
         <button type="button" id="genreTaxonomyAddBtn" class="chip-btn">+ Add a genre</button>
       </div>
       <p id="genreTaxonomyStatus" class="arrange-hint" hidden></p>
+
     </div>
   </div>
 </div>
@@ -8803,7 +8879,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.54.0';
+const APP_VERSION = '1.57.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -9545,7 +9621,7 @@ const FIELD_OPTIONS = {
 
 // In the Tracks table, "title" would otherwise read as "Title" right next to
 // the fixed Track-name column — relabel it "Album" for clarity there.
-const TRACK_COLUMN_LABELS = Object.assign({}, FIELD_OPTIONS, { title: 'Album', rymTrackRating: 'RYM track rating', rymTrackVotes: 'RYM track ratings (count)' });
+const TRACK_COLUMN_LABELS = Object.assign({}, FIELD_OPTIONS, { title: 'Album', rymTrackRating: 'Track rating (RYM)', rymTrackVotes: 'Rating count (RYM)', rymTrackWR: 'Adjusted rating (RYM)', rymTrackPop: 'Popularity (RYM)', rymTrackStand: 'Vs album (RYM)' });
 
 // Field choices for the right panel's Last.fm History rows — mostly
 // FIELD_OPTIONS' album-level fields (resolved via the matched crate item,
@@ -10159,9 +10235,171 @@ function saveGenreTaxonomy(taxonomy, opts) {
   // fetchCatalog, which re-applies whatever the backend actually holds)
   // is where any inconsistency would show up, not lost data outright.
   if (!opts || !opts.skipSync) {
-    postUpdate({ action: 'saveGenreTaxonomy', taxonomy: JSON.stringify(taxonomy) }).catch(e => console.warn('Genre taxonomy sync failed', e));
+    taxPostToAccount(taxonomy);          // (records whether the account really got it: a failure used to be only a console message)
   }
 }
+
+// BEGIN taxonomy-io
+// Export, import and merge of the genre taxonomy ({ "shoegaze": { label, parents: [names], description?, rym?: { text, url, at } } }), so it can travel between browsers and devices.
+// Nothing taken from a file is trusted: every entry is rebuilt from the few fields it may have, with their sizes capped, and a merge never leaves a genre as its own ancestor.
+const TAX_FORMAT = 'genre-taxonomy', TAX_VERSION = 1, TAX_MAX_GENRES = 5000;
+const taxKey = (s) => String(s == null ? '' : s).trim().toLowerCase();
+function taxClean(e, key) {                                          // one entry rebuilt from what it may hold; null when it is not an entry
+  if (!e || typeof e !== 'object' || Array.isArray(e)) return null;
+  const k = taxKey(key); if (!k || k.length > 200) return null;
+  const str = (v, n) => typeof v === 'string' ? v.slice(0, n) : '';
+  const parents = [], seen = new Set([k]);
+  (Array.isArray(e.parents) ? e.parents : (typeof e.parent === 'string' && e.parent ? [e.parent] : [])).forEach(p => {
+    const name = str(p, 200).trim().replace(/\s+/g, ' '), pk = taxKey(name);
+    if (name && !seen.has(pk) && parents.length < 30) { seen.add(pk); parents.push(name); }
+  });
+  const out = { label: str(e.label, 200).trim().replace(/\s+/g, ' ') || String(key).trim(), parents };
+  const d = str(e.description, 20000); if (d.trim()) out.description = d;
+  if (e.rym && typeof e.rym === 'object' && str(e.rym.text, 20000).trim()) out.rym = { text: str(e.rym.text, 20000), url: str(e.rym.url, 500), at: str(e.rym.at, 40) };
+  return out;
+}
+function taxCleanAll(tax) { const out = {}; Object.keys(tax || {}).forEach(k => { const c = taxClean(tax[k], k); if (c) out[taxKey(k)] = c; }); return out; }
+function taxExport(taxonomy, now) {
+  const src = taxCleanAll(taxonomy), tax = {}; Object.keys(src).sort().forEach(k => { tax[k] = src[k]; });
+  return { crate: TAX_FORMAT, version: TAX_VERSION, exportedAt: new Date(now || Date.now()).toISOString(), genres: Object.keys(tax).length, taxonomy: tax };
+}
+function taxParse(text) {                                            // { ok, taxonomy, count, dropped } or { ok: false, error }
+  let data; try { data = JSON.parse(String(text == null ? '' : text).trim()); } catch (e) { return { ok: false, error: 'That isn\u2019t a genre taxonomy: it could not be read as an exported file.' }; }
+  if (data && typeof data === 'object' && data.crate && data.crate !== TAX_FORMAT) return { ok: false, error: 'That file is from CRATE but it isn\u2019t a genre taxonomy.' };
+  if (data && typeof data === 'object' && data.crate === TAX_FORMAT && Number(data.version) > TAX_VERSION) return { ok: false, error: 'That file was made by a newer version of CRATE than this one: update the page first.' };
+  const raw = data && typeof data === 'object' && data.crate === TAX_FORMAT ? data.taxonomy : data;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, error: 'There are no genres in it.' };
+  const keys = Object.keys(raw), tax = {}; let dropped = Math.max(0, keys.length - TAX_MAX_GENRES);
+  keys.slice(0, TAX_MAX_GENRES).forEach(k => { const c = taxClean(raw[k], k); if (c) tax[taxKey(k)] = c; else dropped++; });
+  const count = Object.keys(tax).length; if (!count) return { ok: false, error: 'There are no genres in it.' };
+  return { ok: true, taxonomy: tax, count, dropped };
+}
+function taxSame(a, b) {
+  const ps = (e) => JSON.stringify((e.parents || []).map(taxKey).sort());
+  return a.label === b.label && ps(a) === ps(b) && (a.description || '') === (b.description || '') && ((a.rym && a.rym.text) || '') === ((b.rym && b.rym.text) || '');
+}
+function taxDiff(mine, theirs) {                                     // keys that are new in theirs, differ, are the same, or are only in mine
+  const m = taxCleanAll(mine), t = taxCleanAll(theirs), out = { added: [], changed: [], same: [], mineOnly: [] };
+  Object.keys(t).forEach(k => { if (!m[k]) out.added.push(k); else if (taxSame(m[k], t[k])) out.same.push(k); else out.changed.push(k); });
+  Object.keys(m).forEach(k => { if (!t[k]) out.mineOnly.push(k); });
+  return out;
+}
+function taxCutCycles(tax) {                                         // removes the parent link that closes any loop (a genre must never be its own ancestor); returns how many it removed
+  const colour = {}; let cut = 0;
+  const visit = (k) => {
+    colour[k] = 1; const e = tax[k];
+    if (e) for (let i = e.parents.length - 1; i >= 0; i--) { const pk = taxKey(e.parents[i]); if (!tax[pk]) continue; if (colour[pk] === 1) { e.parents.splice(i, 1); cut++; } else if (!colour[pk]) visit(pk); }
+    colour[k] = 2;
+  };
+  Object.keys(tax).forEach(k => { if (!colour[k]) visit(k); });
+  return cut;
+}
+function taxMerge(mine, theirs, mode) {                              // mode: 'keep' (add what is new, fill what I lack, keep mine otherwise) | 'theirs' (also take theirs where we differ) | 'replace'
+  const m = taxCleanAll(mine), t = taxCleanAll(theirs); let out;
+  if (mode === 'replace') out = t;
+  else {
+    out = m;
+    Object.keys(t).forEach(k => {
+      if (!out[k]) { out[k] = t[k]; return; }
+      const mineE = out[k];
+      if (mode === 'theirs') { const keepD = mineE.description, keepR = mineE.rym; out[k] = t[k]; if (!out[k].description && keepD) out[k].description = keepD; if (!out[k].rym && keepR) out[k].rym = keepR; }          // (an imported entry without a description never blanks one of mine)
+      else { if (!mineE.description && t[k].description) mineE.description = t[k].description; if (!mineE.rym && t[k].rym) mineE.rym = t[k].rym; }
+    });
+  }
+  const cut = taxCutCycles(out);
+  return { taxonomy: out, cutLinks: cut };
+}
+// END taxonomy-io
+
+// ---- Genre taxonomy: back it up, move it to another browser, and know whether it is saved to your account ----
+const TAX_SYNC_KEY = 'crate_tax_sync_v1', TAX_PREV_KEY = 'crate_genre_taxonomy_prev_v1';
+let taxPostSeq = 0, taxFailToasted = false, taxPlan = null;           // taxPlan: the import being looked at
+const taxEl = (id) => document.getElementById(id);
+function taxSyncState() { try { return JSON.parse(localStorage.getItem(TAX_SYNC_KEY) || '{}') || {}; } catch (e) { return {}; } }
+function taxSyncSet(patch) { try { localStorage.setItem(TAX_SYNC_KEY, JSON.stringify(Object.assign(taxSyncState(), patch))); } catch (e) { /* not kept */ } taxStatusRender(); }
+function taxIsDefault(tax) { const d = taxDiff(DEFAULT_GENRE_TAXONOMY, tax); return !d.added.length && !d.changed.length && !d.mineOnly.length; }
+function taxPrev() { try { const p = JSON.parse(localStorage.getItem(TAX_PREV_KEY) || 'null'); return p && p.taxonomy ? p : null; } catch (e) { return null; } }
+function taxPostToAccount(taxonomy) {                                  // saves to the account and records whether it worked (only the latest save counts)
+  const seq = ++taxPostSeq; taxSyncSet({ dirty: true });
+  return postUpdate({ action: 'saveGenreTaxonomy', taxonomy: JSON.stringify(taxonomy) })
+    .then(() => { if (seq === taxPostSeq) taxSyncSet({ dirty: false, lastOkAt: Date.now(), lastErr: '', seeded: true }); return true; })
+    .catch(e => {
+      taxSyncSet({ lastErr: String((e && e.message) || e).slice(0, 200), lastErrAt: Date.now() });
+      if (!taxFailToasted) { taxFailToasted = true; flashGlobalToast('Couldn\u2019t save the genre taxonomy to your account. It is kept on this device: open \u2699 \u2192 Genre Taxonomy to export it, or to try again.'); }
+      console.warn('Genre taxonomy sync failed', e); return false;
+    });
+}
+function taxStatusText() {
+  const tax = state.genreTaxonomy || {}, n = Object.keys(tax).length; let size = 0; try { size = JSON.stringify(tax).length; } catch (e) { size = 0; }
+  const st = taxSyncState(), kb = Math.max(1, Math.round(size / 1024)), when = (t) => t ? new Date(t).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+  let line;
+  if (size > 45000 && !state.backendTaxChunks) line = `It is too long for your spreadsheet script to store: update apps-script-backend.gs (see the update log). Until then it is kept on this device only: export it to carry it elsewhere.`;
+  else if (st.dirty && st.lastErr) line = `NOT saved to your account: the last try failed (${st.lastErr}${st.lastErrAt ? ', ' + when(st.lastErrAt) : ''}). It is kept on this device. Press \u201cSave to my account now\u201d to try again.`;
+  else if (st.dirty) line = 'Changes not saved to your account yet.';
+  else if (st.lastOkAt) line = `Saved to your account on ${when(st.lastOkAt)}: every browser you sign in on gets this copy.`;
+  else line = 'Not saved to your account from this browser yet.';
+  return `${n} genre${n === 1 ? '' : 's'} \u00b7 ${kb} KB. ${line}`;
+}
+function taxStatusRender() { const e = taxEl('taxSyncStatus'); if (e) e.textContent = taxStatusText(); const u = taxEl('taxUndoBtn'); if (u) u.hidden = !taxPrev(); }
+function taxExportFile() {
+  const env = taxExport(state.genreTaxonomy), text = JSON.stringify(env, null, 1), d = new Date(), pad = (n) => String(n).padStart(2, '0');
+  const name = `crate-genre-taxonomy-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.json`;
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' })), a = document.createElement('a');
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+  flashGlobalToast(`Exported ${env.genres} genre${env.genres === 1 ? '' : 's'} to ${name}.`);
+}
+async function taxCopyText() {
+  const text = JSON.stringify(taxExport(state.genreTaxonomy));
+  try { await navigator.clipboard.writeText(text); flashGlobalToast('Copied the taxonomy as text: paste it into Import on the other device.'); }
+  catch (e) { window.prompt('Copy this text (Ctrl+C), then paste it into Import on the other device:', text); }
+}
+function taxRefreshViews() { if (state.leftMode === 'genre') buildLeftList(); if (state.navFilter && state.navFilter.mode === 'genre') applyFiltersSort(); if (!el.genreTaxonomyOverlay.hidden) renderGenreTaxonomyEditor(); taxStatusRender(); }
+function taxImportOpen() { taxPlan = null; taxEl('taxImportText').value = ''; taxEl('taxImportMsg').textContent = ''; taxEl('taxImportPlan').hidden = true; taxEl('taxImportOverlay').hidden = false; }
+function taxImportRead(text) {
+  const r = taxParse(text), msg = taxEl('taxImportMsg'), box = taxEl('taxImportPlan');
+  if (!r.ok) { taxPlan = null; box.hidden = true; msg.textContent = r.error; msg.classList.add('bm-warn'); return; }
+  msg.classList.remove('bm-warn'); taxPlan = { incoming: r.taxonomy, mode: 'keep' };
+  msg.textContent = `Read ${r.count} genre${r.count === 1 ? '' : 's'}${r.dropped ? ` (${r.dropped} unusable entr${r.dropped === 1 ? 'y' : 'ies'} skipped)` : ''}.`;
+  taxPlanRender();
+}
+function taxPlanRender() {
+  const box = taxEl('taxImportPlan'); if (!taxPlan) { box.hidden = true; return; }
+  const mine = state.genreTaxonomy, d = taxDiff(mine, taxPlan.incoming), m = taxPlan.mode, res = taxMerge(mine, taxPlan.incoming, m), after = Object.keys(res.taxonomy).length;
+  const changed = m === 'theirs' ? d.changed.length : 0, removed = m === 'replace' ? d.mineOnly.length : 0;
+  const opt = (v, t, sub) => `<label class="bm-opt${m === v ? ' on' : ''}"><input type="radio" name="taxMode" value="${v}"${m === v ? ' checked' : ''}><span class="bm-opt-t">${t}<small>${sub}</small></span></label>`;
+  box.innerHTML = `<p class="arrange-hint"><b>Compared with yours:</b> ${d.added.length} new \u00b7 ${d.changed.length} different \u00b7 ${d.same.length} the same \u00b7 ${d.mineOnly.length} only yours.</p>`
+    + `<div class="bm-opts">${opt('keep', 'Add what\u2019s new, keep mine where we differ', 'Genres you don\u2019t have are added and a missing description is filled in. Nothing of yours is changed.')}${opt('theirs', 'Add what\u2019s new, and use the imported version where we differ', 'Where a genre has other parents or another description, the imported one is used (a description of yours is never blanked).')}${opt('replace', 'Replace my whole taxonomy with this one', 'Genres only you have are removed.')}</div>`
+    + `<p class="arrange-hint" id="taxPlanEffect" role="status">After this: ${after} genre${after === 1 ? '' : 's'} (${d.added.length} added${changed ? `, ${changed} changed` : ''}${removed ? `, ${removed} removed` : ''}${res.cutLinks ? `; ${res.cutLinks} parent link${res.cutLinks === 1 ? '' : 's'} left out so that no genre ends up under itself` : ''}). Your current taxonomy is kept first, so this can be undone.</p>`
+    + `<div class="log-form-actions"><button type="button" id="taxImportApply" class="config-btn">Import</button></div>`;
+  box.hidden = false;
+}
+function taxImportApply() {
+  if (!taxPlan) return; const m = taxPlan.mode, res = taxMerge(state.genreTaxonomy, taxPlan.incoming, m), d = taxDiff(state.genreTaxonomy, taxPlan.incoming);
+  if (m === 'replace' && d.mineOnly.length && !confirm(`Replace your whole taxonomy? ${d.mineOnly.length} genre${d.mineOnly.length === 1 ? '' : 's'} that only you have will be removed (you can undo this).`)) return;
+  let kept = true; try { localStorage.setItem(TAX_PREV_KEY, JSON.stringify({ at: Date.now(), taxonomy: taxCleanAll(state.genreTaxonomy) })); } catch (e) { kept = false; }
+  state.genreTaxonomy = res.taxonomy; saveGenreTaxonomy(state.genreTaxonomy);
+  taxEl('taxImportOverlay').hidden = true; taxPlan = null; taxRefreshViews();
+  flashGlobalToast(`Imported: the taxonomy now has ${Object.keys(res.taxonomy).length} genres${kept ? ' (Genre Taxonomy \u2192 Undo the last import puts it back)' : ' (an undo copy could not be kept)'}.`);
+}
+function taxUndoImport() {
+  const prev = taxPrev(); if (!prev) { flashGlobalToast('There is no import to undo.'); return; }
+  if (!confirm('Put back the genre taxonomy you had before the last import?')) return;
+  state.genreTaxonomy = taxCleanAll(prev.taxonomy); try { localStorage.removeItem(TAX_PREV_KEY); } catch (e) { /* fine */ }
+  saveGenreTaxonomy(state.genreTaxonomy); taxRefreshViews(); flashGlobalToast('Put back the taxonomy from before the import.');
+}
+async function taxSyncNow() { const ok = await taxPostToAccount(state.genreTaxonomy); flashGlobalToast(ok ? 'Saved the genre taxonomy to your account.' : 'Couldn\u2019t save it to your account: the note under the buttons says why.'); }
+(function wireTaxonomyIo() {
+  const ov = taxEl('taxImportOverlay'); if (!ov) return;
+  taxEl('taxExportBtn').addEventListener('click', taxExportFile); taxEl('taxCopyBtn').addEventListener('click', taxCopyText); taxEl('taxImportBtn').addEventListener('click', taxImportOpen);
+  taxEl('taxSyncBtn').addEventListener('click', taxSyncNow); taxEl('taxUndoBtn').addEventListener('click', taxUndoImport);
+  taxEl('taxImportClose').addEventListener('click', () => { ov.hidden = true; taxPlan = null; });
+  taxEl('taxImportPick').addEventListener('click', () => taxEl('taxImportFile').click());
+  taxEl('taxImportFile').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (!f) return; f.text().then(t => { taxEl('taxImportText').value = t.length > 200000 ? '' : t; taxImportRead(t); }); e.target.value = ''; });
+  taxEl('taxImportRead').addEventListener('click', () => taxImportRead(taxEl('taxImportText').value));
+  taxEl('taxImportPlan').addEventListener('change', (e) => { if (e.target.name === 'taxMode' && taxPlan) { taxPlan.mode = e.target.value; taxPlanRender(); } });
+  taxEl('taxImportPlan').addEventListener('click', (e) => { if (e.target.id === 'taxImportApply') taxImportApply(); });
+  ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); ov.hidden = true; taxPlan = null; } });
+})();
 
 function getGenreParents(taxonomy, genre) {
   const entry = taxonomy[genreTaxonomyKey(genre)];
@@ -11128,7 +11366,7 @@ function bindEvents() {
     el.layoutMenu.hidden = true;
     el.genreTaxonomyOverlay.hidden = false;
     el.genreTaxonomyStatus.hidden = true;
-    renderGenreTaxonomyEditor();
+    renderGenreTaxonomyEditor(); taxStatusRender();
   });
   el.genreTaxonomyClose.addEventListener('click', () => { el.genreTaxonomyOverlay.hidden = true; });
   el.genreTaxonomyAddBtn.addEventListener('click', () => {
@@ -12398,11 +12636,15 @@ async function fetchCatalog() {
     // one yet (data.genreTaxonomy null — e.g. a brand new account, or one
     // that hasn't opened the taxonomy editor since this feature shipped).
     if (data.genreTaxonomy) {
-      try {
+      if (taxSyncState().dirty) {
+        saveGenreTaxonomy(state.genreTaxonomy);          // this browser has changes the account never received: keep them and send them again, instead of replacing them with the account's older copy
+      } else try {
         const synced = JSON.parse(data.genreTaxonomy);
         state.genreTaxonomy = synced;
         saveGenreTaxonomy(synced, { skipSync: true }); // refresh the local cache only — don't re-post what we just received
       } catch (e) { console.warn('Malformed genre taxonomy from backend, keeping local copy', e); }
+    } else if (taxSyncState().dirty || (!taxSyncState().seeded && !taxIsDefault(state.genreTaxonomy))) {
+      saveGenreTaxonomy(state.genreTaxonomy);            // the account has none yet and this browser has one of its own: put it there, so the next browser gets it
     }
 
     // Inside fetchCatalog(), update the state.raw mapping:
@@ -14867,12 +15109,47 @@ function renderTrackView() {
 // their own columns, and a Plays column always trails on the right. Each
 // column can be dragged narrower/wider from its right edge (see
 // wireTrackHeaderResize); widths are pixel-based and persisted per-column.
+// BEGIN track-popularity
+// How well-liked and how well-known a track is, from Rate Your Music's own rating of it and the number of ratings that rating rests on.
+//   wr    adjusted rating: a track's average is pulled toward the library's average until it has enough ratings behind it (TPOP_PRIOR of them), so 5.0 from 3 people does not beat 4.5 from 5,000.
+//   pop   popularity, 0-100, relative to the tracks in THIS library: the geometric mean of where its number of ratings and its adjusted rating stand among all of them (a track is only high on both).
+//   stand how far its adjusted rating is above (+) or below (-) the average of its own album's rated tracks: what tells tracks on one album apart, since an album's tracks share most of their raters.
+// Only tracks with BOTH a rating and a count are worked out. Counts of thousands are rounded by Rate Your Music ("6k"), so small differences between big counts mean little.
+const TPOP_PRIOR = 25, TPOP_MIN_TRACKS = 5, TPOP_MIN_ALBUM = 3;
+function tpopPercentile(sortedAsc, x) {                              // mid-rank: ties share the middle of their rank, so equal values get the same number
+  let lo = 0, hi = sortedAsc.length; while (lo < hi) { const mid = (lo + hi) >> 1; if (sortedAsc[mid] < x) lo = mid + 1; else hi = mid; }
+  let eq = 0; for (let i = lo; i < sortedAsc.length && sortedAsc[i] === x; i++) eq++;
+  return (lo + eq / 2) / sortedAsc.length * 100;
+}
+function tpopCompute(entries) {                                      // [{ key, album, rating, votes }] -> Map(key -> { wr, pop, stand, votes })
+  const out = new Map(), valid = (entries || []).filter(e => e && Number(e.rating) > 0 && Number(e.votes) > 0).map(e => ({ key: e.key, album: String(e.album), rating: Number(e.rating), votes: Number(e.votes) }));
+  if (!valid.length) return out;
+  const C = valid.reduce((a, e) => a + e.rating, 0) / valid.length;
+  const rows = valid.map(e => ({ e, wr: (e.votes * e.rating + TPOP_PRIOR * C) / (e.votes + TPOP_PRIOR) }));
+  const votesSorted = rows.map(r => r.e.votes).sort((a, b) => a - b), wrSorted = rows.map(r => r.wr).sort((a, b) => a - b), enough = rows.length >= TPOP_MIN_TRACKS, byAlbum = new Map();
+  rows.forEach(r => { if (!byAlbum.has(r.e.album)) byAlbum.set(r.e.album, []); byAlbum.get(r.e.album).push(r.wr); });
+  rows.forEach(r => {
+    const wrs = byAlbum.get(r.e.album), mean = wrs.reduce((a, b) => a + b, 0) / wrs.length;
+    out.set(r.e.key, { wr: r.wr, pop: enough ? Math.sqrt(tpopPercentile(votesSorted, r.e.votes) * tpopPercentile(wrSorted, r.wr)) : null, stand: wrs.length >= TPOP_MIN_ALBUM ? r.wr - mean : null, votes: r.e.votes });
+  });
+  return out;
+}
+// END track-popularity
+let tpopCache = null;
+function trackPopMap() {                                             // every rated track of the library worked out together (they are ranked against each other); kept for a second so a sort doesn't redo it for every row
+  if (tpopCache && Date.now() - tpopCache.at < 1000) return tpopCache.map;
+  const entries = [];
+  (state.raw || []).forEach(it => { const td = it.trackData || {}; Object.keys(td).forEach(n => { const e = td[n]; if (e && Number(e.rymRating) > 0 && Number(e.rymVotes) > 0) entries.push({ key: it.row + '|' + n, album: String(it.row), rating: Number(e.rymRating), votes: Number(e.rymVotes) }); }); });
+  tpopCache = { at: Date.now(), map: tpopCompute(entries) }; return tpopCache.map;
+}
+const trackPopOf = (item, trackNumber) => trackPopMap().get(item.row + '|' + trackNumber) || null;
 function trackColDefaultWidth(sortKey) {
   if (sortKey === 'num') return 40;
   if (sortKey === 'name') return 260;
   if (sortKey === 'plays') return 64;
   if (sortKey === 'rymTrackRating') return 150;          // their headings are long ("RYM track ratings (count)"): room to read them
   if (sortKey === 'rymTrackVotes') return 200;
+  if (sortKey === 'rymTrackWR' || sortKey === 'rymTrackPop' || sortKey === 'rymTrackStand') return 190;
   return 120;
 }
 const TRACK_COL_MIN_WIDTH = 40;
@@ -14962,6 +15239,12 @@ function activeTrackColumns() {
 // a track's own genre actually shows up here instead of being stored but
 // never displayed.
 function trackColumnVal(key, item, track) {
+  if (key === 'rymTrackWR' || key === 'rymTrackPop' || key === 'rymTrackStand') {            // worked out from the rating and the number of ratings (see track-popularity): blank where a track has not got both
+    const v = trackPopOf(item, track.trackNumber); if (!v) return '';
+    if (key === 'rymTrackWR') return v.wr.toFixed(2);
+    if (key === 'rymTrackPop') return v.pop === null ? '' : String(Math.round(v.pop));
+    return v.stand === null ? '' : (v.stand >= 0 ? '+' : '\u2212') + Math.abs(v.stand).toFixed(2);
+  }
   if (key === 'rymTrackRating' || key === 'rymTrackVotes') {            // Rate Your Music's own rating of THIS song, and how many ratings it rests on
     const td = item.trackData && item.trackData[track.trackNumber]; if (!td || !(td.rymRating > 0)) return '';
     return key === 'rymTrackRating' ? Number(td.rymRating).toFixed(2) : (td.rymVotes ? Number(td.rymVotes).toLocaleString() : '');
@@ -15318,6 +15601,7 @@ function trackRowKey(row) {
 // where it makes sense (track #, year, rating, length, plays) and
 // case-folded strings otherwise.
 function trackSortValue(row, key) {
+  if (key === 'rymTrackWR' || key === 'rymTrackPop' || key === 'rymTrackStand') { const v = trackPopOf(row.item, row.track.trackNumber), x = v ? (key === 'rymTrackWR' ? v.wr : key === 'rymTrackPop' ? v.pop : v.stand) : null; return x === null || x === undefined ? -1e9 : x; }          // numbers, and tracks without one last when sorting high to low
   if (key === 'num') return row.track.trackNumber || 0;
   if (key === 'name') return (row.track.trackName || '').toLowerCase();
   if (key === 'plays') return trackScrobbleCountFor(row.item.artist, row.item.title, row.track.trackName) || 0;
@@ -17989,6 +18273,7 @@ function openAlbumCardContextMenu(item, x, y) {
     <button type="button" data-card-action="match">Match songs to Spotify / YouTube…</button>
     ${selItems.length > 1 ? `<button type="button" data-card-action="matchMany">Match songs for ${selItems.length} selected\u2026</button>` : ''}
     <button type="button" data-card-action="fullVideo">Full-release video…</button>
+    <button type="button" data-card-action="editTracks">Edit tracks…</button>
     ${state.activePlaylistId ? '<div class="menu-divider"></div><button type="button" class="remove-menu-btn" data-card-action="removeFromPlaylist">Remove from playlist</button>' : ''}
     <div class="menu-divider"></div>
     <button type="button" class="remove-menu-btn" data-card-action="delete">Delete from crate</button>
@@ -18030,6 +18315,7 @@ function openAlbumCardContextMenu(item, x, y) {
     else if (action === 'match') openSongMatcher(item);
     else if (action === 'matchMany') bmOpen({ ticked: selItems, view: (state.filtered || []).slice() });
     else if (action === 'fullVideo') fvOpen(item);
+    else if (action === 'editTracks') tgOpen(item);
     else if (action === 'removeFromPlaylist') removeAlbumFromActivePlaylist(item);
     else if (action === 'delete') deleteAlbumFromContextMenu(item);
   });
@@ -20765,6 +21051,335 @@ async function saveManualTracklist(item, rows, quiet) {
   if (!quiet) flashGlobalToast('Tracklist updated');
 }
 
+// BEGIN track-grid
+// The track editor: every track of a release in one grid. These are its rules, kept apart from the screen so they can be tested on their own.
+// A row is { id, trackNumber (0 = new), side, title, length ("3:12"), ms (the length it was loaded with), spotify, youtube, soundcloud, genre, rating (0-5, halves), listened, note, rymRating, rymVotes, s (where the track came from) }.
+// WHAT A SAVE WRITES (tgPlan): a track's own links, genre, rating, listened and note live in the release's track data, keyed by track number; its title, length, side and place in the order live in the tracklist you maintain yourself.
+// Two traps are handled here: a link saved in the track data OVERRIDES the tracklist's own (and an empty one falls through to it), so a link is cleared in both places; and a title or length typed over an old override has to remove that override.
+const TG_FIELDS = ['side', 'title', 'length', 'spotify', 'youtube', 'soundcloud', 'genre', 'rating', 'listened', 'note'], TG_LINK_FIELDS = ['spotify', 'youtube', 'soundcloud'], TG_STRUCT_FIELDS = ['side', 'title', 'length'];
+const TG_LINK_RE = { spotify: /^(?:https?:\/\/open\.spotify\.com\/(?:intl-[a-z-]+\/)?track\/[A-Za-z0-9]+|spotify:track:[A-Za-z0-9]+)/i, youtube: /^https?:\/\/(?:www\.|m\.|music\.)?(?:youtube\.com|youtu\.be)\/\S+/i, soundcloud: /^https?:\/\/(?:www\.|m\.)?soundcloud\.com\/\S+/i };
+const TG_LINK_NAME = { spotify: 'a Spotify track link', youtube: 'a YouTube link', soundcloud: 'a SoundCloud link' };
+let tgSeq = 0; const tgId = () => 'r' + (++tgSeq);
+function tgBlank(over) { return Object.assign({ id: tgId(), trackNumber: 0, side: '', title: '', length: '', ms: 0, spotify: '', youtube: '', soundcloud: '', genre: '', rating: 0, listened: false, note: '', rymRating: 0, rymVotes: 0, s: 'typed' }, over || {}); }
+function tgRowsFrom(tracks, trackData) {                              // the release's tracks as they are shown (overrides already applied) + the per-track data
+  return (tracks || []).map(t => { const td = (trackData && trackData[t.trackNumber]) || {}, ms = Number(t.trackTimeMillis) || 0;
+    return tgBlank({ trackNumber: t.trackNumber || 0, side: t.section || '', title: t.trackName || '', length: ms ? tlFormatTime(ms) : '', ms, spotify: t.spotifyLink || '', youtube: t.youtubeLink || '', soundcloud: t.soundcloudLink || '', genre: td.genre || '', rating: Number(td.rating) || 0, listened: !!td.listened, note: td.note || '', rymRating: Number(t.rymRating) || 0, rymVotes: Number(t.rymVotes) || 0, s: t.s || '' }); });
+}
+const tgClone = (rows) => rows.map(r => Object.assign({}, r));
+function tgHasData(r) { return !!(String(r.title).trim() || String(r.side).trim() || String(r.length).trim() || TG_LINK_FIELDS.some(f => String(r[f]).trim()) || String(r.genre).trim() || String(r.note).trim() || Number(r.rating) > 0 || r.listened); }
+function tgProblems(rows) {                                           // [{ id, field, msg }]: what stops a save
+  const out = [];
+  rows.forEach(r => {
+    if (!String(r.title).trim() && tgHasData(r)) out.push({ id: r.id, field: 'title', msg: 'needs a title (or remove the track)' });
+    const L = String(r.length).trim(); if (L && !tlParseTime(L)) out.push({ id: r.id, field: 'length', msg: `\u201c${L}\u201d isn\u2019t a time (like 3:12)` });
+    TG_LINK_FIELDS.forEach(f => { const v = String(r[f]).trim(); if (v && !TG_LINK_RE[f].test(v)) out.push({ id: r.id, field: f, msg: `isn\u2019t ${TG_LINK_NAME[f]}` }); });
+    const q = Number(r.rating); if (!(q >= 0 && q <= 5 && Math.round(q * 2) === q * 2)) out.push({ id: r.id, field: 'rating', msg: 'a rating is 0 to 5, in halves' });
+  });
+  return out;
+}
+function tgDiff(orig, rows) {
+  const o = new Map(orig.map(r => [r.id, r])), inRows = new Set(rows.map(r => r.id)), cells = [], added = [], removed = [];
+  rows.forEach(r => { const b = o.get(r.id); if (!b) { if (tgHasData(r)) added.push(r.id); return; } TG_FIELDS.forEach(f => { if (String(r[f]) !== String(b[f])) cells.push({ id: r.id, field: f }); }); });
+  orig.forEach(b => { if (!inRows.has(b.id)) removed.push(b.id); });
+  const kept = rows.filter(r => o.has(r.id)).map(r => r.id).join(), was = orig.filter(b => inRows.has(b.id)).map(b => b.id).join(), reordered = kept !== was;
+  return { cells, added, removed, reordered, structural: cells.some(c => TG_STRUCT_FIELDS.includes(c.field)) || added.length > 0 || removed.length > 0 || reordered, linksChanged: cells.some(c => TG_LINK_FIELDS.includes(c.field)), count: cells.length + added.length + removed.length + (reordered ? 1 : 0) };
+}
+function tgPlan(rows, orig, ctx) {                                    // ctx: { isManual, trackData, minNext } -> what to write
+  const d = tgDiff(orig, rows), o = new Map(orig.map(r => [r.id, r])), keep = rows.filter(r => String(r.title).trim()), need = d.structural || (!!ctx.isManual && d.linksChanged);
+  let next = Math.max(Number(ctx.minNext) || 0, ...rows.map(r => r.trackNumber || 0), ...orig.map(r => r.trackNumber || 0), 0) + 1;
+  const numbered = keep.map(r => Object.assign({}, r, { trackNumber: r.trackNumber || next++ })), td = JSON.parse(JSON.stringify(ctx.trackData || {}));
+  const keptNumbers = new Set(numbered.map(r => r.trackNumber)), removedNumbers = orig.filter(b => b.trackNumber && !keptNumbers.has(b.trackNumber)).map(b => b.trackNumber);
+  removedNumbers.forEach(n => { delete td[n]; });
+  numbered.forEach(r => {
+    const b = o.get(r.id), n = r.trackNumber, ent = td[n] || {}, changed = (f) => !b || String(r[f]) !== String(b[f]), put = (key, val, has) => { if (has) ent[key] = val; else delete ent[key]; };
+    if (changed('genre')) put('genre', String(r.genre).trim(), !!String(r.genre).trim());
+    if (changed('rating')) put('rating', Number(r.rating), Number(r.rating) > 0);
+    if (changed('listened')) put('listened', true, !!r.listened);
+    if (changed('note')) put('note', String(r.note).trim(), !!String(r.note).trim());
+    if (changed('spotify')) put('spotifyLink', String(r.spotify).trim(), !!String(r.spotify).trim());
+    if (changed('youtube')) put('youtubeLink', String(r.youtube).trim(), !!String(r.youtube).trim());
+    if (changed('soundcloud')) put('soundcloudLink', String(r.soundcloud).trim(), !!String(r.soundcloud).trim());
+    if (b && changed('title')) delete ent.name;                       // an old override of the title must not win over what was typed now
+    if (b && changed('length')) delete ent.lengthMs;
+    if (Object.values(ent).some(v => v)) td[n] = ent; else delete td[n];
+  });
+  const manualRows = need ? numbered.map(r => { const b = o.get(r.id); return { trackNumber: r.trackNumber, title: String(r.title).trim(), youtubeLink: String(r.youtube).trim(), spotifyLink: String(r.spotify).trim(), durationMs: (b && String(b.length) === String(r.length)) ? (b.ms || 0) : (tlParseTime(String(r.length).trim()) || 0), section: String(r.side).trim(), s: r.s || '' }; }) : null;
+  const tdChanged = JSON.stringify(td) !== JSON.stringify(ctx.trackData || {});
+  return { diff: d, needManual: need, convert: need && !ctx.isManual, manualRows, trackData: tdChanged ? td : null, removedNumbers, numbers: new Map(numbered.map(r => [r.id, r.trackNumber])) };
+}
+function tgFindReplace(rows, find, repl) {                            // in every title; case does not matter; { rows, count, examples: [[before, after]] }
+  const f = String(find == null ? '' : find); if (!f) return { rows: tgClone(rows), count: 0, examples: [] };
+  const re = new RegExp(f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), ex = []; let count = 0;
+  const out = rows.map(r => { const t = String(r.title); if (!re.test(t)) { re.lastIndex = 0; return Object.assign({}, r); } re.lastIndex = 0; const nt = t.replace(re, repl == null ? '' : String(repl)).replace(/\s+/g, ' ').trim(); count++; if (ex.length < 3) ex.push([t, nt]); return Object.assign({}, r, { title: nt }); });
+  return { rows: out, count, examples: ex };
+}
+function tgSetMany(rows, ids, field, value) { const s = new Set(ids); return rows.map(r => s.has(r.id) ? Object.assign({}, r, { [field]: value }) : Object.assign({}, r)); }
+function tgFill(rows, ids, field) {                                   // every selected row gets the value of the first selected row
+  const s = new Set(ids), first = rows.find(r => s.has(r.id)); if (!first) return tgClone(rows);
+  return rows.map(r => s.has(r.id) ? Object.assign({}, r, { [field]: first[field] }) : Object.assign({}, r));
+}
+function tgMoveRows(rows, ids, dir) {                                 // the selected rows one place up (-1) or down (1), keeping their order; a block at the edge stays
+  const s = new Set(ids), a = tgClone(rows);
+  if (dir < 0) { for (let i = 1; i < a.length; i++) if (s.has(a[i].id) && !s.has(a[i - 1].id)) { const t = a[i - 1]; a[i - 1] = a[i]; a[i] = t; } }
+  else { for (let i = a.length - 2; i >= 0; i--) if (s.has(a[i].id) && !s.has(a[i + 1].id)) { const t = a[i + 1]; a[i + 1] = a[i]; a[i] = t; } }
+  return a;
+}
+function tgMoveTo(rows, id, toIndex) { const from = rows.findIndex(r => r.id === id); if (from < 0) return tgClone(rows); const a = tgClone(rows), [x] = a.splice(from, 1); a.splice(Math.max(0, Math.min(a.length, toIndex)), 0, x); return a; }
+function tgDeleteRows(rows, ids) { const s = new Set(ids); return rows.filter(r => !s.has(r.id)).map(r => Object.assign({}, r)); }
+function tgPasteLines(rows, startIdx, field, text) {                  // a column of text pasted into a cell fills down from it (new rows are added at the end when it runs out)
+  const lines = String(text == null ? '' : text).replace(/\r/g, '').split('\n'); while (lines.length && lines[lines.length - 1] === '') lines.pop();
+  const a = tgClone(rows);
+  lines.forEach((line, i) => {
+    const k = startIdx + i; if (k >= a.length) a.push(tgBlank());
+    const v = line.trim(); a[k][field] = field === 'rating' ? (Number(v) >= 0 && Number(v) <= 5 ? Math.round(Number(v) * 2) / 2 : 0) : field === 'listened' ? /^(true|yes|y|x|1|\u2713)$/i.test(v) : v;
+  });
+  return { rows: a, count: lines.length };
+}
+function tgPasteTracklist(rows, parsed, mode, selIdx) {              // parsed: [{ title, durationMs, section }] -> { rows, matched, added, removed }
+  const a = tgClone(rows), P = parsed || [];
+  const apply = (r, p) => { r.title = p.title; if (p.durationMs) { r.length = tlFormatTime(p.durationMs); } if (p.section) r.side = p.section; };
+  if (mode === 'after') {
+    const at = selIdx >= 0 && selIdx < a.length ? selIdx + 1 : a.length, fresh = P.map(p => { const r = tgBlank({ s: 'pasted' }); apply(r, p); return r; });
+    a.splice(at, 0, ...fresh); return { rows: a, matched: 0, added: fresh.length, removed: 0 };
+  }
+  const used = new Set(); let matched = 0, added = 0;
+  const find = (p) => { const k = tlKey(p.title); if (!k) return null; return a.find(r => !used.has(r.id) && tlKey(r.title) === k) || null; };
+  if (mode === 'replace') {
+    const out = P.map(p => { const hit = find(p); if (hit) { used.add(hit.id); matched++; apply(hit, p); return hit; } added++; const r = tgBlank({ s: 'pasted' }); apply(r, p); return r; });
+    return { rows: out, matched, added, removed: a.filter(r => !used.has(r.id)).length };
+  }
+  let last = -1;                                                       // 'update': matching tracks are corrected where they are, the others are added after the one before them, and nothing is removed
+  P.forEach(p => {
+    const hit = find(p);
+    if (hit) { used.add(hit.id); matched++; apply(hit, p); last = a.indexOf(hit); return; }
+    added++; const r = tgBlank({ s: 'pasted' }); apply(r, p); a.splice(last + 1, 0, r); used.add(r.id); last = last + 1;
+  });
+  return { rows: a, matched, added, removed: 0 };
+}
+// END track-grid
+
+// ---- Track editor: the screen (the rules are in the track-grid block above) ----
+const TG_COLS_KEY = 'crate_tg_cols_v1';
+const TG_COLS = [
+  { id: 'side', label: 'Side', w: '70px', mono: true }, { id: 'title', label: 'Title', w: 'minmax(220px, 1.6fr)' }, { id: 'length', label: 'Length', w: '84px', mono: true },
+  { id: 'spotify', label: 'Spotify', w: '190px', link: true }, { id: 'youtube', label: 'YouTube', w: '190px', link: true }, { id: 'soundcloud', label: 'SoundCloud', w: '170px', link: true },
+  { id: 'genre', label: 'Genre', w: '150px' }, { id: 'rating', label: 'My rating', w: '104px', kind: 'rating' }, { id: 'rym', label: 'RYM rating \u00b7 count', w: '140px', kind: 'ro' },
+  { id: 'listened', label: 'Listened', w: '84px', kind: 'check' }, { id: 'note', label: 'Note', w: '220px' }];
+const TG_DEFAULT_COLS = ['side', 'title', 'length', 'spotify', 'youtube', 'genre', 'rating', 'listened', 'note'];
+let tg = null;                                                        // the editor in hand (null when closed)
+const tgEl = (id) => document.getElementById(id);
+function tgCols() { let saved = null; try { saved = JSON.parse(localStorage.getItem(TG_COLS_KEY) || 'null'); } catch (e) { saved = null; } const set = new Set(Array.isArray(saved) ? saved : TG_DEFAULT_COLS); set.add('title'); return TG_COLS.filter(c => set.has(c.id)); }
+const tgOrigMap = () => new Map(tg.orig.map(r => [r.id, r]));
+const tgPlanNow = () => tgPlan(tg.rows, tg.orig, { isManual: isManualAlbum(tg.item), trackData: tg.item.trackData || {}, minNext: tlMinNext(tg.item) });
+async function tgOpen(item) {
+  if (!item) return;
+  let tracks = []; try { tracks = (await getTracksFor(item)) || []; } catch (e) { tracks = []; }
+  const rows = tgRowsFrom(tracks, item.trackData || {});
+  tg = { item, orig: tgClone(rows), rows: tgClone(rows), sel: new Set(), anchor: null, past: [], future: [], last: JSON.stringify(rows), busy: false, q: '', menu: false, bulk: { genre: '', rating: '' }, fr: { find: '', repl: '' }, drag: null, waitMatcher: false, paste: null };
+  tgEl('trackGridOverlay').hidden = false; tgRender();
+  const first = tgEl('tgModal').querySelector('[data-tg="cell"][data-f="title"]'); if (first) first.focus();
+}
+function tgPush() { tg.past.push(tg.last); if (tg.past.length > 100) tg.past.shift(); tg.future = []; tg.last = JSON.stringify(tg.rows); }
+function tgPrune() { const ids = new Set(tg.rows.map(r => r.id)); [...tg.sel].forEach(i => { if (!ids.has(i)) tg.sel.delete(i); }); }
+function tgUndo() { if (!tg || !tg.past.length) return; tg.future.push(JSON.stringify(tg.rows)); tg.rows = JSON.parse(tg.past.pop()); tg.last = JSON.stringify(tg.rows); tgPrune(); tgRender(); }
+function tgRedo() { if (!tg || !tg.future.length) return; tg.past.push(JSON.stringify(tg.rows)); tg.rows = JSON.parse(tg.future.pop()); tg.last = JSON.stringify(tg.rows); tgPrune(); tgRender(); }
+function tgClose(force) {
+  if (!tg) { tgEl('trackGridOverlay').hidden = true; return; }
+  if (!force) { const n = tgPlanNow().diff.count; if (n > 0 && !confirm(`Discard ${n} unsaved change${n === 1 ? '' : 's'} to the tracks?`)) return; }
+  tgEl('trackGridOverlay').hidden = true; tgEl('tgPasteOverlay').hidden = true; tg = null;
+}
+const tgStars = (v) => Number(v) > 0 ? '\u2605'.repeat(Math.floor(v)) + (v % 1 ? '\u00bd' : '') : '';
+function tgCellHtml(r, i, c, om, pmap) {
+  const o = om.get(r.id), f = c.id, msg = pmap.get(r.id + '|' + f), dirty = c.kind === 'ro' ? false : (o ? String(r[f]) !== String(o[f]) : (tgHasData(r) && String(r[f]) !== '' && String(r[f]) !== '0' && r[f] !== false));
+  const lab = `${c.label}, track ${i + 1}`, da = `data-tg="cell" data-id="${r.id}" data-f="${f}"`;
+  if (c.kind === 'check') return `<label class="tg-cell tg-center${dirty ? ' dirty' : ''}"><input type="checkbox" ${da}${r.listened ? ' checked' : ''} aria-label="${lab}"></label>`;
+  if (c.kind === 'ro') return `<div class="tg-cell"><span class="tg-ro">${r.rymRating ? Number(r.rymRating).toFixed(2) + ' \u00b7 ' + Number(r.rymVotes || 0).toLocaleString() : '\u2014'}</span></div>`;
+  if (c.kind === 'rating') { const opts = ['<option value="0">\u2014</option>'].concat([0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map(v => `<option value="${v}"${Number(r.rating) === v ? ' selected' : ''}>${v} \u2605</option>`)).join(''); return `<div class="tg-cell"><select class="tg-in tg-sel${dirty ? ' dirty' : ''}${msg ? ' bad' : ''}" ${da} aria-label="${lab}">${opts}</select></div>`; }
+  const ok = c.link && String(r[f]).trim() && !msg;
+  return `<div class="tg-cell"><input type="text" class="tg-in${c.mono ? ' mono' : ''}${dirty ? ' dirty' : ''}${msg ? ' bad' : ''}${ok ? ' ok' : ''}" ${da} value="${escapeHtml(r[f])}"${msg ? ` title="${escapeHtml(msg)}" aria-invalid="true"` : ''} aria-label="${lab}"${c.link ? ' placeholder="paste a link"' : ''} autocomplete="off" spellcheck="false"></div>`;
+}
+function tgRowHtml(r, i, cols, om, pmap) {
+  const o = om.get(r.id), anyDirty = o ? TG_FIELDS.some(f => String(r[f]) !== String(o[f])) : tgHasData(r), sel = tg.sel.has(r.id);
+  return `<div class="tg-row${sel ? ' sel' : ''}" data-id="${r.id}"><label class="tg-chk"><input type="checkbox" data-tg="sel" data-id="${r.id}"${sel ? ' checked' : ''} aria-label="Select track ${i + 1}"></label>`
+    + `<span class="tg-grip" data-tg="grip" data-id="${r.id}" draggable="true" title="Drag to reorder (or Alt+\u2191 / Alt+\u2193)" aria-hidden="true">\u2807</span><span class="tg-num">${anyDirty ? '<i class="tg-dot" title="Changed"></i>' : ''}${i + 1}</span>`
+    + cols.map(c => tgCellHtml(r, i, c, om, pmap)).join('') + '</div>';
+}
+function tgPanelHtml() {
+  const n = tg.sel.size; if (!n) return '';
+  const sel = tg.rows.filter(r => tg.sel.has(r.id)), names = sel.slice(0, 3).map(r => r.title || 'untitled').join(', ') + (n > 3 ? ` and ${n - 3} more` : '');
+  const ratingOpts = ['<option value="">Leave as it is</option>'].concat([0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map(v => `<option value="${v}"${String(tg.bulk.rating) === String(v) ? ' selected' : ''}>${v === 0 ? 'No rating' : v + ' \u2605'}</option>`)).join('');
+  return `<aside class="tg-panel" aria-label="Change the selected tracks"><div class="tg-panel-h"><div><b>${n} track${n === 1 ? '' : 's'} selected</b><div class="bm-dim tg-names">${escapeHtml(names)}</div></div><button type="button" class="chip-btn" data-tg="clearsel">Clear</button></div>`
+    + `<div class="tg-sec"><div class="bm-label">Set for ${n === 1 ? 'this track' : 'all ' + n}</div><div class="tg-two"><label class="tg-f">Genre<input type="text" data-tg="bulk-genre" value="${escapeHtml(tg.bulk.genre)}" placeholder="Leave as it is" autocomplete="off"></label><label class="tg-f">My rating<select data-tg="bulk-rating">${ratingOpts}</select></label></div>`
+    + `<div class="tg-btns"><button type="button" class="config-btn" data-tg="bulk-apply">Apply to ${n} track${n === 1 ? '' : 's'}</button><button type="button" class="chip-btn" data-tg="bulk-listen">Mark listened</button><button type="button" class="chip-btn" data-tg="bulk-unlisten">Clear listened</button></div></div>`
+    + `<div class="tg-sec"><div class="bm-label">Order and removal</div><div class="tg-btns"><button type="button" class="chip-btn" data-tg="move-up">Move up</button><button type="button" class="chip-btn" data-tg="move-down">Move down</button><button type="button" class="chip-btn" data-tg="delete">Delete ${n}</button></div></div>`
+    + `<div class="tg-sec"><div class="bm-label">Links</div><div class="tg-btns"><button type="button" class="chip-btn" data-tg="clear-spotify">Clear Spotify</button><button type="button" class="chip-btn" data-tg="clear-youtube">Clear YouTube</button><button type="button" class="chip-btn" data-tg="clear-soundcloud">Clear SoundCloud</button></div></div>`
+    + `<div class="tg-sec"><div class="bm-label">Find and replace in every title</div><div class="tg-two"><label class="tg-f">Find<input type="text" data-tg="fr-find" value="${escapeHtml(tg.fr.find)}" autocomplete="off"></label><label class="tg-f">Replace with<input type="text" data-tg="fr-repl" value="${escapeHtml(tg.fr.repl)}" placeholder="nothing" autocomplete="off"></label></div><div id="tgFrPreview" class="tg-fr"></div><button type="button" class="chip-btn" data-tg="fr-apply" id="tgFrApply">Replace</button></div></aside>`;
+}
+function tgFrRender() {
+  const box = tgEl('tgFrPreview'), btn = tgEl('tgFrApply'); if (!box || !tg) return;
+  const r = tgFindReplace(tg.rows, tg.fr.find, tg.fr.repl);
+  box.innerHTML = !tg.fr.find ? '' : r.count ? r.examples.map(([a, b]) => `<div><s>${escapeHtml(a)}</s> \u2192 ${escapeHtml(b)}</div>`).join('') + `<div class="bm-m tg-amber">${r.count} title${r.count === 1 ? '' : 's'} will change</div>` : '<div class="bm-dim">No title contains that.</div>';
+  btn.textContent = r.count ? `Replace in ${r.count} title${r.count === 1 ? '' : 's'}` : 'Replace'; btn.disabled = !r.count;
+}
+function tgFootRender() {
+  const foot = tgEl('tgFoot'); if (!foot || !tg) return;
+  const plan = tgPlanNow(), probs = tgProblems(tg.rows), n = plan.diff.count, idxOf = (id) => tg.rows.findIndex(r => r.id === id) + 1;
+  const bits = [n ? `<span class="tg-amber"><i class="tg-dot"></i>${n} change${n === 1 ? '' : 's'} not saved</span>` : '<span class="bm-dim">No changes yet</span>'];
+  if (probs.length) bits.push(`<span class="tg-bad" role="alert">${probs.length} problem${probs.length === 1 ? '' : 's'}: track ${idxOf(probs[0].id)}, ${escapeHtml(probs[0].msg)}</span>`);
+  const note = plan.convert ? '<div class="bm-dim">Saving a change to titles, lengths, sides or order makes this a tracklist you keep yourself: it stops picking up automatic lookups.</div>' : '<div class="bm-dim">Tab and Enter move between cells \u00b7 Ctrl+V pastes a column \u00b7 Ctrl+D fills down \u00b7 drag \u2807 (or Alt+\u2191 \u2193) to reorder</div>';
+  const can = n > 0 && !probs.length && !tg.busy, label = tg.busy ? 'Saving\u2026' : probs.length ? `Fix ${probs.length} problem${probs.length === 1 ? '' : 's'} to save` : n ? `Save ${n} change${n === 1 ? '' : 's'}` : 'Save changes';
+  foot.innerHTML = `<div><div class="tg-status">${bits.join('')}</div>${note}</div><span class="tg-foot-btns"><button type="button" class="chip-btn" data-tg="cancel">Cancel</button><button type="button" class="${can ? 'config-btn' : 'chip-btn'}" data-tg="save"${can ? '' : ' disabled'}>${label}</button></span>`;
+}
+function tgRender() {
+  const ov = tgEl('trackGridOverlay'); if (!tg || ov.hidden) return;
+  const modal = tgEl('tgModal'), cols = tgCols(), om = tgOrigMap(), pmap = new Map(tgProblems(tg.rows).map(p => [p.id + '|' + p.field, p.msg]));
+  const gridEl = modal.querySelector('.tg-grid'), keep = gridEl ? { x: gridEl.scrollLeft, y: gridEl.scrollTop } : null, ae = document.activeElement, act = ae && modal.contains(ae) && ae.dataset && ae.dataset.id && ae.dataset.f ? { id: ae.dataset.id, f: ae.dataset.f } : null;
+  const widthPx = 40 + 28 + 52 + cols.reduce((a, c) => a + (parseInt((c.w.match(/\d+/) || [100])[0], 10) || 100), 0), G = '40px 28px 52px ' + cols.map(c => c.w).join(' ');
+  const head = `<div class="tg-row tg-th" style="grid-template-columns: ${G}"><label class="tg-chk"><input type="checkbox" data-tg="selall" aria-label="Select every track"${tg.rows.length && tg.rows.every(r => tg.sel.has(r.id)) ? ' checked' : ''}></label><span></span><span class="bm-label tg-pad">#</span>${cols.map(c => `<span class="bm-label tg-pad">${escapeHtml(c.label)}</span>`).join('')}</div>`;
+  const body = tg.rows.length ? tg.rows.map((r, i) => tgRowHtml(r, i, cols, om, pmap).replace('class="tg-row', `style="grid-template-columns: ${G}" class="tg-row`)).join('') : `<div class="tg-empty"><p>This release has no tracks yet.</p><p class="bm-dim">Add a track, or paste a tracklist from a website or booklet.</p><button type="button" class="config-btn" data-tg="paste">Paste a tracklist\u2026</button></div>`;
+  const menu = tg.menu ? `<div class="tg-menu" role="menu"><div class="bm-label">Columns</div>${TG_COLS.map(c => `<label class="tg-mi"><input type="checkbox" data-tg="col" data-col="${c.id}"${cols.some(x => x.id === c.id) ? ' checked' : ''}${c.id === 'title' ? ' disabled' : ''}> ${escapeHtml(c.label)}</label>`).join('')}</div>` : '';
+  const it = tg.item;
+  modal.innerHTML = `<div class="arrange-header"><div><h2>Edit tracks</h2><p class="sm-sub">${escapeHtml(it.title)} \u00b7 ${escapeHtml(it.artist)} \u00b7 ${tg.rows.length} track${tg.rows.length === 1 ? '' : 's'}. Everything about each track in one grid; nothing is saved until you press Save.</p></div><button type="button" class="modal-x" data-tg="cancel" aria-label="Close">\u2715</button></div>`
+    + `<div class="tg-tool"><div class="tg-tool-l"><button type="button" class="chip-btn" data-tg="add">+ Add track</button><button type="button" class="chip-btn" data-tg="paste">Paste tracklist\u2026</button><button type="button" class="chip-btn" data-tg="match">Match links\u2026</button></div>`
+    + `<div class="tg-tool-r"><input type="text" id="tgFind" data-tg="find" value="${escapeHtml(tg.q)}" placeholder="Find in titles\u2026" aria-label="Find in titles" autocomplete="off"><span class="tg-menu-wrap"><button type="button" class="chip-btn" data-tg="cols" aria-expanded="${tg.menu}">Columns \u25be</button>${menu}</span><button type="button" class="chip-btn" data-tg="undo" aria-label="Undo"${tg.past.length ? '' : ' disabled'}>\u21b6 Undo</button><button type="button" class="chip-btn" data-tg="redo" aria-label="Redo"${tg.future.length ? '' : ' disabled'}>\u21b7 Redo</button></div></div>`
+    + `<div class="tg-main"><div class="tg-grid"><div class="tg-inner" style="min-width: ${widthPx}px">${head}${body}</div></div>${tgPanelHtml()}</div><div class="tg-foot" id="tgFoot"></div>`;
+  const g2 = modal.querySelector('.tg-grid'); if (keep && g2) { g2.scrollLeft = keep.x; g2.scrollTop = keep.y; }
+  if (act) { const e2 = modal.querySelector(`[data-tg="cell"][data-id="${act.id}"][data-f="${act.f}"]`); if (e2) e2.focus(); }
+  tgApplyFilter(); tgFootRender(); tgFrRender();
+}
+function tgApplyFilter() { const q = tg ? tg.q.trim().toLowerCase() : ''; tgEl('tgModal').querySelectorAll('.tg-grid .tg-row[data-id]:not(.tg-th)').forEach(el => { const r = tg.rows.find(x => x.id === el.dataset.id); el.hidden = !!q && !(r && String(r.title).toLowerCase().includes(q)); }); }
+function tgCellEdited(el) {                                           // a cell was typed in, ticked or chosen: the model follows, and only what depends on it is redrawn
+  const r = tg.rows.find(x => x.id === el.dataset.id); if (!r) return; const f = el.dataset.f;
+  r[f] = f === 'listened' ? el.checked : f === 'rating' ? Number(el.value) : el.value;
+  const om = tgOrigMap(), o = om.get(r.id), dirty = o ? String(r[f]) !== String(o[f]) : tgHasData(r);
+  el.classList.toggle('dirty', dirty); const lab = el.closest('label.tg-cell'); if (lab) lab.classList.toggle('dirty', dirty);
+  const bad = tgProblems([r]).find(p => p.field === f); el.classList.toggle('bad', !!bad); if (bad) { el.title = bad.msg; el.setAttribute('aria-invalid', 'true'); } else { el.removeAttribute('title'); el.removeAttribute('aria-invalid'); }
+  const c = TG_COLS.find(x => x.id === f); if (c && c.link) el.classList.toggle('ok', !!String(r[f]).trim() && !bad);
+  const row = el.closest('.tg-row'), num = row && row.querySelector('.tg-num'), any = o ? TG_FIELDS.some(k => String(r[k]) !== String(o[k])) : tgHasData(r);
+  if (num) { const dot = num.querySelector('.tg-dot'); if (any && !dot) num.insertAdjacentHTML('afterbegin', '<i class="tg-dot" title="Changed"></i>'); else if (!any && dot) dot.remove(); }
+  tgFootRender(); tgFrRender();
+}
+function tgCloseMenu() { if (!tg || !tg.menu) return; tg.menu = false; const m = tgEl('tgModal'), x = m.querySelector('.tg-menu'); if (x) x.remove(); const b = m.querySelector('[data-tg="cols"]'); if (b) b.setAttribute('aria-expanded', 'false'); }
+function tgToolRender() { const m = tgEl('tgModal'), u = m.querySelector('[data-tg="undo"]'), r = m.querySelector('[data-tg="redo"]'); if (u && tg) u.disabled = !tg.past.length; if (r && tg) r.disabled = !tg.future.length; }
+function tgFocusCell(id, f) { const e = tgEl('tgModal').querySelector(`[data-tg="cell"][data-id="${id}"][data-f="${f}"]`); if (e) { e.focus(); if (e.select && e.type === 'text') e.select(); } }
+function tgVisibleIds() { return [...tgEl('tgModal').querySelectorAll('.tg-grid .tg-row[data-id]:not(.tg-th)')].filter(e => !e.hidden).map(e => e.dataset.id); }
+async function tgSave() {
+  if (!tg || tg.busy) return;
+  const probs = tgProblems(tg.rows); if (probs.length) { flashGlobalToast(`Fix ${probs.length} problem${probs.length === 1 ? '' : 's'} first: ${probs[0].msg}.`); return; }
+  const item = tg.item, plan = tgPlanNow(); if (!plan.diff.count) { tgClose(true); return; }
+  if (plan.convert && !confirm('Saving these changes makes this tracklist one you keep yourself: it will stop picking up automatic tracklist lookups. Go ahead?')) return;
+  tg.busy = true; tgFootRender();
+  let manual = null; const payload = { action: 'editAlbum', row: item.row };
+  if (plan.needManual) { manual = tlPersist(plan.manualRows, 'lookup'); payload.ManualTracks = JSON.stringify(manual); }
+  if (plan.trackData) payload.TrackData = JSON.stringify(plan.trackData);
+  try { if (!plan.needManual) { if (!plan.trackData) { tgClose(true); return; } await postUpdate({ row: item.row, trackData: JSON.stringify(plan.trackData) }); } else await postUpdate(payload); }          // ONE request: the tracklist and the track data are saved together or not at all
+  catch (err) { tg.busy = false; tgFootRender(); flashGlobalToast('Couldn\u2019t save the tracks: nothing was changed. Try again.'); return; }
+  if (manual) { item.manualTracks = manual; item.hasManualTracklist = true; }
+  if (plan.trackData) item.trackData = plan.trackData;
+  delete state.trackCache[artKey(item)]; refreshLinkFlagsFor(item);
+  try { if (activeItem === item) await loadTracklist(item); } catch (e) { /* the deck refreshes next time */ }
+  if (state.mainViewMode === 'tracks' || state.mainViewMode === 'albumTracks') applyFiltersSort();
+  const n = plan.diff.count; tgClose(true); flashGlobalToast(`Saved ${n} change${n === 1 ? '' : 's'} to the tracks.`);
+}
+function tgMatch() { if (!tg) return; tg.waitMatcher = true; tgEl('trackGridOverlay').hidden = true; openSongMatcher(tg.item); }
+function tgAfterMatcher() {                                           // the song matcher was opened from here and has closed: links it saved appear, except in cells you have edited yourself
+  if (!tg || !tg.waitMatcher) return; tg.waitMatcher = false; tgEl('trackGridOverlay').hidden = false;
+  const om = tgOrigMap();
+  tg.rows.forEach(r => { if (!r.trackNumber) return; const ov = trackLinkOverridesFor(tg.item, r.trackNumber, r.title), b = om.get(r.id); [['spotify', 'spotifyLink'], ['youtube', 'youtubeLink'], ['soundcloud', 'soundcloudLink']].forEach(([f, k]) => { const v = ov[k] || ''; if (b && String(r[f]) === String(b[f])) { r[f] = v; b[f] = v; } }); });
+  tg.last = JSON.stringify(tg.rows); tgRender();
+}
+// ----- pasting a tracklist -----
+function tgPasteOpen() { if (!tg) return; tg.paste = { text: '', mode: 'update' }; tgEl('tgPasteOverlay').hidden = false; tgPasteRender(); const t = tgEl('tgPasteText'); if (t) t.focus(); }
+function tgPasteRender() {
+  const box = tgEl('tgPasteModal'); if (!tg || !tg.paste) return; const P = tg.paste, parsed = tlParseText(P.text), n = parsed.tracks.length;
+  const selIdx = tg.rows.findIndex(r => tg.sel.has(r.id)), res = n ? tgPasteTracklist(tg.rows, parsed.tracks, P.mode, selIdx) : null;
+  const opt = (v, t, sub) => `<label class="bm-opt${P.mode === v ? ' on' : ''}"><input type="radio" name="tgMode" value="${v}" data-tg="pmode"${P.mode === v ? ' checked' : ''}><span class="bm-opt-t">${t}<small>${sub}</small></span></label>`;
+  const prev = parsed.tracks.slice(0, 6).map(t => `<div class="tg-prow"><span class="bm-m">${escapeHtml(t.section || '')}</span><span>${escapeHtml(t.title)}</span><span class="bm-m">${t.durationMs ? tlFormatTime(t.durationMs) : ''}</span></div>`).join('');
+  const sel = selIdx >= 0 ? tg.rows[selIdx].title || 'the selected track' : '';
+  box.innerHTML = `<div class="arrange-header"><div><h2>Paste a tracklist</h2><p class="sm-sub">From a website, a booklet or a spreadsheet. Nothing changes until you press Apply.</p></div><button type="button" class="modal-x" data-tg="pcancel" aria-label="Close">\u2715</button></div>`
+    + `<div class="arrange-body"><label class="tg-f">Pasted text<textarea id="tgPasteText" rows="7" data-tg="ptext" placeholder="A1  Drive My Car  2:28&#10;A2  Norwegian Wood  2:05&#10;\u2026" spellcheck="false">${escapeHtml(P.text)}</textarea></label>`
+    + `<p class="bm-dim" role="status">${n ? `${n} track${n === 1 ? '' : 's'} read${parsed.notes.withTimes ? ` \u00b7 ${parsed.notes.withTimes} with lengths` : ''}${parsed.notes.sections ? ` \u00b7 sides found` : ''}${parsed.notes.skipped ? ` \u00b7 ${parsed.notes.skipped} line${parsed.notes.skipped === 1 ? '' : 's'} skipped` : ''}.` : 'Paste the list above; the lines are read as you type.'}</p>${n ? `<div class="tg-prev">${prev}${n > 6 ? `<div class="bm-dim">and ${n - 6} more</div>` : ''}</div>` : ''}`
+    + `<div class="bm-opts">${opt('update', 'Update my tracks by title', 'Keeps each track\u2019s links, ratings, notes and ticks. Matching titles are corrected; new ones are added in order; nothing is removed.')}${opt('after', selIdx >= 0 ? `Add after \u201c${escapeHtml(sel)}\u201d` : 'Add at the end', 'For a bonus disc or missing tracks pasted from elsewhere.')}${opt('replace', 'Replace the whole tracklist', 'Tracks that match by title still keep their links and ratings; the rest are removed.')}</div>`
+    + `<p class="tg-result" role="status">${res ? `${res.matched} match your tracks by title \u00b7 ${res.added} new${res.removed ? ` \u00b7 ${res.removed} removed` : ''}` : ''}</p></div>`
+    + `<div class="tg-foot"><span class="bm-dim">You can undo it in the editor.</span><span class="tg-foot-btns"><button type="button" class="chip-btn" data-tg="pcancel">Cancel</button><button type="button" class="config-btn" data-tg="papply"${n ? '' : ' disabled'}>${n ? `Apply to ${n} track${n === 1 ? '' : 's'}` : 'Apply'}</button></span></div>`;
+}
+function tgPasteApply() {
+  if (!tg || !tg.paste) return; const parsed = tlParseText(tg.paste.text); if (!parsed.tracks.length) return;
+  const selIdx = tg.rows.findIndex(r => tg.sel.has(r.id)), res = tgPasteTracklist(tg.rows, parsed.tracks, tg.paste.mode, selIdx);
+  if (tg.paste.mode === 'replace' && res.removed && !confirm(`Replace the whole tracklist? ${res.removed} track${res.removed === 1 ? '' : 's'} that aren\u2019t in the pasted list will be removed (you can undo this).`)) return;
+  tg.rows = res.rows; tgPrune(); tgPush(); tgEl('tgPasteOverlay').hidden = true; tg.paste = null; tgRender();
+  flashGlobalToast(`Pasted: ${res.matched} matched, ${res.added} added${res.removed ? `, ${res.removed} removed` : ''}.`);
+}
+// ----- events -----
+function tgClick(e) {
+  if (!tg) return; if (tg.menu && !e.target.closest('.tg-menu-wrap')) tgCloseMenu();          // a click anywhere else closes the Columns menu, and still does what it was aimed at
+  const t = e.target.closest('[data-tg]'); if (!t) return;
+  const a = t.dataset.tg, sel = [...tg.sel];
+  if (['cell', 'bulk-genre', 'bulk-rating', 'fr-find', 'fr-repl', 'find', 'ptext', 'grip'].includes(a)) return;
+  if (a === 'cancel') tgClose(); else if (a === 'save') tgSave(); else if (a === 'undo') tgUndo(); else if (a === 'redo') tgRedo();
+  else if (a === 'add') { const r = tgBlank(); tg.rows.push(r); tgPush(); tgRender(); tgFocusCell(r.id, 'title'); const g = tgEl('tgModal').querySelector('.tg-grid'); if (g) g.scrollTop = g.scrollHeight; }
+  else if (a === 'paste') tgPasteOpen(); else if (a === 'match') tgMatch();
+  else if (a === 'cols') { if (tg.menu) tgCloseMenu(); else { tg.menu = true; tgRender(); } }
+  else if (a === 'col') { const set = new Set(tgCols().map(c => c.id)); if (t.checked) set.add(t.dataset.col); else set.delete(t.dataset.col); try { localStorage.setItem(TG_COLS_KEY, JSON.stringify([...set])); } catch (x) { /* kept for this visit only */ } tgRender(); const keepFocus = tgEl('tgModal').querySelector(`[data-col="${t.dataset.col}"]`); if (keepFocus) keepFocus.focus(); }
+  else if (a === 'sel') { const id = t.dataset.id, vis = tgVisibleIds();
+    if (e.shiftKey && tg.anchor && vis.includes(tg.anchor) && vis.includes(id)) { const i = vis.indexOf(tg.anchor), j = vis.indexOf(id); vis.slice(Math.min(i, j), Math.max(i, j) + 1).forEach(x => tg.sel.add(x)); }
+    else { if (t.checked) tg.sel.add(id); else tg.sel.delete(id); tg.anchor = id; }
+    tgRender(); }
+  else if (a === 'selall') { if (t.checked) tgVisibleIds().forEach(x => tg.sel.add(x)); else tg.sel.clear(); tgRender(); }
+  else if (a === 'clearsel') { tg.sel.clear(); tgRender(); }
+  else if (a === 'bulk-apply') { let rows = tg.rows, did = false; if (tg.bulk.genre !== '') { rows = tgSetMany(rows, sel, 'genre', tg.bulk.genre.trim()); did = true; } if (tg.bulk.rating !== '') { rows = tgSetMany(rows, sel, 'rating', Number(tg.bulk.rating)); did = true; } if (did) { tg.rows = rows; tg.bulk = { genre: '', rating: '' }; tgPush(); tgRender(); } }
+  else if (a === 'bulk-listen' || a === 'bulk-unlisten') { tg.rows = tgSetMany(tg.rows, sel, 'listened', a === 'bulk-listen'); tgPush(); tgRender(); }
+  else if (a.startsWith('clear-')) { tg.rows = tgSetMany(tg.rows, sel, a.slice(6), ''); tgPush(); tgRender(); }
+  else if (a === 'fr-apply') { const r = tgFindReplace(tg.rows, tg.fr.find, tg.fr.repl); if (r.count) { tg.rows = r.rows; tg.fr = { find: '', repl: '' }; tgPush(); tgRender(); } }
+  else if (a === 'move-up' || a === 'move-down') { tg.rows = tgMoveRows(tg.rows, sel, a === 'move-up' ? -1 : 1); tgPush(); tgRender(); }
+  else if (a === 'delete') { tg.rows = tgDeleteRows(tg.rows, sel); tg.sel.clear(); tgPush(); tgRender(); }
+  else if (a === 'pcancel') { tgEl('tgPasteOverlay').hidden = true; tg.paste = null; } else if (a === 'papply') tgPasteApply();
+}
+function tgInput(e) {
+  if (!tg) return; const t = e.target, a = t.dataset && t.dataset.tg; if (!a) return;
+  if (a === 'cell' && t.type !== 'checkbox' && t.tagName !== 'SELECT') tgCellEdited(t);
+  else if (a === 'find') { tg.q = t.value; tgApplyFilter(); }
+  else if (a === 'bulk-genre') tg.bulk.genre = t.value; else if (a === 'fr-find') { tg.fr.find = t.value; tgFrRender(); } else if (a === 'fr-repl') { tg.fr.repl = t.value; tgFrRender(); }
+  else if (a === 'ptext') { tg.paste.text = t.value; const pos = t.selectionStart; tgPasteRender(); const n = tgEl('tgPasteText'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (x) { /* fine */ } } }
+}
+function tgChange(e) {
+  if (!tg) return; const t = e.target, a = t.dataset && t.dataset.tg; if (!a) return;
+  if (a === 'cell') { if (t.type === 'checkbox' || t.tagName === 'SELECT') tgCellEdited(t); tgPush(); tgToolRender(); }          // no redraw here: leaving a cell with Tab must carry on into the next one
+  else if (a === 'bulk-rating') { tg.bulk.rating = t.value; } else if (a === 'pmode') { tg.paste.mode = t.value; tgPasteRender(); }
+}
+function tgKey(e) {
+  if (!tg) return; const t = e.target;
+  if (e.key === 'Escape') return;                                     // (handled for the whole page below, so it works wherever the cursor is)
+  if (!(t.dataset && t.dataset.tg === 'cell')) return; const id = t.dataset.id, f = t.dataset.f, ids = tgVisibleIds(), i = ids.indexOf(id);
+  if ((e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp') && !e.altKey && !(t.tagName === 'SELECT')) { e.preventDefault(); const j = i + (e.key === 'ArrowUp' || (e.key === 'Enter' && e.shiftKey) ? -1 : 1); if (ids[j]) tgFocusCell(ids[j], f); return; }
+  if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); tg.rows = tgMoveRows(tg.rows, [id], e.key === 'ArrowUp' ? -1 : 1); tgPush(); tgRender(); tgFocusCell(id, f); return; }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) {                       // fill down: the selected tracks take this column's value from the first of them; with none selected, from the track above
+    e.preventDefault(); const sel = [...tg.sel];
+    if (sel.length > 1) tg.rows = tgFill(tg.rows, sel, f); else { const k = tg.rows.findIndex(r => r.id === id); if (k > 0) tg.rows = tgSetMany(tg.rows, [id], f, tg.rows[k - 1][f]); }
+    tgPush(); tgRender(); tgFocusCell(id, f);
+  }
+}
+function tgPaste(e) {
+  if (!tg) return; const t = e.target; if (!(t.dataset && t.dataset.tg === 'cell') || t.tagName === 'SELECT' || t.type === 'checkbox') return;
+  const text = (e.clipboardData || window.clipboardData).getData('text'); if (!/\n[^\n]/.test(String(text).replace(/\r/g, '').replace(/\n+$/, '\n') + 'x') && !/[^\n]\r?\n[^\r\n]/.test(text)) return;          // one line: the ordinary paste
+  e.preventDefault(); const k = tg.rows.findIndex(r => r.id === t.dataset.id), res = tgPasteLines(tg.rows, k, t.dataset.f, text); tg.rows = res.rows; tgPush(); tgRender(); flashGlobalToast(`Pasted ${res.count} lines down the ${(TG_COLS.find(c => c.id === t.dataset.f) || {}).label || 'column'} column.`);
+}
+(function wireTrackGrid() {
+  const ov = tgEl('trackGridOverlay'), po = tgEl('tgPasteOverlay'); if (!ov) return;
+  [ov, po].forEach(o => { o.addEventListener('click', tgClick); o.addEventListener('input', tgInput); o.addEventListener('change', tgChange); o.addEventListener('keydown', tgKey); });
+  ov.addEventListener('paste', tgPaste);
+  ov.addEventListener('dragstart', (e) => { const g = e.target.closest && e.target.closest('[data-tg="grip"]'); if (!g || !tg) return; tg.drag = g.dataset.id; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', g.dataset.id); } catch (x) { /* fine */ } });
+  ov.addEventListener('dragover', (e) => { if (!tg || !tg.drag) return; const row = e.target.closest('.tg-row[data-id]'); if (!row) return; e.preventDefault(); ov.querySelectorAll('.tg-row.over').forEach(x => x.classList.remove('over')); row.classList.add('over'); });
+  ov.addEventListener('drop', (e) => { if (!tg || !tg.drag) return; const row = e.target.closest('.tg-row[data-id]'); if (!row) return; e.preventDefault(); const to = tg.rows.findIndex(r => r.id === row.dataset.id); tg.rows = tgMoveTo(tg.rows, tg.drag, to); tg.drag = null; tgPush(); tgRender(); });
+  ov.addEventListener('dragend', () => { if (tg) tg.drag = null; ov.querySelectorAll('.tg-row.over').forEach(x => x.classList.remove('over')); });
+  document.addEventListener('keydown', (e) => {                        // Escape: the paste box first, then the Columns menu, then the editor itself
+    if (e.key !== 'Escape' || !tg || tgEl('trackGridOverlay').hidden) return;
+    e.preventDefault(); e.stopPropagation();
+    if (!tgEl('tgPasteOverlay').hidden) { tgEl('tgPasteOverlay').hidden = true; tg.paste = null; } else if (tg.menu) tgCloseMenu(); else tgClose();
+  }, true);
+  const btn = tgEl('deckTrackGridBtn'); if (btn) btn.addEventListener('click', () => { if (activeItem) tgOpen(activeItem); });
+})();
+
 // "⤓ Load current tracklist" in the Edit modal — swaps the builder's
 // default single blank row for the album's actual current tracklist (see
 // currentTracklistAsManualRows), so fixing one wrong/missing track doesn't
@@ -23309,6 +23924,7 @@ function closeSongMatcher(force) {
   if (!force && n > 0 && !confirm(`Discard ${n} unsaved match${n === 1 ? '' : 'es'}?`)) return;
   el.songMatchOverlay.hidden = true; smLoadSeq++; smState = null;
   if (typeof bmAfterMatcher === 'function') bmAfterMatcher();
+  if (typeof tgAfterMatcher === 'function') tgAfterMatcher();
 }
 async function smRunSpotify() {
   const st = smState; if (!st) return;
@@ -36233,6 +36849,69 @@ html, body {
     .cx-thumb { width: 44px; height: 44px; }
     .cx-grid { grid-template-columns: repeat(auto-fill, minmax(98px, 1fr)); gap: 8px; }
   }
+  /* ---- Track editor: every track of a release in one grid ---- */
+  #tgPasteOverlay { z-index: 9100; }
+  .arrange-modal.tg-modal { max-width: none; width: min(98vw, 1560px); height: min(94vh, 980px); max-height: none; display: flex; flex-direction: column; overflow: hidden; }
+  .arrange-modal.tg-paste-modal { max-width: 760px; width: min(96vw, 760px); max-height: 94vh; display: flex; flex-direction: column; overflow: auto; }
+  .tg-modal .arrange-header { flex: none; }
+  .tg-tool { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 20px; border-bottom: 1px solid var(--line); }
+  .tg-tool-l, .tg-tool-r { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .tg-tool input[type="text"] { height: 36px; box-sizing: border-box; width: 200px; background: var(--bg-card, #171c23); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 0 10px; font: inherit; font-size: 13px; }
+  .tg-main { flex: 1; min-height: 0; display: flex; }
+  .tg-grid { flex: 1; min-width: 0; overflow: auto; }
+  .tg-inner { display: flex; flex-direction: column; }
+  .tg-row { display: grid; align-items: center; min-height: 44px; border-bottom: 1px solid var(--line); }
+  .tg-row[hidden] { display: none; }
+  .tg-row.sel { background: rgba(227,174,85,0.10); }
+  .tg-row.over { box-shadow: inset 0 2px 0 var(--accent); }
+  .tg-th { position: sticky; top: 0; z-index: 2; background: var(--bg-elevated); min-height: 38px; }
+  .tg-pad { padding: 0 10px; }
+  .tg-chk { display: flex; align-items: center; justify-content: center; height: 44px; cursor: pointer; }
+  .tg-chk input, .tg-cell input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+  .tg-grip { text-align: center; color: var(--text-dim); cursor: grab; user-select: none; }
+  .tg-num { font: 400 12px 'IBM Plex Mono', monospace; color: var(--text-dim); padding: 0 8px; display: flex; align-items: center; gap: 6px; }
+  .tg-dot { width: 8px; height: 8px; border-radius: 4px; background: var(--accent); display: inline-block; flex: none; }
+  .tg-cell { min-width: 0; display: flex; align-items: center; }
+  .tg-center { justify-content: center; }
+  .tg-in { width: 100%; box-sizing: border-box; height: 38px; background: transparent; color: var(--text); border: 2px solid transparent; border-radius: 4px; padding: 0 8px; font: inherit; font-size: 14px; outline: none; }
+  .tg-in.mono { font: 400 13px 'IBM Plex Mono', monospace; }
+  .tg-in:hover { border-color: var(--line); }
+  .tg-in:focus { border-color: var(--accent); background: var(--bg-card, #171c23); }
+  .tg-in.dirty, .tg-cell.dirty { background: rgba(227,174,85,0.16); }
+  .tg-in.bad { border-color: #f08a5d; }
+  .tg-in.ok { color: #62c4c0; font: 500 12px 'IBM Plex Mono', monospace; }
+  .tg-sel { cursor: pointer; }
+  .tg-sel option { background: var(--bg-elevated); color: var(--text); }
+  .tg-ro { font: 400 12px 'IBM Plex Mono', monospace; color: var(--text-dim); padding: 0 8px; white-space: nowrap; }
+  .tg-empty { padding: 48px 24px; text-align: center; }
+  .tg-menu-wrap { position: relative; }
+  .tg-menu { position: absolute; right: 0; top: 42px; z-index: 5; min-width: 200px; background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; box-shadow: 0 14px 36px rgba(0,0,0,0.5); }
+  .tg-mi { display: flex; align-items: center; gap: 8px; min-height: 32px; font-size: 13px; cursor: pointer; }
+  .tg-panel { width: 360px; flex: none; border-left: 1px solid var(--line); padding: 12px 16px; overflow: auto; display: flex; flex-direction: column; }
+  .tg-panel-h { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; padding-bottom: 10px; }
+  .tg-sec { display: flex; flex-direction: column; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .tg-two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tg-names { max-height: 3.2em; overflow: hidden; }
+  .tg-f { display: flex; flex-direction: column; gap: 4px; min-width: 0; font: 500 11px 'IBM Plex Mono', monospace; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
+  .tg-f input, .tg-f select, .tg-f textarea { height: 34px; width: 100%; min-width: 0; box-sizing: border-box; background: var(--bg-card, #171c23); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 0 10px; font: inherit; font-size: 14px; text-transform: none; letter-spacing: 0; }
+  .tg-f textarea { height: auto; padding: 8px 10px; font: 13px 'IBM Plex Mono', monospace; resize: vertical; }
+  .tg-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tg-fr { font-size: 13px; display: flex; flex-direction: column; gap: 3px; }
+  .tg-fr s { color: var(--text-dim); }
+  .tg-amber { color: var(--accent); display: inline-flex; align-items: center; gap: 8px; }
+  .tg-bad { color: #f08a5d; }
+  .tg-foot { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 20px; border-top: 1px solid var(--line); }
+  .tg-status { display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; margin-bottom: 4px; }
+  .tg-foot-btns { display: flex; gap: 8px; }
+  .tg-prev { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+  .tg-prow { display: grid; grid-template-columns: 60px 1fr 60px; gap: 8px; font-size: 13px; padding: 3px 0; }
+  .tg-result { font-size: 13px; color: var(--accent); min-height: 18px; margin: 4px 0 0; }
+  .tg-menu-wrap .chip-btn[aria-expanded="true"] { border-color: var(--accent); }
+  /* ---- Genre taxonomy: back up, move, sync ---- */
+  .tax-io { margin: 4px 0 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  #taxImportOverlay { z-index: 9100; }
+  .arrange-modal.tax-import-modal { max-width: 640px; width: min(96vw, 640px); }
+  #taxImportText { width: 100%; box-sizing: border-box; background: var(--bg-card); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 8px; font: 12px 'IBM Plex Mono', monospace; resize: vertical; margin: 8px 0; }
   /* ---- Match songs for many releases ---- */
   .arrange-modal.bm-modal { max-width: none; width: min(1380px, 97vw); height: min(calc(100vh - 120px), 960px); min-height: 420px; display: flex; flex-direction: column; overflow: hidden; }
   .bm-hbtns { display: flex; align-items: center; gap: 8px; flex: none; }
