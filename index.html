@@ -19,7 +19,43 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.58.1
+  CURRENT_VERSION: 1.60.0
+
+  1.60.0 — 2026-11-03 — Speed: playing a genre with thousands of releases no longer slows the page down, and a big crate opens, redraws and plays much faster. No add-on and no backend change.
+
+          PLAYING A BIG GENRE (or All Albums, the mood picker, the map's Play): it used to look up the tracklist of EVERY release at once and put every track in the queue, redrawing Up Next over and over as they came in (with 2,666 releases, each redraw took longer and longer). Now it starts on the first release
+            and keeps only about 60 tracks loaded ahead of the one playing, loading more as the queue moves on (crateQueuePending, crateQueueTopUp; topped up from playCrateQueueIndex). Shuffle on/off also reorders the releases not loaded yet. Clear and a new Play drop them.
+          UP NEXT draws the next 150 tracks and then a line, "+ N more tracks, M more releases to come" (QUEUE_PANEL_MAX_ROWS). It is redrawn on every track change, so this keeps that quick.
+          COVERS: applyCachedArt searched the whole page once for every cached cover; with 4,000 releases that was over 20 seconds, and it ran on every grid redraw and on every track change (the track info and Last.fm history panels call it). It is now one pass over the page's images (about 20 ms).
+            applyCachedArtFor (a cover that just arrived) gathers the covers arriving together into one such pass. Startup with a 4,000-release test crate: about 28 seconds frozen before, about 2.4 now.
+          COVER LOOKUPS: each card without a cover started its own iTunes lookup the moment it was drawn, so a big crate fired thousands at once (iTunes refuses that many, and the tracklist lookups for playing had to wait behind them). They now take turns, 4 at a time (artLookupSlot).
+          THE GRID: cards off screen are not laid out until they come near it (content-visibility on .grid > .card, with the first card's real height as the stand-in, --card-h): layout of 4,000 cards went from about 2.6 seconds to under 0.2. A hovered or focused card is left out of that, so its lift and shadow aren't clipped.
+
+  1.59.0 — 2026-11-02 — Export to Obsidian: the crate as a zip of Markdown notes (releases, artists, genres, labels) to unzip into a vault. No add-on and no backend change.
+
+          WHERE: ⚙ menu → "Export to Obsidian…" (right after "Export crate…"). Choose Everything or What's showing now, tick whether to include tracklists and your reviews, press Export: it downloads crate-obsidian-<date>.zip. Unzip it into the vault: everything lands in a folder called CRATE. One way: nothing in CRATE changes, and nothing is read back from the vault.
+          WHAT IT MAKES: CRATE/Releases (one note per release), CRATE/Artists, CRATE/Genres, CRATE/Labels and a CRATE.md index. The relationships are PROPERTIES on the notes, named for what they are, so Obsidian's graph, backlinks and Bases can use them: a release has artist (a link), genres and secondary_genres (lists of links), labels (a list of links); a genre has parent (links, from YOUR GENRE TAXONOMY, so the genre tree shows in the graph; a parent that only the taxonomy mentions gets a note too) and a Sub-genres list;
+            an artist has genres (the ones its releases carry, most used first). Plain facts are properties too: year, released (a real date, when the release has a full one), format, catalog (CRATE's automatic CRT-007 numbers are left out), your rating, rym_rating, rym_ratings, rym_rank, descriptors, region, location, rym, link, cover, added, and a tag (crate/release and so on).
+          THE BODY of a release note: its title, the artist link, the cover picture, "My review" with your review exactly as you wrote it, and a Tracklist table (side, title, length, your rating as stars, the RYM rating with its count, your note, links). A genre note carries your description and the Rate Your Music text, quoted with its source, then its sub-genres and releases. Artist and label notes list their releases by year.
+          NAMES: every note name is unique across the whole export, so a [[link]] can never go to the wrong note: where two kinds want one name the earlier keeps it (genres, then labels, artists, releases) and the other becomes "Pop (artist)" and the link still SHOWS "Pop". "/" and ":" in a name become "-", other characters Obsidian can't have in a link are dropped; two editions with the same artist, title and year become "... (2)". A release on two labels ("Sire / Warner Bros.") is listed under both.
+          TRACKLISTS: only a tracklist you keep yourself, or one already loaded, is included: the export makes NO web lookups (checked), so a release whose tracklist is looked up automatically has none until you have opened it. The zip is a plain archive with nothing compressed (browsers have no zip writer; the notes are text and small).
+          LIMITS AND WHAT IS NOT INCLUDED: more than 65,000 notes will not fit one zip (it says so and suggests What's showing now). Not exported: your diary, scrobbles, playlists, the queue, and a note per TRACK. Exporting again makes the same notes afresh: write your own notes elsewhere in the vault and link to these, or they will be overwritten if you unzip over them.
+          BUGS FOUND BY THE TESTS WHILE BUILDING IT, now fixed: Escape did nothing once the download had taken the cursor; an automatic catalogue number would have been exported as if real; and a test gap (a name with a double quote or backslash) that would have let invalid properties through.
+          VERIFIED: 27 unit checks on the notes and the zip (every note's properties read back with a real YAML parser, every [[link]] resolved, every name unique, names with quotes, colons, slashes, accents and Japanese, the zip checked by Python's zip reader and the system's unzip, the standard CRC-32 value, 3,000 notes) and 16 browser checks (the menu entry, the dialog, a real download opened as a zip, the properties, the tracklist table, the taxonomy as parents, two-label releases, both options, What's showing now, no web requests, Escape, no changes to the crate). Breaking six things (name collisions, quoting, the genre parent,
+            the zip's checksum, the scope choice, the tracklist option) fails a test. The earlier suites still pass.
+          NOT VERIFIED: IN OBSIDIAN ITSELF. I checked the notes with a YAML parser and my own link checker, not by opening them in Obsidian: that links in properties show as links, and that a Base can sort by these properties, are as Obsidian documents them, not something I have seen. A real crate (thousands of releases) was not tried: only small ones. THE EARLIER FULL REGRESSION (109 suites) STILL CANNOT BE RE-RUN; the earlier suites I rebuilt pass.
+
+
+  1.58.2 — 2026-11-02 — Scenes are no longer pulled into a release's genres: RYM add-on 1.12.4, and CRATE drops them from what it receives.
+
+          THE CAUSE (from the Diagnose report you sent, for Joni Mitchell's "Blue"): the add-on had read "Singer-Songwriter, Contemporary Folk, Laurel Canyon Scene" as the Genre list. RYM lists a release's Scenes in a row of their own (the report's headings show Genres, then Scenes), with links under /genre/ addresses just like genres, and the add-on accepted any link inside an element carrying the genre classes without asking which row it was in.
+          THE FIX, in the add-on: a link in a row headed Scenes or Movements is no longer read as a genre, and any name ending in "Scene" is dropped from a genre list by the add-on's cleaner (which also covers a scene link sitting in the Genres row itself). In CRATE: the same name rule when it receives genres, so a scene from an add-on you have not updated is dropped too ("Scenecore" and names like "Madchester" are genres and are kept). "Diagnose this page" now shows the markup of the genre, scene and movement rows, which the old report cut off before reaching.
+          RELEASES YOU ALREADY HAVE: run Update from Rate Your Music on them. A release whose Genre or Secondary genre contains a scene gets a row showing the clean list beside yours. It is a "differs" row, so it is NOT ticked for you: nothing is removed unless you tick it.
+          NOT DONE: the scene is dropped, not filed anywhere. CRATE has a Scene field; filling it from RYM's Scenes row is a separate change I can make if you want it.
+          TO USE IT: install add-on 1.12.4 (a new zip and folder: remove the old one, load the new folder, reconnect it to your CRATE address in its options, reload CRATE). The page change alone already drops scenes whose name ends in "Scene" (Laurel Canyon Scene) when you run an update, but not a scene named like a genre ("Madchester"): that needs the add-on.
+          VERIFIED: the real add-on in a real browser, the previous version as the control and the new one, on pages built from the start of your Joni Mitchell markup with the Scenes row marked up in three ways (reusing the genre classes; the scene link inside the Genres row; a scene named "Madchester"): the control reproduces your symptom, the new add-on reads Singer-Songwriter, Contemporary Folk and Folk Pop in every case, and a release with no scenes reads identically in both. Plus 4 more unit checks (12 in all) and 3 more page checks (14 in all). Breaking the row rule, the add-on's cleaner and the page's rule each fails a test; the earlier suites still pass.
+          NOT VERIFIED: your real page. The report cuts the page off before the Scenes row, so how RYM marks it up is a guess (the three ways above). The one case this cannot separate is a scene link inside the Genres row's own list under a name that does not end in "Scene": nothing tells it from a genre. If a scene still appears after updating, send a new Diagnose report: it now includes those rows. THE EARLIER FULL REGRESSION (109 suites) STILL CANNOT BE RE-RUN; the earlier suites I rebuilt pass.
+
 
   1.58.1 — 2026-11-02 — A release's full list of genres: the RYM add-on (1.12.3) no longer cuts it to four, and CRATE keeps it whole.
 
@@ -7007,6 +7043,7 @@
           <button type="button" id="menuDiscogsApi">Discogs API…</button>
           <button type="button" id="menuYoutubeApi">YouTube API…</button>
           <button type="button" id="menuExportCrate">Export crate…</button>
+          <button type="button" id="menuObsidianExport">Export to Obsidian…</button>
           <button type="button" id="menuImportCrate">Import crate…</button>
           <button type="button" id="menuImportRym">Import from Rate Your Music…</button>
           <button type="button" id="menuTidyNames">Tidy artist names…</button>
@@ -8625,6 +8662,25 @@
   </div>
 </div>
 
+<div id="obsOverlay" class="arrange-overlay" hidden>
+  <div class="arrange-modal add-modal obs-modal" role="dialog" aria-modal="true" aria-labelledby="obsTitle">
+    <div class="arrange-header"><div><h2 id="obsTitle">Export to Obsidian</h2><p class="sm-sub">Makes a zip of Markdown notes (releases, artists, genres and labels) to unzip into your Obsidian vault. They link to each other, so the graph and backlinks work.</p></div><button type="button" id="obsClose" class="modal-x" aria-label="Close">✕</button></div>
+    <div class="arrange-body">
+      <fieldset class="cx-group"><legend>Start from</legend>
+        <label><input type="radio" name="obsScope" id="obsScopeAll" checked> Everything <span id="obsScopeAllN" class="sm-dim"></span></label>
+        <label><input type="radio" name="obsScope" id="obsScopeView"> What’s showing now <span id="obsScopeViewN" class="sm-dim"></span></label>
+      </fieldset>
+      <fieldset class="cx-group"><legend>Include</legend>
+        <label><input type="checkbox" id="obsTracks" checked> Tracklists, with your track ratings and links</label>
+        <label><input type="checkbox" id="obsReviews" checked> Your reviews</label>
+      </fieldset>
+      <p class="arrange-hint">Unzip it into your vault: the notes land in a folder called CRATE. The relationships are properties on each note (artist, genres, labels, and parent for a genre), so you can sort and filter them in a Base. Exporting again makes these notes afresh, so write your own notes elsewhere in the vault and link to these.</p>
+      <p id="obsMsg" class="arrange-hint" role="status"></p>
+    </div>
+    <div class="tg-foot"><span class="bm-dim">One way: nothing changes in CRATE.</span><span class="tg-foot-btns"><button type="button" id="obsCancel" class="chip-btn">Close</button><button type="button" id="obsGo" class="config-btn">Export</button></span></div>
+  </div>
+</div>
+
 <div id="trackGridOverlay" class="arrange-overlay" hidden>
   <div id="tgModal" class="arrange-modal tg-modal" role="dialog" aria-modal="true" aria-label="Edit tracks"></div>
 </div>
@@ -8913,7 +8969,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.58.1';
+const APP_VERSION = '1.60.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -10437,6 +10493,176 @@ async function taxSyncNow() { const ok = await taxPostToAccount(state.genreTaxon
   ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); ov.hidden = true; taxPlan = null; } });
 })();
 
+// BEGIN obsidian-export
+// "Export to Obsidian": the crate as a folder of Markdown notes (releases, artists, genres, labels) that link to each other with Obsidian [[links]], so the graph, backlinks and property views work.
+// The RELATIONSHIPS are properties, typed by their name: a release has artist, genres, secondary_genres and labels; a genre has parent (from your genre taxonomy); an artist has genres. Plain facts (year,
+// ratings, descriptors, links) are properties too. Every note name is unique across the whole export, so a link never points at the wrong note (an artist called "Pop" and the genre "Pop" become
+// "Pop" and "Pop (genre)"). One-way: nothing here reads a vault, and running it again makes the same notes afresh.
+const obsKey = (s) => String(s == null ? '' : s).trim().replace(/\s+/g, ' ').toLowerCase();
+const obsText = (s) => String(s == null ? '' : s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u2028\u2029]/g, ' ');
+const obsOne = (s) => obsText(s).replace(/\s+/g, ' ').trim();
+const obsYq = (s) => JSON.stringify(obsText(s));                                      // a YAML double-quoted string (a JSON string is one)
+function obsFileName(s, max) {                                                          // a name that is safe as a file and as the target of a [[link]]
+  let t = obsText(s).replace(/[\/\\]/g, '-').replace(/:/g, ' -').replace(/[*?"<>|#^\[\]]/g, '').replace(/\s+/g, ' ').trim();
+  t = t.replace(/^[.\s]+/, '').slice(0, max || 110).replace(/[.\s]+$/, '');
+  if (/^(con|prn|aux|nul|com\d|lpt\d)$/i.test(t)) t += ' _';
+  return t || 'Untitled';
+}
+function obsNamer() {                                                                   // every name once, whatever its kind, case aside
+  const byId = new Map(), taken = new Set();
+  const name = (kind, key, base) => {
+    const id = kind + '|' + key; if (byId.has(id)) return byId.get(id);
+    const plain = obsFileName(base, 100); let n = plain;
+    if (taken.has(n.toLowerCase())) n = kind === 'release' ? plain + ' (2)' : plain + ' (' + kind + ')';
+    for (let i = kind === 'release' ? 3 : 2; taken.has(n.toLowerCase()); i++) n = kind === 'release' ? plain + ' (' + i + ')' : plain + ' (' + kind + ' ' + i + ')';
+    taken.add(n.toLowerCase()); byId.set(id, n); return n;
+  };
+  name.reserve = (n) => taken.add(String(n).toLowerCase());
+  return name;
+}
+const obsLink = (name, shown) => { const d = shown == null ? '' : obsOne(shown).replace(/[\[\]|]/g, ''); return d && d !== name ? `[[${name}|${d}]]` : `[[${name}]]`; };
+const obsStars = (v) => { const n = Number(v) || 0; return n > 0 ? '\u2605'.repeat(Math.floor(n)) + (n % 1 ? '\u00bd' : '') : ''; };
+const obsCell = (s) => obsText(s).replace(/\s+/g, ' ').replace(/\|/g, '\\|').trim();
+const obsList = (s) => { const seen = new Set(), out = []; String(s == null ? '' : s).split(/[,;]/).forEach(t => { const v = obsOne(t), k = obsKey(v); if (v && !seen.has(k)) { seen.add(k); out.push(v); } }); return out; };
+const obsHttp = (u) => /^https?:\/\/\S+$/i.test(String(u == null ? '' : u).trim()) ? String(u).trim() : '';
+const obsYearOf = (d) => (String(d == null ? '' : d).match(/^(\d{4})/) || ['', ''])[1];
+function obsProps(pairs) {                                                              // [[key, value]] -> a YAML block; blank values and empty lists are left out
+  const lines = ['---'];
+  pairs.forEach(([k, v]) => {
+    if (Array.isArray(v)) { if (v.length) { lines.push(k + ':'); v.forEach(x => lines.push('  - ' + x)); } }
+    else if (v !== '' && v != null && v !== false) lines.push(k + ': ' + v);
+  });
+  lines.push('---'); return lines.join('\n') + '\n';
+}
+function obsBuild(input) {                                                              // { releases: [{ artist, title, ..., tracks: [] }], taxonomy, options: { tracks, reviews }, now } -> { files: [{ path, text }], counts }
+  const opts = Object.assign({ tracks: true, reviews: true }, input && input.options || {}), tax = (input && input.taxonomy) || {}, when = new Date(input && input.now || Date.now()), day = when.toISOString().slice(0, 10);
+  const releases = [], skipped = []; (input && input.releases || []).forEach(r => { const artist = obsOne(r.artist), title = obsOne(r.title); if (artist && title) releases.push({ r, artist, title }); else skipped.push(r); });
+  const name = obsNamer(); name.reserve('CRATE');
+  // ---- genres: the taxonomy first (its parents and descriptions), then any a release uses that the taxonomy does not know ----
+  const G = new Map(), ensureG = (label) => { const k = obsKey(label); if (!k) return null; let g = G.get(k); if (!g) { g = { key: k, label: obsOne(label), parents: [], description: '', rymText: '', rymUrl: '', spell: new Map(), rels: [], children: [] }; G.set(k, g); } return g; };
+  Object.keys(tax).forEach(k => { const e = tax[k] || {}, g = ensureG(e.label || k); if (!g) return; g.label = obsOne(e.label || k); g.description = String(e.description || '').trim(); if (e.rym && e.rym.text) { g.rymText = String(e.rym.text).trim(); g.rymUrl = obsHttp(e.rym.url); } (Array.isArray(e.parents) ? e.parents : []).forEach(p => { const pg = ensureG(p); if (pg && pg !== g && !g.parents.includes(pg.key)) g.parents.push(pg.key); }); });
+  const caps = (t) => (t.match(/[A-Z]/g) || []).length, A = new Map(), L = new Map();
+  releases.forEach(x => {
+    const r = x.r; x.year = obsYearOf(r.releaseDate); x.date = /^\d{4}-\d{2}-\d{2}$/.test(String(r.releaseDate || '').trim()) ? String(r.releaseDate).trim() : '';
+    x.genres = obsList(r.genre).map(n => { const g = ensureG(n); g.spell.set(n, (g.spell.get(n) || 0) + 1); return g.key; });
+    x.secondary = obsList(r.genre2).map(n => { const g = ensureG(n); g.spell.set(n, (g.spell.get(n) || 0) + 1); return g.key; }).filter(k => !x.genres.includes(k));
+    const ak = obsKey(x.artist); let a = A.get(ak); if (!a) { a = { key: ak, name: x.artist, rels: [], genres: new Map() }; A.set(ak, a); } a.rels.push(x); x.a = a;
+    x.labels = labelParts(r.label).map(n => { const k = labelKey(n); let l = L.get(k); if (!l) { l = { key: k, spell: new Map(), rels: [] }; L.set(k, l); } l.spell.set(n, (l.spell.get(n) || 0) + 1); l.rels.push(x); return l; });
+  });
+  G.forEach(g => { if (g.spell.size && !tax[g.key] && !Object.values(tax).some(e => obsKey(e && e.label) === g.key)) g.label = [...g.spell.entries()].sort((p, q) => q[1] - p[1] || caps(q[0]) - caps(p[0]) || p[0].localeCompare(q[0]))[0][0]; });
+  L.forEach(l => { l.label = [...l.spell.entries()].sort((p, q) => q[1] - p[1] || caps(q[0]) - caps(p[0]) || p[0].localeCompare(q[0]))[0][0]; });
+  // ---- names (genres first, then labels, artists, releases: when two things want a name the earlier keeps it) ----
+  const bySort = (arr, f) => arr.slice().sort((p, q) => f(p).localeCompare(f(q)) || (f(p) < f(q) ? -1 : f(p) > f(q) ? 1 : 0));
+  bySort([...G.values()], g => g.label).forEach(g => { g.name = name('genre', g.key, g.label); });
+  bySort([...L.values()], l => l.label).forEach(l => { l.name = name('label', l.key, l.label); });
+  bySort([...A.values()], a => a.name).forEach(a => { a.file = name('artist', a.key, a.name); });
+  bySort(releases, x => x.artist + ' - ' + x.title + ' ' + x.year).forEach((x, i) => { x.file = name('release', x.artist.toLowerCase() + '|' + x.title.toLowerCase() + '|' + x.year + '|' + i, x.artist + ' - ' + x.title + (x.year ? ' (' + x.year + ')' : '')); });
+  const gLink = (k) => { const g = G.get(k); return obsLink(g.name, g.label); }, relLine = (x) => '- ' + obsLink(x.file, x.title) + (x.year ? ' (' + x.year + ')' : ''), byYear = (a, b) => (a.year || '9999').localeCompare(b.year || '9999') || a.title.localeCompare(b.title);
+  G.forEach(g => g.parents.forEach(pk => { const p = G.get(pk); if (p && !p.children.includes(g.key)) p.children.push(g.key); }));
+  releases.forEach(x => { new Set(x.genres.concat(x.secondary)).forEach(k => G.get(k).rels.push(x)); x.genres.forEach(k => x.a.genres.set(k, (x.a.genres.get(k) || 0) + 1)); });
+  const files = [];
+  // ---- releases ----
+  releases.forEach(x => {
+    const r = x.r, rating = Number(r.rating) > 0 ? Number(r.rating) : '', rymR = Number(r.rymRating) > 0 ? Number(r.rymRating) : '', votes = Number(r.rymVotes) > 0 ? Math.round(Number(r.rymVotes)) : '', added = (String(r.dateAdded || '').match(/^\d{4}-\d{2}-\d{2}/) || [''])[0], desc = obsList(r.rymDescriptors);
+    const head = obsProps([['type', 'release'], ['artist', obsYq(obsLink(x.a.file, x.a.name))], ['title', obsYq(x.title)], ['year', x.year ? Number(x.year) : ''], ['released', x.date], ['format', r.type ? obsYq(obsOne(r.type)) : ''],
+      ['genres', x.genres.map(k => obsYq(gLink(k)))], ['secondary_genres', x.secondary.map(k => obsYq(gLink(k)))], ['labels', x.labels.map(l => obsYq(obsLink(l.name, l.label)))], ['catalog', obsOne(r.catalog) && !/^CRT-\d+$/i.test(obsOne(r.catalog)) ? obsYq(obsOne(r.catalog)) : '']          /* (an automatic CRT-007 number says nothing, so it is left out) */,
+      ['rating', rating], ['rym_rating', rymR], ['rym_ratings', votes], ['rym_rank', Number(r.rymRank) > 0 ? Math.round(Number(r.rymRank)) : ''], ['descriptors', desc.map(obsYq)],
+      ['region', obsOne(r.region) ? obsYq(obsOne(r.region)) : ''], ['location', obsOne(r.location) ? obsYq(obsOne(r.location)) : ''], ['recorded', obsOne(r.recordedDate) ? obsYq(obsOne(r.recordedDate)) : ''],
+      ['rym', obsHttp(r.rymLink) ? obsYq(obsHttp(r.rymLink)) : ''], ['link', obsHttp(r.link) ? obsYq(obsHttp(r.link)) : ''], ['cover', obsHttp(r.cover) ? obsYq(obsHttp(r.cover)) : ''], ['added', added], ['tags', ['crate/release']]]);
+    let body = `\n# ${x.title}\n\n${obsLink(x.a.file, x.a.name)}${x.year ? ' \u00b7 ' + x.year : ''}${r.type ? ' \u00b7 ' + obsOne(r.type) : ''}\n`;
+    if (obsHttp(r.cover)) body += `\n![cover](${obsHttp(r.cover)})\n`;
+    if (opts.reviews && String(r.review || '').trim()) body += `\n## My review\n\n${String(r.review).trim()}\n`;
+    const tr = opts.tracks && Array.isArray(r.tracks) ? r.tracks.filter(t => t && obsOne(t.title)) : [];
+    if (tr.length) {
+      const side = tr.some(t => obsOne(t.side)), note = tr.some(t => obsOne(t.note)), cols = ['#'].concat(side ? ['Side'] : [], ['Title', 'Length', 'My rating', 'RYM'], note ? ['Note'] : [], ['Links']);
+      body += `\n## Tracklist\n\n| ${cols.join(' | ')} |\n|${cols.map(() => '---').join('|')}|\n`;
+      tr.forEach((t, i) => { const links = [['YouTube', t.youtube], ['Spotify', t.spotify], ['SoundCloud', t.soundcloud]].filter(p => obsHttp(p[1])).map(p => `[${p[0]}](${obsHttp(p[1])})`).join(' \u00b7 ');
+        const cells = [String(i + 1)].concat(side ? [obsCell(t.side)] : [], [obsCell(t.title), obsCell(t.length), obsStars(t.rating) + (t.listened && !t.rating ? '\u2713' : ''), Number(t.rymRating) > 0 ? Number(t.rymRating).toFixed(2) + (Number(t.rymVotes) > 0 ? ' (' + Math.round(Number(t.rymVotes)).toLocaleString('en-US') + ')' : '') : ''], note ? [obsCell(t.note)] : [], [links]);
+        body += `| ${cells.join(' | ')} |\n`; });
+    }
+    files.push({ path: `CRATE/Releases/${x.file}.md`, text: head + body });
+  });
+  // ---- artists ----
+  A.forEach(a => {
+    // level genres keep the order the releases give them in (RYM lists the most important genre first)
+    const gs = [...a.genres.entries()].sort((p, q) => q[1] - p[1]).slice(0, 12).map(e => obsYq(gLink(e[0])));
+    files.push({ path: `CRATE/Artists/${a.file}.md`, text: obsProps([['type', 'artist'], ['name', obsYq(a.name)], ['releases', a.rels.length], ['genres', gs], ['tags', ['crate/artist']]]) + `\n# ${a.name}\n\n## Releases\n\n${a.rels.slice().sort(byYear).map(relLine).join('\n')}\n` });
+  });
+  // ---- genres ----
+  G.forEach(g => {
+    const rs = g.rels.slice().sort(byYear);
+    let body = `\n# ${g.label}\n`;
+    if (g.description) body += `\n${g.description}\n`;
+    if (g.rymText) body += `\n${g.rymText.split(/\r?\n/).map(l => '> ' + l).join('\n')}\n>\n> ${g.rymUrl ? '[From Rate Your Music](' + g.rymUrl + ')' : 'From Rate Your Music'}\n`;
+    if (g.children.length) body += `\n## Sub-genres\n\n${g.children.map(k => '- ' + gLink(k)).sort().join('\n')}\n`;
+    if (rs.length) body += `\n## Releases\n\n${rs.map(relLine).join('\n')}\n`;
+    files.push({ path: `CRATE/Genres/${g.name}.md`, text: obsProps([['type', 'genre'], ['name', obsYq(g.label)], ['parent', g.parents.map(k => obsYq(gLink(k)))], ['releases', rs.length], ['rym', g.rymUrl ? obsYq(g.rymUrl) : ''], ['tags', ['crate/genre']]]) + body });
+  });
+  // ---- labels ----
+  L.forEach(l => { files.push({ path: `CRATE/Labels/${l.name}.md`, text: obsProps([['type', 'label'], ['name', obsYq(l.label)], ['releases', l.rels.length], ['tags', ['crate/label']]]) + `\n# ${l.label}\n\n## Releases\n\n${l.rels.slice().sort(byYear).map(relLine).join('\n')}\n` }); });
+  const counts = { releases: releases.length, artists: A.size, genres: G.size, labels: L.size, skipped: skipped.length };
+  files.push({ path: 'CRATE/CRATE.md', text: obsProps([['type', 'index'], ['exported', day], ['tags', ['crate/index']]]) + `\n# CRATE\n\nExported from CRATE on ${day}: ${counts.releases.toLocaleString('en-US')} releases, ${counts.artists.toLocaleString('en-US')} artists, ${counts.genres.toLocaleString('en-US')} genres, ${counts.labels.toLocaleString('en-US')} labels.\n\n- **Releases** (\`Releases/\`): one note per release, with its properties, your review and its tracklist.\n- **Artists**, **Genres** and **Labels**: one note each, listing their releases. A genre note also names its parent genre, from your genre taxonomy.\n\nThe links between notes are properties (\`artist\`, \`genres\`, \`labels\`, \`parent\`), so they show in the graph and can be sorted and filtered in a Base. Exporting again makes these notes afresh: write your own notes elsewhere in the vault and link to these.\n` });
+  files.sort((p, q) => p.path.localeCompare(q.path));
+  return { files, counts };
+}
+// ---- a ZIP file with nothing compressed (browsers have no ZIP writer of their own) ----
+const OBS_CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function zipCrc32(bytes) { let c = 0xFFFFFFFF; for (let i = 0; i < bytes.length; i++) c = OBS_CRC[(c ^ bytes[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function zipStore(files, when) {                                      // [{ path, data: Uint8Array }] -> Uint8Array
+  const enc = new TextEncoder(), d = when instanceof Date ? when : new Date(), dosTime = ((d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1)) & 0xFFFF, dosDate = ((((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate())) & 0xFFFF;
+  const parts = [], central = []; let offset = 0;
+  files.forEach(f => {
+    const name = enc.encode(f.path), crc = zipCrc32(f.data), size = f.data.length, lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true); lh.setUint16(10, dosTime, true); lh.setUint16(12, dosDate, true); lh.setUint32(14, crc, true); lh.setUint32(18, size, true); lh.setUint32(22, size, true); lh.setUint16(26, name.length, true); lh.setUint16(28, 0, true);
+    parts.push(new Uint8Array(lh.buffer), name, f.data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, 0, true); ch.setUint16(12, dosTime, true); ch.setUint16(14, dosDate, true); ch.setUint32(16, crc, true); ch.setUint32(20, size, true); ch.setUint32(24, size, true); ch.setUint16(28, name.length, true); ch.setUint32(42, offset, true);
+    central.push(new Uint8Array(ch.buffer), name); offset += 30 + name.length + size;
+  });
+  const cdSize = central.reduce((a, p) => a + p.length, 0), end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true); end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
+  const all = parts.concat(central, [new Uint8Array(end.buffer)]), out = new Uint8Array(all.reduce((a, p) => a + p.length, 0)); let o = 0; all.forEach(p => { out.set(p, o); o += p.length; }); return out;
+}
+// END obsidian-export
+
+// ---- Export to Obsidian: the dialog (the notes themselves are made by obsBuild above) ----
+async function obsTracksFor(item) {                                   // the tracks as the release shows them; only a tracklist you keep yourself, or one already loaded, is used (nothing is looked up on the web for this)
+  let tracks = state.trackCache[artKey(item)];
+  if (!Array.isArray(tracks) || !tracks.length) { tracks = []; if (item.manualTracks && item.manualTracks.length) { try { tracks = (await getTracksFor(item)) || []; } catch (e) { tracks = []; } } }
+  return tgRowsFrom(tracks, item.trackData || {}).map(r => ({ title: r.title, side: r.side, length: r.length, rating: r.rating, listened: r.listened, note: r.note, rymRating: r.rymRating, rymVotes: r.rymVotes, youtube: r.youtube, spotify: r.spotify, soundcloud: r.soundcloud }));
+}
+function obsOpen() {
+  const g = (id) => document.getElementById(id);
+  g('obsScopeAllN').textContent = `(${state.raw.length.toLocaleString()})`; g('obsScopeViewN').textContent = `(${(state.filtered || state.raw).length.toLocaleString()})`;
+  g('obsScopeAll').checked = true; g('obsMsg').textContent = ''; g('obsOverlay').hidden = false; g('obsGo').focus();
+}
+function obsClose() { document.getElementById('obsOverlay').hidden = true; }
+async function obsRun() {
+  const g = (id) => document.getElementById(id), btn = g('obsGo'), msg = g('obsMsg'); if (btn.disabled) return;
+  btn.disabled = true; btn.textContent = 'Building\u2026'; msg.textContent = '';
+  try {
+    const items = (g('obsScopeView').checked ? (state.filtered || state.raw) : state.raw) || [], withTracks = g('obsTracks').checked, releases = [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      releases.push({ artist: it.artist, title: it.title, type: it.type, releaseDate: it.releaseDate, recordedDate: it.recordedDate, genre: it.genre, genre2: it.genre2, label: it.label, catalog: it.catalog, rating: it.rating, rymRating: it.rymRating, rymVotes: it.rymVotes, rymRank: it.rymRank, rymDescriptors: it.rymDescriptors, rymLink: it.rymLink, link: it.link, cover: it.cover, review: it.review, region: it.region, location: it.location, dateAdded: it.dateAdded, tracks: withTracks ? await obsTracksFor(it) : [] });
+      if (i % 200 === 199) await new Promise(r => setTimeout(r, 0));                // let the page breathe on a big crate
+    }
+    const out = obsBuild({ releases, taxonomy: state.genreTaxonomy, options: { tracks: withTracks, reviews: g('obsReviews').checked }, now: Date.now() });
+    if (out.files.length > 65000) { msg.textContent = `That would be ${out.files.length.toLocaleString()} notes, more than one zip can hold. Narrow it with \u201cWhat\u2019s showing now\u201d.`; return; }
+    const enc = new TextEncoder(), zip = zipStore(out.files.map(f => ({ path: f.path, data: enc.encode(f.text) })), new Date()), d = new Date(), pad = (n) => String(n).padStart(2, '0');
+    const name = `crate-obsidian-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.zip`, url = URL.createObjectURL(new Blob([zip], { type: 'application/zip' })), a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
+    const c = out.counts; msg.textContent = `Made ${name}: ${out.files.length.toLocaleString()} notes (${c.releases.toLocaleString()} releases, ${c.artists.toLocaleString()} artists, ${c.genres.toLocaleString()} genres, ${c.labels.toLocaleString()} labels)${c.skipped ? `; ${c.skipped} release${c.skipped === 1 ? '' : 's'} without an artist or title left out` : ''}.`;
+    flashGlobalToast(`Exported ${out.files.length.toLocaleString()} notes to ${name}.`);
+  } catch (e) { console.warn('Obsidian export failed', e); msg.textContent = 'Something went wrong making the notes: ' + String((e && e.message) || e).slice(0, 160); }
+  finally { btn.disabled = false; btn.textContent = 'Export'; }
+}
+(function wireObsidianExport() {
+  const g = (id) => document.getElementById(id); if (!g('obsOverlay')) return;
+  g('menuObsidianExport').addEventListener('click', obsOpen); g('obsClose').addEventListener('click', obsClose); g('obsCancel').addEventListener('click', obsClose); g('obsGo').addEventListener('click', obsRun);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !g('obsOverlay').hidden) { e.preventDefault(); e.stopPropagation(); obsClose(); } }, true);          // for the whole page: the download link takes the cursor with it
+})();
+
 function getGenreParents(taxonomy, genre) {
   const entry = taxonomy[genreTaxonomyKey(genre)];
   return (entry && entry.parents) || [];
@@ -10517,6 +10743,9 @@ let quickPeekOriginalNextSibling = null;
 
 const badArtUrls = {}; // key -> the src that already failed once for it — see recoverFailedArt/bindEvents' delegated error listener. Declared here (not next to recoverFailedArt further down) for the same TDZ reason as the quickPeek/genre-taxonomy fixes above: bindEvents() runs synchronously as part of this same startApp() cascade and references it immediately.
 const artFetchInFlight = new Set(); // keys with a fetchArt() call already outstanding — see buildCard's own belt-and-suspenders fetch call, guards against firing off duplicate iTunes lookups for the same item if a grid re-renders rapidly (e.g. typing a search query) before the first one resolves. Same TDZ placement reasoning as badArtUrls just above — buildCard (and by extension this) runs as part of the same early render cascade.
+
+let artApplyPending = null;          // keys of covers that just arrived, put on the page together by applyCachedArtFor. Declared here for the same TDZ reason as artFetchInFlight just above
+const ART_LOOKUPS_AT_ONCE = 4; let artLookupsActive = 0; const artLookupWaiting = [];   // iTunes cover lookups running / waiting for a turn (see artLookupSlot). Same TDZ reason
 
 startApp();
 
@@ -15142,6 +15371,10 @@ function renderGrid() {
     });
   }
   applyCachedArt();
+  // The height cards not yet drawn stand in with (see .grid > .card in the CSS): the first card's real one.
+  const firstCard = el.gridContainer.querySelector('.grid > .card');
+  const cardH = firstCard ? Math.round(firstCard.getBoundingClientRect().height) : 0;
+  if (cardH) el.gridContainer.style.setProperty('--card-h', cardH + 'px');
 }
 
 /* ---------- Track / Album+Tracks main views ---------- */
@@ -18560,16 +18793,21 @@ async function playAlbumReplacingQueue(item) {
 // can be the whole library, and getTracksFor() may need a network lookup
 // per release (MusicBee-style "play everything" shouldn't sit silent for
 // minutes first). So it starts playing the moment the FIRST release's tracks
-// are ready and keeps loading the rest in the background, appending to the
-// same crateQueueList in list order — the end-of-track handoff reads that
-// array as it goes (same as addToCrateQueue extending a live queue's tail),
-// and an album takes far longer to play than the next few take to load.
+// are ready, and loads the rest only a little AHEAD of what's playing
+// (QUEUE_LOAD_AHEAD tracks), topped up by playCrateQueueIndex as the queue
+// moves on. It used to load every release at once: a genre of a few thousand
+// releases meant tens of thousands of queue entries, a tracklist lookup for
+// each release whether it would ever be reached or not, and an Up Next panel
+// redrawn over and over as they arrived, which slowed the whole page down.
+// The releases not loaded yet wait in crateQueuePending, in play order.
 // Loads 3 at a time via Promise.all, appended in order so the queue never
 // ends up shuffled by whichever lookup happened to finish first.
 //
 // crateQueueId is the stale-run guard, same as everywhere else: a new Play,
 // "Clear", or anything else that bumps it makes this loop stop appending
-// instead of resurrecting a queue the person has since replaced or cleared.
+// instead of resurrecting a queue the person has since replaced or cleared
+// (and leaves crateQueuePending, which carries the old id, ignored).
+const QUEUE_LOAD_AHEAD = 60, QUEUE_PANEL_MAX_ROWS = 150;   // tracks loaded ahead of the playing one; rows the Up Next panel draws
 async function playAlbumsReplacingQueue(items) {
   const releases = (items || []).filter(Boolean);
   if (!releases.length) return;
@@ -18578,51 +18816,71 @@ async function playAlbumsReplacingQueue(items) {
   const myId = ++crateQueueId;
   crateQueueList = [];
   crateQueueIndex = -1;
-  renderCrateQueuePanel();
-  flashGlobalToast(`Queuing ${releases.length} releases\u2026`);
 
   // With shuffle on, load the releases in RANDOM order (each entry still
   // remembers its release's position in the original list as origSeq, so
   // turning shuffle off can restore list order) — otherwise "shuffle
   // everything" would always open on a track from whichever release sorts
   // first, since playback starts after only the first release has loaded.
-  const loadOrder = releases.map((_, k) => k);
-  if (state.shuffle) shuffleTail(loadOrder, -1);
-
-  let started = false, skipped = 0, lastRender = 0;
-  let i = 0;
-  while (i < loadOrder.length) {
-    const size = i === 0 ? 1 : 3; // first one alone so playback starts as soon as possible
-    const chunkIdx = loadOrder.slice(i, i + size);
-    i += size;
-    const results = await Promise.all(chunkIdx.map(rel => {
-      const item = releases[rel];
-      return withHardTimeout(getTracksFor(item), 20000, []).then(tracks => ({ item, rel, tracks }), () => ({ item, rel, tracks: [] }));
-    }));
-    if (myId !== crateQueueId) return; // replaced/cleared while loading
-    results.forEach(({ item, rel, tracks }) => {
-      if (!tracks || !tracks.length) { skipped++; return; }
-      const entries = tracks.map((t, ti) => ({ item, track: t, origSeq: rel * 10000 + ti }));
-      if (!started) entries.forEach(e => crateQueueList.push(e)); // before playback starts everything just accumulates (it gets shuffled as a whole when it starts)
-      else crateQueueAppend(entries);
-    });
-    if (!started && crateQueueList.length) {
-      started = true;
-      lastRender = Date.now();
-      renderCrateQueuePanel();
-      playCrateQueueIndex(myId, 0);
-    } else if (Date.now() - lastRender > 600) {
-      // Throttled — every render rebuilds every queue row, which adds up
-      // fast with a whole library's worth of tracks coming in.
-      lastRender = Date.now();
-      renderCrateQueuePanel();
-    }
-  }
-  if (myId !== crateQueueId) return;
+  const order = releases.map((_, k) => k);
+  if (state.shuffle) shuffleTail(order, -1);
+  crateQueuePending = { id: myId, releases, order, next: 0, skipped: 0, loading: null };
   renderCrateQueuePanel();
-  if (!started) flashGlobalToast('None of those releases have a tracklist to play.');
-  else if (skipped) flashGlobalToast(`Queued ${releases.length - skipped} releases \u2014 ${skipped} had no tracklist and were skipped.`);
-  else flashGlobalToast(`Queued all ${releases.length} releases.`);
+  flashGlobalToast(`Playing ${releases.length} releases…`);
+
+  await crateQueueTopUp(myId, 1);
+  if (myId !== crateQueueId) return; // replaced/cleared while loading
+  if (!crateQueueList.length) {
+    crateQueuePending = null;
+    renderCrateQueuePanel();
+    flashGlobalToast('None of those releases have a tracklist to play.');
+    return;
+  }
+  playCrateQueueIndex(myId, 0); // which tops the queue up to QUEUE_LOAD_AHEAD
+}
+
+// Loads releases from crateQueuePending until at least `want` tracks wait
+// after the current one, or none are left. One load at a time: a second call
+// while one runs waits for it, then checks again.
+async function crateQueueTopUp(myId, want) {
+  const p = crateQueuePending;
+  if (!p || p.id !== myId || myId !== crateQueueId) return;
+  if (p.loading) { await p.loading; return crateQueueTopUp(myId, want); }
+  const ahead = () => crateQueueList.length - (crateQueueIndex + 1);
+  if (p.next >= p.order.length || ahead() >= want) return;
+  p.loading = (async () => {
+    try {
+      while (myId === crateQueueId && p.next < p.order.length && ahead() < want) {
+        const size = crateQueueList.length ? 3 : 1; // the first one alone so playback starts as soon as possible
+        const chunk = p.order.slice(p.next, p.next + size);
+        p.next += size;
+        const results = await Promise.all(chunk.map(rel => {
+          const item = p.releases[rel];
+          return withHardTimeout(getTracksFor(item), 20000, []).then(tracks => ({ item, rel, tracks }), () => ({ item, rel, tracks: [] }));
+        }));
+        if (myId !== crateQueueId) return;
+        results.forEach(({ item, rel, tracks }) => {
+          if (!tracks || !tracks.length) { p.skipped++; return; }
+          const entries = tracks.map((t, ti) => ({ item, track: t, origSeq: rel * 10000 + ti }));
+          if (crateQueueIndex < 0) crateQueueList.push(...entries); // before playback starts everything just accumulates (it gets shuffled as a whole when it starts)
+          else crateQueueAppend(entries);
+        });
+      }
+    } finally { p.loading = null; }
+  })();
+  await p.loading;
+  if (myId !== crateQueueId) return;
+  if (p.next >= p.order.length && crateQueuePending === p) {
+    crateQueuePending = null;
+    if (p.skipped && crateQueueList.length) flashGlobalToast(`${p.skipped} of the ${p.releases.length} releases had no tracklist and were skipped.`);
+  }
+  if (crateQueueIndex >= 0) renderCrateQueuePanel();
+}
+
+// How many releases of the current queue are still waiting to be loaded into it.
+function crateQueuePendingCount() {
+  const p = crateQueuePending;
+  return p && p.id === crateQueueId ? p.order.length - p.next : 0;
 }
 
 // Every action that can start Spotify playback (album Play Now, a track's
@@ -20977,6 +21235,7 @@ const CRATE_QUEUE_END_THRESHOLD_MS = 2500; // was 1500 — a little extra room f
 let crateQueueId = 0;              // bumped on every new "Play" run (or reset), so stale lookups/advances no-op
 let crateQueueList = [];           // ordered [{ item, track }]
 let crateQueueIndex = -1;
+let crateQueuePending = null;      // releases of a big "play everything" not loaded into the queue yet — see playAlbumsReplacingQueue
 let crateQueueExpectedSpotifyTrackId = null; // the Spotify track ID this queue is currently waiting to hear "ended" for
 let ytPlayingForCrateQueue = false;          // true while the floating YT player is standing in for the current queue entry, see playCrateTrackOnYoutube
 
@@ -21641,6 +21900,11 @@ function applyShuffleToCrateQueue(on) {
   if (!isPlayingCrateQueue()) return false;
   if (on) { ensureOrigSeq(crateQueueList); shuffleTail(crateQueueList, crateQueueIndex); }
   else restoreTailOrder(crateQueueList, crateQueueIndex);
+  if (crateQueuePendingCount()) {      // the releases of a big "play everything" not loaded yet follow suit
+    const p = crateQueuePending, rest = p.order.slice(p.next);
+    if (on) shuffleTail(rest, -1); else rest.sort((a, b) => a - b);
+    p.order = p.order.slice(0, p.next).concat(rest);
+  }
   renderCrateQueuePanel();
   return true;
 }
@@ -21702,6 +21966,11 @@ function setShuffle(on) {
 
 async function playCrateQueueIndex(myId, index) {
   if (myId !== crateQueueId) return;
+  // Caught up with what's loaded of a big "play everything": load the next release(s) first.
+  if (index >= crateQueueList.length && crateQueuePendingCount()) {
+    await crateQueueTopUp(myId, index - crateQueueIndex);
+    if (myId !== crateQueueId) return;
+  }
   if (index < 0 || index >= crateQueueList.length) {
     crateQueueIndex = -1; // reached the end of the queue
     crateQueueExpectedSpotifyTrackId = null;
@@ -21718,6 +21987,7 @@ async function playCrateQueueIndex(myId, index) {
   }
   crateQueueIndex = index;
   renderCrateQueuePanel();
+  crateQueueTopUp(myId, QUEUE_LOAD_AHEAD); // keeps a big "play everything" loaded a little ahead; a no-op otherwise
   const { item, track } = crateQueueList[index];
   nowPlayingItem = item;
   nowPlayingYoutubeLink = track.youtubeLink || '';
@@ -27404,17 +27674,21 @@ function renderLastfmHistoryPanel() {
 function renderCrateQueuePanel() {
   if (!el.crateQueuePanelBody) return;
   const current = crateQueueIndex >= 0 ? crateQueueList[crateQueueIndex] : null;
-  const upcoming = crateQueueList.slice(crateQueueIndex + 1);
+  const upcomingAll = crateQueueList.slice(crateQueueIndex + 1);
+  // Only the next QUEUE_PANEL_MAX_ROWS are drawn, with a line saying how many more there are: this panel is
+  // redrawn on every track change, and thousands of rows (cover images and all) made each redraw slow.
+  const upcoming = upcomingAll.length > QUEUE_PANEL_MAX_ROWS ? upcomingAll.slice(0, QUEUE_PANEL_MAX_ROWS) : upcomingAll;
+  const pendingReleases = crateQueuePendingCount();
 
   // Only touch the Clear button's visibility if the queue section is
   // actually visible right now — otherwise this would un-hide it while
   // the queue is turned off just because it has content in the
   // background (see applyRightPanelSections, which owns that decision
   // whenever either checkbox is toggled).
-  if (el.crateQueueClearBtn && state.rightPanelShowQueue) el.crateQueueClearBtn.hidden = !current && !upcoming.length;
+  if (el.crateQueueClearBtn && state.rightPanelShowQueue) el.crateQueueClearBtn.hidden = !current && !upcomingAll.length && !pendingReleases;
 
-  if (!current && !upcoming.length) {
-    el.crateQueuePanelBody.innerHTML = '';
+  if (!current && !upcomingAll.length) {
+    el.crateQueuePanelBody.innerHTML = pendingReleases ? '<p class="queue-panel-subheading">Loading…</p>' : '';
     return;
   }
 
@@ -27426,6 +27700,13 @@ function renderCrateQueuePanel() {
   if (state.queueViewMode === 'trackDetail') el.crateQueuePanelBody.innerHTML = renderQueueTrackDetailHtml(current, upcoming, currentIndex);
   else if (state.queueViewMode === 'releaseTracks') el.crateQueuePanelBody.innerHTML = renderQueueReleaseTracksHtml(current, upcoming, currentIndex);
   else el.crateQueuePanelBody.innerHTML = renderQueueThumbnailHtml(current, upcoming, currentIndex);
+  const moreTracks = upcomingAll.length - upcoming.length;
+  if (moreTracks || pendingReleases) {
+    const parts = [];
+    if (moreTracks) parts.push(`${moreTracks.toLocaleString('en-US')} more track${moreTracks === 1 ? '' : 's'}`);
+    if (pendingReleases) parts.push(`${pendingReleases.toLocaleString('en-US')} more release${pendingReleases === 1 ? '' : 's'} to come`);
+    el.crateQueuePanelBody.insertAdjacentHTML('beforeend', `<p class="queue-panel-subheading queue-panel-more">+ ${parts.join(', ')}</p>`);
+  }
 
   // Every row — the playing one and the placeholder too, which have no data-queue-index because they aren't
   // click-to-play — gets its position in crateQueueList, for the right-click menu. All three views emit exactly
@@ -27580,6 +27861,7 @@ function renderQueueReleaseTracksHtml(current, upcoming, currentIndex) {
 // lookup/advance) without touching whatever's currently playing.
 function clearCrateQueue() {
   ++crateQueueId;
+  crateQueuePending = null;
   crateQueueList = [];
   crateQueueIndex = -1;
   crateQueueExpectedSpotifyTrackId = null;
@@ -31490,7 +31772,7 @@ function rymAskOutbox(ms) {                                      // -> the batch
 }
 function rymGenreStr(v) {                                      // a list of genres from the add-on: each once, at most 30, no name cut short. It used to be cut at 200 characters, which lost the tail of a long list (and could slice a name in half)
   const seen = new Set(), out = [];
-  String(v == null ? '' : v).split(',').forEach(g => { const t = g.replace(/\s+/g, ' ').trim().slice(0, 80), k = t.toLowerCase(); if (t && !seen.has(k) && out.length < 30) { seen.add(k); out.push(t); } });
+  String(v == null ? '' : v).split(',').forEach(g => { const t = g.replace(/\s+/g, ' ').trim().slice(0, 80), k = t.toLowerCase(); if (t && !/\bscene$/i.test(t) && !seen.has(k) && out.length < 30) { seen.add(k); out.push(t); } });          // (a scene such as "Laurel Canyon Scene" is not a genre: an add-on older than 1.12.4 sent them in the Genre list)
   return out.join(', ');
 }
 function rymCleanOutbox(list) {                                  // untrusted: only text and numbers, bounded, and only types CRATE has
@@ -34539,6 +34821,17 @@ function prefetchArt(items) {
   for (let i = 0; i < concurrency; i++) next();
 }
 
+// iTunes cover lookups take turns, at most ART_LOOKUPS_AT_ONCE (declared above startApp) at a time across the whole page. Every card without a
+// cover used to start its own lookup the moment it was drawn, so a big crate fired thousands at once: iTunes refuses
+// that many (and the release got a placeholder), and the tracklist lookups behind them — playing a genre — had to wait.
+function artLookupSlot() {
+  return new Promise(resolve => { artLookupWaiting.push(resolve); artLookupNext(); });
+}
+function artLookupNext() {
+  while (artLookupsActive < ART_LOOKUPS_AT_ONCE && artLookupWaiting.length) { artLookupsActive++; artLookupWaiting.shift()(); }
+}
+function artLookupDone() { artLookupsActive--; artLookupNext(); }
+
 async function fetchArt(item) {
   const key = artKey(item);
   
@@ -34550,16 +34843,20 @@ async function fetchArt(item) {
   }
   
   if (state.artCache[key]) { artFetchInFlight.delete(key); return applyCachedArtFor(key); }
+  await artLookupSlot();
   try {
-    const hit = await findItunesAlbum(item);
-    if (hit && hit.artworkUrl100) {
-      state.artCache[key] = { art: hit.artworkUrl100.replace('100x100', '600x600'), collectionId: hit.collectionId };
-    } else {
-      state.artCache[key] = { art: placeholderArt(item), collectionId: null };
+    // Another lookup for the same release (prefetchArt and a card both ask) may have finished while this one waited.
+    if (!state.artCache[key]) {
+      const hit = await findItunesAlbum(item);
+      if (hit && hit.artworkUrl100) {
+        state.artCache[key] = { art: hit.artworkUrl100.replace('100x100', '600x600'), collectionId: hit.collectionId };
+      } else {
+        state.artCache[key] = { art: placeholderArt(item), collectionId: null };
+      }
     }
   } catch (e) {
     state.artCache[key] = { art: placeholderArt(item), collectionId: null };
-  }
+  } finally { artLookupDone(); }
   artFetchInFlight.delete(key);
   applyCachedArtFor(key);
 }
@@ -34593,17 +34890,29 @@ async function recoverFailedArt(key) {
   applyCachedArtFor(key);
 }
 
-function applyCachedArt() {
-  Object.keys(state.artCache).forEach(applyCachedArtFor);
+// One pass over the art images on the page, each looked up in the cache. It used to be one whole-page search
+// PER CACHED COVER, which with a few thousand releases on screen took over 20 seconds every time the grid was drawn.
+function applyCachedArt(onlyKeys) {
+  document.querySelectorAll('img.art[data-key]').forEach(img => {
+    const key = img.dataset.key;
+    if (onlyKeys && !onlyKeys.has(key)) return;
+    const url = state.artCache[key]?.art;
+    if (url && img.src !== url) img.src = url;
+  });
+  const deckKey = activeItem ? artKey(activeItem) : null;
+  const deckUrl = deckKey && (!onlyKeys || onlyKeys.has(deckKey)) ? state.artCache[deckKey]?.art : null;
+  if (deckUrl) el.deckImg.src = deckUrl;
 }
 
+// A cover that just arrived (the startup prefetch fetches every release's) is put on the page with the others that
+// arrived within the same moment, in one applyCachedArt pass, rather than with a whole-page search of its own.
 function applyCachedArtFor(key) {
-  const url = state.artCache[key]?.art;
-  if (!url) return;
-  document.querySelectorAll(`img.art[data-key="${cssEscape(key)}"]`).forEach(img => {
-    if (img.src !== url) img.src = url;
-  });
-  if (activeItem && artKey(activeItem) === key) el.deckImg.src = url;
+  if (!state.artCache[key]?.art) return;
+  if (!artApplyPending) {
+    artApplyPending = new Set();
+    setTimeout(() => { const keys = artApplyPending; artApplyPending = null; applyCachedArt(keys); }, 30);
+  }
+  artApplyPending.add(key);
 }
 
 function placeholderArt(item) {
@@ -35596,6 +35905,12 @@ html, body {
   #gridContainer.close-gaps .grid { gap: 6px; } /* both dimensions — was column-gap only, leaving the row gap between different rows of covers untouched */
 
   .card { cursor: pointer; outline: none; }
+  /* Cards off screen are not laid out or painted until they come near it — with thousands of releases, laying out every
+     card took seconds each time the grid was drawn. --card-h is a real card's height, measured by renderGrid, so the
+     scrollbar is right before they're drawn. A hovered or focused card is left uncontained: containment clips what a
+     card draws outside its box, which is where the hover lift and shadow go. */
+  .grid > .card { content-visibility: auto; contain-intrinsic-block-size: auto var(--card-h, 280px); }
+  .grid > .card:hover, .grid > .card:focus-within { content-visibility: visible; }
   .card.long-press-active { opacity: 0.75; transition: opacity 0.1s; } /* brief feedback while attachLongPress's hold timer is running, mobile only in practice (touch-only event) */
   .card:focus-visible .art-wrap { outline: 2px solid var(--accent); outline-offset: 2px; }
   .card.selected .art-wrap { outline: 2px solid var(--accent); outline-offset: -2px; }
@@ -36926,6 +37241,8 @@ html, body {
     .cx-thumb { width: 44px; height: 44px; }
     .cx-grid { grid-template-columns: repeat(auto-fill, minmax(98px, 1fr)); gap: 8px; }
   }
+  .arrange-modal.obs-modal { max-width: 560px; width: min(96vw, 560px); }
+  .obs-modal .cx-group label { display: block; padding: 6px 0; }
   /* ---- Track editor: every track of a release in one grid ---- */
   #tgPasteOverlay { z-index: 9100; }
   .arrange-modal.tg-modal { max-width: none; width: min(98vw, 1560px); height: min(94vh, 980px); max-height: none; display: flex; flex-direction: column; overflow: hidden; }
