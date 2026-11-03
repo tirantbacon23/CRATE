@@ -19,7 +19,20 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.60.1
+  CURRENT_VERSION: 1.61.0
+
+  1.61.0 — 2026-11-03 — Match songs for many releases works on several releases at once (Spotify 4, YouTube 3 unless you change it), not one by one. Parallel YouTube pages need the YouTube add-on 1.3.0 (crate-youtube-addon.zip); an older add-on still works, one page at a time. No backend change.
+
+          WHERE: the setup screen of "Match songs for many releases" has "Releases at once" under each service (1, 2, 3, 4, 6 or 8; remembered on this device, crate_bm_parallel_v1). The time estimates take it into account.
+          HOW: each service's lane runs that many workers, each taking the next waiting release (bmRunLane; releases finish in whatever order their lookups come back). Pause, Stop and Resume work as before: Stop lets the releases already being looked up finish, then stops; a lane that stops
+            (Spotify not connected, a session that expired) leaves the rest waiting and Resume carries on with them (lane.run).
+          SPOTIFY: every Spotify request used to go through a strict one-at-a-time queue. It is now a pool (spotifyApiPump): one at a time as before, except while a batch runs, when it allows as many as the releases at once, with starts 80 ms apart (SPOTIFY_PARALLEL_GAP_MS). A 429 still makes every
+            request wait out Retry-After. Back to one at a time when the lane finishes.
+          YOUTUBE: with an API key, that many releases are looked up at once (it only uses the day's quota sooner). Through the add-on, how many PAGES it reads at once is the add-on's own setting: version 1.3.0 adds Options → Speed → "Pages at once" (1 to 4, 3 unless changed; only the add-on's
+            page can set it, never CRATE). The add-on tells CRATE the number and the setup screen shows it. Pages it has to open in a tab are still one at a time.
+          THE RISK, which is why it was one at a time: more at once makes it likelier that Spotify answers "slow down" (then everything waits as long as it says) and that YouTube shows the add-on a check (it stops until you Continue). If either keeps happening, lower the numbers.
+          VERIFIED with Spotify and the YouTube API faked (400 ms an answer): 12 releases took 20.6 s one at a time and 4.4 s with 4 and 3 at once, with the same 36 Spotify requests and the same 117 confident matches; at most 4 Spotify and 3 YouTube requests in flight; Spotify back to one at a time after;
+            Spotify not connected stops only that lane and Resume finishes it; Stop. NOT VERIFIED: the add-on's new background.js in a real browser, and real Spotify/YouTube at this speed.
 
   1.60.1 — 2026-11-03 — Fix: pressing Next could leave the old track playing while the queue showed the new one, after which the queue stopped advancing. No add-on and no backend change.
 
@@ -8977,7 +8990,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.60.1';
+const APP_VERSION = '1.61.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -23673,9 +23686,10 @@ function bmSongMatches(statuses, filter) {                          // does a so
   if (filter === 'kept') return statuses.includes('kept');
   return true;
 }
-function bmEstimate(o) {                                             // o: { releases, spotify, youtube, viaAddon, ytSongs, used, cap }
-  const out = { spotifySec: o.spotify ? Math.round(o.releases * 4) : 0, ytPages: 0, ytSec: 0, ytTotal: 0, over: false };
-  if (o.youtube) { out.ytPages = o.releases * 2 + (o.ytSongs ? Math.round(o.releases * 1.5) : 0); out.ytSec = Math.round(out.ytPages * 2.5); out.ytTotal = (o.used || 0) + out.ytPages; out.over = !!(o.viaAddon && o.cap && out.ytTotal > o.cap); }
+function bmEstimate(o) {                                             // o: { releases, spotify, youtube, viaAddon, ytSongs, used, cap, spPar, ytPar } (spPar/ytPar: how many at once, 1 if left out)
+  const spPar = Math.max(1, o.spPar || 1), ytPar = Math.max(1, o.ytPar || 1);
+  const out = { spotifySec: o.spotify ? Math.round(Math.max(o.releases * 4 / spPar, o.releases * 0.6)) : 0, ytPages: 0, ytSec: 0, ytTotal: 0, over: false };          // several at once: never under ~0.6 s a release, the spacing of Spotify's requests
+  if (o.youtube) { out.ytPages = o.releases * 2 + (o.ytSongs ? Math.round(o.releases * 1.5) : 0); out.ytSec = Math.round(out.ytPages * 2.5 / ytPar); out.ytTotal = (o.used || 0) + out.ytPages; out.over = !!(o.viaAddon && o.cap && out.ytTotal > o.cap); }
   return out;
 }
 function bmDur(sec) { const n = Math.max(1, sec); return n < 90 ? n + (n === 1 ? ' second' : ' seconds') : Math.round(n / 60) + ' minutes'; }
@@ -23711,7 +23725,7 @@ function bmOpen(sets) {                                             // sets: { t
   if (bm && bm.view === 'run') { bmShow(); return; }
   const mk = (it) => ({ row: String(it.row), item: it, songs: null, songsP: null, spotify: null, youtube: null, pick: { spotify: {}, youtube: {} }, include: true, st: { spotify: 'wait', youtube: 'wait' }, err: {}, applied: 0 });
   bm = { view: 'setup', hidden: false, sets: { ticked, view: sets.view || [] }, scope: ticked ? 'ticked' : 'view', rels: items.map(mk), mk, svc: { spotify: true, youtube: true }, show: { spotify: true, youtube: true }, ytSongs: ytUseAddon(), mode: 'review',
-         filter: 'all', sel: String(items[0].row), open: null, paused: false, stopped: false, running: false, lanes: { spotify: { s: 'idle', msg: '' }, youtube: { s: 'idle', msg: '' } }, saved: 0, log: [], chain: Promise.resolve(), afterMatcher: null };
+         filter: 'all', sel: String(items[0].row), open: null, par: bmParLoad(), paused: false, stopped: false, running: false, lanes: { spotify: { s: 'idle', msg: '' }, youtube: { s: 'idle', msg: '' } }, saved: 0, log: [], chain: Promise.resolve(), afterMatcher: null };
   ytAddonHello(); bmEl('batchMatchOverlay').hidden = false; updateAlbumSelBar(); bmRender();
 }
 function bmShow() { if (!bm) return; bm.hidden = false; bmEl('batchMatchOverlay').hidden = false; updateAlbumSelBar(); bmRender(); bmStripRender(); }
@@ -23740,42 +23754,64 @@ async function bmSearchRest(rel) {                                  // YouTube, 
   try { await smYoutubeSearchSongs(rel.item, rel.songs, idxs, (idx, top) => { if (top.length) rel.youtube.byIdx[idx] = top; bmRedraw(); }); }
   finally { delete rel.youtube.searching; }
 }
+// How many releases each service works on at once, chosen on the setup screen and remembered on this device.
+// Spotify's requests then run that many at once too (spotifyApiParallel). For YouTube through the add-on, how many
+// PAGES it reads at once is the add-on's own setting (its Options); this is how many releases keep it supplied.
+const BM_PAR_KEY = 'crate_bm_parallel_v1', BM_PAR_DEFAULT = { spotify: 4, youtube: 3 }, BM_PAR_CHOICES = [1, 2, 3, 4, 6, 8];
+function bmParLoad() {
+  try { const o = JSON.parse(localStorage.getItem(BM_PAR_KEY) || '{}'); return { spotify: BM_PAR_CHOICES.includes(o.spotify) ? o.spotify : BM_PAR_DEFAULT.spotify, youtube: BM_PAR_CHOICES.includes(o.youtube) ? o.youtube : BM_PAR_DEFAULT.youtube }; }
+  catch (e) { return Object.assign({}, BM_PAR_DEFAULT); }
+}
+function bmParSave(par) { try { localStorage.setItem(BM_PAR_KEY, JSON.stringify(par)); } catch (e) { /* kept for this visit only */ } }
 async function bmRunLane(kind) {
-  const b = bm, lane = b.lanes[kind]; lane.s = 'work'; lane.msg = '';
-  for (const rel of b.rels) {
-    if (bm !== b) return;
-    if (rel.st[kind] !== 'wait') continue;
-    while (b.paused && !b.stopped && bm === b) await new Promise(r => setTimeout(r, 250));
-    if (bm !== b) return;
-    if (b.stopped) { lane.s = 'stopped'; lane.msg = 'Stopped.'; break; }
-    if (kind === 'youtube' && ytUseAddon() && ytAddon.cap && ytAddon.today >= ytAddon.cap - 1) { lane.s = 'stopped'; lane.msg = `The add-on\u2019s limit of ${ytAddon.cap} YouTube pages a day is used up. The rest wait: press Resume tomorrow.`; break; }
-    rel.st[kind] = 'work'; bmRedraw();
-    try {
-      const songs = await bmSongs(rel);
-      if (bm !== b) return;
-      if (!songs.length) { rel.st[kind] = 'skip'; rel.err[kind] = 'No tracklist'; bmRedraw(); continue; }
-      const r = kind === 'spotify' ? await smSpotifyForRelease(rel.item, songs) : await smYoutubeForRelease(rel.item, songs);
-      if (bm !== b) return;
-      if (r.status === 'nocreds' || r.status === 'nokey') {
-        rel.st[kind] = 'wait'; lane.s = 'stopped';
-        lane.msg = kind === 'spotify' ? 'Spotify isn\u2019t connected yet: connect it first (the song matcher shows how), then press Resume.' : 'YouTube isn\u2019t set up: install the CRATE for YouTube add-on or add an API key (\u2699 \u2192 YouTube API\u2026), then press Resume.';
-        break;
+  const b = bm, lane = b.lanes[kind], run = lane.run = (lane.run || 0) + 1;
+  lane.s = 'work'; lane.msg = ''; lane.halt = false;
+  const par = Math.max(1, (b.par && b.par[kind]) || 1);
+  if (kind === 'spotify') spotifyApiParallel = par;
+  const live = () => bm === b && lane.run === run && !lane.halt;
+  const halt = (msg) => { lane.halt = true; lane.s = 'stopped'; lane.msg = msg; };
+  // `par` workers take the next waiting release each, until none is left: several releases are worked on at once,
+  // and they finish in whatever order their lookups come back.
+  async function worker() {
+    for (;;) {
+      if (!live()) return;
+      while (b.paused && !b.stopped && live()) await new Promise(r => setTimeout(r, 250));
+      if (!live()) return;
+      if (b.stopped) { halt('Stopped.'); return; }
+      if (kind === 'youtube' && ytUseAddon() && ytAddon.cap && ytAddon.today >= ytAddon.cap - 1) { halt(`The add-on\u2019s limit of ${ytAddon.cap} YouTube pages a day is used up. The rest wait: press Resume tomorrow.`); return; }
+      const rel = b.rels.find(r => r.st[kind] === 'wait');
+      if (!rel) return;
+      rel.st[kind] = 'work'; bmRedraw();
+      try {
+        const songs = await bmSongs(rel);
+        if (bm !== b) return;
+        if (!songs.length) { rel.st[kind] = 'skip'; rel.err[kind] = 'No tracklist'; bmRedraw(); continue; }
+        const r = kind === 'spotify' ? await smSpotifyForRelease(rel.item, songs) : await smYoutubeForRelease(rel.item, songs);
+        if (bm !== b) return;
+        if (r.status === 'nocreds' || r.status === 'nokey') {
+          rel.st[kind] = 'wait';
+          halt(kind === 'spotify' ? 'Spotify isn\u2019t connected yet: connect it first (the song matcher shows how), then press Resume.' : 'YouTube isn\u2019t set up: install the CRATE for YouTube add-on or add an API key (\u2699 \u2192 YouTube API\u2026), then press Resume.');
+          return;
+        }
+        rel[kind] = r; rel.st[kind] = 'done';
+        if (r.status === 'done') {
+          bmSetPicks(rel, kind);
+          if (kind === 'youtube' && b.ytSongs) { try { await bmSearchRest(rel); } catch (e) { rel.err.youtube = ytAddonErrText(e); if (/daily|quota/i.test(String(e && e.message))) throw e; } bmSetPicks(rel, 'youtube'); }
+          if (b.mode === 'auto') bmApplyRel(rel, kind);
+        }
+      } catch (e) {
+        if (bm !== b) return;
+        const msg = kind === 'youtube' ? ytAddonErrText(e) : String((e && e.message) || e);
+        rel.st[kind] = 'error'; rel.err[kind] = msg;
+        if (/session expired|daily|quota/i.test(String((e && e.message) || e))) { rel.st[kind] = 'wait'; halt(msg); return; }
       }
-      rel[kind] = r; rel.st[kind] = 'done';
-      if (r.status === 'done') {
-        bmSetPicks(rel, kind);
-        if (kind === 'youtube' && b.ytSongs) { try { await bmSearchRest(rel); } catch (e) { rel.err.youtube = ytAddonErrText(e); if (/daily|quota/i.test(String(e && e.message))) throw e; } bmSetPicks(rel, 'youtube'); }
-        if (b.mode === 'auto') bmApplyRel(rel, kind);
-      }
-    } catch (e) {
-      if (bm !== b) return;
-      const msg = kind === 'youtube' ? ytAddonErrText(e) : String((e && e.message) || e);
-      rel.st[kind] = 'error'; rel.err[kind] = msg;
-      if (/session expired|daily|quota/i.test(String((e && e.message) || e))) { rel.st[kind] = 'wait'; lane.s = 'stopped'; lane.msg = msg; break; }
+      bmRedraw();
+      if (kind === 'spotify' && par === 1) await new Promise(r => setTimeout(r, 120));
     }
-    bmRedraw();
-    if (kind === 'spotify') await new Promise(r => setTimeout(r, 120));
   }
+  await Promise.all(Array.from({ length: par }, worker));
+  if (lane.run !== run) return;                                         // resumed since: that run carries on
+  if (kind === 'spotify') spotifyApiParallel = 1;
   if (bm === b && lane.s === 'work') lane.s = 'done';
   if (bm === b) { bmRedraw(); bmCheckDone(); }
 }
@@ -23838,7 +23874,10 @@ function bmAfterMatcher() {                                         // the singl
 const bmChip = (cls, t) => `<span class="bm-chip bm-${cls}">${t}</span>`;
 function bmSetupHtml() {
   const sets = bm.sets, n = bm.rels.length, viaAddon = ytUseAddon(), key = !!loadYoutubeApiKey(), ytOk = viaAddon || key;
-  const est = bmEstimate({ releases: n, spotify: bm.svc.spotify, youtube: bm.svc.youtube && ytOk, viaAddon, ytSongs: bm.ytSongs && viaAddon, used: ytAddon.today || 0, cap: ytAddon.cap || 0 });
+  const est = bmEstimate({ releases: n, spotify: bm.svc.spotify, youtube: bm.svc.youtube && ytOk, viaAddon, ytSongs: bm.ytSongs && viaAddon, used: ytAddon.today || 0, cap: ytAddon.cap || 0, spPar: bm.par.spotify, ytPar: viaAddon ? Math.min(ytAddon.parallel || 1, bm.par.youtube) : bm.par.youtube });
+  const parSel = (k, note) => `<span class="bm-sub">Releases at once <select name="bmPar" data-kind="${k}" data-bm="setup">${BM_PAR_CHOICES.map(v => `<option value="${v}"${bm.par[k] === v ? ' selected' : ''}>${v}</option>`).join('')}</select> <span class="bm-dim">${note}</span></span>`;
+  const spPar = parSel('spotify', 'More is faster. If Spotify says to slow down, everything waits as long as it asks.');
+  const ytPar = parSel('youtube', viaAddon ? `The add-on reads ${ytAddon.parallel === 1 ? 'one page at a time' : `${ytAddon.parallel} pages at once`} (set in its Options${ytAddon.parallel === 1 ? ': from version 1.3.0 it can read up to 4' : ''}). More makes a YouTube check likelier.` : 'Each release uses your API key\u2019s quota: more at once only uses it up sooner.');
   const opt = (name, val, on, title, sub, right) => `<label class="bm-opt${on ? ' on' : ''}"><input type="${name === 'bmScope' || name === 'bmMode' ? 'radio' : 'checkbox'}" name="${name}" value="${val}"${on ? ' checked' : ''} data-bm="setup"><span class="bm-opt-t">${title}${sub ? `<small>${sub}</small>` : ''}</span>${right ? `<span class="bm-m">${right}</span>` : ''}</label>`;
   const scope = (sets.ticked ? opt('bmScope', 'ticked', bm.scope === 'ticked', 'The releases I have selected', '', String(sets.ticked.length)) : '') + opt('bmScope', 'view', bm.scope === 'view', 'Everything in the current view', '', String(sets.view.length));
   const ytLine = viaAddon ? `Add-on found (version ${escapeHtml(ytAddon.version)}): ${ytPagesNote()}.` : key ? 'Using your YouTube API key: a search for a single song costs 100 of today\u2019s quota units.' : 'Not set up: install the CRATE for YouTube add-on, or add an API key (\u2699 \u2192 YouTube API\u2026).';
@@ -23847,7 +23886,7 @@ function bmSetupHtml() {
   const ytEst = est.ytPages ? `About ${bmDur(est.ytSec)} \u00b7 about ${est.ytPages} pages${viaAddon && ytAddon.cap ? `, ${est.ytTotal} of ${ytAddon.cap} for today` : ''}` : '';
   const songsOpt = viaAddon ? `<span class="bm-sub"><input type="checkbox" id="bmYtSongs"${bm.ytSongs ? ' checked' : ''} data-bm="setup"> Also search song by song for what the playlist misses (about one more page each)</span>` : '';
   return `<div class="bm-setup"><section><div class="bm-label">Which releases</div><div class="bm-opts">${scope}</div></section>
-    <section><div class="bm-label">Which services</div><div class="bm-svcs">${card('spotify', 'Spotify', 'Uses the connection the song matcher uses.', 'Looks the album up, then each song by title, artist and length.', spEst)}${card('youtube', 'YouTube', escapeHtml(ytLine), 'Finds the album\u2019s playlist first, then (if you choose) any songs it misses one by one.', ytEst, songsOpt, !ytOk)}</div>
+    <section><div class="bm-label">Which services</div><div class="bm-svcs">${card('spotify', 'Spotify', 'Uses the connection the song matcher uses.', 'Looks the album up, then each song by title, artist and length.', spEst, spPar)}${card('youtube', 'YouTube', escapeHtml(ytLine), 'Finds the album\u2019s playlist first, then (if you choose) any songs it misses one by one.', ytEst, songsOpt + (ytOk ? ytPar : ''), !ytOk)}</div>
       ${est.over ? `<p class="bm-warn" role="alert">That is more pages than are left today. YouTube will stop at the limit and the rest wait: press Resume tomorrow. Spotify carries on.</p>` : ''}<p class="bm-dim">If YouTube asks for a check, only the YouTube side waits for you; Spotify carries on.</p></section>
     <section><div class="bm-label">What to do with what it finds</div><div class="bm-opts">${opt('bmMode', 'review', bm.mode === 'review', 'Let me choose what gets matched, song by song', 'Nothing is saved until you press Apply.')}${opt('bmMode', 'auto', bm.mode === 'auto', 'Save the confident matches as they come, and let me choose the rest', 'A link you already have is never replaced. The last batch can be undone.')}</div></section></div>
     <div class="bm-foot"><span class="bm-dim">It keeps running while you use CRATE. Keep this tab open.</span><span><button type="button" class="chip-btn" data-bm="cancel">Cancel</button> <button type="button" class="config-btn" data-bm="start">Start matching ${n} release${n === 1 ? '' : 's'}</button></span></div>`;
@@ -23985,6 +24024,7 @@ function bmChange(e) {
   if (a === 'setup') {
     if (t.name === 'bmScope') { bm.scope = t.value; bm.rels = (t.value === 'ticked' ? bm.sets.ticked : bm.sets.view).map(bm.mk); bm.sel = bm.rels[0] ? bm.rels[0].row : ''; }
     else if (t.name === 'bmMode') bm.mode = t.value; else if (t.id === 'bmYtSongs') bm.ytSongs = t.checked; else if (t.id === 'bmSvcSpotify') bm.svc.spotify = t.checked; else if (t.id === 'bmSvcYoutube') bm.svc.youtube = t.checked;
+    else if (t.name === 'bmPar') { bm.par[t.dataset.kind] = Number(t.value) || 1; bmParSave(bm.par); }
     bmRender(); return;
   }
   if (a === 'inc') { const r = relOf(); if (r) r.include = t.checked; }
@@ -24118,7 +24158,7 @@ async function smSpotifyForRelease(item, songs) {
 }
 
 // ----- The "CRATE for YouTube" add-on: asks YouTube's own pages instead of its API (no quota, no key). It answers three questions: a video search, a playlist search, a playlist's videos. -----
-const ytAddon = { ready: false, version: '', state: 'idle', reason: '', queue: 0, nextAt: 0, today: 0, cap: 0, pending: new Map(), seq: 0, poll: 0 };
+const ytAddon = { ready: false, version: '', state: 'idle', reason: '', queue: 0, nextAt: 0, today: 0, cap: 0, parallel: 1, pending: new Map(), seq: 0, poll: 0 };
 const ytPagesNote = () => ytAddon.cap ? `${ytAddon.today} of ${ytAddon.cap} pages used today` : `${ytAddon.today} page${ytAddon.today === 1 ? '' : 's'} read in the last 24 hours (no daily limit)`;          // an add-on older than 1.2.0 still has a limit of 250 a day and says so; 1.2.0 and later say cap 0
 const ytAddonSay = (type, extra) => window.postMessage(Object.assign({ source: 'crate-app', type }, extra || {}), window.location.origin);
 function ytUseAddon() { let off = false; try { off = localStorage.getItem('crate_yt_use_addon') === '0'; } catch (e) { /* default: on */ } return !!(ytAddon.ready && !off); }
@@ -24145,7 +24185,7 @@ window.addEventListener('message', (e) => {
   const d = e.data; if (!d || d.source !== 'crate-addon' || typeof d.type !== 'string' || d.type.slice(0, 3) !== 'yt-') return;
   const redraw = () => { if (typeof smState !== 'undefined' && smState) smRender(); if (typeof bmRedraw === 'function') bmRedraw(); };
   if (d.type === 'yt-script') ytAddonHello();
-  else if (d.type === 'yt-ready') { ytAddon.ready = !!d.ok; ytAddon.version = d.version || ''; if (d.state) ytAddon.state = d.state; ytAddon.today = d.today || 0; ytAddon.cap = d.cap || 0; redraw(); }
+  else if (d.type === 'yt-ready') { ytAddon.ready = !!d.ok; ytAddon.version = d.version || ''; if (d.state) ytAddon.state = d.state; ytAddon.today = d.today || 0; ytAddon.cap = d.cap || 0; ytAddon.parallel = Math.max(1, Number(d.parallel) || 1); redraw(); }
   else if (d.type === 'yt-accepted') {
     const pr = ytAddon.pending.get(d.reqId); if (!pr) return; const r = d.resp || {};
     if (!r.ok) { ytAddon.pending.delete(d.reqId); clearTimeout(pr.timer); pr.reject(new Error('addon: ' + (r.reason || 'noanswer'))); } else { pr.accepted = true; pr.arm(150000); }
@@ -33749,34 +33789,53 @@ function getDistinctCrateArtists() {
 // flag — every single one sees "not rate-limited yet" and fires anyway,
 // and Spotify's real limit is tight enough that even a small simultaneous
 // burst trips it outright. So this is now a true one-at-a-time QUEUE
-// (spotifyApiQueue, a running promise chain) — every call is forced to
+// (spotifyApiPump, which lets one run at a time) — every call is forced to
 // wait for the previous one to fully finish, plus a minimum gap, before
 // it's even allowed to start, regardless of how many things try to call
 // this "simultaneously." That's what actually prevents the burst itself,
 // rather than only reacting after the damage is done; the Retry-After-
 // driven cooldown below still handles a 429 that gets through anyway.
-let spotifyApiQueue = Promise.resolve();
 let spotifyRateLimitedUntil = 0;
 const SPOTIFY_MIN_REQUEST_GAP_MS = 150; // enforced between EVERY pair of requests, 429 or not — a burst of many calls shouldn't be able to trip the limit in the first place just by going one-at-a-time with no gap
+// How many requests may be in flight at once. 1 (the queue described above) except while "Match songs for many
+// releases" works on several releases at once (bmRunLane raises it to the number you chose and puts it back). Then
+// the starts are spaced by SPOTIFY_PARALLEL_GAP_MS instead of waiting for each to finish, and a 429 still makes every
+// one of them wait out Retry-After.
+let spotifyApiParallel = 1;
+const SPOTIFY_PARALLEL_GAP_MS = 80;
+let spotifyApiActive = 0, spotifyApiNextStart = 0;
+const spotifyApiWaiting = [];
 function spotifyApiFetch(url, options) {
-  const result = spotifyApiQueue.then(async () => {
-    const waitMs = spotifyRateLimitedUntil - Date.now();
-    if (waitMs > 0) await new Promise(r => setTimeout(r, waitMs));
-    const res = await fetch(url, options);
-    if (res.status === 429) {
-      const retryAfterSec = Number(res.headers.get('Retry-After'));
-      spotifyRateLimitedUntil = Date.now() + (retryAfterSec > 0 ? retryAfterSec : 3) * 1000;
-    } else {
-      spotifyRateLimitedUntil = Math.max(spotifyRateLimitedUntil, Date.now() + SPOTIFY_MIN_REQUEST_GAP_MS);
-    }
-    return res;
-  });
-  // Chain the NEXT call onto this one regardless of whether THIS one
-  // throws (a network error, say) — swallow the rejection here so the
-  // queue keeps moving; the real error still propagates to whoever
-  // actually awaited `result` themselves.
-  spotifyApiQueue = result.catch(() => {});
-  return result;
+  return new Promise((resolve, reject) => { spotifyApiWaiting.push({ url, options, resolve, reject }); spotifyApiPump(); });
+}
+function spotifyApiPump() {
+  while (spotifyApiActive < spotifyApiParallel && spotifyApiWaiting.length) {
+    const job = spotifyApiWaiting.shift();
+    spotifyApiActive++;
+    (async () => {
+      try {
+        for (;;) {                       // wait out a 429's cool-down and the spacing; checked again after each wait, since another start may have moved them
+          const waitMs = Math.max(spotifyRateLimitedUntil, spotifyApiNextStart) - Date.now();
+          if (waitMs <= 0) break;
+          await new Promise(r => setTimeout(r, waitMs));
+        }
+        spotifyApiNextStart = Date.now() + (spotifyApiParallel > 1 ? SPOTIFY_PARALLEL_GAP_MS : 0);
+        const res = await fetch(job.url, job.options);
+        if (res.status === 429) {
+          const retryAfterSec = Number(res.headers.get('Retry-After'));
+          spotifyRateLimitedUntil = Date.now() + (retryAfterSec > 0 ? retryAfterSec : 3) * 1000;
+        } else if (spotifyApiParallel === 1) {
+          spotifyRateLimitedUntil = Math.max(spotifyRateLimitedUntil, Date.now() + SPOTIFY_MIN_REQUEST_GAP_MS);
+        }
+        job.resolve(res);
+      } catch (e) {
+        job.reject(e);                   // a network error reaches whoever asked; the queue keeps moving
+      } finally {
+        spotifyApiActive--;
+        spotifyApiPump();
+      }
+    })();
+  }
 }
 
 async function resolveSpotifyArtistId(name, cache) {
