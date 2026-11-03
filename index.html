@@ -19,7 +19,58 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.65.0
+  CURRENT_VERSION: 1.69.0
+
+  1.69.0 — 2026-11-04 — Genres you can click in the cover popup and the player, up to four details in the player, and double-clicking a cover works again with the popup open. Page only: no add-on and no backend change.
+
+          GENRES: in the Album covers popup (the genre line at the top, and Genres / Also on its About tab) and in the player's lines (when one of them is set to Genre), each genre name is a link, as in Track Info.
+            A click opens that genre's page (and closes the popup); a right-click opens the genre's menu (play, shuffle, export…). In the player this takes the place of the line's own click (artist or track page).
+          THE PLAYER'S DETAILS: the player could show two fields under the track title. It now takes four: lines 1 and 2 as before, and a third line with two fields side by side ("2008 · melancholic, nocturnal"),
+            hidden when both are empty. Any field can go there: genre, release year, release date, descriptors, label, RYM rating and the rest. Right-click the player → "Choose what the player shows…" opens the settings
+            (also at Panels configuration → Now Playing Bar → Panel Settings…). Now Playing Bar, when placed in Main, shows the same third line.
+          DOUBLE-CLICK IN THE COVERS VIEW (it plays the release): with the inline popup, the first click opened the popup and at once scrolled it into view, and opening it on a cover below one that already had
+            the popup also pulled that cover up (the old popup shrank and moved away). Either way the second click hit a different cover. Now the clicked cover is scrolled back to exactly where it was,
+            and the popup only scrolls into view after 500 ms (Windows' double-click time), not at all if it was closed by then.
+          CHECKED in the test copy (4,000 releases): genre click and right-click in the player and the popup; the player's third line and its hiding; the settings dialog from the right-click; a cover under an open
+            inline popup stays put (inline and floating styles) and a double-click on it plays it and closes the popup; a popup on the bottom row still scrolls into view, after the wait.
+
+  1.68.0 — 2026-11-04 — Install CRATE as an app on your PC: its own window, a Start-menu entry and a taskbar icon. Upload manifest.webmanifest and the icons folder next to index.html; no add-on and no backend change.
+
+          HOW: in Chrome or Edge, open CRATE and use the install icon at the right of the address bar, or ⚙ → "Install CRATE as an app…". It then opens without the browser's bars, has the record icon in the Start menu and on the taskbar, and can be pinned.
+          WHY THIS KIND: it is still this page at your GitHub Pages address, so Google sign-in, Spotify, YouTube, the RateYourMusic and YouTube add-ons and your saved settings all work exactly as before, and it updates itself whenever you upload a new index.html.
+            (A separate .exe would run from a different address, which breaks the sign-in, the Spotify login and the add-ons.)
+          NEW FILES, to upload beside index.html: manifest.webmanifest (name, colours, icons) and icons/ (crate-192.png, crate-512.png, crate-maskable-512.png, apple-touch-icon.png, favicon-32.png: a record with an amber label). The page now also has a tab icon.
+          ⚙ → "Install CRATE as an app…" shows in the browser and is hidden inside the installed app; when the browser has no install offer ready, it says where the install icon is.
+
+  1.67.0 — 2026-11-04 — Fix: the covers view no longer freezes. Hovering a cover, clicking one and scrolling are smooth again with a big crate, and the grid draws in about a seventh of the time. Page only: no add-on and no backend change.
+
+          THE CAUSES, measured in a test copy with 4,000 releases at 1280x800 (medians of many runs; before = 1.64.0, which has the same grid as 1.65.0):
+            1. Hovering: 1.60.0 gave every card content-visibility (so cards off screen weren't laid out) and switched it off on a hovered card so its lift wasn't clipped. That switch made the browser lay out the whole grid again,
+               each time the mouse entered or left a cover: 315 ms per cover. Moving across the covers froze the page.
+            2. Every card was built, about 50 elements each: 147,000 elements on the page, and every change to it was paid for over all of them.
+            3. Ten CSS :has() rules (body:has(.mini-player.docked-top:not([hidden])) and others) made the browser re-check the whole page's styles whenever any element was shown, hidden, added or removed: 57 ms each time.
+            4. The covers' scrolling area (#gridWrap) sat in flexible panels that measure their contents, so a change to one card made the browser measure the whole grid through them.
+          THE FIXES: only the cards near the screen are built (buildGridSection: the first 120 of each drawing; the rest are placeholders of the same size and class, built as they come within about two screens of view and emptied again
+            when far away; the cards on screen are built at once after a redraw that keeps your place). The hover switch and content-visibility are gone. The :has() rules are classes now (body.mp-docked-top, body.dialog-open, body.qa-open,
+            .topbar.search-focus / .search-has-value), kept current by a few observers on just those elements (bodyStateClasses). #gridWrap is contained (contain: strict; its size comes from the panels, never from the covers).
+          BEFORE → AFTER: drawing the grid 1,532 → about 200 ms; elements on the page 146,800 → 33,400; hovering a cover (on and off) 315 → about 20 ms; clicking a cover and closing its popup 517 → about 115 ms;
+            showing or hiding anything 57 → 0 ms of style work; long freezes while scrolling 3 (197 ms in all) → none. A scroll step set from code measured about 24 ms both before and after (the test window's own cost).
+          CHECKED in the test copy: selection (click, shift-click across placeholders, Ctrl+A on all 4,000), keeping your place across a redraw, the cover popup in all three styles and ‹ › onto a placeholder, grouping by year (60 groups),
+            list view, and phone width (the covers area keeps its size). NOT CHECKED: a playlist's own covers view (the test crate has no playlists; it uses the same drawing), and real cover images (decoding them costs extra on any version).
+
+  1.66.0 — 2026-11-04 — Staying signed in: CRATE renews your Google sign-in quietly before its hour runs out, and a save or refresh that is refused is renewed and sent again, instead of sending you back to the sign-in screen. Page only: the backend is unchanged (no re-deploy).
+
+          THE CAUSE: CRATE signs in with Google, and the token Google gives lasts ONE HOUR. Every request to your sheet carries it and nothing renewed it, so an hour after signing in the next save or refresh came back "unauthorized" and CRATE showed
+            "Your session expired — sign in again". Opening CRATE more than an hour after the last sign-in also started at the sign-in screen.
+          NOW: about five minutes before the token runs out CRATE asks Google for a new one (authRenew: Google's automatic sign-in, auto_select, so there is nothing to click while you are still signed in to Google in this browser; scheduleAuthRenew sets the timer
+            from the token's own expiry). A request whose token is about to run out renews first. A save (postUpdate) or a refresh (fetchCatalog) the backend refuses as unauthorized is renewed and sent again once: the change you made isn't lost.
+            The sign-in screen only comes back when Google won't give a new token.
+          LIMITS: Google can hold back its automatic sign-in (signed out of Google, third-party sign-in blocked in the browser, or a pause after you closed its prompt), and a tab left in the background may renew late; the retry on refusal covers that
+            for the next thing you do. Opening CRATE after a long break still asks you to sign in if the stored token has run out and Google won't renew it at once.
+          THE LASTING FIX (not done: it needs a backend change you would re-deploy): after checking your Google sign-in once, the backend could give CRATE its own session that lasts weeks. The backend file kept on this computer (Downloads) is an old
+            version without sign-in, so it can't be changed from here.
+          VERIFIED in a test copy with a fake Google sign-in and a backend that refuses old tokens: a refused save renewed and sent again (it went through), a refused refresh renewed and loaded again, a token about to run out renewed before sending,
+            the timer renewing by itself (60 minutes more), and, when Google won't renew, the sign-in screen as before. NOT VERIFIED with real Google sign-in.
 
   1.65.0 — 2026-11-04 — The cover popup, redone: a header in the cover's colour with the release's facts and both ratings, one row of actions, tabs (Tracks, About, Listens), ‹ › to the next cover, and a new Sleeve style. Page only: no add-on and no backend change.
 
@@ -6930,6 +6981,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CRATE — a listening log</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#14181D">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/crate-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <!-- TEMPORARY DIAGNOSTIC OVERLAY — remove once the mobile-only load crash is
      found and fixed. Installed as the very first script in <head>, before
      anything else on the page, specifically so it's listening BEFORE any of
@@ -7140,6 +7196,7 @@
           <button type="button" id="menuSoundAnalysis">Sound analysis…</button>
           <button type="button" id="menuRymRatings">RYM ratings &amp; genres…</button>
           <button type="button" id="menuUpdateLog">Update log…</button>
+          <button type="button" id="menuInstallApp" hidden>Install CRATE as an app…</button>
           <div class="menu-divider"></div>
           <button type="button" id="menuSignOut">Sign out</button>
           <div class="menu-divider"></div>
@@ -7779,6 +7836,7 @@
         <span id="miniPlayerTitle" class="mini-player-title" title="Go to song / album page">—</span>
         <span id="miniPlayerArtist" class="mini-player-artist" title="View artist"></span>
         <span id="miniPlayerAlbum" class="mini-player-album" title="Go to album page · right-click for more"></span>
+        <span id="miniPlayerExtra" class="mini-player-album mini-player-extra"></span>
       </div>
     </div>
     <div class="mini-player-transport">
@@ -9063,7 +9121,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.65.0';
+const APP_VERSION = '1.69.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -10128,7 +10186,7 @@ const el = {};
   'lastfmLastSync','lastfmFetchBtn','lastfmCancelBtn','lastfmFetchStatus','lastfmPreview','lastfmSummary',
   'lastfmMatchedCount','lastfmMatchedList','lastfmUnmatchedCount','lastfmUnmatchedList',
   'lastfmImportBtn','lastfmBackBtn','lastfmImportStatus','globalToast',
-  'miniPlayer','miniPlayerClose','miniPlayerArt','miniPlayerVideoWrap','miniPlayerTitle','miniPlayerArtist','miniPlayerAlbum','miniPlayerTrackInfo',
+  'miniPlayer','miniPlayerClose','miniPlayerArt','miniPlayerVideoWrap','miniPlayerTitle','miniPlayerArtist','miniPlayerAlbum','miniPlayerExtra','miniPlayerTrackInfo',
   'miniPlayerShuffle','miniPlayerPrev','miniPlayerPlayPause','miniPlayerNext','miniPlayerVolume','miniPlayerQueueBtn','miniPlayerFullscreenBtn',
   'miniPlayerDetachBtn','miniPlayerDragHandle','miniPlayerDockBtn','miniPlayerMobileProgress','miniPlayerMobileProgressFill',
   'miniPlayerSeekTrack','miniPlayerSeekFill','miniPlayerSeekHandle','miniPlayerTimeCurrent','miniPlayerTimeTotal',
@@ -10227,6 +10285,37 @@ function handleAuthError(message) {
   showAuthGate(message || 'Your session expired — sign in again to continue.');
 }
 
+// ---- Staying signed in ----
+// Google's sign-in token lasts ONE HOUR, and every request to your sheet carries it; nothing renewed it, so an hour after
+// signing in the next save or refresh was refused and you were sent back to the sign-in screen. Now a new token is asked
+// for quietly (Google's automatic sign-in: no click when you are still signed in to Google in this browser) about five
+// minutes before the old one runs out, and a request the backend refuses as unauthorized is renewed and sent again once.
+// The sign-in screen only comes back when Google won't renew it (signed out of Google, or its automatic sign-in paused
+// because you closed its prompt recently).
+let authRenewing = null, authRenewDone = null, authRenewTimer = 0, authGsiReady = false;
+function tokenExpMs(token) { const p = decodeJwtPayload(token || ''); return p && p.exp ? p.exp * 1000 : 0; }
+function authRenew() {                                              // -> Promise<boolean>: a new token was stored
+  if (authRenewing) return authRenewing;
+  authRenewing = new Promise(resolve => {
+    const g = window.google && window.google.accounts && window.google.accounts.id;
+    if (!g || !CONFIG.GOOGLE_CLIENT_ID || CONFIG.GOOGLE_CLIENT_ID.indexOf('PASTE_YOUR') === 0) { resolve(false); return; }
+    let timer = 0;
+    const done = (ok) => { if (!authRenewDone) return; clearTimeout(timer); authRenewDone = null; resolve(ok); };
+    authRenewDone = done;
+    timer = setTimeout(() => done(false), 25000);
+    try {
+      if (!authGsiReady) { g.initialize({ client_id: CONFIG.GOOGLE_CLIENT_ID, callback: handleGoogleCredential, auto_select: true }); authGsiReady = true; }
+      g.prompt((n) => { try { if ((n.isNotDisplayed && n.isNotDisplayed()) || (n.isSkippedMoment && n.isSkippedMoment())) done(false); } catch (e) { /* newer Google sign-in gives no reasons: the timeout decides */ } });
+    } catch (e) { done(false); }
+  }).finally(() => { authRenewing = null; });
+  return authRenewing;
+}
+function scheduleAuthRenew() {                                      // the next quiet renewal: five minutes before the token runs out
+  clearTimeout(authRenewTimer);
+  const exp = tokenExpMs(getStoredIdToken()); if (!exp) return;
+  authRenewTimer = setTimeout(() => { authRenew().then(ok => { if (!ok) authRenewTimer = setTimeout(scheduleAuthRenew, 60000); }); }, Math.min(2147483000, Math.max(10000, exp - Date.now() - 5 * 60000)));          // (a timer longer than ~24.8 days fires at once)
+}
+
 function showAuthGate(message) {
   el.authGate.hidden = false;
   if (message) {
@@ -10255,6 +10344,7 @@ function initGoogleSignIn() {
     callback: handleGoogleCredential,
     auto_select: true
   });
+  authGsiReady = true;
   const btnHost = document.getElementById('googleSignInButton');
   btnHost.innerHTML = '';
   google.accounts.id.renderButton(btnHost, { theme: 'outline', size: 'large', shape: 'pill' });
@@ -10263,12 +10353,15 @@ function initGoogleSignIn() {
 
 function handleGoogleCredential(response) {
   setStoredIdToken(response.credential);
+  if (authRenewDone) authRenewDone(true);                           // a quiet renewal (see authRenew): the app is already open
+  scheduleAuthRenew();
   enterApp();
 }
 
 function enterApp() {
   if (appEntered) return;
   appEntered = true;
+  scheduleAuthRenew();
   el.authGate.hidden = true;
   el.app.hidden = false;
   init();
@@ -10843,6 +10936,8 @@ function wouldCreateGenreCycle(taxonomy, genre, parent) {
 
 let quickPeekItem = null;
 let quickPeekSeq = 0;
+let quickPeekOpenedAt = 0;
+const QP_DOUBLE_CLICK_WAIT = 500;          // ms: Windows' default double-click time; the inline popup scrolls into view only after it
 let quickPeekCardEl = null;          // the card the popup was opened from (‹ › move to its neighbours)
 let quickPeekSelectedTracks = new Set(); // trackNum::trackName keys — reset each time the peek opens for a (possibly different) album
 let quickPeekLastSelectedKey = null;
@@ -10854,6 +10949,30 @@ const artFetchInFlight = new Set(); // keys with a fetchArt() call already outst
 
 let artApplyPending = null;          // keys of covers that just arrived, put on the page together by applyCachedArtFor. Declared here for the same TDZ reason as artFetchInFlight just above
 const ART_LOOKUPS_AT_ONCE = 4; let artLookupsActive = 0; const artLookupWaiting = [];   // iTunes cover lookups running / waiting for a turn (see artLookupSlot). Same TDZ reason
+
+// Page-state classes, kept here instead of CSS :has(). Ten rules like body:has(.mini-player.docked-top:not([hidden])) made the browser
+// re-check the styles of the WHOLE page (about 18 ms with a big crate) every time any element was added, removed or shown: each card
+// the covers grid builds or empties as you scroll, opening the cover popup... Now a few observers watch just the elements those rules
+// were about and set: body.mp-docked-top, body.dialog-open, body.qa-open, and .topbar.search-focus / .topbar.search-has-value.
+(function bodyStateClasses() {
+  const body = document.body, mp = document.getElementById('miniPlayer'), qa = document.getElementById('qaOverlay'), sw = document.getElementById('searchWrap'), top = sw && sw.closest('.topbar');
+  const overlays = document.getElementsByClassName('arrange-overlay');          // live: includes dialogs made later
+  const paintMp = () => body.classList.toggle('mp-docked-top', !!(mp && mp.classList.contains('docked-top') && !mp.classList.contains('detached') && !mp.hidden));
+  const paintDialogs = () => { let open = false; for (const o of overlays) { if (!o.hidden) { open = true; break; } } body.classList.toggle('dialog-open', open); };
+  const paintQa = () => body.classList.toggle('qa-open', !!(qa && qa.classList.contains('open')));
+  const paintSearch = () => { if (!top || !sw) return; top.classList.toggle('search-focus', sw.contains(document.activeElement)); top.classList.toggle('search-has-value', sw.classList.contains('mobile-search-has-value')); };
+  const watchAttrs = new MutationObserver((recs) => { let m = false, d = false, q = false, s2 = false; recs.forEach(r => { if (r.target === mp) m = true; else if (r.target === qa) q = true; else if (r.target === sw) s2 = true; else d = true; }); if (m) paintMp(); if (d) paintDialogs(); if (q) paintQa(); if (s2) paintSearch(); });
+  const watched = new WeakSet(), watch = (o) => { if (!watched.has(o)) { watched.add(o); watchAttrs.observe(o, { attributes: true, attributeFilter: ['hidden'] }); } };
+  if (mp) watchAttrs.observe(mp, { attributes: true, attributeFilter: ['class', 'hidden'] });
+  if (qa) watchAttrs.observe(qa, { attributes: true, attributeFilter: ['class'] });
+  if (sw) { watchAttrs.observe(sw, { attributes: true, attributeFilter: ['class'] }); sw.addEventListener('focusin', paintSearch); sw.addEventListener('focusout', () => setTimeout(paintSearch, 0)); }
+  for (const o of overlays) watch(o);
+  new MutationObserver((recs) => { let any = false; recs.forEach(r => { r.addedNodes.forEach(n => { if (n.nodeType === 1 && n.classList.contains('arrange-overlay')) { watch(n); any = true; } }); r.removedNodes.forEach(n => { if (n.nodeType === 1 && n.classList.contains('arrange-overlay')) any = true; }); }); if (any) paintDialogs(); }).observe(body, { childList: true });
+  paintMp(); paintDialogs(); paintQa(); paintSearch();
+})();
+
+const GRID_EAGER = 120, GRID_LAZY_AHEAD = '1600px 0px', GRID_UNLOAD_BEYOND = '5000px 0px';          // see buildGridSection; declared here because the grid can be drawn while startApp runs
+let gridEagerLeft = 0, gridEagerTick = false, gridLazyObs = null, gridLazyRoot = null, gridUnloadObs = null;
 
 startApp();
 
@@ -12653,7 +12772,7 @@ function renderConfigSlots(mode) {
     // for this mode below, same dual-group pattern 'covers' already uses.
     queueReleaseInfo: ['Field 1', 'Field 2', 'Field 3'],
     queueTrackInfoNested: ['Field 1 (Track name is always shown)', 'Field 2'],
-    miniPlayer: ['Line 1 (under title)', 'Line 2'],
+    miniPlayer: ['Line 1 (under title)', 'Line 2', 'Line 3', 'Line 3, after a \u00b7'],
     lastfmHistory: ['Line 1 (title)', 'Line 2 (subtitle)', 'Line 3 (right-aligned)'],
     trackInfo: ['Field 1', 'Field 2', 'Field 3', 'Field 4']
   };
@@ -12736,7 +12855,7 @@ function renderConfigSlots(mode) {
       : (mode === 'queueReleaseTracks')
       ? 'Release fields show once per release, grouping consecutive queued tracks from it; track fields repeat under each one (Track name is always shown there).'
       : (mode === 'miniPlayer')
-      ? 'Printed under the track title — in the bottom player, and in Now Playing Bar if it\u2019s placed in Main instead — one field per line.'
+      ? 'Printed under the track title, in the bottom player and in Now Playing Bar if it\u2019s placed in Main instead. Lines 1 and 2 hold one field each; the third line holds two, side by side (e.g. Year \u00b7 Descriptor). Leave a line Empty to hide it.'
       : (mode === 'lastfmHistory')
       ? 'Line 1 and 2 read as title/subtitle; Line 3 sits right-aligned (e.g. Date, Play Count).'
       : (mode === 'trackInfo')
@@ -12960,14 +13079,17 @@ function restoreGridPlace(place) {
   wrap.scrollTop = Math.min(place.scrollTop, Math.max(0, wrap.scrollHeight - wrap.clientHeight));
 }
 function gridPlaceSnapshot() { const left = document.getElementById('leftList'); return { place: captureGridPlace(), leftTop: left ? left.scrollTop : 0 }; }          // (taken BEFORE anything that clears the view, such as the reload's "loading" state)
-function keepGridPlace(fn, snap) { snap = snap || gridPlaceSnapshot(); const out = fn(); restoreGridPlace(snap.place); const left = document.getElementById('leftList'); if (left && snap.leftTop) left.scrollTop = snap.leftTop; return out; }
-async function fetchCatalog() {
+function keepGridPlace(fn, snap) { snap = snap || gridPlaceSnapshot(); const out = fn(); restoreGridPlace(snap.place); if (snap.place) gridFillVisible(); const left = document.getElementById('leftList'); if (left && snap.leftTop) left.scrollTop = snap.leftTop; return out; }
+async function fetchCatalog(opts) {
+  opts = opts || {};
   if (!CONFIG.SCRIPT_URL || CONFIG.SCRIPT_URL.indexOf('PASTE_YOUR') === 0) {
     showState('setup', 'albums');
     return;
   }
+  if (!opts.retried && tokenExpMs(getStoredIdToken()) && tokenExpMs(getStoredIdToken()) < Date.now() + 30000) await authRenew();          // about to run out: renew first
   const idToken = getStoredIdToken();
   if (!idToken) { handleAuthError(); return; }
+  let authRetry = false;
 
   // Guards against the visible symptom of double-tapping Refresh (or the
   // initial load and a manual refresh landing at the same time): two
@@ -13010,7 +13132,10 @@ async function fetchCatalog() {
     );
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
-    if (isAuthError(data)) { handleAuthError(); return; }
+    if (isAuthError(data)) {                                        // the token ran out: renew it quietly and load again, once
+      if (!opts.retried && await authRenew()) { authRetry = true; return; }
+      handleAuthError(); return;
+    }
     // Any other error shape from the backend (an Apps Script exception,
     // a malformed response, etc.) was previously falling straight through
     // here unnoticed — (data.rows || []) below just quietly defaults to an
@@ -13227,6 +13352,7 @@ async function fetchCatalog() {
   } finally {
     clearTimeout(slowNotice);
     fetchCatalogInFlight = false;
+    if (authRetry) setTimeout(() => fetchCatalog({ retried: true }), 0);          // (a return inside the try skips anything after this block)
   }
 }
 
@@ -15437,6 +15563,7 @@ function groupItems(items, by) {
 /* ---------- Grid rendering ---------- */
 
 function renderGrid() {
+  gridEagerReset();                                      // each drawing builds its own first GRID_EAGER cards (see buildGridSection)
   if (state.activePlaylistId) { renderPlaylistMainPanel(); return; }
   // Safety: an inline-style album quick peek (see openAlbumQuickPeek) can
   // be sitting inside #gridContainer right now — closeAlbumQuickPeek()
@@ -16512,10 +16639,63 @@ async function getTracksFor(item) {
   return tracks;
 }
 
+// Only the cards near the screen are built. A full card is about 50 elements, so 4,000 releases made a page of over 220,000,
+// and every change to it (selecting a cover, opening or closing the popup, a hover) made the browser go over all of them: the
+// page froze. Now the first GRID_EAGER cards of a render are built at once and the rest start as an empty placeholder of the
+// same size (.card-shell: the same class and data-album-row, so selection, Ctrl+A, keeping your place and the popup's ‹ ›
+// all still find them), filled in as it comes within about two screens of view, and never emptied again.
+function gridScrollParent(n) { for (let a = n && n.parentElement; a && a !== document.body; a = a.parentElement) { const o = getComputedStyle(a).overflowY; if (o === 'auto' || o === 'scroll') return a; } return null; }
+function gridShellFor(item) {
+  const sh = document.createElement('div');
+  sh.className = 'card card-shell' + (state.selectedAlbums.has(String(item.row)) ? ' selected' : '');
+  sh.dataset.albumRow = item.row; sh._item = item; return sh;
+}
+function gridFillShell(shell) {
+  const it = shell._item; if (!it || !shell.isConnected) return;
+  shell._item = null;
+  const full = buildCard(it); full._item = it; shell.replaceWith(full);
+  const img = full.querySelector('img.art[data-key]'), url = img && state.artCache[img.dataset.key] && state.artCache[img.dataset.key].art;
+  if (url && img.src !== url) img.src = url;
+  if (gridUnloadObs) gridUnloadObs.observe(full);
+}
+function gridEmptyCard(card) {                                      // a card far out of view goes back to a placeholder, so the page stays small however far you scroll
+  if (!card.isConnected || !card._item || card === quickPeekCardEl || card.contains(document.activeElement)) return;
+  if (card.nextElementSibling && card.nextElementSibling.id === 'albumQuickPeek') return;
+  const sh = gridShellFor(card._item); card.replaceWith(sh); if (gridLazyObs) gridLazyObs.observe(sh);
+}
+// The placeholders on screen (and a screen either side), filled at once: after a redraw that keeps your place far down the grid,
+// and as a safety net shortly after any drawing, in case the observer is late (a busy or background tab).
+function gridFillVisible(scope) {
+  const box = scope || el.gridContainer, root = gridScrollParent(box.querySelector('.grid') || box); if (!root) return;
+  const r = root.getBoundingClientRect(), lo = r.top - r.height, hi = r.bottom + r.height;
+  const due = [...box.querySelectorAll('.card-shell')].filter(sh => { const b = sh.getBoundingClientRect(); return b.bottom > lo && b.top < hi; });          // all rects first, then fill: one layout, not one per card
+  due.forEach(sh => { if (gridLazyObs) gridLazyObs.unobserve(sh); gridFillShell(sh); });
+}
+function gridLazyWatch(wrap, tries) {                               // once the section is on the page: watch its placeholders from its own scrolling box
+  if (!wrap.isConnected) { if ((tries || 0) < 20) setTimeout(() => gridLazyWatch(wrap, (tries || 0) + 1), 50); else wrap.querySelectorAll('.card-shell').forEach(gridFillShell); return; }
+  const root = gridScrollParent(wrap);
+  if (!gridLazyObs || gridLazyRoot !== root) {
+    if (gridLazyObs) gridLazyObs.disconnect();
+    gridLazyRoot = root;
+    gridLazyObs = new IntersectionObserver((entries) => entries.forEach(en => { if (en.isIntersecting) { gridLazyObs.unobserve(en.target); gridFillShell(en.target); } }), { root, rootMargin: GRID_LAZY_AHEAD });
+    if (gridUnloadObs) gridUnloadObs.disconnect();
+    gridUnloadObs = new IntersectionObserver((entries) => entries.forEach(en => { if (!en.isIntersecting && en.target._item) { gridUnloadObs.unobserve(en.target); gridEmptyCard(en.target); } }), { root, rootMargin: GRID_UNLOAD_BEYOND });
+  }
+  wrap.querySelectorAll('.card-shell').forEach(sh => gridLazyObs.observe(sh));
+  wrap.querySelectorAll('.card:not(.card-shell)').forEach(c => { if (c._item) gridUnloadObs.observe(c); });
+  setTimeout(() => { if (wrap.isConnected) gridFillVisible(wrap.parentElement); }, 150);
+}
+function gridEagerReset() { gridEagerLeft = GRID_EAGER; if (!gridEagerTick) { gridEagerTick = true; queueMicrotask(() => { gridEagerTick = false; }); } }
 function buildGridSection(items) {
   const wrap = document.createElement('div');
   wrap.className = 'grid' + (state.viewMode === 'list' ? ' list-view' : '');
-  items.forEach(item => wrap.appendChild(buildCard(item)));
+  if (!gridEagerTick) { gridEagerTick = true; gridEagerLeft = GRID_EAGER; queueMicrotask(() => { gridEagerTick = false; }); }          // one budget for everything drawn in one go (all the groups of one render)
+  let shells = 0;
+  items.forEach(item => {
+    if (gridEagerLeft > 0 || typeof IntersectionObserver === 'undefined') { gridEagerLeft--; const c = buildCard(item); c._item = item; wrap.appendChild(c); return; }
+    wrap.appendChild(gridShellFor(item)); shells++;
+  });
+  if (shells) queueMicrotask(() => gridLazyWatch(wrap));
   return wrap;
 }
 
@@ -17596,15 +17776,15 @@ function qpRymLine(item) {
 function qpFacts(item) {                                            // the lines under the title: what it is, its genres, the two ratings
   const year = dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getUTCFullYear() : '';
   el.albumQuickPeekSub.innerHTML = `<button type="button" class="quick-peek-artist-link">${escapeHtml(item.artist)}</button>${[year, item.label, item.type && item.type !== 'Unknown' ? item.type : ''].filter(Boolean).map(x => ' · ' + escapeHtml(String(x))).join('')}<span class="qp-len"></span>`;
-  const genres = getGenreList(combinedGenreStr(item)).slice(0, 4).join(', ');
+  const genres = genreLinksHtml(getGenreList(combinedGenreStr(item)).slice(0, 4).join(', '));          // links: click opens the genre's page, right-click its menu
   const mine = Number(item.rating) > 0 ? `<span class="qp-stars" title="Your rating">${starRatingHtml(item.rating)}</span>` : '';
-  el.albumQuickPeekFacts.innerHTML = `${genres ? `<p class="qp-line qp-dim">${escapeHtml(genres)}</p>` : ''}${mine || item.rymRating ? `<p class="qp-line">${mine}${mine && item.rymRating ? ' ' : ''}${qpRymLine(item)}</p>` : ''}`;
+  el.albumQuickPeekFacts.innerHTML = `${genres ? `<p class="qp-line qp-dim">${genres}</p>` : ''}${mine || item.rymRating ? `<p class="qp-line">${mine}${mine && item.rymRating ? ' ' : ''}${qpRymLine(item)}</p>` : ''}`;
 }
 function qpAboutHtml(item) {
   const row = (label, v) => v ? `<div class="qp-about-row"><span class="qp-dim">${label}</span><span>${v}</span></div>` : '';
   const mine = Number(item.rating) > 0 ? starRatingHtml(item.rating) + ' <span class="qp-dim">yours</span>' : '';
   const review = String(item.review || '').trim();
-  return row('Genres', escapeHtml(getGenreList(item.genre).join(', '))) + row('Also', escapeHtml(getGenreList(item.genre2).join(', '))) + row('Descriptors', escapeHtml(item.rymDescriptors || ''))
+  return row('Genres', genreLinksHtml(getGenreList(item.genre).join(', '))) + row('Also', genreLinksHtml(getGenreList(item.genre2).join(', '))) + row('Descriptors', escapeHtml(item.rymDescriptors || ''))
     + row('Released', escapeHtml(item.releaseDate || '')) + row('Label', escapeHtml([item.label, item.catalog && !/^CRT-\d+$/.test(item.catalog) ? item.catalog : ''].filter(Boolean).join(' · ')))
     + row('Ratings', [mine, qpRymLine(item)].filter(Boolean).join(' · ')) + row('Where', escapeHtml([item.location, item.region].filter(Boolean).join(' · ')))
     + (review ? `<div class="qp-about-row qp-review"><span class="qp-dim">Your review</span><span>${escapeHtml(review.length > 420 ? review.slice(0, 420) + '…' : review)}</span></div>` : '')
@@ -17708,6 +17888,12 @@ function openAlbumQuickPeek(item, cardEl) {
   closeOtherDropdownMenus();
   quickPeekItem = item;
   const mySeq = ++quickPeekSeq;
+  quickPeekOpenedAt = performance.now();
+  // An inline popup already open in a row ABOVE this cover changes height as it's refilled ("Loading tracklist…") and then moves away,
+  // pulling this cover up by its height, so the second click of a double-click landed on a different cover. Where the cover is now,
+  // before any of that; keepCardStill scrolls it back there.
+  const cardTop0 = cardEl ? cardEl.getBoundingClientRect().top : 0;
+  const keepCardStill = () => { if (!cardEl) return; const moved = Math.round(cardEl.getBoundingClientRect().top - cardTop0), sc = moved && gridScrollParent(cardEl); if (sc) sc.scrollTop += moved; };
   quickPeekSelectedTracks = new Set();
   quickPeekLastSelectedKey = null;
   if (!quickPeekOriginalParent) {
@@ -17753,6 +17939,7 @@ function openAlbumQuickPeek(item, cardEl) {
     const rowMates = allCards.filter(c => Math.abs(c.getBoundingClientRect().top - rowTop) < 2);
     const lastInRow = rowMates[rowMates.length - 1] || cardEl;
     lastInRow.insertAdjacentElement('afterend', el.albumQuickPeek);
+    keepCardStill();
   } else {
     el.albumQuickPeek.classList.remove('album-quick-peek-inline');
     // Make sure it's back under its normal top-level parent first — it may
@@ -17764,6 +17951,7 @@ function openAlbumQuickPeek(item, cardEl) {
       } else {
         quickPeekOriginalParent.appendChild(el.albumQuickPeek);
       }
+      keepCardStill();                         // it left the grid: the covers below where it was move up
     }
     if (state.albumQuickPeekStyle === 'sleeve') { const pk = el.albumQuickPeek; pk.style.maxHeight = ''; pk.style.bottom = 'auto'; const w = pk.getBoundingClientRect().width, h = pk.getBoundingClientRect().height; pk.style.left = Math.max(8, (window.innerWidth - w) / 2) + 'px'; pk.style.top = Math.max(8, (window.innerHeight - Math.min(660, window.innerHeight * 0.82)) / 2) + 'px'; void h; }
     else placeFloatingQuickPeek(cardEl);
@@ -17823,8 +18011,12 @@ function openAlbumQuickPeek(item, cardEl) {
     // bottom visible row it opened entirely below the fold and looked like nothing had happened. It also
     // only gets its real height now, once the tracks are in, so this is where it can be brought into view
     // (nearest = the least scrolling that shows it, none if it's already visible).
+    // Not at once, though: scrolling under the mouse straight after the first click sent a double-click's second click to another cover
+    // (double-click plays the release). It waits until a double-click could no longer come, and is dropped if the popup was closed meanwhile.
     if (el.albumQuickPeek.classList.contains('album-quick-peek-inline')) {
-      el.albumQuickPeek.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      setTimeout(() => {
+        if (mySeq === quickPeekSeq && !el.albumQuickPeek.hidden) el.albumQuickPeek.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }, Math.max(0, quickPeekOpenedAt + QP_DOUBLE_CLICK_WAIT - performance.now()));
     }
 
     const rowEls = [...el.albumQuickPeekTracks.querySelectorAll('.album-quick-peek-track')];
@@ -18148,6 +18340,7 @@ function openTrackActionsMenu({ item, trackName, trackNum, spotifyTrack, x, y, q
     <button type="button" data-player-action="artist" ${crateArtist ? '' : needsCrate}>Go to artist</button>
     <button type="button" data-player-action="album" ${item ? '' : needsCrate}>Go to album</button>
     <button type="button" data-player-action="credits" ${item ? '' : needsCrate}>View credits</button>
+    ${queueEntry ? '' : '<div class="menu-divider"></div><button type="button" data-player-action="fields">Choose what the player shows\u2026</button>'}
   `;
   document.body.appendChild(menu);
   positionFloatingMenu(menu, x, y);
@@ -18179,6 +18372,7 @@ function openTrackActionsMenu({ item, trackName, trackNum, spotifyTrack, x, y, q
     else if (action === 'artist') openArtistInfoTab(crateArtist);
     else if (action === 'album') { switchTab('albums'); openDeck(item); }
     else if (action === 'addToCrate') openNowPlayingAddMenu(spotifyTrack, x, y);
+    else if (action === 'fields') { renderConfigSlots('miniPlayer'); el.mainConfigModal.hidden = false; }   // the same settings as Panels configuration → Now Playing Bar → Panel Settings…
     else if (action === 'credits') {
       let tn = trackNum;
       if (tn === '') {            // resolve from the full tracklist if it wasn't loaded yet
@@ -19572,6 +19766,11 @@ function miniPlayerFieldVal(key) {
   return '';
 }
 
+// Fields 3 and 4 of the player (state.fields.miniPlayer), side by side on one line so the player stays short: "1994 · melancholic, nocturnal".
+// Blank ones drop out; a genre is links. Empty string when neither has a value (the line then hides: .mini-player-album:empty).
+function miniPlayerExtraHtml(slots) {
+  return slots.slice(2, 4).map(k => { const v = miniPlayerFieldVal(k); return !v ? '' : k === 'genre' ? genreLinksHtml(v) : escapeHtml(v); }).filter(Boolean).join(' \u00b7 ');
+}
 // Refreshes the two configurable lines under the mini player's track title
 // (#miniPlayerArtist/#miniPlayerAlbum — reused as generic slots rather than
 // adding new DOM) from state.fields.miniPlayer. Called from both
@@ -19579,10 +19778,13 @@ function miniPlayerFieldVal(key) {
 // track starts, and directly from the "Panel Settings…" field pickers so a
 // change shows up immediately on whatever's already playing.
 function refreshMiniPlayerMeta() {
-  const slots = (state.fields.miniPlayer || []).slice(0, 2);
+  const slots = (state.fields.miniPlayer || []).slice(0, 4);
   [el.miniPlayerArtist, el.miniPlayerAlbum].forEach((lineEl, i) => {
-    if (lineEl) lineEl.textContent = miniPlayerFieldVal(slots[i]);
+    if (!lineEl) return;
+    if (slots[i] === 'genre') lineEl.innerHTML = genreLinksHtml(miniPlayerFieldVal(slots[i]));          // each genre opens its page (see initGenreLinks)
+    else lineEl.textContent = miniPlayerFieldVal(slots[i]);
   });
+  if (el.miniPlayerExtra) el.miniPlayerExtra.innerHTML = miniPlayerExtraHtml(slots);
   renderTrackInfoPanel(); // no-op if that section isn't on — see its own guard
   refreshNowPlayingBarMain(); // no-op if Now Playing Bar isn't placed in Main — see its own guard
   aiRefreshNowPlaying();      // the Artist Information page's "playing now:" line
@@ -23614,6 +23816,22 @@ function closeUpdateLog() { if (el.updateLogOverlay) el.updateLogOverlay.hidden 
 function initUpdateLog() {
   if (!el.updateLogOverlay) return;
   el.menuUpdateLog.addEventListener('click', openUpdateLog);
+  // Installing CRATE as an app (manifest.webmanifest + icons/ beside this page): Chrome and Edge then offer "Install CRATE", and
+  // it opens in its own window with a Start-menu entry and a taskbar icon. It is still this page at this address, so sign-in,
+  // Spotify, YouTube and both add-ons work as before, and it updates whenever the page does. Hidden inside the installed app.
+  (function wireInstallApp() {
+    const btn = document.getElementById('menuInstallApp'); if (!btn) return;
+    let deferred = null;
+    const standalone = () => (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+    btn.hidden = standalone();
+    window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferred = e; btn.hidden = standalone(); });
+    window.addEventListener('appinstalled', () => { deferred = null; btn.hidden = true; flashGlobalToast('CRATE is installed: open it from the Start menu or the taskbar.'); });
+    btn.addEventListener('click', async () => {
+      el.layoutMenu.hidden = true;
+      if (!deferred) { flashGlobalToast('To install CRATE, use the install icon at the right of the address bar in Chrome or Edge (or the browser\u2019s menu \u2192 Install CRATE). If you already installed it, open it from the Start menu.'); return; }
+      deferred.prompt(); const r = await deferred.userChoice; deferred = null; if (r && r.outcome === 'accepted') btn.hidden = true;
+    });
+  })();
   el.menuAppVersion.addEventListener('click', openUpdateLog);
   el.menuAppVersion.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openUpdateLog(); } });
   el.updateLogClose.addEventListener('click', closeUpdateLog);
@@ -28405,6 +28623,7 @@ function refreshNowPlayingBarMain() {
     el.nowPlayingBarMainTitle.textContent = 'Nothing playing right now';
     el.nowPlayingBarMainSub.textContent = '';
     el.nowPlayingBarMainSub2.textContent = '';
+    { const x = el.nowPlayingBarMainSub2.parentElement.querySelector('.now-playing-bar-main-extra'); if (x) { x.innerHTML = ''; x.hidden = true; } }
     el.nowPlayingBarMainArt.removeAttribute('src');
     // An <img> with no src renders as a small blank/broken box rather than
     // just taking up no space — hide it outright in the "nothing playing"
@@ -28418,6 +28637,11 @@ function refreshNowPlayingBarMain() {
   const slots = (state.fields.miniPlayer || []).slice(0, 2);
   el.nowPlayingBarMainSub.textContent = miniPlayerFieldVal(slots[0]);
   el.nowPlayingBarMainSub2.textContent = miniPlayerFieldVal(slots[1]);
+  {                                                                         // fields 3 and 4, as in the player (miniPlayerExtraHtml)
+    let x = el.nowPlayingBarMainSub2.parentElement.querySelector('.now-playing-bar-main-extra');
+    if (!x) { x = document.createElement('span'); x.className = el.nowPlayingBarMainSub2.className + ' now-playing-bar-main-extra'; el.nowPlayingBarMainSub2.insertAdjacentElement('afterend', x); }
+    x.innerHTML = miniPlayerExtraHtml((state.fields.miniPlayer || []).slice(0, 4)); x.hidden = !x.innerHTML;
+  }
   if (nowPlayingItem) {
     el.nowPlayingBarMainArt.dataset.key = artKey(nowPlayingItem);
     el.nowPlayingBarMainArt.src = state.artCache[artKey(nowPlayingItem)]?.art || placeholderArt(nowPlayingItem);
@@ -28464,12 +28688,20 @@ function genreLinksHtml(value) {
     .map(g => `<a href="#" class="genre-link" data-genre="${escapeHtml(g)}" title="Open the ${escapeHtml(g)} genre page">${escapeHtml(g)}</a>`).join(', ');
 }
 function initGenreLinks() {
+  // Capture phase: a genre link inside something clickable (the player's lines go to the artist or the track) opens the genre, not that.
   document.addEventListener('click', (e) => {
     const a = e.target.closest && e.target.closest('.genre-link');
     if (!a) return;
-    e.preventDefault();                      // it's href="#": don't jump the page
+    e.preventDefault(); e.stopPropagation();          // it's href="#": don't jump the page
+    if (el.albumQuickPeek && el.albumQuickPeek.contains(a)) closeAlbumQuickPeek();
     openGenreTab(a.dataset.genre);
-  });
+  }, true);
+  document.addEventListener('contextmenu', (e) => {    // right-click: the genre's menu (play, shuffle, export, match songs…)
+    const a = e.target.closest && e.target.closest('.genre-link');
+    if (!a) return;
+    e.preventDefault(); e.stopPropagation();
+    openGenreContextMenu(a.dataset.genre, e.clientX, e.clientY);
+  }, true);
 }
 function renderTrackInfoPanel() {
   if (!state.rightPanelShowTrackInfo) return;
@@ -28946,6 +29178,7 @@ function loadTracksForPlaylistGroups(list, wrap, playlist) {
 // buildGridSection() per group, or one ungrouped section when groupBy is
 // 'none'.
 function renderPlaylistCoversView(playlist, body) {
+  gridEagerReset();
   const albums = [...new Map(
     playlist.items.map(it => playlistAlbumFor(it)).filter(Boolean).map(a => [a.row, a])
   ).values()];
@@ -29791,15 +30024,20 @@ async function saveReview() {
   }
 }
 
-function postUpdate(payload) {
+function postUpdate(payload, retried) {
   const idToken = getStoredIdToken();
   if (!idToken) { handleAuthError(); return Promise.reject(new Error('unauthorized')); }
+  const exp = tokenExpMs(idToken);
+  if (!retried && exp && exp < Date.now() + 30000) return authRenew().then(() => postUpdate(payload, true));          // about to run out: renew first (see authRenew)
   return fetch(CONFIG.SCRIPT_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight against Apps Script
     body: JSON.stringify(Object.assign({}, payload, { idToken }))
   }).then(r => r.json()).then(data => {
-    if (isAuthError(data)) { handleAuthError(); throw new Error('unauthorized'); }
+    if (isAuthError(data)) {                                        // refused: renew the token quietly and send the same change again, once
+      if (!retried) return authRenew().then(ok => { if (ok) return postUpdate(payload, true); handleAuthError(); throw new Error('unauthorized'); });
+      handleAuthError(); throw new Error('unauthorized');
+    }
     // A generic backend error (an Apps Script exception during the actual
     // write — a spreadsheet access/creation issue, entirely plausible for
     // a freshly-provisioned multi-tenant spreadsheet, say) was previously
@@ -36533,6 +36771,7 @@ html, body {
   #gridWrap {
   flex: 1;
   overflow-y: auto; /* This makes the grid scrollable */
+  min-width: 0; contain: strict;          /* its size comes from the panels around it, never from the covers inside: without this, adding or removing one card made the browser re-measure the whole grid through the panels (1.66.0) */
 }
 
   .panel-bar {
@@ -36929,12 +37168,11 @@ html, body {
   #gridContainer.close-gaps .grid { gap: 6px; } /* both dimensions — was column-gap only, leaving the row gap between different rows of covers untouched */
 
   .card { cursor: pointer; outline: none; }
-  /* Cards off screen are not laid out or painted until they come near it — with thousands of releases, laying out every
-     card took seconds each time the grid was drawn. --card-h is a real card's height, measured by renderGrid, so the
-     scrollbar is right before they're drawn. A hovered or focused card is left uncontained: containment clips what a
-     card draws outside its box, which is where the hover lift and shadow go. */
-  .grid > .card { content-visibility: auto; contain-intrinsic-block-size: auto var(--card-h, 280px); }
-  .grid > .card:hover, .grid > .card:focus-within { content-visibility: visible; }
+  .card.card-shell { min-height: var(--card-h, 280px); }          /* a card not built yet (see buildGridSection): the size of a real one */
+  /* (1.60.0 to 1.65.0 gave every card content-visibility: auto, and switched it off on hover so the lift wasn't clipped. That
+     switch made the browser lay out the whole grid again on every hover, about 80 ms each way: moving the mouse across the
+     covers froze the page. Since 1.66.0 only the cards near the screen exist at all (see buildGridSection), so there is
+     nothing to contain.) --card-h is a real card's height, measured by renderGrid, for the placeholders. */
   .card.long-press-active { opacity: 0.75; transition: opacity 0.1s; } /* brief feedback while attachLongPress's hold timer is running, mobile only in practice (touch-only event) */
   .card:focus-visible .art-wrap { outline: 2px solid var(--accent); outline-offset: 2px; }
   .card.selected .art-wrap { outline: 2px solid var(--accent); outline-offset: -2px; }
@@ -37715,6 +37953,8 @@ html, body {
   .mini-player-artist { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-dim); }
   .mini-player-album { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-dim); opacity: 0.75; }
   .mini-player-album:empty { display: none; }
+  .mini-player-extra { cursor: default; }                                   /* fields 3 and 4: plain details, nothing to go to (a genre in them is still a link) */
+  .mini-player-extra:hover { color: var(--text-dim); text-decoration: none; }
 
   .mini-player-transport { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
   .mini-player-btn {
@@ -37753,7 +37993,7 @@ html, body {
      above it instead of below. :has() (already used elsewhere in this
      file, e.g. the quick-actions overlay rule further down) avoids
      needing a second JS-toggled body class just for this. */
-  body:has(.mini-player.docked-top:not(.detached):not([hidden])) #app { padding-bottom: 0; padding-top: 96px; }
+  body.mp-docked-top #app { padding-bottom: 0; padding-top: 96px; }          /* (these were body:has(...) rules: see bodyStateClasses in the script) */
 
   /* Base layout is now a column: main row on top, timeline strip below. */
   .mini-player { flex-direction: column; align-items: stretch; gap: 6px; padding: 8px 44px 10px 12px; }
@@ -38005,9 +38245,9 @@ html, body {
        strip starts right under the bar (85px tall) instead of overlapping it. The leading `html` is
        deliberate: a later, equally specific safe-area rule for this same state (padding-top: 96px) would
        otherwise win by source order and leave an 11px gap. */
-    html body:has(.mini-player.docked-top:not(.detached):not([hidden])) #app { padding-top: 85px; }
-    body:has(.mini-player.docked-top:not(.detached):not([hidden])) .tab-bar { margin-top: 0; }
-    body:has(.mini-player.docked-top:not(.detached):not([hidden])) { --tab-bar-h: 38px; }
+    html body.mp-docked-top #app { padding-top: 85px; }
+    body.mp-docked-top .tab-bar { margin-top: 0; }
+    body.mp-docked-top { --tab-bar-h: 38px; }
   }
   .tab-quick-open { position: fixed; z-index: 320; width: 270px; padding: 8px; background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 12px 28px rgba(0,0,0,0.45); }
   .tab-quick-open-input { width: 100%; box-sizing: border-box; background: var(--bg); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 7px 10px; font: 13px 'Inter', sans-serif; outline: none; }
@@ -39443,7 +39683,7 @@ html, body {
   .rym-inbox[hidden] { display: none; }
   .cx-source { margin: 0 0 8px; padding: 6px 10px; border-left: 3px solid var(--accent, #D6A24C); background: rgba(214,162,76,.08); font-size: 12px; color: var(--text-dim); }
   .cx-source[hidden] { display: none; }
-  body:has(.arrange-overlay:not([hidden])) #rymInbox { display: none; }      /* the waiting bar steps aside while any dialog is open (it sat on top of their buttons) */
+  body.dialog-open #rymInbox { display: none; }      /* the waiting bar steps aside while any dialog is open (it sat on top of their buttons) */
   .rym-upd-row { display: block; padding: 8px 4px; border-bottom: 1px solid var(--line); font-size: 13px; line-height: 1.5; }
   .rym-upd-cur { color: var(--text-dim); }
   .rym-upd-new { color: var(--accent, #D6A24C); }
@@ -39821,8 +40061,8 @@ html, body {
          the :has() rule right below — rather than needlessly claiming a
          second row every time regardless of whether search is even in use. */
     }
-    .topbar:has(.search-wrap:focus-within) .controls,
-    .topbar:has(.search-wrap.mobile-search-has-value) .controls {
+    .topbar.search-focus .controls,
+    .topbar.search-has-value .controls {
       flex: 1 1 100%;
     }
 
@@ -40039,7 +40279,7 @@ html, body {
      bar docked there needs top padding against that instead of bottom
      padding against the home-indicator strip. */
   .mini-player.docked-top { padding-bottom: 10px; padding-top: calc(10px + env(safe-area-inset-top)); }
-  body:has(.mini-player.docked-top:not(.detached):not([hidden])) #app { padding-bottom: 0; padding-top: calc(96px + env(safe-area-inset-top)); }
+  body.mp-docked-top #app { padding-bottom: 0; padding-top: calc(96px + env(safe-area-inset-top)); }
   /* On mobile the fixed bottom tab bar (see --mobile-navbar-h in the
      topbar-declutter block above) also needs to be cleared — this has to
      be re-declared here, after the unconditional rule right above, rather
@@ -40052,7 +40292,7 @@ html, body {
        bottom regardless of where the player docks, so #app's bottom
        padding only needs to clear THAT now, not the player too; the
        player's own height moves to the top padding instead. */
-    body:has(.mini-player.docked-top:not(.detached):not([hidden])) #app { padding-bottom: var(--mobile-navbar-h); padding-top: calc(96px + env(safe-area-inset-top, 0px)); }
+    body.mp-docked-top #app { padding-bottom: var(--mobile-navbar-h); padding-top: calc(96px + env(safe-area-inset-top, 0px)); }
   }
   @media (max-width: 620px) {
     .mini-player { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
@@ -40103,7 +40343,7 @@ html, body {
        SHEET clearing a bottom-docked player, so with the player docked at
        Top instead they just reserve a little more space than strictly
        needed rather than anything actually breaking. */
-    body:has(.mini-player.docked-top:not(.detached):not([hidden])) #app { padding-bottom: var(--mobile-navbar-h); padding-top: calc(64px + env(safe-area-inset-top, 0px)); }
+    body.mp-docked-top #app { padding-bottom: var(--mobile-navbar-h); padding-top: calc(64px + env(safe-area-inset-top, 0px)); }
     body.has-mini-player .deck { max-height: calc(88vh - var(--mobile-navbar-h) - 64px - env(safe-area-inset-bottom, 0px)); }
     /* +14px beyond the exact reserved height (mini player + nav bar), so
        the sheet's own bottom edge has some visible breathing room above
@@ -40124,7 +40364,7 @@ html, body {
      state — a deeper shadow and an accent-tinted top border — so it
      reads as an intentionally "floating above" layer rather than a stray
      interruption. */
-  body:has(#qaOverlay.open) .mini-player {
+  body.qa-open .mini-player {
     box-shadow: 0 -16px 32px rgba(0,0,0,0.6);
     border-top-color: color-mix(in srgb, var(--accent) 40%, var(--line));
   }
