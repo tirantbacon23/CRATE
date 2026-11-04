@@ -469,7 +469,7 @@ async function rymQIngest(b) {
   }
   const item = hit.item, e = rymQEntryFor(item, true), before = item.cover || ''; e.batchId = b.id; if (e.cover0 === undefined) e.cover0 = before;
   if (rel.tracks && rel.tracks.length >= 2) { try { await getTracksFor(item); } catch (er) { /* nothing to compare with */ } }
-  const plan = rymUpdatePlan(item, rel, currentTracklistAsManualRows(item), tlMinNext(item)), picks = plan.filter(p => p.checked), rest = plan.filter(p => !p.checked);
+  const auto = !!state.rymAutoApply, plan = rymUpdatePlan(item, rel, currentTracklistAsManualRows(item), tlMinNext(item)), picks = plan.filter(p => p.checked || auto), rest = auto ? [] : plan.filter(p => !p.checked);          // ("Apply differences too": what differs is applied as well, with nothing left to review)
   let wr = { coverMissed: false }; if (picks.length) wr = await rymWritePicks(item, picks, true, 'queue');
   const made = picks.filter(p => p.key !== 'cover' || !wr.coverMissed);
   e.applied = made.map(rymQChip); e.rest = rest; e.coverMissed = !!wr.coverMissed; e.cover1 = item.cover || ''; e.note = '';
@@ -653,7 +653,7 @@ function rymCleanOutbox(list) {                                  // untrusted: o
       tracks: (Array.isArray(r && r.tracks) ? r.tracks : []).slice(0, 200).map((t, i) => ({ n: i + 1, title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), s: 'rym', rating: rymNum(t && t.rating), votes: rymNum(t && t.rating) ? rymVotesNum(t && t.votes) : 0, url: rymSongUrl(t && t.url) })).filter(t => t.title), rymRating: rymNum(r && r.rymRating), rymVotes: Math.max(0, Math.round(Number(r && r.rymVotes) || 0)) })).filter(r => r.artist && r.title).slice(0, 300) })).filter(b => b.id && b.releases.length);
 }
 function rymOutboxArrived(batches) {
-  rymOutState.batches = batches; rymOutState.present = true; renderRymInbox(); rymQIngestAll();
+  rymOutState.batches = batches; rymOutState.present = true; renderRymInbox(); rymQIngestAll(); rymAutoImport();
   rymOutWaiters.splice(0).forEach(w => { clearTimeout(w.timer); w.resolve(batches); });
 }
 async function rymCheckOutbox() {                                // quietly: when the add-on says hello, and when you come back to this tab
@@ -1121,6 +1121,20 @@ function openRymBatch(batch) {
   if (merged) openRymImport(merged);                                    // anything that adds releases: ONE review of all of it
   else if (batch.kind === 'update') { if (state.rymQueueMode) rymQOpen(); else openRymUpdate(batch); }          // updates: the queue (or, if you turned it off, one screen each)
   else openRymImport(batch);
+}
+// "Add what the add-on sends": a page sent with "Send to CRATE" is added as the Add button in its review would add it (the new releases only;
+// one already in your crate, or maybe in it, is left out), in the background. Not while an import of yours is open or running, and never the
+// same pages twice (a run that failed keeps them in the bar, for you).
+const rymAutoTried = new Set();
+function rymAutoImport() {
+  if (!state.rymAutoImport || (typeof cxImp !== 'undefined' && cxImp && (cxImp.running || !cxEl('cxImportOverlay').hidden))) return;
+  const merged = rymMergeBatches(rymOutState.batches.filter(b => !rymAutoTried.has(b.id))); if (!merged) return;
+  merged.ids.forEach(id => rymAutoTried.add(id));
+  openRymImport(merged); cxEl('cxImportOverlay').hidden = true;          // (read and sorted as for the review, which isn't shown)
+  if (!cxImp || !cxImp.releases) { cxImp = null; return; }
+  if (!cxImp.selected.size) { rymBatchDone(merged.ids); cxImp = null; flashGlobalToast(`Nothing new from Rate Your Music: ${merged.releases.length === 1 ? 'that release is' : `all ${merged.releases.length} are`} already in your crate.`); return; }
+  flashGlobalToast(`Adding ${cxN(cxImp.selected.size, 'new release')} from Rate Your Music\u2026`);
+  cxEl('cxImpGo').click();
 }
 function openRymImport(batch) {
   if (!batch) return;

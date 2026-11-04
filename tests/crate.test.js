@@ -231,3 +231,16 @@ suite('New releases: added, then updated from Rate Your Music, then matched', ()
     } finally { st.rymUpdateOnAdd = was[0]; out.present = was[1]; fs.active = was[2]; }
   });
 });
+
+suite('Rate Your Music without the reviews', () => {
+  test('"Apply differences too": a date that differs is applied, with nothing left to review; off, it waits', async () => {
+    const st = app('state'), q = app('rymQ'), it = st.raw[7], was = [st.rymAutoApply, it.rymLink, it.releaseDate];
+    const mk = (id) => app('rymCleanOutbox')([{ id, t: 1, kind: 'update', source: { url: it.rymLink, title: 'x' }, releases: [{ artist: it.artist, title: it.title, type: it.type, releaseDate: '1991-05-01', rymLink: it.rymLink }] }])[0];
+    const run = async (auto, id) => { st.rymAutoApply = auto; it.releaseDate = '1990-01-01'; q.entries = q.entries.filter(e => e.row !== it.row); await app('rymQIngest')(mk(id)); const e = q.entries.find(e => e.row === it.row); return [e.state, e.rest.length, it.releaseDate]; };
+    try {
+      it.rymLink = 'https://rateyourmusic.com/release/album/x/auto-apply-test/';
+      eq(await run(false, 'ta1'), ['review', 1, '1990-01-01']);
+      eq(await run(true, 'ta2'), ['applied', 0, '1991-05-01']);
+    } finally { st.rymAutoApply = was[0]; it.rymLink = was[1]; it.releaseDate = was[2]; }
+  });
+});

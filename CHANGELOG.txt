@@ -17,7 +17,20 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.80.1
+  CURRENT_VERSION: 1.81.0
+
+  1.81.0 — 2026-11-04 — What the RYM add-on sends goes in without a review, and updates apply what differs too. Page only.
+          Two new settings in RYM ratings & genres, both on:
+          "Add what the add-on sends": a page sent with "Send to CRATE" is
+          added on its own, in the background, as the Add button in its
+          review would add it: its new releases only, with one already in
+          your crate (or maybe in it) left out. Not while an import of yours
+          is open or running, and never the same pages twice: a run that
+          fails leaves them in the bar for you.
+          "Apply differences too": an update from Rate Your Music changes
+          what differs from what you have as well (a genre, a date, a
+          tracklist), with nothing left in Review. A rating you typed is
+          never replaced. Off, what differs waits for you as before.
 
   1.80.1 — 2026-11-04 — A new release arrives the way a deleted one leaves. Page only.
           The cards on screen slide aside to make room for it, and it comes
