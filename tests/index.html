@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRATE tests</title>
+<style>
+  :root { color-scheme: dark; --bg: #14181d; --fg: #e8e6e1; --dim: #8b919a; --ok: #6cc070; --bad: #e06c5c; --line: rgba(255,255,255,.1); }
+  body { margin: 0; padding: 20px 16px 40px; background: var(--bg); color: var(--fg); font: 14px/1.45 system-ui, sans-serif; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  #sum { color: var(--dim); margin: 0 0 16px; }
+  #sum.ok { color: var(--ok); } #sum.bad { color: var(--bad); }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); margin: 18px 0 6px; }
+  .t { padding: 5px 0; border-top: 1px solid var(--line); }
+  .t b { font-weight: 500; }
+  .t.ok b::before { content: '\2713  '; color: var(--ok); }
+  .t.bad b::before { content: '\2717  '; color: var(--bad); }
+  .t.skip { color: var(--dim); }
+  .t pre { margin: 4px 0 0 18px; color: var(--bad); white-space: pre-wrap; font-size: 12px; }
+  iframe { position: absolute; left: -10000px; width: 1280px; height: 800px; }
+</style>
+</head>
+<body>
+<h1>CRATE tests</h1>
+<p id="sum">Starting CRATE with made-up data&hellip;</p>
+<div id="out"></div>
+<script src="runner.js"></script>
+<script src="crate.test.js"></script>
+<script src="addon.test.js"></script>
+<script>runAll();</script>
+</body>
+</html>
