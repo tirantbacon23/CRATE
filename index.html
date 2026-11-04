@@ -19,7 +19,75 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.70.0
+  CURRENT_VERSION: 1.75.0
+
+  1.75.0 — 2026-11-04 — Activity (⚙ → Activity…, or click the progress strip's text): one panel for everything running in the background. Page only.
+          Four parts: Running (a Rate Your Music update, adding releases,
+          Matching songs, the Last.fm sync, the new-release check, with
+          progress and Stop / Show), Needs you (differences to decide,
+          releases sent from RYM, a check RYM asked for, matches to keep),
+          Waiting, and Done today (kept a week, in this browser). A Rate
+          Your Music update started while one is running no longer refuses:
+          it waits its turn and starts by itself 15 seconds after the running
+          one finishes. More than 25 at once are split into runs of 25, one
+          after another. A stop (a check, or you pressing Stop) holds the
+          queue until you press Start now. The menu entry shows a count of
+          what is running or needs you.
+            jobsState (declared before startApp), jobsCollect reads each
+            job's own state; jobsQueueRym / jobsStartNextRym / jobsRymProgress;
+            jobsDone hooks in cxImpRun, bmCheckDone, the Last.fm sync and
+            runNewReleaseScan. The waiting queue lives in memory: a reload
+            clears it.
+
+  1.74.0 — 2026-11-04 — Each track's own Rate Your Music page, and when and where a release was recorded, from the RYM add-on (1.14.0). Page only.
+          Track links: a track's song page (rateyourmusic.com/song/…) is
+          saved as its RYM link where it has none: on adding a release from
+          the add-on, filling tracklists, a tracklist taken from RYM in the
+          editor, and in an update review ("RYM track links"). Added releases
+          also keep RYM's per-track ratings and counts now (the import used
+          to drop them). Recorded and Location: filled where blank in the
+          update review and on adding a release. A year you have is refined
+          by RYM's month or day; a different date is offered unticked. A
+          Location you already have is never offered for replacement.
+            rymSongUrl() validates song addresses; rymCleanTracklists keeps
+            votes and url; tlApplyTrackRatings also fills td.rymLink;
+            cxSoundcloudUpdates carries the RYM per-track fields.
+
+  1.73.0 — 2026-11-04 — A release's Scene and Movement count as genres, under Scenes and Movements > Scenes / Movements: in the genre tree and taxonomy, genre pages, genre filters and searches, grouping, and everything else that reads genres. Page only.
+
+          WHY: Rate Your Music files scenes and movements in its genre tree (Canterbury Scene, Madchester, Rock in Opposition…), so in CRATE they were missing from everywhere genres are used.
+          HOW: combinedGenreStr (which every genre list, filter, search, group, chart, export filter and genre page reads) now adds a release's Scene and Movement after its secondary genres
+            (sceneGenreStr). With "A genre counts when it's… secondary only" they count as secondary. The deck's genre line shows them in its brackets, and the cover popup's About tab has a Scenes row of genre links.
+            Nothing is moved or rewritten: the Scene and Movement fields stay as they are, and editing them changes the genres they give.
+          ONE NAME: a scene already in the release's genre lists isn't added twice, and a scene typed as "Canterbury" is the genre "Canterbury Scene" when CRATE knows a genre by that name
+            (in the taxonomy or any release's genres; the same for "… Movement"), so both land under one genre.
+          WHERE THEY SIT: Scenes and Movements > Scenes > every genre from a Scene field, and Scenes and Movements > Movements > every genre from a Movement field, besides any parents the taxonomy
+            gives them (Canterbury Scene can be under Progressive Rock as well). This comes from CRATE's rules (getGenreParents), not saved into your taxonomy: change a release's Scene and its genre moves.
+            A genre that is also in another release's genre list still counts as a scene. If your taxonomy has Scenes, Movements or Scenes and Movements, its spelling is used, and parents you give
+            Scenes or Movements there replace the Scenes and Movements one. Picking a parent shows every release under it (left panel, genre: search, Play genre); its genre page lists its sub-genres.
+          CHECKED in the test copy: the left panel's genre tree (Scenes and Movements > Movements > Madchester, Rock in Opposition; > Scenes > Canterbury Scene, one for a typed "Canterbury" and a RYM
+            "Canterbury Scene"), the filter at each level, the genre pages' sub-genres, the secondary-only role, the popup row, and the cost (about 4 ms to work out every release's genres for
+            4,000 releases; the genre tree 13 ms).
+
+  1.72.0 — 2026-11-04 — Scene and Movement come from Rate Your Music: adding a release from a RYM page, and "Update from Rate Your Music", now fill them in. Needs RYM add-on 1.13.0.
+
+          BEFORE: the add-on recognised a release's scenes and movements only to keep them out of its genres, and never sent them, so CRATE's Scene and Movement fields stayed as you typed them.
+          NOW: the add-on sends them (from the info table's Scene(s) / Movement(s) row, /scene/ and /movement/ links in the release's info, and a genre name ending in "Scene"), CRATE takes them in
+            (rymCleanOutbox: bounded text), and the update review offers them like Label: a blank field is filled and ticked; a different one you have is shown and never ticked for you; the same names
+            in another order or case aren't offered at all. They're saved with the other ticked fields (editAlbum Scene / Movement). A release added from RYM gets them through the import review as before.
+          CHECKED in the test copy: the add-on's reader on a mock info table (Scenes row, Movements row, "Canterbury Scene" genre, a /scene/ link outside the release left out), the review for blank,
+            different and same-but-reordered fields, and the save. NOT CHECKED on a real RYM page: the exact markup of RYM's scene rows (the reader looks in all three places for that reason).
+
+  1.71.0 — 2026-11-04 — Export RYM ratings and popularity: in Export your crate, as part of the file or as a spreadsheet. Page only.
+
+          IN THE FILE: a new Include option, "RYM ratings and popularity" (off unless you tick it; remembered like the others). Each release then carries rymRating, rymVotes, rymPopularity
+            (0-100, worked out by CRATE: where its rating and its number of ratings both stand among the rated releases of your crate, as the "Most popular (RYM)" sort uses) and rymAdjusted,
+            and rymTracks lists its rated tracks: number, title, rating, number of ratings, popularity, adjusted rating, and vsAlbum (against the album's other tracks, with enough rated).
+            An import ignores these (it never writes ratings), so such a file still imports anywhere.
+          AS A SPREADSHEET: "Ratings as CSV" next to Download saves the releases the dialog lists (with its filters) as a CSV: a row for each release, then a row for each of its rated tracks,
+            with RYM rating, number of ratings, popularity, adjusted rating and vs album average. UTF-8 with a byte-order mark so Excel keeps accents; cells are quoted, and one starting with = + - @
+            is kept as text, never run as a formula.
+          CHECKED in the test copy: the option on and off, the figures in the file for a release and its tracks, the CSV's rows and quoting ("Live, \"Loud\" & =SUM(A1)"), and the file still importing.
 
   1.70.0 — 2026-11-04 — Fix: "Update from Rate Your Music" now really updates each track's RYM rating and count. Page only; works with RYM add-on 1.12.7 or later, which reads the exact figures.
 
@@ -7184,6 +7252,7 @@
           <div class="menu-divider"></div>
           <div class="menu-section-title">Discovery</div>
           <button type="button" id="menuNewReleases">New Releases <span id="newReleasesBadge" class="menu-badge" hidden>0</span></button>
+          <button type="button" id="menuActivity">Activity… <span id="activityBadge" class="menu-badge" hidden>0</span></button>
           <button type="button" id="menuGenreTaxonomy">Genre Taxonomy…</button>
           <div class="menu-divider"></div>
           <div class="menu-section-title">Integrations</div>
@@ -7789,6 +7858,12 @@
 <div id="descBrowseOverlay" class="desc-overlay" hidden><div class="desc-dialog" role="dialog" aria-modal="true" aria-labelledby="descBrowseTitle"><div class="desc-head"><div><div class="desc-title" id="descBrowseTitle">DESCRIPTORS</div><div class="desc-sub">Pick the ones that fit. The number is how many of your releases already have it.</div></div><div class="desc-head-btns"><input type="search" id="descBrowseFilter" class="desc-filter" placeholder="Filter…" aria-label="Filter descriptors" autocomplete="off"><button type="button" id="descBrowseDone" class="desc-btn primary">Done</button></div></div><div id="descBrowseBody" class="desc-body"></div></div></div>
 <div id="rymQOverlay" class="rymq-overlay" hidden><div class="rymq-dialog" id="rymQDialog" role="dialog" aria-modal="true" aria-labelledby="rymQTitle"></div></div>
 <div id="bgStatus" class="bg-status" role="status" aria-live="polite" hidden><span id="bgStatusText"></span><i class="bg-status-track"><b id="bgStatusFill"></b></i><button type="button" id="bgStatusCancel" class="chip-btn" hidden>Cancel</button><button type="button" id="bgStatusView" class="chip-btn" hidden>Details</button><button type="button" id="bgStatusClose" class="chip-btn" hidden aria-label="Dismiss">×</button></div>
+<div id="jobsOverlay" class="arrange-overlay" hidden>
+  <div class="arrange-modal add-modal cx-modal jobs-modal" role="dialog" aria-modal="true" aria-labelledby="jobsTitle">
+    <div class="arrange-header"><div><h2 id="jobsTitle">Activity</h2><p class="sm-sub">What CRATE is working on, what needs you, what is waiting its turn, and what finished today.</p></div><button id="jobsClose" class="modal-x" aria-label="Close">✕</button></div>
+    <div class="arrange-body sm-body"><div id="jobsBody" class="cx-scroll"></div></div>
+  </div>
+</div>
 <div id="rymUpdateOverlay" class="arrange-overlay" hidden>
   <div class="arrange-modal add-modal cx-modal" role="dialog" aria-modal="true" aria-labelledby="rymUpdTitle">
     <div class="arrange-header"><div><h2 id="rymUpdTitle">Update from Rate Your Music</h2><p class="sm-sub" id="rymUpdSub"></p></div><button id="rymUpdClose" class="modal-x" aria-label="Close">✕</button></div>
@@ -9030,6 +9105,7 @@
         <fieldset class="cx-group"><legend>Include</legend>
           <label><input type="checkbox" id="cxExpTracks"> Tracklists</label>
           <label><input type="checkbox" id="cxExpCover"> Cover art links</label>
+          <label><input type="checkbox" id="cxExpRym"> RYM ratings and popularity <span class="sm-dim">(each release&rsquo;s, and each rated track&rsquo;s)</span></label>
         </fieldset>
         <fieldset class="cx-group"><legend>Links</legend>
           <div class="cx-presets">Quick: <button type="button" class="ai-link-btn" data-cx-preset="all">Everything</button><button type="button" class="ai-link-btn" data-cx-preset="spotify">Only Spotify</button><button type="button" class="ai-link-btn" data-cx-preset="youtube">Only YouTube</button><button type="button" class="ai-link-btn" data-cx-preset="none">No links</button></div>
@@ -9042,7 +9118,7 @@
         <details class="cx-preview"><summary id="cxListSummary">Which releases will be exported</summary><div id="cxExportList" class="cx-relist"></div></details>
         <details class="cx-preview"><summary>Preview what the file will look like</summary><pre id="cxExportPreview" class="cx-pre"></pre></details>
       </div>
-      <div class="lfr-foot"><span></span><span class="lfr-foot-right"><button type="button" id="cxExportCopy" class="ai-link-btn">Copy to clipboard</button><button type="button" id="cxExportDownload" class="config-btn">Download</button></span></div>
+      <div class="lfr-foot"><span></span><span class="lfr-foot-right"><button type="button" id="cxExportCsv" class="ai-link-btn" title="A spreadsheet of the releases below and their rated tracks: RYM rating, number of ratings, popularity">Ratings as CSV</button><button type="button" id="cxExportCopy" class="ai-link-btn">Copy to clipboard</button><button type="button" id="cxExportDownload" class="config-btn">Download</button></span></div>
     </div>
   </div>
 </div>
@@ -9131,7 +9207,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.70.0';
+const APP_VERSION = '1.75.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -9825,7 +9901,7 @@ const tlPending = { add: null, edit: null }, tlSeq = { add: 0, edit: 0 }, rymTlW
 // a release with no genres at all still has the single placeholder tag "Unknown", as before.
 function genreTagsForRole(r, role) {
   if (role !== 'primary' && role !== 'secondary') return getGenreList(combinedGenreStr(r));
-  const own = getGenreList(role === 'primary' ? r.genre : r.genre2);
+  const own = getGenreList(role === 'primary' ? r.genre : [r.genre2, sceneGenreStr(r)].filter(Boolean).join(', '));          // a scene or movement counts as a secondary genre
   if (own[0] !== 'Unknown') return own;
   return getGenreList(combinedGenreStr(r))[0] === 'Unknown' ? ['Unknown'] : [];
 }
@@ -10874,8 +10950,32 @@ async function obsRun() {
 })();
 
 function getGenreParents(taxonomy, genre) {
-  const entry = taxonomy[genreTaxonomyKey(genre)];
-  return (entry && entry.parents) || [];
+  const key = genreTaxonomyKey(genre), entry = taxonomy[key], own = (entry && entry.parents) || [];
+  // A genre from a release's Scene field also sits under "Scenes", one from its Movement field under "Movements", besides any parents of its own;
+  // and those two sit under "Scenes and Movements" (unless the taxonomy gives them parents itself). Labels as the taxonomy spells them, when it has them.
+  const label = (k) => (taxonomy[k] && taxonomy[k].label) || SCENE_PARENTS[k];
+  if ((key === 'scenes' || key === 'movements') && !own.length) return [label(SCENE_PARENT_KEY)];
+  if (SCENE_PARENTS[key]) return own;
+  const kinds = sceneGenreKeys().get(key); if (!kinds) return own;
+  const have = new Set(own.map(genreTaxonomyKey)), add = [];
+  if (kinds.has('scene') && !have.has('scenes')) add.push(label('scenes'));
+  if (kinds.has('movement') && !have.has('movements')) add.push(label('movements'));
+  return add.length ? own.concat(add) : own;
+}
+const SCENE_PARENT_KEY = 'scenes and movements', SCENE_PARENTS = { 'scenes and movements': 'Scenes and Movements', scenes: 'Scenes', movements: 'Movements' };
+function sceneGenreKeys() {                                          // genre key → the field(s) it comes from ('scene', 'movement') across the crate; kept for two seconds, like sceneKnownGenres
+  if (sceneKeysCache && Date.now() - sceneKeysCache.at < 2000) return sceneKeysCache.map;
+  const map = new Map(); sceneKeysCache = { at: Date.now(), map };
+  (state.raw || []).forEach(r => { if (r.scene || r.movement) sceneGenreParts(r).forEach(p => { const k = genreTaxonomyKey(p.name); if (!map.has(k)) { const s = new Set(); s.label = p.name; map.set(k, s); } map.get(k).add(p.kind); }); });
+  return map;
+}
+// The labels of every genre whose parents may come from those rules, for listing a genre's sub-genres (genreFamilyOf): the taxonomy's, plus the genres the
+// Scene and Movement fields give, plus Scenes and Movements themselves.
+function genreLabelsWithRuleParents(taxonomy) {
+  const out = new Map(); Object.values(taxonomy).forEach(e => { if (e && e.label) out.set(genreTaxonomyKey(e.label), e.label); });
+  sceneGenreKeys().forEach((s, k) => { if (!out.has(k)) out.set(k, s.label); });
+  ['scenes', 'movements'].forEach(k => { if (!out.has(k)) out.set(k, SCENE_PARENTS[k]); });
+  return [...out.values()];
 }
 
 // Every ancestor reachable through ANY parent branch (a genre with two
@@ -10983,6 +11083,8 @@ const ART_LOOKUPS_AT_ONCE = 4; let artLookupsActive = 0; const artLookupWaiting 
 
 const GRID_EAGER = 120, GRID_LAZY_AHEAD = '1600px 0px', GRID_UNLOAD_BEYOND = '5000px 0px';          // see buildGridSection; declared here because the grid can be drawn while startApp runs
 let gridEagerLeft = 0, gridEagerTick = false, gridLazyObs = null, gridLazyRoot = null, gridUnloadObs = null;
+const jobsState = { waiting: [], timer: 0, nextTimer: 0, nextAt: 0, rymLast: null, rymLogged: true, scan: null, acts: [], runRows: [] };          // see Activity (jobsCollect)
+let sceneKnownCache = null, sceneKeysCache = null;          // see sceneKnownGenres / sceneGenreKeys: genres are read while startApp draws the first page
 
 startApp();
 
@@ -11101,9 +11203,34 @@ function getGenreList(genreStr) {
 // search call sites can treat both the same way without every one of them
 // needing to know secondary genre exists as a separate field. Primary-only
 // items behave exactly as before (secondary is just blank).
+// A release's Scene and Movement count as genres (Rate Your Music files scenes and movements in its genre tree: Canterbury Scene, Madchester…), after its
+// secondary genres. One already in its genre lists isn't repeated, "Canterbury" and "Canterbury Scene" counting as the same.
+function sceneNameKey(g) { return String(g || '').trim().toLowerCase().replace(/\s+(scene|movement)$/, ''); }          // "Canterbury" and "Canterbury Scene" are one name
+function sceneGenreParts(item) {                                     // the genres a release's Scene and Movement fields give, each with which field it came from: [{ name, kind: 'scene' | 'movement' }]
+  if (!item.scene && !item.movement) return [];
+  const out = [], seen = new Set(), known = sceneKnownGenres();
+  [[item.scene, 'Scene', 'scene'], [item.movement, 'Movement', 'movement']].forEach(([l, word, kind]) => String(l || '').split(',').forEach(g => {
+    let t = g.trim(); const k = sceneNameKey(t); if (!t || seen.has(k)) return;
+    if (!/\s(scene|movement)$/i.test(t)) t = known.get(genreTaxonomyKey(t + ' ' + word)) || t;          // "Canterbury" typed as a scene IS the genre "Canterbury Scene" when CRATE knows that one
+    seen.add(k); out.push({ name: t, kind });
+  }));
+  return out;
+}
+function sceneGenreStr(item) {                                       // those of them not already in the release's genre lists
+  const parts = sceneGenreParts(item); if (!parts.length) return '';
+  const inLists = new Set(); [item.genre, item.genre2].forEach(l => String(l || '').split(',').forEach(g => { if (g.trim()) inLists.add(sceneNameKey(g)); }));
+  return parts.filter(p => !inLists.has(sceneNameKey(p.name))).map(p => p.name).join(', ');
+}
+function sceneKnownGenres() {                                        // every genre name in the taxonomy and in the crate's genre lists, by key; kept for two seconds (it is asked for every release)
+  if (sceneKnownCache && Date.now() - sceneKnownCache.at < 2000) return sceneKnownCache.map;
+  const map = new Map(), put = (g) => { const t = String(g || '').trim(); if (t) { const k = genreTaxonomyKey(t); if (!map.has(k)) map.set(k, t); } };
+  Object.keys(state.genreTaxonomy || {}).forEach(k => put((state.genreTaxonomy[k] || {}).label || k));
+  (state.raw || []).forEach(r => [r.genre, r.genre2].forEach(l => String(l || '').split(',').forEach(put)));
+  sceneKnownCache = { at: Date.now(), map }; return map;
+}
 function combinedGenreStr(item) {
   const primary = (item.genre || '').trim();
-  const secondary = (item.genre2 || '').trim();
+  const secondary = [(item.genre2 || '').trim(), sceneGenreStr(item)].filter(Boolean).join(', ');          // scenes and movements are genres too (sceneGenreStr)
   if (!primary) return secondary;
   if (!secondary) return primary;
   return primary + ', ' + secondary;
@@ -11191,6 +11318,10 @@ function buildGenreTree(sourceRaw, taxonomy) {
       if (!labelByKey.has(parentKey)) labelByKey.set(parentKey, parent);
     });
   });
+
+  // Parents that come from CRATE's own rules rather than the taxonomy (Scenes / Movements / Scenes and Movements: see getGenreParents) need
+  // rows of their own, or their branches would have no root and vanish. Repeated until nothing new turns up (Scenes brings Scenes and Movements).
+  for (let grew = true; grew; ) { grew = false; [...labelByKey.values()].forEach(l => getGenreParents(taxonomy, l).forEach(p => { const pk = genreTaxonomyKey(p); if (!labelByKey.has(pk)) { labelByKey.set(pk, p); grew = true; } })); }
 
   // parentKey -> [childKey, ...] — a genre with multiple parents (Glam
   // Punk) is added under EACH of them, so it appears as its own row in
@@ -11347,7 +11478,7 @@ function renderGenreTaxonomyEditor() {
 // "Genres" from "Secondary Genres" on a release page).
 function genreDisplayStr(item) {
   const primary = (item.genre || '').trim();
-  const secondary = (item.genre2 || '').trim();
+  const secondary = [(item.genre2 || '').trim(), sceneGenreStr(item)].filter(Boolean).join(', ');
   if (!primary) return secondary;
   if (!secondary) return primary;
   return `${primary} (${secondary})`;
@@ -17794,7 +17925,7 @@ function qpAboutHtml(item) {
   const row = (label, v) => v ? `<div class="qp-about-row"><span class="qp-dim">${label}</span><span>${v}</span></div>` : '';
   const mine = Number(item.rating) > 0 ? starRatingHtml(item.rating) + ' <span class="qp-dim">yours</span>' : '';
   const review = String(item.review || '').trim();
-  return row('Genres', genreLinksHtml(getGenreList(item.genre).join(', '))) + row('Also', genreLinksHtml(getGenreList(item.genre2).join(', '))) + row('Descriptors', escapeHtml(item.rymDescriptors || ''))
+  return row('Genres', genreLinksHtml(getGenreList(item.genre).join(', '))) + row('Also', genreLinksHtml(getGenreList(item.genre2).join(', '))) + (sceneGenreStr(item) ? row('Scenes', genreLinksHtml(sceneGenreStr(item))) : '') + row('Descriptors', escapeHtml(item.rymDescriptors || ''))
     + row('Released', escapeHtml(item.releaseDate || '')) + row('Label', escapeHtml([item.label, item.catalog && !/^CRT-\d+$/.test(item.catalog) ? item.catalog : ''].filter(Boolean).join(' · ')))
     + row('Ratings', [mine, qpRymLine(item)].filter(Boolean).join(' · ')) + row('Where', escapeHtml([item.location, item.region].filter(Boolean).join(' · ')))
     + (review ? `<div class="qp-about-row qp-review"><span class="qp-dim">Your review</span><span>${escapeHtml(review.length > 420 ? review.slice(0, 420) + '…' : review)}</span></div>` : '')
@@ -24524,7 +24655,7 @@ async function bmRunLane(kind) {
 }
 function bmCheckDone() {
   if (!bm || !bm.running || !bmKinds().every(k => bm.lanes[k].s !== 'work')) return;
-  bm.running = false; if (bm.songsMode === 'check' && bmKinds().every(k => bm.lanes[k].s === 'done')) smPrefsSave({ lastCheck: Date.now() });
+  bm.running = false; jobsDone('match', `Matching songs finished: ${bmPl(bm.rels.length, 'release')}`); if (bm.songsMode === 'check' && bmKinds().every(k => bm.lanes[k].s === 'done')) smPrefsSave({ lastCheck: Date.now() });
   if (bm.hidden) flashGlobalToast('Matching songs has finished: open it to choose what to keep.', { onClick: bmShow });
   bmRedraw();
 }
@@ -25940,6 +26071,40 @@ function cxExportTracks(item, opts) {
   });
   return out;
 }
+// RYM's figures for one release and its rated tracks, for an export: rating, how many ratings, and the popularity CRATE works out from both
+// (0-100, where it stands among the rated releases / tracks of this crate on both counts; see track-popularity) with the adjusted rating behind it.
+// Read-only facts: an import ignores them (it never overwrites ratings), so a file with them still imports anywhere.
+function cxTrackTitle(item, n) {
+  const td = (item.trackData || {})[n] || {}, num = Number(n);
+  const mt = Array.isArray(item.manualTracks) ? item.manualTracks.find((t, i) => (Number(t && t.trackNumber) || i + 1) === num) : null;
+  if (mt && mt.title) return String(mt.title).trim();
+  const ct = (state.trackCache[artKey(item)] || []).find(t => Number(t.trackNumber) === num);
+  return String(td.name || (ct && ct.trackName) || '').trim();
+}
+function cxRymFigures(it) {
+  const out = {}, ap = albumPopOf(it);
+  if (Number(it.rymRating) > 0) { out.rymRating = Number(it.rymRating); if (Number(it.rymVotes) > 0) out.rymVotes = Number(it.rymVotes); }
+  if (ap) { if (ap.pop !== null) out.rymPopularity = Math.round(ap.pop); out.rymAdjusted = +ap.wr.toFixed(3); }
+  const td = it.trackData || {}, rated = Object.keys(td).filter(n => Number(td[n] && td[n].rymRating) > 0).sort((a, b) => Number(a) - Number(b));
+  if (rated.length) out.rymTracks = rated.map(n => {
+    const e = td[n], v = trackPopOf(it, n), t = { n: Number(n), title: cxTrackTitle(it, n), rymRating: Number(e.rymRating) };
+    if (Number(e.rymVotes) > 0) t.rymVotes = Number(e.rymVotes);
+    if (v) { if (v.pop !== null) t.rymPopularity = Math.round(v.pop); t.rymAdjusted = +v.wr.toFixed(3); if (v.stand !== null) t.vsAlbum = +v.stand.toFixed(3); }
+    return t;
+  });
+  return out;
+}
+// The same figures as a spreadsheet: a row for each release, then a row for each of its rated tracks under it. Opens in Excel, Numbers, Google Sheets.
+function cxRatingsCsv(items) {
+  const cell = (v) => { const x = v == null ? '' : String(v); return /[",\n\r]/.test(x) || /^[=+\-@]/.test(x) ? '"' + (/^[=+\-@]/.test(x) ? "'" : '') + x.replace(/"/g, '""') + '"' : x; };          // quoted, and never read as a formula
+  const lines = [['Row', 'Artist', 'Release', 'Year', 'Type', 'Track #', 'Track', 'RYM rating', 'Number of ratings', 'Popularity (0-100)', 'Adjusted rating', 'Vs album average'].join(',')];
+  items.forEach(it => {
+    const f = cxRymFigures(it), y = cxItemYear(it);
+    lines.push(['Release', it.artist, it.title, y === null ? '' : y, it.type === 'Unknown' ? '' : it.type, '', '', f.rymRating || '', f.rymVotes || '', f.rymPopularity != null ? f.rymPopularity : '', f.rymAdjusted != null ? f.rymAdjusted.toFixed(2) : '', ''].map(cell).join(','));
+    (f.rymTracks || []).forEach(t => lines.push(['Track', it.artist, it.title, y === null ? '' : y, '', t.n, t.title, t.rymRating, t.rymVotes || '', t.rymPopularity != null ? t.rymPopularity : '', t.rymAdjusted != null ? t.rymAdjusted.toFixed(2) : '', t.vsAlbum != null ? (t.vsAlbum >= 0 ? '+' : '') + t.vsAlbum.toFixed(2) : ''].map(cell).join(',')));
+  });
+  return '\ufeff' + lines.join('\r\n') + '\r\n';          // (the mark at the start makes Excel read it as UTF-8, so accents and dashes survive)
+}
 function cxBuildExport(items, opts, meta) {
   const releases = (items || []).map(it => {
     const rel = {}, put = (k, v) => { const s = String(v == null ? '' : v).trim(); if (s) rel[k] = s; };
@@ -25952,9 +26117,10 @@ function cxBuildExport(items, opts, meta) {
     if (it.rymLink && opts.links.other) put('rymLink', it.rymLink);
     if (opts.cover) put('cover', it.cover);
     const tracks = cxExportTracks(it, opts); if (tracks.length) rel.tracks = tracks;
+    if (opts.rym) Object.assign(rel, cxRymFigures(it));
     return rel;
   });
-  return { format: CX_FORMAT, version: CX_VERSION, exportedAt: (meta && meta.exportedAt) || new Date().toISOString(), options: { tracks: !!opts.tracks, cover: !!opts.cover, links: Object.assign({}, opts.links) }, releases };
+  return { format: CX_FORMAT, version: CX_VERSION, exportedAt: (meta && meta.exportedAt) || new Date().toISOString(), options: { tracks: !!opts.tracks, cover: !!opts.cover, rym: !!opts.rym, links: Object.assign({}, opts.links) }, releases };
 }
 function cxCounts(releases) {
   const c = { releases: releases.length, tracks: 0, links: { spotify: 0, youtube: 0, soundcloud: 0, other: 0 } };
@@ -25991,6 +26157,9 @@ function cxNormalizeRelease(raw, idx) {
       if (Number(t.durationMs) > 0) nt.durationMs = Math.round(Number(t.durationMs));
       const sec = str(t.section).slice(0, 40); if (sec) nt.section = sec;
       if (t.s === 'rym') nt.s = 'rym';
+      const rr = rymNum(t.rymRating != null ? t.rymRating : t.rating), rl = rymSongUrl(t.rymLink != null ? t.rymLink : t.url);          // Rate Your Music's rating of the track and its song page (a release sent by the add-on)
+      if (rr) { nt.rymRating = rr; const rv = rymVotesNum(t.rymVotes != null ? t.rymVotes : t.votes); if (rv) nt.rymVotes = rv; }
+      if (rl) nt.rymLink = rl;
       ['spotify', 'youtube', 'soundcloud'].forEach(k => {
         const v = str(t[k]); if (!v) return;
         const clean = cxCleanUrl(v);
@@ -26036,7 +26205,7 @@ function cxShape(rel, opts) {                                  // what an import
   if (rel.link && !opts.links[cxLinkKind(rel.link) || 'other']) s.link = '';
   if (rel.rymLink && !opts.links.other) s.rymLink = '';
   if (!opts.cover) s.cover = '';
-  s.tracks = opts.tracks ? (rel.tracks || []).map(t => { const nt = { n: t.n, title: t.title }; if (t.durationMs) nt.durationMs = t.durationMs; if (t.section) nt.section = t.section; if (t.s) nt.s = t.s; ['spotify', 'youtube', 'soundcloud'].forEach(k => { if (t[k] && opts.links[k]) nt[k] = t[k]; }); return nt; }) : [];
+  s.tracks = opts.tracks ? (rel.tracks || []).map(t => { const nt = { n: t.n, title: t.title }; if (t.durationMs) nt.durationMs = t.durationMs; if (t.section) nt.section = t.section; if (t.s) nt.s = t.s; if (t.rymRating) { nt.rymRating = t.rymRating; if (t.rymVotes) nt.rymVotes = t.rymVotes; } if (t.rymLink && opts.links.other) nt.rymLink = t.rymLink; ['spotify', 'youtube', 'soundcloud'].forEach(k => { if (t[k] && opts.links[k]) nt[k] = t[k]; }); return nt; }) : [];
   return s;
 }
 function cxAddPayload(s) {
@@ -26047,7 +26216,16 @@ function cxAddPayload(s) {
     : s.tracks.map(t => ({ trackNumber: t.n, title: t.title, youtubeLink: t.youtube || '', spotifyLink: t.spotify || '' })));   // only when there are songs: an empty list would stop the app looking the tracklist up
   return p;
 }
-function cxSoundcloudUpdates(s) { const u = {}; (s.tracks || []).forEach(t => { if (t.soundcloud) u[t.n] = { soundcloudLink: t.soundcloud }; }); return u; }   // SoundCloud links live with the per-song data, set after the release exists
+function cxSoundcloudUpdates(s) {          // SoundCloud links, RYM's track ratings and song pages live with the per-song data, set after the release exists
+  const u = {};
+  (s.tracks || []).forEach(t => {
+    const e = {}; if (t.soundcloud) e.soundcloudLink = t.soundcloud;
+    if (t.rymRating) { e.rymRating = t.rymRating; if (t.rymVotes) e.rymVotes = t.rymVotes; e.rymFrom = 'rym'; }
+    if (t.rymLink) e.rymLink = t.rymLink;
+    if (Object.keys(e).length) u[t.n] = e;
+  });
+  return u;
+}
 // END crate-exchange
 
 /* ---------- Export / import a crate ----------
@@ -26062,20 +26240,21 @@ const CX_OPTS_KEY = 'crate_export_opts_v1';
 function cxEl(id) { return document.getElementById(id); }      // a function declaration, not a const: init runs earlier in the file than this block, and a const wouldn't exist yet
 const CX_LINK_IDS = { spotify: 'LinkSpotify', youtube: 'LinkYoutube', soundcloud: 'LinkSoundcloud', other: 'LinkOther' };
 let cxImp = null, cxExportText = '';
-function cxDefaultOpts() { return { tracks: true, cover: true, links: { spotify: true, youtube: true, soundcloud: true, other: true } }; }
+function cxDefaultOpts() { return { tracks: true, cover: true, rym: false, links: { spotify: true, youtube: true, soundcloud: true, other: true } }; }
 function cxLoadOpts() {
   const d = cxDefaultOpts();
   try {
     const s = JSON.parse(localStorage.getItem(CX_OPTS_KEY) || '{}') || {};
     if (typeof s.tracks === 'boolean') d.tracks = s.tracks;
     if (typeof s.cover === 'boolean') d.cover = s.cover;
+    if (typeof s.rym === 'boolean') d.rym = s.rym;
     CX_KINDS.forEach(k => { if (s.links && typeof s.links[k] === 'boolean') d.links[k] = s.links[k]; });
   } catch (e) { /* defaults */ }
   return d;
 }
 function cxSaveOpts(o) { try { localStorage.setItem(CX_OPTS_KEY, JSON.stringify(o)); } catch (e) { /* not remembered */ } }
-function cxSetBoxes(prefix, o) { cxEl(prefix + 'Tracks').checked = !!o.tracks; cxEl(prefix + 'Cover').checked = !!o.cover; CX_KINDS.forEach(k => { cxEl(prefix + CX_LINK_IDS[k]).checked = !!o.links[k]; }); }
-function cxGetBoxes(prefix) { const links = {}; CX_KINDS.forEach(k => { links[k] = cxEl(prefix + CX_LINK_IDS[k]).checked; }); return { tracks: cxEl(prefix + 'Tracks').checked, cover: cxEl(prefix + 'Cover').checked, links }; }
+function cxSetBoxes(prefix, o) { cxEl(prefix + 'Tracks').checked = !!o.tracks; cxEl(prefix + 'Cover').checked = !!o.cover; if (cxEl(prefix + 'Rym')) cxEl(prefix + 'Rym').checked = !!o.rym; CX_KINDS.forEach(k => { cxEl(prefix + CX_LINK_IDS[k]).checked = !!o.links[k]; }); }
+function cxGetBoxes(prefix) { const links = {}; CX_KINDS.forEach(k => { links[k] = cxEl(prefix + CX_LINK_IDS[k]).checked; }); return { tracks: cxEl(prefix + 'Tracks').checked, cover: cxEl(prefix + 'Cover').checked, rym: !!(cxEl(prefix + 'Rym') && cxEl(prefix + 'Rym').checked), links }; }
 function cxPresetLinks(name) { return { spotify: name === 'all' || name === 'spotify', youtube: name === 'all' || name === 'youtube', soundcloud: name === 'all', other: name === 'all' }; }
 function cxN(n, w) { return `${n.toLocaleString()} ${w}${n === 1 ? '' : 's'}`; }
 function cxFmtCounts(c, head) {
@@ -27206,11 +27385,13 @@ function openCxExport(preset) {
   if (!cxEl('cxExportOverlay').dataset.bound) cxExportBind();
   cxExportRefresh();
 }
+let cxExportItems = [];          // the releases the Export dialog lists right now (cxExportRefresh), for "Ratings as CSV"
 function closeCxExport() { const ov = cxEl('cxExportOverlay'); if (ov && !ov.hidden) ov.hidden = true; }
 function cxExportRefresh() {
   const o = cxGetBoxes('cxExp'); cxSaveOpts(o);
   const base = cxEl('cxScopeView').checked ? (state.filtered || state.raw) : state.raw;
   const f = cxReadFilters(), tests = cxFilterTests(f), items = tests.length ? base.filter(r => tests.every(t => t.test(r))) : base;
+  cxExportItems = items;
   let obj = cxBuildExport(items, o);
   if (tests.length) { const out = {}; Object.keys(obj).forEach(k => { if (k === 'releases') out.filter = cxDescribeFilters(f); out[k] = obj[k]; }); obj = out; }     // the note goes before the (long) list
   cxExportText = JSON.stringify(obj, null, 2);
@@ -27226,11 +27407,11 @@ function cxExportRefresh() {
   if (items.length > 200) { const d = document.createElement('div'); d.className = 'sm-dim'; d.textContent = `\u2026 and ${(items.length - 200).toLocaleString()} more`; list.appendChild(d); }
   cxEl('cxListSummary').textContent = `Which releases will be exported (${items.length.toLocaleString()})`;
   cxEl('cxDecades').querySelectorAll('.cx-decade').forEach(b => { const d = Number(b.dataset.cxDecade); b.classList.toggle('active', f.yearFrom === d && f.yearTo === d + 9); });
-  cxEl('cxExportDownload').disabled = cxEl('cxExportCopy').disabled = !obj.releases.length;
+  cxEl('cxExportDownload').disabled = cxEl('cxExportCopy').disabled = cxEl('cxExportCsv').disabled = !obj.releases.length;
   const savable = tests.filter(t => t.label !== 'Selection').length; cxEl('cxPresetSaveBtn').disabled = !savable; cxEl('cxPresetSaveBtn').title = savable ? 'Remember this combination of filters under a name' : 'Fill in at least one filter first';
 }
-function cxDownload(filename, text) {
-  const blob = new Blob([text], { type: 'application/json' }), a = document.createElement('a');
+function cxDownload(filename, text, type) {
+  const blob = new Blob([text], { type: type || 'application/json' }), a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 3000);
 }
@@ -27270,6 +27451,11 @@ function cxExportBind() {
   cxEl('cxExportDownload').addEventListener('click', () => {
     const name = `crate-export${cxFilterSlug(cxReadFilters())}-${new Date().toISOString().slice(0, 10)}.json`;
     cxDownload(name, cxExportText); flashGlobalToast(`Exported ${cxN(JSON.parse(cxExportText).releases.length, 'release')} to ${name}.`);
+  });
+  cxEl('cxExportCsv').addEventListener('click', () => {
+    const name = `crate-rym-ratings${cxFilterSlug(cxReadFilters())}-${new Date().toISOString().slice(0, 10)}.csv`, rated = cxExportItems.filter(it => Number(it.rymRating) > 0).length;
+    cxDownload(name, cxRatingsCsv(cxExportItems), 'text/csv;charset=utf-8');
+    flashGlobalToast(`Saved ${cxN(cxExportItems.length, 'release')} (${rated.toLocaleString()} with a RYM rating) and their rated tracks to ${name}.`);
   });
   cxEl('cxExportCopy').addEventListener('click', async () => { flashGlobalToast(await cxCopy(cxExportText) ? 'Copied the export to the clipboard.' : 'Couldn\u2019t copy \u2014 use Download instead.'); });
 }
@@ -27451,6 +27637,7 @@ async function cxImpRun(list) {                // list: [{ idx, shaped }]
   st.running = false;
   const lines = [`<b>${cxN(st.added.length, 'release')}</b> added${notTried ? `, ${notTried} not attempted (stopped)` : ''}${st.failed.length ? `, <b>${st.failed.length}</b> failed` : ''}.`];
   if (st.rym && (st.coverOk || st.coverMiss)) lines.push(`Covers from Rate Your Music: <b>${st.coverOk}</b> saved${st.coverMiss ? `, ${st.coverMiss} couldn\u2019t be loaded from here, so CRATE will look for ${st.coverMiss === 1 ? 'that one' : 'those'} itself` : ''}.`);
+  jobsDone('import', `Added ${cxN(st.added.length, 'release')}${notTried ? `, ${notTried} not attempted (stopped)` : ''}${st.failed.length ? `, ${st.failed.length} failed` : ''}`);
   if (st.skipped && st.skipped.length) lines.push(`${cxN(st.skipped.length, 'release')} skipped \u2014 already in your crate: ${st.skipped.map(r => escapeHtml(r.artist + ' \u2014 ' + r.title)).join(', ')}.`);
   if (scFailed) lines.push(`${cxN(scFailed, 'release')} added, but their SoundCloud song links couldn\u2019t be attached.`);
   if (st.failed.length) lines.push(`<ul class="cx-fails">${st.failed.map(f => `<li>${escapeHtml(f.shaped.artist)} \u2014 ${escapeHtml(f.shaped.title)}: ${escapeHtml(f.error)}</li>`).join('')}</ul>`);
@@ -27603,8 +27790,9 @@ function initAddonBridge() {
   setInterval(() => { if (!document.hidden && rymOutState.present) rymCheckOutbox(); }, 20000);                   // and a quiet look now and then while it is open
   [['rymUpdClose', rymUpdateClose], ['rymUpdCancel', rymUpdateClose], ['rymUpdApply', () => rymApplyUpdate()]].forEach(([id, fn]) => { const x = document.getElementById(id); if (x) x.addEventListener('click', fn); });
   const bgBar = document.getElementById('bgStatus');
+  initJobs();
   if (bgBar) bgBar.addEventListener('click', (e) => {
-    const b = e.target.closest('button'); if (!b) return;
+    const b = e.target.closest('button'); if (!b) { if (e.target.closest('#bgStatusText')) jobsOpen(); return; }          // the text: everything that is going on (Activity)
     if (b.id === 'bgStatusCancel' && rymFetchState.active) rymFetchCancel();
     else if (b.id === 'bgStatusCancel' && cxImp) cxImp.cancel = true;
     else if (b.id === 'bgStatusView') { if (state.rymQueueMode && rymQ.entries.length && !(typeof cxImp !== 'undefined' && cxImp)) rymQOpen(); else { const ov = document.getElementById('cxImportOverlay'); if (ov) ov.hidden = false; } bgStatusHide(); }
@@ -27790,8 +27978,8 @@ function genreStatsOf(items) {
 function genreFamilyOf(genre, items, taxonomy, allItems) {
   const key = genreTaxonomyKey(genre);
   const parents = getGenreParents(taxonomy, genre);
-  const children = Object.values(taxonomy).filter(e => e && (e.parents || []).some(p => genreTaxonomyKey(p) === key))
-    .map(e => ({ label: e.label, count: allItems.filter(r => genreReleaseMatches(r, e.label, true, taxonomy)).length }))
+  const children = genreLabelsWithRuleParents(taxonomy).filter(l => getGenreParents(taxonomy, l).some(p => genreTaxonomyKey(p) === key))          // (getGenreParents: the taxonomy's parents, and Scenes / Movements for scene and movement genres)
+    .map(l => ({ label: l, count: allItems.filter(r => genreReleaseMatches(r, l, true, taxonomy)).length })).filter(c => c.count || taxonomy[genreTaxonomyKey(c.label)])
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
   const related = new Map();
   items.forEach(r => new Set(getGenreList(combinedGenreStr(r)).filter(g => genreTaxonomyKey(g) !== key && !genreMatchesFilter(taxonomy, g, genre) && !genreMatchesFilter(taxonomy, genre, g)).map(genreTaxonomyKey)).forEach(k => {
@@ -32706,10 +32894,14 @@ function rymTracklistLooksWrong(tracks) {                        // titles that 
   const t = Array.isArray(tracks) ? tracks : []; if (t.length < 2) return false;
   return t.filter(x => /^\d{1,3}(?:[.,]\d{1,2})?$/.test(String(x && x.title || '').trim())).length / t.length >= 0.5;
 }
+function rymSongUrl(x) {                                       // a track's own Rate Your Music page (https://rateyourmusic.com/song/…/), or ''
+  const u = typeof x === 'string' ? x.trim() : '';
+  return u.length <= 300 && /^https:\/\/(www\.)?rateyourmusic\.com\/song\/[^\s"'<>?#]+$/.test(u) ? u : '';
+}
 function rymCleanTracklists(list) {                              // whatever arrives is untrusted: only text and numbers, bounded
   const str = (x, n) => typeof x === 'string' ? x.slice(0, n) : '';
   return (Array.isArray(list) ? list : []).slice(0, 400).map(e => ({ p: str(e && e.p, 200), ar: str(e && e.ar, 200), ti: str(e && e.ti, 200), ty: str(e && e.ty, 30), u: str(e && e.u, 300), t: Number(e && e.t) || 0,
-    tracks: (Array.isArray(e && e.tracks) ? e.tracks : []).slice(0, 200).map(t => ({ title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), rating: rymNum(t && t.rating) })).filter(t => t.title) })).filter(e => e.p && e.tracks.length >= 2).map(e => Object.assign(e, { wrong: rymTracklistLooksWrong(e.tracks) }));
+    tracks: (Array.isArray(e && e.tracks) ? e.tracks : []).slice(0, 200).map(t => ({ title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), rating: rymNum(t && t.rating), votes: rymNum(t && t.rating) ? rymVotesNum(t && t.votes) : 0, url: rymSongUrl(t && t.url) })).filter(t => t.title) })).filter(e => e.p && e.tracks.length >= 2).map(e => Object.assign(e, { wrong: rymTracklistLooksWrong(e.tracks) }));
 }
 function tlRymPick(list, probe) {                                // the add-on's tracklist for THIS release: by its saved RYM address, else artist + title + type (the rules the ratings use); the newest if several
   const idx = rymBuildIndex([probe], dupKey); let best = null;
@@ -32728,17 +32920,19 @@ async function tlFetchRym(side, artist, title) {
     tlStatus(side, `The add-on hasn\u2019t seen this release\u2019s page on Rate Your Music yet. <a href="${escapeHtml(href)}" target="_blank" rel="noopener">Open it there \u2197</a>, then press RYM again.`); return;
   }
   if (hit.wrong) { tlStatus(side, 'The add-on saved a tracklist for this release that looks wrong (its titles are numbers, most likely ratings). Update the add-on, open the release\u2019s page on Rate Your Music again, then press RYM again.'); return; }
-  tlPending[side] = { kind: 'rym', tracks: hit.tracks.map(t => ({ title: t.title, durationMs: t.durationMs, section: t.section, rymRating: t.rating || 0, rymVotes: t.votes || 0 })) };
+  tlPending[side] = { kind: 'rym', tracks: hit.tracks.map(t => ({ title: t.title, durationMs: t.durationMs, section: t.section, rymRating: t.rating || 0, rymVotes: t.votes || 0, rymLink: t.url || '' })) };
   const total = tlFormatTime(hit.tracks.reduce((s, t) => s + (t.durationMs || 0), 0)), rated = hit.tracks.filter(t => t.rating).length, when = hit.t ? rymDateText(new Date(hit.t).toISOString()) : '';
   tlStatus(side, `Rate Your Music has ${hit.tracks.length} track${hit.tracks.length === 1 ? '' : 's'}${total ? ' \u00b7 ' + total : ''}${rated ? `, with ratings for ${rated}` : ''}${when ? ' (saved ' + escapeHtml(when) + ')' : ''}. <button type="button" class="chip-btn" data-tl-use>Use this list</button> <button type="button" class="chip-btn" data-tl-dismiss>Dismiss</button>`);
 }
 // RYM's own rating of a track fills in where the track has none (never over one you typed); then the deck's bold-the-best applies to it as it does to typed ones
 async function tlApplyTrackRatings(item, rows, quiet) {
-  const todo = (rows || []).filter(r => r.rymRating > 0 && r.trackNumber);
+  const todo = (rows || []).filter(r => r.trackNumber && (r.rymRating > 0 || rymSongUrl(r.rymLink)));
   if (!todo.length || !item) return 0;
-  item.trackData = item.trackData || {}; let n = 0, v = 0;
+  item.trackData = item.trackData || {}; let n = 0, v = 0, l = 0;
   todo.forEach(r => {
-    const td = item.trackData[r.trackNumber] || (item.trackData[r.trackNumber] = {}), votes = rymVotesNum(r.rymVotes);
+    const td = item.trackData[r.trackNumber] || (item.trackData[r.trackNumber] = {}), votes = rymVotesNum(r.rymVotes), link = rymSongUrl(r.rymLink);
+    if (link && !String(td.rymLink || '').trim()) { td.rymLink = link; l++; }          // the track's own RYM page, where it has none
+    if (!(r.rymRating > 0)) return;
     const fresh = rymNum(r.rymRating), old = Number(td.rymRating) || 0;
     // Replaced when it came from Rate Your Music before (rymFrom), or when it is a rounded reading of this one: add-ons before 1.12.7 read the
     // track rows' "4.4 | 6k", so 4.4 from 6,000 stayed for good once 4.37 from 6,380 could be read. A different rating you typed is never replaced.
@@ -32747,8 +32941,8 @@ async function tlApplyTrackRatings(item, rows, quiet) {
     else if ((td.rymFrom === 'rym' || rounded) && (Math.abs(old - fresh) >= 0.005 || (votes && td.rymVotes !== votes))) { td.rymRating = fresh; if (votes) td.rymVotes = votes; td.rymFrom = 'rym'; v++; }
     else if (votes && Math.abs(old - fresh) < 0.005 && td.rymVotes !== votes) { td.rymVotes = votes; v++; }          // the same rating: how many it rests on is a fact that is kept up to date
   });
-  if (!n && !v) return 0;
-  try { await postUpdate({ row: item.row, trackData: JSON.stringify(item.trackData) }); if (!quiet) flashGlobalToast(`Added Rate Your Music ratings to ${n + v} track${n + v === 1 ? '' : 's'}.`); return n + v; }
+  if (!n && !v && !l) return 0;
+  try { await postUpdate({ row: item.row, trackData: JSON.stringify(item.trackData) }); if (!quiet) flashGlobalToast(n + v ? `Added Rate Your Music ratings to ${n + v} track${n + v === 1 ? '' : 's'}${l ? ` and links to ${l}` : ''}.` : `Added Rate Your Music links to ${l} track${l === 1 ? '' : 's'}.`); return n + v + l; }
   catch (err) { if (!quiet) flashGlobalToast('Couldn\u2019t save the track ratings \u2014 try again.'); return 0; }
 }
 // ---- releases sent from RateYourMusic pages by the browser add-on ("Send to CRATE") ----
@@ -32771,16 +32965,17 @@ function rymFetchWhy(reason, r) {
     challenge: 'Rate Your Music asked for a check on the page it opened. That page is in front of you: pass it, then try again a little later.', timeout: 'a page didn\u2019t finish loading in time.', unreadable: 'a page couldn\u2019t be read.',
     closed: 'you closed the page while it was being read.', noanswer: 'The add-on didn\u2019t answer. Update it to 1.10 or later and check it is connected to this page.' })[reason] || `something went wrong (${reason || 'unknown'}).`;
 }
-function rymFetchUpdates(items) {
-  items = (items || []).filter(Boolean); const todo = items.filter(it => rymUpdateUrl(it)), noLink = items.length - todo.length;
+function rymFetchUpdates(items, opts) {
+  opts = opts || {}; items = (items || []).filter(Boolean); const todo = items.filter(it => rymUpdateUrl(it)), noLink = items.length - todo.length;
   if (!todo.length) { flashGlobalToast(items.length === 1 ? 'This release has no Rate Your Music link to open. Add one in Edit, or open its page on RYM and use \u201cUpdate CRATE from this page\u201d.' : 'None of those has a Rate Your Music link to open.'); return; }
-  if (rymFetchState.active) { flashGlobalToast(rymFetchWhy('busy')); return; }
+  if (rymFetchState.active) { jobsQueueRym(todo); return; }          // one is running: this one waits its turn (Activity)
   const use = todo.slice(0, 25), over = todo.length - use.length;
-  if (use.length > 1) {
+  if (use.length > 1 && !opts.queued) {
     const mins = Math.max(1, Math.round(use.length * 14.5 / 60));
-    if (!confirm(`Open ${use.length} Rate Your Music pages, one at a time, each in a background tab that closes itself, and read them?\n\nIt takes about ${mins} minute${mins === 1 ? '' : 's'}: there is a pause of 8 to 15 seconds between pages, on purpose, so Rate Your Music isn\u2019t hit quickly. If it asks for a check, the run stops and shows you that page.\n\nNothing in CRATE changes until you press Apply.${noLink ? `\n\n${noLink} without a Rate Your Music link ${noLink === 1 ? 'is' : 'are'} skipped.` : ''}${over ? `\n\n${over} more than 25: do ${over === 1 ? 'that one' : 'those'} in another run.` : ''}`)) return;
+    if (!confirm(`Open ${use.length} Rate Your Music pages, one at a time, each in a background tab that closes itself, and read them?\n\nIt takes about ${mins} minute${mins === 1 ? '' : 's'}: there is a pause of 8 to 15 seconds between pages, on purpose, so Rate Your Music isn\u2019t hit quickly. If it asks for a check, the run stops and shows you that page.\n\nNothing in CRATE changes until you press Apply.${noLink ? `\n\n${noLink} without a Rate Your Music link ${noLink === 1 ? 'is' : 'are'} skipped.` : ''}${over ? `\n\nThe other ${over} wait in the queue and run after this, 25 at a time (\u2699 \u2192 Activity shows them).` : ''}`)) return;
   }
-  if (state.rymQueueMode) rymQBegin(use);
+  const qOpen = rymQ.open; if (state.rymQueueMode) { rymQBegin(use); if (opts.queued && !qOpen) { rymQ.open = false; rymQRender(); } }          // (a queued run starts quietly: its dialog doesn't jump in front of you)
+  jobsState.runRows = use.map(it => String(it.row)); if (over) jobsQueueRym(todo.slice(25), true);
   window.postMessage({ source: 'crate-app', type: 'rym-fetch-start', items: use.map(it => ({ id: it.row, url: rymUpdateUrl(it) })) }, window.location.origin);
   clearTimeout(rymFetchState.ackTimer); rymFetchState.ackTimer = setTimeout(() => { if (!rymFetchState.active) { flashGlobalToast(rymFetchWhy('noanswer')); if (state.rymQueueMode) rymQAbort(); } }, 3000);
 }
@@ -32805,7 +33000,7 @@ window.addEventListener('message', (e) => {
     if (r.ok) { rymFetchState.active = true; rymFetchState.total = r.accepted || 0; if (!state.rymQueueMode) bgStatus(`Reading Rate Your Music pages \u2014 0 of ${r.accepted}`, 0, { always: true, cancel: true }); } else { flashGlobalToast(rymFetchWhy(r.reason, r)); if (state.rymQueueMode) rymQAbort(); }
   } else if (d.type === 'rym-fetch-ack' && d.for === 'rym-fetch-continue') {
     const r = d.resp || {}; if (r.ok) { rymFetchState.active = true; if (rymQ.run) rymQ.run.state = 'starting'; rymQRender(); } else flashGlobalToast('There is nothing to continue: start the update again.');
-  } else if (d.type === 'rym-fetch-progress') rymFetchProgress(d);
+  } else if (d.type === 'rym-fetch-progress') { rymFetchProgress(d); jobsRymProgress(d); }
 });
 // ================= The update queue: one dialog for every "Update from Rate Your Music" (one release or many) =================
 // As each page is read its details arrive as an update. In the queue they are APPLIED AT ONCE where that is safe (a blank filled, a better cover, a fuller tracklist: the "fill" and "refine" changes), and what
@@ -33041,8 +33236,8 @@ function rymCleanOutbox(list) {                                  // untrusted: o
     source: { url: str(b && b.source && b.source.url, 300), title: str(b && b.source && b.source.title, 200).trim() },
     releases: (Array.isArray(b && b.releases) ? b.releases : []).slice(0, 600).map(r => ({
       artist: rymTidyName(str(r && r.artist, 200).trim()), title: rymTidyName(str(r && r.title, 200).trim()), type: TYPES.includes(r && r.type) ? r.type : 'Album', releaseDate: /^\d{4}(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?)?$/.test(r && r.releaseDate) ? r.releaseDate : '',
-      genre: rymGenreStr(r && r.genre), secondaryGenre: rymGenreStr(r && r.secondaryGenre), label: str(r && r.label, 200).trim(), catalog: /^CRT-\d+$/i.test(str(r && r.catalog, 100).trim()) ? '' : str(r && r.catalog, 100).trim(), rymDescriptors: str(r && r.descriptor, 500).trim(), rymLink: /^https:\/\/rateyourmusic\.com\/release\//.test(str(r && r.rymLink, 300)) ? str(r.rymLink, 300) : '', cover: /^https:\/\/[^\s"'<>]+$/.test(str(r && r.cover, 500)) ? str(r.cover, 500) : '',
-      tracks: (Array.isArray(r && r.tracks) ? r.tracks : []).slice(0, 200).map((t, i) => ({ n: i + 1, title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), s: 'rym', rating: rymNum(t && t.rating), votes: rymNum(t && t.rating) ? rymVotesNum(t && t.votes) : 0 })).filter(t => t.title), rymRating: rymNum(r && r.rymRating), rymVotes: Math.max(0, Math.round(Number(r && r.rymVotes) || 0)) })).filter(r => r.artist && r.title).slice(0, 300) })).filter(b => b.id && b.releases.length);
+      genre: rymGenreStr(r && r.genre), secondaryGenre: rymGenreStr(r && r.secondaryGenre), label: str(r && r.label, 200).trim(), catalog: /^CRT-\d+$/i.test(str(r && r.catalog, 100).trim()) ? '' : str(r && r.catalog, 100).trim(), rymDescriptors: str(r && r.descriptor, 500).trim(), scene: str(r && r.scene, 300).trim(), movement: str(r && r.movement, 300).trim(), recordedDate: /^\d{4}(?:-(?:0[1-9]|1[0-2])(?:-(?:0[1-9]|[12]\d|3[01]))?)?$/.test(str(r && r.recordedDate, 10)) ? str(r && r.recordedDate, 10) : '', location: str(r && r.recordedPlace, 200).replace(/\s+/g, ' ').trim(),          // (an import reads these two as Recorded and Location) rymLink: /^https:\/\/rateyourmusic\.com\/release\//.test(str(r && r.rymLink, 300)) ? str(r.rymLink, 300) : '', cover: /^https:\/\/[^\s"'<>]+$/.test(str(r && r.cover, 500)) ? str(r.cover, 500) : '',
+      tracks: (Array.isArray(r && r.tracks) ? r.tracks : []).slice(0, 200).map((t, i) => ({ n: i + 1, title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), s: 'rym', rating: rymNum(t && t.rating), votes: rymNum(t && t.rating) ? rymVotesNum(t && t.votes) : 0, url: rymSongUrl(t && t.url) })).filter(t => t.title), rymRating: rymNum(r && r.rymRating), rymVotes: Math.max(0, Math.round(Number(r && r.rymVotes) || 0)) })).filter(r => r.artist && r.title).slice(0, 300) })).filter(b => b.id && b.releases.length);
 }
 function rymOutboxArrived(batches) {
   rymOutState.batches = batches; rymOutState.present = true; renderRymInbox(); rymQIngestAll();
@@ -33063,6 +33258,113 @@ function renderRymInbox() {
   const what = first.kind === 'update' ? (state.rymQueueMode ? `<b>${ups}</b> update${ups === 1 ? '' : 's'} ${ups === 1 ? 'has' : 'have'} differences from your crate left for you to decide` : `details for <b>${escapeHtml(first.source.title || 'a release')}</b> are waiting to update your crate`) : `<b>${n}</b> release${n === 1 ? '' : 's'} waiting${first.source.title ? ' from ' + escapeHtml(first.source.title) : ''}`;
   bar.innerHTML = `<span>Rate Your Music: ${what}${bs.length > 1 ? ` and ${bs.length - 1} more page${bs.length > 2 ? 's' : ''}` : ''}.</span> <button type="button" class="chip-btn" data-rym-review>Review</button>${ups > 1 && !state.rymQueueMode ? ` <button type="button" class="chip-btn" data-rym-applyall title="Apply what is new in all ${ups} updates (blanks filled, dates made more precise, tracklists added). Anything that differs from what you have is left for you to review.">Apply all ${ups}</button>` : ''} <button type="button" class="chip-btn" data-rym-later>Not now</button> <button type="button" class="chip-btn" data-rym-discard title="Throw away what was sent from Rate Your Music">Discard</button>`;
   bar.hidden = false;
+}
+// ================= Activity: one place for everything CRATE is doing in the background =================
+// What is running (a Rate Your Music update, adding releases, Matching songs, the Last.fm sync, the new-release check), what needs you
+// (differences to decide, releases sent from RYM, a check RYM asked for, matches to keep), what is waiting its turn (Rate Your Music
+// updates started while one was running: they run one after another, never two at once), and what finished today. Each job keeps its
+// own dialog: this panel only reads their state and opens them.
+const JOBS_DONE_KEY = 'crate_jobs_done_v1', JOBS_RYM_GAP = 15000;          // (between one queued update and the next: the same unhurried pace the add-on keeps between pages)
+function jobsPl(n, w, ws) { return `${Number(n || 0).toLocaleString()} ${n === 1 ? w : (ws || w + 's')}`; }
+function jobsDoneLoad() { try { const l = JSON.parse(localStorage.getItem(JOBS_DONE_KEY) || '[]'); return Array.isArray(l) ? l.filter(e => e && typeof e.t === 'number' && typeof e.text === 'string') : []; } catch (e) { return []; } }
+function jobsDone(kind, text) {                                   // a finished job, for "Done today" (kept a week, at most 200)
+  const week = Date.now() - 7 * 86400000, l = jobsDoneLoad().filter(e => e.t >= week).concat([{ t: Date.now(), kind, text: String(text).slice(0, 300) }]).slice(-200);
+  try { localStorage.setItem(JOBS_DONE_KEY, JSON.stringify(l)); } catch (e) { /* private window: today's list just isn't kept */ }
+  jobsRefresh();
+}
+// ---- Rate Your Music updates wait their turn ----
+function jobsQueueRym(items, quiet) {
+  const have = new Set(jobsState.waiting.flatMap(w => w.rows).concat(rymFetchState.active ? jobsState.runRows : [])), rows = items.map(it => String(it.row)).filter(r => !have.has(r));
+  for (let i = 0; i < rows.length; i += 25) jobsState.waiting.push({ id: 'w' + Date.now() + '-' + i, kind: 'rym', rows: rows.slice(i, i + 25), t: Date.now() });          // (25 a run, as the add-on takes them)
+  if (!quiet) flashGlobalToast(rows.length ? `Queued ${jobsPl(rows.length, 'release')}: the update starts by itself when the one running now finishes. Click to see the queue.` : 'Those are already waiting in the queue.', { onClick: jobsOpen });
+  jobsRefresh();
+}
+function jobsStartNextRym() {
+  clearTimeout(jobsState.nextTimer); jobsState.nextTimer = 0; jobsState.nextAt = 0;
+  if (rymFetchState.active || !jobsState.waiting.length) return;
+  const w = jobsState.waiting.shift(), items = w.rows.map(r => state.raw.find(x => String(x.row) === r)).filter(Boolean);
+  if (items.length) rymFetchUpdates(items, { queued: true }); else jobsStartNextRym();
+  jobsRefresh();
+}
+function jobsRymProgress(d) {                                     // every progress message of a Rate Your Music run
+  jobsState.rymLast = d;
+  if (d.state === 'starting' || d.state === 'loading' || d.state === 'gap') { jobsState.rymLogged = false; jobsRefresh(); return; }
+  if (!jobsState.rymLogged) {
+    jobsState.rymLogged = true;
+    jobsDone('rym', `Rate Your Music update: read ${d.ok || 0} of ${jobsPl(d.total || 0, 'page')}${d.skipped ? ` (${d.skipped} no longer there)` : ''}${d.state === 'cancelled' ? ', stopped by you' : d.state === 'stopped' ? `, stopped: ${rymFetchWhy(d.reason)}` : ''}`);
+  }
+  if (d.state === 'done' && jobsState.waiting.length) { clearTimeout(jobsState.nextTimer); jobsState.nextAt = Date.now() + JOBS_RYM_GAP; jobsState.nextTimer = setTimeout(jobsStartNextRym, JOBS_RYM_GAP); }          // a stop (a check, you cancelling) holds the queue until you start it
+  jobsRefresh();
+}
+// ---- what there is ----
+function jobsCollect() {
+  const run = [], need = [], wait = [], el$ = (id) => document.getElementById(id);
+  const last = jobsState.rymLast;
+  if (rymFetchState.active) {
+    const r = state.rymQueueMode && rymQ.run ? rymQ.run : last || {}, total = r.total || rymFetchState.total || 0, done = r.done || 0;
+    run.push({ title: 'Updating from Rate Your Music', detail: `${done} of ${jobsPl(total, 'page')}${r.state === 'gap' ? ' \u00b7 pausing between pages, on purpose' : ''}`, pct: total ? done / total * 100 : 0,
+      acts: [state.rymQueueMode && rymQ.entries.length ? ['Details', rymQOpen, true] : null, ['Stop', rymFetchCancel]] });
+  } else if (last && last.state === 'stopped' && last.reason === 'challenge') {
+    need.push({ title: 'Rate Your Music asked for a check', detail: 'Pass it on the page the add-on opened, then carry on from where the update stopped.', acts: [['Continue', rymFetchContinue], ['Dismiss', () => { jobsState.rymLast = null; }]] });
+  }
+  if (state.rymQueueMode) { const c = rymQCounts(); if (c.review) need.push({ title: `${jobsPl(c.review, 'release')} with differences to decide`, detail: 'From Rate Your Music updates: what differs from yours was left for you.', acts: [['Review', rymQOpen, true]] }); }
+  const bs = rymOutState.batches || [], adds = bs.filter(b => b.kind !== 'update'), ups = state.rymQueueMode ? [] : bs.filter(b => b.kind === 'update');
+  if (adds.length) { const n = adds.reduce((x, b) => x + b.releases.length, 0); need.push({ title: `${jobsPl(n, 'release')} sent from Rate Your Music`, detail: adds.slice(0, 3).map(b => b.source.title || 'a page').join(' \u00b7 ') + (adds.length > 3 ? ` and ${adds.length - 3} more` : ''), acts: [['Review', () => openRymBatch(adds[0]), true]] }); }
+  if (ups.length) need.push({ title: `${jobsPl(ups.length, 'update')} from Rate Your Music to review`, detail: ups.slice(0, 3).map(b => b.source.title || 'a release').join(' \u00b7 '), acts: [['Review', () => openRymBatch(ups[0]), true], ups.length > 1 ? ['Apply all', rymUpdateAllWaiting] : null] });
+  if (typeof cxImp !== 'undefined' && cxImp && cxImp.running) {
+    const bar = el$('cxImpBar'), t = el$('cxImpProgText');
+    run.push({ title: 'Adding releases', detail: t ? t.textContent : '', pct: bar ? parseFloat(bar.style.width) || 0 : 0, acts: [['Show', () => { const ov = el$('cxImportOverlay'); if (ov) ov.hidden = false; bgStatusHide(); }, true], ['Stop', () => { cxImp.cancel = true; }]] });
+  }
+  if (bm && bm.started) {
+    const rels = bm.rels.filter(r => r.include), ks = bmKinds(), cells = rels.length * ks.length, done = cells ? rels.reduce((x, r) => x + ks.filter(k => r.st && r.st[k] !== 'wait' && r.st[k] !== 'work').length, 0) : 0, t = bmPickTotals();
+    if (bm.running) run.push({ title: 'Matching songs', detail: `${jobsPl(rels.length, 'release')}${ks.length ? ' on ' + ks.map(bmName).join(' and ') : ''}${t.n ? ` \u00b7 ${t.n} ticked so far` : ''}`, pct: cells ? done / cells * 100 : 0, acts: [['Show', bmShow, true]] });
+    else if (t.n) need.push({ title: 'Matching songs has finished', detail: `${jobsPl(t.n, 'song link')} ticked: open it to choose what to keep.`, acts: [['Show', bmShow, true]] });
+  }
+  if (lastfmBackgroundSyncRunning) run.push({ title: 'Syncing Last.fm plays', detail: 'In the background, since the last sync' });
+  if (newReleaseScanInFlight) { const sc = jobsState.scan; run.push({ title: 'Looking for new releases', detail: sc ? `${sc.done} of ${jobsPl(sc.total, 'artist')}` : 'From the artists in your crate', pct: sc && sc.total ? sc.done / sc.total * 100 : null }); }
+  jobsState.waiting.forEach((w, i) => {
+    const soon = i === 0 && jobsState.nextAt > Date.now() ? `Starts in ${Math.max(1, Math.round((jobsState.nextAt - Date.now()) / 1000))} s` : i === 0 && rymFetchState.active ? 'Starts when the update running now finishes' : i === 0 ? 'Held: start it when you\u2019re ready' : `After ${i === 1 ? 'the one above' : `the ${i} above`}`;
+    const names = w.rows.slice(0, 3).map(r => { const it = state.raw.find(x => String(x.row) === r); return it ? it.title : ''; }).filter(Boolean).join(', ');
+    wait.push({ title: `Update ${jobsPl(w.rows.length, 'release')} from Rate Your Music`, detail: `${soon}${names ? ' \u00b7 ' + names + (w.rows.length > 3 ? '\u2026' : '') : ''}`,
+      acts: [i === 0 && !rymFetchState.active ? ['Start now', jobsStartNextRym] : null, ['Remove', () => { const k = jobsState.waiting.indexOf(w); if (k >= 0) jobsState.waiting.splice(k, 1); if (!jobsState.waiting.length) { clearTimeout(jobsState.nextTimer); jobsState.nextAt = 0; } }]] });
+  });
+  const day0 = new Date(); day0.setHours(0, 0, 0, 0);
+  const done = jobsDoneLoad().filter(e => e.t >= day0.getTime()).reverse();
+  return { run, need, wait, done };
+}
+// ---- the panel ----
+function jobsOpen() { const ov = document.getElementById('jobsOverlay'); if (!ov) return; ov.hidden = false; jobsRender(); clearInterval(jobsState.timer); jobsState.timer = setInterval(jobsRender, 1000); }
+function jobsClose() { const ov = document.getElementById('jobsOverlay'); if (ov) ov.hidden = true; clearInterval(jobsState.timer); jobsState.timer = 0; }
+function jobsRefresh() { jobsBadge(); const ov = document.getElementById('jobsOverlay'); if (ov && !ov.hidden) jobsRender(); }
+function jobsBadge() {
+  const b = document.getElementById('activityBadge'); if (!b) return; let c;
+  try { c = jobsCollect(); } catch (e) { return; }          // (while the page is still starting, some jobs aren't there yet)
+  const n = c.run.length + c.need.length; b.textContent = String(n); b.hidden = !n;
+}
+function jobsRender() {
+  const body = document.getElementById('jobsBody'); if (!body) return;
+  const c = jobsCollect(), acts = jobsState.acts = [];
+  const row = (j) => `<div class="job-row"><div class="job-main"><b>${escapeHtml(j.title)}</b>${j.detail ? `<span class="sm-dim">${escapeHtml(j.detail)}</span>` : ''}${j.pct !== undefined ? `<i class="job-bar"><b style="width:${j.pct == null ? 100 : Math.max(2, Math.min(100, j.pct))}%"${j.pct == null ? ' class="job-indef"' : ''}></b></i>` : ''}</div>`
+    + `<div class="job-acts">${(j.acts || []).filter(Boolean).map(a => { acts.push(a); return `<button type="button" class="chip-btn" data-job-act="${acts.length - 1}">${escapeHtml(a[0])}</button>`; }).join('')}</div></div>`;
+  const sec = (title, list, empty) => `<section class="job-sec"><h3>${title}${list.length ? ` <span class="sm-dim">${list.length}</span>` : ''}</h3>${list.length ? list.map(row).join('') : `<p class="sm-dim job-empty">${empty}</p>`}</section>`;
+  const tm = (t) => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  body.innerHTML = sec('Running', c.run, 'Nothing is running.') + sec('Needs you', c.need, 'Nothing is waiting for you.') + sec('Waiting', c.wait, 'Nothing is queued. A Rate Your Music update started while another is running waits here, and starts by itself.')
+    + `<section class="job-sec"><h3>Done today${c.done.length ? ` <span class="sm-dim">${c.done.length}</span>` : ''}</h3>${c.done.length ? `<ul class="job-done">${c.done.map(e => `<li><span class="sm-dim">${tm(e.t)}</span> ${escapeHtml(e.text)}</li>`).join('')}</ul>` : '<p class="sm-dim job-empty">Nothing yet today.</p>'}</section>`;
+  jobsBadge();
+}
+function initJobs() {
+  const ov = document.getElementById('jobsOverlay'); if (!ov) return;
+  document.getElementById('jobsClose').addEventListener('click', jobsClose);
+  ov.addEventListener('mousedown', (e) => { if (e.target === ov) jobsClose(); });
+  ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') jobsClose(); });
+  document.getElementById('jobsBody').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-job-act]'); if (!b) return; const a = (jobsState.acts || [])[Number(b.dataset.jobAct)]; if (!a) return;
+    if (a[2]) jobsClose();          // it opens that job's own dialog
+    try { a[1](); } catch (err) { console.warn('Activity action failed:', err); }
+    jobsRefresh();
+  });
+  const m = document.getElementById('menuActivity'); if (m) m.addEventListener('click', () => { const lm = document.getElementById('layoutMenu'); if (lm) lm.hidden = true; jobsOpen(); });
+  setInterval(() => { if (!document.hidden) jobsBadge(); }, 3000);
 }
 function rymBatchDone(ids) {                                     // taken (or thrown away): the add-on forgets them, and so does the bar
   const gone = new Set(ids);
@@ -33116,10 +33418,14 @@ function rymUpdatePlan(item, rel, oldRows, minNext) {
       add(key, label, c, n, (cp.length === 4 && np.length > 4 && cp.every((g, i) => g === np[i])) ? 'refine' : 'differs');          // yours is exactly the FIRST FOUR of RYM's longer list: what the add-on used to keep (it cut every list to four), so the rest is offered ticked; any other difference is still never ticked for you
     }
   });
-  [['label', 'Label', item.label, rel.label], ['catalog', 'Catalogue number', /^CRT-\d+$/i.test(String(item.catalog || '').trim()) ? '' : item.catalog, rel.catalog], ['rymDescriptors', 'RYM descriptors', item.rymDescriptors, rel.rymDescriptors]].forEach(([key, label, cur, nw]) => {
+  [['label', 'Label', item.label, rel.label], ['catalog', 'Catalogue number', /^CRT-\d+$/i.test(String(item.catalog || '').trim()) ? '' : item.catalog, rel.catalog], ['rymDescriptors', 'RYM descriptors', item.rymDescriptors, rel.rymDescriptors], ['scene', 'Scene', item.scene, rel.scene], ['movement', 'Movement', item.movement, rel.movement]].forEach(([key, label, cur, nw]) => {
     const c = String(cur || '').trim(), n = String(nw || '').trim(); if (!n) return;        // (an automatic CRT-007 number says nothing, so it counts as blank)
-    if (!c) add(key, label, '', n, 'fill'); else if (lc(c) !== lc(n)) add(key, label, c, n, 'differs');
+    const set = (x) => x.split(',').map(lc).filter(Boolean).sort().join('|');          // (the same names in another order are the same scenes)
+    if (!c) add(key, label, '', n, 'fill'); else if (lc(c) !== lc(n) && !((key === 'scene' || key === 'movement') && set(c) === set(n))) add(key, label, c, n, 'differs');
   });
+  { const c = String(item.recordedDate || '').trim(), n = String(rel.recordedDate || '').trim();          // when it was recorded (when it began): a year you have is refined by RYM's month or day of that year
+    if (n) { if (!c) add('recordedDate', 'Recorded', '', n, 'fill'); else if (n.length > c.length && n.startsWith(c)) add('recordedDate', 'Recorded', c, n, 'refine'); else if (!c.startsWith(n) && c !== n) add('recordedDate', 'Recorded', c, n, 'differs'); } }
+  { const n = String(rel.location || '').trim(); if (n && !String(item.location || '').trim()) add('location', 'Location (where it was recorded)', '', n, 'fill'); }          // only where you have none: yours may be where the band formed, or a venue
   const cc = String(item.cover || '').trim(), nc = String(rel.cover || '').trim();
   if (nc) {
     if (!cc) add('cover', 'Cover', '', 'Rate Your Music\u2019s picture', 'fill', { url: nc });
@@ -33130,7 +33436,7 @@ function rymUpdatePlan(item, rel, oldRows, minNext) {
   const nt = (rel.tracks || []).filter(t => t && t.title);
   if (nt.length >= 2) {
     const old = (oldRows || []).filter(r => r && r.title);
-    const asg = tlAssignNumbers(old, nt.map(t => ({ title: t.title, durationMs: t.durationMs || 0, section: t.section || '', s: 'rym', rymRating: t.rating || 0, rymVotes: t.votes || 0 })), minNext);
+    const asg = tlAssignNumbers(old, nt.map(t => ({ title: t.title, durationMs: t.durationMs || 0, section: t.section || '', s: 'rym', rymRating: t.rating || 0, rymVotes: t.votes || 0, rymLink: t.url || '' })), minNext);
     const ok = old.map(r => tlKey(r.title)).join('|'), nk = nt.map(t => tlKey(t.title)).join('|');
     let kind = null;
     const numTitles = old.length >= 3 && old.filter(r => /^\d{1,3}(?:[.,]\d{1,2})?[kKmM]?$/.test(String(r.title).trim())).length / old.length >= 0.5;          // most titles are numbers ("6k", "5k": a count read as a title by add-on 1.12.0/1.12.1): not a tracklist of yours
@@ -33142,15 +33448,18 @@ function rymUpdatePlan(item, rel, oldRows, minNext) {
     if (kind) add('tracks', 'Tracklist', old.length ? `${old.length} track${old.length === 1 ? '' : 's'}` : '', `${nt.length} tracks`, kind, { rows: asg.rows, matched: asg.matched, fresh: asg.fresh, dropped: asg.dropped.map(d => d.title) });
   }
   if (!out.some(p => p.key === 'tracks')) {                      // the tracklist isn't changing, but RYM's rating of each track (and how many ratings it rests on) can still be filled in
-    const rated = (rel.tracks || []).filter(t => t && t.title && t.rating > 0), old2 = (oldRows || []).filter(r => r && r.title && r.trackNumber);
+    const rated = (rel.tracks || []).filter(t => t && t.title && (t.rating > 0 || t.url)), old2 = (oldRows || []).filter(r => r && r.title && r.trackNumber);
     if (rated.length && old2.length && (rel.tracks || []).filter(t => t && t.title).length >= 2) {          // (a list of fewer than two tracks isn't trusted as a tracklist, so not as a source of ratings either)
-      const used = new Set(), rows2 = []; let kept = 0;
+      const used = new Set(), rows2 = [], links = []; let kept = 0;
       rated.forEach(t => {
         const o = old2.find(x => !used.has(x.trackNumber) && tlKey(x.title) === tlKey(t.title)); if (!o) return; used.add(o.trackNumber);
         const td = (item.trackData || {})[o.trackNumber] || {}, v = rymVotesNum(t.votes);
+        if (t.url && !String(td.rymLink || '').trim()) links.push({ trackNumber: o.trackNumber, rymRating: 0, rymLink: t.url });          // its song page, where the track has no RYM link
+        if (!(t.rating > 0)) return;
         if (!(td.rymRating > 0)) rows2.push({ trackNumber: o.trackNumber, rymRating: t.rating, rymVotes: v });
         else if ((Math.abs(td.rymRating - t.rating) >= 0.005 && ((Math.abs(td.rymRating * 10 - Math.round(td.rymRating * 10)) < 1e-6 && Math.abs(td.rymRating - t.rating) <= 0.051) || td.rymFrom === 'rym')) || (v && Math.abs(td.rymRating - t.rating) < 0.005 && td.rymVotes !== v)) { rows2.push({ trackNumber: o.trackNumber, rymRating: t.rating, rymVotes: v || td.rymVotes || 0 }); kept++; }          // the exact figures (4.56 from 4,733 ratings, add-on 1.12.6) where the rounded ones (4.6, 5k) were saved, or a count that changed
       });
+      if (links.length) add('trackLinks', 'RYM track links', '', `${links.length} track${links.length === 1 ? '' : 's'}’${links.length === 1 ? 's' : ''} own Rate Your Music page${links.length === 1 ? '' : 's'}`, 'fill', { rows: links });
       if (rows2.length) add('trackStats', 'RYM track ratings', kept ? `${kept} already rated (rounded, or an older count)` : '', `${rows2.length} track${rows2.length === 1 ? '' : 's'} with how many people rated them`, kept === rows2.length ? 'refine' : 'fill', { rows: rows2 });
     }
   }
@@ -33181,7 +33490,7 @@ async function openRymUpdate(batch) {
   apply.hidden = !plan.length;
 }
 async function rymWritePicks(item, picks, quiet, src) {            // write exactly the chosen fields of a release (and its tracklist), nothing else: shared by the review and the batch
-  const map = { label: ['Label', 'label'], catalog: ['Catalog', 'catalog'], rymDescriptors: ['RymDescriptors', 'rymDescriptors'], artist: ['Artist', 'artist'], date: ['ReleaseDate', 'releaseDate'], genre: ['Genre', 'genre'], genre2: ['SecondaryGenre', 'genre2'], rymLink: ['RymLink', 'rymLink'] }, payload = { action: 'editAlbum', row: item.row };
+  const map = { label: ['Label', 'label'], catalog: ['Catalog', 'catalog'], rymDescriptors: ['RymDescriptors', 'rymDescriptors'], scene: ['Scene', 'scene'], movement: ['Movement', 'movement'], recordedDate: ['Recorded', 'recordedDate'], location: ['Location', 'location'], artist: ['Artist', 'artist'], date: ['ReleaseDate', 'releaseDate'], genre: ['Genre', 'genre'], genre2: ['SecondaryGenre', 'genre2'], rymLink: ['RymLink', 'rymLink'] }, payload = { action: 'editAlbum', row: item.row };
   picks.forEach(p => { if (map[p.key]) payload[map[p.key][0]] = p.proposed; });          // only what was ticked: the backend leaves every other field as it is
   const cv = picks.find(p => p.key === 'cover'); let coverUrl = '', coverMissed = false;
   if (cv) { coverUrl = await rymBestCover(cv.url); if (coverUrl) payload.Cover = coverUrl; else coverMissed = true; }          // saved only if it loads from here (the largest size that does): the deck shows a saved cover as it is
@@ -33190,7 +33499,8 @@ async function rymWritePicks(item, picks, quiet, src) {            // write exac
   if (Object.keys(payload).length > 2) { await postUpdate(payload); picks.forEach(p => { if (map[p.key]) item[map[p.key][1]] = p.proposed; }); if (coverUrl) item.cover = coverUrl; if (nextLog) { item.rymUpdateLog = nextLog; if (firstAt) item.rymUpdated = firstAt; rymLogLocalSet(item); } }
   const tr = picks.find(p => p.key === 'tracks');
   if (tr) { await saveManualTracklist(item, tr.rows, quiet); await tlApplyTrackRatings(item, tr.rows); }
-  const ts = picks.find(p => p.key === 'trackStats'); if (ts) await tlApplyTrackRatings(item, ts.rows, true);          // numbers kept by title; RYM's track ratings where a track has none, or where the saved one is RYM's own (or a rounded reading of it)
+  const ts = picks.find(p => p.key === 'trackStats'), tk = picks.find(p => p.key === 'trackLinks');
+  if (ts || tk) await tlApplyTrackRatings(item, [].concat(ts ? ts.rows : [], tk ? tk.rows : []), true);          // numbers kept by title; RYM's track ratings where a track has none, or where the saved one is RYM's own (or a rounded reading of it)
   return { coverMissed };
 }
 async function rymBestCover(url) {                                  // the largest size of this picture that really loads from here, or '' if none does (all sizes asked at once: a host that refuses costs one wait, not five)
@@ -33258,7 +33568,7 @@ async function rymFillTracklists() {
   flashGlobalToast(`Filling ${cands.length} tracklist${cands.length === 1 ? '' : 's'}\u2026`);
   let ok = 0, failed = 0;
   for (const c of cands) {
-    try { const rows = tlAssignNumbers([], c.e.tracks.map(t => ({ title: t.title, durationMs: t.durationMs || 0, section: t.section || '', s: 'rym', rymRating: t.rating || 0, rymVotes: t.votes || 0 })), tlMinNext(c.it)).rows; await saveManualTracklist(c.it, rows, true); await tlApplyTrackRatings(c.it, rows); ok++; }
+    try { const rows = tlAssignNumbers([], c.e.tracks.map(t => ({ title: t.title, durationMs: t.durationMs || 0, section: t.section || '', s: 'rym', rymRating: t.rating || 0, rymVotes: t.votes || 0, rymLink: t.url || '' })), tlMinNext(c.it)).rows; await saveManualTracklist(c.it, rows, true); await tlApplyTrackRatings(c.it, rows); ok++; }
     catch (e) { failed++; }
   }
   try { await fetchCatalog(); } catch (e) { /* the sheet is updated; the list refreshes next time */ }
@@ -35111,6 +35421,7 @@ async function runNewReleaseScan(onProgress) {
         }
       }
       done++;
+      jobsState.scan = { done, total: artists.length };
       if (onProgress) onProgress(done, artists.length);
     });
 
@@ -35121,6 +35432,7 @@ async function runNewReleaseScan(onProgress) {
     saveNewReleaseArtistCache(artistCache);
     saveNewReleaseResults(deduped);
     localStorage.setItem(NEW_RELEASES_LAST_SCAN_KEY, String(Date.now()));
+    jobsState.scan = null; jobsDone('scan', `Looked for new releases from ${jobsPl(artists.length, 'artist')}: ${deduped.length ? jobsPl(deduped.length, 'release') + ' found' : 'none found'}`);
     return deduped;
   })();
   try { return await newReleaseScanInFlight; } finally { newReleaseScanInFlight = null; }
@@ -35950,6 +36262,7 @@ async function maybeRunBackgroundLastfmSync() {
     const pending = lfAlbumsFromGroups(st.groups, lastfmNormKey, st.ignored);
     if (state.lastfmReviewAtStartup && pending.length && (sync.newUnmatched > 0 || !lfIsSnoozed(st, Date.now()))) openLastfmReview(creds.username, sync);
     else lfSyncToast(creds.username, sync);
+    if (tracks.length) jobsDone('lastfm', `Last.fm sync: ${jobsPl(tracks.length, 'new play')}, ${jobsPl(Number(loggedPlays) || 0, 'play')} logged`);
     if (state.rightPanelShowHistory) renderLastfmHistoryPanel();
   } catch (err) {
     console.warn('Background Last.fm sync failed:', err);      // stays silent in the UI — a failed background sync shouldn't interrupt anyone
@@ -39694,6 +40007,22 @@ html, body {
   @media (max-width: 760px) { .rymq-cols { display: none; } .rymq-row { grid-template-columns: 22px minmax(0, 1fr); } .rymq-row .rymq-cov, .rymq-row .rymq-st, .rymq-row .rymq-chips { grid-column: 2; } .rymq-detail { padding-left: 24px; } .rymq-field { grid-template-columns: 20px minmax(0, 1fr); } }
   .bg-status { position: fixed; left: 16px; bottom: 96px; z-index: 160; max-width: min(92vw, 520px); display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--panel, #1B212B); color: var(--text); border: 1px solid var(--line, #3a4352); border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.45); font-size: 12px; }
   .bg-status[hidden] { display: none; }
+  .bg-status #bgStatusText { cursor: pointer; }
+  .bg-status #bgStatusText:hover { text-decoration: underline; }
+  .jobs-modal { max-width: 640px; }
+  .job-sec { margin: 0 0 18px; }
+  .job-sec h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; margin: 0 0 8px; opacity: .85; }
+  .job-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid rgba(255,255,255,.07); }
+  .job-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .job-main .sm-dim { font-size: 12px; overflow-wrap: anywhere; }
+  .job-bar { display: block; flex: none; height: 4px; margin-top: 4px; background: rgba(255,255,255,.12); border-radius: 2px; overflow: hidden; }
+  .job-bar > b { display: block; height: 100%; background: var(--accent, #D6A24C); transition: width .25s; }
+  .job-indef { opacity: .45; }
+  .job-acts { flex: none; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .job-empty { margin: 0; font-size: 12px; }
+  .job-done { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+  .job-done li { padding: 4px 0; border-top: 1px solid rgba(255,255,255,.07); }
+  @media (max-width: 520px) { .job-row { flex-wrap: wrap; } .job-acts { justify-content: flex-start; } }
   .bg-status-track { flex: 1 1 80px; min-width: 60px; height: 4px; background: rgba(255,255,255,.12); border-radius: 2px; overflow: hidden; }
   .bg-status-track b { display: block; height: 100%; width: 0; background: var(--accent, #D6A24C); transition: width .25s; }
   .rym-inbox { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 150; max-width: min(92vw, 640px); display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 14px; background: var(--panel, #1B212B); color: var(--text); border: 1px solid var(--accent, #D6A24C); border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.45); font-size: 13px; }
