@@ -52,8 +52,14 @@ suite('What arrives from the RYM add-on', () => {
     const out = app('rymCleanOutbox')([{ id: 'b1', t: 1, kind: 'update', releases: [{ artist: 'Neil Young', title: 'Decade', type: 'Boxset', releaseDate: '1977-10-28', recordedDate: '1966 to 1976', recordedPlace: '  Various,   LA  ', scene: ' Laurel Canyon ', rymLink: 'https://rateyourmusic.com/release/comp/neil-young/decade/',
       tracks: [{ title: 'Burned', rating: 3.56, votes: 74, url: 'https://rateyourmusic.com/song/neil-young/burned/' }, { title: 'Mr. Soul', rating: 0, votes: 80, url: 'https://evil.example/x' }] }] }]);
     const r = out[0].releases[0];
-    eq([r.type, r.releaseDate, r.recordedDate, r.location, r.scene], ['Album', '1977-10-28', '', 'Various, LA', 'Laurel Canyon']);
+    eq([r.type, r.releaseDate, r.recordedDate, r.location, r.scene, r.rymLink], ['Album', '1977-10-28', '', 'Various, LA', 'Laurel Canyon', 'https://rateyourmusic.com/release/comp/neil-young/decade/']);
     eq(r.tracks.map(t => [t.title, t.rating, t.votes, t.url]), [['Burned', 3.56, 74, 'https://rateyourmusic.com/song/neil-young/burned/'], ['Mr. Soul', 0, 0, '']]);
+  });
+  test('covers from a list page arrive: RYM pictures kept, apostrophes encoded, anything unsafe dropped', () => {
+    const c = (cover) => app('rymCleanOutbox')([{ id: 'b1', t: 1, releases: [{ artist: 'A', title: 'T', cover }] }])[0].releases[0].cover;
+    const pic = 'https://e.snmc.io/i/150/s/3fad714090bb479e47bc62d91512a78b/1721505/Wckr%20Spgt%20-%20Dance%20Til%20You%20Stop%2C%20Cover%20art.jpeg';
+    eq([c(pic), c("https://e.snmc.io/i/150/s/aa/1/Tomorrow's%20Revue.jpeg"), c('http://e.snmc.io/i/1.jpg'), c('https://x.io/a"b.jpg'), c('javascript:alert(1)'), c(undefined)],
+       [pic, 'https://e.snmc.io/i/150/s/aa/1/Tomorrow%27s%20Revue.jpeg', '', '', '', '']);
   });
   test('tracklists seen while browsing keep counts and links, and need two tracks', () => {
     const l = app('rymCleanTracklists')([{ p: '/release/album/a/b', tracks: [{ title: 'One', rating: 4.1, votes: 12, url: 'https://rateyourmusic.com/song/a/one/' }, { title: 'Two' }] }, { p: '/release/album/a/c', tracks: [{ title: 'Alone' }] }]);
