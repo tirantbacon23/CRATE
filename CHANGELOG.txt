@@ -17,7 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.78.4
+  CURRENT_VERSION: 1.78.5
+
+  1.78.5 — 2026-11-04 — After an update, CRATE loads as one matching set of files. Page only.
+          Since 1.78.0 split the page into files, a browser could keep each
+          one for up to 10 minutes after a release: the version shown stayed
+          behind, and new files could be mixed with old ones. Each file is
+          now asked for with the version (js/22-deck.js?v=1.78.5), so the
+          new page always brings the new files with it.
 
   1.78.4 — 2026-11-04 — Fix: deleting several selected releases deleted only the one you right-clicked. Page only.
           With releases selected, the menu now reads "Delete 3 selected from

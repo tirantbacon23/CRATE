@@ -4,7 +4,8 @@
   The page is split into: this file (the markup), css/crate.css (the styles), js/*.js (the script, by feature, loaded in
   order; the app starts in js/99-boot.js), CHANGELOG.txt (every release, newest first; the ⚙ menu's Update log reads it)
   and tests/ (automated checks: see tests/README.md).
-  Making a change: bump APP_VERSION in js/01-core.js and CURRENT_VERSION in CHANGELOG.txt to the same value, add an entry
+  Making a change: bump APP_VERSION in js/01-core.js, CURRENT_VERSION in CHANGELOG.txt and every ?v= below to the same value
+  (the ?v= makes a browser fetch the whole new set together, not mix in files it saved from the last release), add an entry
   to the top of CHANGELOG.txt, and run the tests.
 -->
 <html lang="en">
@@ -2160,41 +2161,41 @@
   </div>
 </div>
 
-<script src="js/01-core.js"></script>
-<script src="js/02-auth.js"></script>
-<script src="js/03-taxonomy-layout.js"></script>
-<script src="js/04-obsidian-export.js"></script>
-<script src="js/05-init-genres.js"></script>
-<script src="js/06-events.js"></script>
-<script src="js/07-prefs-fetch.js"></script>
-<script src="js/08-tabs-panels.js"></script>
-<script src="js/09-descriptors-mood-merge.js"></script>
-<script src="js/10-filters-search.js"></script>
-<script src="js/11-grid-player.js"></script>
-<script src="js/12-player-menus.js"></script>
-<script src="js/13-diary-scrobbles-stats.js"></script>
-<script src="js/14-artist-playlists.js"></script>
-<script src="js/15-shuffle-artist-info.js"></script>
-<script src="js/16-tabbar-updatelog.js"></script>
-<script src="js/17-match-songs.js"></script>
-<script src="js/18-exchange.js"></script>
-<script src="js/19-sound.js"></script>
-<script src="js/20-export-import.js"></script>
-<script src="js/21-addon-genre-page.js"></script>
-<script src="js/22-deck.js"></script>
-<script src="js/23-timeline-map.js"></script>
-<script src="js/24-diary-log.js"></script>
-<script src="js/25-tracklist-add.js"></script>
-<script src="js/26-layout-dnd.js"></script>
-<script src="js/27-tracklist-builder-rym.js"></script>
-<script src="js/28-edit-links-youtube.js"></script>
-<script src="js/29-lastfm-scrobbling.js"></script>
-<script src="js/30-new-releases.js"></script>
-<script src="js/31-lastfm-import.js"></script>
-<script src="js/32-utils.js"></script>
-<script src="js/99-boot.js"></script>
+<script src="js/01-core.js?v=1.78.5"></script>
+<script src="js/02-auth.js?v=1.78.5"></script>
+<script src="js/03-taxonomy-layout.js?v=1.78.5"></script>
+<script src="js/04-obsidian-export.js?v=1.78.5"></script>
+<script src="js/05-init-genres.js?v=1.78.5"></script>
+<script src="js/06-events.js?v=1.78.5"></script>
+<script src="js/07-prefs-fetch.js?v=1.78.5"></script>
+<script src="js/08-tabs-panels.js?v=1.78.5"></script>
+<script src="js/09-descriptors-mood-merge.js?v=1.78.5"></script>
+<script src="js/10-filters-search.js?v=1.78.5"></script>
+<script src="js/11-grid-player.js?v=1.78.5"></script>
+<script src="js/12-player-menus.js?v=1.78.5"></script>
+<script src="js/13-diary-scrobbles-stats.js?v=1.78.5"></script>
+<script src="js/14-artist-playlists.js?v=1.78.5"></script>
+<script src="js/15-shuffle-artist-info.js?v=1.78.5"></script>
+<script src="js/16-tabbar-updatelog.js?v=1.78.5"></script>
+<script src="js/17-match-songs.js?v=1.78.5"></script>
+<script src="js/18-exchange.js?v=1.78.5"></script>
+<script src="js/19-sound.js?v=1.78.5"></script>
+<script src="js/20-export-import.js?v=1.78.5"></script>
+<script src="js/21-addon-genre-page.js?v=1.78.5"></script>
+<script src="js/22-deck.js?v=1.78.5"></script>
+<script src="js/23-timeline-map.js?v=1.78.5"></script>
+<script src="js/24-diary-log.js?v=1.78.5"></script>
+<script src="js/25-tracklist-add.js?v=1.78.5"></script>
+<script src="js/26-layout-dnd.js?v=1.78.5"></script>
+<script src="js/27-tracklist-builder-rym.js?v=1.78.5"></script>
+<script src="js/28-edit-links-youtube.js?v=1.78.5"></script>
+<script src="js/29-lastfm-scrobbling.js?v=1.78.5"></script>
+<script src="js/30-new-releases.js?v=1.78.5"></script>
+<script src="js/31-lastfm-import.js?v=1.78.5"></script>
+<script src="js/32-utils.js?v=1.78.5"></script>
+<script src="js/99-boot.js?v=1.78.5"></script>
 
-<link rel="stylesheet" href="css/crate.css">
+<link rel="stylesheet" href="css/crate.css?v=1.78.5">
 
 </body>
 </html>

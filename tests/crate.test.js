@@ -9,6 +9,11 @@ suite('Release and changelog', () => {
     const entries = app('parseUpdateLog')(text);
     ok(entries.length > 300, 'the log has its entries'); eq(entries[0].version, v, 'newest entry');
   });
+  test('index.html asks for every script and the styles with ?v=APP_VERSION, so a release loads as one set', async () => {
+    const html = await fetch('../index.html', { cache: 'no-cache' }).then(r => r.text()), v = app('APP_VERSION');
+    const refs = [...html.matchAll(/(?:src|href)="((?:js|css)\/[^"]+)"/g)].map(m => m[1]);
+    ok(refs.length >= 30, 'the scripts are listed'); eq(refs.filter(r => !r.endsWith('?v=' + v)), [], 'files without the current ?v=');
+  });
   test('the update log reads entries, summary and details', () => {
     const e = app('parseUpdateLog')('  CURRENT_VERSION: 2.0.0\n\n  2.0.0 — 2026-11-04 — First line.\n          more of it\n\n          Details here.\n  1.9.0 — 2026-11-01 — Older.\n');
     eq(e.map(x => [x.version, x.date, x.summary, x.hasDetails]), [['2.0.0', '2026-11-04', 'First line. more of it', true], ['1.9.0', '2026-11-01', 'Older.', false]]);
