@@ -244,3 +244,19 @@ suite('Rate Your Music without the reviews', () => {
     } finally { st.rymAutoApply = was[0]; it.rymLink = was[1]; it.releaseDate = was[2]; }
   });
 });
+
+suite('Dropping an export on the page', () => {
+  test('a .json export opens the import at its review, with the new releases ticked', async () => {
+    const st = app('state'), ex = st.raw[0], CX_FORMAT = app('CX_FORMAT'), CX_VERSION = app('CX_VERSION');
+    const json = JSON.stringify({ format: CX_FORMAT, version: CX_VERSION, releases: [{ artist: 'Zz Dropped', title: 'Dropped Album', type: 'Album', releaseDate: '2021' }, { artist: ex.artist, title: ex.title, type: ex.type, releaseDate: ex.releaseDate }] });
+    try {
+      await app('cxImportDropped')(new File([json], 'crate-export.json', { type: 'application/json' }));
+      const imp = app('cxImp');
+      eq([imp.releases.map(r => r.status), imp.selected.size], [['new', 'duplicate'], 1]);
+    } finally { app('closeCxImport')(); }
+  });
+  test('a file that is not an export is refused, and nothing opens', async () => {
+    await app('cxImportDropped')(new File(['x'], 'photo.png', { type: 'image/png' }));
+    ok(app("document.getElementById('cxImportOverlay').hidden"), 'the import stayed closed');
+  });
+});

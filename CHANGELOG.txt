@@ -17,7 +17,17 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.81.1
+  CURRENT_VERSION: 1.82.0
+
+  1.82.0 — 2026-11-04 — Drop a CRATE export anywhere on the page to import it. Page only.
+          Drag the .json file that Export makes onto CRATE: "Drop to import"
+          covers the page, and on letting go the import opens with the file
+          already read, at its review (new releases ticked, ones already in
+          your crate left out), exactly as "Choose a file…" does. Nothing is
+          added until you press Add. Only a drag that carries a file is
+          taken, so moving cards and playlists is unchanged; a file that
+          isn't an export (a picture, say) is refused with a message, and a
+          drop while an import is adding waits for you to drop it again.
 
   1.81.1 — 2026-11-04 — Match songs shows which YouTube video a kept link is, not just "Your link". Page only.
           A song whose YouTube link you already had now shows that video's

@@ -359,6 +359,30 @@ function cxImpRender() {
   cxEl('cxImpGo').textContent = chosen.length ? `Add ${cxN(chosen.length, 'release')}\u2026` : 'Add selected\u2026'; cxEl('cxImpGo').disabled = !chosen.length;
   cxCoverObserve();
 }
+// Drop a CRATE export (.json) anywhere on the page: the import opens with it read, at the review, as "Choose a file…" would. Only a drag
+// that carries files is taken (moving a card or a playlist is not), only once you're signed in, and never over an import that is adding.
+async function cxImportDropped(file) {
+  if (!file) return;
+  if (!/\.(json|txt)$/i.test(file.name || '') && !/json|text/i.test(file.type || '')) { flashGlobalToast(`\u201c${file.name}\u201d isn\u2019t a CRATE export: drop the .json file that Export makes.`); return; }
+  if (file.size > 50 * 1024 * 1024) { flashGlobalToast('That file is too big to be a CRATE export.'); return; }
+  if (cxImp && cxImp.running) { flashGlobalToast('An import is adding releases right now: drop the file again when it has finished.'); return; }
+  let text = ''; try { text = await file.text(); } catch (e) { flashGlobalToast('That file couldn\u2019t be read.'); return; }
+  if (!cxImp || cxEl('cxImportOverlay').hidden) openCxImport();
+  cxEl('cxImportOverlay').hidden = false; cxImpRead(text);
+}
+(function cxDropInit() {
+  let depth = 0, cover = null;
+  const files = (e) => !!(e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files'));
+  const ready = () => typeof state === 'object' && Array.isArray(state.raw) && state.raw.length > 0 && !!document.getElementById('cxImportOverlay');
+  const show = (on) => {
+    if (on && !cover) { cover = document.createElement('div'); cover.className = 'cx-drop'; cover.innerHTML = '<div class="cx-drop-box"><div class="cx-drop-t">Drop to import</div><div class="cx-drop-s">A CRATE export (.json): you\u2019ll review it before anything is added.</div></div>'; document.body.appendChild(cover); }
+    if (cover) cover.hidden = !on;
+  };
+  window.addEventListener('dragenter', (e) => { if (!files(e) || !ready()) return; e.preventDefault(); depth++; show(true); });
+  window.addEventListener('dragover', (e) => { if (!files(e) || !ready()) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+  window.addEventListener('dragleave', (e) => { if (!files(e)) return; depth = Math.max(0, depth - 1); if (!depth) show(false); });
+  window.addEventListener('drop', (e) => { if (!files(e)) return; e.preventDefault(); depth = 0; show(false); if (ready()) cxImportDropped(e.dataTransfer.files[0]); });
+})();
 async function cxImpRun(list) {                // list: [{ idx, shaped }]
   const st = cxImp; st.running = true; st.cancel = false; st.added = []; st.failed = []; st.coverOk = 0; st.coverMiss = 0;
   cxImpShow('cxImpProgress'); cxEl('cxImpResult').hidden = true; cxEl('cxImpCancel').hidden = false; cxEl('cxImpCancel').disabled = false; cxEl('cxImpBg').hidden = false; bgStatusHide();

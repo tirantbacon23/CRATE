@@ -4176,3 +4176,11 @@ html, body {
   @keyframes crate-arrive { 0% { opacity: 0; transform: scale(0.82) translateY(6px); filter: blur(3px) saturate(0); } 60% { opacity: 1; transform: scale(1.025); filter: none; } 100% { transform: scale(1); } }          /* (del-leave, backwards) */
   @keyframes crate-arrive-ring { 0%, 30% { box-shadow: 0 0 0 2px var(--accent), 0 0 18px -2px var(--accent); } 100% { box-shadow: 0 0 0 2px transparent, 0 0 18px -2px transparent; } }
   @media (prefers-reduced-motion: reduce) { #refreshBtn.syncing, .card-arrive { animation: none; } }
+
+  /* ---- a CRATE export dragged onto the page (20-export-import.js: cxDropInit) ---- */
+  .cx-drop { position: fixed; inset: 0; z-index: 95; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(8,10,13,0.72); pointer-events: none; animation: del-fade-in 140ms ease-out; }
+  .cx-drop[hidden] { display: none; }
+  .cx-drop-box { border: 2px dashed var(--accent); border-radius: 12px; padding: 36px 44px; text-align: center; background: var(--bg-elevated); max-width: 420px; }
+  .cx-drop-t { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 0.04em; color: var(--accent); }
+  .cx-drop-s { font-size: 13px; color: var(--text-dim); margin-top: 6px; }
+  @media (prefers-reduced-motion: reduce) { .cx-drop { animation: none; } }
