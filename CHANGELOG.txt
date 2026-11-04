@@ -17,7 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.78.3
+  CURRENT_VERSION: 1.78.4
+
+  1.78.4 — 2026-11-04 — Fix: deleting several selected releases deleted only the one you right-clicked. Page only.
+          With releases selected, the menu now reads "Delete 3 selected from
+          crate", lists them in the confirmation, and deletes them all. They
+          go from the bottom of the sheet up, since deleting one moves every
+          row below it; one that fails doesn't stop the rest, and you're told
+          how many were deleted.
 
   1.78.3 — 2026-11-04 — The background check for new releases runs once a day. Page only.
           It waited about 20 hours between checks, so it could run twice on

@@ -157,3 +157,17 @@ suite('New releases', () => {
     } finally { keys.forEach((k, i) => was[i] == null ? ls.removeItem(k) : ls.setItem(k, was[i])); }
   });
 });
+
+suite('Deleting releases', () => {
+  test('several are deleted from the bottom row up, so no row moves before its turn', async () => {
+    const sent = [], items = [{ row: 12 }, { row: 40 }, { row: 7 }, { row: 0 }];
+    const r = await app('deleteAlbumRows')(items, async (p) => { sent.push([p.action, p.row]); });
+    eq(sent, [['deleteAlbum', 40], ['deleteAlbum', 12], ['deleteAlbum', 7]]); eq([r.done.length, r.failed.length], [3, 0]);
+  });
+  test('one that fails doesn’t stop the rest; signed out stops it', async () => {
+    const r = await app('deleteAlbumRows')([{ row: 3 }, { row: 9 }, { row: 5 }], async (p) => { if (p.row === 9) throw new Error('busy'); });
+    eq([r.done.map(x => x.row), r.failed.map(x => x.row)], [[5, 3], [9]]);
+    const s = await app('deleteAlbumRows')([{ row: 3 }, { row: 9 }], async () => { throw new Error('Unauthorized'); });
+    eq([s.done.length, s.failed.length], [0, 1]);
+  });
+});

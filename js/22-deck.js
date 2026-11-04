@@ -197,6 +197,30 @@ async function deleteAlbumFromContextMenu(item) {
   }
 }
 
+// Several selected releases at once. Each is deleted by its row in the sheet, and deleting one moves every row below it up, so they go
+// from the bottom up: the rows still to come are all above, and don't move. (One at a time, in the order picked, deleted the wrong releases
+// or stopped after the first; and the menu only ever deleted the one clicked.)
+async function deleteAlbumRows(items, post) {
+  const list = (items || []).filter(it => it && Number(it.row) > 0).sort((a, b) => Number(b.row) - Number(a.row)), done = [], failed = [];
+  for (const it of list) {
+    try { await post({ action: 'deleteAlbum', row: it.row }); done.push(it); }
+    catch (e) { failed.push(it); if (/unauthorized/i.test(String((e && e.message) || e))) break; }
+  }
+  return { done, failed };
+}
+async function deleteAlbumsFromContextMenu(items) {
+  if (!items || items.length < 2) return deleteAlbumFromContextMenu(items && items[0]);
+  const names = items.slice(0, 5).map(it => `• ${it.artist} — ${it.title}`).join('\n') + (items.length > 5 ? `\n…and ${items.length - 5} more` : '');
+  if (!confirm(`Delete these ${items.length} releases from your crate? This can’t be undone.\n\n${names}`)) return;
+  bgStatus(`Deleting ${items.length} releases…`, 30, {});
+  const r = await deleteAlbumRows(items, postUpdate);
+  if (activeItem && r.done.some(it => it.row === activeItem.row)) closeDeck();
+  state.selectedAlbums.clear();
+  try { await fetchCatalog(); } catch (e) { /* the sheet is changed; the list catches up next time */ }
+  const msg = `Deleted ${r.done.length} release${r.done.length === 1 ? '' : 's'}${r.failed.length ? `; ${r.failed.length} couldn’t be deleted — try again` : ''}`;
+  bgStatus(msg, 100, { close: true, always: true }); flashGlobalToast(msg);
+}
+
 async function removeAlbum(item) {
   clearTimeout(removeConfirmTimeout);
   el.deckRemoveBtn.disabled = true;
