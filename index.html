@@ -1958,6 +1958,7 @@
         <p id="rymCoverage" class="snd-coverage" role="status"></p>
         <fieldset class="cx-group"><legend>How it shows</legend>
           <label class="snd-opt"><input type="checkbox" id="rymShowNext"><span><b>Show it next to my rating</b><small>On cards and lists as “RYM 3.65”.</small></span></label>
+          <label class="snd-opt"><input type="checkbox" id="rymUpdateOnAdd"><span><b>Update new releases from Rate Your Music</b><small>A release you add with a Rate Your Music link gets its first update on its own, in the background, paced as any update is. Off: only when you ask.</small></span></label>
           <label class="snd-opt"><input type="checkbox" id="rymQueueMode"><span><b>Review updates in the queue</b><small>One screen for every “Update from Rate Your Music”, one release or many: what is safe (filling blanks, a better cover, a fuller tracklist) is applied as each page is read, and only what DIFFERS from what you have is left for you. Off: each update is reviewed on its own screen and nothing is applied until you press Apply.</small></span></label>
           <label class="snd-opt"><input type="checkbox" id="rymTickDiffs"><span><b>Tick the differences too</b><small>In the update queue, what DIFFERS from what you have (your label “K” against RYM’s “K Records”) starts ticked, so one press of “Apply” takes them all. Nothing is applied until you press it, and the update log keeps what each value was. Off: they start unticked and you tick the ones you want.</small></span></label>
           <label class="snd-opt"><input type="checkbox" id="rymBold"><span><b>Bold the top-ranked</b><small>Like Rate Your Music: a release is bold when it is ranked within RYM’s overall top <input type="text" inputmode="numeric" id="rymBoldRank" class="rym-num"> (its rank is saved when you visit its page, or update it from there). Releases with no known rank are never bold.</small></span></label>
@@ -2161,41 +2162,41 @@
   </div>
 </div>
 
-<script src="js/01-core.js?v=1.79.1"></script>
-<script src="js/02-auth.js?v=1.79.1"></script>
-<script src="js/03-taxonomy-layout.js?v=1.79.1"></script>
-<script src="js/04-obsidian-export.js?v=1.79.1"></script>
-<script src="js/05-init-genres.js?v=1.79.1"></script>
-<script src="js/06-events.js?v=1.79.1"></script>
-<script src="js/07-prefs-fetch.js?v=1.79.1"></script>
-<script src="js/08-tabs-panels.js?v=1.79.1"></script>
-<script src="js/09-descriptors-mood-merge.js?v=1.79.1"></script>
-<script src="js/10-filters-search.js?v=1.79.1"></script>
-<script src="js/11-grid-player.js?v=1.79.1"></script>
-<script src="js/12-player-menus.js?v=1.79.1"></script>
-<script src="js/13-diary-scrobbles-stats.js?v=1.79.1"></script>
-<script src="js/14-artist-playlists.js?v=1.79.1"></script>
-<script src="js/15-shuffle-artist-info.js?v=1.79.1"></script>
-<script src="js/16-tabbar-updatelog.js?v=1.79.1"></script>
-<script src="js/17-match-songs.js?v=1.79.1"></script>
-<script src="js/18-exchange.js?v=1.79.1"></script>
-<script src="js/19-sound.js?v=1.79.1"></script>
-<script src="js/20-export-import.js?v=1.79.1"></script>
-<script src="js/21-addon-genre-page.js?v=1.79.1"></script>
-<script src="js/22-deck.js?v=1.79.1"></script>
-<script src="js/23-timeline-map.js?v=1.79.1"></script>
-<script src="js/24-diary-log.js?v=1.79.1"></script>
-<script src="js/25-tracklist-add.js?v=1.79.1"></script>
-<script src="js/26-layout-dnd.js?v=1.79.1"></script>
-<script src="js/27-tracklist-builder-rym.js?v=1.79.1"></script>
-<script src="js/28-edit-links-youtube.js?v=1.79.1"></script>
-<script src="js/29-lastfm-scrobbling.js?v=1.79.1"></script>
-<script src="js/30-new-releases.js?v=1.79.1"></script>
-<script src="js/31-lastfm-import.js?v=1.79.1"></script>
-<script src="js/32-utils.js?v=1.79.1"></script>
-<script src="js/99-boot.js?v=1.79.1"></script>
+<script src="js/01-core.js?v=1.80.0"></script>
+<script src="js/02-auth.js?v=1.80.0"></script>
+<script src="js/03-taxonomy-layout.js?v=1.80.0"></script>
+<script src="js/04-obsidian-export.js?v=1.80.0"></script>
+<script src="js/05-init-genres.js?v=1.80.0"></script>
+<script src="js/06-events.js?v=1.80.0"></script>
+<script src="js/07-prefs-fetch.js?v=1.80.0"></script>
+<script src="js/08-tabs-panels.js?v=1.80.0"></script>
+<script src="js/09-descriptors-mood-merge.js?v=1.80.0"></script>
+<script src="js/10-filters-search.js?v=1.80.0"></script>
+<script src="js/11-grid-player.js?v=1.80.0"></script>
+<script src="js/12-player-menus.js?v=1.80.0"></script>
+<script src="js/13-diary-scrobbles-stats.js?v=1.80.0"></script>
+<script src="js/14-artist-playlists.js?v=1.80.0"></script>
+<script src="js/15-shuffle-artist-info.js?v=1.80.0"></script>
+<script src="js/16-tabbar-updatelog.js?v=1.80.0"></script>
+<script src="js/17-match-songs.js?v=1.80.0"></script>
+<script src="js/18-exchange.js?v=1.80.0"></script>
+<script src="js/19-sound.js?v=1.80.0"></script>
+<script src="js/20-export-import.js?v=1.80.0"></script>
+<script src="js/21-addon-genre-page.js?v=1.80.0"></script>
+<script src="js/22-deck.js?v=1.80.0"></script>
+<script src="js/23-timeline-map.js?v=1.80.0"></script>
+<script src="js/24-diary-log.js?v=1.80.0"></script>
+<script src="js/25-tracklist-add.js?v=1.80.0"></script>
+<script src="js/26-layout-dnd.js?v=1.80.0"></script>
+<script src="js/27-tracklist-builder-rym.js?v=1.80.0"></script>
+<script src="js/28-edit-links-youtube.js?v=1.80.0"></script>
+<script src="js/29-lastfm-scrobbling.js?v=1.80.0"></script>
+<script src="js/30-new-releases.js?v=1.80.0"></script>
+<script src="js/31-lastfm-import.js?v=1.80.0"></script>
+<script src="js/32-utils.js?v=1.80.0"></script>
+<script src="js/99-boot.js?v=1.80.0"></script>
 
-<link rel="stylesheet" href="css/crate.css?v=1.79.1">
+<link rel="stylesheet" href="css/crate.css?v=1.80.0">
 
 </body>
 </html>

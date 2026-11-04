@@ -5,7 +5,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.79.1';
+const APP_VERSION = '1.80.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -419,7 +419,7 @@ let rymQEShown = 40;
 function openRymDialog() { rymQEShown = 40; rymRenderSettings(); rymEl('rymOverlay').hidden = false; el.layoutMenu.hidden = true; rymPaintDialog(); rymRequestFromAddon(); }
 function closeRymDialog() { const ov = rymEl('rymOverlay'); if (ov && !ov.hidden) ov.hidden = true; }
 function rymRenderSettings() {
-  rymEl('rymGenreAuto').checked = !!state.rymGenreAuto; rymEl('rymShowNext').checked = !!state.rymShowNext; rymEl('rymBold').checked = !!state.rymBold; rymEl('rymQueueMode').checked = !!state.rymQueueMode; rymEl('rymTickDiffs').checked = !!state.rymTickDiffs; rymEl('rymAuto').checked = !!state.rymAuto;
+  rymEl('rymGenreAuto').checked = !!state.rymGenreAuto; rymEl('rymShowNext').checked = !!state.rymShowNext; rymEl('rymBold').checked = !!state.rymBold; rymEl('rymQueueMode').checked = !!state.rymQueueMode; rymEl('rymUpdateOnAdd').checked = !!state.rymUpdateOnAdd; rymEl('rymTickDiffs').checked = !!state.rymTickDiffs; rymEl('rymAuto').checked = !!state.rymAuto;
   rymEl('rymBoldRank').value = String(state.rymBoldRank);
 }
 function rymQueue() {
@@ -502,7 +502,7 @@ function initRymRatings() {
   rymEl('rymClose').addEventListener('click', closeRymDialog);
   ov.addEventListener('mousedown', (e) => { if (e.target === ov) closeRymDialog(); });
   const setting = (id, key, num) => rymEl(id).addEventListener('change', (e) => { if (num) { const v = rymNum(e.target.value); if (!v) { e.target.value = String(state[key]); return; } state[key] = v; } else state[key] = e.target.checked; savePrefs(); rymRefreshViews(); });
-  setting('rymShowNext', 'rymShowNext'); setting('rymBold', 'rymBold'); setting('rymQueueMode', 'rymQueueMode'); setting('rymTickDiffs', 'rymTickDiffs'); setting('rymAuto', 'rymAuto'); rymEl('rymBoldRank').addEventListener('change', (e) => { const v = rymVotesNum(e.target.value); if (!v) { e.target.value = String(state.rymBoldRank); return; } state.rymBoldRank = v; savePrefs(); rymRefreshViews(); });
+  setting('rymShowNext', 'rymShowNext'); setting('rymBold', 'rymBold'); setting('rymQueueMode', 'rymQueueMode'); setting('rymUpdateOnAdd', 'rymUpdateOnAdd'); setting('rymTickDiffs', 'rymTickDiffs'); setting('rymAuto', 'rymAuto'); rymEl('rymBoldRank').addEventListener('change', (e) => { const v = rymVotesNum(e.target.value); if (!v) { e.target.value = String(state.rymBoldRank); return; } state.rymBoldRank = v; savePrefs(); rymRefreshViews(); });
   rymEl('deckRymUpdate').addEventListener('click', () => { if (activeItem) rymFetchUpdates([activeItem]); });
   rymEl('rymQEFilter').addEventListener('change', () => { rymQEShown = 40; rymPaintQE(); }); rymEl('rymQESort').addEventListener('change', () => { rymQEShown = 40; rymPaintQE(); });
   rymEl('rymQEMore').addEventListener('click', () => { rymQEShown += 40; rymPaintQE(); });
@@ -877,7 +877,7 @@ const state = {
   // once rather than per-row, matching the reference this was built from.
   showTrackCredits: false,
   chartGenre: null, // last-selected genre in the Release Chart element (Main panel) — see renderChartElement()
-  rymBold: true, rymBoldRank: 7500, rymQueueMode: !window.__CRATE_LEGACY_REVIEW, rymTickDiffs: true, rymShowNext: true, rymAuto: true, rymMin: 0, rymMissingOnly: false, backendRym: false, backendRymHist: false, backendTaxChunks: false, rymGenreAuto: true,   // RYM ratings (see rym-data)
+  rymBold: true, rymBoldRank: 7500, rymQueueMode: !window.__CRATE_LEGACY_REVIEW, rymUpdateOnAdd: true, rymTickDiffs: true, rymShowNext: true, rymAuto: true, rymMin: 0, rymMissingOnly: false, backendRym: false, backendRymHist: false, backendTaxChunks: false, rymGenreAuto: true,   // RYM ratings (see rym-data)
   genreNavExact: false, // when on, the genre picked in the left panel shows only releases tagged with THAT genre, not ones under it in the taxonomy (and the counts follow)
   genreRole: 'any',   // which of a release's genres a genre filter looks at: 'any' (Genre + Secondary Genre), 'primary' (Genre only), 'secondary' (Secondary Genre only) — see genre-role
   firstGenreOnly: false, // when on, a genre only counts if it is the FIRST one listed on a release (left-panel genre filter, genre: searches, Release Chart) — see filterGenreTags

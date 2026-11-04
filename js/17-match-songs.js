@@ -528,9 +528,10 @@ function bmAutoRun() {
   const later = (ms) => { if (++bmAuto.tries <= 40) bmAuto.timer = setTimeout(bmAutoRun, ms); else bmAuto.pending = []; };          // (given up after a while: they are still in the match queue)
   if ((typeof cxImp !== 'undefined' && cxImp && cxImp.running) || (bm && !bm.started)) { later(15000); return; }          // an import still adding, or Match songs open at its start: afterwards
   const byKey = new Map(); state.raw.forEach(r => { const k = mqKey(r.artist, r.title); if (!byKey.has(k)) byKey.set(k, r); });
-  const found = bmAuto.pending.map(e => byKey.get(e.k)).filter(Boolean);
-  if (found.length < bmAuto.pending.length && bmAuto.tries < 3) { later(10000); return; }          // the rest may not have reached the list yet
-  bmAuto.pending = bmAuto.pending.filter(e => !byKey.has(e.k));
+  const all = bmAuto.pending.map(e => byKey.get(e.k)).filter(Boolean);
+  if (all.length < bmAuto.pending.length && bmAuto.tries < 3) { later(10000); return; }          // the rest may not have reached the list yet
+  const held = new Set(all.filter(it => rymAddHolding(it)).map(it => mqKey(it.artist, it.title))), found = all.filter(it => !held.has(mqKey(it.artist, it.title)));          // (still to be updated from Rate Your Music: matched after that)
+  bmAuto.pending = bmAuto.pending.filter(e => !byKey.has(e.k) || held.has(e.k));
   const svc = { spotify: !!(loadSpotifyCreds() || {}).clientId, youtube: ytUseAddon() }, kinds = ['spotify', 'youtube'].filter(k => svc[k]);
   if (!kinds.length) { bmAuto.pending = []; return; }          // nothing to match with: they wait in the match queue as before
   const items = found.filter(it => !bmFullyLinked(it, kinds) && !(bm && bm.rels.some(r => r.item === it)));
@@ -547,7 +548,8 @@ function bmAutoRun() {
     }
     jobsRefresh();
   }
-  if (bmAuto.pending.length) later(20000);
+  if (held.size) { clearTimeout(bmAuto.timer); bmAuto.timer = setTimeout(bmAutoRun, 15000); }          // (waiting for RYM is not a failed try)
+  else if (bmAuto.pending.length) later(20000);
 }
 // ----- the lanes: each service works through the releases at its own pace -----
 function bmSongs(rel) { return rel.songsP || (rel.songsP = smBuildSongs(rel.item).then(s => { rel.songs = s; return s; })); }

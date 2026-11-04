@@ -207,3 +207,27 @@ suite('Syncing the crate quietly', () => {
     } finally { st.raw = was; }
   });
 });
+
+suite('New releases: added, then updated from Rate Your Music, then matched', () => {
+  const rel = (o) => Object.assign({ artist: 'Wckr Spgt', title: 'Dance Til You Stop', row: 9, rymLink: 'https://rateyourmusic.com/release/album/wckr-spgt/dance-til-you-stop/', rymUpdated: '' }, o);
+  test('only new releases with a RYM link that have never been updated, and only with the setting on', () => {
+    const st = app('state'), was = st.rymUpdateOnAdd, pick = app('rymUpdateAddedPick');
+    try {
+      st.rymUpdateOnAdd = true;
+      eq(pick([rel(), rel({ rymLink: '' }), rel({ rymUpdated: '2026-01-01' })]).length, 1);
+      st.rymUpdateOnAdd = false; eq(pick([rel()]).length, 0);
+    } finally { st.rymUpdateOnAdd = was; }
+  });
+  test('matching waits for the RYM update, and goes ahead once it is done or nothing is running', () => {
+    const st = app('state'), out = app('rymOutState'), fs = app('rymFetchState'), held = app('rymAddHolding'), was = [st.rymUpdateOnAdd, out.present, fs.active];
+    try {
+      st.rymUpdateOnAdd = true; out.present = true; fs.active = true; const t0 = Date.now();
+      const a = rel({ title: 'Hold test ' + t0 });
+      eq([held(a, t0), held(a, t0 + 600000)], [true, true], 'while RYM is running');
+      eq(held(rel({ title: 'Hold test ' + t0, rymUpdated: 'now' }), t0 + 600001), false, 'updated');
+      const b = rel({ title: 'Idle test ' + t0 }); fs.active = false;
+      eq([held(b, t0 + 600002), held(b, t0 + 700000), held(b, t0 + 700001)], [true, false, false], 'nothing running for 90 s: freed, and stays freed');
+      out.present = false; eq(held(rel({ title: 'No addon ' + t0 }), t0), false, 'no add-on');
+    } finally { st.rymUpdateOnAdd = was[0]; out.present = was[1]; fs.active = was[2]; }
+  });
+});

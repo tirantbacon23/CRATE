@@ -365,6 +365,28 @@ function rymFetchUpdates(items, opts) {
   window.postMessage({ source: 'crate-app', type: 'rym-fetch-start', items: use.map(it => ({ id: it.row, url: rymUpdateUrl(it) })) }, window.location.origin);
   clearTimeout(rymFetchState.ackTimer); rymFetchState.ackTimer = setTimeout(() => { if (!rymFetchState.active) { flashGlobalToast(rymFetchWhy('noanswer')); if (state.rymQueueMode) rymQAbort(); } }, 3000);
 }
+// Releases that just came into the crate (an add, an import, a batch from the add-on: they arrive with the quiet sync after it) get their first
+// "Update from Rate Your Music" on their own, as a queued run: no question first, and it waits its turn behind a run already going. Only those
+// with a RYM link that have never been updated, only when the add-on has been heard from on this page, and only with the setting on.
+function rymUpdateAddedPick(added) { return state.rymUpdateOnAdd ? (added || []).filter(it => it && !it.rymUpdated && rymUpdateUrl(it)) : []; }
+function rymUpdateAdded(added) {
+  const todo = rymUpdateAddedPick(added); if (!todo.length || !rymOutState.present) return;
+  flashGlobalToast(`Updating ${todo.length === 1 ? `\u201c${todo[0].title}\u201d` : `${todo.length} new releases`} from Rate Your Music in the background${todo.length > 1 ? ' \u2014 one page every 8 to 15 seconds' : ''}.`);
+  rymFetchUpdates(todo, { queued: true });
+}
+// The order for a new release: added, then updated from Rate Your Music, then its songs matched (bmAutoRun asks here first), so the matching
+// works on RYM's tracklist. A release is held while its first update is still to come: until it has had it, or nothing from RYM has been
+// running or waiting for a minute and a half (a run stopped for a check, updates left for you to review), or after three hours at most.
+const rymAddHold = new Map(), rymAddFreed = new Set(); let rymAddBusyAt = 0;
+function rymAddHolding(it, now) {
+  now = now || Date.now(); const k = mqKey(it.artist, it.title);
+  if (rymAddFreed.has(k) || !rymOutState.present || !rymUpdateAddedPick([it]).length) { rymAddHold.delete(k); return false; }
+  if (!rymAddHold.has(k)) rymAddHold.set(k, now);
+  if (rymFetchState.active || jobsState.waiting.length) rymAddBusyAt = now;
+  const since = rymAddHold.get(k);
+  if (now - Math.max(rymAddBusyAt, since) > 90000 || now - since > 3 * 3600000) { rymAddHold.delete(k); rymAddFreed.add(k); return false; }
+  return true;
+}
 function rymFetchCancel() { window.postMessage({ source: 'crate-app', type: 'rym-fetch-cancel' }, window.location.origin); }
 function rymFetchContinue() { window.postMessage({ source: 'crate-app', type: 'rym-fetch-continue' }, window.location.origin); }
 function rymFetchProgress(d) {

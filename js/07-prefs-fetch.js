@@ -43,7 +43,7 @@ function loadPrefs() {
     if (typeof p.firstGenreOnly === 'boolean') state.firstGenreOnly = p.firstGenreOnly;
     if (typeof p.genreNavExact === 'boolean') state.genreNavExact = p.genreNavExact;
     if (['any', 'primary', 'secondary'].includes(p.genreRole)) state.genreRole = p.genreRole;
-    ['rymBold', 'rymShowNext', 'rymAuto', 'rymMissingOnly', 'rymGenreAuto', 'rymQueueMode', 'rymTickDiffs'].forEach(k => { if (typeof p[k] === 'boolean') state[k] = p[k]; });
+    ['rymBold', 'rymShowNext', 'rymAuto', 'rymMissingOnly', 'rymGenreAuto', 'rymQueueMode', 'rymTickDiffs', 'rymUpdateOnAdd'].forEach(k => { if (typeof p[k] === 'boolean') state[k] = p[k]; });
     if (rymVotesNum(p.rymBoldRank)) state.rymBoldRank = rymVotesNum(p.rymBoldRank);
     if ([0, 3, 3.5, 3.8, 4, 4.5].includes(Number(p.rymMin))) state.rymMin = Number(p.rymMin);
     if (p.panelWidths) state.panelWidths = Object.assign({}, state.panelWidths, p.panelWidths);
@@ -124,7 +124,7 @@ function savePrefs() {
       shuffle: state.shuffle,
       genreSearchMode: state.genreSearchMode,
       firstGenreOnly: state.firstGenreOnly, genreRole: state.genreRole, genreNavExact: state.genreNavExact,
-      rymGenreAuto: state.rymGenreAuto, rymBold: state.rymBold, rymQueueMode: state.rymQueueMode, rymTickDiffs: state.rymTickDiffs, rymShowNext: state.rymShowNext, rymAuto: state.rymAuto, rymMissingOnly: state.rymMissingOnly, rymBoldRank: state.rymBoldRank, rymMin: state.rymMin,
+      rymGenreAuto: state.rymGenreAuto, rymBold: state.rymBold, rymQueueMode: state.rymQueueMode, rymUpdateOnAdd: state.rymUpdateOnAdd, rymTickDiffs: state.rymTickDiffs, rymShowNext: state.rymShowNext, rymAuto: state.rymAuto, rymMissingOnly: state.rymMissingOnly, rymBoldRank: state.rymBoldRank, rymMin: state.rymMin,
       statsMode: state.statsMode,
       rightPanelShowQueue: state.rightPanelShowQueue,
       rightPanelShowHistory: state.rightPanelShowHistory,
@@ -530,7 +530,7 @@ async function fetchCatalogOnce(opts) {
     if (state.activeTab === 'artist') { renderArtistList(); renderArtistDetail(); }
     checkAlbumAnniversaries();
     checkForDuplicateRows();
-    if (quiet) catalogMarkArrived(rec.added);
+    if (quiet) { catalogMarkArrived(rec.added); rymUpdateAdded(rec.added); }
   } catch (err) {
     console.error(err);
     // AbortError is fetchWithTimeout's controller.abort() firing — a real

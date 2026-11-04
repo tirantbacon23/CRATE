@@ -17,7 +17,22 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.79.1
+  CURRENT_VERSION: 1.80.0
+
+  1.80.0 — 2026-11-04 — New releases are updated from Rate Your Music on their own, then their songs matched. Page only.
+          A release you add that has a Rate Your Music link (from the
+          add-on, an import, or the Add form) now gets its first "Update
+          from Rate Your Music" by itself, in the background, as a queued
+          run: no question first, paced like any update (one page every 8
+          to 15 seconds), and behind a run that is already going. Only
+          releases never updated before, and only when the add-on has
+          answered on this page. Matching its songs to Spotify and YouTube
+          now waits for that update, so it works on RYM's tracklist: the
+          order is added, updated, matched. If the update can't happen (RYM
+          asks for a check, or what differs is left for you to review),
+          matching goes ahead after a minute and a half with nothing
+          running. Switch it off in RYM ratings & genres, "Update new
+          releases from Rate Your Music".
 
   1.79.1 — 2026-11-04 — Releases sent from the RYM add-on keep their cover and RYM link. Page only.
           Both were written on the same line as a comment in the code that
