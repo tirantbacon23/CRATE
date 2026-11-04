@@ -567,7 +567,7 @@ function trackRowKey(row) {
 // case-folded strings otherwise.
 function trackSortValue(row, key) {
   if (key === 'rymTrackWR' || key === 'rymTrackPop' || key === 'rymTrackStand') { const v = trackPopOf(row.item, row.track.trackNumber), x = v ? (key === 'rymTrackWR' ? v.wr : key === 'rymTrackPop' ? v.pop : v.stand) : null; return x === null || x === undefined ? -1e9 : x; }          // numbers, and tracks without one last when sorting high to low
-  if (key === 'num') return row.track.trackNumber || 0;
+  if (key === 'num') return row.idx + 1;                     // its place in the tracklist, the number shown
   if (key === 'name') return (row.track.trackName || '').toLowerCase();
   if (key === 'plays') return trackScrobbleCountFor(row.item.artist, row.item.title, row.track.trackName) || 0;
   if (key === 'trackLength') return row.track.trackTimeMillis || 0;
@@ -620,7 +620,7 @@ function renderFlatTrackTable() {
     const selected = state.selectedTracks.has(rowKey);
     return `
       <div class="main-track-row${selected ? ' selected' : ''}" data-track-key="${rowKey}" tabindex="0" style="grid-template-columns: ${template}">
-        <span class="mt-num">${t.trackNumber || ''}</span>
+        <span class="mt-num">${trackNumHtml(t, row.idx)}</span>
         <span class="mt-title" title="${escapeHtml(t.trackName || '')}">${escapeHtml(t.trackName || '')}</span>
         ${colsHtml}
         <span class="mt-plays">${scrobbleCount > 0 ? scrobbleCount : ''}</span>
@@ -839,7 +839,7 @@ function loadTracksForList(list, mode) {
           const selected = state.selectedTracks.has(rowKey);
           return `
           <div class="track-row${selected ? ' selected' : ''}" data-track-key="${rowKey}" tabindex="0">
-            <span class="track-num">${t.trackNumber || ''}</span>
+            <span class="track-num">${trackNumHtml(t, i)}</span>
             <span class="track-name">
               ${(!manual || t.spotifyLink) ? `<button type="button" class="track-play-btn" data-row="${escapeHtml(String(item.row))}" data-track-num="${escapeHtml(String(t.trackNumber || ''))}" data-track-name="${escapeHtml(trackName)}" title="Play on Spotify" aria-label="Play ${escapeHtml(trackName)} on Spotify">▶</button>` : ''}
               ${t.youtubeLink ? `<button type="button" class="track-play-yt-btn" data-youtube-link="${escapeHtml(t.youtubeLink)}" data-track-name="${escapeHtml(trackName)}" data-row="${escapeHtml(String(item.row))}" title="Play on YouTube" aria-label="Play ${escapeHtml(trackName)} on YouTube">▶ YT</button>` : ''}
@@ -967,7 +967,7 @@ async function getTracksFor(item) {
     const tracks = item.manualTracks.map(t => ({
       trackNumber: t.trackNumber,
       trackName: t.title,
-      trackTimeMillis: t.durationMs || null, section: t.section || '', s: t.s || '',
+      trackTimeMillis: t.durationMs || null, section: t.section || '', s: t.s || '', pos: t.pos || '',
       youtubeLink: t.youtubeLink || ''
     }));
     // mergeTrackLinkOverrides reads item.trackData, which can be malformed
@@ -1040,7 +1040,8 @@ async function getTracksFor(item) {
                     // is on, so keep that separately (iTunes results already carry the same
                     // two fields): the Album Quick Peek uses them to mark where each disc starts.
                     discNumber: media.position || mi + 1,
-                    discCount: mbData.media.length
+                    discCount: mbData.media.length,
+                    pos: /[A-Za-z]/.test(t.number || '') ? String(t.number) : mbData.media.length > 1 && t.number ? `${media.position || mi + 1}-${t.number}` : ''
                   });
                   trackCounter++;
                 });
@@ -2260,7 +2261,7 @@ function qpAction(a, btn) {
   else if (a === 'sel-play') { const sel = qpSelectionItems(); if (!sel.length) return; playTrackNow(item, sel[0].trackName, sel[0].trackNum); if (sel.length > 1) setTimeout(() => queueTracksNow(sel.slice(1)), 400); }
   else if (a === 'sel-queue') { const sel = qpSelectionItems(); if (sel.length) queueTracksNow(sel); }
 }
-function quickPeekTrackRowHtml(item, t) {
+function quickPeekTrackRowHtml(item, t, ord) {
   const tNum = t.trackNumber || 0;
   const d = (item.trackData && item.trackData[tNum]) || {};
   const rating = Number(d.rating) || 0, note = String(d.note || '').trim(), genre = String(d.genre || '').trim();
@@ -2281,7 +2282,7 @@ function quickPeekTrackRowHtml(item, t) {
   return `
       <div class="album-quick-peek-track${isNow ? ' now' : ''}" data-track-num="${escapeHtml(String(t.trackNumber || ''))}" data-track-name="${escapeHtml(t.trackName || '')}">
         <button type="button" class="album-quick-peek-track-play" title="Play this track" aria-label="Play ${escapeHtml(t.trackName || 'this track')}">▶</button>
-        <span class="album-quick-peek-track-num">${t.trackNumber || ''}</span>
+        <span class="album-quick-peek-track-num">${trackNumHtml(t, ord)}</span>
         <span class="album-quick-peek-track-name"><span class="qp-title${rymBoldTrackClass(t)}">${escapeHtml(t.trackName || '')}</span>${songFlagHtml(item, t)}${t.trackExplicitness === 'explicit' ? '<span class="qp-explicit" title="Explicit">E</span>' : ''}</span>
         ${bits.length ? `<span class="album-quick-peek-track-details">${bits.join('')}</span>` : ''}
         ${rymBar}${linkMarks}<span class="album-quick-peek-track-time">${formatDuration(t.trackTimeMillis)}</span>
@@ -2394,6 +2395,7 @@ function openAlbumQuickPeek(item, cardEl) {
     // UNLESS the whole album was added as a single item (type: 'album'),
     // in which case every track legitimately belongs and the full
     // tracklist is exactly right.
+    const fullList = tracks;                                         // a song's number is its place in the WHOLE tracklist, whatever is filtered out below
     if (state.activePlaylistId) {
       const playlist = state.playlists.find(p => p.id === state.activePlaylistId);
       const albumItems = playlist ? playlist.items.filter(it => (item.albumId && it.albumId) ? it.albumId === item.albumId : String(it.row) === String(item.row)) : [];
@@ -2422,7 +2424,7 @@ function openAlbumQuickPeek(item, cardEl) {
       let head = multiDisc && disc !== lastDisc ? `<div class="album-quick-peek-disc">Disc ${disc}</div>` : '';
       if (sided && (t.section || '') !== lastSide && t.section) head += `<div class="album-quick-peek-disc">${escapeHtml(/^[A-Z]$/i.test(t.section) ? 'Side ' + t.section.toUpperCase() : t.section)}</div>`;
       lastDisc = disc; lastSide = t.section || lastSide;
-      return head + quickPeekTrackRowHtml(item, t);
+      return head + quickPeekTrackRowHtml(item, t, fullList.indexOf(t));
     }).join('') : '<p class="tracklist-status">No tracklist found for this release.</p>';
     {                                                                // songs and length in the header line, and how many songs each service can play
       const total = tracks.reduce((a, t) => a + (t.trackTimeMillis || 0), 0), lenEl = el.albumQuickPeekSub.querySelector('.qp-len');

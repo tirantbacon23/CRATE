@@ -21,7 +21,7 @@ async function loadTracklist(item) {
     const tracks = item.manualTracks.map(t => ({
       trackNumber: t.trackNumber,
       trackName: t.title,
-      trackTimeMillis: t.durationMs || null, section: t.section || '', s: t.s || '',
+      trackTimeMillis: t.durationMs || null, section: t.section || '', s: t.s || '', pos: t.pos || '',
       youtubeLink: t.youtubeLink || ''
     }));
     mergeTrackLinkOverrides(item, tracks);
@@ -114,7 +114,7 @@ function renderTracklistBody(item, tracks) {
     return `${secHtml}
       <div class="track-row-wrap${selected ? ' selected' : ''}" data-track="${tNum}" data-track-key="${rowKey}">
         <div class="track-row">
-          <span class="track-num">${pos + 1}</span>
+          <span class="track-num">${trackNumHtml(t, pos)}</span>
           <div class="track-info-main">
              ${(!manual || t.spotifyLink) ? `<button type="button" class="track-play-btn" data-track-name="${escapeHtml(t.trackName || '')}" title="Play on Spotify" aria-label="Play ${escapeHtml(t.trackName || '')} on Spotify">\u25b6</button>` : ''}
              ${t.youtubeLink ? `<button type="button" class="track-play-yt-btn" data-youtube-link="${escapeHtml(t.youtubeLink)}" data-track-name="${escapeHtml(t.trackName || '')}" title="Play on YouTube" aria-label="Play ${escapeHtml(t.trackName || '')} on YouTube">▶ YT</button>` : ''}

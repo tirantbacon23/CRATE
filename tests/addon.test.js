@@ -36,3 +36,11 @@ suite('RYM add-on: reading a release page', () => {
     eq(C.oneRymCover([u(75, 's', 'jpeg'), 'https://e.snmc.io/i/75/s/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/2/Other.jpeg']), '');
   });
 });
+
+suite('RYM add-on: track positions', () => {
+  test('a row keeps its position as the page writes it ("A", "B2", "3"), never a rating’s vote count', async () => {
+    const C = await addon(), pos = (p) => (C.trackFromLeaves(p) || {}).pos || '';
+    eq([pos(['A', 'Mi vida rosa', '4.0', '1']), pos(['3.7', '78', 'B2', 'Down to the Wire', '2:25']), pos(['4.0', '11', '3', 'Our Secret', 'lyrics', '2:51']), pos(['Untitled', '2:00'])], ['A', 'B2', '3', '']);
+    eq(C.cleanRelease({ artist: 'A', title: 'B', type: 'Single', tracks: [{ title: 'x', pos: 'A' }, { title: 'y', pos: '<b>' }] }).tracks.map(t => t.pos || ''), ['A', '']);
+  });
+});

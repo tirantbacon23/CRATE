@@ -1090,7 +1090,7 @@ async function saveManualTracklist(item, rows, quiet) {
       title: t.title.trim(),
       youtubeLink: (t.youtubeLink || '').trim(),
       spotifyLink: (t.spotifyLink || '').trim(),
-      durationMs: t.durationMs || 0, section: t.section || '', s: t.s || ''
+      durationMs: t.durationMs || 0, section: t.section || '', pos: trackPosOf(t), s: t.s || ''
     })), 'lookup');
   // editAlbum, not a bare update: the backend's no-action branch only knows rating, review, trackData and the RYM rating, so a tracklist sent without an action was answered "ok" and NEVER WRITTEN to the sheet
   // (it showed until the next reload, then vanished). editAlbum writes just the fields it is given.
@@ -1115,7 +1115,7 @@ let tgSeq = 0; const tgId = () => 'r' + (++tgSeq);
 function tgBlank(over) { return Object.assign({ id: tgId(), trackNumber: 0, side: '', title: '', length: '', ms: 0, spotify: '', youtube: '', soundcloud: '', genre: '', rating: 0, listened: false, note: '', rymRating: 0, rymVotes: 0, s: 'typed' }, over || {}); }
 function tgRowsFrom(tracks, trackData) {                              // the release's tracks as they are shown (overrides already applied) + the per-track data
   return (tracks || []).map(t => { const td = (trackData && trackData[t.trackNumber]) || {}, ms = Number(t.trackTimeMillis) || 0;
-    return tgBlank({ trackNumber: t.trackNumber || 0, side: t.section || '', title: t.trackName || '', length: ms ? tlFormatTime(ms) : '', ms, spotify: t.spotifyLink || '', youtube: t.youtubeLink || '', soundcloud: t.soundcloudLink || '', genre: td.genre || '', rating: Number(td.rating) || 0, listened: !!td.listened, note: td.note || '', rymRating: Number(t.rymRating) || 0, rymVotes: Number(t.rymVotes) || 0, s: t.s || '' }); });
+    return tgBlank({ trackNumber: t.trackNumber || 0, pos: trackPosOf(t), side: t.section || '', title: t.trackName || '', length: ms ? tlFormatTime(ms) : '', ms, spotify: t.spotifyLink || '', youtube: t.youtubeLink || '', soundcloud: t.soundcloudLink || '', genre: td.genre || '', rating: Number(td.rating) || 0, listened: !!td.listened, note: td.note || '', rymRating: Number(t.rymRating) || 0, rymVotes: Number(t.rymVotes) || 0, s: t.s || '' }); });
 }
 const tgClone = (rows) => rows.map(r => Object.assign({}, r));
 function tgHasData(r) { return !!(String(r.title).trim() || String(r.side).trim() || String(r.length).trim() || TG_LINK_FIELDS.some(f => String(r[f]).trim()) || String(r.genre).trim() || String(r.note).trim() || Number(r.rating) > 0 || r.listened); }
@@ -1155,7 +1155,7 @@ function tgPlan(rows, orig, ctx) {                                    // ctx: { 
     if (b && changed('length')) delete ent.lengthMs;
     if (Object.values(ent).some(v => v)) td[n] = ent; else delete td[n];
   });
-  const manualRows = need ? numbered.map(r => { const b = o.get(r.id); return { trackNumber: r.trackNumber, title: String(r.title).trim(), youtubeLink: String(r.youtube).trim(), spotifyLink: String(r.spotify).trim(), durationMs: (b && String(b.length) === String(r.length)) ? (b.ms || 0) : (tlParseTime(String(r.length).trim()) || 0), section: String(r.side).trim(), s: r.s || '' }; }) : null;
+  const manualRows = need ? numbered.map(r => { const b = o.get(r.id); return { trackNumber: r.trackNumber, title: String(r.title).trim(), youtubeLink: String(r.youtube).trim(), spotifyLink: String(r.spotify).trim(), durationMs: (b && String(b.length) === String(r.length)) ? (b.ms || 0) : (tlParseTime(String(r.length).trim()) || 0), section: String(r.side).trim(), pos: r.pos || '', s: r.s || '' }; }) : null;
   const tdChanged = JSON.stringify(td) !== JSON.stringify(ctx.trackData || {});
   return { diff: d, needManual: need, convert: need && !ctx.isManual, manualRows, trackData: tdChanged ? td : null, removedNumbers, numbers: new Map(numbered.map(r => [r.id, r.trackNumber])) };
 }

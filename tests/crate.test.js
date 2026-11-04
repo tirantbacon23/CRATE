@@ -357,3 +357,14 @@ suite('Match songs: the artist in a video title', () => {
     eq([fan.band, other.band === 'confident'], ['confident', false]);
   });
 });
+
+suite('Track numbers', () => {
+  test('a song is shown by its place in the list, with the release’s own position beside it when that says more', () => {
+    const f = app('trackNumHtml'), plain = (h) => h.replace(/<[^>]+>/g, '|');
+    eq([plain(f({ trackNumber: 3, pos: 'A' }, 0)), plain(f({ trackNumber: 4, pos: 'B' }, 1)), plain(f({ trackNumber: 7, pos: '2' }, 1)), plain(f({ trackNumber: 9 }, 4)), f({ trackNumber: 5 }, -1)],
+       ['1|A|', '2|B|', '2', '5', '5']);
+  });
+  test('Rate Your Music’s positions are kept with a saved tracklist', () => {
+    eq(app('tlPersist')([{ trackNumber: 3, title: 'Mi vida rosa', pos: 'A' }, { trackNumber: 4, title: 'Mi vida rosa', pos: 'B' }], 'rym').map(t => t.pos), ['A', 'B']);
+  });
+});

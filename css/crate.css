@@ -4218,3 +4218,6 @@ html, body {
   .pd-sum { font-size: 12px; color: var(--text-dim); min-width: 0; }
   .pd-btns { display: flex; gap: 8px; flex: none; }
   @media (prefers-reduced-motion: reduce) { .pd-dialog { animation: none; } }
+
+/* A song's position on the release ("A", "B2"), beside its place in the tracklist */
+.track-pos { margin-left: 5px; font-size: 0.85em; color: var(--text-dim); opacity: 0.75; }

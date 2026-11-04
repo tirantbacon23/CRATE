@@ -32,6 +32,7 @@ function tlPersist(rows, defaultSource) {                         // what is wri
     const o = { trackNumber: t.trackNumber, title: t.title, youtubeLink: t.youtubeLink || '', spotifyLink: t.spotifyLink || '' };
     if (t.durationMs > 0) o.durationMs = Math.round(t.durationMs);
     if (t.section) o.section = t.section;
+    if (trackPosOf(t)) o.pos = trackPosOf(t);
     o.s = t.s || defaultSource || 'typed'; if (i === 0) o.at = today;
     return o;
   });
@@ -280,6 +281,7 @@ function rymTracklistLooksWrong(tracks) {                        // titles that 
   const t = Array.isArray(tracks) ? tracks : []; if (t.length < 2) return false;
   return t.filter(x => /^\d{1,3}(?:[.,]\d{1,2})?$/.test(String(x && x.title || '').trim())).length / t.length >= 0.5;
 }
+function rymPosStr(x) { const t = typeof x === 'string' ? x.trim() : ''; return /^[A-Za-z0-9][A-Za-z0-9.\-]{0,7}$/.test(t) ? t : ''; }          // a track's position on the release ("A", "B2", "3"), or ''
 function rymSongUrl(x) {                                       // a track's own Rate Your Music page (https://rateyourmusic.com/song/…/), or ''
   const u = typeof x === 'string' ? x.trim() : '';
   return u.length <= 300 && /^https:\/\/(www\.)?rateyourmusic\.com\/song\/[^\s"'<>?#]+$/.test(u) ? u : '';
@@ -287,7 +289,7 @@ function rymSongUrl(x) {                                       // a track's own 
 function rymCleanTracklists(list) {                              // whatever arrives is untrusted: only text and numbers, bounded
   const str = (x, n) => typeof x === 'string' ? x.slice(0, n) : '';
   return (Array.isArray(list) ? list : []).slice(0, 400).map(e => ({ p: str(e && e.p, 200), ar: str(e && e.ar, 200), ti: str(e && e.ti, 200), ty: str(e && e.ty, 30), u: str(e && e.u, 300), t: Number(e && e.t) || 0,
-    tracks: (Array.isArray(e && e.tracks) ? e.tracks : []).slice(0, 200).map(t => ({ title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), rating: rymNum(t && t.rating), votes: rymNum(t && t.rating) ? rymVotesNum(t && t.votes) : 0, url: rymSongUrl(t && t.url) })).filter(t => t.title) })).filter(e => e.p && e.tracks.length >= 2).map(e => Object.assign(e, { wrong: rymTracklistLooksWrong(e.tracks) }));
+    tracks: (Array.isArray(e && e.tracks) ? e.tracks : []).slice(0, 200).map(t => ({ title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), pos: rymPosStr(t && t.pos), rating: rymNum(t && t.rating), votes: rymNum(t && t.rating) ? rymVotesNum(t && t.votes) : 0, url: rymSongUrl(t && t.url) })).filter(t => t.title) })).filter(e => e.p && e.tracks.length >= 2).map(e => Object.assign(e, { wrong: rymTracklistLooksWrong(e.tracks) }));
 }
 function tlRymPick(list, probe) {                                // the add-on's tracklist for THIS release: by its saved RYM address, else artist + title + type (the rules the ratings use); the newest if several
   const idx = rymBuildIndex([probe], dupKey); let best = null;
@@ -306,7 +308,7 @@ async function tlFetchRym(side, artist, title) {
     tlStatus(side, `The add-on hasn\u2019t seen this release\u2019s page on Rate Your Music yet. <a href="${escapeHtml(href)}" target="_blank" rel="noopener">Open it there \u2197</a>, then press RYM again.`); return;
   }
   if (hit.wrong) { tlStatus(side, 'The add-on saved a tracklist for this release that looks wrong (its titles are numbers, most likely ratings). Update the add-on, open the release\u2019s page on Rate Your Music again, then press RYM again.'); return; }
-  tlPending[side] = { kind: 'rym', tracks: hit.tracks.map(t => ({ title: t.title, durationMs: t.durationMs, section: t.section, rymRating: t.rating || 0, rymVotes: t.votes || 0, rymLink: t.url || '' })) };
+  tlPending[side] = { kind: 'rym', tracks: hit.tracks.map(t => ({ title: t.title, durationMs: t.durationMs, section: t.section, pos: t.pos || '', rymRating: t.rating || 0, rymVotes: t.votes || 0, rymLink: t.url || '' })) };
   const total = tlFormatTime(hit.tracks.reduce((s, t) => s + (t.durationMs || 0), 0)), rated = hit.tracks.filter(t => t.rating).length, when = hit.t ? rymDateText(new Date(hit.t).toISOString()) : '';
   tlStatus(side, `Rate Your Music has ${hit.tracks.length} track${hit.tracks.length === 1 ? '' : 's'}${total ? ' \u00b7 ' + total : ''}${rated ? `, with ratings for ${rated}` : ''}${when ? ' (saved ' + escapeHtml(when) + ')' : ''}. <button type="button" class="chip-btn" data-tl-use>Use this list</button> <button type="button" class="chip-btn" data-tl-dismiss>Dismiss</button>`);
 }
@@ -650,7 +652,7 @@ function rymCleanOutbox(list) {                                  // untrusted: o
       artist: rymTidyName(str(r && r.artist, 200).trim()), title: rymTidyName(str(r && r.title, 200).trim()), type: TYPES.includes(r && r.type) ? r.type : 'Album', releaseDate: /^\d{4}(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?)?$/.test(r && r.releaseDate) ? r.releaseDate : '',
       genre: rymGenreStr(r && r.genre), secondaryGenre: rymGenreStr(r && r.secondaryGenre), label: str(r && r.label, 200).trim(), catalog: /^CRT-\d+$/i.test(str(r && r.catalog, 100).trim()) ? '' : str(r && r.catalog, 100).trim(), rymDescriptors: str(r && r.descriptor, 500).trim(), scene: str(r && r.scene, 300).trim(), movement: str(r && r.movement, 300).trim(), recordedDate: /^\d{4}(?:-(?:0[1-9]|1[0-2])(?:-(?:0[1-9]|[12]\d|3[01]))?)?$/.test(str(r && r.recordedDate, 10)) ? str(r && r.recordedDate, 10) : '', location: str(r && r.recordedPlace, 200).replace(/\s+/g, ' ').trim(),          // (an import reads these two as Recorded and Location)
       rymLink: /^https:\/\/rateyourmusic\.com\/release\//.test(str(r && r.rymLink, 300)) ? str(r.rymLink, 300) : '', cover: rymCleanCover(r && r.cover),          // (these two once sat inside the comment above, so every batch arrived without them)
-      tracks: (Array.isArray(r && r.tracks) ? r.tracks : []).slice(0, 200).map((t, i) => ({ n: i + 1, title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), s: 'rym', rating: rymNum(t && t.rating), votes: rymNum(t && t.rating) ? rymVotesNum(t && t.votes) : 0, url: rymSongUrl(t && t.url) })).filter(t => t.title), rymRating: rymNum(r && r.rymRating), rymVotes: Math.max(0, Math.round(Number(r && r.rymVotes) || 0)) })).filter(r => r.artist && r.title).slice(0, 300) })).filter(b => b.id && b.releases.length);
+      tracks: (Array.isArray(r && r.tracks) ? r.tracks : []).slice(0, 200).map((t, i) => ({ n: i + 1, title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), pos: rymPosStr(t && t.pos), s: 'rym', rating: rymNum(t && t.rating), votes: rymNum(t && t.rating) ? rymVotesNum(t && t.votes) : 0, url: rymSongUrl(t && t.url) })).filter(t => t.title), rymRating: rymNum(r && r.rymRating), rymVotes: Math.max(0, Math.round(Number(r && r.rymVotes) || 0)) })).filter(r => r.artist && r.title).slice(0, 300) })).filter(b => b.id && b.releases.length);
 }
 function rymOutboxArrived(batches) {
   rymOutState.batches = batches; rymOutState.present = true; renderRymInbox(); rymQIngestAll(); rymAutoImport();
@@ -981,7 +983,7 @@ function rymUpdatePlan(item, rel, oldRows, minNext) {
   const nt = (rel.tracks || []).filter(t => t && t.title);
   if (nt.length >= 2) {
     const old = (oldRows || []).filter(r => r && r.title);
-    const asg = tlAssignNumbers(old, nt.map(t => ({ title: t.title, durationMs: t.durationMs || 0, section: t.section || '', s: 'rym', rymRating: t.rating || 0, rymVotes: t.votes || 0, rymLink: t.url || '' })), minNext);
+    const asg = tlAssignNumbers(old, nt.map(t => ({ title: t.title, durationMs: t.durationMs || 0, section: t.section || '', pos: t.pos || '', s: 'rym', rymRating: t.rating || 0, rymVotes: t.votes || 0, rymLink: t.url || '' })), minNext);
     const ok = old.map(r => tlKey(r.title)).join('|'), nk = nt.map(t => tlKey(t.title)).join('|');
     let kind = null;
     const numTitles = old.length >= 3 && old.filter(r => /^\d{1,3}(?:[.,]\d{1,2})?[kKmM]?$/.test(String(r.title).trim())).length / old.length >= 0.5;          // most titles are numbers ("6k", "5k": a count read as a title by add-on 1.12.0/1.12.1): not a tracklist of yours
@@ -991,6 +993,7 @@ function rymUpdatePlan(item, rel, oldRows, minNext) {
     else if (old.some(r => /^[A-Pa-p]\d{1,2}$/.test(String(r.title).trim())) && !nt.some(t => /^[A-Pa-p]\d{1,2}$/.test(String(t.title).trim()))) kind = 'fill';          // titles that are side positions ("E1": add-ons before 1.14.1 knew only sides A-D): repaired by a list with real titles
     else if (ok !== nk) kind = 'differs';
     else if (nt.some((t, i) => t.durationMs > 0 && !(old[i].durationMs > 0))) kind = 'refine';
+    else if (nt.some((t, i) => trackPosOf(t) && trackPosOf(t) !== trackPosOf(old[i]))) kind = 'refine';          // its positions ("A", "B"), from add-on 1.15.0 on
     if (kind) add('tracks', 'Tracklist', old.length ? `${old.length} track${old.length === 1 ? '' : 's'}` : '', `${nt.length} tracks`, kind, { rows: asg.rows, matched: asg.matched, fresh: asg.fresh, dropped: asg.dropped.map(d => d.title) });
   }
   if (!out.some(p => p.key === 'tracks' && p.kind !== 'differs')) {          // the tracklist isn't being replaced (or RYM's differs, offered unticked), but RYM's rating and song page of each track with the same title can still be filled in
@@ -1114,7 +1117,7 @@ async function rymFillTracklists() {
   flashGlobalToast(`Filling ${cands.length} tracklist${cands.length === 1 ? '' : 's'}\u2026`);
   let ok = 0, failed = 0;
   for (const c of cands) {
-    try { const rows = tlAssignNumbers([], c.e.tracks.map(t => ({ title: t.title, durationMs: t.durationMs || 0, section: t.section || '', s: 'rym', rymRating: t.rating || 0, rymVotes: t.votes || 0, rymLink: t.url || '' })), tlMinNext(c.it)).rows; await saveManualTracklist(c.it, rows, true); await tlApplyTrackRatings(c.it, rows); ok++; }
+    try { const rows = tlAssignNumbers([], c.e.tracks.map(t => ({ title: t.title, durationMs: t.durationMs || 0, section: t.section || '', pos: t.pos || '', s: 'rym', rymRating: t.rating || 0, rymVotes: t.votes || 0, rymLink: t.url || '' })), tlMinNext(c.it)).rows; await saveManualTracklist(c.it, rows, true); await tlApplyTrackRatings(c.it, rows); ok++; }
     catch (e) { failed++; }
   }
   try { await fetchCatalog({ quiet: true }); } catch (e) { /* the sheet is updated; the list refreshes next time */ }

@@ -5,7 +5,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.83.2';
+const APP_VERSION = '1.84.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -683,6 +683,15 @@ function tlAssignNumbers(oldRows, newTracks, minNext) {
     return Object.assign({}, t, { trackNumber: next++ });
   });
   return { rows, matched, fresh: rows.length - matched, dropped: pool.filter(p => !p.used).map(p => p.r) };
+}
+// The number a song is SHOWN with: its place in the tracklist (1, 2, 3...), and beside it the release's own position when that says more
+// ("A", "B2" on a record, from Rate Your Music or MusicBrainz). The stored trackNumber is the song's identity (its ratings, links and plays
+// are kept under it) and runs on past the list after a tracklist is replaced, so it is never what is shown.
+function trackPosOf(t) { return String((t && t.pos) || '').trim().slice(0, 8); }
+function trackNumHtml(t, i) {
+  if (!(i >= 0)) return t && t.trackNumber ? String(t.trackNumber) : '';
+  const n = String(i + 1), p = trackPosOf(t);
+  return n + (p && p !== n ? `<span class="track-pos" title="Its position on the release">${escapeHtml(p)}</span>` : '');
 }
 function tlMove(arr, from, to) {                              // a copy with the item at `from` moved to index `to`
   const a = (arr || []).slice(); if (from < 0 || from >= a.length) return a; const t = Math.max(0, Math.min(a.length - 1, to)), [x] = a.splice(from, 1); a.splice(t, 0, x); return a;

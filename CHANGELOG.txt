@@ -17,7 +17,22 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.83.4
+  CURRENT_VERSION: 1.84.0
+
+  1.84.0 — 2026-11-04 — A song is numbered by its place in the tracklist, with the release's own position beside it ("1 A", "2 B"). Page and RYM add-on 1.15.0.
+          A song's stored number is what its ratings, links and plays are
+          kept under, and after a tracklist was replaced it could run on
+          past the list: a two-song single showed 3 and 4. Songs are now
+          shown (release view, Album Quick Peek, Tracks view, playlists)
+          by their place in the tracklist, 1, 2, 3, and the Tracks view's
+          # sorts by it. Beside it, dimmed, is the position the release
+          itself gives the song when that says more: "A" and "B" on a
+          single, "A1"... on a record, from Rate Your Music (add-on 1.15.0
+          on) or MusicBrainz ("2-1" for a second disc). Nothing stored is
+          renumbered, so nothing loses its ratings or links.
+          Saved tracklists get their positions with their next Rate Your
+          Music update (applied by itself when that setting is on); the
+          track editor keeps them.
 
   1.83.4 — 2026-11-04 — Match songs: a YouTube upload titled "Artist - Song" counts as the artist, even from a fan's channel. Page only.
           The artist was judged by the channel alone, so a fan's upload
