@@ -85,6 +85,12 @@ suite('Update from Rate Your Music: what is proposed', () => {
     const p = app('rymUpdatePlan')({ trackData: {} }, { tracks: [{ title: 'Harvest' }, { title: 'The Needle and the Damage Done' }] }, [{ trackNumber: 1, title: 'Harvest' }, { trackNumber: 2, title: 'E1' }], 0).find(x => x.key === 'tracks');
     eq([p.kind, p.checked], ['fill', true]);
   });
+  test('a different tracklist still brings the ratings and song links of the tracks that match', () => {
+    const p = app('rymUpdatePlan')({ trackData: {} }, { tracks: [{ title: 'Begin Now!', rating: 3.9, votes: 194, url: 'https://rateyourmusic.com/song/a/begin-now/' }, { title: '½ Way Down', rating: 4.2, votes: 166, url: 'https://rateyourmusic.com/song/a/-way-down/' }, { title: 'Bonus' }] },
+      [{ trackNumber: 1, title: 'Begin Now!' }, { trackNumber: 2, title: 'Halfway Down' }], 0);
+    eq(p.map(x => [x.key, x.kind, x.checked]), [['tracks', 'differs', false], ['trackLinks', 'fill', true], ['trackStats', 'fill', true]]);
+    eq(p.find(x => x.key === 'trackStats').rows.map(r => [r.trackNumber, r.rymRating, r.rymVotes]), [[1, 3.9, 194], [2, 4.2, 166]]);
+  });
   test('your own different tracklist is offered, never ticked', () => {
     const p = app('rymUpdatePlan')({ trackData: {} }, { tracks: [{ title: 'Alpha' }, { title: 'Beta' }] }, [{ trackNumber: 1, title: 'Gamma' }, { trackNumber: 2, title: 'Delta' }], 0).find(x => x.key === 'tracks');
     eq([p.kind, p.checked], ['differs', false]);

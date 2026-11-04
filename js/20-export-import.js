@@ -406,8 +406,8 @@ async function cxImpRun(list) {                // list: [{ idx, shaped }]
   // SoundCloud links live with the per-song data, which needs the release to exist: attach them now.
   let scFailed = 0;
   for (const a of st.added) {
-    const upd = cxSoundcloudUpdates(a.shaped); if (!a.albumId || !Object.keys(upd).length) continue;
-    const item = state.raw.find(r => r.albumId === a.albumId);
+    const upd = cxSoundcloudUpdates(a.shaped); if (!Object.keys(upd).length) continue;
+    const k = dupKey(a.shaped.artist, a.shaped.title), item = (a.albumId && state.raw.find(r => r.albumId === a.albumId)) || (k && state.raw.find(r => dupKey(r.artist, r.title) === k));          // by its id, else by artist and title (a back end that doesn't send the id back)
     try { if (item) await saveSongLinks(item, upd); else scFailed++; } catch (e) { scFailed++; }
   }
   st.running = false;

@@ -17,7 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.78.1
+  CURRENT_VERSION: 1.78.2
+
+  1.78.2 — 2026-11-04 — Fix: RYM's rating and song page for each track often never arrived. Page only.
+          When your saved tracklist differed from RYM's at all (a Spotify
+          list with "Halfway Down" against RYM's "½ Way Down", or a bonus
+          track), an update offered RYM's list unticked and skipped every
+          track's rating and link. Now the tracks with the same title (spacing
+          aside) get them anyway, ticked, whether or not you take RYM's list.
+          A release added from the add-on also gets them when the back end
+          doesn't say which row it became (found by artist and title).
 
   1.78.1 — 2026-11-04 — Fix: a song titled with a fraction ("½ Way Down") never matched "Halfway Down" on YouTube or Spotify, or its scrobbles. Page only.
           Comparing titles dropped the ½, leaving "Way Down". ½, ¼, ¾, ⅓

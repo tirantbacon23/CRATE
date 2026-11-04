@@ -947,12 +947,12 @@ function rymUpdatePlan(item, rel, oldRows, minNext) {
     else if (nt.some((t, i) => t.durationMs > 0 && !(old[i].durationMs > 0))) kind = 'refine';
     if (kind) add('tracks', 'Tracklist', old.length ? `${old.length} track${old.length === 1 ? '' : 's'}` : '', `${nt.length} tracks`, kind, { rows: asg.rows, matched: asg.matched, fresh: asg.fresh, dropped: asg.dropped.map(d => d.title) });
   }
-  if (!out.some(p => p.key === 'tracks')) {                      // the tracklist isn't changing, but RYM's rating of each track (and how many ratings it rests on) can still be filled in
+  if (!out.some(p => p.key === 'tracks' && p.kind !== 'differs')) {          // the tracklist isn't being replaced (or RYM's differs, offered unticked), but RYM's rating and song page of each track with the same title can still be filled in
     const rated = (rel.tracks || []).filter(t => t && t.title && (t.rating > 0 || t.url)), old2 = (oldRows || []).filter(r => r && r.title && r.trackNumber);
     if (rated.length && old2.length && (rel.tracks || []).filter(t => t && t.title).length >= 2) {          // (a list of fewer than two tracks isn't trusted as a tracklist, so not as a source of ratings either)
       const used = new Set(), rows2 = [], links = []; let kept = 0;
       rated.forEach(t => {
-        const o = old2.find(x => !used.has(x.trackNumber) && tlKey(x.title) === tlKey(t.title)); if (!o) return; used.add(o.trackNumber);
+        const k = tlKey(t.title).replace(/ /g, ''), o = old2.find(x => !used.has(x.trackNumber) && tlKey(x.title).replace(/ /g, '') === k); if (!o) return; used.add(o.trackNumber);          // (spacing aside: "Half Way Down" = "Halfway Down")
         const td = (item.trackData || {})[o.trackNumber] || {}, v = rymVotesNum(t.votes);
         if (t.url && !String(td.rymLink || '').trim()) links.push({ trackNumber: o.trackNumber, rymRating: 0, rymLink: t.url });          // its song page, where the track has no RYM link
         if (!(t.rating > 0)) return;
