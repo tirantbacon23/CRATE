@@ -19,7 +19,29 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.76.0
+  CURRENT_VERSION: 1.77.0
+
+  1.77.0 — 2026-11-04 — Activity becomes Processing, as sketched: one panel and one strip for everything running in the background. Page only.
+          Header: what is running, waiting and needs you, with Pause all /
+          Resume all and settings (match new releases by themselves; apply
+          safe RYM changes as they arrive; Last.fm every 6 hours). Filters:
+          All, Needs you, RYM, Match songs, Adding, Syncs. Running shows the
+          RYM update's current release and "next page in 9 s", and Match
+          songs per service, each with pause and stop. Needs you: a check
+          RYM asked for (highlighted), updates to review (what kinds), RYM
+          releases to add, matches to keep. Waiting: queued RYM updates in
+          the order you drag them, the match queue, the Last.fm sync and
+          the new-release check with when they next run. Done today, with
+          Details. Pausing a RYM update stops it and puts its unread
+          releases first in the queue, held. Collapsed: one Processing strip
+          at the bottom ("RYM 11 of 25 · Matching 40% · 2 need you · Open")
+          replaces the separate RYM and Match songs strips. Last.fm now also
+          syncs every 6 hours while CRATE is open (it used to sync only on
+          opening), and the new-release check runs when due, not only on
+          opening.
+            jobsCollect returns rows with cat/icon/acts; jobsPauseRym /
+            jobsPauseAll / jobsResumeAll; jobsStripRender (body.jobs-strip-on
+            hides .bg-status and #bmStrip); 5-minute timer for the syncs.
 
   1.76.0 — 2026-11-04 — New releases are matched by themselves: their songs' Spotify and YouTube links are found in the background as they are added. Page only.
           Whatever adds them (the Add form, Rate Your Music, an import):
@@ -7267,7 +7289,7 @@
           <div class="menu-divider"></div>
           <div class="menu-section-title">Discovery</div>
           <button type="button" id="menuNewReleases">New Releases <span id="newReleasesBadge" class="menu-badge" hidden>0</span></button>
-          <button type="button" id="menuActivity">Activity… <span id="activityBadge" class="menu-badge" hidden>0</span></button>
+          <button type="button" id="menuActivity">Processing… <span id="activityBadge" class="menu-badge" hidden>0</span></button>
           <button type="button" id="menuGenreTaxonomy">Genre Taxonomy…</button>
           <div class="menu-divider"></div>
           <div class="menu-section-title">Integrations</div>
@@ -7874,11 +7896,15 @@
 <div id="rymQOverlay" class="rymq-overlay" hidden><div class="rymq-dialog" id="rymQDialog" role="dialog" aria-modal="true" aria-labelledby="rymQTitle"></div></div>
 <div id="bgStatus" class="bg-status" role="status" aria-live="polite" hidden><span id="bgStatusText"></span><i class="bg-status-track"><b id="bgStatusFill"></b></i><button type="button" id="bgStatusCancel" class="chip-btn" hidden>Cancel</button><button type="button" id="bgStatusView" class="chip-btn" hidden>Details</button><button type="button" id="bgStatusClose" class="chip-btn" hidden aria-label="Dismiss">×</button></div>
 <div id="jobsOverlay" class="arrange-overlay" hidden>
-  <div class="arrange-modal add-modal cx-modal jobs-modal" role="dialog" aria-modal="true" aria-labelledby="jobsTitle">
-    <div class="arrange-header"><div><h2 id="jobsTitle">Activity</h2><p class="sm-sub">What CRATE is working on, what needs you, what is waiting its turn, and what finished today.</p></div><button id="jobsClose" class="modal-x" aria-label="Close">✕</button></div>
-    <div class="arrange-body sm-body"><div id="jobsBody" class="cx-scroll"></div></div>
+  <div class="arrange-modal jobs-modal" role="dialog" aria-modal="true" aria-labelledby="jobsTitle">
+    <div class="jobs-head"><span class="jobs-head-ico" aria-hidden="true"><svg class="job-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5z"/><path d="m3 13 9 5 9-5"/></svg></span><div class="jobs-head-t"><h2 id="jobsTitle">Processing</h2><p id="jobsSum"></p></div>
+      <button type="button" id="jobsPauseAll" class="job-btn job-big"></button><button type="button" id="jobsMenuBtn" class="job-btn job-ibtn job-big" title="Settings" aria-label="Processing settings"><svg class="job-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 4v16M12 4v16M18 4v16"/><path d="M4 9h4M10 15h4M16 7h4"/></svg></button><button id="jobsClose" class="modal-x" aria-label="Close">✕</button></div>
+    <div id="jobsMenu" class="jobs-menu" hidden></div>
+    <div id="jobsChips" class="jobs-chips"></div>
+    <div id="jobsBody" class="jobs-body"></div>
   </div>
 </div>
+<div id="jobsStrip" class="jobs-strip" role="status" hidden></div>
 <div id="rymUpdateOverlay" class="arrange-overlay" hidden>
   <div class="arrange-modal add-modal cx-modal" role="dialog" aria-modal="true" aria-labelledby="rymUpdTitle">
     <div class="arrange-header"><div><h2 id="rymUpdTitle">Update from Rate Your Music</h2><p class="sm-sub" id="rymUpdSub"></p></div><button id="rymUpdClose" class="modal-x" aria-label="Close">✕</button></div>
@@ -9222,7 +9248,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.76.0';
+const APP_VERSION = '1.77.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -11098,7 +11124,7 @@ const ART_LOOKUPS_AT_ONCE = 4; let artLookupsActive = 0; const artLookupWaiting 
 
 const GRID_EAGER = 120, GRID_LAZY_AHEAD = '1600px 0px', GRID_UNLOAD_BEYOND = '5000px 0px';          // see buildGridSection; declared here because the grid can be drawn while startApp runs
 let gridEagerLeft = 0, gridEagerTick = false, gridLazyObs = null, gridLazyRoot = null, gridUnloadObs = null;
-const jobsState = { waiting: [], timer: 0, nextTimer: 0, nextAt: 0, rymLast: null, rymLogged: true, scan: null, acts: [], runRows: [] };          // see Activity (jobsCollect)
+const jobsState = { waiting: [], timer: 0, nextTimer: 0, nextAt: 0, rymLast: null, rymLogged: true, scan: null, acts: [], runRows: [], held: false, pausing: false, filter: 'all', menu: false, dragging: null };          // see Processing (jobsCollect)          // see Activity (jobsCollect)
 let sceneKnownCache = null, sceneKeysCache = null;          // see sceneKnownGenres / sceneGenreKeys: genres are read while startApp draws the first page
 
 startApp();
@@ -24523,7 +24549,7 @@ function bmKickLanes() {                                            // releases 
 }
 // ----- new releases are matched by themselves (Match songs → Preferences → "Match new releases by themselves") -----
 // A release just added (the Add form, Rate Your Music, an import) goes into a Match songs run in the background, in "save confident matches as they come" mode:
-// what is confident is saved, and the rest waits in the run for you (Activity → Needs you). Spotify only if it is set up; YouTube only through the add-on (the API route costs quota).
+// what is confident is saved, and the rest waits in the run for you (Processing → Needs you). Spotify only if it is set up; YouTube only through the add-on (the API route costs quota).
 const bmAuto = { pending: [], timer: 0, tries: 0 };
 function bmAutoQueue(list) {
   (list || []).forEach(x => { const k = mqKey(x.artist, x.title); if (!bmAuto.pending.some(e => e.k === k)) bmAuto.pending.push({ k }); });
@@ -25169,7 +25195,7 @@ function bmPrefsHtml() {
       <div class="bm-opt"><span class="bm-opt-t">Length tolerance<small>How far a recording’s length may be from yours before it counts against it.</small></span>${sel('lenTol', p.lenTol, [['strict', 'Strict'], ['normal', 'Normal'], ['loose', 'Loose']])}</div>
       <div class="bm-opt"><span class="bm-opt-t">Edition<small>Between equally good editions of an album.</small></span>${sel('edition', p.edition, [['any', 'No preference'], ['original', 'Prefer the original'], ['remaster', 'Prefer remastered or deluxe']])}</div>
       ${chk('versionPenalty', 'Mark down live, remix, cover, sped-up and similar versions', 'unless your song’s own title says it is one')}${chk('topicBonus', 'Prefer the artist’s “- Topic” channel on YouTube')}</div></section>
-    <section><div class="bm-label">Queue and reminders</div><div class="bm-opts">${chk('autoMatchNew', 'Match new releases by themselves', 'in the background, as they are added: confident matches are saved, the rest wait here for you (Activity shows them)')}${chk('queueNew', 'Put new releases in the match queue', 'whatever adds them: the Add form, Rate Your Music, an import')}${chk('remindCheck', 'Remind me to check my saved links once a month', p.lastCheck ? `last checked ${bmAgo(p.lastCheck)}` : 'not checked yet')}</div>
+    <section><div class="bm-label">Queue and reminders</div><div class="bm-opts">${chk('autoMatchNew', 'Match new releases by themselves', 'in the background, as they are added: confident matches are saved, the rest wait here for you (Processing shows them)')}${chk('queueNew', 'Put new releases in the match queue', 'whatever adds them: the Add form, Rate Your Music, an import')}${chk('remindCheck', 'Remind me to check my saved links once a month', p.lastCheck ? `last checked ${bmAgo(p.lastCheck)}` : 'not checked yet')}</div>
       <div class="bm-label" style="margin-top:16px">What CRATE has learned</div><div class="bm-opts">
       <div class="bm-opt"><span class="bm-opt-t">${bmPl(p.rejected.length, 'candidate')} you said never to offer again</span>${p.rejected.length ? '<button type="button" class="chip-btn bm-sm" data-bm="forget-rejected">Forget them</button>' : ''}</div>
       ${ch.length ? ch.map(([a, c]) => `<div class="bm-opt"><span class="bm-opt-t">${escapeHtml(a)}<small>prefers the YouTube channel “${escapeHtml(c)}”</small></span><button type="button" class="chip-btn bm-sm" data-bm="forget-channel" data-k="${escapeHtml(a)}">Forget</button></div>`).join('') : '<p class="bm-dim">When you choose a different YouTube channel for an artist, it is preferred for that artist from then on.</p>'}</div></section></div></div>`;
@@ -27855,7 +27881,7 @@ function initAddonBridge() {
   const bgBar = document.getElementById('bgStatus');
   initJobs();
   if (bgBar) bgBar.addEventListener('click', (e) => {
-    const b = e.target.closest('button'); if (!b) { if (e.target.closest('#bgStatusText')) jobsOpen(); return; }          // the text: everything that is going on (Activity)
+    const b = e.target.closest('button'); if (!b) { if (e.target.closest('#bgStatusText')) jobsOpen(); return; }          // the text: everything that is going on (Processing)
     if (b.id === 'bgStatusCancel' && rymFetchState.active) rymFetchCancel();
     else if (b.id === 'bgStatusCancel' && cxImp) cxImp.cancel = true;
     else if (b.id === 'bgStatusView') { if (state.rymQueueMode && rymQ.entries.length && !(typeof cxImp !== 'undefined' && cxImp)) rymQOpen(); else { const ov = document.getElementById('cxImportOverlay'); if (ov) ov.hidden = false; } bgStatusHide(); }
@@ -33032,11 +33058,11 @@ function rymFetchWhy(reason, r) {
 function rymFetchUpdates(items, opts) {
   opts = opts || {}; items = (items || []).filter(Boolean); const todo = items.filter(it => rymUpdateUrl(it)), noLink = items.length - todo.length;
   if (!todo.length) { flashGlobalToast(items.length === 1 ? 'This release has no Rate Your Music link to open. Add one in Edit, or open its page on RYM and use \u201cUpdate CRATE from this page\u201d.' : 'None of those has a Rate Your Music link to open.'); return; }
-  if (rymFetchState.active) { jobsQueueRym(todo); return; }          // one is running: this one waits its turn (Activity)
+  if (rymFetchState.active) { jobsQueueRym(todo); return; }          // one is running: this one waits its turn (Processing)
   const use = todo.slice(0, 25), over = todo.length - use.length;
   if (use.length > 1 && !opts.queued) {
     const mins = Math.max(1, Math.round(use.length * 14.5 / 60));
-    if (!confirm(`Open ${use.length} Rate Your Music pages, one at a time, each in a background tab that closes itself, and read them?\n\nIt takes about ${mins} minute${mins === 1 ? '' : 's'}: there is a pause of 8 to 15 seconds between pages, on purpose, so Rate Your Music isn\u2019t hit quickly. If it asks for a check, the run stops and shows you that page.\n\nNothing in CRATE changes until you press Apply.${noLink ? `\n\n${noLink} without a Rate Your Music link ${noLink === 1 ? 'is' : 'are'} skipped.` : ''}${over ? `\n\nThe other ${over} wait in the queue and run after this, 25 at a time (\u2699 \u2192 Activity shows them).` : ''}`)) return;
+    if (!confirm(`Open ${use.length} Rate Your Music pages, one at a time, each in a background tab that closes itself, and read them?\n\nIt takes about ${mins} minute${mins === 1 ? '' : 's'}: there is a pause of 8 to 15 seconds between pages, on purpose, so Rate Your Music isn\u2019t hit quickly. If it asks for a check, the run stops and shows you that page.\n\nNothing in CRATE changes until you press Apply.${noLink ? `\n\n${noLink} without a Rate Your Music link ${noLink === 1 ? 'is' : 'are'} skipped.` : ''}${over ? `\n\nThe other ${over} wait in the queue and run after this, 25 at a time (\u2699 \u2192 Processing shows them).` : ''}`)) return;
   }
   const qOpen = rymQ.open; if (state.rymQueueMode) { rymQBegin(use); if (opts.queued && !qOpen) { rymQ.open = false; rymQRender(); } }          // (a queued run starts quietly: its dialog doesn't jump in front of you)
   jobsState.runRows = use.map(it => String(it.row)); if (over) jobsQueueRym(todo.slice(25), true);
@@ -33323,23 +33349,44 @@ function renderRymInbox() {
   bar.innerHTML = `<span>Rate Your Music: ${what}${bs.length > 1 ? ` and ${bs.length - 1} more page${bs.length > 2 ? 's' : ''}` : ''}.</span> <button type="button" class="chip-btn" data-rym-review>Review</button>${ups > 1 && !state.rymQueueMode ? ` <button type="button" class="chip-btn" data-rym-applyall title="Apply what is new in all ${ups} updates (blanks filled, dates made more precise, tracklists added). Anything that differs from what you have is left for you to review.">Apply all ${ups}</button>` : ''} <button type="button" class="chip-btn" data-rym-later>Not now</button> <button type="button" class="chip-btn" data-rym-discard title="Throw away what was sent from Rate Your Music">Discard</button>`;
   bar.hidden = false;
 }
-// ================= Activity: one place for everything CRATE is doing in the background =================
-// What is running (a Rate Your Music update, adding releases, Matching songs, the Last.fm sync, the new-release check), what needs you
-// (differences to decide, releases sent from RYM, a check RYM asked for, matches to keep), what is waiting its turn (Rate Your Music
-// updates started while one was running: they run one after another, never two at once), and what finished today. Each job keeps its
-// own dialog: this panel only reads their state and opens them.
-const JOBS_DONE_KEY = 'crate_jobs_done_v1', JOBS_RYM_GAP = 15000;          // (between one queued update and the next: the same unhurried pace the add-on keeps between pages)
+// ================= Processing: one place for everything CRATE is doing in the background =================
+// What is running (a Rate Your Music update, adding releases, Match songs, the Last.fm sync, the new-release check), what needs you (a check RYM asked for,
+// updates to review, releases sent from RYM, matches to keep), what waits its turn (Rate Your Music updates, one after another and never two at once, in the
+// order you drag them into; the match queue; the syncs and when they next run), and what finished today. Each job keeps its own dialog: this panel reads
+// their state, pauses or stops them, and opens them. Collapsed, it is the strip at the bottom (jobsStrip).
+const JOBS_DONE_KEY = 'crate_jobs_done_v1', JOBS_RYM_GAP = 15000, JOBS_LF_EVERY = 6 * 3600000, JOBS_LF_AT_KEY = 'crate_lastfm_bgsync_at', JOBS_LF_ON_KEY = 'crate_lastfm_every6h';          // (15 s between queued updates: the add-on's own pace between pages)
+const JOBS_CATS = [['all', 'All'], ['need', 'Needs you'], ['rym', 'RYM'], ['match', 'Match songs'], ['add', 'Adding'], ['sync', 'Syncs']];
+const JOBS_ICON = {
+  sync: '<path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20v-4h-4"/>',
+  warn: '<path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4"/><path d="M12 17h.01"/>',
+  list: '<path d="M4 6h1M4 12h1M4 18h1"/><path d="M9 6h11M9 12h11M9 18h11"/>',
+  note: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  wave: '<path d="M3 12h3l2-6 4 12 3-9 2 3h4"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
+  check: '<path d="m5 12 5 5L20 7"/>',
+  layers: '<path d="m12 3 9 5-9 5-9-5 9-5z"/><path d="m3 13 9 5 9-5"/>',
+  sliders: '<path d="M6 4v16M12 4v16M18 4v16"/><path d="M4 9h4M10 15h4M16 7h4"/>',
+  pause: '<path d="M9 5v14M15 5v14"/>',
+  play: '<path d="M7 4v16l13-8L7 4z"/>',
+  x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  grip: '<circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/>',
+};
+function jobsIco(n) { return `<svg class="job-ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${JOBS_ICON[n] || ''}</svg>`; }
 function jobsPl(n, w, ws) { return `${Number(n || 0).toLocaleString()} ${n === 1 ? w : (ws || w + 's')}`; }
+function jobsIn(ms) { const m = Math.round(ms / 60000); return ms <= 0 ? 'due now' : m < 1 ? 'in under a minute' : m < 90 ? `in ${m} min` : `in ${Math.round(m / 60)} h`; }
 function jobsDoneLoad() { try { const l = JSON.parse(localStorage.getItem(JOBS_DONE_KEY) || '[]'); return Array.isArray(l) ? l.filter(e => e && typeof e.t === 'number' && typeof e.text === 'string') : []; } catch (e) { return []; } }
 function jobsDone(kind, text) {                                   // a finished job, for "Done today" (kept a week, at most 200)
   const week = Date.now() - 7 * 86400000, l = jobsDoneLoad().filter(e => e.t >= week).concat([{ t: Date.now(), kind, text: String(text).slice(0, 300) }]).slice(-200);
   try { localStorage.setItem(JOBS_DONE_KEY, JSON.stringify(l)); } catch (e) { /* private window: today's list just isn't kept */ }
   jobsRefresh();
 }
+function jobsLfEvery() { try { return localStorage.getItem(JOBS_LF_ON_KEY) !== '0'; } catch (e) { return true; } }
 // ---- Rate Your Music updates wait their turn ----
-function jobsQueueRym(items, quiet) {
-  const have = new Set(jobsState.waiting.flatMap(w => w.rows).concat(rymFetchState.active ? jobsState.runRows : [])), rows = items.map(it => String(it.row)).filter(r => !have.has(r));
-  for (let i = 0; i < rows.length; i += 25) jobsState.waiting.push({ id: 'w' + Date.now() + '-' + i, kind: 'rym', rows: rows.slice(i, i + 25), t: Date.now() });          // (25 a run, as the add-on takes them)
+function jobsQueueRym(items, quiet, front) {
+  const have = new Set(jobsState.waiting.flatMap(w => w.rows).concat(rymFetchState.active && !front ? jobsState.runRows : [])), rows = items.map(it => String(it.row)).filter(r => !have.has(r)), add = [];
+  for (let i = 0; i < rows.length; i += 25) add.push({ id: 'w' + Date.now() + '-' + i, kind: 'rym', rows: rows.slice(i, i + 25), t: Date.now() });          // (25 a run, as the add-on takes them)
+  if (front) jobsState.waiting.unshift(...add); else jobsState.waiting.push(...add);
   if (!quiet) flashGlobalToast(rows.length ? `Queued ${jobsPl(rows.length, 'release')}: the update starts by itself when the one running now finishes. Click to see the queue.` : 'Those are already waiting in the queue.', { onClick: jobsOpen });
   jobsRefresh();
 }
@@ -33350,85 +33397,177 @@ function jobsStartNextRym() {
   if (items.length) rymFetchUpdates(items, { queued: true }); else jobsStartNextRym();
   jobsRefresh();
 }
+function jobsRymNow() {                                           // the running update as it stands: how far, which release, when the next page opens
+  const last = jobsState.rymLast || {}, q = state.rymQueueMode && rymQ.run ? rymQ.run : null, r = q || last;
+  const total = r.total || rymFetchState.total || jobsState.runRows.length || 0, done = r.done || 0, i = r.i != null ? r.i : done;
+  const it = q ? (rymQ.runEntries[i] || null) : state.raw.find(x => String(x.row) === jobsState.runRows[i]) || null;
+  return { total, done, state: r.state || last.state || '', nextAt: r.nextAt || last.nextAt || 0, name: it ? `${it.artist} \u2014 ${it.title}` : '' };
+}
+function jobsPauseRym() {                                         // RYM's runs can only be stopped: what hasn't been read goes back to the front of the queue, held
+  if (!rymFetchState.active) return;
+  const rest = jobsState.runRows.slice(jobsRymNow().done), items = rest.map(r => state.raw.find(x => String(x.row) === r)).filter(Boolean);
+  jobsState.pausing = true; rymFetchCancel();
+  if (items.length) { jobsQueueRym(items, true, true); if (jobsState.waiting[0]) jobsState.waiting[0].paused = true; }
+}
+function jobsPauseAll() {
+  jobsState.held = true; clearTimeout(jobsState.nextTimer); jobsState.nextTimer = 0; jobsState.nextAt = 0;
+  jobsPauseRym(); if (bm && bm.started && bm.running) { bm.paused = true; bmRedraw(); }
+  jobsRefresh();
+}
+function jobsResumeAll() {
+  jobsState.held = false; if (jobsState.waiting[0]) jobsState.waiting[0].paused = false;
+  if (bm && bm.paused) { bm.paused = false; bmRedraw(); }
+  if (!rymFetchState.active && jobsState.waiting.length) jobsStartNextRym();
+  jobsRefresh();
+}
 function jobsRymProgress(d) {                                     // every progress message of a Rate Your Music run
   jobsState.rymLast = d;
   if (d.state === 'starting' || d.state === 'loading' || d.state === 'gap') { jobsState.rymLogged = false; jobsRefresh(); return; }
   if (!jobsState.rymLogged) {
-    jobsState.rymLogged = true;
-    jobsDone('rym', `Rate Your Music update: read ${d.ok || 0} of ${jobsPl(d.total || 0, 'page')}${d.skipped ? ` (${d.skipped} no longer there)` : ''}${d.state === 'cancelled' ? ', stopped by you' : d.state === 'stopped' ? `, stopped: ${rymFetchWhy(d.reason)}` : ''}`);
+    jobsState.rymLogged = true; const paused = jobsState.pausing && d.state === 'cancelled'; jobsState.pausing = false;
+    jobsDone('rym', `Rate Your Music update: read ${d.ok || 0} of ${jobsPl(d.total || 0, 'page')}${d.skipped ? ` (${d.skipped} no longer there)` : ''}${paused ? ', paused (the rest wait in the queue)' : d.state === 'cancelled' ? ', stopped by you' : d.state === 'stopped' ? `, stopped: ${rymFetchWhy(d.reason)}` : ''}`);
   }
-  if (d.state === 'done' && jobsState.waiting.length) { clearTimeout(jobsState.nextTimer); jobsState.nextAt = Date.now() + JOBS_RYM_GAP; jobsState.nextTimer = setTimeout(jobsStartNextRym, JOBS_RYM_GAP); }          // a stop (a check, you cancelling) holds the queue until you start it
+  if (d.state === 'done' && jobsState.waiting.length && !jobsState.held && !jobsState.waiting[0].paused) { clearTimeout(jobsState.nextTimer); jobsState.nextAt = Date.now() + JOBS_RYM_GAP; jobsState.nextTimer = setTimeout(jobsStartNextRym, JOBS_RYM_GAP); }          // a stop (a check, you) holds the queue
   jobsRefresh();
 }
 // ---- what there is ----
 function jobsCollect() {
-  const run = [], need = [], wait = [], el$ = (id) => document.getElementById(id);
-  const last = jobsState.rymLast;
+  const run = [], need = [], wait = [], el$ = (id) => document.getElementById(id), last = jobsState.rymLast, now = Date.now();
   if (rymFetchState.active) {
-    const r = state.rymQueueMode && rymQ.run ? rymQ.run : last || {}, total = r.total || rymFetchState.total || 0, done = r.done || 0;
-    run.push({ title: 'Updating from Rate Your Music', detail: `${done} of ${jobsPl(total, 'page')}${r.state === 'gap' ? ' \u00b7 pausing between pages, on purpose' : ''}`, pct: total ? done / total * 100 : 0,
-      acts: [state.rymQueueMode && rymQ.entries.length ? ['Details', rymQOpen, true] : null, ['Stop', rymFetchCancel]] });
+    const r = jobsRymNow(), secs = r.state === 'gap' && r.nextAt > now ? Math.round((r.nextAt - now) / 1000) : 0;
+    run.push({ cat: 'rym', icon: 'sync', title: 'Update from Rate Your Music', sub: jobsPl(r.total, 'release'), pct: r.total ? r.done / r.total * 100 : 0,
+      detail: [`${r.done} of ${r.total}`, r.name, secs ? `next page in ${secs} s` : r.state === 'gap' ? 'pausing between pages' : r.state === 'loading' ? 'reading' : ''].filter(Boolean).join(' \u00b7 '),
+      acts: [{ icon: 'pause', label: 'Pause', fn: jobsPauseRym }, { icon: 'x', label: 'Stop', fn: rymFetchCancel }, state.rymQueueMode && rymQ.entries.length ? { label: 'Details', fn: rymQOpen, opens: true } : null] });
   } else if (last && last.state === 'stopped' && last.reason === 'challenge') {
-    need.push({ title: 'Rate Your Music asked for a check', detail: 'Pass it on the page the add-on opened, then carry on from where the update stopped.', acts: [['Continue', rymFetchContinue], ['Dismiss', () => { jobsState.rymLast = null; }]] });
+    need.push({ cat: 'rym', icon: 'warn', tone: 'warn', title: 'RYM asked for a check', detail: 'Pass it on the page the add-on opened. The queue\u2019s RYM jobs are held until you continue.', acts: [{ label: 'Continue', fn: rymFetchContinue, primary: true }, { label: 'Dismiss', fn: () => { jobsState.rymLast = null; } }] });
   }
-  if (state.rymQueueMode) { const c = rymQCounts(); if (c.review) need.push({ title: `${jobsPl(c.review, 'release')} with differences to decide`, detail: 'From Rate Your Music updates: what differs from yours was left for you.', acts: [['Review', rymQOpen, true]] }); }
+  if (state.rymQueueMode) {
+    const c = rymQCounts();
+    if (c.review) {
+      const kinds = [...new Set(rymQ.entries.flatMap(e => e.rest.map(p => p.key === 'trackStats' ? 'track ratings' : p.key === 'trackLinks' ? 'track links' : p.key === 'tracks' ? 'tracklists' : String(p.label || p.key).toLowerCase())))].slice(0, 4);
+      need.push({ cat: 'rym', icon: 'list', title: `${jobsPl(c.review, 'update')} ready to review`, detail: `${kinds.length ? kinds.join(', ').replace(/^./, x => x.toUpperCase()) + ' \u00b7 ' : ''}from the RYM run`,
+        acts: [{ label: 'Review', fn: rymQOpen, opens: true }, rymQTicked().length ? { label: 'Apply all', fn: rymQApplyTicked, primary: true } : null] });
+    }
+  }
   const bs = rymOutState.batches || [], adds = bs.filter(b => b.kind !== 'update'), ups = state.rymQueueMode ? [] : bs.filter(b => b.kind === 'update');
-  if (adds.length) { const n = adds.reduce((x, b) => x + b.releases.length, 0); need.push({ title: `${jobsPl(n, 'release')} sent from Rate Your Music`, detail: adds.slice(0, 3).map(b => b.source.title || 'a page').join(' \u00b7 ') + (adds.length > 3 ? ` and ${adds.length - 3} more` : ''), acts: [['Review', () => openRymBatch(adds[0]), true]] }); }
-  if (ups.length) need.push({ title: `${jobsPl(ups.length, 'update')} from Rate Your Music to review`, detail: ups.slice(0, 3).map(b => b.source.title || 'a release').join(' \u00b7 '), acts: [['Review', () => openRymBatch(ups[0]), true], ups.length > 1 ? ['Apply all', rymUpdateAllWaiting] : null] });
+  if (adds.length) { const n = adds.reduce((x, b) => x + b.releases.length, 0); need.push({ cat: 'add', icon: 'plus', title: `Add ${jobsPl(n, 'release')} sent from RYM`, detail: adds.slice(0, 3).map(b => b.source.title || 'a page').join(' \u00b7 ') + (adds.length > 3 ? ` and ${adds.length - 3} more` : ''), acts: [{ label: 'Review', fn: () => openRymBatch(adds[0]), opens: true, primary: true }] }); }
+  if (ups.length) need.push({ cat: 'rym', icon: 'list', title: `${jobsPl(ups.length, 'update')} from RYM to review`, detail: ups.slice(0, 3).map(b => b.source.title || 'a release').join(' \u00b7 '), acts: [{ label: 'Review', fn: () => openRymBatch(ups[0]), opens: true }, ups.length > 1 ? { label: 'Apply all', fn: rymUpdateAllWaiting, primary: true } : null] });
   if (typeof cxImp !== 'undefined' && cxImp && cxImp.running) {
     const bar = el$('cxImpBar'), t = el$('cxImpProgText');
-    run.push({ title: 'Adding releases', detail: t ? t.textContent : '', pct: bar ? parseFloat(bar.style.width) || 0 : 0, acts: [['Show', () => { const ov = el$('cxImportOverlay'); if (ov) ov.hidden = false; bgStatusHide(); }, true], ['Stop', () => { cxImp.cancel = true; }]] });
+    run.push({ cat: 'add', icon: 'plus', title: 'Adding releases', detail: t ? t.textContent : '', pct: bar ? parseFloat(bar.style.width) || 0 : 0, acts: [{ label: 'Show', fn: () => { const ov = el$('cxImportOverlay'); if (ov) ov.hidden = false; bgStatusHide(); }, opens: true }, { icon: 'x', label: 'Stop', fn: () => { cxImp.cancel = true; } }] });
   }
   if (bm && bm.started) {
-    const rels = bm.rels.filter(r => r.include), ks = bmKinds(), cells = rels.length * ks.length, done = cells ? rels.reduce((x, r) => x + ks.filter(k => r.st && r.st[k] !== 'wait' && r.st[k] !== 'work').length, 0) : 0, t = bmPickTotals();
-    if (bm.running) run.push({ title: 'Matching songs', detail: `${jobsPl(rels.length, 'release')}${ks.length ? ' on ' + ks.map(bmName).join(' and ') : ''}${t.n ? ` \u00b7 ${t.n} ticked so far` : ''}`, pct: cells ? done / cells * 100 : 0, acts: [['Show', bmShow, true]] });
-    else if (t.n) need.push({ title: 'Matching songs has finished', detail: `${jobsPl(t.n, 'song link')} ticked: open it to choose what to keep.`, acts: [['Show', bmShow, true]] });
+    const rels = bm.rels.filter(r => r.include), ks = bmKinds(), t = bmPickTotals();
+    const laneDone = (k) => rels.filter(r => r.st && r.st[k] !== 'wait' && r.st[k] !== 'work').length, cells = rels.length * ks.length, done = ks.reduce((x, k) => x + laneDone(k), 0);
+    if (bm.running) run.push({ cat: 'match', icon: 'note', title: bm.auto ? 'Match songs (new releases)' : 'Match songs', sub: `${jobsPl(rels.length, 'release')} \u00b7 ${ks.map(bmName).join(', ')}`, pct: cells ? done / cells * 100 : 0,
+      detail: (bm.paused ? 'Paused \u00b7 ' : '') + ks.map(k => `${bmName(k)} ${laneDone(k)} of ${rels.length}`).join(' \u00b7 ') + (t.n ? ` \u00b7 ${t.n} ticked` : ''),
+      acts: [bm.paused ? { icon: 'play', label: 'Resume', fn: () => { bm.paused = false; bmRedraw(); } } : { icon: 'pause', label: 'Pause', fn: () => { bm.paused = true; bmRedraw(); } }, { label: 'Show', fn: bmShow, opens: true }] });
+    else if (t.n) need.push({ cat: 'match', icon: 'note', title: 'Matches to keep', detail: `${jobsPl(t.n, 'song link')} ticked in Match songs (${jobsPl(rels.length, 'release')}): choose what to keep.`, acts: [{ label: 'Show', fn: bmShow, opens: true, primary: true }] });
   }
-  if (lastfmBackgroundSyncRunning) run.push({ title: 'Syncing Last.fm plays', detail: 'In the background, since the last sync' });
-  if (newReleaseScanInFlight) { const sc = jobsState.scan; run.push({ title: 'Looking for new releases', detail: sc ? `${sc.done} of ${jobsPl(sc.total, 'artist')}` : 'From the artists in your crate', pct: sc && sc.total ? sc.done / sc.total * 100 : null }); }
+  if (lastfmBackgroundSyncRunning) run.push({ cat: 'sync', icon: 'wave', title: 'Last.fm listens sync', sub: 'background', detail: 'Logging the plays since the last sync' });
+  if (newReleaseScanInFlight) { const sc = jobsState.scan; run.push({ cat: 'sync', icon: 'search', title: 'Looking for new releases', detail: sc ? `${sc.done} of ${jobsPl(sc.total, 'artist')}` : 'From the artists in your crate', pct: sc && sc.total ? sc.done / sc.total * 100 : null }); }
   jobsState.waiting.forEach((w, i) => {
-    const soon = i === 0 && jobsState.nextAt > Date.now() ? `Starts in ${Math.max(1, Math.round((jobsState.nextAt - Date.now()) / 1000))} s` : i === 0 && rymFetchState.active ? 'Starts when the update running now finishes' : i === 0 ? 'Held: start it when you\u2019re ready' : `After ${i === 1 ? 'the one above' : `the ${i} above`}`;
-    const names = w.rows.slice(0, 3).map(r => { const it = state.raw.find(x => String(x.row) === r); return it ? it.title : ''; }).filter(Boolean).join(', ');
-    wait.push({ title: `Update ${jobsPl(w.rows.length, 'release')} from Rate Your Music`, detail: `${soon}${names ? ' \u00b7 ' + names + (w.rows.length > 3 ? '\u2026' : '') : ''}`,
-      acts: [i === 0 && !rymFetchState.active ? ['Start now', jobsStartNextRym] : null, ['Remove', () => { const k = jobsState.waiting.indexOf(w); if (k >= 0) jobsState.waiting.splice(k, 1); if (!jobsState.waiting.length) { clearTimeout(jobsState.nextTimer); jobsState.nextAt = 0; } }]] });
+    const right = jobsState.held ? 'held' : w.paused ? 'paused' : i === 0 && jobsState.nextAt > now ? `in ${Math.max(1, Math.round((jobsState.nextAt - now) / 1000))} s` : i === 0 && rymFetchState.active ? 'next' : i === 0 ? 'ready' : `after ${i}`;
+    const names = w.rows.slice(0, 2).map(r => { const it = state.raw.find(x => String(x.row) === r); return it ? it.title : ''; }).filter(Boolean).join(', ');
+    wait.push({ cat: 'rym', icon: 'sync', drag: i, title: 'Update from Rate Your Music', sub: jobsPl(w.rows.length, 'release'), detail: names + (w.rows.length > 2 ? '\u2026' : ''), right,
+      acts: [i === 0 && !rymFetchState.active ? { icon: 'play', label: 'Start now', fn: () => { jobsState.held = false; w.paused = false; jobsStartNextRym(); } } : null, { icon: 'x', label: 'Remove', fn: () => { const k = jobsState.waiting.indexOf(w); if (k >= 0) jobsState.waiting.splice(k, 1); if (!jobsState.waiting.length) { clearTimeout(jobsState.nextTimer); jobsState.nextAt = 0; } } }] });
   });
+  const mq = mqAll().length;
+  if (mq && !(bm && bm.started && bm.scope === 'queue')) wait.push({ cat: 'match', icon: 'note', title: 'Match songs', sub: `${jobsPl(mq, 'release')} in the match queue`, right: 'when you start it', acts: [{ icon: 'play', label: 'Start', fn: () => bmOpen({ queue: true }), opens: true }] });
+  const lf = loadLastfmCreds();
+  if (lf.username && lf.apiKey && localStorage.getItem(LASTFM_SYNC_KEY + ':' + lf.username) && !lastfmBackgroundSyncRunning) {
+    const at = Number(localStorage.getItem(JOBS_LF_AT_KEY) || 0);
+    wait.push({ cat: 'sync', icon: 'wave', title: 'Last.fm listens sync', sub: 'background', right: jobsLfEvery() ? (at ? jobsIn(at + JOBS_LF_EVERY - now) : 'every 6 h') : 'when CRATE opens', acts: [{ icon: 'play', label: 'Sync now', fn: maybeRunBackgroundLastfmSync }] });
+  }
+  if ((loadSpotifyCreds() || {}).clientId && !newReleaseScanInFlight) {
+    const at = Number(localStorage.getItem(NEW_RELEASES_LAST_SCAN_KEY) || 0);
+    wait.push({ cat: 'sync', icon: 'search', title: 'Look for new releases', sub: 'background', right: at ? jobsIn(at + NEW_RELEASE_AUTO_INTERVAL_MS - now) : 'daily' });
+  }
   const day0 = new Date(); day0.setHours(0, 0, 0, 0);
   const done = jobsDoneLoad().filter(e => e.t >= day0.getTime()).reverse();
   return { run, need, wait, done };
 }
 // ---- the panel ----
-function jobsOpen() { const ov = document.getElementById('jobsOverlay'); if (!ov) return; ov.hidden = false; jobsRender(); clearInterval(jobsState.timer); jobsState.timer = setInterval(jobsRender, 1000); }
-function jobsClose() { const ov = document.getElementById('jobsOverlay'); if (ov) ov.hidden = true; clearInterval(jobsState.timer); jobsState.timer = 0; }
-function jobsRefresh() { jobsBadge(); const ov = document.getElementById('jobsOverlay'); if (ov && !ov.hidden) jobsRender(); }
-function jobsBadge() {
-  const b = document.getElementById('activityBadge'); if (!b) return; let c;
-  try { c = jobsCollect(); } catch (e) { return; }          // (while the page is still starting, some jobs aren't there yet)
-  const n = c.run.length + c.need.length; b.textContent = String(n); b.hidden = !n;
+function jobsOpen() { const ov = document.getElementById('jobsOverlay'); if (!ov) return; ov.hidden = false; jobsRender(); jobsStripRender(); clearInterval(jobsState.timer); jobsState.timer = setInterval(() => { if (!jobsState.dragging) jobsRender(); }, 1000); }
+function jobsClose() { const ov = document.getElementById('jobsOverlay'); if (ov) ov.hidden = true; clearInterval(jobsState.timer); jobsState.timer = 0; jobsState.menu = false; jobsStripRender(); }
+function jobsRefresh() { jobsStripRender(); const ov = document.getElementById('jobsOverlay'); if (ov && !ov.hidden && !jobsState.dragging) jobsRender(); }
+function jobsSummary(c) {
+  const parts = [c.run.length ? `${c.run.length} running` : '', c.wait.filter(j => j.drag != null).length ? `${c.wait.filter(j => j.drag != null).length} waiting` : '', c.need.length ? `${c.need.length} need${c.need.length === 1 ? 's' : ''} you` : ''].filter(Boolean);
+  return parts.length ? parts.join(' \u00b7 ') : 'Nothing running';
+}
+function jobsBadge(c) { const b = document.getElementById('activityBadge'); if (!b) return; const n = c.run.length + c.need.length; b.textContent = String(n); b.hidden = !n; }
+function jobsStripRender() {                                       // collapsed: one strip at the bottom for all of it (the separate RYM and Match songs strips step aside)
+  const st = document.getElementById('jobsStrip'); if (!st) return; let c;
+  try { c = jobsCollect(); } catch (e) { return; }                  // (while the page is still starting, some jobs aren't there yet)
+  jobsBadge(c);
+  const ov = document.getElementById('jobsOverlay'), on = !!(c.run.length || c.need.length) && !!(ov && ov.hidden);
+  st.hidden = !on; document.body.classList.toggle('jobs-strip-on', on || !!(ov && !ov.hidden)); if (!on) return;          // (the old strips also step aside while the panel is open)
+  const bits = c.run.map(j => j.cat === 'rym' ? `RYM ${j.detail.split(' \u00b7 ')[0]}` : j.cat === 'match' ? `Matching ${Math.round(j.pct || 0)}%` : j.cat === 'add' ? 'Adding releases' : j.title);
+  if (c.need.length) bits.push(`${c.need.length} need${c.need.length === 1 ? 's' : ''} you`);
+  const pct = c.run.find(j => typeof j.pct === 'number');
+  st.innerHTML = `${jobsIco('layers')}<span class="jobs-strip-t"><b>Processing</b> ${escapeHtml(bits.join(' \u00b7 '))}</span>${pct ? `<i class="job-bar jobs-strip-bar"><b style="width:${Math.max(2, Math.min(100, pct.pct))}%"></b></i>` : ''}<button type="button" class="jobs-link" data-jobs-open>Open</button>`;
 }
 function jobsRender() {
   const body = document.getElementById('jobsBody'); if (!body) return;
-  const c = jobsCollect(), acts = jobsState.acts = [];
-  const row = (j) => `<div class="job-row"><div class="job-main"><b>${escapeHtml(j.title)}</b>${j.detail ? `<span class="sm-dim">${escapeHtml(j.detail)}</span>` : ''}${j.pct !== undefined ? `<i class="job-bar"><b style="width:${j.pct == null ? 100 : Math.max(2, Math.min(100, j.pct))}%"${j.pct == null ? ' class="job-indef"' : ''}></b></i>` : ''}</div>`
-    + `<div class="job-acts">${(j.acts || []).filter(Boolean).map(a => { acts.push(a); return `<button type="button" class="chip-btn" data-job-act="${acts.length - 1}">${escapeHtml(a[0])}</button>`; }).join('')}</div></div>`;
-  const sec = (title, list, empty) => `<section class="job-sec"><h3>${title}${list.length ? ` <span class="sm-dim">${list.length}</span>` : ''}</h3>${list.length ? list.map(row).join('') : `<p class="sm-dim job-empty">${empty}</p>`}</section>`;
+  const c = jobsCollect(), acts = jobsState.acts = [], f = jobsState.filter || 'all';
+  const keep = (j, sec) => f === 'all' || (f === 'need' ? sec === 'need' : j.cat === f);
+  const btn = (a) => { if (!a) return ''; acts.push(a); const i = acts.length - 1; return a.icon && !a.text ? `<button type="button" class="job-btn job-ibtn" data-job-act="${i}" title="${escapeHtml(a.label)}" aria-label="${escapeHtml(a.label)}">${jobsIco(a.icon)}</button>` : `<button type="button" class="job-btn${a.primary ? ' job-primary' : ''}" data-job-act="${i}">${escapeHtml(a.label)}</button>`; };
+  const row = (j) => `<div class="job-row${j.tone ? ' job-' + j.tone : ''}"${j.drag != null ? ` draggable="true" data-job-drag="${j.drag}"` : ''}>${j.drag != null ? `<span class="job-grip" title="Drag to reorder">${jobsIco('grip')}</span>` : ''}${jobsIco(j.icon)}`
+    + `<div class="job-main"><div class="job-t"><b>${escapeHtml(j.title)}</b>${j.sub ? `<span class="job-sub"> \u00b7 ${escapeHtml(j.sub)}</span>` : ''}</div>`
+    + `${j.pct !== undefined ? `<i class="job-bar"><b style="width:${j.pct == null ? 100 : Math.max(2, Math.min(100, j.pct))}%"${j.pct == null ? ' class="job-indef"' : ''}></b></i>` : ''}${j.detail ? `<div class="job-d">${escapeHtml(j.detail)}</div>` : ''}</div>`
+    + `${j.right ? `<span class="job-right">${escapeHtml(j.right)}</span>` : ''}<div class="job-acts">${(j.acts || []).map(btn).join('')}</div></div>`;
+  const sec = (key, title, list, empty) => { const l = list.filter(j => keep(j, key)); if (!l.length && f !== 'all') return ''; return `<section class="job-sec job-sec-${key}"><h3>${title}</h3>${l.length ? l.map(row).join('') : `<p class="job-empty">${empty}</p>`}</section>`; };
+  const all = c.run.concat(c.need, c.wait), count = (k) => k === 'all' ? all.length : k === 'need' ? c.need.length : all.filter(j => j.cat === k).length;
   const tm = (t) => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  body.innerHTML = sec('Running', c.run, 'Nothing is running.') + sec('Needs you', c.need, 'Nothing is waiting for you.') + sec('Waiting', c.wait, 'Nothing is queued. A Rate Your Music update started while another is running waits here, and starts by itself.')
-    + `<section class="job-sec"><h3>Done today${c.done.length ? ` <span class="sm-dim">${c.done.length}</span>` : ''}</h3>${c.done.length ? `<ul class="job-done">${c.done.map(e => `<li><span class="sm-dim">${tm(e.t)}</span> ${escapeHtml(e.text)}</li>`).join('')}</ul>` : '<p class="sm-dim job-empty">Nothing yet today.</p>'}</section>`;
-  jobsBadge();
+  const cat = (k) => ({ rym: 'rym', match: 'match', import: 'add', scan: 'sync', lastfm: 'sync' })[k] || 'other';
+  const done = c.done.filter(e => f === 'all' || cat(e.kind) === f), lastRym = c.done.find(e => e.kind === 'rym'), lastMatch = c.done.find(e => e.kind === 'match');
+  const doneRow = (e) => `<div class="job-row job-done-row">${jobsIco('check')}<div class="job-main"><div class="job-t">${escapeHtml(e.text)}</div><div class="job-d">${tm(e.t)}</div></div><div class="job-acts">${btn(e === lastRym && state.rymQueueMode && rymQ.entries.length && !rymFetchState.active ? { label: 'Details', fn: rymQOpen, opens: true } : e === lastMatch && bm && bm.started && !bm.running ? { label: 'Details', fn: bmShow, opens: true } : null)}</div></div>`;
+  document.getElementById('jobsSum').textContent = `${jobsSummary(c)} \u00b7 paced so RYM and Spotify stay happy`;
+  const pa = document.getElementById('jobsPauseAll'), paused = jobsState.held || !!(bm && bm.paused);
+  pa.innerHTML = `${jobsIco(paused ? 'play' : 'pause')}<span>${paused ? 'Resume all' : 'Pause all'}</span>`; pa.disabled = !paused && !c.run.length && !c.wait.some(j => j.drag != null);
+  document.getElementById('jobsChips').innerHTML = JOBS_CATS.map(([k, l]) => { const n = count(k); return `<button type="button" class="job-chip${f === k ? ' on' : ''}" data-job-filter="${k}"${n || k === 'all' ? '' : ' disabled'}>${l}${(k === 'all' || k === 'need') && n ? ' ' + n : ''}</button>`; }).join('');
+  body.innerHTML = sec('run', 'Running', c.run, 'Nothing is running.') + sec('need', 'Needs you', c.need, 'Nothing is waiting for you.') + sec('wait', 'Waiting \u00b7 drag to reorder', c.wait, 'Nothing is queued. A Rate Your Music update started while another is running waits here, and starts by itself.')
+    + (done.length || f === 'all' ? `<section class="job-sec"><h3>Done today</h3>${done.length ? done.map(doneRow).join('') : '<p class="job-empty">Nothing yet today.</p>'}</section>` : '');
+  const m = document.getElementById('jobsMenu'); m.hidden = !jobsState.menu;
+  if (jobsState.menu) { const p = smPrefs(); m.innerHTML = [['autoMatchNew', 'Match new releases by themselves', !!p.autoMatchNew], ['rymQueueMode', 'Apply safe Rate Your Music changes as they arrive; review the rest', !!state.rymQueueMode], ['lfEvery', 'Sync Last.fm every 6 hours while CRATE is open', jobsLfEvery()]].map(([k, l, v]) => `<label class="job-opt"><input type="checkbox" data-job-opt="${k}"${v ? ' checked' : ''}> <span>${l}</span></label>`).join('') + '<p class="job-empty">Queued Rate Your Music updates start 15 s apart, and read one page at a time with a pause between pages.</p>'; }
+  jobsBadge(c);
 }
 function initJobs() {
   const ov = document.getElementById('jobsOverlay'); if (!ov) return;
   document.getElementById('jobsClose').addEventListener('click', jobsClose);
   ov.addEventListener('mousedown', (e) => { if (e.target === ov) jobsClose(); });
-  ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') jobsClose(); });
-  document.getElementById('jobsBody').addEventListener('click', (e) => {
+  ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (jobsState.menu) { jobsState.menu = false; jobsRender(); } else jobsClose(); } });
+  document.getElementById('jobsPauseAll').addEventListener('click', () => { if (jobsState.held || (bm && bm.paused)) jobsResumeAll(); else jobsPauseAll(); });
+  document.getElementById('jobsMenuBtn').addEventListener('click', () => { jobsState.menu = !jobsState.menu; jobsRender(); });
+  document.getElementById('jobsMenu').addEventListener('change', (e) => {
+    const k = e.target.dataset.jobOpt, v = e.target.checked;
+    if (k === 'autoMatchNew') smPrefsSave({ autoMatchNew: v }); else if (k === 'rymQueueMode') { state.rymQueueMode = v; savePrefs(); const x = document.getElementById('rymQueueMode'); if (x) x.checked = v; } else if (k === 'lfEvery') { try { localStorage.setItem(JOBS_LF_ON_KEY, v ? '1' : '0'); } catch (er) { /* kept for this visit */ } }
+  });
+  document.getElementById('jobsChips').addEventListener('click', (e) => { const b = e.target.closest('[data-job-filter]'); if (!b) return; jobsState.filter = b.dataset.jobFilter; jobsRender(); });
+  const body = document.getElementById('jobsBody');
+  body.addEventListener('click', (e) => {
     const b = e.target.closest('[data-job-act]'); if (!b) return; const a = (jobsState.acts || [])[Number(b.dataset.jobAct)]; if (!a) return;
-    if (a[2]) jobsClose();          // it opens that job's own dialog
-    try { a[1](); } catch (err) { console.warn('Activity action failed:', err); }
+    if (a.opens) jobsClose();          // it opens that job's own dialog
+    try { a.fn(); } catch (err) { console.warn('Processing action failed:', err); }
     jobsRefresh();
   });
+  // Waiting: drag a Rate Your Music update up or down to change what runs next
+  body.addEventListener('dragstart', (e) => { const r = e.target.closest('[data-job-drag]'); if (!r) return; jobsState.dragging = Number(r.dataset.jobDrag); r.classList.add('job-dragging'); try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', r.dataset.jobDrag); } catch (er) { /* old browser */ } });
+  body.addEventListener('dragover', (e) => { const r = e.target.closest('[data-job-drag]'); if (r && jobsState.dragging != null) { e.preventDefault(); body.querySelectorAll('.job-drop').forEach(x => x.classList.remove('job-drop')); r.classList.add('job-drop'); } });
+  body.addEventListener('drop', (e) => {
+    const r = e.target.closest('[data-job-drag]'), from = jobsState.dragging; if (!r || from == null) return; e.preventDefault();
+    const to = Number(r.dataset.jobDrag), w = jobsState.waiting; if (to !== from && w[from]) { const [x] = w.splice(from, 1); w.splice(to, 0, x); }
+  });
+  body.addEventListener('dragend', () => { jobsState.dragging = null; jobsRender(); });
+  const strip = document.getElementById('jobsStrip'); if (strip) strip.addEventListener('click', jobsOpen);
   const m = document.getElementById('menuActivity'); if (m) m.addEventListener('click', () => { const lm = document.getElementById('layoutMenu'); if (lm) lm.hidden = true; jobsOpen(); });
-  setInterval(() => { if (!document.hidden) jobsBadge(); }, 3000);
+  setInterval(() => { if (!document.hidden) jobsStripRender(); }, 1000);
+  setInterval(() => {                                               // the syncs, while CRATE stays open: Last.fm every 6 hours (unless switched off), the new-release check when it is due
+    if (document.hidden) return;
+    const at = Number(localStorage.getItem(JOBS_LF_AT_KEY) || 0);
+    if (jobsLfEvery() && at && Date.now() - at >= JOBS_LF_EVERY) maybeRunBackgroundLastfmSync();
+    maybeAutoScanNewReleases();
+  }, 5 * 60000);
 }
 function rymBatchDone(ids) {                                     // taken (or thrown away): the add-on forgets them, and so does the bar
   const gone = new Set(ids);
@@ -36326,6 +36465,7 @@ async function maybeRunBackgroundLastfmSync() {
     const pending = lfAlbumsFromGroups(st.groups, lastfmNormKey, st.ignored);
     if (state.lastfmReviewAtStartup && pending.length && (sync.newUnmatched > 0 || !lfIsSnoozed(st, Date.now()))) openLastfmReview(creds.username, sync);
     else lfSyncToast(creds.username, sync);
+    try { localStorage.setItem(JOBS_LF_AT_KEY, String(Date.now())); } catch (e) { /* the next 6-hourly sync waits for a reload */ }
     if (tracks.length) jobsDone('lastfm', `Last.fm sync: ${jobsPl(tracks.length, 'new play')}, ${jobsPl(Number(loggedPlays) || 0, 'play')} logged`);
     if (state.rightPanelShowHistory) renderLastfmHistoryPanel();
   } catch (err) {
@@ -40071,22 +40211,61 @@ html, body {
   @media (max-width: 760px) { .rymq-cols { display: none; } .rymq-row { grid-template-columns: 22px minmax(0, 1fr); } .rymq-row .rymq-cov, .rymq-row .rymq-st, .rymq-row .rymq-chips { grid-column: 2; } .rymq-detail { padding-left: 24px; } .rymq-field { grid-template-columns: 20px minmax(0, 1fr); } }
   .bg-status { position: fixed; left: 16px; bottom: 96px; z-index: 160; max-width: min(92vw, 520px); display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--panel, #1B212B); color: var(--text); border: 1px solid var(--line, #3a4352); border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.45); font-size: 12px; }
   .bg-status[hidden] { display: none; }
-  .bg-status #bgStatusText { cursor: pointer; }
-  .bg-status #bgStatusText:hover { text-decoration: underline; }
-  .jobs-modal { max-width: 640px; }
-  .job-sec { margin: 0 0 18px; }
-  .job-sec h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; margin: 0 0 8px; opacity: .85; }
-  .job-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid rgba(255,255,255,.07); }
-  .job-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-  .job-main .sm-dim { font-size: 12px; overflow-wrap: anywhere; }
-  .job-bar { display: block; flex: none; height: 4px; margin-top: 4px; background: rgba(255,255,255,.12); border-radius: 2px; overflow: hidden; }
+  .jobs-modal { max-width: 560px; width: 100%; padding: 0; display: flex; flex-direction: column; max-height: min(88vh, 900px); overflow: hidden; }
+  .job-ico { width: 18px; height: 18px; flex: none; }
+  .jobs-head { display: flex; align-items: center; gap: 12px; padding: 16px 16px 10px; }
+  .jobs-head-ico .job-ico { width: 22px; height: 22px; opacity: .9; }
+  .jobs-head-t { flex: 1 1 auto; min-width: 0; }
+  .jobs-head-t h2 { margin: 0; font-size: 18px; }
+  .jobs-head-t p { margin: 2px 0 0; font-size: 12px; opacity: .7; }
+  .job-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,.18); background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
+  .job-btn:hover { background: rgba(255,255,255,.07); }
+  .job-btn:disabled { opacity: .4; cursor: default; }
+  .job-btn .job-ico { width: 15px; height: 15px; }
+  .job-ibtn { padding: 6px 9px; }
+  .job-big { padding: 8px 14px; font-weight: 600; }
+  .job-big.job-ibtn { padding: 8px 10px; }
+  .job-primary { border-color: var(--accent, #D6A24C); }
+  .jobs-menu { margin: 0 16px 10px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.12); border-radius: 10px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+  .jobs-menu[hidden] { display: none; }
+  .job-opt { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+  .jobs-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 12px; border-bottom: 1px solid rgba(255,255,255,.1); }
+  .job-chip { padding: 4px 10px; border-radius: 7px; border: 1px solid rgba(255,255,255,.16); background: transparent; color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
+  .job-chip.on { background: var(--accent, #D6A24C); border-color: var(--accent, #D6A24C); color: #14161a; }
+  .job-chip:disabled { opacity: .35; cursor: default; }
+  .jobs-body { overflow-y: auto; padding-bottom: 6px; }
+  .job-sec { border-bottom: 1px solid rgba(255,255,255,.1); }
+  .job-sec:last-child { border-bottom: 0; }
+  .job-sec h3 { font-size: 12px; font-weight: 500; margin: 0; padding: 10px 16px 4px; opacity: .65; }
+  .job-row { display: flex; align-items: center; gap: 12px; padding: 9px 16px; }
+  .job-row > .job-ico { opacity: .85; }
+  .job-main { flex: 1 1 auto; min-width: 0; }
+  .job-t { font-size: 14px; overflow-wrap: anywhere; }
+  .job-t b { font-weight: 600; }
+  .job-sub { opacity: .75; }
+  .job-d { font-size: 12px; opacity: .7; margin-top: 2px; overflow-wrap: anywhere; }
+  .job-right { flex: none; font-size: 12px; opacity: .7; }
+  .job-acts { flex: none; display: flex; gap: 6px; }
+  .job-acts:empty { display: none; }
+  .job-bar { display: block; height: 4px; margin-top: 5px; max-width: 240px; background: rgba(255,255,255,.12); border-radius: 2px; overflow: hidden; }
   .job-bar > b { display: block; height: 100%; background: var(--accent, #D6A24C); transition: width .25s; }
   .job-indef { opacity: .45; }
-  .job-acts { flex: none; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-  .job-empty { margin: 0; font-size: 12px; }
-  .job-done { list-style: none; margin: 0; padding: 0; font-size: 13px; }
-  .job-done li { padding: 4px 0; border-top: 1px solid rgba(255,255,255,.07); }
-  @media (max-width: 520px) { .job-row { flex-wrap: wrap; } .job-acts { justify-content: flex-start; } }
+  .job-warn { background: rgba(214,140,40,.16); }
+  .job-warn .job-t, .job-warn > .job-ico { color: #f0a640; opacity: 1; }
+  .job-warn .job-d { color: #e0a050; opacity: .9; }
+  .job-grip { display: inline-flex; cursor: grab; opacity: .45; margin-right: -4px; }
+  .job-row[draggable="true"] { cursor: grab; }
+  .job-dragging { opacity: .45; }
+  .job-drop { box-shadow: inset 0 2px 0 var(--accent, #D6A24C); }
+  .job-done-row > .job-ico { color: #6cc070; opacity: 1; }
+  .job-empty { margin: 0; padding: 4px 16px 10px; font-size: 12px; opacity: .6; }
+  .jobs-strip { position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px; z-index: 161; display: flex; align-items: center; gap: 10px; max-width: min(calc(100vw - 32px), 560px); padding: 9px 14px; background: var(--panel, #1c1f24); border: 1px solid rgba(255,255,255,.14); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.4); font-size: 13px; cursor: pointer; }
+  .jobs-strip[hidden] { display: none; }
+  .jobs-strip-t { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .jobs-strip-bar { width: 70px; flex: none; margin-top: 0; }
+  .jobs-link { background: none; border: 0; padding: 0; color: var(--accent, #D6A24C); font: inherit; cursor: pointer; flex: none; }
+  body.jobs-strip-on .bg-status, body.jobs-strip-on #bmStrip { display: none !important; }
+  @media (max-width: 560px) { .job-row { flex-wrap: wrap; } .job-acts { margin-left: 30px; } .jobs-head { flex-wrap: wrap; } }
   .bg-status-track { flex: 1 1 80px; min-width: 60px; height: 4px; background: rgba(255,255,255,.12); border-radius: 2px; overflow: hidden; }
   .bg-status-track b { display: block; height: 100%; width: 0; background: var(--accent, #D6A24C); transition: width .25s; }
   .rym-inbox { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 150; max-width: min(92vw, 640px); display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 14px; background: var(--panel, #1B212B); color: var(--text); border: 1px solid var(--accent, #D6A24C); border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.45); font-size: 13px; }
