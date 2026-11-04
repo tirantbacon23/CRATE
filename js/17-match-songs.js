@@ -206,7 +206,10 @@ function smScore(song, cand, opts) {
   const ts = smTitleSim(song.title, smStripArtistPrefix(cand.title, song.artist));
   let score = add('title', Math.pow(ts, 1.5) * 55);
   reasons.push(ts >= 0.95 ? 'same title' : ts >= 0.75 ? 'similar title' : 'different title');
-  const am = smArtistMatch(song.artist, cand.artists || cand.channel);
+  let am = smArtistMatch(song.artist, cand.artists || cand.channel);
+  // A fan's upload ("martian1138") names the artist in its title, "The Telescopes - Deep Hole Ends": that counts as the artist too.
+  const tm = cand.channel && /^(.+?)\s+[-\u2013\u2014]\s+.+$/.exec(String(cand.title || '')), tam = tm ? smArtistMatch(song.artist, [tm[1]]) : null;
+  if (tam !== null && (am === null || tam > am)) am = tam;
   if (am === null) score += add('artist (unknown)', 8); else { score += add('artist', am * 15); reasons.push(am === 1 ? 'same artist' : am > 0 ? 'artist partly matches' : 'different artist'); }
   const tol = pf.lenTol === 'strict' ? 0.6 : pf.lenTol === 'loose' ? 1.8 : 1;
   const dp = smDurationPoints(song.durationMs, cand.durationMs, tol);

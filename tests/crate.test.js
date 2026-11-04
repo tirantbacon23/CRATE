@@ -348,3 +348,12 @@ suite('Tracks columns', () => {
     } finally { delete gc.clientWidth; st.fields.tracks = cols; st.trackColWidths = widths; }
   });
 });
+
+suite('Match songs: the artist in a video title', () => {
+  test('a fan upload titled "Artist - Song" counts as the artist, so an exact title and length is confident', () => {
+    const f = app('smScore'), song = { title: 'Deep Hole Ends', artist: 'The Telescopes', durationMs: 301000 };
+    const fan = f(song, { id: 'x', title: 'The Telescopes - Deep Hole Ends', channel: 'martian1138', durationMs: 300000 }, {});
+    const other = f(song, { id: 'y', title: 'Someone Else - Deep Hole Ends', channel: 'martian1138', durationMs: 300000 }, {});
+    eq([fan.band, other.band === 'confident'], ['confident', false]);
+  });
+});
