@@ -17,7 +17,17 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.78.5
+  CURRENT_VERSION: 1.78.6
+
+  1.78.6 — 2026-11-04 — Deleting looks and feels better: CRATE's own dialog with the covers, and each release fades out as it goes. Page only.
+          The browser's plain "OK / Cancel" box is replaced by a dialog that
+          fans out the covers of what you're deleting (up to five, "+3" for
+          the rest), lists their titles and artists, and says what goes with
+          them. Cancel is the default: Escape or a click outside also cancels.
+          While they're deleted, the releases waiting their turn are dimmed;
+          each one's card shrinks and fades out as it goes and the cards
+          around it slide into its place. One that couldn't be deleted shakes
+          and comes back. With "reduce motion" switched on, nothing moves.
 
   1.78.5 — 2026-11-04 — After an update, CRATE loads as one matching set of files. Page only.
           Since 1.78.0 split the page into files, a browser could keep each

@@ -185,40 +185,85 @@ function onRemoveBtnClick() {
 // deleting a playlist/folder elsewhere in the app, since a context menu
 // closes as soon as an action is picked so there's no button left to
 // re-click for a second confirmation.
-async function deleteAlbumFromContextMenu(item) {
-  if (!confirm(`Delete "${item.title}" by ${item.artist} from your crate? This can\u2019t be undone.`)) return;
-  try {
-    await postUpdate({ action: 'deleteAlbum', row: item.row });
-    if (activeItem && activeItem.row === item.row) closeDeck();
-    flashGlobalToast(`Deleted "${item.title}"`);
-    await fetchCatalog();
-  } catch (err) {
-    flashGlobalToast('Couldn\u2019t delete \u2014 try again');
-  }
-}
+function deleteAlbumFromContextMenu(item) { return item ? deleteAlbumsFromContextMenu([item]) : undefined; }
 
 // Several selected releases at once. Each is deleted by its row in the sheet, and deleting one moves every row below it up, so they go
 // from the bottom up: the rows still to come are all above, and don't move. (One at a time, in the order picked, deleted the wrong releases
-// or stopped after the first; and the menu only ever deleted the one clicked.)
-async function deleteAlbumRows(items, post) {
+// or stopped after the first; and the menu only ever deleted the one clicked.) onEach(item, ok) hears each one as it is done.
+async function deleteAlbumRows(items, post, onEach) {
   const list = (items || []).filter(it => it && Number(it.row) > 0).sort((a, b) => Number(b.row) - Number(a.row)), done = [], failed = [];
   for (const it of list) {
-    try { await post({ action: 'deleteAlbum', row: it.row }); done.push(it); }
-    catch (e) { failed.push(it); if (/unauthorized/i.test(String((e && e.message) || e))) break; }
+    let ok = false;
+    try { await post({ action: 'deleteAlbum', row: it.row }); done.push(it); ok = true; }
+    catch (e) { failed.push(it); if (onEach) await onEach(it, false); if (/unauthorized/i.test(String((e && e.message) || e))) break; continue; }
+    if (ok && onEach) await onEach(it, true);
   }
   return { done, failed };
 }
+
+// ---- deleting, as you see it: CRATE's own dialog (the covers, the names), then each release's card fades out as it goes and the
+// ones around it slide into its place. Releases waiting their turn are dimmed; one that couldn't be deleted shakes and comes back. ----
+const delReduceMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+function delCover(it) { return it.cover || (state.artCache[artKey(it)] && state.artCache[artKey(it)].art) || placeholderArt(it); }
+function deleteConfirm(items) {
+  return new Promise(resolve => {
+    const n = items.length, one = n === 1, ov = document.createElement('div');
+    ov.className = 'del-overlay';
+    const covers = items.slice(0, 5).map((it, i) => `<img src="${escapeHtml(delCover(it))}" alt="" style="--i:${i};--n:${Math.min(n, 5)}">`).join('') + (n > 5 ? `<span class="del-more">+${n - 5}</span>` : '');
+    const names = items.slice(0, 4).map(it => `<li><b>${escapeHtml(it.title)}</b><span>${escapeHtml(it.artist)}</span></li>`).join('') + (n > 4 ? `<li class="del-rest">and ${n - 4} more</li>` : '');
+    ov.innerHTML = `<div class="del-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delTitle" aria-describedby="delNote">
+      <div class="del-covers${one ? ' one' : ''}">${covers}</div>
+      <h2 id="delTitle">${one ? 'Delete this release?' : `Delete ${n} releases?`}</h2>
+      <ul class="del-names">${names}</ul>
+      <p id="delNote" class="del-note">${one ? 'It' : 'They'} will be removed from your crate, with ${one ? 'its' : 'their'} ratings, notes and links. This can’t be undone.</p>
+      <div class="del-btns"><button type="button" class="cancel-btn" data-del="no">Cancel</button><button type="button" class="del-go" data-del="yes">${one ? 'Delete' : `Delete ${n}`}</button></div>
+    </div>`;
+    const finish = (yes) => { document.removeEventListener('keydown', onKey, true); ov.classList.add('closing'); setTimeout(() => ov.remove(), delReduceMotion() ? 0 : 160); resolve(yes); };
+    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); } };
+    ov.addEventListener('click', (e) => { const b = e.target.closest('[data-del]'); if (b) finish(b.dataset.del === 'yes'); else if (e.target === ov) finish(false); });
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(ov);
+    ov.querySelector('[data-del="no"]').focus();
+  });
+}
+function delCardsFor(it) { return [...document.querySelectorAll(`[data-album-row="${CSS.escape(String(it.row))}"]`)]; }
+function delAnimateOut(it) {                       // fade this release's cards out, then let the cards after them slide into place (measured before and after: FLIP)
+  const els = delCardsFor(it); if (!els.length) return Promise.resolve();
+  if (delReduceMotion()) { els.forEach(e => { e.style.display = 'none'; }); return Promise.resolve(); }
+  els.forEach(e => { e.classList.remove('del-waiting'); e.classList.add('del-leaving'); });
+  return new Promise(res => setTimeout(() => {
+    const parents = [...new Set(els.map(e => e.parentElement).filter(Boolean))];
+    const sibs = parents.flatMap(p => [...p.children].filter(c => !els.includes(c) && c.style.display !== 'none').slice(0, 400));
+    const before = new Map(sibs.map(s => [s, s.getBoundingClientRect()]));
+    els.forEach(e => { e.style.display = 'none'; });
+    sibs.forEach(s => {
+      const a = before.get(s), b = s.getBoundingClientRect(), dx = a.left - b.left, dy = a.top - b.top;
+      if (!dx && !dy) return;
+      s.style.transition = 'none'; s.style.transform = `translate(${dx}px, ${dy}px)`;
+      requestAnimationFrame(() => requestAnimationFrame(() => { s.style.transition = 'transform 260ms cubic-bezier(.2,.7,.2,1)'; s.style.transform = ''; setTimeout(() => { s.style.transition = ''; }, 300); }));
+    });
+    res();
+  }, 260));
+}
 async function deleteAlbumsFromContextMenu(items) {
-  if (!items || items.length < 2) return deleteAlbumFromContextMenu(items && items[0]);
-  const names = items.slice(0, 5).map(it => `• ${it.artist} — ${it.title}`).join('\n') + (items.length > 5 ? `\n…and ${items.length - 5} more` : '');
-  if (!confirm(`Delete these ${items.length} releases from your crate? This can’t be undone.\n\n${names}`)) return;
-  bgStatus(`Deleting ${items.length} releases…`, 30, {});
-  const r = await deleteAlbumRows(items, postUpdate);
+  items = (items || []).filter(Boolean); if (!items.length) return;
+  if (!(await deleteConfirm(items))) return;
+  const n = items.length; let k = 0;
+  items.forEach(it => delCardsFor(it).forEach(e => e.classList.add('del-waiting')));
+  if (n > 1) bgStatus(`Deleting ${n} releases…`, 5, {});
+  const r = await deleteAlbumRows(items, postUpdate, async (it, ok) => {
+    k++; if (n > 1) bgStatus(`Deleting ${n} releases… ${k} of ${n}`, Math.round(k / n * 100), {});
+    if (ok) await delAnimateOut(it);
+    else delCardsFor(it).forEach(e => { e.classList.remove('del-waiting'); e.classList.add('del-failed'); setTimeout(() => e.classList.remove('del-failed'), 900); });
+  });
   if (activeItem && r.done.some(it => it.row === activeItem.row)) closeDeck();
-  state.selectedAlbums.clear();
+  r.done.forEach(it => state.selectedAlbums.delete(String(it.row)));
+  items.forEach(it => delCardsFor(it).forEach(e => e.classList.remove('del-waiting')));
   try { await fetchCatalog(); } catch (e) { /* the sheet is changed; the list catches up next time */ }
-  const msg = `Deleted ${r.done.length} release${r.done.length === 1 ? '' : 's'}${r.failed.length ? `; ${r.failed.length} couldn’t be deleted — try again` : ''}`;
-  bgStatus(msg, 100, { close: true, always: true }); flashGlobalToast(msg);
+  const what = n === 1 && r.done.length === 1 ? `“${items[0].title}”` : `${r.done.length} release${r.done.length === 1 ? '' : 's'}`;
+  const msg = r.done.length ? `Deleted ${what}${r.failed.length ? `; ${r.failed.length} couldn’t be deleted — try again` : ''}` : 'Couldn’t delete — try again';
+  if (n > 1) bgStatus(msg, 100, { close: true, always: true });
+  flashGlobalToast(msg);
 }
 
 async function removeAlbum(item) {
