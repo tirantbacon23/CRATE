@@ -610,10 +610,11 @@ async function bmCheckLinks(kind, songs) {
   const ids = [...new Set(songs.map(s => youtubeVideoIdFromUrl(s.youtubeLink)).filter(Boolean))], bad = new Map();
   if (loadYoutubeApiKey()) {
     for (let i = 0; i < ids.length; i += 50) {
-      const d = await smYtApi('videos', { part: 'status,contentDetails', id: ids.slice(i, i + 50).join(','), maxResults: 50 }, 1);
+      const d = await smYtApi('videos', { part: 'status,contentDetails,snippet', id: ids.slice(i, i + 50).join(','), maxResults: 50 }, 1);
       const seen = new Map((d.items || []).map(v => [v.id, v]));
       ids.slice(i, i + 50).forEach(id => {
         const v = seen.get(id); if (!v) { bad.set(id, 'Deleted or private'); return; }
+        if (v.snippet) ytInfoSet(id, v.snippet.title, v.snippet.channelTitle);          // (the same request: no extra quota)
         const rr = v.contentDetails && v.contentDetails.regionRestriction;
         if (v.status && v.status.embeddable === false) bad.set(id, 'Can’t play inside CRATE (embedding is off)');
         else if (rr && ((rr.blocked || []).includes(market) || (rr.allowed && !rr.allowed.includes(market)))) bad.set(id, `Blocked in ${market}`);
@@ -625,6 +626,7 @@ async function bmCheckLinks(kind, songs) {
       catch (e) { throw new Error('YouTube links can’t be checked from here without a YouTube API key (⚙ → YouTube API…)'); }
       if (res.status === 401 || res.status === 403) bad.set(id, 'Can’t play inside CRATE (embedding is off)');
       else if (!res.ok) bad.set(id, 'Deleted or private');
+      else { try { const j = await res.json(); ytInfoSet(id, j.title, j.author_name); } catch (e) { /* works; no title */ } }
     }
   }
   songs.forEach(s => { const id = youtubeVideoIdFromUrl(s.youtubeLink); if (id && bad.has(id)) out[s.idx] = { reason: bad.get(id) }; });
@@ -997,6 +999,24 @@ function bmRelSongsShown(rel) {
   return (rel.songs || []).filter(s => bmSongMatches(shown.map(k => bmCellOf(rel, s, k).s), bm.filter));
 }
 function bmCandSub(kind, c, s) { return [kind === 'spotify' ? (c.artists || []).join(', ') : (c.channel || ''), smLen(c.durationMs), bmDiffText(s.durationMs, c.durationMs)].filter(Boolean).join(' · '); }
+// A saved YouTube link's own title and channel, so a "Kept" song says WHICH video it is (not just "Your link"). YouTube's oEmbed answers
+// without a key and costs no quota; three at a time, each video asked once a session, and what it says is remembered in this browser.
+const YT_INFO_KEY = 'crate_yt_info_v1', ytInfoAsked = new Set(), ytInfoQ = []; let ytInfo = null, ytInfoBusy = 0;
+function ytInfoAll() { if (!ytInfo) { try { ytInfo = JSON.parse(localStorage.getItem(YT_INFO_KEY) || '{}') || {}; } catch (e) { ytInfo = {}; } } return ytInfo; }
+function ytInfoSet(id, title, channel) {
+  if (!id || !title) return; const a = ytInfoAll(); delete a[id]; a[id] = { t: String(title).slice(0, 200), c: String(channel || '').slice(0, 100) };
+  const keys = Object.keys(a); if (keys.length > 5000) keys.slice(0, keys.length - 5000).forEach(k => delete a[k]);          // (the oldest go first)
+  try { localStorage.setItem(YT_INFO_KEY, JSON.stringify(a)); } catch (e) { /* private window: asked again next time */ }
+}
+function ytInfoOf(link) { const id = youtubeVideoIdFromUrl(link); if (!id) return null; const v = ytInfoAll()[id]; if (v) return v; if (!ytInfoAsked.has(id)) { ytInfoAsked.add(id); ytInfoQ.push(id); ytInfoPump(); } return null; }
+function ytInfoPump() {
+  while (ytInfoBusy < 3 && ytInfoQ.length) {
+    const id = ytInfoQ.shift(); ytInfoBusy++;
+    fetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent('https://www.youtube.com/watch?v=' + id)}`, { credentials: 'omit' })
+      .then(r => r.ok ? r.json() : null).then(j => { if (j && j.title) { ytInfoSet(id, j.title, j.author_name); bmRedraw(); } }).catch(() => { /* stays "Your link" */ })
+      .finally(() => { ytInfoBusy--; ytInfoPump(); });
+  }
+}
 function bmScorePill(rel, s, kind, c) {
   if (c.score == null) return '';
   const tone = c.band === 'confident' ? 'ok' : c.band === 'likely' ? 'work' : 'look';
@@ -1006,7 +1026,7 @@ function bmCellHtml(rel, s, kind) { return `<div class="bm-cellw" data-k="${bmNa
 function bmCellInner(rel, s, kind) {
   const c = bmCellOf(rel, s, kind), da = `data-row="${escapeHtml(rel.row)}" data-idx="${s.idx}" data-kind="${kind}"`;
   const br = rel.broken[kind] && rel.broken[kind][s.idx], brNote = br ? `<div class="bm-m bm-warnc">${escapeHtml(br.reason)}</div>` : '';
-  if (c.s === 'kept') return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct"><div class="bm-t bm-dim">Your link</div><div class="bm-m">kept${bm.songsMode === 'check' && rel.checked[kind] ? ' · checked: works' : ''}</div></div>${bmChip('have', 'Kept')}</div>`;
+  if (c.s === 'kept') { const yi = kind === 'youtube' ? ytInfoOf(s.youtubeLink) : null; return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct"><div class="bm-t${yi ? '' : ' bm-dim'}"${yi ? ` title="${escapeHtml(yi.t)}"` : ''}>${yi ? escapeHtml(yi.t) : 'Your link'}</div><div class="bm-m">${yi && yi.c ? escapeHtml(yi.c) + ' \u00b7 ' : ''}kept${bm.songsMode === 'check' && rel.checked[kind] ? ' · checked: works' : ''}</div></div>${bmChip('have', 'Kept')}</div>`; }
   if (c.s === 'wait') return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct bm-dim">${rel.st[kind] === 'skip' ? escapeHtml(rel.err[kind] || 'Not run') : rel.st[kind] === 'work' ? 'Looking…' : 'Queued'}${brNote}</div></div>`;
   if (c.s === 'error') return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct bm-warnc">${escapeHtml(rel.err[kind] || 'Could not look this up')}</div></div>`;
   if (c.s === 'none') return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct"><div class="bm-dim">No match</div>${brNote}</div>${kind === 'youtube' ? `<button type="button" class="chip-btn bm-sm" data-bm="yt-song" ${da}>Search</button>` : ''}<button type="button" class="chip-btn bm-sm" data-bm="choose" ${da}>Paste</button></div>`;

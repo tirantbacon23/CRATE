@@ -17,7 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.81.0
+  CURRENT_VERSION: 1.81.1
+
+  1.81.1 — 2026-11-04 — Match songs shows which YouTube video a kept link is, not just "Your link". Page only.
+          A song whose YouTube link you already had now shows that video's
+          title and channel ("kept · checked: works" still follows). The
+          title comes from YouTube's oEmbed, which needs no key and costs no
+          quota, three at a time and once per video; it is remembered in this
+          browser. A link check also keeps the titles it reads (with an API
+          key, from the same request, at no extra quota). A video YouTube
+          won't describe still says "Your link".
 
   1.81.0 — 2026-11-04 — What the RYM add-on sends goes in without a review, and updates apply what differs too. Page only.
           Two new settings in RYM ratings & genres, both on:
