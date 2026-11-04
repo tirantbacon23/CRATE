@@ -260,9 +260,36 @@ function catalogRemoveLocal(item) {
   state.raw.forEach(x => { if (Number(x.row) > r) x.row = Number(x.row) - 1; });
 }
 function catalogRedraw() { keepGridPlace(() => { buildLeftList(); renderPlaylistSidebar(); updateMainLabel(); applyFiltersSort(); }); if (state.activeTab === 'artist') { renderArtistList(); renderArtistDetail(); } }
-function catalogMarkArrived(items) {                 // releases that came in with a sync fade in where they land
-  if (!items.length || items.length > 60 || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
-  requestAnimationFrame(() => items.forEach(it => document.querySelectorAll(`[data-album-row="${CSS.escape(String(it.row))}"]`).forEach(c => { c.classList.add('card-arrive'); setTimeout(() => c.classList.remove('card-arrive'), 700); })));
+// A release that arrives is the delete animation the other way round (22-deck.js: delAnimateOut): the cards on screen slide aside to make
+// room for it (where each was before the redraw, measured: FLIP), and it comes into focus where it lands, with a moment of the accent around it.
+const catalogCalm = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+function catalogFlipBefore() {                       // the cards on screen now, and where each is, by its release (rows can change with the sync)
+  if (catalogCalm()) return null;
+  const byRow = new Map((state.raw || []).map(x => [String(x.row), x])), h = window.innerHeight, out = [];
+  for (const c of document.querySelectorAll('[data-album-row]')) {
+    const r = c.getBoundingClientRect(); if (!r.width || r.bottom < 0 || r.top > h) continue;
+    const it = byRow.get(c.getAttribute('data-album-row')); if (it) out.push({ it, r, box: c.parentElement && c.parentElement.id });
+    if (out.length >= 400) break;
+  }
+  return out;
+}
+function catalogFlipAfter(before, added) {
+  if (!before || !before.length || !added.length || added.length > 60) return;
+  const h = window.innerHeight;
+  before.forEach(({ it, r, box }) => {
+    const c = [...document.querySelectorAll(`[data-album-row="${CSS.escape(String(it.row))}"]`)].find(e => (e.parentElement && e.parentElement.id) === box); if (!c) return;
+    const b = c.getBoundingClientRect(), dx = r.left - b.left, dy = r.top - b.top;
+    if ((!dx && !dy) || Math.abs(dy) > h || b.bottom < 0 || b.top > h) return;
+    c.style.transition = 'none'; c.style.transform = `translate(${dx}px, ${dy}px)`;
+    requestAnimationFrame(() => requestAnimationFrame(() => { c.style.transition = 'transform 320ms cubic-bezier(.2,.7,.2,1)'; c.style.transform = ''; setTimeout(() => { c.style.transition = ''; }, 360); }));
+  });
+}
+function catalogMarkArrived(items) {                 // releases that came in with a sync come into focus where they land
+  if (!items.length || items.length > 60 || catalogCalm()) return;
+  items.forEach((it, i) => document.querySelectorAll(`[data-album-row="${CSS.escape(String(it.row))}"]`).forEach(c => {
+    c.style.animationDelay = Math.min(i, 12) * 45 + 'ms'; c.classList.add('card-arrive');          // (several at once: one after another)
+    setTimeout(() => { c.classList.remove('card-arrive'); c.style.animationDelay = ''; }, 1500 + Math.min(i, 12) * 45);
+  }));
 }
 async function fetchCatalogOnce(opts) {
   opts = opts || {};
@@ -444,6 +471,7 @@ async function fetchCatalogOnce(opts) {
           // touched for that row, so this needs no backend change.
           hasManualTracklist: !!(r.ManualTracks && String(r.ManualTracks).trim())
         }));
+      const flip = quiet ? catalogFlipBefore() : null;
       const rec = catalogReconcile(state.raw, freshRaw); state.raw = rec.raw;
       const sideBefore = quiet ? JSON.stringify([state.diary, state.scrobbles, state.playlists]) : '';
 
@@ -530,7 +558,7 @@ async function fetchCatalogOnce(opts) {
     if (state.activeTab === 'artist') { renderArtistList(); renderArtistDetail(); }
     checkAlbumAnniversaries();
     checkForDuplicateRows();
-    if (quiet) { catalogMarkArrived(rec.added); rymUpdateAdded(rec.added); }
+    if (quiet) { catalogFlipAfter(flip, rec.added); catalogMarkArrived(rec.added); rymUpdateAdded(rec.added); }
   } catch (err) {
     console.error(err);
     // AbortError is fetchWithTimeout's controller.abort() firing — a real

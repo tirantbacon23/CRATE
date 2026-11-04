@@ -4171,7 +4171,8 @@ html, body {
 
   /* ---- the catalogue syncing quietly (07-prefs-fetch.js: fetchCatalog({ quiet })) ---- */
   #refreshBtn.syncing { animation: crate-sync-spin 1s linear infinite; color: var(--accent); }
-  .card-arrive { animation: crate-arrive 520ms cubic-bezier(.2,.8,.2,1); }
+  .card-arrive { animation: crate-arrive 420ms cubic-bezier(.2,.8,.2,1) backwards, crate-arrive-ring 1300ms ease-out backwards; border-radius: 6px; }
   @keyframes crate-sync-spin { to { transform: rotate(360deg); } }
-  @keyframes crate-arrive { from { opacity: 0; transform: scale(0.9) translateY(8px); } }
+  @keyframes crate-arrive { 0% { opacity: 0; transform: scale(0.82) translateY(6px); filter: blur(3px) saturate(0); } 60% { opacity: 1; transform: scale(1.025); filter: none; } 100% { transform: scale(1); } }          /* (del-leave, backwards) */
+  @keyframes crate-arrive-ring { 0%, 30% { box-shadow: 0 0 0 2px var(--accent), 0 0 18px -2px var(--accent); } 100% { box-shadow: 0 0 0 2px transparent, 0 0 18px -2px transparent; } }
   @media (prefers-reduced-motion: reduce) { #refreshBtn.syncing, .card-arrive { animation: none; } }

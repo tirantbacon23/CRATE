@@ -17,7 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.80.0
+  CURRENT_VERSION: 1.80.1
+
+  1.80.1 — 2026-11-04 — A new release arrives the way a deleted one leaves. Page only.
+          The cards on screen slide aside to make room for it, and it comes
+          into focus where it lands (from small, blurred and grey, the
+          delete animation the other way round), with a brief ring of the
+          accent around it. Several arriving at once come one after another.
+          Off when your system asks for reduced motion.
 
   1.80.0 — 2026-11-04 — New releases are updated from Rate Your Music on their own, then their songs matched. Page only.
           A release you add that has a Rate Your Music link (from the
