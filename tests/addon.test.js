@@ -30,4 +30,9 @@ suite('RYM add-on: reading a release page', () => {
     const C = await addon(), o = C.cleanRelease({ artist: 'A', title: 'B', type: 'Album', scene: 'Canterbury Scene', recordedDate: '1973-06', recordedPlace: 'Electric Lady', tracks: [{ title: 'x', url: 'https://rateyourmusic.com/song/a/x/' }, { title: 'y', url: 'https://evil.example/' }] });
     eq([o.scene, o.recordedDate, o.recordedPlace, o.tracks[0].url, o.tracks[1].url], ['Canterbury Scene', '1973-06', 'Electric Lady', 'https://rateyourmusic.com/song/a/x/', undefined]);
   });
+  test('one cover offered in several sizes and formats is one picture (the biggest jpeg); two covers are none', async () => {
+    const C = await addon(), u = (n, f, e) => `https://e.snmc.io/i/${n}/${f}/552e7a34873264a1e764679b04315c23/1975287/Cover.${e}`;
+    eq(C.oneRymCover([u(150, 'w', 'webp'), u(75, 'w', 'webp'), u(150, 's', 'jpeg'), u(75, 's', 'jpeg')]), u(150, 's', 'jpeg'));
+    eq(C.oneRymCover([u(75, 's', 'jpeg'), 'https://e.snmc.io/i/75/s/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/2/Other.jpeg']), '');
+  });
 });
