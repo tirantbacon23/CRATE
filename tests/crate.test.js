@@ -330,7 +330,7 @@ suite('Song RYM columns', () => {
 });
 
 suite('Tracks columns', () => {
-  test('the Track name column takes what is left, so resizing changes one column; the menu offers the song’s RYM rating and count', () => {
+  test('the Track name column takes what is left, so resizing changes one column; too wide scrolls instead of squeezing; the menu offers the song’s RYM rating and count', () => {
     const st = app('state'), gc = app('el').gridContainer, cols = (st.fields.tracks || []).slice(), widths = st.trackColWidths;
     Object.defineProperty(gc, 'clientWidth', { configurable: true, get: () => 1000 });
     try {
@@ -338,9 +338,11 @@ suite('Tracks columns', () => {
       const a = app('trackColWidthsShown')();                     // # 40, artist 120, genre 120, plays 64; row overhead 12*4 + 20
       st.trackColWidths = { artist: 300 };
       const b = app('trackColWidthsShown')();
-      st.trackColWidths = { artist: 2000 };                       // too wide even with a narrow name column: everything scales to fit
+      st.trackColWidths = { artist: 900 };                        // too wide even with a narrow name column: nothing is squeezed, the table scrolls
       const c = app('trackColWidthsShown')();
-      eq([a, b, c.reduce((s, w) => s + w, 0)], [[40, 588, 120, 120, 64], [40, 408, 300, 120, 64], 932]);
+      eq([a, b, c], [[40, 588, 120, 120, 64], [40, 408, 300, 120, 64], [40, 120, 900, 120, 64]]);
+      st.trackColWidths = { name: 500 };                          // a name column dragged wider than the room left keeps that width
+      eq(app('trackColWidthsShown')()[1], 588); st.trackColWidths = { name: 700 }; eq(app('trackColWidthsShown')()[1], 700);
       app('openTrackColumnMenu')(null, 2, 0, 0, true);
       const m = app('document').querySelector('.track-col-menu');
       eq(['rymTrackRating', 'rymTrackVotes'].map(k => !!m.querySelector(`[data-field-val="${k}"]`)), [true, true]);

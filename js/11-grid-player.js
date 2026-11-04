@@ -142,40 +142,10 @@ function trackColWidth(sortKey) {
   return (typeof w === 'number' && w > 0) ? w : trackColDefaultWidth(sortKey);
 }
 
-// Scales a set of preferred column widths down — preserving their relative
-// proportions above the shared minimum — so their sum never exceeds the
-// visible container width. Leaves widths untouched if they already fit.
-// This is what guarantees the Tracks table can never render a column (or
-// part of one) outside the pane, regardless of how columns were resized or
-// how narrow the window/side panels currently are.
-function fitColumnWidths(widths, containerWidth) {
-  if (!containerWidth) return widths;
-  const total = widths.reduce((a, b) => a + b, 0);
-  if (total <= containerWidth) return widths;
-
-  const minTotal = widths.length * TRACK_COL_MIN_WIDTH;
-  if (containerWidth <= minTotal) return widths.map(() => TRACK_COL_MIN_WIDTH);
-
-  const availableExtra = containerWidth - minTotal;
-  const currentExtra = total - minTotal;
-  const scale = availableExtra / currentExtra;
-  const scaled = widths.map(w => TRACK_COL_MIN_WIDTH + Math.floor((w - TRACK_COL_MIN_WIDTH) * scale));
-
-  // Rounding can leave a few px unclaimed; hand them to the widest column so
-  // the row fills the container exactly rather than falling a hair short.
-  const scaledTotal = scaled.reduce((a, b) => a + b, 0);
-  const leftover = containerWidth - scaledTotal;
-  if (leftover > 0) {
-    let widestIdx = 0;
-    for (let i = 1; i < scaled.length; i++) if (scaled[i] > scaled[widestIdx]) widestIdx = i;
-    scaled[widestIdx] += leftover;
-  }
-  return scaled;
-}
-
 // The widths the Tracks table is drawn with. The Track name column takes whatever the other columns leave, so resizing one column
-// changes only that column (and the name column gives or takes the difference) and the row always fills the pane exactly. Only when
-// even a narrow name column won't fit is everything scaled down together.
+// changes only that column (the name column gives or takes the difference) and the row fills the pane. When even a narrow name column
+// won't fit, every column keeps the width you gave it and the table scrolls sideways: squeezing them all to fit (as before) left a
+// narrow pane with every column at its minimum, none of which could be widened.
 const TRACK_NAME_MIN_WIDTH = 120;
 function trackColWidthsShown() {
   const cols = trackHeaderColumns();
@@ -184,9 +154,9 @@ function trackColWidthsShown() {
   if (!available) return widths;
   const ni = cols.findIndex(col => col.sortKey === 'name');
   const others = widths.reduce((s, w, i) => i === ni ? s : s + w, 0);
-  if (available - others >= TRACK_NAME_MIN_WIDTH) { widths[ni] = available - others; return widths; }
-  widths[ni] = TRACK_NAME_MIN_WIDTH;
-  return fitColumnWidths(widths, available);
+  const own = Number(state.trackColWidths && state.trackColWidths.name) || TRACK_NAME_MIN_WIDTH;          // a width you dragged it to: at least that
+  widths[ni] = Math.max(own, available - others);
+  return widths;
 }
 function trackTableGridTemplate() {
   return trackColWidthsShown().map(w => `${w}px`).join(' ');
@@ -326,17 +296,22 @@ function wireTrackHeaderResize(header) {
   let startX = 0;
   let startWidth = 0;
   let handleEl = null;
-  let nameEdge = false;                                             // the Track name column's edge moves the column to its right instead
+  let nameEdge = false, nameStart = 0, nextStart = 0, fillStart = 0, nextKey = '';          // the Track name column's own edge (see onMove)
 
   function applyTemplateEverywhere() {
     refitTrackTable();
   }
 
-  let room = 0;                                                     // how far the dragged column may grow before the name column is at its narrowest
   function onMove(e) {
     if (!resizeKey) return;
     const delta = Math.round(e.clientX - startX);
-    state.trackColWidths[resizeKey] = Math.max(TRACK_COL_MIN_WIDTH, Math.min(startWidth + room, startWidth + (nameEdge ? -delta : delta)));
+    if (nameEdge) {
+      // The name column fills the room the others leave. Dragged wider than that, it keeps the width you drag it to (the table scrolls);
+      // dragged narrower, it stays filling and the column to its right takes the room, so the edge follows the mouse either way.
+      const target = Math.max(TRACK_NAME_MIN_WIDTH, Math.min(1600, nameStart + delta));
+      if (target >= fillStart) { state.trackColWidths.name = target; if (nextKey) state.trackColWidths[nextKey] = nextStart; }
+      else { delete state.trackColWidths.name; if (nextKey) state.trackColWidths[nextKey] = Math.max(TRACK_COL_MIN_WIDTH, nextStart + fillStart - target); }
+    } else state.trackColWidths[resizeKey] = Math.max(TRACK_COL_MIN_WIDTH, Math.min(1200, startWidth + delta));
     applyTemplateEverywhere();
   }
 
@@ -359,14 +334,14 @@ function wireTrackHeaderResize(header) {
     e.stopPropagation();
     const cols = trackHeaderColumns(), shown = trackColWidthsShown();
     let i = cols.findIndex(col => col.sortKey === handle.dataset.resizeKey);
-    nameEdge = cols[i] && cols[i].sortKey === 'name';
-    if (nameEdge) i++;
     if (!cols[i]) return;
-    // Start from the widths on screen (they may have been scaled down to fit), so nothing jumps when the drag begins.
+    nameEdge = cols[i].sortKey === 'name';
     if (!state.trackColWidths) state.trackColWidths = {};
-    cols.forEach((col, j) => { if (col.sortKey !== 'name') state.trackColWidths[col.sortKey] = shown[j]; });
-    const ni = cols.findIndex(col => col.sortKey === 'name');
-    room = Math.max(0, shown[ni] - TRACK_NAME_MIN_WIDTH);
+    if (nameEdge) {
+      const available = Math.max(0, el.gridContainer.clientWidth - trackTableRowOverhead(cols.length));
+      nameStart = shown[i]; nextKey = cols[i + 1] ? cols[i + 1].sortKey : ''; nextStart = nextKey ? shown[i + 1] : 0;
+      fillStart = available - shown.reduce((sum, w, j) => j === i ? sum : sum + w, 0);
+    }
     resizeKey = cols[i].sortKey;
     handleEl = handle;
     handleEl.classList.add('ttc-resizing');

@@ -17,7 +17,18 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.84.0
+  CURRENT_VERSION: 1.84.1
+
+  1.84.1 — 2026-11-04 — Tracks view: columns keep the width you give them, and a narrow pane scrolls sideways instead of squeezing them. Page only.
+          When the columns didn't fit, all of them were squeezed to fit,
+          down to their narrowest in a narrow pane, where none could then
+          be widened; and starting a drag saved every column at its
+          squeezed width, so they stayed narrow once the pane was wide
+          again. Now each column keeps its width, the Track name column
+          fills what is left (at least 120 pixels), and past that the
+          table scrolls sideways. Dragging the Track name column's edge
+          right widens it; left narrows it and the column beside it takes
+          the room. Widths saved by 1.83.3 start over once.
 
   1.84.0 — 2026-11-04 — A song is numbered by its place in the tracklist, with the release's own position beside it ("1 A", "2 B"). Page and RYM add-on 1.15.0.
           A song's stored number is what its ratings, links and plays are

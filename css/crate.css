@@ -1080,6 +1080,7 @@ html, body {
   /* Tracks / Album + Tracks main views */
   .track-view { display: flex; flex-direction: column; gap: 2px; max-width: 720px; }
   .track-view-table { max-width: none; overflow-x: auto; }
+  .track-view-table .track-table-header, .track-view-table .main-track-row { min-width: max-content; }          /* wider than the pane: the row (and its hover) runs the full width as it scrolls */
   .track-load-row-group { cursor: pointer; }
   .track-load-row-group:hover .main-track-row { background: var(--bg-elevated); }
 
