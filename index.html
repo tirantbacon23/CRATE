@@ -19,7 +19,17 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.69.0
+  CURRENT_VERSION: 1.70.0
+
+  1.70.0 — 2026-11-04 — Fix: "Update from Rate Your Music" now really updates each track's RYM rating and count. Page only; works with RYM add-on 1.12.7 or later, which reads the exact figures.
+
+          THE BUG: the update's review offered "RYM track ratings · already rated (rounded, or an older count)", but applying it (tlApplyTrackRatings) only ever filled a track that had NO RYM rating,
+            and changed the count only when the rating was exactly the same. So a track saved earlier as 4.4 from 6,000 (read from the row's rounded "4.4 | 6k") kept that for good, even once
+            the add-on could read 4.37 from 6,380.
+          NOW: a track's RYM rating is replaced when it came from Rate Your Music (marked rymFrom: 'rym' in its track data whenever an update writes it), or when the saved one is a rounded
+            reading of the new one (one decimal place, within 0.05). A different RYM rating you typed under Edit track properties is still never replaced; leaving it as it was there keeps its mark.
+            The review offers the same tracks it will change (rymUpdatePlan), and a rating RYM has since moved (4.37 → 4.36) is offered too for tracks marked as from RYM.
+          CHECKED in the test copy: 4.4/6,000 → 4.37/6,380 and 4.0/6,000 → 4.05/5,922 applied, an empty one filled, a typed 3.2 left alone, and a later 4.37 → 4.36 applied.
 
   1.69.0 — 2026-11-04 — Genres you can click in the cover popup and the player, up to four details in the player, and double-clicking a cover works again with the popup open. Page only: no add-on and no backend change.
 
@@ -9121,7 +9131,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.69.0';
+const APP_VERSION = '1.70.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -18929,6 +18939,8 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
       rymLink: rymInput.value.trim(),
       rymRating: rymNum(overlay.querySelector('#trackPropsRymRating').value),
       rymVotes: rymNum(overlay.querySelector('#trackPropsRymRating').value) ? rymVotesNum(overlay.querySelector('#trackPropsRymVotes').value) : 0,
+      // still "from Rate Your Music" only if left as it was; a rating typed here is yours, and an update never replaces it (tlApplyTrackRatings)
+      rymFrom: (() => { const td = item.trackData && item.trackData[trackNum], typed = rymNum(overlay.querySelector('#trackPropsRymRating').value); return td && td.rymFrom && typed && Math.abs(typed - (Number(td.rymRating) || 0)) < 0.005 ? td.rymFrom : ''; })(),
       soundcloudLink: soundcloudInput.value.trim()
     });
     // Refresh whichever cached tracklist(s) this track lives in so every
@@ -32727,8 +32739,13 @@ async function tlApplyTrackRatings(item, rows, quiet) {
   item.trackData = item.trackData || {}; let n = 0, v = 0;
   todo.forEach(r => {
     const td = item.trackData[r.trackNumber] || (item.trackData[r.trackNumber] = {}), votes = rymVotesNum(r.rymVotes);
-    if (!(td.rymRating > 0)) { td.rymRating = rymNum(r.rymRating); if (votes) td.rymVotes = votes; n++; }          // a rating you typed is never replaced
-    else if (votes && Math.abs(td.rymRating - rymNum(r.rymRating)) < 0.005 && td.rymVotes !== votes) { td.rymVotes = votes; v++; }          // the same rating: how many it rests on is a fact that is kept up to date
+    const fresh = rymNum(r.rymRating), old = Number(td.rymRating) || 0;
+    // Replaced when it came from Rate Your Music before (rymFrom), or when it is a rounded reading of this one: add-ons before 1.12.7 read the
+    // track rows' "4.4 | 6k", so 4.4 from 6,000 stayed for good once 4.37 from 6,380 could be read. A different rating you typed is never replaced.
+    const rounded = Math.abs(old * 10 - Math.round(old * 10)) < 1e-6 && Math.abs(old - fresh) <= 0.051;
+    if (!(old > 0)) { td.rymRating = fresh; if (votes) td.rymVotes = votes; td.rymFrom = 'rym'; n++; }
+    else if ((td.rymFrom === 'rym' || rounded) && (Math.abs(old - fresh) >= 0.005 || (votes && td.rymVotes !== votes))) { td.rymRating = fresh; if (votes) td.rymVotes = votes; td.rymFrom = 'rym'; v++; }
+    else if (votes && Math.abs(old - fresh) < 0.005 && td.rymVotes !== votes) { td.rymVotes = votes; v++; }          // the same rating: how many it rests on is a fact that is kept up to date
   });
   if (!n && !v) return 0;
   try { await postUpdate({ row: item.row, trackData: JSON.stringify(item.trackData) }); if (!quiet) flashGlobalToast(`Added Rate Your Music ratings to ${n + v} track${n + v === 1 ? '' : 's'}.`); return n + v; }
@@ -33132,7 +33149,7 @@ function rymUpdatePlan(item, rel, oldRows, minNext) {
         const o = old2.find(x => !used.has(x.trackNumber) && tlKey(x.title) === tlKey(t.title)); if (!o) return; used.add(o.trackNumber);
         const td = (item.trackData || {})[o.trackNumber] || {}, v = rymVotesNum(t.votes);
         if (!(td.rymRating > 0)) rows2.push({ trackNumber: o.trackNumber, rymRating: t.rating, rymVotes: v });
-        else if ((Math.abs(td.rymRating - t.rating) >= 0.005 && Math.abs(td.rymRating - t.rating) <= 0.051) || (v && Math.abs(td.rymRating - t.rating) < 0.005 && td.rymVotes !== v)) { rows2.push({ trackNumber: o.trackNumber, rymRating: t.rating, rymVotes: v || td.rymVotes || 0 }); kept++; }          // the exact figures (4.56 from 4,733 ratings, add-on 1.12.6) where the rounded ones (4.6, 5k) were saved, or a count that changed
+        else if ((Math.abs(td.rymRating - t.rating) >= 0.005 && ((Math.abs(td.rymRating * 10 - Math.round(td.rymRating * 10)) < 1e-6 && Math.abs(td.rymRating - t.rating) <= 0.051) || td.rymFrom === 'rym')) || (v && Math.abs(td.rymRating - t.rating) < 0.005 && td.rymVotes !== v)) { rows2.push({ trackNumber: o.trackNumber, rymRating: t.rating, rymVotes: v || td.rymVotes || 0 }); kept++; }          // the exact figures (4.56 from 4,733 ratings, add-on 1.12.6) where the rounded ones (4.6, 5k) were saved, or a count that changed
       });
       if (rows2.length) add('trackStats', 'RYM track ratings', kept ? `${kept} already rated (rounded, or an older count)` : '', `${rows2.length} track${rows2.length === 1 ? '' : 's'} with how many people rated them`, kept === rows2.length ? 'refine' : 'fill', { rows: rows2 });
     }
@@ -33173,7 +33190,7 @@ async function rymWritePicks(item, picks, quiet, src) {            // write exac
   if (Object.keys(payload).length > 2) { await postUpdate(payload); picks.forEach(p => { if (map[p.key]) item[map[p.key][1]] = p.proposed; }); if (coverUrl) item.cover = coverUrl; if (nextLog) { item.rymUpdateLog = nextLog; if (firstAt) item.rymUpdated = firstAt; rymLogLocalSet(item); } }
   const tr = picks.find(p => p.key === 'tracks');
   if (tr) { await saveManualTracklist(item, tr.rows, quiet); await tlApplyTrackRatings(item, tr.rows); }
-  const ts = picks.find(p => p.key === 'trackStats'); if (ts) await tlApplyTrackRatings(item, ts.rows, true);          // numbers kept by title; RYM's track ratings only where a track has none
+  const ts = picks.find(p => p.key === 'trackStats'); if (ts) await tlApplyTrackRatings(item, ts.rows, true);          // numbers kept by title; RYM's track ratings where a track has none, or where the saved one is RYM's own (or a rounded reading of it)
   return { coverMissed };
 }
 async function rymBestCover(url) {                                  // the largest size of this picture that really loads from here, or '' if none does (all sizes asked at once: a host that refuses costs one wait, not five)
