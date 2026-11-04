@@ -16,9 +16,9 @@
    is cached indefinitely (artists don't change), so only genuinely new
    artists or ones that previously failed to resolve get re-searched; (2)
    album fetches only look back NEW_RELEASE_WINDOW_DAYS, and a background
-   scan only runs once every NEW_RELEASE_AUTO_INTERVAL_MS at most — see
+   scan runs at most once a calendar day — see newReleaseNextAutoAt() and
    maybeAutoScanNewReleases(). "Check now" in the modal bypasses that
-   interval (but still uses the artist-ID cache) since that's an explicit
+   limit (but still uses the artist-ID cache) since that's an explicit
    ask, not a background nicety. */
 
 const NEW_RELEASES_ARTIST_CACHE_KEY = 'crate_new_releases_artist_cache_v1'; // normKey -> {id: string|null, checkedAt}
@@ -27,7 +27,11 @@ const NEW_RELEASES_RESULTS_KEY = 'crate_new_releases_results_v1';          // la
 const NEW_RELEASES_LAST_SCAN_KEY = 'crate_new_releases_last_scan_v1';      // timestamp of the last completed scan (any trigger)
 const NEW_RELEASE_WINDOW_DAYS = 270; // ~9 months — catches things released while you weren't looking without dredging up an artist's whole back catalog every time
 const NEW_RELEASE_ARTIST_RETRY_MS = 30 * 24 * 60 * 60 * 1000; // re-attempt an artist we previously couldn't find on Spotify after 30 days, in case they're on it now
-const NEW_RELEASE_AUTO_INTERVAL_MS = 20 * 60 * 60 * 1000; // ~20h — how often the silent background check (maybeAutoScanNewReleases) is allowed to run
+const NEW_RELEASES_AUTO_TRIED_KEY = 'crate_new_releases_auto_tried_v1';    // when the background check last STARTED (a scan cut short by closing CRATE still counts for that day)
+function newReleaseNextAutoAt() {          // the background check runs once a day: after a check (or a try) today, the next is from midnight
+  const last = Math.max(Number(localStorage.getItem(NEW_RELEASES_LAST_SCAN_KEY) || 0), Number(localStorage.getItem(NEW_RELEASES_AUTO_TRIED_KEY) || 0));
+  if (!last) return 0; const d = new Date(last); d.setHours(24, 0, 0, 0); return d.getTime();
+}
 const NEW_RELEASE_CONCURRENCY = 2; // was 4 — that "low enough to not hammer Spotify's API" assumption turned out wrong: a real report showed a cascade of consecutive 429s starting from exactly this scan. See spotifyApiFetch's own comment for the actual (reactive) fix; this reduction is the complementary (proactive) half — fewer simultaneous in-flight requests means less chance of tripping the limit in the first place, even before any single one gets a chance to report back and trigger the shared backoff.
 
 function loadNewReleaseArtistCache() {
@@ -321,14 +325,14 @@ async function triggerNewReleaseScan() {
 
 // Fire-and-forget, called once after the catalog first loads (see init()) —
 // silently refreshes the cached results (and therefore the menu badge)
-// roughly once a day, without ever popping the modal open on its own.
+// once a calendar day, without ever popping the modal open on its own.
 // Does nothing if Spotify isn't configured or the crate is completely empty.
 function maybeAutoScanNewReleases() {
   updateNewReleasesBadge(); // reflect whatever's already cached immediately, before any network call
-  const last = Number(localStorage.getItem(NEW_RELEASES_LAST_SCAN_KEY) || 0);
-  if (Date.now() - last < NEW_RELEASE_AUTO_INTERVAL_MS) return;
+  if (Date.now() < newReleaseNextAutoAt()) return;
   if (!loadSpotifyCreds().clientId) return;
-  if (!state.raw.length) return;
+  if (!state.raw.length || newReleaseScanInFlight) return;
+  try { localStorage.setItem(NEW_RELEASES_AUTO_TRIED_KEY, String(Date.now())); } catch (e) { /* storage full or blocked */ }
   runNewReleaseScan().then(updateNewReleasesBadge).catch(() => {});
 }
 

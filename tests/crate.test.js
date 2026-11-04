@@ -145,3 +145,15 @@ suite('Matching songs to Spotify and YouTube', () => {
   });
   test('different songs stay different', () => { ok(app('smTitleSim')('Way Down', 'Halfway Down') < 0.85); ok(app('trackNormKey')('Halfway Down') !== app('trackNormKey')('Way Down')); });
 });
+
+suite('New releases', () => {
+  test('the background check runs once a calendar day: after one today, the next is from midnight', () => {
+    const ls = app('localStorage'), keys = [app('NEW_RELEASES_LAST_SCAN_KEY'), app('NEW_RELEASES_AUTO_TRIED_KEY')], was = keys.map(k => ls.getItem(k));
+    try {
+      keys.forEach(k => ls.removeItem(k)); eq(app('newReleaseNextAutoAt')(), 0, 'never checked: due now');
+      const morning = new Date(); morning.setHours(9, 0, 0, 0); ls.setItem(keys[1], String(morning.getTime()));
+      const midnight = new Date(morning); midnight.setHours(24, 0, 0, 0); eq(app('newReleaseNextAutoAt')(), midnight.getTime(), 'tried this morning');
+      const late = new Date(morning); late.setHours(23, 50, 0, 0); ls.setItem(keys[0], String(late.getTime())); eq(app('newReleaseNextAutoAt')(), midnight.getTime(), 'checked late tonight: still from midnight');
+    } finally { keys.forEach((k, i) => was[i] == null ? ls.removeItem(k) : ls.setItem(k, was[i])); }
+  });
+});

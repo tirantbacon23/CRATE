@@ -777,7 +777,7 @@ function jobsCollect() {
   }
   if ((loadSpotifyCreds() || {}).clientId && !newReleaseScanInFlight) {
     const at = Number(localStorage.getItem(NEW_RELEASES_LAST_SCAN_KEY) || 0);
-    wait.push({ cat: 'sync', icon: 'search', title: 'Look for new releases', sub: 'background', right: at ? jobsIn(at + NEW_RELEASE_AUTO_INTERVAL_MS - now) : 'daily' });
+    wait.push({ cat: 'sync', icon: 'search', title: 'Look for new releases', sub: 'background', right: at ? jobsIn(Math.max(0, newReleaseNextAutoAt() - now)) : 'daily' });
   }
   const day0 = new Date(); day0.setHours(0, 0, 0, 0);
   const done = jobsDoneLoad().filter(e => e.t >= day0.getTime()).reverse();

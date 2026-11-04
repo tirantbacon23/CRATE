@@ -17,7 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.78.2
+  CURRENT_VERSION: 1.78.3
+
+  1.78.3 — 2026-11-04 — The background check for new releases runs once a day. Page only.
+          It waited about 20 hours between checks, so it could run twice on
+          the same day, and a check cut short (CRATE closed mid-way) was
+          tried again every 5 minutes. Now it runs at most once a calendar
+          day, counting a check that was started, and Processing shows the
+          next one as due from midnight. "Check now" in New releases still
+          checks whenever you ask. tests/serve.py serves CRATE for the
+          tests without the browser keeping old copies of changed files.
 
   1.78.2 — 2026-11-04 — Fix: RYM's rating and song page for each track often never arrived. Page only.
           When your saved tracklist differed from RYM's at all (a Spotify

@@ -6,11 +6,12 @@ add-on's reading of release pages.
 
 ## Running them
 
-From the folder that holds `index.html`:
+```
+python tests/serve.py
+```
 
-```
-python -m http.server 8790 --bind 127.0.0.1
-```
+(from the folder that holds `index.html`). It serves that folder on port 8790 and tells the browser not to keep copies, so a
+run always uses the files as they are now; plain `python -m http.server` lets the browser reuse a script you have since changed.
 
 then open <http://127.0.0.1:8790/tests/>. It starts CRATE in a hidden frame with 400 made-up releases and lists every check, with
 what was expected and what came back for any that fail. A script can read the same results from `window.__testResults`
