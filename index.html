@@ -19,7 +19,22 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.75.0
+  CURRENT_VERSION: 1.76.0
+
+  1.76.0 — 2026-11-04 — New releases are matched by themselves: their songs' Spotify and YouTube links are found in the background as they are added. Page only.
+          Whatever adds them (the Add form, Rate Your Music, an import):
+          a few seconds later (after an import has finished), a hidden
+          Match songs run in "save confident matches" mode. What is
+          confident is saved; if anything needs a look, a toast and
+          Activity say so and open it. If not, the run closes itself. A
+          Match songs run already open takes them in instead. Spotify only
+          when it is set up; YouTube only through the YouTube add-on (the
+          API key route costs quota). Releases already fully linked are
+          skipped. On by default: Match songs → Preferences → "Match new
+          releases by themselves".
+            bmAuto / bmAutoQueue / bmAutoRun, called from postUpdate next to
+            the match-queue line; bmCheckDone waits for bm.chain (the
+            confident saves) before deciding whether the run closes.
 
   1.75.0 — 2026-11-04 — Activity (⚙ → Activity…, or click the progress strip's text): one panel for everything running in the background. Page only.
           Four parts: Running (a Rate Your Music update, adding releases,
@@ -9207,7 +9222,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.75.0';
+const APP_VERSION = '1.76.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -24171,7 +24186,7 @@ function smIsoDuration(iso) {           // YouTube's "PT1H2M3S" -> milliseconds
 // applies to every match worked out after it.
 const smNet = { spotify: 0, spotify429: 0, youtube: 0, ytApi: 0 };          // requests made since the page opened, for the matcher's analytics (counted where they are made)
 const SM_PREFS_KEY = 'crate_match_prefs_v1';
-const SM_PREFS_DEFAULT = { confident: 85, lenTol: 'normal', edition: 'any', versionPenalty: true, topicBonus: true, channels: {}, rejected: [], remindCheck: true, queueNew: true, lastCheck: 0 };
+const SM_PREFS_DEFAULT = { confident: 85, lenTol: 'normal', edition: 'any', versionPenalty: true, topicBonus: true, channels: {}, rejected: [], remindCheck: true, queueNew: true, autoMatchNew: true, lastCheck: 0 };
 let smPrefsCache = null;
 function smPrefs() {
   if (smPrefsCache) return smPrefsCache;
@@ -24506,6 +24521,40 @@ function bmKickLanes() {                                            // releases 
   if (!bm || !bm.started) return; bm.running = true; bm.stopped = false;
   bmKinds().forEach(k => { const l = bm.lanes[k]; if (l.s !== 'work' && bm.rels.some(r => r.include && r.st[k] === 'wait')) bmRunLane(k); });
 }
+// ----- new releases are matched by themselves (Match songs → Preferences → "Match new releases by themselves") -----
+// A release just added (the Add form, Rate Your Music, an import) goes into a Match songs run in the background, in "save confident matches as they come" mode:
+// what is confident is saved, and the rest waits in the run for you (Activity → Needs you). Spotify only if it is set up; YouTube only through the add-on (the API route costs quota).
+const bmAuto = { pending: [], timer: 0, tries: 0 };
+function bmAutoQueue(list) {
+  (list || []).forEach(x => { const k = mqKey(x.artist, x.title); if (!bmAuto.pending.some(e => e.k === k)) bmAuto.pending.push({ k }); });
+  bmAuto.tries = 0; clearTimeout(bmAuto.timer); bmAuto.timer = setTimeout(bmAutoRun, 5000);          // (a few seconds: an import adds one after another, and a new release reaches the list after its save)
+}
+function bmAutoRun() {
+  bmAuto.timer = 0; if (!bmAuto.pending.length) return;
+  const later = (ms) => { if (++bmAuto.tries <= 40) bmAuto.timer = setTimeout(bmAutoRun, ms); else bmAuto.pending = []; };          // (given up after a while: they are still in the match queue)
+  if ((typeof cxImp !== 'undefined' && cxImp && cxImp.running) || (bm && !bm.started)) { later(15000); return; }          // an import still adding, or Match songs open at its start: afterwards
+  const byKey = new Map(); state.raw.forEach(r => { const k = mqKey(r.artist, r.title); if (!byKey.has(k)) byKey.set(k, r); });
+  const found = bmAuto.pending.map(e => byKey.get(e.k)).filter(Boolean);
+  if (found.length < bmAuto.pending.length && bmAuto.tries < 3) { later(10000); return; }          // the rest may not have reached the list yet
+  bmAuto.pending = bmAuto.pending.filter(e => !byKey.has(e.k));
+  const svc = { spotify: !!(loadSpotifyCreds() || {}).clientId, youtube: ytUseAddon() }, kinds = ['spotify', 'youtube'].filter(k => svc[k]);
+  if (!kinds.length) { bmAuto.pending = []; return; }          // nothing to match with: they wait in the match queue as before
+  const items = found.filter(it => !bmFullyLinked(it, kinds) && !(bm && bm.rels.some(r => r.item === it)));
+  if (items.length) {
+    mqRemove(items);                                                // in a run now, not waiting in the queue
+    if (bm && bm.started) {                                         // a run is open: they join it
+      items.forEach(it => { const rel = bmMk(it); bmKinds().forEach(k => { rel.st[k] = 'wait'; }); ['spotify', 'youtube'].filter(k => !bm.svc[k]).forEach(k => { rel.st[k] = 'skip'; rel.err[k] = 'Not run'; }); bm.rels.push(rel); });
+      bmKickLanes(); bmRedraw();
+    } else {
+      bmOpen({ ticked: items }); bmEl('batchMatchOverlay').hidden = true;          // (never shown: it runs behind whatever you are doing)
+      Object.assign(bm, { scope: 'ticked', songsMode: 'gaps', skipLinked: true, mode: 'auto', svc, auto: true });
+      bmHide(); bmStart(); if (bm && !bm.hidden) bmHide();          // (hidden first: a lane with nothing to do can finish before bmStart returns)
+      if (bm && bm.started) bm.label = `New releases \u00b7 ${bmPl(items.length, 'release')}`;
+    }
+    jobsRefresh();
+  }
+  if (bmAuto.pending.length) later(20000);
+}
 // ----- the lanes: each service works through the releases at its own pace -----
 function bmSongs(rel) { return rel.songsP || (rel.songsP = smBuildSongs(rel.item).then(s => { rel.songs = s; return s; })); }
 function bmSetPicks(rel, kind) {                                    // what is ticked for you: confident matches (in a link check, only for links found broken)
@@ -24655,7 +24704,21 @@ async function bmRunLane(kind) {
 }
 function bmCheckDone() {
   if (!bm || !bm.running || !bmKinds().every(k => bm.lanes[k].s !== 'work')) return;
-  bm.running = false; jobsDone('match', `Matching songs finished: ${bmPl(bm.rels.length, 'release')}`); if (bm.songsMode === 'check' && bmKinds().every(k => bm.lanes[k].s === 'done')) smPrefsSave({ lastCheck: Date.now() });
+  bm.running = false;
+  if (bm.auto) {                                                    // new releases matched in the background: once the confident matches are saved (they queue on bm.chain)...
+    const b = bm; bmRedraw();
+    b.chain.then(() => {
+      if (bm !== b || b.running) return;                            // (more joined it meanwhile: this is said when they are done)
+      const left = bmPickTotals().n, n = b.saved, r = b.rels.length;
+      jobsDone('match', `New releases matched: ${bmPl(r, 'release')}${n ? `, ${bmPl(n, 'link')} saved` : ''}${left ? `, ${left} to look at` : ''}`);
+      if (b.hidden && !left) { bmClose(true); flashGlobalToast(n ? `Matched ${bmPl(r, 'new release')}: saved ${bmPl(n, 'song link')}.` : `Matched ${bmPl(r, 'new release')}: nothing confident enough to save.`); }          // ...nothing left for you: it closes itself
+      else if (b.hidden) flashGlobalToast(`Matched ${bmPl(r, 'new release')}: saved ${bmPl(n, 'song link')}; ${bmPl(left, 'match', 'matches')} need a look. Click to see them.`, { onClick: bmShow });
+      jobsRefresh();
+    });
+    return;
+  }
+  jobsDone('match', `Matching songs finished: ${bmPl(bm.rels.length, 'release')}${bm.saved ? `, ${bmPl(bm.saved, 'link')} saved` : ''}`);
+  if (bm.songsMode === 'check' && bmKinds().every(k => bm.lanes[k].s === 'done')) smPrefsSave({ lastCheck: Date.now() });
   if (bm.hidden) flashGlobalToast('Matching songs has finished: open it to choose what to keep.', { onClick: bmShow });
   bmRedraw();
 }
@@ -25106,7 +25169,7 @@ function bmPrefsHtml() {
       <div class="bm-opt"><span class="bm-opt-t">Length tolerance<small>How far a recording’s length may be from yours before it counts against it.</small></span>${sel('lenTol', p.lenTol, [['strict', 'Strict'], ['normal', 'Normal'], ['loose', 'Loose']])}</div>
       <div class="bm-opt"><span class="bm-opt-t">Edition<small>Between equally good editions of an album.</small></span>${sel('edition', p.edition, [['any', 'No preference'], ['original', 'Prefer the original'], ['remaster', 'Prefer remastered or deluxe']])}</div>
       ${chk('versionPenalty', 'Mark down live, remix, cover, sped-up and similar versions', 'unless your song’s own title says it is one')}${chk('topicBonus', 'Prefer the artist’s “- Topic” channel on YouTube')}</div></section>
-    <section><div class="bm-label">Queue and reminders</div><div class="bm-opts">${chk('queueNew', 'Put new releases in the match queue', 'whatever adds them: the Add form, Rate Your Music, an import')}${chk('remindCheck', 'Remind me to check my saved links once a month', p.lastCheck ? `last checked ${bmAgo(p.lastCheck)}` : 'not checked yet')}</div>
+    <section><div class="bm-label">Queue and reminders</div><div class="bm-opts">${chk('autoMatchNew', 'Match new releases by themselves', 'in the background, as they are added: confident matches are saved, the rest wait here for you (Activity shows them)')}${chk('queueNew', 'Put new releases in the match queue', 'whatever adds them: the Add form, Rate Your Music, an import')}${chk('remindCheck', 'Remind me to check my saved links once a month', p.lastCheck ? `last checked ${bmAgo(p.lastCheck)}` : 'not checked yet')}</div>
       <div class="bm-label" style="margin-top:16px">What CRATE has learned</div><div class="bm-opts">
       <div class="bm-opt"><span class="bm-opt-t">${bmPl(p.rejected.length, 'candidate')} you said never to offer again</span>${p.rejected.length ? '<button type="button" class="chip-btn bm-sm" data-bm="forget-rejected">Forget them</button>' : ''}</div>
       ${ch.length ? ch.map(([a, c]) => `<div class="bm-opt"><span class="bm-opt-t">${escapeHtml(a)}<small>prefers the YouTube channel “${escapeHtml(c)}”</small></span><button type="button" class="chip-btn bm-sm" data-bm="forget-channel" data-k="${escapeHtml(a)}">Forget</button></div>`).join('') : '<p class="bm-dim">When you choose a different YouTube channel for an artist, it is preferred for that artist from then on.</p>'}</div></section></div></div>`;
@@ -30256,6 +30319,7 @@ function postUpdate(payload, retried) {
     try {                                         // a release just added: into the match queue (Match songs → Preferences can switch this off)
       if (smPrefs().queueNew && payload.action === 'addAlbum' && payload.Artist && payload.Title) mqAdd([{ artist: String(payload.Artist), title: String(payload.Title) }], 'added');
       else if (smPrefs().queueNew && payload.action === 'addAlbums' && Array.isArray(payload.albums)) mqAdd(payload.albums.filter(x => x && x.Artist && x.Title).map(x => ({ artist: String(x.Artist), title: String(x.Title) })), 'added');
+      if (smPrefs().autoMatchNew && (payload.action === 'addAlbum' || payload.action === 'addAlbums')) bmAutoQueue(payload.action === 'addAlbum' ? (payload.Artist && payload.Title ? [{ artist: String(payload.Artist), title: String(payload.Title) }] : []) : (Array.isArray(payload.albums) ? payload.albums : []).filter(x => x && x.Artist && x.Title).map(x => ({ artist: String(x.Artist), title: String(x.Title) })));          // and matched by themselves
     } catch (e) { /* the queue is a convenience */ }
     return data;
   });
