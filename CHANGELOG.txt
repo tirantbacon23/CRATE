@@ -17,7 +17,17 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.83.0
+  CURRENT_VERSION: 1.83.1
+
+  1.83.1 — 2026-11-04 — Song lists: a song's own RYM rating and rating count are easy to tell from the release's. Page only.
+          In the Tracks views (and the queue and mini player fields), both
+          the release's Rate Your Music rating and the song's own read
+          "RYM rating", so the release's was easy to pick by mistake: every
+          song of an album then showed the album's number. They now say
+          "Song rating (RYM)" and "Song rating count (RYM)" (the same
+          numbers as in Edit track properties), at the top of the list, and
+          "Release rating (RYM)" and "Release rating count (RYM)". Columns
+          you already chose stay as they are.
 
   1.83.0 — 2026-11-04 — Pull details: one release from every source side by side, and you choose what is used. Updated releases move into place on their own. A Rate Your Music blip no longer stalls the update queue. Page only.
           PULL DETAILS (a release's menu, "Pull details…"; a first version,
