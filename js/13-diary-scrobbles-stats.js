@@ -469,12 +469,11 @@ function scrobbleCountFor(artist, title) {
 // JS number rather than a string (see the PlaylistItems TrackName fix in
 // fetchCatalog), and .toLowerCase() isn't a function on a number. Coercing
 // here means this is safe regardless of what type slips through upstream.
-function trackNormKey(name) {
-  return String(name || '')
+function trackNormKey(name) {                // "\u00bd Way Down" and "Halfway Down" are one track
+  return foldFractions(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/[\(\[][^)\]]*[\)\]]/g, '')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
+    .replace(/[^a-z0-9]+/g, '');
 }
 
 function trackScrobbleCountFor(artist, title, trackName) {

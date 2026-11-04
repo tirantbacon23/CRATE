@@ -17,7 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.78.0
+  CURRENT_VERSION: 1.78.1
+
+  1.78.1 — 2026-11-04 — Fix: a song titled with a fraction ("½ Way Down") never matched "Halfway Down" on YouTube or Spotify, or its scrobbles. Page only.
+          Comparing titles dropped the ½, leaving "Way Down". ½, ¼, ¾, ⅓
+          and ⅛ now read as words, and titles that differ only in spacing
+          ("Half Way" / "Halfway") count as the same song when matching and
+          when counting a track's scrobbles.
 
   1.78.0 — 2026-11-04 — Behind the scenes: the one 41,000-line page is split into files by feature, the update log moves to its own file, and there are automated tests. Nothing to look at changes, with one fix.
           index.html is now only the markup; the styles are css/crate.css and

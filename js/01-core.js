@@ -5,7 +5,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.78.0';
+const APP_VERSION = '1.78.1';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -629,8 +629,10 @@ function tlFormatTime(ms) {                                  // 192000 -> "3:12"
   const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60, p = (n) => String(n).padStart(2, '0');
   return h > 0 ? `${h}:${p(m)}:${p(s)}` : `${m}:${p(s)}`;
 }
+const FRACTION_WORDS = { '\u00bd': 'half', '\u00bc': 'quarter', '\u00be': 'three quarter', '\u2153': 'third', '\u215b': 'eighth' };
+function foldFractions(s) { return String(s == null ? '' : s).replace(/[\u00bc-\u00be\u2153\u215b]/g, c => ' ' + FRACTION_WORDS[c] + ' '); }          // "\u00bd Way Down" is "Half Way Down" (normalising alone would drop the \u00bd)
 function tlKey(title) {                                      // for telling whether two titles are the same song: case, accents, punctuation and (bracketed notes) don't matter
-  const plain = String(title == null ? '' : title).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/['\u2019]/g, '');      // an apostrophe disappears (dont = don't), other punctuation is a space
+  const plain = foldFractions(title).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/['\u2019]/g, '');      // an apostrophe disappears (dont = don't), other punctuation is a space
   const noParen = plain.replace(/\s*[\(\[][^\)\]]*[\)\]]/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
   return noParen || plain.replace(/[^a-z0-9]+/g, ' ').trim();
 }

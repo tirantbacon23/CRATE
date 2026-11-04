@@ -114,7 +114,7 @@ const SM_FLAGS = [
   ['altered', /\b(slowed|sped up|speed up|nightcore|8d|reverb|bass boosted|reversed)\b/],
   ['reaction', /\b(reaction|tutorial|lesson|how to play|review)\b/]
 ];
-function smFold(s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/&/g, ' and '); }
+function smFold(s) { return foldFractions(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/&/g, ' and '); }
 function smFlags(title) {
   const t = smFold(title).replace(/[^a-z0-9\s]/g, ' ');
   return new Set(SM_FLAGS.filter(([, re]) => re.test(t)).map(([n]) => n));
@@ -146,6 +146,7 @@ function smSim(a, b) {                  // 0..1 between two already-normalised s
 function smTitleSim(want, got) {        // the song's words, falling back on the whole untouched title (a dash can be part of a real name)
   const a = smCore(want), b = smCore(got);
   const whole = smSim(smFold(want).replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim(), smFold(got).replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim());
+  if (a && a.replace(/ /g, '') === b.replace(/ /g, '')) return 1;          // the same letters, spaced differently ("Half Way Down" / "Halfway Down")
   return Math.max(smSim(a, b), whole * 0.97);
 }
 function smChannelArtist(channel) { return smFold(channel).replace(/\s*-\s*topic$/, '').replace(/\s*(vevo|official|music)$/, '').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim(); }

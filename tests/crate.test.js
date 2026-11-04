@@ -131,3 +131,11 @@ suite('Processing queue', () => {
     } finally { js.waiting = was; }
   });
 });
+
+suite('Matching songs to Spotify and YouTube', () => {
+  test('"½ Way Down" is the same song as "Halfway Down"', () => {
+    eq(app('smTitleSim')('½ Way Down', 'Halfway Down'), 1); eq(app('tlKey')('½ Way Down'), 'half way down');
+    eq(app('trackNormKey')('½ Way Down'), app('trackNormKey')('Halfway Down'));
+  });
+  test('different songs stay different', () => { ok(app('smTitleSim')('Way Down', 'Halfway Down') < 0.85); ok(app('trackNormKey')('Halfway Down') !== app('trackNormKey')('Way Down')); });
+});
