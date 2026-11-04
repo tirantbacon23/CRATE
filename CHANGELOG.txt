@@ -17,7 +17,33 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.82.0
+  CURRENT_VERSION: 1.83.0
+
+  1.83.0 — 2026-11-04 — Pull details: one release from every source side by side, and you choose what is used. Updated releases move into place on their own. A Rate Your Music blip no longer stalls the update queue. Page only.
+          PULL DETAILS (a release's menu, "Pull details…"; a first version,
+          to see whether it helps, and where it lives may change): RYM (the
+          songs the add-on saw), MusicBrainz, Spotify, iTunes and Discogs
+          are asked at the same time, and their cover, release date, label,
+          genres, tracklist and each song's length are shown beside what you
+          have. Click what you want used, detail by detail and song by song:
+          RYM has no lengths, so take them from MusicBrainz. What you have
+          is picked where you have it; a blank is filled from the first
+          source that has it. "Use all" takes everything a source has (your
+          songs stay yours, only their lengths are taken). Another source's
+          tracklist keeps the links and ratings of songs you already had.
+          Nothing changes until Apply, and only what differs is written; a
+          cover is saved only if it loads from here.
+          UPDATES MOVE INTO PLACE: a release changed by an update (a new
+          date, a rating) is sorted again at once, and the cards slide to
+          their new places. The quiet sync slides them too, not only when
+          something is added.
+          RATE YOUR MUSIC NOT ANSWERING: a page that didn't load or couldn't
+          be read used to stop the run and hold everything behind it until
+          you pressed Continue. Now it is tried again by itself after 1, 2,
+          5 and then 10 minutes, and the run and the queue carry on;
+          Processing says when, with Try now and Skip it. A check to pass is
+          never retried for you.
+          Also: a test now checks that every script parses.
 
   1.82.0 — 2026-11-04 — Drop a CRATE export anywhere on the page to import it. Page only.
           Drag the .json file that Export makes onto CRATE: "Drop to import"

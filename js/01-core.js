@@ -5,7 +5,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.82.0';
+const APP_VERSION = '1.83.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -319,7 +319,9 @@ async function rymFlushLocal() {                                  // the backend
 }
 function rymRefreshViews() {                                      // redraw the cards/lists and the open album page, once, shortly after the last change
   clearTimeout(rymViewTimer);
-  rymViewTimer = setTimeout(() => { try { if (typeof renderGrid === 'function') keepGridPlace(() => renderGrid()); if (activeItem) deckRymPaint(activeItem); rymPaintCoverage(); } catch (e) { /* views not up yet */ } }, 350);
+  rymViewTimer = setTimeout(() => {          // sorted again too (a new date or rating can move a release), and whatever moved slides to its new place
+    try { const flip = catalogFlipBefore(); if (typeof applyFiltersSort === 'function') keepGridPlace(() => applyFiltersSort()); catalogFlipAfter(flip, []); if (activeItem) deckRymPaint(activeItem); rymPaintCoverage(); } catch (e) { /* views not up yet */ }
+  }, 350);
 }
 function rymChipHtml(item) {
   if (!state.rymShowNext || !item || !item.rymRating) return '';

@@ -260,3 +260,57 @@ suite('Dropping an export on the page', () => {
     ok(app("document.getElementById('cxImportOverlay').hidden"), 'the import stayed closed');
   });
 });
+
+suite('Pull details', () => {
+  const setup = async (srcs) => {
+    const F = app('PD_FETCH'), keep = Object.assign({}, F), it = { row: 77777, artist: 'A', title: 'T', releaseDate: '1999', label: '', genre: 'Rock', cover: '' };
+    const mine = [{ trackNumber: 1, title: 'One', durationMs: 0, youtubeLink: 'https://youtu.be/aaaaaaaaaaa', spotifyLink: '' }, { trackNumber: 2, title: 'Two', durationMs: 0, youtubeLink: '', spotifyLink: '' }];
+    F.crate = async () => ({ date: '1999', label: '', genre: 'Rock', cover: '', tracks: mine, rows: mine });
+    ['rym', 'mb', 'sp', 'it', 'dc'].forEach(k => { F[k] = async () => srcs[k] || { err: 'Not found' }; });
+    app('pdOpen')(it); await sleep(300);
+    return () => { Object.assign(F, keep); app('pdClose')(); };
+  };
+  test('blanks are filled from the first source that has them; what you have is kept', async () => {
+    const done = await setup({ rym: { tracks: [{ title: 'One', durationMs: 0 }, { title: 'Two', durationMs: 0 }] }, mb: { date: '1999-10-12', label: 'Shrimper', tracks: [{ title: 'One', durationMs: 181000 }, { title: 'Two', durationMs: 199000 }] } });
+    try {
+      const c = app('pdChanges')();
+      eq([Object.keys(c.fields), c.rows && c.rows.map(r => [r.title, r.durationMs, r.youtubeLink])], [['label'], [['One', 181000, 'https://youtu.be/aaaaaaaaaaa'], ['Two', 199000, '']]]);
+    } finally { done(); }
+  });
+  test('another source’s tracklist keeps the links and numbers of songs you already had', async () => {
+    const done = await setup({ mb: { tracks: [{ title: 'One', durationMs: 181000 }, { title: 'Two', durationMs: 199000 }, { title: 'Three', durationMs: 120000 }] } });
+    try {
+      app("document.querySelector('[data-pd-pick=\"tracks\"][data-pd-src=\"mb\"]').click()");
+      const c = app('pdChanges')();
+      eq(c.rows.map(r => [r.title, r.trackNumber || 0, r.youtubeLink || '']), [['One', 1, 'https://youtu.be/aaaaaaaaaaa'], ['Two', 2, ''], ['Three', 0, '']]);
+    } finally { done(); }
+  });
+});
+
+suite('The scripts themselves', () => {
+  test('every script of the page parses (a comment that swallows code would stop a whole file)', async () => {
+    const bad = [];
+    for (const src of app("[...document.scripts].map(s => s.src).filter(s => s.includes('/js/'))")) {
+      const text = await (await fetch(src, { cache: 'no-store' })).text();
+      try { new Function(text); } catch (e) { bad.push(src.split('/').pop() + ': ' + e.message); }
+    }
+    eq(bad, []);
+  });
+});
+
+suite('Rate Your Music not answering for a moment', () => {
+  test('a page that timed out is tried again by itself, later each time; a check is never retried', () => {
+    const js = app('jobsState'), p = app('jobsRymProgress'), clear = app('rymRetryClear'), was = [js.held, js.rymLast, js.retries, js.retryOk];
+    try {
+      js.held = false; js.retries = 0; js.retryOk = 0;
+      p({ state: 'stopped', reason: 'timeout', ok: 2, done: 2, total: 5 });
+      const first = [js.retries, Math.round((js.retryAt - Date.now()) / 60000)];
+      p({ state: 'stopped', reason: 'timeout', ok: 2, done: 2, total: 5 });
+      const second = [js.retries, Math.round((js.retryAt - Date.now()) / 60000)];
+      p({ state: 'loading', ok: 3, done: 3, total: 5 });
+      const answering = [js.retries, js.retryAt];
+      p({ state: 'stopped', reason: 'challenge', ok: 3, done: 3, total: 5 });
+      eq([first, second, answering, js.retryAt], [[1, 1], [2, 2], [0, 0], 0]);
+    } finally { clear(); [js.held, js.rymLast, js.retries, js.retryOk] = was; }
+  });
+});

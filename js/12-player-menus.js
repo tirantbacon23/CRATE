@@ -755,6 +755,7 @@ function openAlbumCardContextMenu(item, x, y) {
     <button type="button" data-card-action="matchQueue">${selItems.length > 1 ? `Add ${selItems.length} to the match queue` : 'Add to the match queue'}</button>
     <button type="button" data-card-action="fullVideo">Full-release video…</button>
     <button type="button" data-card-action="editTracks">Edit tracks…</button>
+    ${selItems.length > 1 ? '' : '<button type="button" data-card-action="pullDetails">Pull details\u2026</button>'}
     ${state.activePlaylistId ? '<div class="menu-divider"></div><button type="button" class="remove-menu-btn" data-card-action="removeFromPlaylist">Remove from playlist</button>' : ''}
     <div class="menu-divider"></div>
     <button type="button" class="remove-menu-btn" data-card-action="delete">${selItems.length > 1 ? `Delete ${selItems.length} selected from crate` : 'Delete from crate'}</button>
@@ -798,6 +799,7 @@ function openAlbumCardContextMenu(item, x, y) {
     else if (action === 'matchQueue') { const its = selItems.length > 1 ? selItems : [item], n = mqAdd(its, 'menu'); flashGlobalToast(n ? `Added ${n} to the match queue (Match songs \u2192 Start).` : 'Already in the match queue.'); }
     else if (action === 'fullVideo') fvOpen(item);
     else if (action === 'editTracks') tgOpen(item);
+    else if (action === 'pullDetails') pdOpen(item);
     else if (action === 'removeFromPlaylist') removeAlbumFromActivePlaylist(item);
     else if (action === 'delete') deleteAlbumsFromContextMenu(selItems);
   });

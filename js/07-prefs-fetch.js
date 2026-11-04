@@ -273,8 +273,8 @@ function catalogFlipBefore() {                       // the cards on screen now,
   }
   return out;
 }
-function catalogFlipAfter(before, added) {
-  if (!before || !before.length || !added.length || added.length > 60) return;
+function catalogFlipAfter(before, added) {          // (also when nothing was added: a release whose date or rating changed moves to its new place, sliding)
+  if (!before || !before.length || (added || []).length > 60) return;
   const h = window.innerHeight;
   before.forEach(({ it, r, box }) => {
     const c = [...document.querySelectorAll(`[data-album-row="${CSS.escape(String(it.row))}"]`)].find(e => (e.parentElement && e.parentElement.id) === box); if (!c) return;

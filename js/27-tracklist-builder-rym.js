@@ -743,8 +743,24 @@ function jobsResumeAll() {
   if (!rymFetchState.active && jobsState.waiting.length) jobsStartNextRym();
   jobsRefresh();
 }
+// A run that stopped because a page didn't load or couldn't be read (Rate Your Music down for a moment, a slow connection) carries on by
+// itself: that page is tried again after a pause that grows (1, 2, 5, then 10 minutes), then the rest of the run, then the queue behind it.
+// A check to pass is never retried for you, nor a page you closed; after four tries in a row it waits for you (Processing: Try again).
+const RYM_RETRY_WAIT = [60000, 120000, 300000, 600000];
+function rymRetryClear() { clearTimeout(jobsState.retryTimer); jobsState.retryTimer = 0; jobsState.retryAt = 0; }
+function rymRetryNow() { rymRetryClear(); jobsState.rymLast = null; rymFetchContinue(); jobsRefresh(); }
+function rymAutoRetry(d) {
+  if (d.state === 'loading' || d.state === 'gap' || d.state === 'starting') { rymRetryClear(); if ((d.ok || 0) > (jobsState.retryOk || 0)) { jobsState.retries = 0; jobsState.retryOk = d.ok || 0; } return; }          // a page read since: it's answering again
+  rymRetryClear();
+  if (d.state !== 'stopped' || !['timeout', 'unreadable'].includes(d.reason)) { jobsState.retries = 0; jobsState.retryOk = 0; return; }
+  const n = jobsState.retries || 0;
+  if (jobsState.held || n >= RYM_RETRY_WAIT.length) { if (n >= RYM_RETRY_WAIT.length) flashGlobalToast('Rate Your Music still isn\u2019t answering, so the updates are waiting for you: Processing \u2192 Try again.', { onClick: jobsOpen }); return; }
+  const wait = RYM_RETRY_WAIT[n]; jobsState.retries = n + 1; jobsState.retryAt = Date.now() + wait;
+  jobsState.retryTimer = setTimeout(() => { jobsState.retryTimer = 0; jobsState.retryAt = 0; if (!rymFetchState.active && !jobsState.held) rymRetryNow(); }, wait);
+  flashGlobalToast(`Rate Your Music didn\u2019t answer (${rymFetchWhy(d.reason).replace(/\.$/, '')}). The update carries on by itself in ${Math.round(wait / 60000)} minute${wait === 60000 ? '' : 's'}.`, { onClick: jobsOpen });
+}
 function jobsRymProgress(d) {                                     // every progress message of a Rate Your Music run
-  jobsState.rymLast = d;
+  jobsState.rymLast = d; rymAutoRetry(d);
   if (d.state === 'starting' || d.state === 'loading' || d.state === 'gap') { jobsState.rymLogged = false; jobsRefresh(); return; }
   if (!jobsState.rymLogged) {
     jobsState.rymLogged = true; const paused = jobsState.pausing && d.state === 'cancelled'; jobsState.pausing = false;
@@ -763,6 +779,9 @@ function jobsCollect() {
       acts: [{ icon: 'pause', label: 'Pause', fn: jobsPauseRym }, { icon: 'x', label: 'Stop', fn: rymFetchCancel }, state.rymQueueMode && rymQ.entries.length ? { label: 'Details', fn: rymQOpen, opens: true } : null] });
   } else if (last && last.state === 'stopped' && last.reason === 'challenge') {
     need.push({ cat: 'rym', icon: 'warn', tone: 'warn', title: 'RYM asked for a check', detail: 'Pass it on the page the add-on opened. The queue\u2019s RYM jobs are held until you continue.', acts: [{ label: 'Continue', fn: rymFetchContinue, primary: true }, { label: 'Dismiss', fn: () => { jobsState.rymLast = null; } }] });
+  } else if (last && last.state === 'stopped' && ['timeout', 'unreadable'].includes(last.reason)) {
+    need.push({ cat: 'rym', icon: 'warn', tone: 'warn', title: 'Rate Your Music didn\u2019t answer', detail: jobsState.retryAt ? `The update carries on by itself ${jobsIn(jobsState.retryAt - now)} (try ${jobsState.retries} of ${RYM_RETRY_WAIT.length}). The releases behind it wait their turn.` : 'It was tried again a few times. The releases behind it wait their turn.',
+      acts: [{ label: 'Try now', fn: rymRetryNow, primary: true }, { label: 'Skip it', fn: () => { rymRetryClear(); jobsState.rymLast = null; jobsStartNextRym(); } }] });
   }
   if (state.rymQueueMode) {
     const c = rymQCounts();
