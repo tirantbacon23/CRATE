@@ -176,3 +176,28 @@ suite('Deleting releases', () => {
     eq([s.done.length, s.failed.length], [0, 1]);
   });
 });
+
+suite('Syncing the crate quietly', () => {
+  const rel = (o) => Object.assign({ albumId: '', artist: 'A', title: 'T', releaseDate: '1987', type: 'Single', row: 2, rating: 0 }, o);
+  test('nothing new: the same objects, and nothing to redraw', () => {
+    const rec = app('catalogReconcile'), a = rec([], [rel({ albumId: 'x1' }), rel({ albumId: 'x2', row: 3 })]).raw;
+    const b = rec(a, [rel({ albumId: 'x1' }), rel({ albumId: 'x2', row: 3 })]);
+    eq([b.changed, b.raw[0] === a[0], b.raw[1] === a[1]], [false, true, true]);
+  });
+  test('a change is written into the same object; added and removed ones are told apart', () => {
+    const rec = app('catalogReconcile'), a = rec([], [rel({ albumId: 'x1' }), rel({ albumId: 'x2', row: 3 })]).raw;
+    const b = rec(a, [rel({ albumId: 'x1', rating: 4 }), rel({ albumId: 'x3', row: 3, title: 'New' })]);
+    eq([b.changed, b.modified, b.raw[0] === a[0], a[0].rating, b.added.map(x => x.title), b.removed.map(x => x.albumId)], [true, 1, true, 4, ['New'], ['x2']]);
+  });
+  test('without an id, a release is known by artist, title, date and type, whatever its row', () => {
+    const rec = app('catalogReconcile'), a = rec([], [rel({ row: 5 })]).raw, b = rec(a, [rel({ row: 4 })]);
+    eq([b.raw[0] === a[0], b.added.length, a[0].row], [true, 0, 4]);
+  });
+  test('deleting here: the release goes, and every row below it moves up one', () => {
+    const st = app('state'), was = st.raw;
+    try {
+      const x = { row: 2 }, y = { row: 3 }, z = { row: 7 }; st.raw = [x, y, z];
+      app('catalogRemoveLocal')(y); eq(st.raw.map(r => r.row), [2, 6]);
+    } finally { st.raw = was; }
+  });
+});

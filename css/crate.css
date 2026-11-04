@@ -4168,3 +4168,10 @@ html, body {
   @media (prefers-reduced-motion: reduce) {
     .del-overlay, .del-dialog, .del-covers img, .del-waiting, .del-leaving, .del-failed { animation: none !important; }
   }
+
+  /* ---- the catalogue syncing quietly (07-prefs-fetch.js: fetchCatalog({ quiet })) ---- */
+  #refreshBtn.syncing { animation: crate-sync-spin 1s linear infinite; color: var(--accent); }
+  .card-arrive { animation: crate-arrive 520ms cubic-bezier(.2,.8,.2,1); }
+  @keyframes crate-sync-spin { to { transform: rotate(360deg); } }
+  @keyframes crate-arrive { from { opacity: 0; transform: scale(0.9) translateY(8px); } }
+  @media (prefers-reduced-motion: reduce) { #refreshBtn.syncing, .card-arrive { animation: none; } }

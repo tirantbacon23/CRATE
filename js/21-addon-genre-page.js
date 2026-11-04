@@ -1720,7 +1720,7 @@ async function removePlaylistItemsByIds(playlist, itemIds) {
     await postUpdate({ action: 'removePlaylistItems', itemIds });
   } catch (e) {
     flashGlobalToast('Couldn\u2019t remove \u2014 try again');
-    await fetchCatalog();
+    await fetchCatalog({ quiet: true });
   }
 }
 
@@ -1801,7 +1801,7 @@ async function deletePlaylistDirect(playlist) {
   try {
     await postUpdate({ action: 'deletePlaylist', playlistId: playlist.id });
     state.activePlaylistId = null;
-    await fetchCatalog();
+    await fetchCatalog({ quiet: true });
   } catch (e) {
     flashGlobalToast('Couldn\u2019t delete this playlist \u2014 try again');
   }
@@ -1835,7 +1835,7 @@ async function savePlaylistModalClick() {
       await postUpdate({ action: 'renamePlaylist', playlistId: playlistModalEditingId, name, description });
       const editingId = playlistModalEditingId;
       closePlaylistModal();
-      await fetchCatalog();
+      await fetchCatalog({ quiet: true });
       openPlaylist(editingId);
     } else {
       const res = await postUpdate({ action: 'createPlaylist', name, description });
@@ -1853,7 +1853,7 @@ async function savePlaylistModalClick() {
         await postUpdate({ action: 'addPlaylistItems', playlistId: newId, items: dedupedItems });
       }
       closePlaylistModal();
-      await fetchCatalog();
+      await fetchCatalog({ quiet: true });
       if (newId) { switchTab('albums'); openPlaylist(newId); }
       flashGlobalToast(`Created "${name}"`);
     }
@@ -1932,7 +1932,7 @@ function openAddToPlaylistSubmenu(anchorEl, items) {
       });
       await postUpdate({ action: 'addPlaylistItems', playlistId, items: dedupedItems });
       flashGlobalToast('Added to playlist');
-      if (state.activeTab === 'albums') await fetchCatalog();
+      if (state.activeTab === 'albums') await fetchCatalog({ quiet: true });
     } catch (err) {
       flashGlobalToast('Couldn\u2019t add to playlist \u2014 try again');
     }

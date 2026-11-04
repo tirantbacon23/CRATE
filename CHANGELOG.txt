@@ -17,7 +17,21 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.78.6
+  CURRENT_VERSION: 1.79.0
+
+  1.79.0 — 2026-11-04 — Adding, deleting and updating no longer reload the whole crate on screen. Page only.
+          Until now each change ended with the grid replaced by
+          "Cataloguing…" while every release, listen and playlist was fetched
+          again, then the whole grid redrawn. Now a deleted release leaves at
+          once (the rows below it move up here as they do in the sheet), and
+          CRATE checks with your sheet quietly behind it: the grid stays as it
+          is, ⟳ turns while it syncs, and only if something really differs is
+          it redrawn, keeping your place. Releases that arrive with a sync fade
+          in. Several changes in a row share one sync. An open release, the
+          player and the queue keep pointing at the same releases through it.
+          Opening CRATE and pressing ⟳ still do the full reload; if a quiet
+          sync can't reach the sheet you're told, and nothing on screen is
+          lost.
 
   1.78.6 — 2026-11-04 — Deleting looks and feels better: CRATE's own dialog with the covers, and each release fades out as it goes. Page only.
           The browser's plain "OK / Cancel" box is replaced by a dialog that

@@ -217,7 +217,54 @@ function restoreGridPlace(place) {
 }
 function gridPlaceSnapshot() { const left = document.getElementById('leftList'); return { place: captureGridPlace(), leftTop: left ? left.scrollTop : 0 }; }          // (taken BEFORE anything that clears the view, such as the reload's "loading" state)
 function keepGridPlace(fn, snap) { snap = snap || gridPlaceSnapshot(); const out = fn(); restoreGridPlace(snap.place); if (snap.place) gridFillVisible(); const left = document.getElementById('leftList'); if (left && snap.leftTop) left.scrollTop = snap.leftTop; return out; }
-async function fetchCatalog(opts) {
+// fetchCatalog(): the whole crate from the sheet. { quiet: true } is the sync after a change of your own (an add, a delete, an update): the
+// grid stays as it is, with no "Cataloguing\u2026", and is redrawn only when something really differs (catalogReconcile keeps each release's
+// object, so an open release, the player and the queue keep theirs). A quiet call that arrives while a load is running gets one more quiet
+// load after it, so it always ends with fresh data, and a burst of changes shares one. scheduleCatalogSync() is the same, a moment after the
+// last change. Without quiet (opening CRATE, the \u27f3 button) it is the full, visible reload as before.
+let fetchCatalogRun = null, fetchCatalogAgain = false, catalogSyncTimer = 0;
+function fetchCatalog(opts) {
+  opts = opts || {};
+  if (fetchCatalogRun) { if (opts.quiet) fetchCatalogAgain = true; return fetchCatalogRun; }
+  fetchCatalogRun = (async () => {
+    try { let o = opts; while (o) { fetchCatalogAgain = false; await fetchCatalogOnce(o); o = fetchCatalogAgain ? { quiet: true } : null; } }
+    finally { fetchCatalogRun = null; fetchCatalogAgain = false; }
+  })();
+  return fetchCatalogRun;
+}
+function scheduleCatalogSync(ms) { clearTimeout(catalogSyncTimer); catalogSyncTimer = setTimeout(() => { fetchCatalog({ quiet: true }).catch(() => {}); }, ms == null ? 2500 : ms); }
+function catalogSyncing(on) { const b = el.refreshBtn; if (!b) return; b.classList.toggle('syncing', !!on); b.title = on ? 'Syncing with your sheet\u2026' : 'Refresh from sheet'; }
+// A release's identity across loads: its AlbumId, else what it is (rows move when one above them is deleted).
+function catalogKey(it) { return it.albumId ? 'id:' + it.albumId : 'k:' + [it.artist, it.title, it.releaseDate, it.type].join('\u0001').toLowerCase(); }
+// The fresh rows against the ones on screen: a release that is the same keeps its object as it is (with what was added to it since, such as a
+// rating kept in this browser); one that changed keeps its object with the sheet's values written in; new ones come in. changed = anything to redraw.
+function catalogReconcile(oldRaw, fresh) {
+  const pool = new Map(), added = [];
+  (oldRaw || []).forEach(o => { const k = catalogKey(o); if (!pool.has(k)) pool.set(k, []); pool.get(k).push(o); });
+  let modified = 0;
+  const raw = (fresh || []).map(n => {
+    const sig = JSON.stringify(n), list = pool.get(catalogKey(n)), o = list && list.shift();
+    if (!o) { Object.defineProperty(n, '__sig', { value: sig, writable: true, configurable: true }); added.push(n); return n; }
+    if (o.__sig !== sig) { Object.keys(n).forEach(k => { o[k] = n[k]; }); if (!Object.prototype.hasOwnProperty.call(o, '__sig')) Object.defineProperty(o, '__sig', { value: '', writable: true, configurable: true }); o.__sig = sig; modified++; }
+    return o;
+  });
+  const removed = [].concat(...pool.values()), old = oldRaw || [];
+  const changed = !!(added.length || removed.length || modified || raw.length !== old.length || raw.some((x, i) => x !== old[i]));
+  return { raw, added, removed, modified, changed };
+}
+// The sheet just lost this release's row: the same here at once, and every row below it moves up one, as the sheet's do (so a change made
+// before the next sync still goes to the right row).
+function catalogRemoveLocal(item) {
+  const r = Number(item && item.row); if (!r) return;
+  state.raw = (state.raw || []).filter(x => x !== item);
+  state.raw.forEach(x => { if (Number(x.row) > r) x.row = Number(x.row) - 1; });
+}
+function catalogRedraw() { keepGridPlace(() => { buildLeftList(); renderPlaylistSidebar(); updateMainLabel(); applyFiltersSort(); }); if (state.activeTab === 'artist') { renderArtistList(); renderArtistDetail(); } }
+function catalogMarkArrived(items) {                 // releases that came in with a sync fade in where they land
+  if (!items.length || items.length > 60 || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+  requestAnimationFrame(() => items.forEach(it => document.querySelectorAll(`[data-album-row="${CSS.escape(String(it.row))}"]`).forEach(c => { c.classList.add('card-arrive'); setTimeout(() => c.classList.remove('card-arrive'), 700); })));
+}
+async function fetchCatalogOnce(opts) {
   opts = opts || {};
   if (!CONFIG.SCRIPT_URL || CONFIG.SCRIPT_URL.indexOf('PASTE_YOUR') === 0) {
     showState('setup', 'albums');
@@ -235,11 +282,12 @@ async function fetchCatalog(opts) {
   // recent. A plain boolean is enough since this only needs to block
   // *overlapping* calls, not queue them — the one already running will
   // finish and reflect the current data either way.
-  if (fetchCatalogInFlight) return;
   fetchCatalogInFlight = true;
+  const quiet = !!opts.quiet && (state.raw || []).length > 0;          // (with nothing on screen yet, there is nothing to keep: a full load)
+  if (quiet) catalogSyncing(true);
   const placeBefore = gridPlaceSnapshot();          // where you are, before the loading state clears the view
 
-  showState('loading', 'albums');
+  if (!quiet) showState('loading', 'albums');
   // If it's taking a while, say so explicitly rather than leaving the
   // original "Cataloguing…" message sitting there looking frozen — a
   // real full-catalog load (albums + diary + scrobbles + playlists all in
@@ -284,7 +332,7 @@ async function fetchCatalog(opts) {
     // even suggest something's wrong. Surface it as a real error instead.
     if (data && data.error) {
       console.error('Apps Script returned an error:', data.error);
-      showState('error', 'albums', data.error);
+      if (quiet) flashGlobalToast('Couldn\u2019t sync with your sheet just now \u2014 \u27f3 to try again.'); else showState('error', 'albums', data.error);
       return;
     }
 
@@ -313,7 +361,7 @@ async function fetchCatalog(opts) {
       state.backendTaxChunks = !!(data && data.taxChunks);          // the backend stores a long genre taxonomy in pieces
       state.backendRym = !!(data && data.rym);
       state.backendRymHist = !!(data && data.rymHist);        // the backend stores the history column          // the backend says it can store RYM ratings
-      state.raw = (data.rows || [])
+      const freshRaw = (data.rows || [])
         .filter(r => r.Artist && r.Title)
         .map((r, i) => ({
           row: r._row,
@@ -396,6 +444,8 @@ async function fetchCatalog(opts) {
           // touched for that row, so this needs no backend change.
           hasManualTracklist: !!(r.ManualTracks && String(r.ManualTracks).trim())
         }));
+      const rec = catalogReconcile(state.raw, freshRaw); state.raw = rec.raw;
+      const sideBefore = quiet ? JSON.stringify([state.diary, state.scrobbles, state.playlists]) : '';
 
     state.diary = (data.diary || []).map(d => ({
       date: d.Date || '',
@@ -474,21 +524,23 @@ async function fetchCatalog(opts) {
       if (!livePlaylistIds.has(pid)) delete state.playlistFolderMap[pid];
     });
 
+    if (quiet && !rec.changed && JSON.stringify([state.diary, state.scrobbles, state.playlists]) === sideBefore) return;          // a sync that found nothing new: nothing on screen moves
     keepGridPlace(() => { buildLeftList(); renderPlaylistSidebar(); updateMainLabel(); applyFiltersSort(); }, placeBefore);          // (a reload after an add, a remove or an edit keeps you where you were)
     prefetchArt(state.raw);
     if (state.activeTab === 'artist') { renderArtistList(); renderArtistDetail(); }
     checkAlbumAnniversaries();
     checkForDuplicateRows();
+    if (quiet) catalogMarkArrived(rec.added);
   } catch (err) {
     console.error(err);
     // AbortError is fetchWithTimeout's controller.abort() firing — a real
     // timeout, not a network/server failure, and worth telling the person
     // apart from "check your Apps Script URL" (which isn't the problem
     // when it's just slow).
-    showState(err.name === 'AbortError' ? 'timeout' : 'error', 'albums');
+    if (quiet) flashGlobalToast('Couldn\u2019t sync with your sheet just now \u2014 \u27f3 to try again.'); else showState(err.name === 'AbortError' ? 'timeout' : 'error', 'albums');
   } finally {
     clearTimeout(slowNotice);
-    fetchCatalogInFlight = false;
-    if (authRetry) setTimeout(() => fetchCatalog({ retried: true }), 0);          // (a return inside the try skips anything after this block)
+    fetchCatalogInFlight = false; if (quiet) catalogSyncing(false);
+    if (authRetry) setTimeout(() => fetchCatalog({ retried: true, quiet: opts.quiet }), 0);          // (a return inside the try skips anything after this block)
   }
 }

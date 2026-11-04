@@ -402,7 +402,7 @@ async function cxImpRun(list) {                // list: [{ idx, shaped }]
   }
   const notTried = total - st.added.length - st.failed.length;
   cxEl('cxImpBar').style.width = '100%'; cxEl('cxImpProgText').textContent = 'Finishing\u2026'; cxEl('cxImpCancel').hidden = true; cxEl('cxImpBg').hidden = true; bgStatus('Finishing\u2026', 100, {});
-  try { await fetchCatalog(); } catch (e) { console.warn('refresh after import failed', e); }
+  try { await fetchCatalog({ quiet: true }); } catch (e) { console.warn('refresh after import failed', e); }
   // SoundCloud links live with the per-song data, which needs the release to exist: attach them now.
   let scFailed = 0;
   for (const a of st.added) {
@@ -437,7 +437,7 @@ function cxImportBind() {
   cxEl('cxImpSelNone').addEventListener('click', () => { cxImp.selected = new Set(); cxImpRender(); });
   cxEl('cxImpGo').addEventListener('click', async () => {
     const btn = cxEl('cxImpGo'), label = btn.textContent, o = cxGetBoxes('cxImp'); btn.disabled = true;
-    if (Date.now() - (state.catalogFetchedAt || 0) > DUP_FRESH_MS) { btn.textContent = 'Checking your crate\u2026'; try { await fetchCatalog(); } catch (e) { console.warn('refresh before import failed', e); } }
+    if (Date.now() - (state.catalogFetchedAt || 0) > DUP_FRESH_MS) { btn.textContent = 'Checking your crate\u2026'; try { await fetchCatalog({ quiet: true }); } catch (e) { console.warn('refresh before import failed', e); } }
     const go = [], skipped = [];
     cxImp.releases.filter(r => cxImp.selected.has(r.idx)).forEach(r => { if (dupVerdict(dupMatches(r)) === 'exact') skipped.push(r); else go.push({ idx: r.idx, shaped: cxShape(r, o) }); });   // it may have been added since the review (another tab, another device)
     btn.textContent = label; cxImp.skipped = skipped;
@@ -521,7 +521,7 @@ function addDupRefresh() {
 async function addDupGuard() {         // true = fine to save. Authoritative: it doesn't trust what the banner last showed.
   if (Date.now() - (state.catalogFetchedAt || 0) > DUP_FRESH_MS) {
     const label = el.addSaveBtn.textContent; el.addSaveBtn.disabled = true; el.addSaveBtn.textContent = 'Checking your crate\u2026';
-    try { await fetchCatalog(); } catch (e) { console.warn('refresh before duplicate check failed', e); }
+    try { await fetchCatalog({ quiet: true }); } catch (e) { console.warn('refresh before duplicate check failed', e); }
     el.addSaveBtn.textContent = label;
   }
   addDupRefresh();

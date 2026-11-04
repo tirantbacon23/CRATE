@@ -253,13 +253,13 @@ async function deleteAlbumsFromContextMenu(items) {
   if (n > 1) bgStatus(`Deleting ${n} releases…`, 5, {});
   const r = await deleteAlbumRows(items, postUpdate, async (it, ok) => {
     k++; if (n > 1) bgStatus(`Deleting ${n} releases… ${k} of ${n}`, Math.round(k / n * 100), {});
-    if (ok) await delAnimateOut(it);
+    if (ok) { catalogRemoveLocal(it); await delAnimateOut(it); }
     else delCardsFor(it).forEach(e => { e.classList.remove('del-waiting'); e.classList.add('del-failed'); setTimeout(() => e.classList.remove('del-failed'), 900); });
   });
   if (activeItem && r.done.some(it => it.row === activeItem.row)) closeDeck();
-  r.done.forEach(it => state.selectedAlbums.delete(String(it.row)));
+  if (r.done.length) state.selectedAlbums.clear();          // (rows below a deleted one have moved up: a kept selection would point at other releases)
   items.forEach(it => delCardsFor(it).forEach(e => e.classList.remove('del-waiting')));
-  try { await fetchCatalog(); } catch (e) { /* the sheet is changed; the list catches up next time */ }
+  if (r.done.length) { catalogRedraw(); scheduleCatalogSync(); }
   const what = n === 1 && r.done.length === 1 ? `“${items[0].title}”` : `${r.done.length} release${r.done.length === 1 ? '' : 's'}`;
   const msg = r.done.length ? `Deleted ${what}${r.failed.length ? `; ${r.failed.length} couldn’t be deleted — try again` : ''}` : 'Couldn’t delete — try again';
   if (n > 1) bgStatus(msg, 100, { close: true, always: true });
@@ -275,7 +275,7 @@ async function removeAlbum(item) {
     closeDeck();
     
     // 👈 Replace state filtering with a fresh data fetch to resync row numbers
-    await fetchCatalog(); 
+    catalogRemoveLocal(item); catalogRedraw(); scheduleCatalogSync(); 
     
   } catch (err) {
     el.deckRemoveBtn.disabled = false;

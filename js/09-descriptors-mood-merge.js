@@ -414,7 +414,7 @@ async function mgMerge(g) {
     if (!r || typeof r.merged !== 'number') { dropEntry(); mg.msg = 'Nothing was changed: the backend script doesn\u2019t know how to merge yet. Paste the newest apps-script-backend.gs into your Apps Script and deploy it again.'; }
     else {
       mg.msg = `Merged ${g.items.length} into \u201c${K.title}\u201d${r.repointed ? ` \u00b7 ${r.repointed} playlist item${r.repointed === 1 ? '' : 's'} moved` : ''}${r.removedItems ? ` \u00b7 ${r.removedItems} duplicate playlist place${r.removedItems === 1 ? '' : 's'} dropped` : ''}${r.diaryFixed ? ` \u00b7 ${r.diaryFixed} diary entr${r.diaryFixed === 1 ? 'y' : 'ies'} moved` : ''}.`;
-      mg.opened = null; delete mg.keep[g.id]; delete mg.choices[g.id]; await fetchCatalog(); mg.groups = mgFindGroups();
+      mg.opened = null; delete mg.keep[g.id]; delete mg.choices[g.id]; await fetchCatalog({ quiet: true }); mg.groups = mgFindGroups();
     }
   } catch (err) {
     const m = String((err && err.message) || err);
@@ -426,7 +426,7 @@ async function mgMerge(g) {
 }
 async function mgRestore(t) {
   const log = mgLogGet(), e = log.find(x => x.t === t); if (!e || e.restored || mg.busy) return; mg.busy = true; mg.msg = 'Putting them back\u2026'; mgRender();
-  try { for (const cols of e.removed) await postUpdate(Object.assign({ action: 'addAlbum' }, cols)); e.restored = true; mgLogSet(log); await fetchCatalog(); mg.groups = mgFindGroups(); mg.msg = `Put back ${e.removed.length} release${e.removed.length === 1 ? '' : 's'}. Playlist places and diary entries were not restored.`; }
+  try { for (const cols of e.removed) await postUpdate(Object.assign({ action: 'addAlbum' }, cols)); e.restored = true; mgLogSet(log); await fetchCatalog({ quiet: true }); mg.groups = mgFindGroups(); mg.msg = `Put back ${e.removed.length} release${e.removed.length === 1 ? '' : 's'}. Playlist places and diary entries were not restored.`; }
   catch (err) { mg.msg = 'Couldn\u2019t put them back: ' + String((err && err.message) || err).slice(0, 100); }
   mg.busy = false; mgRender();
 }

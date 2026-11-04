@@ -1017,7 +1017,7 @@ async function rymApplyUpdate() {
     rymBatchDone([st.batch.id]);
     flashGlobalToast(`Updated \u201c${item.title}\u201d from Rate Your Music: ${picks.filter(p => p.key !== 'cover' || !wr.coverMissed).map(p => p.label.toLowerCase()).join(', ')}.${wr.coverMissed ? ' The cover couldn’t be loaded from here, so it was left as it was.' : ''}`);
     rymUpdateClose();
-    try { await fetchCatalog(); } catch (e) { /* the sheet is updated; the list refreshes next time */ }
+    try { await fetchCatalog({ quiet: true }); } catch (e) { /* the sheet is updated; the list refreshes next time */ }
   } catch (e) { $('rymUpdMsg').textContent = 'Couldn\u2019t update \u2014 try again.'; $('rymUpdApply').disabled = false; }
 }
 // "Apply all": every waiting update, at once, with only what is NEW ticked (a blank filled, a date made more precise, a tracklist where there is none). Anything that DIFFERS from what you
@@ -1041,7 +1041,7 @@ async function rymUpdateAllWaiting() {
   }
   if (done.length) rymBatchDone(done);
   bgStatusHide();
-  try { await fetchCatalog(); } catch (e) { /* the sheet is updated; the list refreshes next time */ }
+  try { await fetchCatalog({ quiet: true }); } catch (e) { /* the sheet is updated; the list refreshes next time */ }
   const parts = [`Updated ${r.updated} release${r.updated === 1 ? '' : 's'}${r.updated ? ` (${r.fields} change${r.fields === 1 ? '' : 's'})` : ''}`];
   if (r.same) parts.push(`${r.same} already up to date`); if (r.missing) parts.push(`${r.missing} not in your crate`);
   if (r.review) parts.push(`${r.review} ${r.review === 1 ? 'has' : 'have'} differences left for you to review`); if (r.failed) parts.push(`${r.failed} couldn\u2019t be updated \u2014 try again`); if (r.coverMissed) parts.push(`${r.coverMissed} cover${r.coverMissed === 1 ? '' : 's'} couldn\u2019t be loaded from here and ${r.coverMissed === 1 ? 'was' : 'were'} left as ${r.coverMissed === 1 ? 'it was' : 'they were'}`);
@@ -1071,7 +1071,7 @@ async function rymFillTracklists() {
     try { const rows = tlAssignNumbers([], c.e.tracks.map(t => ({ title: t.title, durationMs: t.durationMs || 0, section: t.section || '', s: 'rym', rymRating: t.rating || 0, rymVotes: t.votes || 0, rymLink: t.url || '' })), tlMinNext(c.it)).rows; await saveManualTracklist(c.it, rows, true); await tlApplyTrackRatings(c.it, rows); ok++; }
     catch (e) { failed++; }
   }
-  try { await fetchCatalog(); } catch (e) { /* the sheet is updated; the list refreshes next time */ }
+  try { await fetchCatalog({ quiet: true }); } catch (e) { /* the sheet is updated; the list refreshes next time */ }
   flashGlobalToast(`Filled ${ok} tracklist${ok === 1 ? '' : 's'}${failed ? `; ${failed} couldn\u2019t be saved \u2014 try again` : ''}.`);
 }
 // Everything waiting that ADDS releases, as ONE batch: 15 sent from one page and 15 from the next are one review of 30, not two. A release on more than one page (same RYM address, else the same artist and
@@ -1117,7 +1117,7 @@ async function rymTidyNames() {                                     // ⚙ → "
   flashGlobalToast(`Tidying ${bad.length} artist name${bad.length === 1 ? '' : 's'}\u2026`);
   let ok = 0, failed = 0;
   for (const it of bad) { try { await postUpdate({ action: 'editAlbum', row: it.row, Artist: rymTidyName(it.artist) }); ok++; } catch (e) { failed++; } }          // one field each: the backend leaves everything else as it is
-  try { await fetchCatalog(); } catch (e) { /* the sheet is updated; the list refreshes next time */ }
+  try { await fetchCatalog({ quiet: true }); } catch (e) { /* the sheet is updated; the list refreshes next time */ }
   flashGlobalToast(`Tidied ${ok} artist name${ok === 1 ? '' : 's'}${failed ? `; ${failed} couldn\u2019t be changed \u2014 try again` : ''}.`);
 }
 function tlSourceLine(item) {                                       // under the deck's tracklist: where this list came from
@@ -1383,7 +1383,7 @@ async function saveNewAlbum() {
     const addRes = await postUpdate(payload);
     rymAfterAdd(payload, addRes);
     { const linked = manualTracks.filter(t => t.spotifyLink).length; flashToast(el.addToast, state.autoMatchOnAdd && linked ? `Added to your crate \u00b7 ${linked} of ${manualTracks.length} songs linked on Spotify` : 'Added to your crate'); }
-    setTimeout(async () => { if (lfAddQueue) lfAddQueue.advancing = true; closeAddModal(); await fetchCatalog(); await lfAfterAdd(); }, 700);    // lfAfterAdd: log this album's stored Last.fm plays, and open the next album of a Last.fm review
+    setTimeout(async () => { if (lfAddQueue) lfAddQueue.advancing = true; closeAddModal(); await fetchCatalog({ quiet: true }); await lfAfterAdd(); }, 700);    // lfAfterAdd: log this album's stored Last.fm plays, and open the next album of a Last.fm review
   } catch (err) {
     // err.message now carries the backend's own error text when this was
     // a generic (non-auth) failure — see postUpdate's own comment — rather
