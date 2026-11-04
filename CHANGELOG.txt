@@ -17,7 +17,23 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.83.2
+  CURRENT_VERSION: 1.83.3
+
+  1.83.3 — 2026-11-04 — Tracks view: resizing a column changes only that column, Plays can be resized, and the column menu has the song's RYM rating and rating count. Page only.
+          RESIZING: dragging a column's edge used to take the width from
+          the column beside it, and the whole row was then squeezed to fit,
+          so other columns moved too and the drag jumped. Now the Track
+          name column takes whatever the other columns leave: drag a
+          column and only it changes, the name column gives or takes the
+          difference, and the row still fits the pane. Plays, the last
+          column, could hardly grow; now it can, as far as the name column
+          allows. Dragging the name column's own edge resizes the column to
+          its right. Double-click an edge to reset that column.
+          COLUMN MENU: right-click on a column header listed the releases'
+          fields only, so "Song rating (RYM)" and "Song rating count (RYM)"
+          weren't there; they are now, at the top. Right-click Plays to add
+          a column before it. Changing the last column after a removed one
+          changed the wrong slot; it doesn't now.
 
   1.83.2 — 2026-11-04 — The Tracks view's RYM columns show each song's own rating and rating count. Page only.
           A Tracks column that showed the release's Rate Your Music rating

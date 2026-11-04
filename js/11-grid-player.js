@@ -173,12 +173,23 @@ function fitColumnWidths(widths, containerWidth) {
   return scaled;
 }
 
-function trackTableGridTemplate() {
+// The widths the Tracks table is drawn with. The Track name column takes whatever the other columns leave, so resizing one column
+// changes only that column (and the name column gives or takes the difference) and the row always fills the pane exactly. Only when
+// even a narrow name column won't fit is everything scaled down together.
+const TRACK_NAME_MIN_WIDTH = 120;
+function trackColWidthsShown() {
   const cols = trackHeaderColumns();
   const widths = cols.map(col => trackColWidth(col.sortKey));
   const available = Math.max(0, el.gridContainer.clientWidth - trackTableRowOverhead(cols.length));
-  const fitted = fitColumnWidths(widths, available);
-  return fitted.map(w => `${w}px`).join(' ');
+  if (!available) return widths;
+  const ni = cols.findIndex(col => col.sortKey === 'name');
+  const others = widths.reduce((s, w, i) => i === ni ? s : s + w, 0);
+  if (available - others >= TRACK_NAME_MIN_WIDTH) { widths[ni] = available - others; return widths; }
+  widths[ni] = TRACK_NAME_MIN_WIDTH;
+  return fitColumnWidths(widths, available);
+}
+function trackTableGridTemplate() {
+  return trackColWidthsShown().map(w => `${w}px`).join(' ');
 }
 
 // Pixels consumed by the row itself beyond the column widths — the grid gap
@@ -267,7 +278,7 @@ function buildTrackTableHeader() {
     const arrow = state.trackSort.key === col.sortKey ? (state.trackSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
     const classes = ['ttc-head', col.plays ? 'ttc-head-plays' : '', col.fixed ? '' : 'ttc-head-draggable'].filter(Boolean).join(' ');
     const dragAttrs = col.fixed ? '' : `data-slot-index="${col.slotIndex}" draggable="true"`;
-    const titleText = col.fixed ? 'Click to sort' : 'Click to sort · right-click to change column · drag to reorder';
+    const titleText = col.plays ? 'Click to sort · right-click to add a column' : col.fixed ? 'Click to sort' : 'Click to sort · right-click to change column · drag to reorder';
     return `<span class="${classes}" data-sort-key="${col.sortKey}" ${dragAttrs} title="${titleText}">` +
       `<span class="ttc-head-label">${escapeHtml(col.label)}${arrow}</span>` +
       `<span class="ttc-resize-handle" data-resize-key="${col.sortKey}" title="Drag to resize column"></span>` +
@@ -291,9 +302,11 @@ function buildTrackTableHeader() {
 
   header.addEventListener('contextmenu', (e) => {
     const head = e.target.closest('.ttc-head');
-    if (!head || head.dataset.slotIndex === undefined) return; // # / Track / Plays are fixed columns
+    if (!head) return;
+    const plays = head.dataset.sortKey === 'plays';                // Plays stays last; right-clicking it adds a column before it
+    if (head.dataset.slotIndex === undefined && !plays) return;    // # and Track are fixed
     e.preventDefault();
-    openTrackColumnMenu(head, parseInt(head.dataset.slotIndex, 10), e.clientX, e.clientY);
+    openTrackColumnMenu(head, plays ? activeTrackColumns().length : parseInt(head.dataset.slotIndex, 10), e.clientX, e.clientY, plays);
   });
 
   wireTrackHeaderDragToReorder(header);
@@ -313,62 +326,17 @@ function wireTrackHeaderResize(header) {
   let startX = 0;
   let startWidth = 0;
   let handleEl = null;
+  let nameEdge = false;                                             // the Track name column's edge moves the column to its right instead
 
   function applyTemplateEverywhere() {
     refitTrackTable();
   }
 
-function onMove(e) {
+  let room = 0;                                                     // how far the dragged column may grow before the name column is at its narrowest
+  function onMove(e) {
     if (!resizeKey) return;
-    const delta = e.clientX - startX;
-    
-    const containerWidth = el.gridContainer.clientWidth - trackTableRowOverhead(trackHeaderColumns().length);
-    const columns = trackHeaderColumns();
-    const currentIndex = columns.findIndex(col => col.sortKey === resizeKey);
-    const isLastColumn = currentIndex === columns.length - 1;
-
-    if (!state.trackColWidths) state.trackColWidths = {};
-
-    if (isLastColumn) {
-      // The last column has no column to its right to trade width with.
-      // Trading with the *previous* column instead (the old fallback) could
-      // shrink a column that's actually visible in order to grow this one
-      // further past the edge of the panel — content disappearing off
-      // screen for no visible benefit. Instead, resize it on its own and
-      // cap growth so the row's total width never exceeds what's visible.
-      const sumOthers = columns.reduce((s, col) => s + (col.sortKey === resizeKey ? 0 : trackColWidth(col.sortKey)), 0);
-      const maxWidth = Math.max(TRACK_COL_MIN_WIDTH, containerWidth - sumOthers);
-      const newWidth = Math.min(maxWidth, Math.max(TRACK_COL_MIN_WIDTH, Math.round(startWidth + delta)));
-      state.trackColWidths[resizeKey] = newWidth;
-      applyTemplateEverywhere();
-      return;
-    }
-
-    // Find the adjacent column (e.g., the one immediately to the right) to absorb the change
-    const nextCol = columns[currentIndex + 1] || columns[currentIndex - 1];
-    
-    if (!nextCol) return; // Fallback if no neighbor exists
-    
-    // Calculate widths
-    const currentOldWidth = trackColWidth(resizeKey);
-    const neighborOldWidth = trackColWidth(nextCol.sortKey);
-    
-    let newCurrentWidth = Math.max(TRACK_COL_MIN_WIDTH, Math.round(startWidth + delta));
-    
-    // Calculate what the neighbor's new width would be
-    let widthDiff = newCurrentWidth - currentOldWidth;
-    let newNeighborWidth = neighborOldWidth - widthDiff;
-    
-    // Enforce minimum width on the neighbor as well
-    if (newNeighborWidth < TRACK_COL_MIN_WIDTH) {
-      newNeighborWidth = TRACK_COL_MIN_WIDTH;
-      newCurrentWidth = currentOldWidth + (neighborOldWidth - TRACK_COL_MIN_WIDTH);
-    }
-
-    // Apply both widths simultaneously so the total grid width remains constant
-    state.trackColWidths[resizeKey] = newCurrentWidth;
-    state.trackColWidths[nextCol.sortKey] = newNeighborWidth;
-    
+    const delta = Math.round(e.clientX - startX);
+    state.trackColWidths[resizeKey] = Math.max(TRACK_COL_MIN_WIDTH, Math.min(startWidth + room, startWidth + (nameEdge ? -delta : delta)));
     applyTemplateEverywhere();
   }
 
@@ -389,11 +357,21 @@ function onMove(e) {
     if (!handle) return;
     e.preventDefault();
     e.stopPropagation();
-    resizeKey = handle.dataset.resizeKey;
+    const cols = trackHeaderColumns(), shown = trackColWidthsShown();
+    let i = cols.findIndex(col => col.sortKey === handle.dataset.resizeKey);
+    nameEdge = cols[i] && cols[i].sortKey === 'name';
+    if (nameEdge) i++;
+    if (!cols[i]) return;
+    // Start from the widths on screen (they may have been scaled down to fit), so nothing jumps when the drag begins.
+    if (!state.trackColWidths) state.trackColWidths = {};
+    cols.forEach((col, j) => { if (col.sortKey !== 'name') state.trackColWidths[col.sortKey] = shown[j]; });
+    const ni = cols.findIndex(col => col.sortKey === 'name');
+    room = Math.max(0, shown[ni] - TRACK_NAME_MIN_WIDTH);
+    resizeKey = cols[i].sortKey;
     handleEl = handle;
     handleEl.classList.add('ttc-resizing');
     startX = e.clientX;
-    startWidth = trackColWidth(resizeKey);
+    startWidth = shown[i];
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
     document.addEventListener('mousemove', onMove);
@@ -472,14 +450,16 @@ function wireTrackHeaderDragToReorder(header) {
 // Right-click context menu for reassigning a single Tracks-table column to a
 // different field, without opening the full "Customize panel" modal.
 let trackColumnMenuEl = null;
-function openTrackColumnMenu(headEl, slotIndex, x, y) {
+function openTrackColumnMenu(headEl, slotIndex, x, y, adding) {
   closeTrackColumnMenu();
   const menu = document.createElement('div');
   menu.className = 'panel-mode-menu track-col-menu';
+  // The Tracks list, not the releases' one: it has the song's own Rate Your Music rating and rating count.
+  const cur = activeTrackColumns();
   menu.innerHTML = `
-    <div class="menu-section-title">Change column</div>
-    ${Object.entries(FIELD_OPTIONS).map(([val, lbl]) => {
-      const current = (state.fields.tracks || [])[slotIndex];
+    <div class="menu-section-title">${adding ? 'Add a column' : 'Change column'}</div>
+    ${Object.entries(TRACK_COLUMN_LABELS).filter(([val]) => !(adding && val === 'none')).map(([val, lbl]) => {
+      const current = adding ? undefined : cur[slotIndex];
       const isActive = (val === 'none' && !current) || current === val;
       return `<button type="button" data-field-val="${val}" class="${isActive ? 'track-col-menu-active' : ''}">${escapeHtml(lbl)}</button>`;
     }).join('')}
@@ -495,8 +475,10 @@ function openTrackColumnMenu(headEl, slotIndex, x, y) {
     const btn = e.target.closest('button[data-field-val]');
     if (!btn) return;
     const val = btn.dataset.fieldVal;
-    if (!state.fields.tracks) state.fields.tracks = [];
-    state.fields.tracks[slotIndex] = (val === 'none') ? null : val;
+    // Slots count the columns on screen (blank slots skipped), so the list is compacted before one is set.
+    const cols = activeTrackColumns();
+    if (val === 'none') cols.splice(slotIndex, 1); else cols[slotIndex] = val;
+    state.fields.tracks = cols;
     savePrefs();
     closeTrackColumnMenu();
     const oldHeader = document.getElementById('trackTableHeader');
