@@ -48,6 +48,10 @@ function loadPrefs() {
     if ([0, 3, 3.5, 3.8, 4, 4.5].includes(Number(p.rymMin))) state.rymMin = Number(p.rymMin);
     if (p.panelWidths) state.panelWidths = Object.assign({}, state.panelWidths, p.panelWidths);
     if (p.fields) state.fields = Object.assign(state.fields, p.fields);
+    // Once: a Tracks column showing the RELEASE's RYM rating becomes the song's own (the first) and its rating count (the second). They used to
+    // share the name "RYM rating", so the release's was picked for the song's. Done once; a column you set back afterwards stays.
+    if (!p.songRymCols && Array.isArray(state.fields.tracks)) { const t = state.fields.tracks; let n = 0; state.fields.tracks = t.map(k => { if (k !== 'rymRating') return k; n++; return n === 1 && !t.includes('rymTrackRating') ? 'rymTrackRating' : n === 2 && !t.includes('rymTrackVotes') ? 'rymTrackVotes' : k; }); }
+    state.songRymCols = true;
     if (p.trackColWidths) state.trackColWidths = p.trackColWidths;
     if (Array.isArray(p.playlistFoldersCollapsed)) state.playlistFoldersCollapsed = p.playlistFoldersCollapsed;
     if (Array.isArray(p.playlistFolders)) state.playlistFolders = p.playlistFolders;
@@ -117,7 +121,7 @@ function savePrefs() {
 	localStorage.setItem(PREF_KEY, JSON.stringify({
       viewMode: state.viewMode, mainViewMode: state.mainViewMode, playlistViewMode: state.playlistViewMode, playlistSort: state.playlistSort, cardSize: state.cardSize, sort: state.sort, groupBy: state.groupBy, groupBy2: state.groupBy2,
       activeType: state.activeType, leftMode: state.leftMode, leftSort: state.leftSort, leftThumbSize: state.leftThumbSize, leftGroupBy: state.leftGroupBy, // 👈 UPDATED HERE
-      showLeft: state.showLeft, showRight: state.showRight, showCoverLinks: state.showCoverLinks, fitArtwork: state.fitArtwork, fieldPlacement: state.fieldPlacement, closeGaps: state.closeGaps, leftNavCompact: state.leftNavCompact, panelWidths: state.panelWidths, fields: state.fields, trackColWidths: state.trackColWidths,
+      showLeft: state.showLeft, songRymCols: true, showRight: state.showRight, showCoverLinks: state.showCoverLinks, fitArtwork: state.fitArtwork, fieldPlacement: state.fieldPlacement, closeGaps: state.closeGaps, leftNavCompact: state.leftNavCompact, panelWidths: state.panelWidths, fields: state.fields, trackColWidths: state.trackColWidths,
       playlistFoldersCollapsed: state.playlistFoldersCollapsed,
       playlistFolders: state.playlistFolders,
       playlistFolderMap: state.playlistFolderMap,

@@ -314,3 +314,17 @@ suite('Rate Your Music not answering for a moment', () => {
     } finally { clear(); [js.held, js.rymLast, js.retries, js.retryOk] = was; }
   });
 });
+
+suite('Song RYM columns', () => {
+  test('once: Tracks columns showing the release’s RYM rating become the song’s rating and its count; afterwards your choice stays', () => {
+    const st = app('state'), KEY = app('PREF_KEY'), was = app(`localStorage.getItem(${JSON.stringify(app('PREF_KEY'))})`), cols = (st.fields.tracks || []).slice();
+    const load = (p) => { app(`localStorage.setItem(${JSON.stringify(KEY)}, ${JSON.stringify(JSON.stringify(p))})`); app('loadPrefs')(); return st.fields.tracks.slice(); };
+    try {
+      eq(load({ fields: { tracks: ['artist', 'rymRating', 'genre', 'releaseDate', 'rymRating'] } }), ['artist', 'rymTrackRating', 'genre', 'releaseDate', 'rymTrackVotes']);
+      eq(load({ songRymCols: true, fields: { tracks: ['artist', 'rymRating'] } }), ['artist', 'rymRating']);
+    } finally {
+      if (was === null) app(`localStorage.removeItem(${JSON.stringify(KEY)})`); else app(`localStorage.setItem(${JSON.stringify(KEY)}, ${JSON.stringify(was)})`);
+      st.fields.tracks = cols;
+    }
+  });
+});

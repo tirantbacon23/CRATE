@@ -17,7 +17,15 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.83.1
+  CURRENT_VERSION: 1.83.2
+
+  1.83.2 — 2026-11-04 — The Tracks view's RYM columns show each song's own rating and rating count. Page only.
+          A Tracks column that showed the release's Rate Your Music rating
+          (picked when both read "RYM rating") is switched, once, to the
+          song's own: the first such column becomes "Song rating (RYM)" and
+          a second one "Song rating count (RYM)", the numbers in Edit track
+          properties. It happens once; a column you set back to the
+          release's rating afterwards stays.
 
   1.83.1 — 2026-11-04 — Song lists: a song's own RYM rating and rating count are easy to tell from the release's. Page only.
           In the Tracks views (and the queue and mini player fields), both
