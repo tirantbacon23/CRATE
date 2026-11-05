@@ -17,7 +17,15 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.85.3
+  CURRENT_VERSION: 1.85.4
+
+  1.85.4 — 2026-11-05 — "Match releases with no song links…" brings in your whole catalogue even while a run is open. Page only.
+          With a Match songs run already open (the automatic one for the
+          releases just pulled from Rate Your Music, say), the menu item only
+          showed that run, so it looked as if just those releases had no
+          links. Now every release with no song linked joins the open run
+          (a message says how many), and the run is renamed "No links yet".
+          The releases that join follow that run's way of saving.
 
   1.85.3 — 2026-11-05 — Match songs can run on every release that has no song linked yet. Page only.
           ⚙ → "Match releases with no song links…" opens Match songs with

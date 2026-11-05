@@ -432,7 +432,16 @@ function bmFullyLinked(item, kinds) { const ls = bmLinkState(item); return !!(ls
 // opts: { ticked: [items], view: [items], genre: { name, items }, queue: true, one: item, focusTrackNum }
 function bmOpen(opts) {
   opts = opts || {};
-  if (bm && bm.started) { if (opts.one) { bmAddOne(opts.one, opts.focusTrackNum); return; } bmShow(); return; }
+  if (bm && bm.started) {
+    if (opts.one) { bmAddOne(opts.one, opts.focusTrackNum); return; }
+    if (opts.nolinks) {                                             // a run is open (the new releases' one, say): every release with no song linked joins it
+      const add = bmNoLinksItems().filter(it => !bm.rels.some(r => r.item === it));
+      if (add.length) { bmJoinRun(add); bm.label = `No links yet · ${bmPl(bm.rels.length, 'release')}`; }
+      flashGlobalToast(add.length ? `${bmPl(add.length, 'release')} with no song linked joined the open run.` : 'Every release with no song linked is already in the open run.');
+      bm.view = 'queue';
+    }
+    bmShow(); return;
+  }
   const ticked = opts.ticked && opts.ticked.length ? opts.ticked : null;
   bm = { view: 'start', started: false, hidden: false, one: !!opts.one,
     sets: { ticked, view: opts.view || [], genre: opts.genre || null },
@@ -521,6 +530,10 @@ function bmStart() {
   bmRender(); bmStripRender(); bmPersistSoon();
   bmKinds().forEach(k => { bmRunLane(k); });
 }
+function bmJoinRun(items) {                                         // releases join the open run, at its end, waiting for each service it runs
+  items.forEach(it => { const rel = bmMk(it); bmKinds().forEach(k => { rel.st[k] = 'wait'; }); ['spotify', 'youtube'].filter(k => !bm.svc[k]).forEach(k => { rel.st[k] = 'skip'; rel.err[k] = 'Not run'; }); bm.rels.push(rel); });
+  bmKickLanes(); bmRedraw();
+}
 function bmKickLanes() {                                            // releases are waiting again (added, re-run): start any lane that has stopped working
   if (!bm || !bm.started) return; bm.running = true; bm.stopped = false;
   bmKinds().forEach(k => { const l = bm.lanes[k]; if (l.s !== 'work' && bm.rels.some(r => r.include && r.st[k] === 'wait')) bmRunLane(k); });
@@ -548,8 +561,7 @@ function bmAutoRun() {
   if (items.length) {
     mqRemove(items);                                                // in a run now, not waiting in the queue
     if (bm && bm.started) {                                         // a run is open: they join it
-      items.forEach(it => { const rel = bmMk(it); bmKinds().forEach(k => { rel.st[k] = 'wait'; }); ['spotify', 'youtube'].filter(k => !bm.svc[k]).forEach(k => { rel.st[k] = 'skip'; rel.err[k] = 'Not run'; }); bm.rels.push(rel); });
-      bmKickLanes(); bmRedraw();
+      bmJoinRun(items);
     } else {
       bmOpen({ ticked: items }); bmEl('batchMatchOverlay').hidden = true;          // (never shown: it runs behind whatever you are doing)
       Object.assign(bm, { scope: 'ticked', songsMode: 'gaps', skipLinked: true, mode: 'auto', svc, auto: true });
