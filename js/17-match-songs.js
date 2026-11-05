@@ -329,6 +329,7 @@ const bmInitials = (t) => { const w = String(t || '').replace(/[^\p{L}\p{N} ]/gu
 const bmPl = (n, w, ws) => `${n.toLocaleString('en-US')} ${n === 1 ? w : (ws || w + 's')}`;
 function bmSelectedItems() { return state.raw.filter(r => state.selectedAlbums.has(String(r.row))); }
 function updateAlbumSelBar() {
+  if (typeof catStatsSoon === 'function') catStatsSoon();
   const bar = bmEl('albumSelBar'); if (!bar) return; const n = bmSelectedItems().length;
   const ov = bmEl('batchMatchOverlay'); bar.hidden = n < 2 || !!(ov && !ov.hidden); if (n >= 2) bmEl('albumSelCount').textContent = `${n} selected`;          // (not over the match window)
 }

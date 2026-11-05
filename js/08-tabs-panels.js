@@ -20,6 +20,7 @@ function switchTab(tab) {
   el.tabScrobbles.classList.toggle('active', tab === 'scrobbles');
   el.tabStats.classList.toggle('active', tab === 'stats');
   el.tabArtist.classList.toggle('active', tab === 'artist');
+  if (typeof catStatsSoon === 'function') catStatsSoon();
   el.panels.style.display = (tab === 'albums' || tab === 'artistInfo' || tab === 'genreInfo') ? 'flex' : 'none';   // #panels hosts both tabs: the Music browser, or the Artist Information tab's list + page
   el.artistInfoWrap.hidden = tab !== 'artistInfo';
   el.genreInfoWrap.hidden = tab !== 'genreInfo';

@@ -466,3 +466,16 @@ suite('Match songs: narrowing the releases down', () => {
     eq(both({ text: 'SHOEGAZE' }), [true, false]);
   });
 });
+
+suite('Stats bar', () => {
+  test('counts releases, artists, songs and their length, years and ratings; says what is missing', () => {
+    const fig = app('csFigures'), line = app('csLine');
+    const a = { artist: 'Slowdive', title: 'Souvlaki', releaseDate: '1993-05-17', rating: 4, rymRating: 3.8, hasManualTracklist: true, manualTracks: [{ title: 'a', trackNumber: 1, durationMs: 60 * 60000 }, { title: 'b', trackNumber: 2, durationMs: 0 }] };
+    const b = { artist: 'slowdive ', title: 'Pygmalion', releaseDate: '1995', rating: 0, rymRating: 3.6, hasManualTracklist: true, manualTracks: [{ title: 'c', trackNumber: 1, durationMs: 30 * 60000 }] };
+    const c = { artist: 'Ride', title: 'Nowhere', releaseDate: '1990', rating: 5, rymRating: 0, link: 'https://example.com/no-tracklist-' + Math.random() };
+    const f = fig([a, b, c]);
+    eq([f.n, f.artists, f.songs, f.ms, f.withTl, f.noLen, f.y0, f.y1, f.rated, f.ratingSum, f.rym], [3, 2, 3, 90 * 60000, 2, 1, 1990, 1995, 2, 9, 2]);
+    const t = line(f, true).replace(/<[^>]+>/g, '');
+    eq(t, '3 releases · 2 artists · 3 songs (from 2 with a tracklist) · 1 h 30 min + 1 song with no length · 1990–1995 · your rating 4.5 avg (2 rated) · RYM 3.70 avg');
+  });
+});

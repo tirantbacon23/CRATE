@@ -4241,3 +4241,12 @@ html, body {
 .af-l { width: 104px; color: var(--text-dim); }
 .af-then { color: var(--text-dim); font-size: 11px; }
 .af-row select { background: var(--bg-elevated); color: inherit; border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; font: inherit; }
+
+/* ---- The stats bar under the Music browser (js/35-catalogue-stats.js) ---- */
+.cat-stats { flex: none; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; padding: 6px 16px; border-top: 1px solid var(--line); font-size: 12px; color: var(--text); min-width: 0; }
+.cat-stats[hidden] { display: none; }
+.cat-stats .cs-scope { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); margin-right: 6px; }
+.cat-stats .cs-figs { min-width: 0; }
+.cat-stats .cs-dim, .cat-stats .cs-cat { color: var(--text-dim); }
+.cat-stats .cs-cat { margin-left: auto; }
+.cat-stats .cs-cat .cs-scope { color: var(--text-dim); }

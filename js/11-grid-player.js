@@ -1035,6 +1035,7 @@ async function getTracksFor(item) {
   // promise this far down the call chain.
   try { mergeTrackLinkOverrides(item, tracks); } catch (e) { console.warn('mergeTrackLinkOverrides failed', item, e); }
   state.trackCache[key] = tracks;
+  if (typeof catStatsSoon === 'function') catStatsSoon();          // its songs and length now count in the stats bar
   return tracks;
 }
 

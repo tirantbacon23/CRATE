@@ -667,6 +667,7 @@ function applyFiltersSort() {
   list.sort((a, b) => compareAlbumsBy(state.sort, a, b));
 
   state.filtered = list;
+  if (typeof catStatsSoon === 'function') catStatsSoon();
   if (state.activeTab === 'albums') renderGrid();
   if (!el.genreDescElement.hidden) renderGenreDescElement(); // stays in sync with whichever genre gets clicked, not just whatever it showed when first enabled
   if (!el.artistBioElement.hidden) renderArtistBioElement(); // follows the artist you click / filter to

@@ -17,7 +17,19 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.85.5
+  CURRENT_VERSION: 1.85.6
+
+  1.85.6 — 2026-11-05 — A stats bar under the Music browser: your catalogue, what is showing, or what you selected. Page only.
+          One line along the bottom: how many releases and artists, how
+          many songs and how long they last, the years they span, your
+          average rating (and how many you rated) and the average RYM
+          rating. It describes the whole catalogue; with part of it
+          showing (a search, an artist or album picked on the left) it
+          describes that, with the catalogue's own figures beside it; with
+          releases selected in the grid it describes those ("3 selected").
+          Songs and lengths count the tracklists CRATE has (typed or saved,
+          and those looked up this visit), and it says when some releases
+          have none or some songs have no length.
 
   1.85.5 — 2026-11-05 — Match songs: narrow down which releases are matched. Page only.
           The Start screen has a new section, "Narrow it down", applied on
