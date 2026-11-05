@@ -17,7 +17,20 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.84.1
+  CURRENT_VERSION: 1.84.2
+
+  1.84.2 — 2026-11-05 — A tracklist filled by an automatic Rate Your Music update no longer turns empty again. Page only.
+          An update writes a release's details first and its tracklist
+          just after. The quiet sync that keeps CRATE in step with your
+          sheet could read the sheet between the two: the row had changed
+          (the new details), so all of it was taken, with the tracklist as
+          it was before, empty, over the one just saved. In an automatic
+          run, with syncs and writes going on together, that happened to
+          most releases. The sheet itself was right (reloading showed the
+          songs). A sync that reads the sheet while it is being written is
+          now set aside and done again once the writes are through.
+          Also: the positions from 1.84.0 ("A", "B") are kept when an
+          update compares its tracklist with yours.
 
   1.84.1 — 2026-11-04 — Tracks view: columns keep the width you give them, and a narrow pane scrolls sideways instead of squeezing them. Page only.
           When the columns didn't fit, all of them were squeezed to fit,

@@ -585,11 +585,12 @@ function postUpdate(payload, retried) {
   if (!idToken) { handleAuthError(); return Promise.reject(new Error('unauthorized')); }
   const exp = tokenExpMs(idToken);
   if (!retried && exp && exp < Date.now() + 30000) return authRenew().then(() => postUpdate(payload, true));          // about to run out: renew first (see authRenew)
+  catalogWriteStart();                                              // a quiet sync reading the sheet meanwhile is done again (see catalogWrites)
   return fetch(CONFIG.SCRIPT_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight against Apps Script
     body: JSON.stringify(Object.assign({}, payload, { idToken }))
-  }).then(r => r.json()).then(data => {
+  }).finally(catalogWriteEnd).then(r => r.json()).then(data => {
     if (isAuthError(data)) {                                        // refused: renew the token quietly and send the same change again, once
       if (!retried) return authRenew().then(ok => { if (ok) return postUpdate(payload, true); handleAuthError(); throw new Error('unauthorized'); });
       handleAuthError(); throw new Error('unauthorized');

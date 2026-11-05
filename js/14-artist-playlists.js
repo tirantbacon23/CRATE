@@ -1065,7 +1065,7 @@ function currentTracklistAsManualRows(item) {
   const tracks = (activeItem === item ? currentTracklistTracks : state.trackCache[artKey(item)]) || [];
   return tracks.map(t => {
     const links = trackLinkOverridesFor(item, t.trackNumber || 0, t.trackName);
-    return { trackNumber: t.trackNumber || 0, title: t.trackName || '', youtubeLink: links.youtubeLink, spotifyLink: links.spotifyLink, durationMs: t.trackTimeMillis || 0, section: t.section || '', s: t.s || '' };
+    return { trackNumber: t.trackNumber || 0, title: t.trackName || '', youtubeLink: links.youtubeLink, spotifyLink: links.spotifyLink, durationMs: t.trackTimeMillis || 0, section: t.section || '', pos: t.pos || '', s: t.s || '' };
   });
 }
 

@@ -370,3 +370,14 @@ suite('Track numbers', () => {
     eq(app('tlPersist')([{ trackNumber: 3, title: 'Mi vida rosa', pos: 'A' }, { trackNumber: 4, title: 'Mi vida rosa', pos: 'B' }], 'rym').map(t => t.pos), ['A', 'B']);
   });
 });
+
+suite('Sync while saving', () => {
+  test('a quiet sync waits for the sheet’s writes to finish before it is done again', async () => {
+    const w = app('catalogWrites'), start = app('catalogWriteStart'), end = app('catalogWriteEnd'), settled = app('catalogWritesSettled');
+    const was = [w.started, w.inFlight];
+    start(); start(); let done = false; const p = settled().then(() => { done = true; });
+    end(); await new Promise(r => setTimeout(r, 0)); const mid = done;
+    end(); await p;
+    eq([w.started - was[0], w.inFlight, mid, done], [2, was[1], false, true]);
+  });
+});

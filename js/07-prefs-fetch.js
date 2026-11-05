@@ -227,11 +227,19 @@ function keepGridPlace(fn, snap) { snap = snap || gridPlaceSnapshot(); const out
 // load after it, so it always ends with fresh data, and a burst of changes shares one. scheduleCatalogSync() is the same, a moment after the
 // last change. Without quiet (opening CRATE, the \u27f3 button) it is the full, visible reload as before.
 let fetchCatalogRun = null, fetchCatalogAgain = false, catalogSyncTimer = 0;
+// Writes to the sheet (postUpdate) are counted. A quiet sync whose answer was read while one was being written, or before one started, can
+// hold the sheet as it was before that write: applied, it put the old values back over what had just been saved (in an automatic run,
+// a tracklist just filled from Rate Your Music turned empty again). Such an answer is set aside and the sync is done again once the
+// writes are through (at most three times in a row, so a long run of writes can't hold it back for ever).
+const catalogWrites = { started: 0, inFlight: 0, waiters: [] };
+function catalogWriteStart() { catalogWrites.started++; catalogWrites.inFlight++; }
+function catalogWriteEnd() { catalogWrites.inFlight = Math.max(0, catalogWrites.inFlight - 1); if (!catalogWrites.inFlight) catalogWrites.waiters.splice(0).forEach(f => f()); }
+const catalogWritesSettled = () => catalogWrites.inFlight ? new Promise(res => catalogWrites.waiters.push(res)) : Promise.resolve();
 function fetchCatalog(opts) {
   opts = opts || {};
   if (fetchCatalogRun) { if (opts.quiet) fetchCatalogAgain = true; return fetchCatalogRun; }
   fetchCatalogRun = (async () => {
-    try { let o = opts; while (o) { fetchCatalogAgain = false; await fetchCatalogOnce(o); o = fetchCatalogAgain ? { quiet: true } : null; } }
+    try { let o = opts; while (o) { fetchCatalogAgain = false; const r = await fetchCatalogOnce(o); o = r && r.stale ? { quiet: true, staleTries: (o.staleTries || 0) + 1 } : fetchCatalogAgain ? { quiet: true } : null; } }
     finally { fetchCatalogRun = null; fetchCatalogAgain = false; }
   })();
   return fetchCatalogRun;
@@ -341,6 +349,7 @@ async function fetchCatalogOnce(opts) {
     // the genuinely-hung case it was meant to catch. 90s is long enough to
     // clear a legitimately heavy load; the slowNotice above is what
     // actually addresses "is this frozen?" now, not an aggressive timeout.
+    const writeGen = catalogWrites.started, writing = catalogWrites.inFlight;          // (see catalogWrites)
     const res = await fetchWithTimeout(
       CONFIG.SCRIPT_URL + '?id_token=' + encodeURIComponent(idToken),
       { method: 'GET' },
@@ -348,6 +357,7 @@ async function fetchCatalogOnce(opts) {
     );
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
+    if (quiet && (opts.staleTries || 0) < 3 && (writing || catalogWrites.inFlight || catalogWrites.started !== writeGen)) { await catalogWritesSettled(); return { stale: true }; }          // read while the sheet was being written: done again
     if (isAuthError(data)) {                                        // the token ran out: renew it quietly and load again, once
       if (!opts.retried && await authRenew()) { authRetry = true; return; }
       handleAuthError(); return;
