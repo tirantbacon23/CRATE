@@ -2082,7 +2082,7 @@ html, body {
   .rym-chip { display: inline-block; margin-left: 6px; padding: 0 6px; border: 1px solid var(--line); border-radius: 9px; font: 600 10px/1.6 system-ui, sans-serif; letter-spacing: 0; color: var(--text-dim); vertical-align: middle; white-space: nowrap; }
   .rym-bold { font-weight: 900 !important; }
   .card-title.rym-bold { color: #F0C26A !important; }
-  .trk-title.rym-bold, .qp-title.rym-bold, .mt-title.rym-bold { color: var(--text); }
+  .trk-title.rym-bold, .qp-title.rym-bold, .mt-title.rym-bold, .track-name.rym-bold { color: #F0C26A; }          /* a song RYM prints in bold: the same soft gold as a bold release's title, so it shows at a glance */
   .deck-rym-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
   .deck-rym-label { font: 700 11px/1 system-ui, sans-serif; color: var(--text-dim); letter-spacing: .06em; }
   .deck-rym-row input { width: 62px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; font: inherit; font-size: 12px; box-sizing: border-box; }

@@ -17,7 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.85.8
+  CURRENT_VERSION: 1.85.9
+
+  1.85.9 — 2026-11-05 — Songs Rate Your Music prints in bold are easier to spot. Page only.
+          Besides being bold, their titles now take the same soft gold as
+          a bold release's title on its card: in the release's tracklist,
+          the Tracks view and Quick Peek. Nothing else changes.
 
   1.85.8 — 2026-11-05 — The Tracks view's column header stays in sight. Songs Rate Your Music prints in bold are marked bold. Page and RYM add-on 1.16.0.
           HEADER: since the Tracks view scrolls sideways in its own box
