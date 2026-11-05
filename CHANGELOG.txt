@@ -17,7 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.85.0
+  CURRENT_VERSION: 1.85.1
+
+  1.85.1 — 2026-11-05 — Processing has a Pull details tab: every release in the step between its RYM update and Match songs, one row each. Page only.
+          Beside RYM in Processing: the release being filled now, the ones
+          waiting for their Rate Your Music update first ("Pull details
+          now" if you don't want to wait), and each release whose blanks
+          no source had, on a row of its own with Pull details and Skip
+          (under All they stay one row). Each release filled today, under
+          Done today, has a Pull details button to see or change what was
+          taken.
 
   1.85.0 — 2026-11-05 — Fill blanks from other sources: a new release gets what it is still missing from MusicBrainz, Spotify, iTunes or Discogs, in the order you choose, between its RYM update and Match songs. Page only.
           The order for a new release is now: added, updated from Rate

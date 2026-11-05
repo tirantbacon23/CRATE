@@ -680,7 +680,7 @@ function renderRymInbox() {
 // order you drag them into; the match queue; the syncs and when they next run), and what finished today. Each job keeps its own dialog: this panel reads
 // their state, pauses or stops them, and opens them. Collapsed, it is the strip at the bottom (jobsStrip).
 const JOBS_DONE_KEY = 'crate_jobs_done_v1', JOBS_RYM_GAP = 15000, JOBS_LF_EVERY = 6 * 3600000, JOBS_LF_AT_KEY = 'crate_lastfm_bgsync_at', JOBS_LF_ON_KEY = 'crate_lastfm_every6h';          // (15 s between queued updates: the add-on's own pace between pages)
-const JOBS_CATS = [['all', 'All'], ['need', 'Needs you'], ['rym', 'RYM'], ['match', 'Match songs'], ['add', 'Adding'], ['sync', 'Syncs']];
+const JOBS_CATS = [['all', 'All'], ['need', 'Needs you'], ['rym', 'RYM'], ['fill', 'Pull details'], ['match', 'Match songs'], ['add', 'Adding'], ['sync', 'Syncs']];
 const JOBS_ICON = {
   sync: '<path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20v-4h-4"/>',
   warn: '<path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4"/><path d="M12 17h.01"/>',
@@ -701,8 +701,8 @@ function jobsIco(n) { return `<svg class="job-ico" viewBox="0 0 24 24" aria-hidd
 function jobsPl(n, w, ws) { return `${Number(n || 0).toLocaleString()} ${n === 1 ? w : (ws || w + 's')}`; }
 function jobsIn(ms) { const m = Math.round(ms / 60000); return ms <= 0 ? 'due now' : m < 1 ? 'in under a minute' : m < 90 ? `in ${m} min` : `in ${Math.round(m / 60)} h`; }
 function jobsDoneLoad() { try { const l = JSON.parse(localStorage.getItem(JOBS_DONE_KEY) || '[]'); return Array.isArray(l) ? l.filter(e => e && typeof e.t === 'number' && typeof e.text === 'string') : []; } catch (e) { return []; } }
-function jobsDone(kind, text) {                                   // a finished job, for "Done today" (kept a week, at most 200)
-  const week = Date.now() - 7 * 86400000, l = jobsDoneLoad().filter(e => e.t >= week).concat([{ t: Date.now(), kind, text: String(text).slice(0, 300) }]).slice(-200);
+function jobsDone(kind, text, extra) {                            // a finished job, for "Done today" (kept a week, at most 200); extra: { k } the release it was about
+  const week = Date.now() - 7 * 86400000, l = jobsDoneLoad().filter(e => e.t >= week).concat([Object.assign({ t: Date.now(), kind, text: String(text).slice(0, 300) }, extra && extra.k ? { k: String(extra.k) } : {})]).slice(-200);
   try { localStorage.setItem(JOBS_DONE_KEY, JSON.stringify(l)); } catch (e) { /* private window: today's list just isn't kept */ }
   jobsRefresh();
 }
@@ -862,11 +862,11 @@ function jobsRender() {
     + `${j.pct !== undefined ? `<i class="job-bar"><b style="width:${j.pct == null ? 100 : Math.max(2, Math.min(100, j.pct))}%"${j.pct == null ? ' class="job-indef"' : ''}></b></i>` : ''}${j.detail ? `<div class="job-d">${escapeHtml(j.detail)}</div>` : ''}</div>`
     + `${j.right ? `<span class="job-right">${escapeHtml(j.right)}</span>` : ''}<div class="job-acts">${(j.acts || []).map(btn).join('')}</div></div>`;
   const sec = (key, title, list, empty) => { const l = list.filter(j => keep(j, key)); if (!l.length && f !== 'all') return ''; return `<section class="job-sec job-sec-${key}"><h3>${title}</h3>${l.length ? l.map(row).join('') : `<p class="job-empty">${empty}</p>`}</section>`; };
-  const all = c.run.concat(c.need, c.wait), count = (k) => k === 'all' ? all.length : k === 'need' ? c.need.length : all.filter(j => j.cat === k).length;
+  const all = c.run.concat(c.need, c.wait), count = (k) => k === 'all' ? all.length : k === 'need' ? c.need.length : all.filter(j => j.cat === k).length + (k === 'fill' ? c.done.filter(e => e.kind === 'fill').length : 0);
   const tm = (t) => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  const cat = (k) => ({ rym: 'rym', fill: 'rym', match: 'match', import: 'add', scan: 'sync', lastfm: 'sync' })[k] || 'other';
+  const cat = (k) => ({ rym: 'rym', fill: 'fill', match: 'match', import: 'add', scan: 'sync', lastfm: 'sync' })[k] || 'other';
   const done = c.done.filter(e => f === 'all' || cat(e.kind) === f), lastRym = c.done.find(e => e.kind === 'rym'), lastMatch = c.done.find(e => e.kind === 'match');
-  const doneRow = (e) => `<div class="job-row job-done-row">${jobsIco('check')}<div class="job-main"><div class="job-t">${escapeHtml(e.text)}</div><div class="job-d">${tm(e.t)}</div></div><div class="job-acts">${btn(e === lastRym && state.rymQueueMode && rymQ.entries.length && !rymFetchState.active ? { label: 'Details', fn: rymQOpen, opens: true } : e === lastMatch && bm && bm.started && !bm.running ? { label: 'Details', fn: bmShow, opens: true } : null)}</div></div>`;
+  const doneRow = (e) => `<div class="job-row job-done-row">${jobsIco('check')}<div class="job-main"><div class="job-t">${escapeHtml(e.text)}</div><div class="job-d">${tm(e.t)}</div></div><div class="job-acts">${e.kind === 'fill' ? btn(afDoneAct(e)) : ''}${btn(e === lastRym && state.rymQueueMode && rymQ.entries.length && !rymFetchState.active ? { label: 'Details', fn: rymQOpen, opens: true } : e === lastMatch && bm && bm.started && !bm.running ? { label: 'Details', fn: bmShow, opens: true } : null)}</div></div>`;
   document.getElementById('jobsSum').textContent = `${jobsSummary(c)} \u00b7 paced so RYM and Spotify stay happy`;
   const pa = document.getElementById('jobsPauseAll'), paused = jobsState.held || !!(bm && bm.paused);
   pa.innerHTML = `${jobsIco(paused ? 'play' : 'pause')}<span>${paused ? 'Resume all' : 'Pause all'}</span>`; pa.disabled = !paused && !c.run.length && !c.wait.some(j => j.drag != null);
