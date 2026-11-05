@@ -4222,3 +4222,11 @@ html, body {
 
 /* A song's position on the release ("A", "B2"), beside its place in the tracklist */
 .track-pos { margin-left: 5px; font-size: 0.85em; color: var(--text-dim); opacity: 0.75; }
+
+/* ⚙ → RYM ratings → Fill blanks from other sources: a source order per detail */
+.af-box { display: grid; gap: 6px; margin: 2px 0 10px 26px; font-size: 12px; }
+.af-box.af-off { opacity: 0.45; pointer-events: none; }
+.af-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.af-l { width: 104px; color: var(--text-dim); }
+.af-then { color: var(--text-dim); font-size: 11px; }
+.af-row select { background: var(--bg-elevated); color: inherit; border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; font: inherit; }

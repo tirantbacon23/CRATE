@@ -533,7 +533,7 @@ function bmAutoRun() {
   const byKey = new Map(); state.raw.forEach(r => { const k = mqKey(r.artist, r.title); if (!byKey.has(k)) byKey.set(k, r); });
   const all = bmAuto.pending.map(e => byKey.get(e.k)).filter(Boolean);
   if (all.length < bmAuto.pending.length && bmAuto.tries < 3) { later(10000); return; }          // the rest may not have reached the list yet
-  const held = new Set(all.filter(it => rymAddHolding(it)).map(it => mqKey(it.artist, it.title))), found = all.filter(it => !held.has(mqKey(it.artist, it.title)));          // (still to be updated from Rate Your Music: matched after that)
+  const held = new Set(all.filter(it => rymAddHolding(it) || afPending(it)).map(it => mqKey(it.artist, it.title))), found = all.filter(it => !held.has(mqKey(it.artist, it.title)));          // (still to be updated from Rate Your Music, or its blanks filled: matched after that)
   bmAuto.pending = bmAuto.pending.filter(e => !byKey.has(e.k) || held.has(e.k));
   const svc = { spotify: !!(loadSpotifyCreds() || {}).clientId, youtube: ytUseAddon() }, kinds = ['spotify', 'youtube'].filter(k => svc[k]);
   if (!kinds.length) { bmAuto.pending = []; return; }          // nothing to match with: they wait in the match queue as before

@@ -395,3 +395,32 @@ suite('Releases sent from RYM, added by themselves', () => {
     } finally { [st.rymAutoImport, out.batches, out.dismissed] = was; tried.delete('bTest'); app('renderRymInbox')(); }
   });
 });
+
+suite('Fill blanks from other sources', () => {
+  test('only blanks are filled, in your order; a year becomes a full date in that year; what no source had is left for you', async () => {
+    const st = app('state'), fetchers = app('PD_FETCH'), keep = Object.assign({}, fetchers), was = [st.afOrder, app(`localStorage.getItem('crate_fill_left_v1')`)];
+    const it = st.raw.find(x => !x.manualTracks || !x.manualTracks.length), saved = { label: it.label, releaseDate: it.releaseDate, cover: it.cover, mt: it.manualTracks, hm: it.hasManualTracklist };
+    const asked = [];
+    try {
+      it.label = ''; it.releaseDate = '1990'; it.cover = 'https://example.com/have.jpg';
+      it.manualTracks = [{ trackNumber: 1, title: 'Mi vida rosa' }, { trackNumber: 2, title: 'Otra' }]; it.hasManualTracklist = true; delete st.trackCache[app('artKey')(it)];
+      st.afOrder = { lengths: ['sp', 'mb'], date: ['mb'], label: ['dc', 'mb'], cover: ['mb'] };
+      fetchers.mb = async () => { asked.push('mb'); return { date: '1990-05-14', label: 'Hispavox', cover: 'https://example.com/mb.jpg', tracks: [{ title: 'Mi vida rosa', durationMs: 201000 }, { title: 'Otra', durationMs: 0 }] }; };
+      fetchers.sp = async () => { asked.push('sp'); return { err: 'Spotify isn’t connected' }; };
+      fetchers.dc = async () => { asked.push('dc'); return { err: 'Not found' }; };
+      const r = await app('afFill')(it);
+      eq([it.releaseDate, it.label, it.cover, it.manualTracks.map(t => t.durationMs || 0), r.missing, [...new Set(asked)].sort()],
+         ['1990-05-14', 'Hispavox', 'https://example.com/have.jpg', [201000, 0], ['1 song length'], ['dc', 'mb', 'sp']]);
+      eq(app('afLeftAll')().some(e => e.title === it.title), true);
+    } finally {
+      Object.assign(fetchers, keep); st.afOrder = was[0];
+      Object.assign(it, { label: saved.label, releaseDate: saved.releaseDate, cover: saved.cover, manualTracks: saved.mt, hasManualTracklist: saved.hm });
+      if (was[1] === null) app(`localStorage.removeItem('crate_fill_left_v1')`); else app(`localStorage.setItem('crate_fill_left_v1', ${JSON.stringify(was[1])})`);
+    }
+  });
+  test('Match songs waits for a release still to be filled', () => {
+    const st = app('state'), af = app('af'), it = st.raw[0], was = [st.afOn, af.pending.slice()];
+    try { st.afOn = true; af.pending.push({ k: app('afKey')(it), at: Date.now() }); const held = app('afPending')(it); af.pending.length = 0; eq([held, app('afPending')(it)], [true, false]); }
+    finally { st.afOn = was[0]; af.pending.splice(0, af.pending.length, ...was[1]); }
+  });
+});

@@ -17,7 +17,26 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.84.3
+  CURRENT_VERSION: 1.85.0
+
+  1.85.0 — 2026-11-05 — Fill blanks from other sources: a new release gets what it is still missing from MusicBrainz, Spotify, iTunes or Discogs, in the order you choose, between its RYM update and Match songs. Page only.
+          The order for a new release is now: added, updated from Rate
+          Your Music, blanks filled, songs matched. Rate Your Music has no
+          song lengths, so they are taken from the sources you put first
+          (MusicBrainz, then Spotify, then iTunes to begin with), song by
+          song, by title. The release date (or a year made a full date in
+          that same year), the label and the cover are filled the same way
+          when they are blank. Nothing you have is replaced, and each
+          source is asked at most once per release, only when a blank
+          needs it.
+          The order is in ⚙ → RYM ratings → "Fill blanks from other
+          sources": up to three sources per detail, or none. Off: new
+          releases go straight to Match songs as before.
+          Processing shows the release being filled, the ones waiting for
+          their RYM update first, and what was filled under Done today.
+          What none of your sources had waits under Needs you: "Pull
+          details" opens the side-by-side window for that release, "Skip"
+          lets it go. Match songs doesn't wait for those.
 
   1.84.3 — 2026-11-05 — Releases sent from Rate Your Music that are being added by themselves aren't shown as waiting for your review. Page only.
           With "add releases sent from RYM by themselves" on, a page you

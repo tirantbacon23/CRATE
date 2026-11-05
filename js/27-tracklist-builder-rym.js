@@ -827,6 +827,7 @@ function jobsCollect() {
     const at = Number(localStorage.getItem(NEW_RELEASES_LAST_SCAN_KEY) || 0);
     wait.push({ cat: 'sync', icon: 'search', title: 'Look for new releases', sub: 'background', right: at ? jobsIn(Math.max(0, newReleaseNextAutoAt() - now)) : 'daily' });
   }
+  afJobs(run, need, wait);                                         // filling blanks from other sources (34-fill-blanks.js)
   const day0 = new Date(); day0.setHours(0, 0, 0, 0);
   const done = jobsDoneLoad().filter(e => e.t >= day0.getTime()).reverse();
   return { run, need, wait, done };
@@ -863,7 +864,7 @@ function jobsRender() {
   const sec = (key, title, list, empty) => { const l = list.filter(j => keep(j, key)); if (!l.length && f !== 'all') return ''; return `<section class="job-sec job-sec-${key}"><h3>${title}</h3>${l.length ? l.map(row).join('') : `<p class="job-empty">${empty}</p>`}</section>`; };
   const all = c.run.concat(c.need, c.wait), count = (k) => k === 'all' ? all.length : k === 'need' ? c.need.length : all.filter(j => j.cat === k).length;
   const tm = (t) => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  const cat = (k) => ({ rym: 'rym', match: 'match', import: 'add', scan: 'sync', lastfm: 'sync' })[k] || 'other';
+  const cat = (k) => ({ rym: 'rym', fill: 'rym', match: 'match', import: 'add', scan: 'sync', lastfm: 'sync' })[k] || 'other';
   const done = c.done.filter(e => f === 'all' || cat(e.kind) === f), lastRym = c.done.find(e => e.kind === 'rym'), lastMatch = c.done.find(e => e.kind === 'match');
   const doneRow = (e) => `<div class="job-row job-done-row">${jobsIco('check')}<div class="job-main"><div class="job-t">${escapeHtml(e.text)}</div><div class="job-d">${tm(e.t)}</div></div><div class="job-acts">${btn(e === lastRym && state.rymQueueMode && rymQ.entries.length && !rymFetchState.active ? { label: 'Details', fn: rymQOpen, opens: true } : e === lastMatch && bm && bm.started && !bm.running ? { label: 'Details', fn: bmShow, opens: true } : null)}</div></div>`;
   document.getElementById('jobsSum').textContent = `${jobsSummary(c)} \u00b7 paced so RYM and Spotify stay happy`;
