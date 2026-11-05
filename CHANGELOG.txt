@@ -17,7 +17,15 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.85.2
+  CURRENT_VERSION: 1.85.3
+
+  1.85.3 — 2026-11-05 — Match songs can run on every release that has no song linked yet. Page only.
+          ⚙ → "Match releases with no song links…" opens Match songs with
+          a new choice picked, "Every release with no song linked yet" (its
+          count beside it): each release where none of the songs has a
+          link yet, from the services ticked (a release with only YouTube
+          links still counts when only Spotify is ticked). The choice is
+          also on Match songs' start screen.
 
   1.85.2 — 2026-11-05 — Match songs: a release whose tracklist is still to come from Rate Your Music waits for it, instead of "No tracklist". Page only.
           Releases just added from Rate Your Music get their tracklist

@@ -437,3 +437,12 @@ suite('Match songs and a tracklist still to come from RYM', () => {
     } finally { clearTimeout(q.timer); q.items.length = 0; [out.present, it.rymUpdated, it.rymLink] = was; }
   });
 });
+
+suite('Match releases with no song links', () => {
+  test('a release counts when none of its songs has a link from the services ticked, wherever the link is kept', () => {
+    const f = app('bmNoLinks'), yt = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', sp = 'https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC';
+    const none = { manualTracks: [{ title: 'a' }], trackData: { 1: { rating: 4 } } };
+    const ytOnSong = { manualTracks: [{ title: 'a', youtubeLink: yt }] }, spInData = { trackData: { 2: { spotifyLink: sp } } };
+    eq([f(none, ['spotify', 'youtube']), f(ytOnSong, ['spotify', 'youtube']), f(ytOnSong, ['spotify']), f(spInData, ['youtube']), f(spInData, ['spotify'])], [true, false, true, true, false]);
+  });
+});

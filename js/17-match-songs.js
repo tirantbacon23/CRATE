@@ -420,6 +420,12 @@ function bmLinkState(item) {                                        // [{ sp, yt
   const tr = bmKnownTracks(item); if (!tr) return null;
   return tr.filter(t => t.title).map(t => { const ov = trackLinkOverridesFor(item, t.num, t.title); return { sp: !!trackSpotifyUriFromLink(ov.spotifyLink), yt: !!youtubeVideoIdFromUrl(ov.youtubeLink) }; });
 }
+// No song of the release has a link from the services in `kinds` (on its saved songs or in its song data): read without the tracklist, so
+// it can be asked of the whole crate at once ("Every release with no song linked yet").
+function bmNoLinks(item, kinds) {
+  const has = (sp, yt) => kinds.some(k => k === 'spotify' ? !!trackSpotifyUriFromLink(sp) : !!youtubeVideoIdFromUrl(yt));
+  return !(item.manualTracks || []).some(t => t && has(t.spotifyLink, t.youtubeLink)) && !Object.values(item.trackData || {}).some(e => e && has(e.spotifyLink, e.youtubeLink));
+}
 function bmFullyLinked(item, kinds) { const ls = bmLinkState(item); return !!(ls && ls.length && ls.every(x => kinds.every(k => k === 'spotify' ? x.sp : x.yt))); }
 
 // ----- opening -----
@@ -430,7 +436,7 @@ function bmOpen(opts) {
   const ticked = opts.ticked && opts.ticked.length ? opts.ticked : null;
   bm = { view: 'start', started: false, hidden: false, one: !!opts.one,
     sets: { ticked, view: opts.view || [], genre: opts.genre || null },
-    scope: opts.queue ? 'queue' : opts.genre ? 'genre' : ticked ? 'ticked' : 'view',
+    scope: opts.nolinks ? 'nolinks' : opts.queue ? 'queue' : opts.genre ? 'genre' : ticked ? 'ticked' : 'view',
     songsMode: opts.check ? 'check' : 'gaps', skipLinked: true, rels: [], svc: { spotify: true, youtube: ytUseAddon() || !!loadYoutubeApiKey() }, show: { spotify: true, youtube: true },
     ytSongs: ytUseAddon(), mode: 'review', filter: 'all', qfilter: 'all', qsearch: '', qsort: 'look', qsel: new Set(), sel: '', focus: null, open: null, why: null, pasteFor: null, diffOpen: false, anaScope: 'run',
     par: bmParLoad(), paused: false, stopped: false, running: false, lanes: { spotify: { s: 'idle', msg: '' }, youtube: { s: 'idle', msg: '' } }, saved: 0, chain: Promise.resolve(), histId: null,
@@ -495,19 +501,20 @@ const bmHealthBad = () => !!(bm && (bm.health.spotify === 'off' && bm.svc.spotif
 
 // ----- what gets matched -----
 function bmScopeItems() {
-  const s = bm.sets, src = bm.scope === 'ticked' ? (s.ticked || []) : bm.scope === 'genre' ? ((s.genre && s.genre.items) || []) : bm.scope === 'queue' ? mqItems() : (s.view || []);
+  const s = bm.sets, src = bm.scope === 'ticked' ? (s.ticked || []) : bm.scope === 'genre' ? ((s.genre && s.genre.items) || []) : bm.scope === 'queue' ? mqItems() : bm.scope === 'nolinks' ? bmNoLinksItems() : (s.view || []);
   if (!bm.skipLinked || bm.songsMode === 'check') return { items: src, skipped: 0 };
   const kinds = bmKinds(); if (!kinds.length) return { items: src, skipped: 0 };
   const items = src.filter(it => !bmFullyLinked(it, kinds));
   return { items, skipped: src.length - items.length };
 }
+function bmNoLinksItems() { const kinds = bmKinds().length ? bmKinds() : ['spotify', 'youtube']; return (state.raw || []).filter(it => it && it.artist && it.title && bmNoLinks(it, kinds)); }
 function bmStart() {
   if (!bmKinds().length) { flashGlobalToast('Tick Spotify, YouTube or both.'); return; }
   const { items } = bmScopeItems();
   if (!items.length) { flashGlobalToast(bm.skipLinked ? 'Every one of those releases is already fully linked.' : 'There are no releases to match.'); return; }
   bm.rels = items.map(bmMk); bm.started = true; bm.running = true; bm.stopped = false; bm.paused = false;
   bm.view = bm.one ? 'rel' : bm.songsMode === 'check' ? 'links' : 'queue'; bm.sel = bm.rels[0].row; bm.t0 = Date.now(); bm.net0 = Object.assign({}, smNet);
-  bm.label = bm.one ? items[0].title : bm.songsMode === 'check' ? `Link check · ${bmPl(items.length, 'release')}` : bm.scope === 'genre' && bm.sets.genre ? `${bm.sets.genre.name} · ${bmPl(items.length, 'release')}` : bm.scope === 'queue' ? `Match queue · ${bmPl(items.length, 'release')}` : bmPl(items.length, 'release');
+  bm.label = bm.one ? items[0].title : bm.songsMode === 'check' ? `Link check · ${bmPl(items.length, 'release')}` : bm.scope === 'genre' && bm.sets.genre ? `${bm.sets.genre.name} · ${bmPl(items.length, 'release')}` : bm.scope === 'queue' ? `Match queue · ${bmPl(items.length, 'release')}` : bm.scope === 'nolinks' ? `No links yet · ${bmPl(items.length, 'release')}` : bmPl(items.length, 'release');
   if (bm.scope === 'queue') mqRemove(items);                          // they are in this run now (which is saved), not waiting any more
   ['spotify', 'youtube'].forEach(k => { if (!bm.svc[k]) { bm.lanes[k] = { s: 'off', msg: '' }; bm.rels.forEach(r => { r.st[k] = 'skip'; r.err[k] = 'Not run'; }); } });
   if (bm.ytDefer && bm.svc.youtube) bm.rels.forEach(r => { r.st.youtube = 'skip'; r.err.youtube = 'Not run'; });
@@ -969,6 +976,7 @@ function bmStartHtml() {
     + radio('bmScope', 'view', bm.scope === 'view', 'Everything in the current view', sets.view.length)
     + (sets.genre ? radio('bmScope', 'genre', bm.scope === 'genre', `Genre: ${escapeHtml(sets.genre.name)}`, sets.genre.items.length) : '')
     + (mq ? radio('bmScope', 'queue', bm.scope === 'queue', 'The match queue', mq) : '')
+    + radio('bmScope', 'nolinks', bm.scope === 'nolinks', `Every release with no song linked yet${bmKinds().length === 1 ? ` on ${bmName(bmKinds()[0])}` : ''}`, bmNoLinksItems().length)
     + check('bmSkipLinked', bm.skipLinked && bm.songsMode !== 'check', 'Skip releases that are already fully linked', skipped ? `−${skipped}` : '', bm.songsMode === 'check');
   const songs = radio('bmSongsMode', 'gaps', bm.songsMode === 'gaps', 'Only songs that have no link yet') + radio('bmSongsMode', 'all', bm.songsMode === 'all', 'All songs (links you have are kept)') + radio('bmSongsMode', 'check', bm.songsMode === 'check', 'Check my saved links, and find replacements for broken ones');
   const par = (k) => `<select name="bmPar" data-kind="${k}" data-bm="setup" aria-label="${bmName(k)}: releases at once">${BM_PAR_CHOICES.map(v => `<option value="${v}"${bm.par[k] === v ? ' selected' : ''}>${v}</option>`).join('')}</select>`;
@@ -1387,6 +1395,7 @@ function bmKey(e) {
   ov.addEventListener('mousedown', (e) => { if (e.target === ov && bm) { if (!bm.started) bmClose(true); else bmHide(); } });
   const mm = bmEl('menuBatchMatch'), mu = bmEl('menuBatchUndo'), sm = bmEl('albumSelMatch'), sc = bmEl('albumSelClear');
   const open = () => { const sel = bmSelectedItems(); bmOpen({ ticked: sel.length ? sel : null, view: (state.filtered || []).slice() }); };
+  const nl = bmEl('menuMatchNoLinks'); if (nl) nl.addEventListener('click', () => { el.layoutMenu.hidden = true; bmOpen({ nolinks: true, view: (state.filtered || []).slice() }); });
   if (mm) mm.addEventListener('click', open); if (mu) mu.addEventListener('click', bmUndoLast); if (sm) sm.addEventListener('click', open);
   if (sc) sc.addEventListener('click', () => { state.selectedAlbums.clear(); document.querySelectorAll('.card.selected').forEach(c => c.classList.remove('selected')); updateAlbumSelBar(); });
   // Once the crate has loaded: an interrupted run, and the monthly link-check reminder.
