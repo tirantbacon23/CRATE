@@ -381,3 +381,17 @@ suite('Sync while saving', () => {
     eq([w.started - was[0], w.inFlight, mid, done], [2, was[1], false, true]);
   });
 });
+
+suite('Releases sent from RYM, added by themselves', () => {
+  test('a batch the automatic import has taken isn’t shown as waiting for review', () => {
+    const st = app('state'), out = app('rymOutState'), tried = app('rymAutoTried'), was = [st.rymAutoImport, out.batches, out.dismissed];
+    try {
+      out.dismissed = ''; out.batches = [{ id: 'bTest', kind: 'list', source: { title: 'A chart' }, releases: [{ artist: 'X', title: 'Y' }] }];
+      st.rymAutoImport = true; tried.add('bTest'); app('renderRymInbox')();
+      const hiddenWhenAuto = app('document').getElementById('rymInbox').hidden;
+      tried.delete('bTest'); app('renderRymInbox')();
+      const shownWhenNot = !app('document').getElementById('rymInbox').hidden;
+      eq([hiddenWhenAuto, shownWhenNot], [true, true]);
+    } finally { [st.rymAutoImport, out.batches, out.dismissed] = was; tried.delete('bTest'); app('renderRymInbox')(); }
+  });
+});

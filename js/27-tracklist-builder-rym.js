@@ -655,7 +655,7 @@ function rymCleanOutbox(list) {                                  // untrusted: o
       tracks: (Array.isArray(r && r.tracks) ? r.tracks : []).slice(0, 200).map((t, i) => ({ n: i + 1, title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), pos: rymPosStr(t && t.pos), s: 'rym', rating: rymNum(t && t.rating), votes: rymNum(t && t.rating) ? rymVotesNum(t && t.votes) : 0, url: rymSongUrl(t && t.url) })).filter(t => t.title), rymRating: rymNum(r && r.rymRating), rymVotes: Math.max(0, Math.round(Number(r && r.rymVotes) || 0)) })).filter(r => r.artist && r.title).slice(0, 300) })).filter(b => b.id && b.releases.length);
 }
 function rymOutboxArrived(batches) {
-  rymOutState.batches = batches; rymOutState.present = true; renderRymInbox(); rymQIngestAll(); rymAutoImport();
+  rymOutState.batches = batches; rymOutState.present = true; rymQIngestAll(); rymAutoImport(); renderRymInbox();          // (the import first: what it takes isn't shown as waiting for you)
   rymOutWaiters.splice(0).forEach(w => { clearTimeout(w.timer); w.resolve(batches); });
 }
 async function rymCheckOutbox() {                                // quietly: when the add-on says hello, and when you come back to this tab
@@ -666,7 +666,7 @@ async function rymCheckOutbox() {                                // quietly: whe
 }
 function renderRymInbox() {
   const bar = document.getElementById('rymInbox'); if (!bar) return;
-  const bs = state.rymQueueMode ? rymOutState.batches.filter(b => b.kind !== 'update' || rymQBatchHasRest(b.id)) : rymOutState.batches, key = bs.map(b => b.id).join(',');          // (in the queue, only an update with something LEFT to decide is waiting: the rest is applied as it arrives)
+  const bs = (state.rymQueueMode ? rymOutState.batches.filter(b => b.kind !== 'update' || rymQBatchHasRest(b.id)) : rymOutState.batches).filter(b => b.kind === 'update' || !(state.rymAutoImport && rymAutoTried.has(b.id))), key = bs.map(b => b.id).join(',');          // (releases being added by themselves aren't waiting for you either)          // (in the queue, only an update with something LEFT to decide is waiting: the rest is applied as it arrives)
   if (!bs.length || rymOutState.dismissed === key) { bar.hidden = true; bar.innerHTML = ''; return; }
   const n = bs.reduce((s, b) => s + b.releases.length, 0), first = bs[0];
   const ups = bs.filter(b => b.kind === 'update').length;
@@ -793,7 +793,7 @@ function jobsCollect() {
         acts: [{ label: 'Review', fn: rymQOpen, opens: true }, rymQTicked().length ? { label: 'Apply all', fn: rymQApplyTicked, primary: true } : null] });
     }
   }
-  const bs = rymOutState.batches || [], adds = bs.filter(b => b.kind !== 'update'), ups = state.rymQueueMode ? [] : bs.filter(b => b.kind === 'update');
+  const bs = rymOutState.batches || [], adds = bs.filter(b => b.kind !== 'update' && !(state.rymAutoImport && rymAutoTried.has(b.id))), ups = state.rymQueueMode ? [] : bs.filter(b => b.kind === 'update');
   if (adds.length) { const n = adds.reduce((x, b) => x + b.releases.length, 0); need.push({ cat: 'add', icon: 'plus', title: `Add ${jobsPl(n, 'release')} sent from RYM`, detail: adds.slice(0, 3).map(b => b.source.title || 'a page').join(' \u00b7 ') + (adds.length > 3 ? ` and ${adds.length - 3} more` : ''), acts: [{ label: 'Review', fn: () => openRymBatch(adds[0]), opens: true, primary: true }] }); }
   if (ups.length) need.push({ cat: 'rym', icon: 'list', title: `${jobsPl(ups.length, 'update')} from RYM to review`, detail: ups.slice(0, 3).map(b => b.source.title || 'a release').join(' \u00b7 '), acts: [{ label: 'Review', fn: () => openRymBatch(ups[0]), opens: true }, ups.length > 1 ? { label: 'Apply all', fn: rymUpdateAllWaiting, primary: true } : null] });
   if (typeof cxImp !== 'undefined' && cxImp && cxImp.running) {

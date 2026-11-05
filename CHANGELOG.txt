@@ -17,7 +17,17 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.84.2
+  CURRENT_VERSION: 1.84.3
+
+  1.84.3 — 2026-11-05 — Releases sent from Rate Your Music that are being added by themselves aren't shown as waiting for your review. Page only.
+          With "add releases sent from RYM by themselves" on, a page you
+          sent (a chart, a list) still brought up the bar "15 releases
+          waiting" with its Review button, and Processing listed them
+          under Needs you, until all of them had been added. The bar was
+          drawn before the automatic import took the batch. Now it is
+          drawn after, and a batch being added by itself appears only
+          under Running in Processing. With the setting off, the bar is
+          as before.
 
   1.84.2 — 2026-11-05 — A tracklist filled by an automatic Rate Your Music update no longer turns empty again. Page only.
           An update writes a release's details first and its tracklist
