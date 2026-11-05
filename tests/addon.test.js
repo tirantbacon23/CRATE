@@ -53,3 +53,17 @@ suite('RYM add-on: bold songs', () => {
     eq(C.cleanTracks([{ title: 'a', bold: true }, { title: 'b', bold: 'yes' }]).map(t => !!t.bold), [true, false]);
   });
 });
+
+suite('RYM add-on: bold releases', () => {
+  test('a list drawing some titles heavier marks each 1 or 0; one drawn all one way marks none; the mark is kept with the rating', async () => {
+    const C = await addon(), m = (ws) => C.boldMarks(ws.map((w, i) => ({ p: '/release/album/x/' + i + '/', a: 3, w })));
+    eq(m([700, 400]).map(e => [e.b, 'w' in e]), [[1, false], [0, false]]);
+    eq(m([700, 700]).map(e => 'b' in e), [false, false]);
+    const one = C.mergeRatings({}, [{ p: '/r/1/', a: 3.5, n: 10, b: 1, t: 1 }]).out;
+    eq(one['/r/1/'].b, 1);
+    const same = C.mergeRatings(one, [{ p: '/r/1/', a: 3.5, n: 10, b: 0, t: 2 }]).out;          // same figures: only the mark changes
+    eq(same['/r/1/'].b, 0);
+    const moved = C.mergeRatings(same, [{ p: '/r/1/', a: 3.6, n: 12, t: 3 }]).out;          // a release page tells no mark: the one known stays
+    eq([moved['/r/1/'].a, moved['/r/1/'].b], [3.6, 0]);
+  });
+});

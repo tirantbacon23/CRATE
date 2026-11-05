@@ -502,3 +502,21 @@ suite('Bold songs (RYM)', () => {
     eq([app('trackColumnVal')('rymTrackBold', { trackData: { 5: { rymBold: true } } }, { trackNumber: 5 }), app('trackColumnVal')('rymTrackBold', { trackData: {} }, { trackNumber: 5 })], ['Bold', '']);
   });
 });
+
+suite('Bold releases (RYM)', () => {
+  test('a list page’s bold mark is taken (an older sighting can fill it in); it outranks the rank guess, which stands where no page told', () => {
+    const plan = app('rymPlan'), index = app('rymBuildIndex'), isBold = app('rymReleaseIsBold'), S = app('state');
+    const a = { row: 2, artist: 'A', title: 'One', rymLink: 'https://rateyourmusic.com/release/album/a/one/', rymRank: 50 };
+    const b = { row: 3, artist: 'B', title: 'Two', rymLink: 'https://rateyourmusic.com/release/album/b/two/', rymBoldMark: true };
+    const c = { row: 4, artist: 'C', title: 'Three', rymLink: 'https://rateyourmusic.com/release/album/c/three/' };
+    const ix = index([a, b, c], (x, y) => x + '|' + y), path = (it) => '/release/album/' + it.rymLink.split('/album/')[1];
+    const out = plan(ix, [{ p: path(a), a: 3.5, b: 0, t: 2 }, { p: path(b), a: 3.9, b: 1, t: 2 }, { p: path(c), a: 3.1, t: 5 }, { p: path(c), a: 3.0, b: 1, t: 1 }], 10);
+    eq(out.bolds.map(x => [x.item.title, x.bold]), [['One', false], ['Three', true]]);          // Two already has it
+    const was = [S.rymBold, S.rymBoldRank]; S.rymBold = true; S.rymBoldRank = 7500;
+    try {
+      const d = { rymRank: 50 }, e = { rymRank: 50, rymBoldMark: false }, f = { rymRank: 90000, rymBoldMark: true }, g = { rymRank: 90000 };
+      eq([d, e, f, g].map(isBold), [true, false, true, false]);
+      S.rymBold = false; eq(isBold(f), false);
+    } finally { S.rymBold = was[0]; S.rymBoldRank = was[1]; }
+  });
+});

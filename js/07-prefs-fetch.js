@@ -440,7 +440,7 @@ async function fetchCatalogOnce(opts) {
           review: r.Review || '',
           link: r.Link ? String(r.Link).trim() : '',
           rymLink: r.RymLink ? String(r.RymLink).trim() : '',
-          rymRank: rymVotesNum(r.RymRank), rymUpdated: r.RymUpdated ? String(r.RymUpdated).trim() : '', rymUpdateLog: rymParseLog(r.RymUpdateLog), rymRating: rymNum(r.RymRating), rymVotes: rymVotesNum(r.RymVotes), rymSrc: rymNum(r.RymRating) ? (r.RymSrc === 'a' ? 'a' : 'm') : '', rymHist: rymParseHist(r.RymHistory),
+          rymRank: rymVotesNum(r.RymRank), rymBoldMark: String(r.RymBold == null ? '' : r.RymBold).trim() === '1' ? true : String(r.RymBold == null ? '' : r.RymBold).trim() === '0' ? false : undefined, rymUpdated: r.RymUpdated ? String(r.RymUpdated).trim() : '', rymUpdateLog: rymParseLog(r.RymUpdateLog), rymRating: rymNum(r.RymRating), rymVotes: rymVotesNum(r.RymVotes), rymSrc: rymNum(r.RymRating) ? (r.RymSrc === 'a' ? 'a' : 'm') : '', rymHist: rymParseHist(r.RymHistory),
           dateAdded: r.DateAdded || '',
           catalog: r.Catalog ? String(r.Catalog).trim() : 'CRT-' + String(i + 1).padStart(3, '0'),
           // Free-text release descriptor (e.g. "Deluxe Edition", "2024

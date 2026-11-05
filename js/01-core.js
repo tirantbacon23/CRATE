@@ -5,7 +5,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.85.9';
+const APP_VERSION = '1.85.10';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -260,7 +260,7 @@ function rymMatchEntry(index, entry) {
 }
 // What to do with a batch of entries (newest first wins per release). Never touches a rating you typed.
 function rymPlan(index, entries, now) {
-  const out = { updates: [], histOnly: [], ranks: [], skippedManual: 0, ambiguous: 0, unmatched: 0, unchanged: 0 }, best = new Map();
+  const out = { updates: [], histOnly: [], ranks: [], bolds: [], skippedManual: 0, ambiguous: 0, unmatched: 0, unchanged: 0 }, best = new Map();
   (entries || []).forEach(e => {
     const rating = rymNum(e.a); if (!rating) return;
     const m = rymMatchEntry(index, e); if (!m) { out.unmatched++; return; } if (m.ambiguous) { out.ambiguous++; return; }
@@ -269,10 +269,13 @@ function rymPlan(index, entries, now) {
     let votes = rymVotesNum(e.n); const have = m.item.rymVotes || 0;
     if (have && (!votes || (Number(e.u) > 0 && Math.abs(have - votes) <= Number(e.u) / 2))) votes = have;
     if (have >= 100 && votes && votes * 50 < have && !(Number(e.u) > 0)) votes = have;          // an older add-on read "6k" as 6: a count never really falls by 98%
-    const prev = best.get(m.item); if (!prev || (e.t || 0) >= (prev.t || 0)) best.set(m.item, { item: m.item, rating, votes, rank: rymVotesNum(e.k), how: m.how, t: e.t || 0, h: e.h });
+    const prev = best.get(m.item), bold = e.b === 1 ? true : e.b === 0 ? false : null;
+    if (!prev || (e.t || 0) >= (prev.t || 0)) best.set(m.item, { item: m.item, rating, votes, rank: rymVotesNum(e.k), bold: bold !== null ? bold : prev ? prev.bold : null, how: m.how, t: e.t || 0, h: e.h });
+    else if (prev.bold === null && bold !== null) prev.bold = bold;          // an older sighting can still say whether it is bold
   });
   best.forEach(b => {
     if (b.rank > 0 && b.rank !== (b.item.rymRank || 0)) out.ranks.push({ item: b.item, rank: b.rank });          // a rank is a fact about RYM, saved even where a rating you typed is left alone
+    if (b.bold !== null && b.bold !== b.item.rymBoldMark) out.bolds.push({ item: b.item, bold: b.bold });          // so is whether a list page printed it in bold
     // The history: the add-on's own trail (which already ends with this reading) joined to what the release already has. An add-on with no trail gives just this reading.
     // It is kept even for a rating you typed (that rating is left alone, but what RYM said still goes in the record).
     const have = rymHistNorm(b.item.rymHist), trail = Array.isArray(b.h) && b.h.length ? b.h : null;
@@ -286,7 +289,7 @@ function rymPlan(index, entries, now) {
   });
   return out;
 }
-// bold marks: like Rate Your Music, a release is bold when its overall RANK is within the top N (7,500 by default). It has nothing to do with a rating.
+// bold marks: what Rate Your Music printed, when the add-on saw it (rymReleaseIsBold); otherwise a guess from the overall RANK, within the top N (7,500 by default).
 function rymIsBoldRank(rank, limit, on) { const k = rymVotesNum(rank); return !!(on && k && k <= limit); }
 // END rym-core
 
@@ -306,6 +309,7 @@ function rymMergeLocal() {                                       // a rating the
   if (rymMergedFor === state.raw) return; rymMergedFor = state.raw;
   { const L = rymLogLocalAll(); (state.raw || []).forEach(it => { const l = L[artKey(it)]; if (!l) return; if (!it.rymUpdated && l.u) it.rymUpdated = l.u; if (!(it.rymUpdateLog || []).length && l.l && l.l.length) it.rymUpdateLog = rymParseLog(l.l); }); }          // what the sheet doesn't hold yet is shown from the copy kept here
   { const rl = rymRankLocal(); (state.raw || []).forEach(it => { const l = rl[artKey(it)]; if (l && !it.rymRank) it.rymRank = rymVotesNum(l.k); }); }          // a rank the sheet doesn't have yet is shown from the copy kept here
+  { const bl = rymBoldMarkLocal(); (state.raw || []).forEach(it => { const l = bl[artKey(it)]; if (l && (l.b === 1 || l.b === 0)) it.rymBoldMark = l.b === 1; }); }          // so is RYM's bold mark (the newer reading, kept here until the sheet confirms it)
   const all = rymLocalAll(); let flush = false;
   (state.raw || []).forEach(it => { const l = all[artKey(it)]; if (!l) return; if (!it.rymRating) { it.rymRating = rymNum(l.r); it.rymVotes = rymVotesNum(l.n); it.rymSrc = l.s === 'a' ? 'a' : 'm'; it._rymLocal = true; flush = true; } else delete all[artKey(it)]; });
   if (flush && state.backendRym) rymFlushLocal();
@@ -329,7 +333,10 @@ function rymChipHtml(item) {
   const was = H ? ` \u00b7 first saved ${H[0][1].toFixed(2)} on ${rymDateText(new Date(H[0][0]).toISOString())}` : '';
   return `<span class="rym-chip" title="Rate Your Music average${v}${item.rymSrc === 'm' ? ', typed by you' : ''}${was}">RYM ${item.rymRating.toFixed(2)}</span>`;
 }
-function rymBoldClass(item) { return item && rymIsBoldRank(item.rymRank, state.rymBoldRank, state.rymBold) ? ' rym-bold' : ''; }
+// A release is bold when Rate Your Music prints it in bold on a list page (rymBoldMark, read by the add-on from 1.17.0: true or false); where that is not
+// known yet, by its rank as before.
+function rymReleaseIsBold(item) { if (!item || !state.rymBold) return false; if (item.rymBoldMark === true || item.rymBoldMark === false) return item.rymBoldMark; return rymIsBoldRank(item.rymRank, state.rymBoldRank, true); }
+function rymBoldClass(item) { return rymReleaseIsBold(item) ? ' rym-bold' : ''; }
 // A song Rate Your Music prints in bold on its release's page (the add-on reads it, from version 1.16.0): kept per track as trackData[n].rymBold.
 function rymTrackIsBold(item, t) { const td = item && item.trackData && t && item.trackData[t.trackNumber]; return !!(td && td.rymBold); }
 function rymBoldTrackClass(t, item) { return state.rymBold && rymTrackIsBold(item, t) ? ' rym-bold' : ''; }
@@ -376,6 +383,19 @@ async function rymMarkUpdated(item) {                              // a release 
   if (item.rymUpdated) return; const at = new Date().toISOString();
   await postUpdate({ action: 'editAlbum', row: item.row, RymUpdated: at }); item.rymUpdated = at; rymLogLocalSet(item);
 }
+const RYM_BOLDMARK_KEY = 'crate_rym_boldmark_v1';
+function rymBoldMarkLocal() { try { const o = JSON.parse(localStorage.getItem(RYM_BOLDMARK_KEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
+function rymBoldMarkLocalSave(o) { try { localStorage.setItem(RYM_BOLDMARK_KEY, JSON.stringify(o)); } catch (e) { /* not kept */ } }
+async function rymSaveBolds(list) {                              // [{ item, bold }]: whether RYM prints the release in bold. Kept here too until the sheet confirms it (an older Apps Script has no RymBold column)
+  if (!list || !list.length) return;
+  const loc = rymBoldMarkLocal(); list.forEach(u => { u.item.rymBoldMark = u.bold; loc[artKey(u.item)] = { b: u.bold ? 1 : 0, t: Date.now() }; }); rymBoldMarkLocalSave(loc); rymRefreshViews();
+  for (let i = 0; i < list.length; i += 150) {
+    const part = list.slice(i, i + 150);
+    try { const d = await postUpdate({ action: 'setRymBold', items: part.map(u => ({ row: u.item.row, rymBold: u.bold ? 1 : 0 })) });
+      if (d && d.boldSaved) { const l2 = rymBoldMarkLocal(); part.forEach(u => { delete l2[artKey(u.item)]; }); rymBoldMarkLocalSave(l2); } }
+    catch (e) { /* an older script: the mark stays on this device until the sheet has the column */ }
+  }
+}
 const RYM_RANK_KEY = 'crate_rym_rank_v1';
 function rymRankLocal() { try { const o = JSON.parse(localStorage.getItem(RYM_RANK_KEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
 function rymRankLocalSave(o) { try { localStorage.setItem(RYM_RANK_KEY, JSON.stringify(o)); } catch (e) { /* not kept */ } }
@@ -399,6 +419,7 @@ async function rymHandleAddon(list) {
   rymState.addonSeen = true; rymState.lastAt = Date.now(); rymState.lastTotal = (list || []).length;
   const plan = rymPlan(rymIndex(), list || []); rymState.plan = plan;
   if (plan.ranks.length) await rymSaveRanks(plan.ranks);
+  if (plan.bolds.length) await rymSaveBolds(plan.bolds);
   if (plan.histOnly.length) await rymSaveHistBatch(plan.histOnly);         // what RYM said is recorded even where no rating changes (and where the rating is one you typed)
   if (plan.updates.length && state.rymAuto) {
     await rymApplyPlan(plan); rymState.pending = null;
@@ -524,7 +545,7 @@ function initRymRatings() {
     if (d.type === 'rym-tracklists' && Array.isArray(d.tracklists)) { rymTracklistsArrived(rymCleanTracklists(d.tracklists)); return; }
     if (d.type === 'rym-outbox' && Array.isArray(d.batches)) { rymOutboxArrived(rymCleanOutbox(d.batches)); return; }
     if (d.type !== 'rym-ratings' || !Array.isArray(d.ratings)) return;
-    const s = (x) => String(x == null ? '' : x).slice(0, 200), clean = d.ratings.slice(0, 20000).map(x => ({ p: s(x && x.p), a: Number(x && x.a), n: Number(x && x.n) || 0, ar: s(x && x.ar), ti: s(x && x.ti), ty: s(x && x.ty), y: s(x && x.y), k: rymVotesNum(x && x.k), t: Number(x && x.t) || 0, h: Array.isArray(x && x.h) ? rymHistNorm(x.h.slice(0, 400)) : [] })).filter(x => x.a > 0 && x.a <= 5);
+    const s = (x) => String(x == null ? '' : x).slice(0, 200), clean = d.ratings.slice(0, 20000).map(x => ({ p: s(x && x.p), a: Number(x && x.a), n: Number(x && x.n) || 0, ar: s(x && x.ar), ti: s(x && x.ti), ty: s(x && x.ty), y: s(x && x.y), k: rymVotesNum(x && x.k), b: x && (x.b === 1 || x.b === 0) ? x.b : null, t: Number(x && x.t) || 0, h: Array.isArray(x && x.h) ? rymHistNorm(x.h.slice(0, 400)) : [] })).filter(x => x.a > 0 && x.a <= 5);
     rymHandleAddon(clean);
   });
 }

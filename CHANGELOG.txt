@@ -17,7 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.85.9
+  CURRENT_VERSION: 1.85.10
+
+  1.85.10 — 2026-11-05 — Releases are bold the way Rate Your Music prints them: the add-on (1.17.0) reads which titles a chart or list page draws in bold, and CRATE follows that instead of guessing from the rank. Page and add-on.
+          When a page shows some titles bold and others not, each release seen there is marked bold or not bold (a page drawn all one way
+          tells nothing). The mark is saved in a RymBold column by a new Apps Script action, setRymBold; until the script is updated and
+          redeployed it is kept in this browser. Where no page has told yet, the rank (⚙ → "Bold like Rate Your Music") still decides.
 
   1.85.9 — 2026-11-05 — Songs Rate Your Music prints in bold are easier to spot. Page only.
           Besides being bold, their titles now take the same soft gold as
