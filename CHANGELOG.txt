@@ -17,7 +17,25 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.85.7
+  CURRENT_VERSION: 1.85.8
+
+  1.85.8 — 2026-11-05 — The Tracks view's column header stays in sight. Songs Rate Your Music prints in bold are marked bold. Page and RYM add-on 1.16.0.
+          HEADER: since the Tracks view scrolls sideways in its own box
+          (1.84.1), its column header scrolled away with the songs. The box
+          now scrolls both ways, so the header stays at the top.
+          BOLD SONGS: Rate Your Music prints some songs of a release in
+          bold. The add-on (1.16.0, crate-rym-addon.zip) now notes them
+          when it reads a release page: a song counts as bold when its
+          title is drawn heavier than the others on that release. CRATE
+          keeps the mark with each song (as it keeps the song's RYM rating),
+          from a new tracklist or, for one you have, from the next Rate Your
+          Music update ("RYM bold songs"). Bold songs are shown in bold in
+          the Tracks view, the release's tracklist and Quick Peek (with
+          "Bold marks" on, ⚙ → RYM ratings), and a new Tracks column, "Bold
+          song (RYM)", can be sorted on. A list that marks a song no longer
+          bold clears its mark; a list from an older add-on changes nothing.
+          Releases already read by the add-on get their bold songs once you
+          open their page on Rate Your Music again.
 
   1.85.7 — 2026-11-05 — Match songs searches YouTube song by song again when it was opened before the add-on answered. Page only.
           "Also search YouTube song by song for what a playlist misses" was

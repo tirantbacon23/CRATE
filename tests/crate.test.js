@@ -486,3 +486,19 @@ suite('Match songs: YouTube song by song', () => {
     eq([on({ ytSongs: false }), on({ ytSongs: true }), on({ ytSongs: false, ytSongsSet: true }), on({ ytSongs: true, ytSongsSet: true })], [viaAddon, viaAddon, false, true]);
   });
 });
+
+suite('Bold songs (RYM)', () => {
+  test('a list that marks some songs bold sets and clears the mark; one that marks none changes nothing', async () => {
+    const apply = app('tlApplyTrackRatings'), isBold = app('rymTrackIsBold');
+    const item = { row: 999999, artist: 'King Crimson', title: 'Red', trackData: { 2: { rymBold: true }, 3: { rating: 4 } } };
+    const marks = () => [1, 2, 3].map(n => isBold(item, { trackNumber: n }));
+    await apply(item, [{ trackNumber: 1, rymRating: 0, rymBold: false }, { trackNumber: 2, rymRating: 0, rymBold: false }, { trackNumber: 3, rymRating: 0, rymBold: false }], true);
+    eq(marks(), [false, true, false]);          // no song bold in the list: nothing is cleared
+    await apply(item, [{ trackNumber: 1, rymRating: 0, rymBold: true }, { trackNumber: 2, rymRating: 0, rymBold: false }, { trackNumber: 3, rymRating: 0, rymBold: false }], true);
+    eq(marks(), [true, false, false]);
+    eq(item.trackData[3].rating, 4);
+    await apply(item, [{ trackNumber: 1, rymRating: 0, rymBold: false, rymBoldKnown: true }], true);
+    eq(marks(), [false, false, false]);
+    eq([app('trackColumnVal')('rymTrackBold', { trackData: { 5: { rymBold: true } } }, { trackNumber: 5 }), app('trackColumnVal')('rymTrackBold', { trackData: {} }, { trackNumber: 5 })], ['Bold', '']);
+  });
+});

@@ -209,6 +209,7 @@ function trackColumnVal(key, item, track) {
     if (key === 'rymTrackPop') return v.pop === null ? '' : String(Math.round(v.pop));
     return v.stand === null ? '' : (v.stand >= 0 ? '+' : '\u2212') + Math.abs(v.stand).toFixed(2);
   }
+  if (key === 'rymTrackBold') return rymTrackIsBold(item, track) ? 'Bold' : '';          // one of the songs RYM prints in bold
   if (key === 'rymTrackRating' || key === 'rymTrackVotes') {            // Rate Your Music's own rating of THIS song, and how many ratings it rests on
     const td = item.trackData && item.trackData[track.trackNumber]; if (!td || !(td.rymRating > 0)) return '';
     return key === 'rymTrackRating' ? Number(td.rymRating).toFixed(2) : (td.rymVotes ? Number(td.rymVotes).toLocaleString() : '');
@@ -542,6 +543,7 @@ function trackRowKey(row) {
 // case-folded strings otherwise.
 function trackSortValue(row, key) {
   if (key === 'rymTrackWR' || key === 'rymTrackPop' || key === 'rymTrackStand') { const v = trackPopOf(row.item, row.track.trackNumber), x = v ? (key === 'rymTrackWR' ? v.wr : key === 'rymTrackPop' ? v.pop : v.stand) : null; return x === null || x === undefined ? -1e9 : x; }          // numbers, and tracks without one last when sorting high to low
+  if (key === 'rymTrackBold') return rymTrackIsBold(row.item, row.track) ? 1 : 0;
   if (key === 'num') return row.idx + 1;                     // its place in the tracklist, the number shown
   if (key === 'name') return (row.track.trackName || '').toLowerCase();
   if (key === 'plays') return trackScrobbleCountFor(row.item.artist, row.item.title, row.track.trackName) || 0;
@@ -596,7 +598,7 @@ function renderFlatTrackTable() {
     return `
       <div class="main-track-row${selected ? ' selected' : ''}" data-track-key="${rowKey}" tabindex="0" style="grid-template-columns: ${template}">
         <span class="mt-num">${trackNumHtml(t, row.idx)}</span>
-        <span class="mt-title" title="${escapeHtml(t.trackName || '')}">${escapeHtml(t.trackName || '')}</span>
+        <span class="mt-title${rymBoldTrackClass(t, item)}" title="${escapeHtml(t.trackName || '')}${rymTrackIsBold(item, t) ? ' · one of the songs Rate Your Music prints in bold' : ''}">${escapeHtml(t.trackName || '')}</span>
         ${colsHtml}
         <span class="mt-plays">${scrobbleCount > 0 ? scrobbleCount : ''}</span>
       </div>`;
@@ -819,7 +821,7 @@ function loadTracksForList(list, mode) {
               ${(!manual || t.spotifyLink) ? `<button type="button" class="track-play-btn" data-row="${escapeHtml(String(item.row))}" data-track-num="${escapeHtml(String(t.trackNumber || ''))}" data-track-name="${escapeHtml(trackName)}" title="Play on Spotify" aria-label="Play ${escapeHtml(trackName)} on Spotify">▶</button>` : ''}
               ${t.youtubeLink ? `<button type="button" class="track-play-yt-btn" data-youtube-link="${escapeHtml(t.youtubeLink)}" data-track-name="${escapeHtml(trackName)}" data-row="${escapeHtml(String(item.row))}" title="Play on YouTube" aria-label="Play ${escapeHtml(trackName)} on YouTube">▶ YT</button>` : ''}
               ${t.soundcloudLink ? `<a class="track-play-sc-btn" href="${escapeHtml(t.soundcloudLink)}" target="_blank" rel="noopener noreferrer" title="Open on SoundCloud" aria-label="Open ${escapeHtml(trackName)} on SoundCloud">SC ↗</a>` : ''}
-              <span class="trk-title${rymBoldTrackClass(t)}">${escapeHtml(trackName)}</span>${scrobbleCount > 0 ? `<span class="track-scrobble-count" title="Last.fm plays">${scrobbleCount} play${scrobbleCount === 1 ? '' : 's'}</span>` : ''}
+              <span class="trk-title${rymBoldTrackClass(t, item)}">${escapeHtml(trackName)}</span>${scrobbleCount > 0 ? `<span class="track-scrobble-count" title="Last.fm plays">${scrobbleCount} play${scrobbleCount === 1 ? '' : 's'}</span>` : ''}
             </span>
             <span class="track-time">${formatDuration(t.trackTimeMillis)}</span>
           </div>
@@ -2259,7 +2261,7 @@ function quickPeekTrackRowHtml(item, t, ord) {
       <div class="album-quick-peek-track${isNow ? ' now' : ''}" data-track-num="${escapeHtml(String(t.trackNumber || ''))}" data-track-name="${escapeHtml(t.trackName || '')}">
         <button type="button" class="album-quick-peek-track-play" title="Play this track" aria-label="Play ${escapeHtml(t.trackName || 'this track')}">▶</button>
         <span class="album-quick-peek-track-num">${trackNumHtml(t, ord)}</span>
-        <span class="album-quick-peek-track-name"><span class="qp-title${rymBoldTrackClass(t)}">${escapeHtml(t.trackName || '')}</span>${songFlagHtml(item, t)}${t.trackExplicitness === 'explicit' ? '<span class="qp-explicit" title="Explicit">E</span>' : ''}</span>
+        <span class="album-quick-peek-track-name"><span class="qp-title${rymBoldTrackClass(t, item)}">${escapeHtml(t.trackName || '')}</span>${songFlagHtml(item, t)}${t.trackExplicitness === 'explicit' ? '<span class="qp-explicit" title="Explicit">E</span>' : ''}</span>
         ${bits.length ? `<span class="album-quick-peek-track-details">${bits.join('')}</span>` : ''}
         ${rymBar}${linkMarks}<span class="album-quick-peek-track-time">${formatDuration(t.trackTimeMillis)}</span>
         ${credits.length ? `<div class="album-quick-peek-track-credits" hidden>${credits.map(c => `<p class="track-credit-entry"><span class="track-credit-name">${escapeHtml(c.name)}</span>${c.role ? `<span class="track-credit-role">${escapeHtml(c.role)}</span>` : ''}</p>`).join('')}</div>` : ''}

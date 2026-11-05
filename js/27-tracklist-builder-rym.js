@@ -289,7 +289,7 @@ function rymSongUrl(x) {                                       // a track's own 
 function rymCleanTracklists(list) {                              // whatever arrives is untrusted: only text and numbers, bounded
   const str = (x, n) => typeof x === 'string' ? x.slice(0, n) : '';
   return (Array.isArray(list) ? list : []).slice(0, 400).map(e => ({ p: str(e && e.p, 200), ar: str(e && e.ar, 200), ti: str(e && e.ti, 200), ty: str(e && e.ty, 30), u: str(e && e.u, 300), t: Number(e && e.t) || 0,
-    tracks: (Array.isArray(e && e.tracks) ? e.tracks : []).slice(0, 200).map(t => ({ title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), pos: rymPosStr(t && t.pos), rating: rymNum(t && t.rating), votes: rymNum(t && t.rating) ? rymVotesNum(t && t.votes) : 0, url: rymSongUrl(t && t.url) })).filter(t => t.title) })).filter(e => e.p && e.tracks.length >= 2).map(e => Object.assign(e, { wrong: rymTracklistLooksWrong(e.tracks) }));
+    tracks: (Array.isArray(e && e.tracks) ? e.tracks : []).slice(0, 200).map(t => ({ title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), pos: rymPosStr(t && t.pos), bold: !!(t && t.bold === true), rating: rymNum(t && t.rating), votes: rymNum(t && t.rating) ? rymVotesNum(t && t.votes) : 0, url: rymSongUrl(t && t.url) })).filter(t => t.title) })).filter(e => e.p && e.tracks.length >= 2).map(e => Object.assign(e, { wrong: rymTracklistLooksWrong(e.tracks) }));
 }
 function tlRymPick(list, probe) {                                // the add-on's tracklist for THIS release: by its saved RYM address, else artist + title + type (the rules the ratings use); the newest if several
   const idx = rymBuildIndex([probe], dupKey); let best = null;
@@ -308,17 +308,21 @@ async function tlFetchRym(side, artist, title) {
     tlStatus(side, `The add-on hasn\u2019t seen this release\u2019s page on Rate Your Music yet. <a href="${escapeHtml(href)}" target="_blank" rel="noopener">Open it there \u2197</a>, then press RYM again.`); return;
   }
   if (hit.wrong) { tlStatus(side, 'The add-on saved a tracklist for this release that looks wrong (its titles are numbers, most likely ratings). Update the add-on, open the release\u2019s page on Rate Your Music again, then press RYM again.'); return; }
-  tlPending[side] = { kind: 'rym', tracks: hit.tracks.map(t => ({ title: t.title, durationMs: t.durationMs, section: t.section, pos: t.pos || '', rymRating: t.rating || 0, rymVotes: t.votes || 0, rymLink: t.url || '' })) };
+  tlPending[side] = { kind: 'rym', tracks: hit.tracks.map(t => ({ title: t.title, durationMs: t.durationMs, section: t.section, pos: t.pos || '', rymRating: t.rating || 0, rymVotes: t.votes || 0, rymLink: t.url || '', rymBold: !!t.bold })) };
   const total = tlFormatTime(hit.tracks.reduce((s, t) => s + (t.durationMs || 0), 0)), rated = hit.tracks.filter(t => t.rating).length, when = hit.t ? rymDateText(new Date(hit.t).toISOString()) : '';
   tlStatus(side, `Rate Your Music has ${hit.tracks.length} track${hit.tracks.length === 1 ? '' : 's'}${total ? ' \u00b7 ' + total : ''}${rated ? `, with ratings for ${rated}` : ''}${when ? ' (saved ' + escapeHtml(when) + ')' : ''}. <button type="button" class="chip-btn" data-tl-use>Use this list</button> <button type="button" class="chip-btn" data-tl-dismiss>Dismiss</button>`);
 }
 // RYM's own rating of a track fills in where the track has none (never over one you typed); then the deck's bold-the-best applies to it as it does to typed ones
 async function tlApplyTrackRatings(item, rows, quiet) {
-  const todo = (rows || []).filter(r => r.trackNumber && (r.rymRating > 0 || rymSongUrl(r.rymLink)));
+  // Which songs RYM prints in bold: a list that marks some (add-on 1.16.0 on) says it of every song on it, so one no longer bold loses the mark; a list
+  // that marks none (an older add-on, or a release with no bold songs) changes nothing.
+  const boldKnown = (rows || []).some(r => r.rymBold === true || r.rymBoldKnown);          // (rymBoldKnown: rows taken from a list that did mark some)
+  const todo = (rows || []).filter(r => r.trackNumber && (r.rymRating > 0 || rymSongUrl(r.rymLink) || (boldKnown && typeof r.rymBold === 'boolean')));
   if (!todo.length || !item) return 0;
-  item.trackData = item.trackData || {}; let n = 0, v = 0, l = 0;
+  item.trackData = item.trackData || {}; let n = 0, v = 0, l = 0, b = 0;
   todo.forEach(r => {
     const td = item.trackData[r.trackNumber] || (item.trackData[r.trackNumber] = {}), votes = rymVotesNum(r.rymVotes), link = rymSongUrl(r.rymLink);
+    if (boldKnown && typeof r.rymBold === 'boolean' && r.rymBold !== !!td.rymBold) { if (r.rymBold) td.rymBold = true; else delete td.rymBold; b++; }
     if (link && !String(td.rymLink || '').trim()) { td.rymLink = link; l++; }          // the track's own RYM page, where it has none
     if (!(r.rymRating > 0)) return;
     const fresh = rymNum(r.rymRating), old = Number(td.rymRating) || 0;
@@ -329,8 +333,8 @@ async function tlApplyTrackRatings(item, rows, quiet) {
     else if ((td.rymFrom === 'rym' || rounded) && (Math.abs(old - fresh) >= 0.005 || (votes && td.rymVotes !== votes))) { td.rymRating = fresh; if (votes) td.rymVotes = votes; td.rymFrom = 'rym'; v++; }
     else if (votes && Math.abs(old - fresh) < 0.005 && td.rymVotes !== votes) { td.rymVotes = votes; v++; }          // the same rating: how many it rests on is a fact that is kept up to date
   });
-  if (!n && !v && !l) return 0;
-  try { await postUpdate({ row: item.row, trackData: JSON.stringify(item.trackData) }); if (!quiet) flashGlobalToast(n + v ? `Added Rate Your Music ratings to ${n + v} track${n + v === 1 ? '' : 's'}${l ? ` and links to ${l}` : ''}.` : `Added Rate Your Music links to ${l} track${l === 1 ? '' : 's'}.`); return n + v + l; }
+  if (!n && !v && !l && !b) return 0;
+  try { await postUpdate({ row: item.row, trackData: JSON.stringify(item.trackData) }); if (!quiet) flashGlobalToast(n + v ? `Added Rate Your Music ratings to ${n + v} track${n + v === 1 ? '' : 's'}${l ? ` and links to ${l}` : ''}.` : l ? `Added Rate Your Music links to ${l} track${l === 1 ? '' : 's'}.` : `Marked the songs Rate Your Music prints in bold.`); if (typeof rymRefreshViews === 'function' && b) rymRefreshViews(); return n + v + l + b; }
   catch (err) { if (!quiet) flashGlobalToast('Couldn\u2019t save the track ratings \u2014 try again.'); return 0; }
 }
 // ---- releases sent from RateYourMusic pages by the browser add-on ("Send to CRATE") ----
@@ -653,7 +657,7 @@ function rymCleanOutbox(list) {                                  // untrusted: o
       artist: rymTidyName(str(r && r.artist, 200).trim()), title: rymTidyName(str(r && r.title, 200).trim()), type: TYPES.includes(r && r.type) ? r.type : 'Album', releaseDate: /^\d{4}(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?)?$/.test(r && r.releaseDate) ? r.releaseDate : '',
       genre: rymGenreStr(r && r.genre), secondaryGenre: rymGenreStr(r && r.secondaryGenre), label: str(r && r.label, 200).trim(), catalog: /^CRT-\d+$/i.test(str(r && r.catalog, 100).trim()) ? '' : str(r && r.catalog, 100).trim(), rymDescriptors: str(r && r.descriptor, 500).trim(), scene: str(r && r.scene, 300).trim(), movement: str(r && r.movement, 300).trim(), recordedDate: /^\d{4}(?:-(?:0[1-9]|1[0-2])(?:-(?:0[1-9]|[12]\d|3[01]))?)?$/.test(str(r && r.recordedDate, 10)) ? str(r && r.recordedDate, 10) : '', location: str(r && r.recordedPlace, 200).replace(/\s+/g, ' ').trim(),          // (an import reads these two as Recorded and Location)
       rymLink: /^https:\/\/rateyourmusic\.com\/release\//.test(str(r && r.rymLink, 300)) ? str(r.rymLink, 300) : '', cover: rymCleanCover(r && r.cover),          // (these two once sat inside the comment above, so every batch arrived without them)
-      tracks: (Array.isArray(r && r.tracks) ? r.tracks : []).slice(0, 200).map((t, i) => ({ n: i + 1, title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), pos: rymPosStr(t && t.pos), s: 'rym', rating: rymNum(t && t.rating), votes: rymNum(t && t.rating) ? rymVotesNum(t && t.votes) : 0, url: rymSongUrl(t && t.url) })).filter(t => t.title), rymRating: rymNum(r && r.rymRating), rymVotes: Math.max(0, Math.round(Number(r && r.rymVotes) || 0)) })).filter(r => r.artist && r.title).slice(0, 300) })).filter(b => b.id && b.releases.length);
+      tracks: (Array.isArray(r && r.tracks) ? r.tracks : []).slice(0, 200).map((t, i) => ({ n: i + 1, title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), pos: rymPosStr(t && t.pos), bold: !!(t && t.bold === true), s: 'rym', rating: rymNum(t && t.rating), votes: rymNum(t && t.rating) ? rymVotesNum(t && t.votes) : 0, url: rymSongUrl(t && t.url) })).filter(t => t.title), rymRating: rymNum(r && r.rymRating), rymVotes: Math.max(0, Math.round(Number(r && r.rymVotes) || 0)) })).filter(r => r.artist && r.title).slice(0, 300) })).filter(b => b.id && b.releases.length);
 }
 function rymOutboxArrived(batches) {
   rymOutState.batches = batches; rymOutState.present = true; rymQIngestAll(); rymAutoImport(); renderRymInbox();          // (the import first: what it takes isn't shown as waiting for you)
@@ -789,7 +793,7 @@ function jobsCollect() {
   if (state.rymQueueMode) {
     const c = rymQCounts();
     if (c.review) {
-      const kinds = [...new Set(rymQ.entries.flatMap(e => e.rest.map(p => p.key === 'trackStats' ? 'track ratings' : p.key === 'trackLinks' ? 'track links' : p.key === 'tracks' ? 'tracklists' : String(p.label || p.key).toLowerCase())))].slice(0, 4);
+      const kinds = [...new Set(rymQ.entries.flatMap(e => e.rest.map(p => p.key === 'trackStats' ? 'track ratings' : p.key === 'trackLinks' ? 'track links' : p.key === 'trackBold' ? 'bold songs' : p.key === 'tracks' ? 'tracklists' : String(p.label || p.key).toLowerCase())))].slice(0, 4);
       need.push({ cat: 'rym', icon: 'list', title: `${jobsPl(c.review, 'update')} ready to review`, detail: `${kinds.length ? kinds.join(', ').replace(/^./, x => x.toUpperCase()) + ' \u00b7 ' : ''}from the RYM run`,
         acts: [{ label: 'Review', fn: rymQOpen, opens: true }, rymQTicked().length ? { label: 'Apply all', fn: rymQApplyTicked, primary: true } : null] });
     }
@@ -985,7 +989,7 @@ function rymUpdatePlan(item, rel, oldRows, minNext) {
   const nt = (rel.tracks || []).filter(t => t && t.title);
   if (nt.length >= 2) {
     const old = (oldRows || []).filter(r => r && r.title);
-    const asg = tlAssignNumbers(old, nt.map(t => ({ title: t.title, durationMs: t.durationMs || 0, section: t.section || '', pos: t.pos || '', s: 'rym', rymRating: t.rating || 0, rymVotes: t.votes || 0, rymLink: t.url || '' })), minNext);
+    const asg = tlAssignNumbers(old, nt.map(t => ({ title: t.title, durationMs: t.durationMs || 0, section: t.section || '', pos: t.pos || '', s: 'rym', rymRating: t.rating || 0, rymVotes: t.votes || 0, rymLink: t.url || '', rymBold: !!t.bold })), minNext);
     const ok = old.map(r => tlKey(r.title)).join('|'), nk = nt.map(t => tlKey(t.title)).join('|');
     let kind = null;
     const numTitles = old.length >= 3 && old.filter(r => /^\d{1,3}(?:[.,]\d{1,2})?[kKmM]?$/.test(String(r.title).trim())).length / old.length >= 0.5;          // most titles are numbers ("6k", "5k": a count read as a title by add-on 1.12.0/1.12.1): not a tracklist of yours
@@ -1011,6 +1015,12 @@ function rymUpdatePlan(item, rel, oldRows, minNext) {
         else if ((Math.abs(td.rymRating - t.rating) >= 0.005 && ((Math.abs(td.rymRating * 10 - Math.round(td.rymRating * 10)) < 1e-6 && Math.abs(td.rymRating - t.rating) <= 0.051) || td.rymFrom === 'rym')) || (v && Math.abs(td.rymRating - t.rating) < 0.005 && td.rymVotes !== v)) { rows2.push({ trackNumber: o.trackNumber, rymRating: t.rating, rymVotes: v || td.rymVotes || 0 }); kept++; }          // the exact figures (4.56 from 4,733 ratings, add-on 1.12.6) where the rounded ones (4.6, 5k) were saved, or a count that changed
       });
       if (links.length) add('trackLinks', 'RYM track links', '', `${links.length} track${links.length === 1 ? '' : 's'}’${links.length === 1 ? 's' : ''} own Rate Your Music page${links.length === 1 ? '' : 's'}`, 'fill', { rows: links });
+      if (rel.tracks.some(t => t && t.bold === true)) {          // which songs RYM prints in bold (add-on 1.16.0 on), matched by title like the ratings
+        const usedB = new Set(), rowsB = [];
+        (rel.tracks || []).filter(t => t && t.title).forEach(t => { const k = tlKey(t.title).replace(/ /g, ''), o = old2.find(x => !usedB.has(x.trackNumber) && tlKey(x.title).replace(/ /g, '') === k); if (!o) return; usedB.add(o.trackNumber); if (!!t.bold !== !!((item.trackData || {})[o.trackNumber] || {}).rymBold) rowsB.push({ trackNumber: o.trackNumber, rymRating: 0, rymBold: !!t.bold, rymBoldKnown: true }); });
+        const nb = rel.tracks.filter(t => t && t.bold === true).length;
+        if (rowsB.length) add('trackBold', 'RYM bold songs', '', `${nb} song${nb === 1 ? '' : 's'} Rate Your Music prints in bold`, 'fill', { rows: rowsB });
+      }
       if (rows2.length) add('trackStats', 'RYM track ratings', kept ? `${kept} already rated (rounded, or an older count)` : '', `${rows2.length} track${rows2.length === 1 ? '' : 's'} with how many people rated them`, kept === rows2.length ? 'refine' : 'fill', { rows: rows2 });
     }
   }
@@ -1050,8 +1060,8 @@ async function rymWritePicks(item, picks, quiet, src) {            // write exac
   if (Object.keys(payload).length > 2) { await postUpdate(payload); picks.forEach(p => { if (map[p.key]) item[map[p.key][1]] = p.proposed; }); if (coverUrl) item.cover = coverUrl; if (nextLog) { item.rymUpdateLog = nextLog; if (firstAt) item.rymUpdated = firstAt; rymLogLocalSet(item); } }
   const tr = picks.find(p => p.key === 'tracks');
   if (tr) { await saveManualTracklist(item, tr.rows, quiet); await tlApplyTrackRatings(item, tr.rows); }
-  const ts = picks.find(p => p.key === 'trackStats'), tk = picks.find(p => p.key === 'trackLinks');
-  if (ts || tk) await tlApplyTrackRatings(item, [].concat(ts ? ts.rows : [], tk ? tk.rows : []), true);          // numbers kept by title; RYM's track ratings where a track has none, or where the saved one is RYM's own (or a rounded reading of it)
+  const ts = picks.find(p => p.key === 'trackStats'), tk = picks.find(p => p.key === 'trackLinks'), tb = picks.find(p => p.key === 'trackBold');
+  if (ts || tk || tb) await tlApplyTrackRatings(item, [].concat(ts ? ts.rows : [], tk ? tk.rows : [], tb ? tb.rows : []), true);          // numbers kept by title; RYM's track ratings where a track has none, or where the saved one is RYM's own (or a rounded reading of it)
   return { coverMissed };
 }
 async function rymBestCover(url) {                                  // the largest size of this picture that really loads from here, or '' if none does (all sizes asked at once: a host that refuses costs one wait, not five)
@@ -1119,7 +1129,7 @@ async function rymFillTracklists() {
   flashGlobalToast(`Filling ${cands.length} tracklist${cands.length === 1 ? '' : 's'}\u2026`);
   let ok = 0, failed = 0;
   for (const c of cands) {
-    try { const rows = tlAssignNumbers([], c.e.tracks.map(t => ({ title: t.title, durationMs: t.durationMs || 0, section: t.section || '', pos: t.pos || '', s: 'rym', rymRating: t.rating || 0, rymVotes: t.votes || 0, rymLink: t.url || '' })), tlMinNext(c.it)).rows; await saveManualTracklist(c.it, rows, true); await tlApplyTrackRatings(c.it, rows); ok++; }
+    try { const rows = tlAssignNumbers([], c.e.tracks.map(t => ({ title: t.title, durationMs: t.durationMs || 0, section: t.section || '', pos: t.pos || '', s: 'rym', rymRating: t.rating || 0, rymVotes: t.votes || 0, rymLink: t.url || '', rymBold: !!t.bold })), tlMinNext(c.it)).rows; await saveManualTracklist(c.it, rows, true); await tlApplyTrackRatings(c.it, rows); ok++; }
     catch (e) { failed++; }
   }
   try { await fetchCatalog({ quiet: true }); } catch (e) { /* the sheet is updated; the list refreshes next time */ }

@@ -5,7 +5,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.85.7';
+const APP_VERSION = '1.85.8';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -330,7 +330,9 @@ function rymChipHtml(item) {
   return `<span class="rym-chip" title="Rate Your Music average${v}${item.rymSrc === 'm' ? ', typed by you' : ''}${was}">RYM ${item.rymRating.toFixed(2)}</span>`;
 }
 function rymBoldClass(item) { return item && rymIsBoldRank(item.rymRank, state.rymBoldRank, state.rymBold) ? ' rym-bold' : ''; }
-function rymBoldTrackClass(t) { return ''; }          // RYM bolds a release by its rank; there is no such mark on a track, so none is made up
+// A song Rate Your Music prints in bold on its release's page (the add-on reads it, from version 1.16.0): kept per track as trackData[n].rymBold.
+function rymTrackIsBold(item, t) { const td = item && item.trackData && t && item.trackData[t.trackNumber]; return !!(td && td.rymBold); }
+function rymBoldTrackClass(t, item) { return state.rymBold && rymTrackIsBold(item, t) ? ' rym-bold' : ''; }
 // Save one release's RYM rating. src: 'm' typed, 'a' from the add-on. Returns { ok, localOnly }.
 async function rymSaveItem(item, rating, votes, src) {
   rating = rymNum(rating); votes = rating ? rymVotesNum(votes) : 0;
@@ -775,7 +777,7 @@ const FIELD_OPTIONS = {
 // In the Tracks table, "title" would otherwise read as "Title" right next to
 // the fixed Track-name column — relabel it "Album" for clarity there. The song's own Rate Your Music numbers (the ones in Edit track
 // properties) come first and say "Song"; the release's say "Release": both used to read "RYM rating", and the release's was picked by mistake.
-const TRACK_COLUMN_LABELS = Object.assign({ none: FIELD_OPTIONS.none, rymTrackRating: 'Song rating (RYM)', rymTrackVotes: 'Song rating count (RYM)', rymTrackWR: 'Song adjusted rating (RYM)', rymTrackPop: 'Song popularity (RYM)', rymTrackStand: 'Song vs album (RYM)' },
+const TRACK_COLUMN_LABELS = Object.assign({ none: FIELD_OPTIONS.none, rymTrackRating: 'Song rating (RYM)', rymTrackVotes: 'Song rating count (RYM)', rymTrackWR: 'Song adjusted rating (RYM)', rymTrackPop: 'Song popularity (RYM)', rymTrackStand: 'Song vs album (RYM)', rymTrackBold: 'Bold song (RYM)' },
   FIELD_OPTIONS, { title: 'Album', rymRating: 'Release rating (RYM)', rymVotes: 'Release rating count (RYM)', rymPop: 'Release popularity (RYM)' });
 
 // Field choices for the right panel's Last.fm History rows — mostly

@@ -44,3 +44,12 @@ suite('RYM add-on: track positions', () => {
     eq(C.cleanRelease({ artist: 'A', title: 'B', type: 'Single', tracks: [{ title: 'x', pos: 'A' }, { title: 'y', pos: '<b>' }] }).tracks.map(t => t.pos || ''), ['A', '']);
   });
 });
+
+suite('RYM add-on: bold songs', () => {
+  test('a song drawn heavier than the others is bold; a release drawn all one way marks none', async () => {
+    const C = await addon(), b = (ws) => C.markBold(ws.map((w, i) => ({ title: 't' + i, w }))).map(t => !!t.bold);
+    eq([b([400, 700, 400, 700]), b([700, 700]), b([400, 400]), b([0, 0])], [[false, true, false, true], [false, false], [false, false], [false, false]]);
+    eq(C.markBold([{ title: 'a', w: 700 }, { title: 'b', w: 400 }]).map(t => 'w' in t), [false, false]);
+    eq(C.cleanTracks([{ title: 'a', bold: true }, { title: 'b', bold: 'yes' }]).map(t => !!t.bold), [true, false]);
+  });
+});

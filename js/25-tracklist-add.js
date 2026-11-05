@@ -119,7 +119,7 @@ function renderTracklistBody(item, tracks) {
              ${(!manual || t.spotifyLink) ? `<button type="button" class="track-play-btn" data-track-name="${escapeHtml(t.trackName || '')}" title="Play on Spotify" aria-label="Play ${escapeHtml(t.trackName || '')} on Spotify">\u25b6</button>` : ''}
              ${t.youtubeLink ? `<button type="button" class="track-play-yt-btn" data-youtube-link="${escapeHtml(t.youtubeLink)}" data-track-name="${escapeHtml(t.trackName || '')}" title="Play on YouTube" aria-label="Play ${escapeHtml(t.trackName || '')} on YouTube">▶ YT</button>` : ''}
              ${t.soundcloudLink ? `<a class="track-play-sc-btn" href="${escapeHtml(t.soundcloudLink)}" target="_blank" rel="noopener noreferrer" title="Open on SoundCloud" aria-label="Open ${escapeHtml(t.trackName || '')} on SoundCloud">SC ↗</a>` : ''}
-             ${songFlagHtml(item, t)}<span class="track-name${rymBoldTrackClass(t)}">${escapeHtml(t.trackName || '')}</span>
+             ${songFlagHtml(item, t)}<span class="track-name${rymBoldTrackClass(t, item)}">${escapeHtml(t.trackName || '')}</span>
              ${scrobbleCount > 0 ? `<span class="track-scrobble-count" title="Last.fm plays">${scrobbleCount} play${scrobbleCount === 1 ? '' : 's'}</span>` : ''}
              ${genre ? `<span class="track-genre-preview" title="Track genre">${escapeHtml(genre)}</span>` : ''}
              ${note ? `<span class="track-note-preview">${escapeHtml(note)}</span>` : ''}

@@ -1079,7 +1079,11 @@ html, body {
 
   /* Tracks / Album + Tracks main views */
   .track-view { display: flex; flex-direction: column; gap: 2px; max-width: 720px; }
-  .track-view-table { max-width: none; overflow-x: auto; }
+  .track-view-table { max-width: none; overflow: auto; flex: 1; min-height: 0; padding-bottom: 40px; box-sizing: border-box; }
+  /* The Tracks view scrolls in its own box, both ways, so its column header (sticky) stays in sight as you scroll down: the page around it
+     no longer scrolls (a box that scrolls sideways can't also let a header stick to a page that scrolls up and down). */
+  .grid-wrap:has(> #gridContainer > .track-view-table) { overflow: hidden; display: flex; flex-direction: column; padding-bottom: 0; }
+  .grid-wrap:has(> #gridContainer > .track-view-table) > #gridContainer { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .track-view-table .track-table-header, .track-view-table .main-track-row { min-width: max-content; }          /* wider than the pane: the row (and its hover) runs the full width as it scrolls */
   .track-load-row-group { cursor: pointer; }
   .track-load-row-group:hover .main-track-row { background: var(--bg-elevated); }
@@ -2078,7 +2082,7 @@ html, body {
   .rym-chip { display: inline-block; margin-left: 6px; padding: 0 6px; border: 1px solid var(--line); border-radius: 9px; font: 600 10px/1.6 system-ui, sans-serif; letter-spacing: 0; color: var(--text-dim); vertical-align: middle; white-space: nowrap; }
   .rym-bold { font-weight: 900 !important; }
   .card-title.rym-bold { color: #F0C26A !important; }
-  .trk-title.rym-bold, .qp-title.rym-bold { color: var(--text); }
+  .trk-title.rym-bold, .qp-title.rym-bold, .mt-title.rym-bold { color: var(--text); }
   .deck-rym-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
   .deck-rym-label { font: 700 11px/1 system-ui, sans-serif; color: var(--text-dim); letter-spacing: .06em; }
   .deck-rym-row input { width: 62px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; font: inherit; font-size: 12px; box-sizing: border-box; }
