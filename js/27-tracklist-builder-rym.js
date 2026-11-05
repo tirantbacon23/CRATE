@@ -477,6 +477,7 @@ async function rymQIngest(b) {
   e.applied = made.map(rymQChip); e.rest = rest; e.coverMissed = !!wr.coverMissed; e.cover1 = item.cover || ''; e.note = '';
   e.state = rest.length ? 'review' : made.length ? 'applied' : 'same';
   if (!made.length && !item.rymUpdated) { try { await rymMarkUpdated(item); } catch (er) { /* the flag is set next time */ } }          // read, and nothing needed changing: it has still had its first update
+  if (typeof bmTracklistArrived === 'function') bmTracklistArrived(item);          // Match songs waiting for its tracklist: matched now, or "No tracklist" if RYM had none
   rest.forEach(p => { const k = e.key + '|' + p.key; if (!rymQ.ticks.has(k)) rymQ.ticks.set(k, !!state.rymTickDiffs); });          // (ticked from the start unless you turned that off: nothing is applied until you press Apply)
   if (!rest.length) rymBatchDone([b.id]);
   if (made.length) rymRefreshViews();

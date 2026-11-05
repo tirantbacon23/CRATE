@@ -1099,6 +1099,7 @@ async function saveManualTracklist(item, rows, quiet) {
   item.hasManualTracklist = true;
   delete state.trackCache[artKey(item)];
   refreshLinkFlagsFor(item);   // songs were added/removed: the release may now have (or no longer have) unlinked ones
+  if (manualTracks.length && typeof bmTracklistArrived === 'function') bmTracklistArrived(item);          // Match songs may be waiting for it
   if (activeItem === item) await loadTracklist(item);
   if (!quiet) flashGlobalToast('Tracklist updated');
 }

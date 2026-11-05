@@ -636,6 +636,22 @@ async function bmCheckLinks(kind, songs) {
   return out;
 }
 
+// A release with no tracklist yet that will get one from its first Rate Your Music update (just added from RYM, its update still to come) isn't
+// "No tracklist": it waits for that update (queued here if it isn't already), and is matched by itself once the tracklist is saved (bmTracklistArrived).
+const BM_TL_WAIT = 'Waiting for its tracklist from RYM', bmTlQ = { items: [], timer: 0 };
+function bmTlFromRym(item) {
+  if (!item || item.rymUpdated || !rymUpdateUrl(item) || !rymOutState.present) return false;
+  if (!bmTlQ.items.includes(item)) bmTlQ.items.push(item);
+  clearTimeout(bmTlQ.timer); bmTlQ.timer = setTimeout(() => { const l = bmTlQ.items.splice(0); if (l.length) rymFetchUpdates(l, { queued: true }); }, 1500);          // (together: one run for all of them)
+  return true;
+}
+function bmTracklistArrived(item) {                                  // saveManualTracklist calls this: a release waiting for its tracklist is matched now
+  if (!bm || !bm.started) return;
+  const rels = bm.rels.filter(r => r.item === item || String(r.row) === String(item.row));
+  let again = false;
+  rels.forEach(rel => ['spotify', 'youtube'].forEach(k => { if (rel.err[k] === BM_TL_WAIT) { rel.st[k] = 'wait'; delete rel.err[k]; rel.songs = null; rel.songsP = null; again = true; } }));
+  if (again) { bmKickLanes(); bmRedraw(); }
+}
 async function bmRunLane(kind) {
   const b = bm, lane = b.lanes[kind], run = lane.run = (lane.run || 0) + 1;
   lane.s = 'work'; lane.msg = ''; lane.halt = false;
@@ -658,7 +674,7 @@ async function bmRunLane(kind) {
       try {
         const songs = await bmSongs(rel);
         if (bm !== b) return;
-        if (!songs.length) { rel.st[kind] = 'skip'; rel.err[kind] = 'No tracklist'; bmRedraw(); continue; }
+        if (!songs.length) { rel.st[kind] = 'skip'; rel.err[kind] = bmTlFromRym(rel.item) ? BM_TL_WAIT : 'No tracklist'; bmRedraw(); continue; }
         let relinkOnly = false;
         if (b.songsMode === 'check') {
           const linked = songs.filter(s => smHas(s, kind));
@@ -712,7 +728,8 @@ function bmCheckDone() {
       if (bm !== b || b.running) return;                            // (more joined it meanwhile: this is said when they are done)
       const left = bmPickTotals().n, n = b.saved, r = b.rels.length;
       jobsDone('match', `New releases matched: ${bmPl(r, 'release')}${n ? `, ${bmPl(n, 'link')} saved` : ''}${left ? `, ${left} to look at` : ''}`);
-      if (b.hidden && !left) { bmClose(true); flashGlobalToast(n ? `Matched ${bmPl(r, 'new release')}: saved ${bmPl(n, 'song link')}.` : `Matched ${bmPl(r, 'new release')}: nothing confident enough to save.`); }          // ...nothing left for you: it closes itself
+      const tlWait = b.rels.some(r => Object.values(r.err || {}).includes(BM_TL_WAIT));          // (some still wait for their tracklist: the run stays, they are matched when it comes)
+      if (b.hidden && !left && !tlWait) { bmClose(true); flashGlobalToast(n ? `Matched ${bmPl(r, 'new release')}: saved ${bmPl(n, 'song link')}.` : `Matched ${bmPl(r, 'new release')}: nothing confident enough to save.`); }          // ...nothing left for you: it closes itself
       else if (b.hidden) flashGlobalToast(`Matched ${bmPl(r, 'new release')}: saved ${bmPl(n, 'song link')}; ${bmPl(left, 'match', 'matches')} need a look. Click to see them.`, { onClick: bmShow });
       jobsRefresh();
     });
@@ -844,6 +861,7 @@ function bmRelStatus(rel) {
   if (!rel.include) return { key: 'skip', label: 'Skipped', tone: 'wait' };
   if (kinds.some(k => rel.st[k] === 'work')) return { key: 'work', label: 'Working', tone: 'work' };
   if (kinds.every(k => rel.st[k] === 'wait' || (rel.st[k] === 'skip' && rel.err[k] === 'Not run'))) { const pos = bm.rels.filter(r => r.include && kinds.some(k => r.st[k] === 'wait')).indexOf(rel) + 1; return { key: 'wait', label: pos ? `Queued #${pos}` : 'Queued', tone: 'wait' }; }
+  if (kinds.some(k => rel.err[k] === BM_TL_WAIT)) return { key: 'wait', label: 'Tracklist from RYM first', tone: 'wait' };
   if (kinds.some(k => rel.err[k] === 'No tracklist')) return { key: 'problem', label: 'No tracklist', tone: 'look' };
   if (kinds.some(k => rel.st[k] === 'error')) return { key: 'problem', label: 'Problem', tone: 'look' };
   const need = bmNeedCount(rel);

@@ -424,3 +424,16 @@ suite('Fill blanks from other sources', () => {
     finally { st.afOn = was[0]; af.pending.splice(0, af.pending.length, ...was[1]); }
   });
 });
+
+suite('Match songs and a tracklist still to come from RYM', () => {
+  test('a release whose first RYM update is still to come waits for its tracklist instead of being "No tracklist"', () => {
+    const st = app('state'), out = app('rymOutState'), q = app('bmTlQ'), it = st.raw[0], was = [out.present, it.rymUpdated, it.rymLink];
+    try {
+      out.present = true; it.rymUpdated = ''; it.rymLink = 'https://rateyourmusic.com/release/single/los-romeos/mi-vida-rosa/';
+      const waits = app('bmTlFromRym')(it);
+      it.rymUpdated = '2026-11-05T00:00:00Z'; const after = app('bmTlFromRym')(it);
+      out.present = false; it.rymUpdated = ''; const noAddon = app('bmTlFromRym')(it);
+      eq([waits, after, noAddon], [true, false, false]);
+    } finally { clearTimeout(q.timer); q.items.length = 0; [out.present, it.rymUpdated, it.rymLink] = was; }
+  });
+});

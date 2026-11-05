@@ -17,7 +17,19 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.85.1
+  CURRENT_VERSION: 1.85.2
+
+  1.85.2 — 2026-11-05 — Match songs: a release whose tracklist is still to come from Rate Your Music waits for it, instead of "No tracklist". Page only.
+          Releases just added from Rate Your Music get their tracklist
+          with their first RYM update, a few minutes later. A Match songs
+          run that reached them first (the match queue, started by you)
+          marked every one "No tracklist" and moved on. Now such a release
+          says "Tracklist from RYM first", its RYM update is queued if it
+          wasn't already, and it is matched by itself the moment the
+          tracklist is saved. "No tracklist" is left for releases RYM
+          really has none for (said once its update has been read), and
+          for those without a RYM link. A run in the background stays
+          open while releases in it wait for their tracklist.
 
   1.85.1 — 2026-11-05 — Processing has a Pull details tab: every release in the step between its RYM update and Match songs, one row each. Page only.
           Beside RYM in Processing: the release being filled now, the ones
