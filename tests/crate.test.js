@@ -446,3 +446,23 @@ suite('Match releases with no song links', () => {
     eq([f(none, ['spotify', 'youtube']), f(ytOnSong, ['spotify', 'youtube']), f(ytOnSong, ['spotify']), f(spInData, ['youtube']), f(spInData, ['spotify'])], [true, false, true, true, false]);
   });
 });
+
+suite('Match songs: narrowing the releases down', () => {
+  test('type, years, date added, tracklist, ratings and words each leave out what does not fit', () => {
+    const pass = app('bmRfPass'), f0 = app('bmRf0'), f = (o) => Object.assign(f0(), o);
+    const now = new Date().toISOString(), old = '2019-01-01T00:00:00Z';
+    const a = { artist: 'Slowdive', title: 'Souvlaki', type: 'Album', releaseDate: '1993-05-17', genre: 'Shoegaze', dateAdded: now, rating: 4.5, rymRating: 3.9, manualTracks: [{ title: 'x' }] };
+    const b = { artist: 'Ride', title: 'Twisterella', type: 'EP', releaseDate: '1992', genre: 'Dream Pop', dateAdded: old, rating: 0, rymRating: 3.2 };
+    const both = (o) => [pass(a, f(o)), pass(b, f(o))];
+    eq(both({}), [true, true]);
+    eq(both({ types: ['EP'] }), [false, true]);
+    eq(both({ from: '1993' }), [true, false]);
+    eq(both({ to: '1992' }), [false, true]);
+    eq(both({ added: '30' }), [true, false]);
+    eq(both({ added: 'old' }), [false, true]);
+    eq(both({ rated: 'yes' }), [true, false]);
+    eq(both({ rym: '3.5' }), [true, false]);
+    eq(both({ text: 'dream ride' }), [false, true]);
+    eq(both({ text: 'SHOEGAZE' }), [true, false]);
+  });
+});

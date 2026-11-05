@@ -17,7 +17,17 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.85.4
+  CURRENT_VERSION: 1.85.5
+
+  1.85.5 — 2026-11-05 — Match songs: narrow down which releases are matched. Page only.
+          The Start screen has a new section, "Narrow it down", applied on
+          top of "Which releases": release types (Album, EP, Single... with
+          how many of each), released from and to a year, when it was added
+          to CRATE (the last 7 or 30 days, 3 months, a year, or longer ago),
+          whether it has a tracklist yet, whether you rated it, a minimum
+          RYM rating, and words found in the artist, title, genre or label.
+          It says how many releases these leave out, and Clear sets them
+          back. The Start button counts only what is left.
 
   1.85.4 — 2026-11-05 — "Match releases with no song links…" brings in your whole catalogue even while a run is open. Page only.
           With a Match songs run already open (the automatic one for the

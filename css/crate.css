@@ -2310,6 +2310,17 @@ html, body {
   .bm-opt-t { flex: 1; min-width: 0; font-size: 14px; color: var(--text); } .bm-opt-t small { display: block; margin-top: 2px; font-size: 12px; color: var(--text-dim); }
   .bm-sub { font-size: 13px; color: var(--text); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .bm-health { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 8px; }
+  .bm-rf .bm-label { display: flex; align-items: center; gap: 10px; }
+  .bm-rf-types { display: flex; flex-wrap: wrap; gap: 6px; }
+  .bm-rf-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 16px; font-size: 13px; color: var(--text); cursor: pointer; }
+  .bm-rf-chip.on { border-color: var(--accent); background: var(--bg-card); }
+  .bm-rf-chip input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+  .bm-rf-chip:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .bm-rf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px 16px; }
+  .bm-rf-f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-dim); min-width: 0; }
+  .bm-rf-text { grid-column: 1 / -1; }
+  .bm-rf-f select, .bm-rf-f input { background: var(--bg-card); color: var(--text); border: 1px solid var(--line); border-radius: 6px; height: 32px; padding: 0 8px; font-size: 13px; box-sizing: border-box; min-width: 0; }
+  .bm-rf-yrs { display: flex; align-items: center; gap: 6px; } .bm-rf-yrs input { width: 0; flex: 1; }
   .bm-hrow { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font-size: 14px; color: var(--text); } .bm-hrow + .bm-hrow { border-top: 1px solid var(--line); }
   .bm-ht { flex: 1; min-width: 0; }
   .bm-hi { width: 20px; height: 20px; flex: none; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font: 500 12px/1 'IBM Plex Mono', monospace; color: var(--text-dim); border: 1px solid var(--line); }

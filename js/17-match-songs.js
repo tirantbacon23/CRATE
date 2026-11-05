@@ -446,7 +446,7 @@ function bmOpen(opts) {
   bm = { view: 'start', started: false, hidden: false, one: !!opts.one,
     sets: { ticked, view: opts.view || [], genre: opts.genre || null },
     scope: opts.nolinks ? 'nolinks' : opts.queue ? 'queue' : opts.genre ? 'genre' : ticked ? 'ticked' : 'view',
-    songsMode: opts.check ? 'check' : 'gaps', skipLinked: true, rels: [], svc: { spotify: true, youtube: ytUseAddon() || !!loadYoutubeApiKey() }, show: { spotify: true, youtube: true },
+    songsMode: opts.check ? 'check' : 'gaps', skipLinked: true, rf: bmRf0(), rels: [], svc: { spotify: true, youtube: ytUseAddon() || !!loadYoutubeApiKey() }, show: { spotify: true, youtube: true },
     ytSongs: ytUseAddon(), mode: 'review', filter: 'all', qfilter: 'all', qsearch: '', qsort: 'look', qsel: new Set(), sel: '', focus: null, open: null, why: null, pasteFor: null, diffOpen: false, anaScope: 'run',
     par: bmParLoad(), paused: false, stopped: false, running: false, lanes: { spotify: { s: 'idle', msg: '' }, youtube: { s: 'idle', msg: '' } }, saved: 0, chain: Promise.resolve(), histId: null,
     health: { spotify: 'checking', test: 'idle' }, savedRun: null, label: '' };
@@ -510,11 +510,48 @@ const bmHealthBad = () => !!(bm && (bm.health.spotify === 'off' && bm.svc.spotif
 
 // ----- what gets matched -----
 function bmScopeItems() {
-  const s = bm.sets, src = bm.scope === 'ticked' ? (s.ticked || []) : bm.scope === 'genre' ? ((s.genre && s.genre.items) || []) : bm.scope === 'queue' ? mqItems() : bm.scope === 'nolinks' ? bmNoLinksItems() : (s.view || []);
-  if (!bm.skipLinked || bm.songsMode === 'check') return { items: src, skipped: 0 };
-  const kinds = bmKinds(); if (!kinds.length) return { items: src, skipped: 0 };
+  const s = bm.sets, all = bm.scope === 'ticked' ? (s.ticked || []) : bm.scope === 'genre' ? ((s.genre && s.genre.items) || []) : bm.scope === 'queue' ? mqItems() : bm.scope === 'nolinks' ? bmNoLinksItems() : (s.view || []);
+  const src = bm.rf ? all.filter(it => bmRfPass(it, bm.rf)) : all, cut = all.length - src.length;
+  if (!bm.skipLinked || bm.songsMode === 'check') return { items: src, skipped: 0, cut, all };
+  const kinds = bmKinds(); if (!kinds.length) return { items: src, skipped: 0, cut, all };
   const items = src.filter(it => !bmFullyLinked(it, kinds));
-  return { items, skipped: src.length - items.length };
+  return { items, skipped: src.length - items.length, cut, all };
+}
+// ----- narrowing the releases down (Start screen → "Narrow it down"): on top of "Which releases" -----
+const BM_RF_ADDED = [['', 'Any time'], ['7', 'In the last 7 days'], ['30', 'In the last 30 days'], ['90', 'In the last 3 months'], ['365', 'In the last year'], ['old', 'More than a year ago']];
+const bmRf0 = () => ({ types: [], from: '', to: '', added: '', text: '', tl: '', rated: '', rym: '' });
+const bmRfOn = (f) => !!(f && (f.types.length || f.from || f.to || f.added || f.text.trim() || f.tl || f.rated || f.rym));
+const bmRfYear = (it) => { const m = String(it.releaseDate || '').match(/^(\d{4})/); return m ? +m[1] : 0; };
+const bmRfType = (it) => String(it.type || '').trim() || 'Unknown';
+function bmRfPass(it, f) {
+  if (f.types.length && !f.types.includes(bmRfType(it))) return false;
+  const y = bmRfYear(it);
+  if (f.from && !(y && y >= +f.from)) return false;
+  if (f.to && !(y && y <= +f.to)) return false;
+  if (f.added) { const t = dateVal(it.dateAdded), cut = Date.now() - (f.added === 'old' ? 365 : +f.added) * 864e5; if (f.added === 'old' ? !(t > -Infinity && t < cut) : !(t >= cut)) return false; }
+  const noTl = isManualAlbum(it) && !(it.manualTracks || []).length;
+  if (f.tl === 'with' && noTl) return false; if (f.tl === 'without' && !noTl) return false;
+  if (f.rated === 'yes' && !(Number(it.rating) > 0)) return false; if (f.rated === 'no' && Number(it.rating) > 0) return false;
+  if (f.rym && !(Number(it.rymRating) >= +f.rym)) return false;
+  const q = smFold(f.text || '').trim();
+  if (q && !q.split(/\s+/).every(w => smFold([it.artist, it.title, it.genre, it.genre2, it.label].join(' ')).includes(w))) return false;
+  return true;
+}
+function bmRfHtml(all, cut) {
+  const f = bm.rf, counts = new Map(); all.forEach(it => counts.set(bmRfType(it), (counts.get(bmRfType(it)) || 0) + 1));
+  const types = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([t, n]) => `<label class="bm-rf-chip${f.types.includes(t) ? ' on' : ''}"><input type="checkbox" name="bmRfType" value="${escapeHtml(t)}"${f.types.includes(t) ? ' checked' : ''} data-bm="setup">${escapeHtml(t)} <span class="bm-m">${n}</span></label>`).join('');
+  const sel = (id, label, opts, v) => `<label class="bm-rf-f"><span>${label}</span><select id="${id}" data-bm="setup">${opts.map(([k, l]) => `<option value="${k}"${String(v) === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`;
+  const yr = (id, v, ph) => `<input type="number" id="${id}" inputmode="numeric" min="1900" max="2100" placeholder="${ph}" value="${escapeHtml(v)}" data-bm="setup" aria-label="Released ${ph}">`;
+  return `<section class="bm-rf"><div class="bm-label">Narrow it down${bmRfOn(f) ? ` <span class="bm-m">${cut ? `−${cut} by these` : 'none left out'}</span> <button type="button" class="chip-btn" data-bm="rf-clear">Clear</button>` : ''}</div>
+    ${types ? `<div class="bm-rf-types" role="group" aria-label="Release types">${types}</div>` : ''}
+    <div class="bm-rf-grid">
+      <label class="bm-rf-f bm-rf-text"><span>Artist, title, genre or label</span><input type="search" placeholder="e.g. shoegaze" value="${escapeHtml(f.text)}" data-keep="bm-rf-text" data-bm="rf-text"></label>
+      <div class="bm-rf-f"><span>Released</span><span class="bm-rf-yrs">${yr('bmRfFrom', f.from, 'from')}<span class="bm-m">to</span>${yr('bmRfTo', f.to, 'to')}</span></div>
+      ${sel('bmRfAdded', 'Added to CRATE', BM_RF_ADDED, f.added)}
+      ${sel('bmRfTl', 'Tracklist', [['', 'Either'], ['with', 'Has one'], ['without', 'Has none yet']], f.tl)}
+      ${sel('bmRfRated', 'Your rating', [['', 'Either'], ['yes', 'Rated'], ['no', 'Not rated']], f.rated)}
+      ${sel('bmRfRym', 'RYM rating', [['', 'Any'], ['3', '3.00 or more'], ['3.5', '3.50 or more'], ['3.7', '3.70 or more'], ['3.9', '3.90 or more']], f.rym)}
+    </div></section>`;
 }
 function bmNoLinksItems() { const kinds = bmKinds().length ? bmKinds() : ['spotify', 'youtube']; return (state.raw || []).filter(it => it && it.artist && it.title && bmNoLinks(it, kinds)); }
 function bmStart() {
@@ -981,7 +1018,7 @@ function bmHealthHtml() {
 function bmStartHtml() {
   if (!bm.svcTouched && ytUseAddon()) bm.svc.youtube = true;           // the add-on answered after the window opened
   const sets = bm.sets, viaAddon = ytUseAddon(), ytOk = viaAddon || !!loadYoutubeApiKey(), mq = mqAll().length;
-  const { items, skipped } = bmScopeItems(), n = items.length;
+  const { items, skipped, cut, all } = bmScopeItems(), n = items.length;
   const radio = (name, val, on, title, right, disabled) => `<label class="bm-opt${on ? ' on' : ''}${disabled ? ' off' : ''}"><input type="radio" name="${name}" value="${val}"${on ? ' checked' : ''}${disabled ? ' disabled' : ''} data-bm="setup"><span class="bm-opt-t">${title}</span>${right != null ? `<span class="bm-m">${right}</span>` : ''}</label>`;
   const check = (id, on, title, right, disabled) => `<label class="bm-opt${on ? ' on' : ''}${disabled ? ' off' : ''}"><input type="checkbox" id="${id}"${on ? ' checked' : ''}${disabled ? ' disabled' : ''} data-bm="setup"><span class="bm-opt-t">${title}</span>${right != null ? `<span class="bm-m">${right}</span>` : ''}</label>`;
   const scope = (sets.ticked ? radio('bmScope', 'ticked', bm.scope === 'ticked', sets.ticked.length === 1 ? `This release: ${escapeHtml(sets.ticked[0].title)}` : 'The releases you selected', sets.ticked.length) : '')
@@ -1000,6 +1037,7 @@ function bmStartHtml() {
   return `<div class="bm-body bm-start" data-scroll="start">${saved}
     <section><div class="bm-label">Health check</div>${bmHealthHtml()}</section>
     <div class="bm-grid2"><section><div class="bm-label">Which releases</div><div class="bm-opts">${scope}</div></section><section><div class="bm-label">Which songs</div><div class="bm-opts">${songs}</div></section></div>
+    ${bmRfHtml(all, cut)}
     <div class="bm-grid2"><section><div class="bm-label">Services</div><div class="bm-opts">${svc}</div></section>
       <section><div class="bm-label">How</div><div class="bm-opts"><div class="bm-opt"><span class="bm-opt-t">Releases at once</span><span class="bm-sub">Spotify ${par('spotify')} YouTube ${par('youtube')}</span></div>
         ${radio('bmMode', 'review', bm.mode === 'review', 'Let me review everything before it is saved')}${radio('bmMode', 'auto', bm.mode === 'auto', 'Save confident matches as they come; I review the rest')}</div>
@@ -1248,7 +1286,7 @@ function bmRender() {
   const foot = bm.started && ['queue', 'rel', 'links'].includes(bm.view) ? bmFootHtml() : '';
   modal.innerHTML = head + warn + bmTabsHtml() + lanes + body + foot;
   modal.querySelectorAll('[data-scroll]').forEach(e => { if (keep[e.dataset.scroll] != null) e.scrollTop = keep[e.dataset.scroll]; });
-  modal.querySelectorAll('[data-keep]').forEach(e => { if (pasteVals[e.dataset.keep] != null && e.dataset.keep !== 'qsearch') e.value = pasteVals[e.dataset.keep]; });
+  modal.querySelectorAll('[data-keep]').forEach(e => { if (pasteVals[e.dataset.keep] != null && e.dataset.keep !== 'qsearch' && e.dataset.keep !== 'bm-rf-text') e.value = pasteVals[e.dataset.keep]; });
   if (keepKey) { const n = modal.querySelector(`[data-keep="${CSS.escape(keepKey)}"]`); if (n) { n.value = keepVal; n.focus(); if (keepSel) { try { n.setSelectionRange(keepSel[0], keepSel[1]); } catch (e) { /* not a text box */ } } } }
   if (bm.scrollFocus) { bm.scrollFocus = false; const f = modal.querySelector('.bm-song.focus'); if (f) f.scrollIntoView({ block: 'nearest' }); }
   if (bm.started && bm.running && !bm.ticker) bm.ticker = setInterval(() => { if (!bm || !bm.running) { if (bm) { clearInterval(bm.ticker); bm.ticker = 0; } return; } if (!bm.hidden && (bm.view === 'queue' || bm.view === 'ana') && !(document.activeElement && document.activeElement.dataset && document.activeElement.dataset.keep)) bmRedraw(); }, 1000);
@@ -1290,13 +1328,14 @@ async function bmResumeSaved() {
 }
 function bmClick(e) {
   const t = e.target.closest('[data-bm]'); if (!t || !bm) return; const a = t.dataset.bm, relOf = () => bm.rels.find(r => r.row === t.dataset.row) || bmSelRel();
-  if (['setup', 'tick', 'tick-song', 'tick-col', 'tick-song-all', 'inc', 'show', 'pick', 'qsel', 'qsel-all', 'qsort', 'src', 'accept-min', 'thresh', 'pref', 'qsearch'].includes(a)) return;           // inputs: handled on 'change'
+  if (['setup', 'tick', 'tick-song', 'tick-col', 'tick-song-all', 'inc', 'show', 'pick', 'qsel', 'qsel-all', 'qsort', 'src', 'accept-min', 'thresh', 'pref', 'qsearch', 'rf-text'].includes(a)) return;           // inputs: handled on 'change'
   const idx = t.dataset.idx != null ? +t.dataset.idx : null, kind = t.dataset.kind;
   if (a === 'tab') { bm.view = t.dataset.v; if (bm.view === 'rel') bm.scrollFocus = true; bmRender(); }
   else if (a === 'hide') bmHide(); else if (a === 'close') bmClose(); else if (a === 'cancel') bmClose(true); else if (a === 'start') bmStart(); else if (a === 'show-dialog') bmShow();
   else if (a === 'pause') { bm.paused = true; bmRender(); } else if (a === 'resume') { bm.paused = false; bmRender(); }
   else if (a === 'stop') { bm.stopped = true; ytAddonCancel(); bmRender(); }
   else if (a === 'yt-continue') ytAddonContinue(); else if (a === 'lane-resume') bmResumeLane(kind);
+  else if (a === 'rf-clear') { bm.rf = bmRf0(); }
   else if (a === 'resume-saved') bmResumeSaved(); else if (a === 'discard-saved') { if (confirm('Discard the saved run? Links already applied stay.')) { bmRunDel(); bm.savedRun = null; bmRender(); } }
   else if (a === 'health-retry') bmHealthRun(true);
   else if (a === 'setup-spotify') { bmHide(); el.menuSpotifyApi.click(); } else if (a === 'setup-youtube') { bmHide(); el.menuYoutubeApi.click(); }
@@ -1352,6 +1391,8 @@ function bmChange(e) {
   const t = e.target.closest('[data-bm]'); if (!t || !bm) return; const a = t.dataset.bm, relOf = () => bm.rels.find(r => r.row === t.dataset.row) || bmSelRel();
   if (a === 'setup') {
     if (t.name === 'bmScope') bm.scope = t.value; else if (t.name === 'bmSongsMode') bm.songsMode = t.value; else if (t.name === 'bmMode') bm.mode = t.value;
+    else if (t.name === 'bmRfType') { const v = t.value, ty = bm.rf.types.filter(x => x !== v); bm.rf.types = t.checked ? ty.concat(v) : ty; }
+    else if (/^bmRf/.test(t.id)) bm.rf[{ bmRfFrom: 'from', bmRfTo: 'to', bmRfAdded: 'added', bmRfTl: 'tl', bmRfRated: 'rated', bmRfRym: 'rym' }[t.id]] = String(t.value || '').trim();
     else if (t.id === 'bmSkipLinked') bm.skipLinked = t.checked; else if (t.id === 'bmYtSongs') bm.ytSongs = t.checked;
     else if (t.id === 'bmSvcSpotify') bm.svc.spotify = t.checked; else if (t.id === 'bmSvcYoutube') { bm.svc.youtube = t.checked; bm.svcTouched = true; }
     else if (t.name === 'bmPar') { bm.par[t.dataset.kind] = Number(t.value) || 1; bmParSave(bm.par); }
@@ -1381,6 +1422,7 @@ function bmChange(e) {
 function bmInput(e) {
   const t = e.target; if (!bm) return;
   if (t.dataset.bm === 'qsearch') { bm.qsearch = t.value; bmRender(); }
+  else if (t.dataset.bm === 'rf-text') { bm.rf.text = t.value; bmRender(); }
   else if (t.dataset.bm === 'thresh' || (t.dataset.bm === 'pref' && t.type === 'range')) { const o = t.parentElement.querySelector('[data-thresh-out]'); if (o) o.textContent = t.value; }
 }
 function bmKey(e) {
