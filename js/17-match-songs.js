@@ -365,7 +365,7 @@ let bmPersistT = 0;
 function bmPersistSoon() { if (!bm || !bm.started) return; clearTimeout(bmPersistT); bmPersistT = setTimeout(() => { if (bm && bm.started) bmRunPut(bmSerialize()); }, 1500); }
 function bmSerialize() {
   const keep = (r) => r && r.status ? Object.assign({}, r, { searching: undefined }) : null;
-  return { v: 1, t: Date.now(), label: bm.label, svc: bm.svc, show: bm.show, ytSongs: bm.ytSongs, mode: bm.mode, songsMode: bm.songsMode, one: bm.one, sel: bm.sel, t0: bm.t0, net0: bm.net0,
+  return { v: 1, t: Date.now(), label: bm.label, svc: bm.svc, show: bm.show, ytSongs: bmYtSongsOn(bm), mode: bm.mode, songsMode: bm.songsMode, one: bm.one, sel: bm.sel, t0: bm.t0, net0: bm.net0,
     rels: bm.rels.map(r => ({ row: r.row, artist: r.item.artist, title: r.item.title, songs: r.songs, spotify: keep(r.spotify), youtube: keep(r.youtube), pick: r.pick, touched: r.touched, include: r.include,
       st: { spotify: r.st.spotify === 'work' ? 'wait' : r.st.spotify, youtube: r.st.youtube === 'work' ? 'wait' : r.st.youtube }, err: r.err, applied: r.applied, broken: r.broken, checked: r.checked })) };
 }
@@ -757,7 +757,7 @@ async function bmRunLane(kind) {
         rel[kind] = bmFilterRejected(r, kind); rel.st[kind] = 'done';
         if (r.status === 'done') {
           bmSetPicks(rel, kind);
-          if (kind === 'youtube' && b.ytSongs && b.songsMode !== 'check') { try { await bmSearchRest(rel); } catch (e) { rel.err.youtube = ytAddonErrText(e); if (/daily|quota/i.test(String(e && e.message))) throw e; } bmSetPicks(rel, 'youtube'); }
+          if (kind === 'youtube' && bmYtSongsOn(b) && b.songsMode !== 'check') { try { await bmSearchRest(rel); } catch (e) { rel.err.youtube = ytAddonErrText(e); if (/daily|quota/i.test(String(e && e.message))) throw e; } bmSetPicks(rel, 'youtube'); }
           if (b.mode === 'auto') bmApplyRel(rel, kind);
         }
       } catch (e) {
@@ -803,6 +803,9 @@ function bmRerun(rels, kinds) {                                      // look the
   rels.forEach(r => { r.include = true; r.songsP = null; r.songs = null; });
   bmKickLanes(); bmRedraw();
 }
+// "Also search YouTube song by song": until you tick or untick it, it follows the add-on as YouTube runs, not as the window opened (right
+// after a page load the add-on may not have answered yet, and Match songs on one release has no Start screen to put it right).
+function bmYtSongsOn(b) { return b.ytSongsSet ? !!b.ytSongs : ytUseAddon(); }
 function bmRunKindFor(rel, kind) {                                   // a service that wasn't part of the run, for one release ("Find on YouTube")
   if (!bm.svc[kind]) { bm.svc[kind] = true; bm.show[kind] = true; bm.lanes[kind] = { s: 'idle', msg: '' }; bm.rels.forEach(r => { if (r !== rel) { r.st[kind] = 'skip'; r.err[kind] = 'Not run'; } }); }
   rel.st[kind] = 'wait'; delete rel.err[kind]; bmKickLanes(); bmRedraw();
@@ -1031,8 +1034,8 @@ function bmStartHtml() {
   const songs = radio('bmSongsMode', 'gaps', bm.songsMode === 'gaps', 'Only songs that have no link yet') + radio('bmSongsMode', 'all', bm.songsMode === 'all', 'All songs (links you have are kept)') + radio('bmSongsMode', 'check', bm.songsMode === 'check', 'Check my saved links, and find replacements for broken ones');
   const par = (k) => `<select name="bmPar" data-kind="${k}" data-bm="setup" aria-label="${bmName(k)}: releases at once">${BM_PAR_CHOICES.map(v => `<option value="${v}"${bm.par[k] === v ? ' selected' : ''}>${v}</option>`).join('')}</select>`;
   const svc = check('bmSvcSpotify', bm.svc.spotify, 'Spotify', null) + check('bmSvcYoutube', bm.svc.youtube && ytOk, 'YouTube', ytOk ? null : 'not set up', !ytOk)
-    + (viaAddon && bm.songsMode !== 'check' ? check('bmYtSongs', bm.ytSongs, 'Also search YouTube song by song for what a playlist misses', 'about one page each') : '');
-  const est = bmEstimate({ releases: n, spotify: bm.svc.spotify, youtube: bm.svc.youtube && ytOk, viaAddon, ytSongs: bm.ytSongs && viaAddon, used: ytAddon.today || 0, cap: ytAddon.cap || 0, spPar: bm.par.spotify, ytPar: viaAddon ? Math.min(ytAddon.parallel || 1, bm.par.youtube) : bm.par.youtube });
+    + (viaAddon && bm.songsMode !== 'check' ? check('bmYtSongs', bmYtSongsOn(bm), 'Also search YouTube song by song for what a playlist misses', 'about one page each') : '');
+  const est = bmEstimate({ releases: n, spotify: bm.svc.spotify, youtube: bm.svc.youtube && ytOk, viaAddon, ytSongs: bmYtSongsOn(bm) && viaAddon, used: ytAddon.today || 0, cap: ytAddon.cap || 0, spPar: bm.par.spotify, ytPar: viaAddon ? Math.min(ytAddon.parallel || 1, bm.par.youtube) : bm.par.youtube });
   const secs = Math.max(est.spotifySec, est.ytSec), noTl = items.filter(it => isManualAlbum(it) && !(it.manualTracks || []).length).length;
   const saved = bm.savedRun ? `<div class="bm-saved"><span><b>You have a saved run:</b> ${bm.savedRun.label && bm.savedRun.label !== bmPl(bm.savedRun.n, 'release') ? `${escapeHtml(bm.savedRun.label)} · ` : ''}${bmPl(bm.savedRun.n, 'release')}${bm.savedRun.picks ? ` · ${bmPl(bm.savedRun.picks, 'match', 'matches')} not applied yet` : ''}${bm.savedRun.waiting ? ` · ${bm.savedRun.waiting} still to look up` : ''} · saved ${bmAgo(bm.savedRun.t)}</span><span><button type="button" class="chip-btn" data-bm="discard-saved">Discard</button> <button type="button" class="config-btn" data-bm="resume-saved">Resume it</button></span></div>` : '';
   return `<div class="bm-body bm-start" data-scroll="start">${saved}
@@ -1323,7 +1326,7 @@ function bmGoRel(rel) { if (!rel) return; bm.sel = rel.row; bm.view = 'rel'; bm.
 async function bmResumeSaved() {
   const s = bm.savedRun && bm.savedRun.saved; if (!s) return;
   const rels = bmRestore(s); if (!rels.length) { flashGlobalToast('None of the saved run’s releases are in your crate any more.'); bmRunDel(); bm.savedRun = null; bmRender(); return; }
-  Object.assign(bm, { started: true, running: true, rels, label: s.label || bmPl(rels.length, 'release'), svc: s.svc || bm.svc, show: s.show || bm.show, ytSongs: !!s.ytSongs, mode: s.mode || 'review', songsMode: s.songsMode || 'gaps', one: !!s.one, sel: s.sel || rels[0].row, t0: Date.now(), net0: Object.assign({}, smNet), view: s.one ? 'rel' : 'queue', savedRun: null });
+  Object.assign(bm, { started: true, running: true, rels, label: s.label || bmPl(rels.length, 'release'), svc: s.svc || bm.svc, show: s.show || bm.show, ytSongs: !!s.ytSongs, ytSongsSet: true, mode: s.mode || 'review', songsMode: s.songsMode || 'gaps', one: !!s.one, sel: s.sel || rels[0].row, t0: Date.now(), net0: Object.assign({}, smNet), view: s.one ? 'rel' : 'queue', savedRun: null });
   ['spotify', 'youtube'].forEach(k => { bm.lanes[k] = bm.svc[k] ? { s: 'idle', msg: '' } : { s: 'off', msg: '' }; });
   bmKickLanes(); bmKinds().forEach(k => { if (bm.lanes[k].s === 'idle') bm.lanes[k].s = 'done'; }); if (!bmKinds().some(k => bm.lanes[k].s === 'work')) bm.running = false; bmRender();
 }
@@ -1394,7 +1397,7 @@ function bmChange(e) {
     if (t.name === 'bmScope') bm.scope = t.value; else if (t.name === 'bmSongsMode') bm.songsMode = t.value; else if (t.name === 'bmMode') bm.mode = t.value;
     else if (t.name === 'bmRfType') { const v = t.value, ty = bm.rf.types.filter(x => x !== v); bm.rf.types = t.checked ? ty.concat(v) : ty; }
     else if (/^bmRf/.test(t.id)) bm.rf[{ bmRfFrom: 'from', bmRfTo: 'to', bmRfAdded: 'added', bmRfTl: 'tl', bmRfRated: 'rated', bmRfRym: 'rym' }[t.id]] = String(t.value || '').trim();
-    else if (t.id === 'bmSkipLinked') bm.skipLinked = t.checked; else if (t.id === 'bmYtSongs') bm.ytSongs = t.checked;
+    else if (t.id === 'bmSkipLinked') bm.skipLinked = t.checked; else if (t.id === 'bmYtSongs') { bm.ytSongs = t.checked; bm.ytSongsSet = true; }
     else if (t.id === 'bmSvcSpotify') bm.svc.spotify = t.checked; else if (t.id === 'bmSvcYoutube') { bm.svc.youtube = t.checked; bm.svcTouched = true; }
     else if (t.name === 'bmPar') { bm.par[t.dataset.kind] = Number(t.value) || 1; bmParSave(bm.par); }
     bmRender(); return;

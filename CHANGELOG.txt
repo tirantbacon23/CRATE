@@ -17,7 +17,19 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.85.6
+  CURRENT_VERSION: 1.85.7
+
+  1.85.7 — 2026-11-05 — Match songs searches YouTube song by song again when it was opened before the add-on answered. Page only.
+          "Also search YouTube song by song for what a playlist misses" was
+          set when the window opened: right after a page load the add-on
+          has often not answered yet, so it was off, and Match songs on one
+          release (which has no Start screen) never turned it back on. Only
+          the album's playlist was then looked at, and a song that isn't on
+          it (a single uploaded on its own, like Varra's "Tiny Speaker")
+          showed "No match" though a search finds it first. Until you tick
+          or untick it yourself, it now follows the add-on as YouTube runs.
+          For a release already showing "No match", press the song's Search
+          button, or Match songs on it again.
 
   1.85.6 — 2026-11-05 — A stats bar under the Music browser: your catalogue, what is showing, or what you selected. Page only.
           One line along the bottom: how many releases and artists, how

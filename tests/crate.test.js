@@ -479,3 +479,10 @@ suite('Stats bar', () => {
     eq(t, '3 releases · 2 artists · 3 songs (from 2 with a tracklist) · 1 h 30 min + 1 song with no length · 1990–1995 · your rating 4.5 avg (2 rated) · RYM 3.70 avg');
   });
 });
+
+suite('Match songs: YouTube song by song', () => {
+  test('follows the add-on as YouTube runs until you tick or untick it yourself', () => {
+    const on = app('bmYtSongsOn'), viaAddon = app('ytUseAddon')();
+    eq([on({ ytSongs: false }), on({ ytSongs: true }), on({ ytSongs: false, ytSongsSet: true }), on({ ytSongs: true, ytSongsSet: true })], [viaAddon, viaAddon, false, true]);
+  });
+});
