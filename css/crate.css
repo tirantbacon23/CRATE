@@ -2413,11 +2413,13 @@ html, body {
   .fv-paste textarea { width: 100%; box-sizing: border-box; background: var(--bg-card); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 8px; font: 12px 'IBM Plex Mono', monospace; resize: vertical; }
   .fv-paste-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
   .fv-list { flex: 1; min-height: 0; overflow-y: auto; border-top: 1px solid var(--line); }
-  .fv-row { display: grid; grid-template-columns: 28px minmax(120px, 1fr) 150px 150px 34px; gap: 6px 10px; align-items: center; padding: 7px 4px; border-bottom: 1px solid var(--line); }
+  .fv-row { display: grid; grid-template-columns: 28px minmax(120px, 1fr) 52px 150px 150px 34px; gap: 6px 10px; align-items: center; padding: 7px 4px; border-bottom: 1px solid var(--line); }
   .fv-head { font: 11px 'IBM Plex Mono', monospace; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; position: sticky; top: 0; background: var(--bg-card); z-index: 1; }
   .fv-time { display: flex; gap: 4px; align-items: center; }
   .fv-time input { width: 78px; box-sizing: border-box; background: var(--bg-card); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 5px 6px; font: 12px 'IBM Plex Mono', monospace; }
   .fv-time input.bad { border-color: #E5734A; }
+  .fv-len { font: 12px 'IBM Plex Mono', monospace; color: var(--text-dim); } .fv-row.fv-off .fv-len { color: var(--accent); } .fv-row.fv-off .fv-time input { border-color: var(--accent); }          /* amber: the part doesn't match the song's length */
+  .fv-intro { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); } .fv-intro input { width: 64px; box-sizing: border-box; background: var(--bg-card); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 5px 6px; font: 12px 'IBM Plex Mono', monospace; } .fv-intro input.bad { border-color: #E5734A; }
   .fv-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 10px; flex: 0 0 auto; }
   .fv-footer .fv-note { margin: 0; }
   /* ---- Match songs (see the "Match songs" block in the script) ---- */
@@ -2829,8 +2831,9 @@ html, body {
   .qp-review span:last-child { font-style: italic; }
   .qp-hist { display: flex; align-items: flex-end; gap: 3px; height: 54px; margin-bottom: 2px; } .qp-hbar { flex: 1; background: #62C4C0; border-radius: 2px 2px 0 0; min-width: 4px; }
   .qp-hist-x { display: flex; justify-content: space-between; font: 10.5px 'IBM Plex Mono', monospace; margin-bottom: 8px; }
-  .qp-rymbar { order: 3; flex: 0 0 auto; width: 38px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; } .qp-rymbar i { display: block; height: 100%; background: var(--accent); }
-  .qp-links { order: 3; flex: 0 0 auto; font: 10px 'IBM Plex Mono', monospace; color: #62C4C0; }
+  .qp-rymbar { order: 3; flex: 0 0 auto; width: 38px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; } .qp-rymbar i { display: block; height: 100%; background: var(--accent); } .qp-rymbar.qp-slot-empty { background: none; }
+  .qp-links { order: 3; flex: 0 0 auto; width: 3ch; text-align: center; font: 10px 'IBM Plex Mono', monospace; color: #62C4C0; white-space: pre; }          /* fixed width: "S Y", "S", "Y" or nothing, so the lengths line up */
+  .album-quick-peek-track-time { min-width: 5ch; text-align: right; }
   .album-quick-peek-track.now .qp-title, .album-quick-peek-track.now .album-quick-peek-track-num { color: var(--accent); }
   .album-quick-peek-track.now .album-quick-peek-track-play { color: var(--accent); }
   .qp-selbar { display: flex; align-items: center; gap: 8px; padding: 7px 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--text-dim); } .qp-selbar span { margin-right: auto; }

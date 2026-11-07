@@ -358,19 +358,13 @@ function filterTracksBySearch(item, tracks) {
   const terms = getSearchTerms().filter(t =>
     !t.negate && t.value && (!t.field || SEARCH_FIELD_ALIASES[t.field.toLowerCase()] === 'track'));
   if (!terms.length) return tracks;
+  // A plain word the release itself already has (its artist, title, genres…) is about the release, not its songs: "artist:the jesus and m"
+  // is read as artist "the" plus the words "jesus", "and", "m", and those must not narrow the list to "Vegetable Man" and "Never Understand".
+  // Only a track: term, or a word the release doesn't have, narrows it.
   const base = releaseSearchTextNoTracks(item);
-  const hits = tracks.filter(t => {
-    const name = (t.trackName || '').toLowerCase();
-    let nameHit = false;
-    for (const term of terms) {
-      const v = term.value.toLowerCase();
-      const inName = name.includes(v);
-      if (term.field) { if (!inName) return false; nameHit = true; continue; }
-      if (inName) nameHit = true;
-      else if (!base.includes(v)) return false;
-    }
-    return nameHit;
-  });
+  const songTerms = terms.map(t => ({ field: t.field, v: t.value.toLowerCase() })).filter(t => t.field || !base.includes(t.v));
+  if (!songTerms.length) return tracks;
+  const hits = tracks.filter(t => { const name = (t.trackName || '').toLowerCase(); return songTerms.every(term => name.includes(term.v)); });
   return hits.length ? hits : tracks;
 }
 

@@ -17,7 +17,49 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.85.11
+  CURRENT_VERSION: 1.85.16
+
+  1.85.16 — 2026-11-07 — A search by artist no longer hides some of a release's songs. Page only.
+          "artist:the jesus and m" is read as artist "the" plus the words
+          "jesus", "and" and "m". Those words are in the release's own artist
+          name, but its songs were still narrowed to the titles that have one
+          of them ("Vegetable Man", "Never Understand"), in Quick Peek and the
+          Tracks views. Now a word the release itself has (artist, title,
+          genres…) doesn't narrow its songs; a track: term, or a word only its
+          songs have, still does.
+
+  1.85.15 — 2026-11-07 — Full-release video: the song lengths you have place each song in the video, and an Intro time allows for a video that doesn't start with the first song. Page only.
+          LENGTHS: each song's row shows the length you have for it. Opening a
+          video that has no times yet, with every song's length known, places
+          the songs back to back; "From song lengths" does it again at any
+          time. A part more than 3 seconds longer or shorter than its song is
+          marked amber.
+          INTRO: how long the video runs before the first song (0:12, say).
+          Changing it moves every time already there by the same amount, so
+          it also works on times pasted or set with ⏱.
+
+  1.85.14 — 2026-11-07 — Pull details: the RYM column has the release's label, date, genres and cover, not just its tracklist. Page and RYM add-on 1.18.0.
+          The add-on now keeps those details (and the catalogue number) with
+          the tracklist it saves from a release page: the label from the
+          info table, else the first issue line ("Blanco y Negro / NEG 19").
+          CRATE takes them in as plain text, like the tracklist. A release
+          whose RYM page you opened before add-on 1.18.0 gets them once you
+          open its page again.
+
+  1.85.13 — 2026-11-07 — The RYM add-on (1.18.0) keeps track of which genre and chart pages you have checked, so you can see how far you are through cataloguing a genre. Add-on only.
+          Every genre or chart page you open is noted, with how many of its
+          releases are in your crate. A page is done once you send it to
+          CRATE, press "Mark this page done" in the page panel, or have every
+          release on it. The pill shows the page number (✓ when done); the
+          panel lists the done and unfinished pages and links to the next
+          page to check. The add-on's Options list every genre and chart.
+          Kept in the add-on's storage only (rymPages). Install the new
+          crate-rym-addon.zip.
+
+  1.85.12 — 2026-11-07 — Quick Peek: each song's RYM bar, link marks and length line up from row to row. Page only.
+          A song with no S/Y link mark (or no RYM rating) left out that
+          slot, so its bar and length moved over. The slots now keep their
+          width when empty, and lengths are right-aligned.
 
   1.85.11 — 2026-11-07 — Match songs: a song's kept YouTube link can be removed. Page only.
           A "Kept" YouTube cell in Match songs now has a Remove button. It

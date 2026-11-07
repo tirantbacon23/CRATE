@@ -520,3 +520,27 @@ suite('Bold releases (RYM)', () => {
     } finally { S.rymBold = was[0]; S.rymBoldRank = was[1]; }
   });
 });
+
+suite('Full-release video: times from song lengths', () => {
+  test('songs back to back after the intro; one after a song with no length is not placed', () => {
+    const f = app('ytTimesFromLengths');
+    eq(f([180, 200, 95], 0), [{ start: 0, end: 180 }, { start: 180, end: 380 }, { start: 380, end: 475 }]);
+    eq(f([180, 200], 12), [{ start: 12, end: 192 }, { start: 192, end: 392 }]);
+    eq(f([180, 0, 95], 5), [{ start: 5, end: 185 }, null, null]);
+  });
+});
+
+suite('Search: a release’s songs under a search', () => {
+  test('words the release itself has don’t narrow its songs; a track: term or a word only songs have does', () => {
+    const S = app('state'), f = app('filterTracksBySearch'), was = S.query;
+    const item = { artist: 'The Jesus and Mary Chain', title: 'I.C.A. 29.12.84', releaseDate: '1985', genre: 'Noise Pop' };
+    const tracks = ['Vegetable Man', 'Taste of Cindy', 'Never Understand', 'Just Like Honey'].map((n, i) => ({ trackNumber: i + 1, trackName: n }));
+    const names = (q) => { S.query = q; return f(item, tracks).map(t => t.trackName); };
+    try {
+      eq(names('artist:the jesus and m').length, 4);
+      eq(names('jesus honey'), ['Just Like Honey']);
+      eq(names('track:cindy'), ['Taste of Cindy']);
+      eq(names('nothing-like-this').length, 4);          // nothing matches: the whole list rather than none
+    } finally { S.query = was; }
+  });
+});

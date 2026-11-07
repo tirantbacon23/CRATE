@@ -19,8 +19,9 @@ async function pdFromCrate(item) {
 async function pdFromRym(item) {
   const list = await rymAskTracklists(3000);
   if (list === null) return { err: 'The add-on didn’t answer' };
-  const e = tlRymPick(list, item), tracks = e && !rymTracklistLooksWrong(e.tracks) ? pdTracks(e.tracks) : [];
-  return tracks.length ? { tracks } : { err: 'Not seen yet: open its RYM page once' };
+  const e = tlRymPick(list, item), tracks = e && !rymTracklistLooksWrong(e.tracks) ? pdTracks(e.tracks) : [], d = (e && e.d) || {};          // d: the release's details, from add-on 1.18.0 (open the RYM page again for one seen before)
+  if (!tracks.length && !d.label && !d.date && !d.genre && !d.cover) return { err: 'Not seen yet: open its RYM page once' };
+  return { tracks, label: d.label || '', date: d.date || '', genre: d.genre || '', cover: d.cover || '' };
 }
 async function pdFromMb(item) {
   const id = (String(item.link || '').match(/musicbrainz\.org\/release\/([a-f0-9-]{36})/i) || [])[1] || await lookupMbReleaseId(item.artist, item.title);

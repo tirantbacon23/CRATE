@@ -328,6 +328,10 @@ function ytAssignTimestamps(titles, parsed) {                       // each song
 function ytFillEnds(starts, total) {                                // starts in song order (seconds, or NaN) -> each song's end: where the next song that starts later begins; the last one ends at the video's end when that is known
   return starts.map((s, i) => { if (!(s >= 0)) return NaN; for (let j = i + 1; j < starts.length; j++) if (starts[j] > s) return starts[j]; return total > s ? total : NaN; });
 }
+function ytTimesFromLengths(lengths, intro) {                      // song lengths in seconds (in order; NaN or 0 = not known) -> [{ start, end }] back to back after the intro; a song after one with no length can't be placed (null)
+  let at = Math.max(0, Math.round(Number(intro) || 0));
+  return lengths.map(len => { if (at === null || !(len > 0)) { at = null; return null; } const r = { start: at, end: at + Math.round(len) }; at = r.end; return r; });
+}
 // END yt-segments
 function youtubeVideoIdFromUrl(url) {
   if (!url) return '';
@@ -471,7 +475,7 @@ function openYoutubePlayer(url, trackName, tracks, item) {
 }
 
 // ---- Full-release video: one YouTube video that is the whole release. Say where each song starts and ends in it. ----
-let fv = null;                                                      // { item, rows: [{ n, title, start, end }] } while the dialog is open (start/end are what is typed)
+let fv = null;                                                      // { item, intro, rows: [{ n, title, start, end, len }] } while the dialog is open (start/end are what is typed; len: the song's length you have, in seconds, 0 if none)
 const fvEl = (id) => document.getElementById(id);
 async function fvOpen(item, hintUrl) {
   if (!item) return;
@@ -483,22 +487,26 @@ async function fvOpen(item, hintUrl) {
   const common = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0], shared = common && counts[common] >= 2 ? common : '';          // two songs on one video: that is the full-release video already
   const hint = youtubeVideoIdFromUrl(hintUrl);
   const id = hint || shared, url = id ? 'https://www.youtube.com/watch?v=' + id : '';
-  fv = { item, rows: tracks.map(t => { const same = id && youtubeVideoIdFromUrl(t.youtubeLink) === id, g = same ? youtubeSegmentFromUrl(t.youtubeLink) : { start: 0, end: 0 }; return { n: t.trackNumber, title: t.trackName || '', start: same ? ytFormatTime(g.start) : '', end: g.end ? ytFormatTime(g.end) : '' }; }) };
+  fv = { item, rows: tracks.map(t => { const same = id && youtubeVideoIdFromUrl(t.youtubeLink) === id, g = same ? youtubeSegmentFromUrl(t.youtubeLink) : { start: 0, end: 0 }; return { n: t.trackNumber, title: t.trackName || '', start: same ? ytFormatTime(g.start) : '', end: g.end ? ytFormatTime(g.end) : '', len: Math.round((Number(t.trackTimeMillis) || 0) / 1000) }; }), intro: 0 };
+  const firstStart = fv.rows.map(r => r.start.trim() ? ytParseTime(r.start) : NaN).find(s => s >= 0); if (firstStart > 0) fv.intro = firstStart;          // times saved before: the intro is where song 1 starts
+  const autoFill = !!id && fv.rows.every(r => !r.start && !r.end) && fv.rows.every(r => r.len > 0);          // a video with no times yet, and every song's length known: placed back to back to begin with
   fvEl('fullVideoSub').textContent = `${item.artist} \u2014 ${item.title}`; fvEl('fullVideoUrl').value = url; fvEl('fullVideoPasteBox').hidden = true; fvEl('fullVideoPasteText').value = ''; fvEl('fullVideoPasteMsg').textContent = '';
-  fvRender(); fvEl('fullVideoOverlay').hidden = false;
+  fvEl('fullVideoIntro').value = ytFormatTime(fv.intro); fvEl('fullVideoIntro').classList.remove('bad'); fvEl('fullVideoFromLengths').disabled = !fv.rows.some(r => r.len > 0);
+  if (autoFill) fvFromLengths(true); else fvRender();
+  fvEl('fullVideoOverlay').hidden = false;
   (url ? document.querySelector('#fullVideoList [data-fv="start"]') : fvEl('fullVideoUrl')).focus();
 }
 function fvClose() { fvEl('fullVideoOverlay').hidden = true; fv = null; }
 function fvRender() {
   if (!fv) return;
   const field = (which, v, n) => `<span class="fv-time"><input type="text" data-fv="${which}" value="${escapeHtml(v)}" placeholder="${which === 'start' ? '0:00' : 'm:ss'}" aria-label="${which === 'start' ? 'Starts' : 'Ends'}, song ${n}" autocomplete="off"><button type="button" class="chip-btn" data-fv-now="${which}" title="Use the time the video is at now" aria-label="Use the video's time now">⏱</button></span>`;
-  fvEl('fullVideoList').innerHTML = '<div class="fv-row fv-head"><span>#</span><span>Song</span><span>Starts</span><span>Ends</span><span></span></div>' +
-    fv.rows.map((r, i) => `<div class="fv-row" data-i="${i}"><span class="sm-num">${escapeHtml(String(r.n))}</span><span class="sm-title">${escapeHtml(r.title)}</span>${field('start', r.start, r.n)}${field('end', r.end, r.n)}<button type="button" class="chip-btn" data-fv-play title="Play this part" aria-label="Play this part">▶</button></div>`).join('');
+  fvEl('fullVideoList').innerHTML = '<div class="fv-row fv-head"><span>#</span><span>Song</span><span title="The length you have for the song">Length</span><span>Starts</span><span>Ends</span><span></span></div>' +
+    fv.rows.map((r, i) => `<div class="fv-row" data-i="${i}"><span class="sm-num">${escapeHtml(String(r.n))}</span><span class="sm-title">${escapeHtml(r.title)}</span><span class="fv-len">${r.len ? ytFormatTime(r.len) : '\u2014'}</span>${field('start', r.start, r.n)}${field('end', r.end, r.n)}<button type="button" class="chip-btn" data-fv-play title="Play this part" aria-label="Play this part">▶</button></div>`).join('');
   fvValidate();
 }
 function fvValidate() {                                             // reads what is typed, marks what is wrong, says what is there, and decides whether it can be saved
   if (!fv) return { ok: false, rows: [] };
-  const url = fvEl('fullVideoUrl').value.trim(), id = youtubeVideoIdFromUrl(url); let bad = 0, has = 0, warn = 0, prev = -1; const rows = [];
+  const url = fvEl('fullVideoUrl').value.trim(), id = youtubeVideoIdFromUrl(url); let bad = 0, has = 0, warn = 0, off = 0, prev = -1; const rows = [];
   fv.rows.forEach((r, i) => {
     const node = document.querySelector(`#fullVideoList .fv-row[data-i="${i}"]`); if (!node) return;
     const sIn = node.querySelector('[data-fv="start"]'), eIn = node.querySelector('[data-fv="end"]'); r.start = sIn.value; r.end = eIn.value;
@@ -507,10 +515,12 @@ function fvValidate() {                                             // reads wha
     sIn.classList.toggle('bad', sBad); eIn.classList.toggle('bad', eBad); if (sBad || eBad) bad++;
     const sv = s !== null && !isNaN(s) ? s : null, ev = e !== null && !isNaN(e) ? e : null; if (sv !== null || ev !== null) has++;
     if (sv !== null) { if (sv < prev) warn++; prev = Math.max(prev, sv); }
+    const longBy = sv !== null && ev !== null && r.len ? (ev - sv) - r.len : 0, isOff = Math.abs(longBy) > 3;          // the part is more than 3 s longer or shorter than the song's length
+    node.classList.toggle('fv-off', isOff); node.querySelector('.fv-len').title = isOff ? `This part is ${ytFormatTime(Math.abs(longBy))} ${longBy > 0 ? 'longer' : 'shorter'} than the song` : ''; if (isOff) off++;
     rows.push({ n: r.n, start: sv || 0, end: ev || 0, has: sv !== null || ev !== null });
   });
   const ok = !!id && !bad && has > 0;
-  fvEl('fullVideoStatus').textContent = !id ? 'Paste the full-release video\u2019s link above.' : bad ? `${bad} time${bad === 1 ? '' : 's'} to fix (in red).` : `${has} of ${fv.rows.length} songs have times.` + (warn ? ` ${warn} start${warn === 1 ? 's' : ''} earlier than a song before ${warn === 1 ? 'it' : 'them'}.` : '');
+  fvEl('fullVideoStatus').textContent = !id ? 'Paste the full-release video\u2019s link above.' : bad ? `${bad} time${bad === 1 ? '' : 's'} to fix (in red).` : `${has} of ${fv.rows.length} songs have times.` + (warn ? ` ${warn} start${warn === 1 ? 's' : ''} earlier than a song before ${warn === 1 ? 'it' : 'them'}.` : '') + (off ? ` ${off} ${off === 1 ? 'part doesn\u2019t' : 'parts don\u2019t'} match the song\u2019s length (amber).` : '');
   fvEl('fullVideoSave').disabled = !ok;
   return { ok, url, id, rows };
 }
@@ -544,6 +554,22 @@ function fvApplyPaste() {
   msg.textContent = `Matched ${k} of ${fv.rows.length} songs` + (parsed.length !== fv.rows.length ? ` (the description has ${parsed.length} lines)` : '') + '.';
   fvRender();
 }
+function fvFromLengths(quiet) {                                     // every song placed back to back from the lengths you have, after the intro
+  if (!fv) return; if (!quiet) fvValidate();
+  const got = ytTimesFromLengths(fv.rows.map(r => r.len), fv.intro); let k = 0;
+  fv.rows.forEach((r, i) => { const g = got[i]; if (!g) return; r.start = ytFormatTime(g.start); r.end = ytFormatTime(g.end); k++; });
+  fvRender();
+  const miss = fv.rows.length - k; fvEl('fullVideoStatus').textContent = `Placed ${k} of ${fv.rows.length} songs from their lengths, after an intro of ${ytFormatTime(fv.intro)}.` + (miss ? ` ${miss} after a song with no length ${miss === 1 ? 'needs its' : 'need their'} times set by hand.` : '') + ' Play a part to check it; change Intro if the first song starts later.';
+}
+function fvSetIntro() {                                             // a new intro moves every time already there by the same amount
+  if (!fv) return; const inp = fvEl('fullVideoIntro'), v = ytParseTime(inp.value.trim() || '0');
+  inp.classList.toggle('bad', isNaN(v)); if (isNaN(v)) return;
+  const d = v - fv.intro; fv.intro = v; inp.value = ytFormatTime(v); if (!d) return;
+  fvValidate();
+  const move = (t) => { if (!t.trim()) return t; const s = ytParseTime(t); return isNaN(s) ? t : ytFormatTime(Math.max(0, s + d)); };
+  fv.rows.forEach(r => { r.start = move(r.start); r.end = move(r.end); });
+  fvRender();
+}
 function fvEndsFromNext() {
   if (!fv) return; fvValidate();
   const id = youtubeVideoIdFromUrl(fvEl('fullVideoUrl').value.trim()); let total = 0;
@@ -574,6 +600,8 @@ fvEl('fullVideoSearch').addEventListener('click', () => { if (fv) window.open('h
 fvEl('fullVideoPasteBtn').addEventListener('click', () => { const b = fvEl('fullVideoPasteBox'); b.hidden = !b.hidden; if (!b.hidden) fvEl('fullVideoPasteText').focus(); });
 fvEl('fullVideoPasteApply').addEventListener('click', fvApplyPaste);
 fvEl('fullVideoEnds').addEventListener('click', fvEndsFromNext);
+fvEl('fullVideoFromLengths').addEventListener('click', () => fvFromLengths());
+fvEl('fullVideoIntro').addEventListener('change', fvSetIntro);
 fvEl('fullVideoClear').addEventListener('click', () => { if (!fv) return; fv.rows.forEach(r => { r.start = ''; r.end = ''; }); fvRender(); });
 fvEl('fullVideoList').addEventListener('input', fvValidate);
 fvEl('fullVideoList').addEventListener('click', (e) => {

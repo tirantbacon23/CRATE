@@ -2253,9 +2253,9 @@ function quickPeekTrackRowHtml(item, t, ord) {
   if (credits.length) bits.push(`<button type="button" class="qp-detail qp-credits-btn" aria-expanded="false" title="Show this track\u2019s credits">${credits.length} credit${credits.length === 1 ? '' : 's'} \u25be</button>`);
   if (note) bits.push(`<span class="qp-detail qp-note" title="${escapeHtml(note)}">${escapeHtml(note)}</span>`);
   const ov = trackLinkOverridesFor(item, tNum, t.trackName), rr = Number(ov.rymRating) || 0;
-  const rymBar = rr ? `<span class="qp-rymbar" title="RYM ${rr.toFixed(2)}${ov.rymVotes ? ` from ${Number(ov.rymVotes).toLocaleString()} ratings` : ''}"><i style="width:${Math.max(4, Math.min(100, (rr - 2) / 3 * 100)).toFixed(0)}%"></i></span>` : '';
+  const rymBar = rr ? `<span class="qp-rymbar" title="RYM ${rr.toFixed(2)}${ov.rymVotes ? ` from ${Number(ov.rymVotes).toLocaleString()} ratings` : ''}"><i style="width:${Math.max(4, Math.min(100, (rr - 2) / 3 * 100)).toFixed(0)}%"></i></span>` : '<span class="qp-rymbar qp-slot-empty" aria-hidden="true"></span>';          // the slot stays when a song has no rating, so every row's bar, marks and length line up
   const sp = !!trackSpotifyUriFromLink(ov.spotifyLink || t.spotifyLink), yt = !!youtubeVideoIdFromUrl(ov.youtubeLink || t.youtubeLink);
-  const linkMarks = sp || yt ? `<span class="qp-links" title="${[sp ? 'Spotify link saved' : '', yt ? 'YouTube link saved' : ''].filter(Boolean).join(', ')}">${sp ? 'S' : ''}${sp && yt ? ' ' : ''}${yt ? 'Y' : ''}</span>` : '';
+  const linkMarks = sp || yt ? `<span class="qp-links" title="${[sp ? 'Spotify link saved' : '', yt ? 'YouTube link saved' : ''].filter(Boolean).join(', ')}">${sp ? 'S' : ''}${sp && yt ? ' ' : ''}${yt ? 'Y' : ''}</span>` : '<span class="qp-links" aria-hidden="true"></span>';
   const isNow = nowPlayingItem === item && (el.miniPlayerTitle && el.miniPlayerTitle.textContent || '').trim() === String(t.trackName || '').trim();
   return `
       <div class="album-quick-peek-track${isNow ? ' now' : ''}" data-track-num="${escapeHtml(String(t.trackNumber || ''))}" data-track-name="${escapeHtml(t.trackName || '')}">

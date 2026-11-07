@@ -67,3 +67,42 @@ suite('RYM add-on: bold releases', () => {
     eq([moved['/r/1/'].a, moved['/r/1/'].b], [3.6, 0]);
   });
 });
+
+suite('RYM add-on: genre and chart progress', () => {
+  test('a list and its page number from the address (a chart’s year is not a page)', async () => {
+    const C = await addon(), lp = (p) => { const x = C.listPage(p); return x && [x.key, x.page, x.kind]; };
+    eq(lp('/genre/indie-rock/'), ['/genre/indie-rock/', 1, 'genre']);
+    eq(lp('/genre/Indie-Rock/3/'), ['/genre/indie-rock/', 3, 'genre']);
+    eq(lp('/charts/top/album/all-time/g:indie-rock/2/'), ['/charts/top/album/all-time/g:indie-rock/', 2, 'chart']);
+    eq(lp('/charts/top/album/1986/'), ['/charts/top/album/1986/', 1, 'chart']);
+    eq([lp('/artist/yes/'), lp('/release/album/yes/fragile/')], [null, null]);
+    eq([C.listPageUrl('/genre/indie-rock/', 1), C.listPageUrl('/genre/indie-rock/', 4)], ['https://rateyourmusic.com/genre/indie-rock/', 'https://rateyourmusic.com/genre/indie-rock/4/']);
+  });
+  test('pages opened, done by having them all, sending or saying so; one you unmark stays unmarked', async () => {
+    const C = await addon(), k = '/genre/indie-rock/';
+    let s = {};
+    s = C.recordPage(s, { key: k, page: 1, kind: 'genre', label: 'Indie Rock', owned: 40, edition: 0, total: 40, t: 1 }).out;
+    s = C.recordPage(s, { key: k, page: 2, kind: 'genre', owned: 12, edition: 1, total: 40, t: 2 }).out;
+    s = C.recordPage(s, { key: k, page: 3, kind: 'genre', owned: null, total: 40, t: 3 }).out;          // CRATE not connected: opened, nothing counted
+    eq(C.listProgress(s[k]), { checked: [1, 2, 3], done: [1], open: [2, 3], next: 2 });
+    eq(C.recordPage(s, { key: k, page: 2, kind: 'genre', owned: 12, edition: 1, total: 40, t: 4 }).changed, false);          // the same again, soon after: nothing to write
+    s = C.markPage(s, k, 2, true, 'sent').out;
+    eq([C.listProgress(s[k]).next, s[k].pages[2].h, s[k].label], [3, 'sent', 'Indie Rock']);
+    s = C.markPage(s, k, 1, false).out;
+    s = C.recordPage(s, { key: k, page: 1, kind: 'genre', owned: 40, edition: 0, total: 40, t: 999999 }).out;
+    eq([s[k].pages[1].d, C.listProgress(s[k]).next], [0, 1]);
+    eq(C.pageRanges([1, 2, 3, 5, 8, 9]), '1–3, 5, 8–9');
+  });
+});
+
+suite('RYM add-on: release details with a tracklist', () => {
+  test('the label, date, genres and cover are kept with the tracklist, and CRATE takes them in as plain text', async () => {
+    const C = await addon(), tr = [{ title: 'Some Candy Talking' }, { title: 'Psycho Candy' }, { title: 'Hit' }], p = '/release/ep/the-jesus-and-mary-chain/some-candy-talking/';
+    let s = C.mergeTracklist({}, { p, ar: 'the jesus and mary chain', ti: 'some candy talking', ty: 'ep', t: 1, tracks: tr }).out;
+    eq(s[p].d, undefined);
+    const r = C.mergeTracklist(s, { p, t: 2, tracks: tr, d: { label: 'Blanco y Negro', catalog: 'NEG 19', date: '1986-07-14', genre: 'Noise Pop', cover: 'javascript:alert(1)' } });
+    eq([r.changed, r.out[p].d], [true, { label: 'Blanco y Negro', catalog: 'NEG 19', date: '1986-07-14', genre: 'Noise Pop', cover: '' }]);
+    const got = app('rymCleanTracklists')([Object.assign({}, r.out[p], { d: { label: 'Blanco y Negro', date: 'soon', cover: 'https://e.snmc.io/i/600/x.jpg', extra: 1 } })]);
+    eq(got[0].d, { label: 'Blanco y Negro', catalog: '', date: '', genre: '', cover: 'https://e.snmc.io/i/600/x.jpg' });
+  });
+});
