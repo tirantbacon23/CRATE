@@ -475,8 +475,16 @@ function bmStartOne(item, focusTrackNum) {                          // one relea
   bm.sets.ticked = [item]; bm.scope = 'ticked'; bm.skipLinked = false; bm.songsMode = 'all';
   bm.svc = { spotify: true, youtube: ytUseAddon() || !!loadYoutubeApiKey() };
   bm.ytDefer = !ytUseAddon();                                       // the API route costs quota: YouTube waits for "Find on YouTube"
+  bm.ytAddonLate = !ytUseAddon() && ytAddonWanted();                // ...unless that is only because the add-on hasn't answered yet: bmAddonArrived lets it run when it does
   bmStart();
   if (focusTrackNum != null) bm.focusTrackNum = focusTrackNum;
+}
+function bmAddonArrived() {                                         // the YouTube add-on answered after Match songs was opened on a release: its YouTube, held back as if it cost quota, runs now
+  if (!bm || !bm.started || !bm.ytAddonLate || !ytUseAddon()) return;
+  bm.ytAddonLate = false; bm.ytDefer = false; bm.svc.youtube = true; bm.show.youtube = true;
+  let n = 0; bm.rels.forEach(r => { if (r.st.youtube === 'skip' && r.err.youtube === 'Not run') { r.st.youtube = 'wait'; delete r.err.youtube; n++; } });
+  if (!n) return;
+  bm.lanes.youtube = { s: 'idle', msg: '' }; bm.running = true; bm.stopped = false; bmRunLane('youtube'); bmRedraw();
 }
 function bmAddOne(item, focusTrackNum) {                            // "Match songs" on a release while a run is open: it joins the run
   let rel = bm.rels.find(r => r.item === item);
@@ -681,6 +689,9 @@ async function bmSearchRest(rel) {                                  // YouTube, 
   try { await smYoutubeSearchSongs(rel.item, rel.songs, idxs, (idx, top) => { if (top.length) rel.youtube.byIdx[idx] = top; bmFilterRejected(rel.youtube, 'youtube'); bmSetPicks(rel, 'youtube'); bmRedraw(); }); }
   finally { delete rel.youtube.searching; bmRedraw(); }
 }
+function bmSearchRestAsked(rel) {                                    // the same, when you asked for it: a failure is said (a run's lane handles its own)
+  if (!rel) return; bmSearchRest(rel).catch(e => { const m = ytUseAddon() ? ytAddonErrText(e) : String((e && e.message) || e); rel.err.youtube = m; flashGlobalToast(/^quota$/.test(m) ? 'Today’s YouTube quota is used up: song-by-song search works again tomorrow (or through the YouTube add-on).' : m); bmRedraw(); });
+}
 // How many releases each service works on at once, chosen on the Start screen and remembered on this device.
 // Spotify's requests then run that many at once too (spotifyApiParallel). For YouTube through the add-on, how many
 // PAGES it reads at once is the add-on's own setting (its Options); this is how many releases keep it supplied.
@@ -806,7 +817,7 @@ async function bmRunLane(kind) {
           bmSetPicks(rel, kind);
           let fullVid = false;
           if (kind === 'youtube' && r.none && (ytUseAddon() || bmYtSongsOn(b)) && b.songsMode !== 'check' && rel.songs.some(s => !smHas(s, 'youtube'))) { try { fullVid = await bmFindFullVideo(rel) && rel.youtube.fullVideo.confident; } catch (e) { /* the song-by-song search below still runs */ } }
-          if (kind === 'youtube' && !fullVid && bmYtSongsOn(b) && b.songsMode !== 'check') { try { await bmSearchRest(rel); } catch (e) { rel.err.youtube = ytAddonErrText(e); if (/daily|quota/i.test(String(e && e.message))) throw e; } bmSetPicks(rel, 'youtube'); }
+          if (kind === 'youtube' && !fullVid && bmYtSongsOn(b) && b.songsMode !== 'check') { try { await bmSearchRest(rel); } catch (e) { rel.err.youtube = ytAddonErrText(e); if (/daily|quota|too many requests/i.test(String(e && e.message))) throw e; } bmSetPicks(rel, 'youtube'); }
           if (b.mode === 'auto') bmApplyRel(rel, kind);
         }
       } catch (e) {
@@ -1432,7 +1443,7 @@ function bmClick(e) {
   else if (a === 'rule-accept') { const r = bmSelRel(), min = bm.acceptMin || 75; bmShownKinds().forEach(k => (r.songs || []).forEach(s => { const c = bmCellOf(r, s, k); if (c.top && c.top.score >= min && c.s !== 'kept') bmSetPick(r, s.idx, k, r.pick[k][s.idx] || c.top.id, true); })); bmRender(); }
   else if (a === 'rule-unlive') { const r = bmSelRel(); let n = 0; bmShownKinds().forEach(k => (r.songs || []).forEach(s => { const id = r.pick[k][s.idx]; if (!id) return; const c = (r[k].byIdx[s.idx] || []).find(x => x.id === id); const extra = c ? [...smFlags(c.title)].filter(f => !smFlags(s.title).has(f)) : []; if (extra.length) { bmSetPick(r, s.idx, k, '', true); n++; } })); flashGlobalToast(n ? `Unticked ${bmPl(n, 'version')} your titles don’t name.` : 'Nothing ticked looks like a live version or a remix.'); bmRender(); }
   else if (a === 'rule-untick') { const r = bmSelRel(); bmShownKinds().forEach(k => (r.songs || []).forEach(s => { if (r.pick[k][s.idx]) bmSetPick(r, s.idx, k, '', true); })); bmRender(); }
-  else if (a === 'yt-rest') bmSearchRest(bmSelRel());
+  else if (a === 'yt-rest') bmSearchRestAsked(bmSelRel());
   else if (a === 'choose') { const r = relOf(), o = bm.open; bm.open = o && o.row === r.row && o.idx === idx && o.kind === kind ? null : { row: r.row, idx, kind }; bm.focus = { idx, kind }; bmRender(); }
   else if (a === 'why') { const r = relOf(), w = bm.why; bm.why = w && w.row === r.row && w.idx === idx && w.kind === kind && w.id === t.dataset.id ? null : { row: r.row, idx, kind, id: t.dataset.id }; bm.focus = { idx, kind }; if (bm.view !== 'rel') { bm.sel = r.row; bm.view = 'rel'; bm.scrollFocus = true; } bmRender(); }
   else if (a === 'why-close') { bm.why = null; bmRender(); }
@@ -1479,7 +1490,7 @@ function bmChange(e) {
     const r = bmSelRel(), k = t.dataset.kind, v = t.value;
     if (v.startsWith('ed:')) bmUseEdition(r, k, v.slice(3));
     else if (v === 'paste') { bm.pasteFor = k; bmRender(); const inp = bmEl('bmModal').querySelector(`[data-keep="paste-src-${k}"]`); if (inp) inp.focus(); return; }
-    else if (v === 'songs') bmSearchRest(r);
+    else if (v === 'songs') bmSearchRestAsked(r);
     else if (v === 'fv') { bmHide(); fvOpen(r.item); return; }
     else if (v === 'fvfind') { if (!ytUseAddon() && !loadYoutubeApiKey()) { flashGlobalToast('Finding a video needs the CRATE for YouTube add-on or a YouTube API key (\u2699 \u2192 YouTube API\u2026).'); bmRender(); return; } if (!ytUseAddon() && !confirm('Searching YouTube costs 100 of today\u2019s quota units. Go ahead?')) { bmRender(); return; } bmFindFullVideo(r).then(found => { if (!found) flashGlobalToast('No full-release video on YouTube looks like this release.'); bmRedraw(); }).catch(err => { flashGlobalToast(ytUseAddon() ? ytAddonErrText(err) : String((err && err.message) || err)); bmRedraw(); }); }
     else if (v.startsWith('fvid:')) bmUseFullVideo(r, v.slice(5));
@@ -1671,6 +1682,7 @@ async function smSpotifyForRelease(item, songs) {
 const ytAddon = { ready: false, version: '', state: 'idle', reason: '', queue: 0, nextAt: 0, today: 0, cap: 0, parallel: 1, pending: new Map(), seq: 0, poll: 0 };
 const ytPagesNote = () => ytAddon.cap ? `${ytAddon.today} of ${ytAddon.cap} pages used today` : `${ytAddon.today} page${ytAddon.today === 1 ? '' : 's'} read in the last 24 hours (no daily limit)`;          // an add-on older than 1.2.0 still has a limit of 250 a day and says so; 1.2.0 and later say cap 0
 const ytAddonSay = (type, extra) => window.postMessage(Object.assign({ source: 'crate-app', type }, extra || {}), window.location.origin);
+function ytAddonWanted() { try { return localStorage.getItem('crate_yt_use_addon') !== '0'; } catch (e) { return true; } }          // the add-on is to be used when it is there (it may not have answered yet)
 function ytUseAddon() { let off = false; try { off = localStorage.getItem('crate_yt_use_addon') === '0'; } catch (e) { /* default: on */ } return !!(ytAddon.ready && !off); }
 function ytAddonWhy(reason) {
   return ({ consent: 'YouTube is asking its cookie question. That page is open in front of you: answer it once, then press Continue.', check: 'YouTube says it has noticed unusual traffic. That page is open in front of you: pass the check there, then press Continue, or Cancel and wait a while.',
@@ -1695,7 +1707,7 @@ window.addEventListener('message', (e) => {
   const d = e.data; if (!d || d.source !== 'crate-addon' || typeof d.type !== 'string' || d.type.slice(0, 3) !== 'yt-') return;
   const redraw = () => { if (typeof smState !== 'undefined' && smState) smRender(); if (typeof bmRedraw === 'function') bmRedraw(); };
   if (d.type === 'yt-script') ytAddonHello();
-  else if (d.type === 'yt-ready') { ytAddon.ready = !!d.ok; ytAddon.version = d.version || ''; if (d.state) ytAddon.state = d.state; ytAddon.today = d.today || 0; ytAddon.cap = d.cap || 0; ytAddon.parallel = Math.max(1, Number(d.parallel) || 1); redraw(); }
+  else if (d.type === 'yt-ready') { ytAddon.ready = !!d.ok; ytAddon.version = d.version || ''; if (d.state) ytAddon.state = d.state; ytAddon.today = d.today || 0; ytAddon.cap = d.cap || 0; ytAddon.parallel = Math.max(1, Number(d.parallel) || 1); if (ytAddon.ready) bmAddonArrived(); redraw(); }
   else if (d.type === 'yt-accepted') {
     const pr = ytAddon.pending.get(d.reqId); if (!pr) return; const r = d.resp || {};
     if (!r.ok) { ytAddon.pending.delete(d.reqId); clearTimeout(pr.timer); pr.reject(new Error('addon: ' + (r.reason || 'noanswer'))); } else { pr.accepted = true; pr.arm(150000); }
@@ -1735,7 +1747,14 @@ async function smYtPlaylistSearchViaAddon(q) {                       // the add-
 }
 async function smYtApi(path, params, cost) {
   const key = loadYoutubeApiKey();
-  const res = await fetch(`https://www.googleapis.com/youtube/v3/${path}?${new URLSearchParams(Object.assign({}, params, { key })).toString()}`); smNet.ytApi++;
+  let res;
+  for (let tries = 0; ; tries++) {                                   // too many requests at once (429): wait as YouTube asks (2, 4, 8 s if it doesn't say) and ask again, three times at most
+    res = await fetch(`https://www.googleapis.com/youtube/v3/${path}?${new URLSearchParams(Object.assign({}, params, { key })).toString()}`); smNet.ytApi++;
+    if (res.status !== 429) break;
+    const after = Number(res.headers.get('Retry-After')), wait = after > 0 ? after * 1000 : 2000 * Math.pow(2, tries);
+    if (tries >= 3 || wait > 60000) throw new Error('YouTube says too many requests: wait a minute, then try again');
+    await new Promise(r => setTimeout(r, wait));
+  }
   if (!res.ok) {
     let reason = '';
     try { const e = await res.json(); reason = (e.error && e.error.errors && e.error.errors[0] && e.error.errors[0].reason) || (e.error && e.error.message) || ''; } catch (e) { /* no body */ }

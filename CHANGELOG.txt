@@ -17,7 +17,26 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.85.21
+  CURRENT_VERSION: 1.85.23
+
+  1.85.23 — 2026-11-07 — YouTube's "too many requests" (429) is waited out and asked again, and said when it isn't, instead of an unhandled error. Page only.
+          A YouTube API request answered 429 now waits as YouTube asks (2, 4,
+          8 s when it doesn't say) and is asked again, three times at most;
+          then it fails with "YouTube says too many requests: wait a minute,
+          then try again". A song-by-song search you start yourself ("Search
+          YouTube for the rest", or that choice in the YouTube menu) says why
+          it stopped instead of leaving an uncaught error in the console; in
+          a run, the YouTube lane stops for Resume. (The Scenes & Movements
+          test no longer depends on timing.)
+
+  1.85.22 — 2026-11-07 — Match songs on one release runs YouTube when the add-on answers after it was opened, instead of leaving it "Not run". Page only.
+          Match songs on one release holds YouTube back on the API route (it
+          costs quota: "Find on YouTube" starts it). Whether the add-on is
+          there was decided when the window opened, so opened before the
+          add-on had answered the page, YouTube was held back too: "Not
+          looked up", every song "Not run", and the YouTube lane "Done" with
+          nothing done. Now, when the add-on answers, those releases are
+          looked up on YouTube straight away.
 
   1.85.21 — 2026-11-07 — Match songs looks for a full-release video when no YouTube playlist fits, and links each song to its part of it. Page only.
           YouTube in Match songs now goes: a playlist that fits, else a

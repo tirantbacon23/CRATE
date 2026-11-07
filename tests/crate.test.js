@@ -556,12 +556,12 @@ suite('Unlinked-song flags and a full-release video', () => {
 });
 
 suite('Genres: Scenes & Movements', () => {
-  test('one group however it is spelled, holding only Scenes and Movements', async () => {
+  test('one group however it is spelled, holding only Scenes and Movements', () => {
     const S = app('state'), tree = app('buildGenreTree');
     const tax = { 'dunedin sound': { label: 'Dunedin Sound', parents: ['Scenes & Movements'] }, 'the sound of young scotland': { label: 'The Sound of Young Scotland', parents: ['Scenes & Movements'] } };
     const rels = [{ row: 't1', artist: 'The Clean', title: 'X', genre: 'Jangle Pop, Dunedin Sound' }, { row: 't2', artist: 'Orange Juice', title: 'Y', genre: 'Jangle Pop', scene: 'The Sound of Young Scotland' }, { row: 't3', artist: 'Z', title: 'Z', genre: 'Indie Pop', movement: 'C86' }];
-    const was = S.raw; S.raw = was.concat(rels); await new Promise(r => setTimeout(r, 2100));          // (the scene and movement genres are worked out at most every two seconds)
-    let rows; try { rows = tree(rels, tax).filter(r => /scene|movement|dunedin|scotland|c86/i.test(r.label)).map(r => r.depth + ' ' + r.label); } finally { S.raw = was; }
+    const was = S.raw; S.raw = was.concat(rels); app('sceneKeysCache = null; sceneKnownCache = null; sceneGroupCache = null');          // (worked out at most every two seconds: start afresh)
+    let rows; try { rows = tree(rels, tax).filter(r => /scene|movement|dunedin|scotland|c86/i.test(r.label)).map(r => r.depth + ' ' + r.label); } finally { S.raw = was; app('sceneKeysCache = null; sceneKnownCache = null'); }
     eq(rows.filter(r => /^\d+ Scenes (&|and) Movements$/.test(r)), ['0 Scenes & Movements']);
     eq(rows.filter(r => /Dunedin|Scotland|C86/.test(r)), ['2 C86', '2 Dunedin Sound', '2 The Sound of Young Scotland']);
   });
