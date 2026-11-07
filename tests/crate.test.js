@@ -576,6 +576,44 @@ suite('Full-release video: finding the video', () => {
     ok(full.score > rip.score && rip.score > song.score);
     eq([full.diffMs, f(item, 0, { title: 'x', durationMs: 5000 }).diffMs], [12000, 0]);
   });
+  test('a reaction, a cover, a slowed or live version scores far lower (unless the release is one); the artist’s Topic channel and the year count for it', () => {
+    const f = app('fvScoreVideo'), item = { artist: 'Slowdive', title: 'Souvlaki', releaseDate: '1993-05-17' }, total = 2400000, at = (title, channel) => f(item, total, { title, channel: channel || 'Fan', durationMs: 2600000 }).score;
+    const plain = at('Slowdive - Souvlaki (Full Album)');
+    ok(at('Slowdive - Souvlaki (Full Album) REACTION') < plain - 25); ok(at('Slowdive - Souvlaki full album slowed + reverb') < plain - 25); ok(at('Slowdive - Souvlaki (Full Album) live 1994') < plain - 20);
+    ok(at('Slowdive - Souvlaki (Full Album)', 'Slowdive - Topic') > plain); ok(at('Slowdive - Souvlaki (1993) Full Album') > plain);
+    const liveItem = { artist: 'Slowdive', title: 'Live at Brixton' };
+    eq(f(liveItem, total, { title: 'Slowdive - Live at Brixton (Full Album)', durationMs: 2400000 }).score >= 90, true);
+  });
+});
+
+suite('Full-release video: timing the songs', () => {
+  const titles = ['Alison', 'Machine Gun', '40 Days', 'Sing'], lens = [230, 265, 194, 289];
+  const T = (info) => app('ytTimingFrom')(titles, lens, info);
+  test('the video’s chapters time each song, the last ending where the video does; an extra intro chapter is passed over', () => {
+    const t = T({ durationMs: 1010000, chapters: [{ start: 0, title: 'Intro' }, { start: 12, title: '1. Alison' }, { start: 245, title: 'Machine Gun' }, { start: 512, title: '40 Days' }, { start: 708, title: 'Sing' }] });
+    eq([t.how, t.placed, t.named, t.agree], ['chapters', 4, 4, true]);
+    eq(t.times, [{ start: 12, end: 245 }, { start: 245, end: 512 }, { start: 512, end: 708 }, { start: 708, end: 1010 }]);
+  });
+  test('else the times in the description; chapters of something else (too few songs in them) are not used', () => {
+    const t = T({ durationMs: 1000000, chapters: [{ start: 0, title: 'Part one' }, { start: 400, title: 'Part two' }, { start: 800, title: 'Part three' }], description: 'Tracklist:\n00:00 Alison\n03:50 Machine Gun\n08:15 40 Days\n11:29 Sing\nThanks for listening' });
+    eq([t.how, t.placed, t.agree], ['description', 4, true]);
+    eq(t.times.map(x => x.start), [0, 230, 495, 689]); eq(t.times[3].end, 1000);
+  });
+  test('no chapters: song lengths stretched to the video’s length when within 4%, else back to back', () => {
+    const sum = lens.reduce((a, b) => a + b, 0);
+    const s = T({ durationMs: Math.round(sum * 1.02) * 1000 });
+    eq([s.how, s.times[0].start, s.times[3].end], ['scaled', 0, Math.round(sum * 1.02)]); ok(s.times[1].start > 230);
+    const b = T({ durationMs: (sum + 200) * 1000 });
+    eq([b.how, b.times[1].start, b.agree], ['lengths', 230, false]);
+    eq(T(null).how, 'lengths');
+  });
+  test('chapters that name the songs make a video sure even when its length is off; candidates say how they were timed', () => {
+    const sure = app('ytFullVideoConfident'), t = T({ durationMs: 1010000, chapters: [{ start: 0, title: 'Alison' }, { start: 230, title: 'Machine Gun' }, { start: 495, title: '40 Days' }, { start: 689, title: 'Sing' }] });
+    eq([sure({ score: 62, titleFit: 1, durationMs: 1010000, diffMs: 32000, timing: t }, 978000), sure({ score: 62, titleFit: 1, durationMs: 1010000, diffMs: 32000 }, 978000)], [true, false]);
+    const songs = titles.map((title, idx) => ({ idx, title, durationMs: lens[idx] * 1000 }));
+    const out = app('bmFullVideoCands')(songs, { id: 'ccccccccccc', title: 'Souvlaki', score: 62, diffMs: 32000, timing: t }, true);
+    eq([out[3][0].link, out[3][0].reasons[1]], ['https://www.youtube.com/watch?v=ccccccccccc&t=689&end=1010', 'timed by the video’s chapters']);
+  });
 });
 
 suite('Match songs: a full-release video', () => {

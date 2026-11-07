@@ -17,7 +17,19 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.88.0
+  CURRENT_VERSION: 1.89.0
+
+  1.89.0 — 2026-11-07 — Full-release videos are timed by the video itself. When Match songs (or ⋯ → Full-release video… → Find) finds a video
+          of the whole release, it now reads the video's own chapters, or the "0:00 Song" times in its description, and puts each song
+          where they say, the last one ending where the video does (an "Intro" chapter is passed over). Only when the video has
+          neither are your song lengths used: stretched evenly to the video's length when they come within 4% of it (a faster
+          transfer, gaps between songs), else back to back as before. The best two videos are read, so one with chapters that name
+          your songs is chosen, and is sure even when its length is a little off. The YouTube box says how the songs were timed.
+          Finding: a reaction, review, cover, tribute, karaoke, slowed/reverb, sped-up, nightcore, 8D, remix, instrumental or live
+          upload scores far lower (unless the release is one); the artist's "- Topic" channel and the release year in the title
+          count for it; through the add-on, a second search without "full album" when nothing sure turned up. Chapters need the
+          CRATE for YouTube add-on 1.4.0 (it reads a video's page); with the API, the description comes with the search at no
+          extra cost. An older add-on still works, placing songs from their lengths.
 
   1.88.0 — 2026-11-07 — Ask your crate (⚙ → "Ask your crate…"): search in plain English, e.g. "90s shoegaze I rated 4+ and haven't played in a year, not on Creation". What it understood is shown back as chips. Page only.
           No AI service: a hand-written grammar over a lexicon built from your own crate. A genre takes in everything under it in

@@ -315,9 +315,10 @@ function ytParseTimestampList(text) {                               // a video d
   });
   return out;
 }
+function ytTitleNorm(x) { return String(x || '').toLowerCase().replace(/\([^)]*\)|\[[^\]]*\]/g, ' ').replace(/[^\p{L}\p{N}]+/gu, ' ').trim(); }
 function ytAssignTimestamps(titles, parsed) {                       // each song's { start, end } or null: by order when there are as many lines as songs, else by title
   if (parsed.length === titles.length) return parsed.map(p => ({ start: p.start, end: p.end }));
-  const norm = (x) => String(x || '').toLowerCase().replace(/\([^)]*\)|\[[^\]]*\]/g, ' ').replace(/[^\p{L}\p{N}]+/gu, ' ').trim(), used = new Set();
+  const norm = ytTitleNorm, used = new Set();
   return titles.map(t => {
     const n = norm(t); if (!n) return null; let hit = -1;
     parsed.forEach((q, i) => { if (hit < 0 && !used.has(i) && norm(q.title) === n) hit = i; });
@@ -332,6 +333,28 @@ function ytTimesFromLengths(lengths, intro) {                      // song lengt
   let at = Math.max(0, Math.round(Number(intro) || 0));
   return lengths.map(len => { if (at === null || !(len > 0)) { at = null; return null; } const r = { start: at, end: at + Math.round(len) }; at = r.end; return r; });
 }
+const ytTimestampLines = (desc) => String(desc || '').split(/\r?\n/).filter(l => /(?:\d{1,2}:)?\d{1,3}:\d{2}(?!\d)/.test(l)).join('\n').slice(0, 4000);          // only a description's lines with a time in them are kept
+function ytTimingFrom(titles, lengths, info) {                      // where each song is in a full-release video -> { times: [{ start, end } | null], how, placed, named, agree }: from the video's chapters, else the times in its
+  const n = titles.length, total = Math.round(((info && info.durationMs) || 0) / 1000);          // description, else your song lengths stretched to the video's length (when they come within 4% of it), else the lengths back to back
+  const tries = [['chapters', ((info && info.chapters) || []).map(c => ({ start: Math.round(Number(c.start) || 0), end: 0, title: String(c.title || '') }))], ['description', ytParseTimestampList(info && info.description)]];
+  for (const [how, raw] of tries) {
+    const list = raw.filter(p => p.start >= 0 && (!total || p.start < total)).sort((a, b) => a.start - b.start);
+    if (list.length < 2 || !n) continue;
+    const starts = list.map(p => p.start);
+    const times = ytAssignTimestamps(titles, list).map(g => { if (!g) return null; const end = g.end > g.start ? g.end : (starts.find(s => s > g.start) || (total > g.start ? total : 0)); return end > g.start ? { start: g.start, end } : null; });
+    const placed = times.filter(Boolean).length; if (placed < Math.max(2, Math.ceil(n * 0.6))) continue;          // too few songs found in them: not this release's chapters
+    const named = titles.filter(t => { const k = ytTitleNorm(t); return k && list.some(p => { const q = ytTitleNorm(p.title); return q === k || (q.length >= 3 && k.length >= 3 && (q.includes(k) || k.includes(q))); }); }).length;
+    return { times, how, placed, named, agree: placed === n && (named >= n * 0.8 || (list.length === n && named >= n * 0.5)) };          // agree: every song placed, and (nearly) all of them by name
+  }
+  const secs = lengths.map(l => Number(l) || 0), sum = secs.reduce((a, b) => a + b, 0);
+  if (total && sum && secs.every(l => l > 0) && Math.abs(total - sum) > 1 && Math.abs(total - sum) <= sum * 0.04) {          // a slightly faster or slower transfer, or gaps between the songs: spread evenly
+    const r = total / sum; let at = 0;
+    return { times: secs.map(l => { const s = Math.round(at * r); at += l; return { start: s, end: Math.round(at * r) }; }), how: 'scaled', placed: n, named: 0, agree: false };
+  }
+  const times = ytTimesFromLengths(secs, 0);
+  return { times, how: 'lengths', placed: times.filter(Boolean).length, named: 0, agree: false };
+}
+function ytTimingWhy(t) { return !t ? '' : t.how === 'chapters' ? 'timed by the video’s chapters' : t.how === 'description' ? 'timed by the times in the video’s description' : t.how === 'scaled' ? 'placed from your song lengths, stretched to the video’s length' : 'placed back to back from your song lengths'; }
 // END yt-segments
 function youtubeVideoIdFromUrl(url) {
   if (!url) return '';
@@ -581,24 +604,47 @@ function fvScoreVideo(item, totalMs, v) {                           // -> { scor
     len = d <= 0.03 ? 1 : Math.max(0, 1 - d * 3);
     if (v.durationMs < totalMs * 0.6) len = 0;                       // much shorter than the release: one song, a trailer
   }
-  return { score: Math.round(40 * title + 15 * artist + 35 * len + 10 * full), diffMs };
+  const mine = ` ${fvWords(`${item.title} ${item.artist} ${item.type || ''}`).join(' ')} `, theirs = ` ${fvWords(v.title).join(' ')} `;
+  const odd = ['reaction', 'reacts', 'review', 'cover', 'covers', 'tribute', 'karaoke', 'slowed', 'reverb', 'sped up', 'nightcore', '8d', 'remix', 'remixed', 'bass boosted', 'instrumental', 'acapella', '8 bit', 'piano version', 'live'];
+  const other = odd.some(w => theirs.includes(` ${w} `) && !mine.includes(` ${w} `)) ? 1 : 0;          // a reaction, a cover, a slowed or live version: not the release (unless the release is one)
+  const topic = / - topic$/i.test(v.channel || '') && artist >= 0.99 ? 1 : 0, yr = (String(item.releaseDate || '').match(/\b(?:19|20)\d{2}\b/) || [])[0], year = yr && theirs.includes(` ${yr} `) ? 1 : 0;          // the artist's own "- Topic" channel; the release's year in the title
+  return { score: Math.max(0, Math.min(100, Math.round(40 * title + 15 * artist + 35 * len + 10 * full + 5 * topic + 5 * year - 35 * other))), diffMs, titleFit: title };
+}
+async function ytVideoInfo(v) {                                     // a found video's chapters and description: its page through the add-on (free), or the description the API's search already brought; null when there is neither
+  if (ytUseAddon()) {
+    try { const r = (await ytAddonRequest({ kind: 'video', id: v.id }))[0]; if (r) return { durationMs: r.durationMs || v.durationMs || 0, description: ytTimestampLines(r.description), chapters: Array.isArray(r.chapters) ? r.chapters.slice(0, 200) : [] }; }
+    catch (e) { /* an add-on older than 1.4.0 can't read a video's page: the song lengths still place the songs */ }
+    return null;
+  }
+  return v.description ? { durationMs: v.durationMs || 0, description: v.description, chapters: [] } : null;
+}
+async function ytTimeVideos(list, titles, lengths) {                // each video's v.timing: where the songs are in it
+  for (const v of list) { if (v.timing) continue; const info = await ytVideoInfo(v); v.timing = ytTimingFrom(titles, lengths, info || { durationMs: v.durationMs || 0 }); }
 }
 async function ytFindFullVideos(item, knownMs) {                    // YouTube videos that may be the whole release, best first (at most six): through the add-on (free) or the API (100 units; remembered). Throws as the lookups do.
   const viaAddon = ytUseAddon();
   const clean = String(item.title).replace(/\s*\[.*?\]|\s*\(.*?\)/g, '').trim(), q = `${item.artist} ${clean} full album`, ck = 'full|' + ytCacheNorm(q);
   let vids = [];
-  const known = viaAddon ? null : ytCacheGet(ck);
+  const known = viaAddon ? null : ytCacheGet(ck), fromAddon = async (qq) => (await ytAddonRequest({ kind: 'search-video', q: qq })).slice(0, 12).map(v => ({ id: v.id, title: v.title || '', channel: v.channel || '', durationMs: v.durationMs || 0 }));
   if (known) vids = known.v.vids;
-  else if (viaAddon) vids = (await ytAddonRequest({ kind: 'search-video', q })).slice(0, 12).map(v => ({ id: v.id, title: v.title || '', channel: v.channel || '', durationMs: v.durationMs || 0 }));
+  else if (viaAddon) vids = await fromAddon(q);
   else {
     const d = await smYtApi('search', { part: 'snippet', type: 'video', maxResults: 10, q }, 100), ids = (d.items || []).filter(x => x.id && x.id.videoId).map(x => x.id.videoId);
     const det = ids.length ? await smYtDetails(ids) : new Map();
-    vids = ids.map(id => { const t = det.get(id) || {}; return { id, title: t.title || '', channel: t.channel || '', durationMs: t.durationMs || 0, blocked: !!t.blocked }; });
+    vids = ids.map(id => { const t = det.get(id) || {}; return { id, title: t.title || '', channel: t.channel || '', durationMs: t.durationMs || 0, blocked: !!t.blocked, description: ytTimestampLines(t.description) }; });
     ytCachePut(ck, { vids }, vids.length ? YT_REL_TTL : YT_NONE_TTL);
   }
-  return vids.filter(v => v.id && !v.blocked).map(v => Object.assign({}, v, fvScoreVideo(item, knownMs, v))).filter(v => v.score >= 35 && !(knownMs && v.durationMs && v.durationMs < knownMs * 0.6)).sort((a, b) => b.score - a.score).slice(0, 6);
+  const rank = () => vids.filter(v => v.id && !v.blocked).map(v => Object.assign({}, v, fvScoreVideo(item, knownMs, v))).filter(v => v.score >= 35 && !(knownMs && v.durationMs && v.durationMs < knownMs * 0.6)).sort((a, b) => b.score - a.score);
+  let ranked = rank();
+  if (viaAddon && !(ranked[0] && ranked[0].score >= 75)) {          // nothing sure under "full album": the add-on asks once more without those words (an upload titled just "Artist - Album")
+    try { const more = await fromAddon(`${item.artist} ${clean}`), have = new Set(vids.map(v => v.id)); vids = vids.concat(more.filter(v => !have.has(v.id))); ranked = rank(); } catch (e) { /* the first search's answer stands */ }
+  }
+  return ranked.slice(0, 6);
 }
-function ytFullVideoConfident(v, knownMs) { return !!(v && knownMs && v.durationMs && v.score >= 75 && Math.abs(v.diffMs) <= Math.max(20000, knownMs * 0.03)); }          // its title fits and its length is within 3% (20 s at least) of your songs'
+function ytFullVideoConfident(v, knownMs) {                         // its title fits and its length is within 3% (20 s at least) of your songs', or its chapters name the songs
+  if (v && v.timing && v.timing.agree && (v.titleFit || 0) >= 0.6 && v.score >= 50) return true;
+  return !!(v && knownMs && v.durationMs && v.score >= 75 && Math.abs(v.diffMs) <= Math.max(20000, knownMs * 0.03));
+}
 async function fvFindVideos() {
   if (!fv) return; const box = fvEl('fullVideoFound'), it = fv.item, me = fv;
   const viaAddon = ytUseAddon();
@@ -615,9 +661,20 @@ async function fvFindVideos() {
   const diffTxt = (v) => !known || !v.durationMs ? '' : Math.abs(v.diffMs) <= 5000 ? ' \u00b7 same length as your songs' : ` \u00b7 ${ytFormatTime(Math.abs(v.diffMs) / 1000)} ${v.diffMs > 0 ? 'longer' : 'shorter'} than your songs`;
   box.innerHTML = `<div class="fv-note">${known ? `Your songs come to ${ytFormatTime(known / 1000)}. ` : ''}Best first: pick one to use it.</div>` + ranked.map((v, i) => `<div class="fv-found-row"><div class="fv-found-t"><div class="sm-title" title="${escapeHtml(v.title)}">${escapeHtml(v.title)}</div><div class="fv-note">${escapeHtml(v.channel)}${v.durationMs ? ' \u00b7 ' + ytFormatTime(v.durationMs / 1000) : ''}${escapeHtml(diffTxt(v))}</div></div><button type="button" class="chip-btn" data-fv-found-play="${i}" aria-label="Play ${escapeHtml(v.title)}">\u25b6</button><button type="button" class="chip-btn" data-fv-found-use="${i}">Use</button></div>`).join('');
 }
-function fvUseFound(i) {
+async function fvUseFound(i) {
   const v = fv && fv.found && fv.found[i]; if (!v) return;
   fvEl('fullVideoUrl').value = 'https://www.youtube.com/watch?v=' + v.id; fvEl('fullVideoFound').hidden = true;
+  if (fv.rows.every(r => !r.start.trim() && !r.end.trim())) {          // nothing typed yet: the video's own chapters (or its description's times) first
+    const me = fv; fvEl('fullVideoStatus').textContent = 'Reading the video’s chapters…';
+    const info = await ytVideoInfo(v); if (fv !== me) return;
+    const t = info ? ytTimingFrom(fv.rows.map(r => r.title), fv.rows.map(r => r.len), info) : null;
+    if (t && (t.how === 'chapters' || t.how === 'description')) {
+      fvValidate(); fv.rows.forEach((r, k) => { const g = t.times[k]; if (g) { r.start = ytFormatTime(g.start); r.end = ytFormatTime(g.end); } });
+      const first = t.times.find(Boolean); fv.intro = first ? first.start : 0; fvEl('fullVideoIntro').value = ytFormatTime(fv.intro); fvRender();
+      const n = fv.rows.length; fvEl('fullVideoStatus').textContent = `Timed ${t.placed} of ${n} songs by the ${t.how === 'chapters' ? 'video’s chapters' : 'times in the video’s description'}.` + (t.placed < n ? ` ${n - t.placed} not found there ${n - t.placed === 1 ? 'needs its' : 'need their'} times set by hand.` : '') + ' Play a part to check it.';
+      return;
+    }
+  }
   if (fv.rows.every(r => !r.start.trim() && !r.end.trim()) && fv.rows.some(r => r.len > 0)) fvFromLengths(true); else fvValidate();          // nothing typed yet: placed from the song lengths
   if (v.diffMs > 5000 && v.durationMs) fvEl('fullVideoStatus').textContent += ` The video is ${ytFormatTime(v.diffMs / 1000)} longer than your songs: if it opens with an intro, set Intro.`;
 }
