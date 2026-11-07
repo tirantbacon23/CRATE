@@ -224,6 +224,7 @@
           <button type="button" id="menuFillTracklists">Fill tracklists from Rate Your Music…</button>
           <button type="button" id="menuUpdateNever">Update releases not yet updated from Rate Your Music…</button>
           <button type="button" id="menuPickMood">Pick by mood…</button>
+          <button type="button" id="menuGalaxy">Crate Galaxy…</button>
           <button type="button" id="menuMergeDupes">Find and merge duplicates…</button>
           <button type="button" id="menuBatchMatch">Match songs…</button>
           <button type="button" id="menuMatchNoLinks">Match releases with no song links…</button>
@@ -811,6 +812,16 @@
   <div class="mood-controls"><input type="text" id="moodFeel" placeholder="Type a feeling: sorrowful, joyous, eerie…" autocomplete="off" aria-label="Type a feeling and press Enter"><label><input type="checkbox" id="moodAll"> Must fit every sense I pick</label><label><input type="checkbox" id="moodFresh"> Not listened to yet</label><button type="button" id="moodClear" class="mood-btn">Clear</button></div>
   <p class="mood-msg" id="moodMsg" role="status"></p>
   <div class="mood-body"><div class="mood-senses" id="moodSenses"></div><div class="mood-results" id="moodResults"></div></div>
+</div></div>
+<div id="gxOverlay" class="gx-overlay" hidden><div class="gx-dialog" role="dialog" aria-modal="true" aria-labelledby="gxTitle">
+  <div class="gx-head"><div><div class="gx-title" id="gxTitle">CRATE GALAXY</div><div class="gx-sub" id="gxSub"></div></div>
+    <div class="gx-controls"><input type="search" id="gxFind" placeholder="Find a release, artist or genre…" autocomplete="off" aria-label="Find a release, artist or genre; Enter flies to it">
+      <select id="gxColor" aria-label="Colour stars by"><option value="family">Colour: genre family</option><option value="decade">Colour: decade</option><option value="rating">Colour: your rating</option><option value="rym">Colour: RYM rating</option></select>
+      <select id="gxDecade" aria-label="Light up one decade"><option value="">All years</option><option value="1950">1950s</option><option value="1960">1960s</option><option value="1970">1970s</option><option value="1980">1980s</option><option value="1990">1990s</option><option value="2000">2000s</option><option value="2010">2010s</option><option value="2020">2020s</option></select>
+      <label class="gx-check"><input type="checkbox" id="gxOnlyShown"> Only what's showing</label>
+      <button type="button" class="chip-btn" data-gx="random" title="Fly to a random star">Surprise me</button><button type="button" class="chip-btn" data-gx="fit">Whole galaxy</button></div>
+    <button type="button" class="mood-x" id="gxClose" aria-label="Close">×</button></div>
+  <div class="gx-body"><div class="gx-stage"><canvas id="gxCanvas"></canvas><div class="gx-tip" id="gxTip" hidden></div><div class="gx-status" id="gxStatus" hidden></div></div><aside class="gx-side" id="gxSide"></aside></div>
 </div></div>
 <div id="descBrowseOverlay" class="desc-overlay" hidden><div class="desc-dialog" role="dialog" aria-modal="true" aria-labelledby="descBrowseTitle"><div class="desc-head"><div><div class="desc-title" id="descBrowseTitle">DESCRIPTORS</div><div class="desc-sub">Pick the ones that fit. The number is how many of your releases already have it.</div></div><div class="desc-head-btns"><input type="search" id="descBrowseFilter" class="desc-filter" placeholder="Filter…" aria-label="Filter descriptors" autocomplete="off"><button type="button" id="descBrowseDone" class="desc-btn primary">Done</button></div></div><div id="descBrowseBody" class="desc-body"></div></div></div>
 <div id="rymQOverlay" class="rymq-overlay" hidden><div class="rymq-dialog" id="rymQDialog" role="dialog" aria-modal="true" aria-labelledby="rymQTitle"></div></div>
@@ -2168,44 +2179,45 @@
   </div>
 </div>
 
-<script src="js/01-core.js?v=1.85.23"></script>
-<script src="js/02-auth.js?v=1.85.23"></script>
-<script src="js/03-taxonomy-layout.js?v=1.85.23"></script>
-<script src="js/04-obsidian-export.js?v=1.85.23"></script>
-<script src="js/05-init-genres.js?v=1.85.23"></script>
-<script src="js/06-events.js?v=1.85.23"></script>
-<script src="js/07-prefs-fetch.js?v=1.85.23"></script>
-<script src="js/08-tabs-panels.js?v=1.85.23"></script>
-<script src="js/09-descriptors-mood-merge.js?v=1.85.23"></script>
-<script src="js/10-filters-search.js?v=1.85.23"></script>
-<script src="js/11-grid-player.js?v=1.85.23"></script>
-<script src="js/12-player-menus.js?v=1.85.23"></script>
-<script src="js/13-diary-scrobbles-stats.js?v=1.85.23"></script>
-<script src="js/14-artist-playlists.js?v=1.85.23"></script>
-<script src="js/15-shuffle-artist-info.js?v=1.85.23"></script>
-<script src="js/16-tabbar-updatelog.js?v=1.85.23"></script>
-<script src="js/17-match-songs.js?v=1.85.23"></script>
-<script src="js/18-exchange.js?v=1.85.23"></script>
-<script src="js/19-sound.js?v=1.85.23"></script>
-<script src="js/20-export-import.js?v=1.85.23"></script>
-<script src="js/21-addon-genre-page.js?v=1.85.23"></script>
-<script src="js/22-deck.js?v=1.85.23"></script>
-<script src="js/23-timeline-map.js?v=1.85.23"></script>
-<script src="js/24-diary-log.js?v=1.85.23"></script>
-<script src="js/25-tracklist-add.js?v=1.85.23"></script>
-<script src="js/26-layout-dnd.js?v=1.85.23"></script>
-<script src="js/27-tracklist-builder-rym.js?v=1.85.23"></script>
-<script src="js/28-edit-links-youtube.js?v=1.85.23"></script>
-<script src="js/29-lastfm-scrobbling.js?v=1.85.23"></script>
-<script src="js/30-new-releases.js?v=1.85.23"></script>
-<script src="js/31-lastfm-import.js?v=1.85.23"></script>
-<script src="js/32-utils.js?v=1.85.23"></script>
-<script src="js/33-pull-details.js?v=1.85.23"></script>
-<script src="js/34-fill-blanks.js?v=1.85.23"></script>
-<script src="js/35-catalogue-stats.js?v=1.85.23"></script>
-<script src="js/99-boot.js?v=1.85.23"></script>
+<script src="js/01-core.js?v=1.86.0"></script>
+<script src="js/02-auth.js?v=1.86.0"></script>
+<script src="js/03-taxonomy-layout.js?v=1.86.0"></script>
+<script src="js/04-obsidian-export.js?v=1.86.0"></script>
+<script src="js/05-init-genres.js?v=1.86.0"></script>
+<script src="js/06-events.js?v=1.86.0"></script>
+<script src="js/07-prefs-fetch.js?v=1.86.0"></script>
+<script src="js/08-tabs-panels.js?v=1.86.0"></script>
+<script src="js/09-descriptors-mood-merge.js?v=1.86.0"></script>
+<script src="js/10-filters-search.js?v=1.86.0"></script>
+<script src="js/11-grid-player.js?v=1.86.0"></script>
+<script src="js/12-player-menus.js?v=1.86.0"></script>
+<script src="js/13-diary-scrobbles-stats.js?v=1.86.0"></script>
+<script src="js/14-artist-playlists.js?v=1.86.0"></script>
+<script src="js/15-shuffle-artist-info.js?v=1.86.0"></script>
+<script src="js/16-tabbar-updatelog.js?v=1.86.0"></script>
+<script src="js/17-match-songs.js?v=1.86.0"></script>
+<script src="js/18-exchange.js?v=1.86.0"></script>
+<script src="js/19-sound.js?v=1.86.0"></script>
+<script src="js/20-export-import.js?v=1.86.0"></script>
+<script src="js/21-addon-genre-page.js?v=1.86.0"></script>
+<script src="js/22-deck.js?v=1.86.0"></script>
+<script src="js/23-timeline-map.js?v=1.86.0"></script>
+<script src="js/24-diary-log.js?v=1.86.0"></script>
+<script src="js/25-tracklist-add.js?v=1.86.0"></script>
+<script src="js/26-layout-dnd.js?v=1.86.0"></script>
+<script src="js/27-tracklist-builder-rym.js?v=1.86.0"></script>
+<script src="js/28-edit-links-youtube.js?v=1.86.0"></script>
+<script src="js/29-lastfm-scrobbling.js?v=1.86.0"></script>
+<script src="js/30-new-releases.js?v=1.86.0"></script>
+<script src="js/31-lastfm-import.js?v=1.86.0"></script>
+<script src="js/32-utils.js?v=1.86.0"></script>
+<script src="js/33-pull-details.js?v=1.86.0"></script>
+<script src="js/34-fill-blanks.js?v=1.86.0"></script>
+<script src="js/35-catalogue-stats.js?v=1.86.0"></script>
+<script src="js/36-galaxy.js?v=1.86.0"></script>
+<script src="js/99-boot.js?v=1.86.0"></script>
 
-<link rel="stylesheet" href="css/crate.css?v=1.85.23">
+<link rel="stylesheet" href="css/crate.css?v=1.86.0">
 
 </body>
 </html>

@@ -588,3 +588,49 @@ suite('Match songs: a full-release video', () => {
     eq([sure({ score: 90, durationMs: 497000, diffMs: 4000 }, 493000), sure({ score: 90, durationMs: 600000, diffMs: 107000 }, 493000), sure({ score: 60, durationMs: 493000, diffMs: 0 }, 493000)], [true, false, false]);
   });
 });
+
+suite('Crate Galaxy', () => {
+  const mk = (row, artist, title, genre, extra) => Object.assign({ row, artist, title, genre, genre2: '', releaseDate: '1990', rymDescriptors: '', scene: '', movement: '', label: '' }, extra || {});
+  test('a family is the top of a genre’s parents (a loop in the taxonomy stops); a release’s tokens include its parents, fainter', () => {
+    const fam = app('gxFamily'), tok = app('gxTokens');
+    const tax = { shoegaze: { label: 'Shoegaze', parents: ['Dream Pop'] }, 'dream pop': { label: 'Dream Pop', parents: ['Pop'] }, pop: { label: 'Pop', parents: [] }, a: { label: 'A', parents: ['B'] }, b: { label: 'B', parents: ['A'] } };
+    eq([fam('Shoegaze', tax), fam('Pop', tax), fam('Nothing', tax), fam('', tax)], ['Pop', 'Pop', 'Nothing', '']);
+    eq(['A', 'B'].includes(fam('A', tax)), true);
+    const t = tok(mk(2, 'My Bloody Valentine', 'Loveless', 'Shoegaze', { rymDescriptors: 'noisy, dense', label: 'Creation' }), tax);
+    eq([t['g:shoegaze'] > t['g:dream pop'], t['g:dream pop'] > t['g:pop'], !!t['d:noisy'], !!t['l:creation'], !!t['y:1990'], !!t['a:my bloody valentine']], [true, true, true, true, true, true]);
+  });
+  test('no group is left an island: one artist’s albums that share only common genres still link out, so a wormhole always exists', () => {
+    const build = app('gxBuild'), path = app('gxPath'), items = [];
+    for (let a = 0; a < 60; a++) for (let t = 0; t < 3; t++) items.push(mk(items.length + 2, 'Artist ' + a, 'T' + t, ['Rock', 'Jazz', 'Folk'][a % 3], { genre2: ['Pop', 'Rock', 'Jazz'][(a + t) % 3] }));
+    const g = build(items, {});
+    const comp = new Set([0]); for (const q = [0]; q.length;) g.nbr[q.pop()].forEach(({ j }) => { if (!comp.has(j)) { comp.add(j); q.push(j); } });
+    eq(comp.size, items.length);
+    eq(path(g, 0, items.length - 1).length > 1, true);
+  });
+  test('neighbours share the most, rare things count for more; a wormhole steps through what joins two far releases', () => {
+    const build = app('gxBuild'), path = app('gxPath');
+    const items = [
+      mk(2, 'A', 'a1', 'Shoegaze', { rymDescriptors: 'noisy' }), mk(3, 'B', 'b1', 'Shoegaze', { rymDescriptors: 'noisy' }),
+      mk(4, 'C', 'c1', 'Shoegaze, Ambient'), mk(5, 'D', 'd1', 'Ambient', { rymDescriptors: 'calm' }), mk(6, 'E', 'e1', 'Ambient', { rymDescriptors: 'calm' }),
+      mk(7, 'F', 'f1', 'Polka', { releaseDate: '1950' })
+    ];
+    const g = build(items, {}, 4);
+    eq(g.nbr[0][0].j, 1);                                             // a1's closest is b1: same genre and descriptor
+    eq([g.nbr[5].length, g.nbr[5][0].s <= 0.01, g.pieces > 1], [1, true, true]);          // polka from the fifties shares nothing: one faint link joins it to the rest
+    eq(g.nbr.every((l, i) => l.every(({ j }) => g.nbr[j].some(x => x.j === i))), true);          // links go both ways
+    const p = path(g, 0, 4);
+    eq([p[0], p[p.length - 1], p.includes(2)], [0, 4, true]);          // through the shoegaze-and-ambient one
+    eq([path(g, 0, 5).pop(), path(g, 3, 3), path(g, 0, 99)], [5, [3], []]);
+  });
+  test('the layout settles with releases that share more closer together than ones that share nothing', () => {
+    const build = app('gxBuild'), fams = app('gxFamilies'), init = app('gxLayoutInit'), step = app('gxLayoutStep');
+    const items = []; for (let i = 0; i < 40; i++) items.push(mk(i + 2, 'Art' + i, 'T' + i, i < 20 ? 'Techno' : 'Bluegrass', { rymDescriptors: i < 20 ? 'hypnotic' : 'acoustic' }));
+    const g = build(items, {}), F = fams(items, {}), L = init(items, F);
+    let n = 0; while (!step(L, g, 20) && n++ < 100);
+    eq(L.iter, L.total);
+    const d = (a, b) => Math.hypot(L.pos[2 * a] - L.pos[2 * b], L.pos[2 * a + 1] - L.pos[2 * b + 1]);
+    let same = 0, diff = 0, ns = 0, nd = 0; for (let a = 0; a < 40; a++) for (let b = a + 1; b < 40; b++) { if ((a < 20) === (b < 20)) { same += d(a, b); ns++; } else { diff += d(a, b); nd++; } }
+    eq(same / ns < diff / nd * 0.7, true);
+    eq([...L.pos].every(Number.isFinite), true);
+  });
+});

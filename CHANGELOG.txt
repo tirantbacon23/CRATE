@@ -17,7 +17,19 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.85.23
+  CURRENT_VERSION: 1.86.0
+
+  1.86.0 — 2026-11-07 — Crate Galaxy (⚙ → "Crate Galaxy…"): your whole crate as a map of stars, each release placed near what it shares the most with, and wormholes between any two releases to play as one queue. Page only.
+          How close two releases sit comes from their genres (with their parents in your Genre Taxonomy, fainter each level up), RYM
+          descriptors, scene, movement, label, artist and decade, each weighted by how rare it is in your crate (tf-idf), so a shared
+          descriptor few releases have pulls harder than a shared "Rock". Each release keeps its closest eight, plus two from further
+          afield so one artist's albums are never an island; anything still cut off is joined to the rest by its closest member.
+          The map forms as you watch: each genre family is held round its own point, links pull, crowding pushes, until it settles.
+          A wormhole is the smoothest chain from one star to another: each step costs more the less the two share, so it takes many
+          small steps over one big leap. "Play the wormhole" queues the chain in order.
+          Colour by genre family, decade, your rating or RYM rating; light up one decade; type to dim all but matching releases
+          (Enter flies to the best match); "Surprise me" flies to a random star. Bold releases have a gold ring. Click a star for its
+          nearest neighbours; double-click to open it. Drag, scroll and pinch to move and zoom. Nothing here is saved to the sheet.
 
   1.85.23 — 2026-11-07 — YouTube's "too many requests" (429) is waited out and asked again, and said when it isn't, instead of an unhandled error. Page only.
           A YouTube API request answered 429 now waits as YouTube asks (2, 4,
