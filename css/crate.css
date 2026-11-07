@@ -4287,3 +4287,31 @@ html, body {
   .gx-head { flex-wrap: wrap; } .gx-controls { justify-content: flex-start; } .gx-controls input[type=search] { width: 100%; }
   .gx-body { flex-direction: column; } .gx-side { width: auto; height: 38%; border-left: 0; border-top: 1px solid var(--line, #2A313C); }
 }
+
+/* ---------- Taste Engine ---------- */
+.te-tabs { display: flex; gap: 4px; padding: 6px 20px 0; border-bottom: 1px solid var(--line, #2A313C); flex: none; overflow-x: auto; }
+.te-tab { background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--text-dim, #8B93A0); font: 12px 'IBM Plex Mono', monospace; letter-spacing: .4px; text-transform: uppercase; padding: 9px 10px; cursor: pointer; white-space: nowrap; }
+.te-tab.active { color: var(--accent, #D6A24C); border-bottom-color: var(--accent, #D6A24C); }
+.te-body { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 20px 24px; }
+.te-warn { margin: 10px 0 4px; padding: 9px 12px; border: 1px solid rgba(232,139,122,0.4); border-radius: 8px; background: rgba(232,139,122,0.08); font: 12px/1.5 Inter, sans-serif; color: #F2B8AC; } .te-pad { padding: 8px 0; } .te-dim { font: 12px/1.55 Inter, sans-serif; color: var(--text-dim, #8B93A0); } .te-dim b { color: var(--text, #EDE7DC); } .te-msg { color: #F0C26A !important; }
+.te-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 10px 0 12px; position: sticky; top: -8px; background: var(--bg-card, #1B212B); z-index: 1; }
+.te-bar label { font: 11px 'IBM Plex Mono', monospace; color: var(--text-dim, #8B93A0); display: flex; align-items: center; gap: 8px; } .te-bar input[type=range] { accent-color: var(--accent, #D6A24C); width: 160px; } .te-bar .te-dim { flex: 1; min-width: 180px; }
+.te-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.te-row > img { width: 44px; height: 44px; object-fit: cover; border-radius: 4px; flex: none; }
+.te-main { flex: 1; min-width: 0; } .te-name { background: none; border: 0; padding: 0; color: inherit; text-align: left; cursor: pointer; display: flex; flex-direction: column; font: 13px Inter, sans-serif; max-width: 100%; }
+.te-name b, .te-name i { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .te-name i { font-style: normal; color: var(--text-dim, #8B93A0); font-size: 12px; } .te-name:hover b { color: var(--accent, #D6A24C); }
+.te-side { display: flex; align-items: center; gap: 8px; flex: none; flex-wrap: wrap; justify-content: flex-end; max-width: 55%; }
+.te-pred { font: 600 15px 'IBM Plex Mono', monospace; color: #F0C26A; } .te-pred i { font-style: normal; font-size: 12px; margin-left: 1px; } .te-sd { font: 10px 'IBM Plex Mono', monospace; color: var(--text-dim, #8B93A0); } .te-gap { font-size: 11px; }
+.te-why { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 6px; font: 11px 'IBM Plex Mono', monospace; } .te-why b { font-weight: 600; } .te-why em { font-style: normal; opacity: .6; }
+.te-up { color: #7FD1B9; } .te-down { color: #E88B7A; }
+.te-rate { display: inline-flex; } .te-rate button { background: none; border: 0; color: #4A5260; font-size: 18px; padding: 0 1px; cursor: pointer; line-height: 1; } .te-rate button.on { color: #F0C26A; }
+.te-kind { margin-top: 18px; border-top: 1px solid var(--line, #2A313C); padding-top: 12px; } .te-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.te-wrow { display: grid; grid-template-columns: minmax(0, 1.3fr) 1fr 48px; align-items: center; gap: 8px; padding: 4px 0; }
+.te-wname { display: flex; flex-direction: column; min-width: 0; font: 12px Inter, sans-serif; } .te-wname b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; } .te-wname em { font: 10px 'IBM Plex Mono', monospace; font-style: normal; color: var(--text-dim, #8B93A0); }
+.te-wbar { height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; } .te-wbar i { display: block; height: 100%; border-radius: 4px; } .te-wbar i.te-up { background: #7FD1B9; } .te-wbar i.te-down { background: #E88B7A; }
+.te-wval { font: 11px 'IBM Plex Mono', monospace; text-align: right; color: var(--text-dim, #8B93A0); }
+.te-how { display: grid; grid-template-columns: 1fr 300px; gap: 28px; padding-top: 10px; }
+.te-tbl { border-collapse: collapse; width: 100%; font: 13px Inter, sans-serif; } .te-tbl td { padding: 7px 0; border-bottom: 1px solid var(--line, #2A313C); } .te-tbl td:last-child { text-align: right; } .te-tbl em { font-style: normal; color: var(--text-dim, #8B93A0); font-size: 12px; }
+.te-calib { width: 100%; max-width: 300px; } .te-calib circle { fill: rgba(240,194,106,0.55); } .te-calib line { stroke: rgba(255,255,255,0.25); stroke-dasharray: 4 4; } .te-calib text { fill: var(--text-dim, #8B93A0); font: 10px 'IBM Plex Mono', monospace; }
+@media (max-width: 760px) { .te-cols, .te-how { grid-template-columns: 1fr; } .te-side { max-width: 48%; } .te-body { padding: 8px 14px 20px; } .te-tabs { padding: 6px 10px 0; } }
+

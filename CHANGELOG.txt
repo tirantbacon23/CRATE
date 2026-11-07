@@ -17,7 +17,22 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.86.0
+  CURRENT_VERSION: 1.87.0
+
+  1.87.0 — 2026-11-07 — Taste Engine (⚙ → "Taste Engine…"): learns how you rate from the releases you have rated, predicts the rest with how sure it is, says why, and picks what to play next. Page only.
+          Each release is described by what it is made of (genres with their taxonomy parents, descriptors, scene, movement, label,
+          artist, decade) plus its RYM rating and how many rated it there. A ridge regression gives each a weight: its pull on your
+          rating in stars. It is solved by conjugate gradients without ever forming the full matrix, so thousands of features cost
+          little; how strongly to hold the weights back (λ) is chosen by 5-fold cross-validation.
+          Listen next: unrated releases by predicted rating, plus a share of how unsure it is (the Safe ↔ Adventurous slider), each
+          one less like those already picked, so the list isn't one artist ten times. "Play these" queues them. "Why" shows what
+          moved each prediction.
+          Teach it: the twelve releases it is least sure about (sixteen models fitted to resamples of your ratings disagree most
+          on them), one per artist; rate one with the stars and it saves the rating and learns again straight away.
+          Your taste: what pulls your rating up and down, by genres & scenes, descriptors, labels, artists and decades, and how much
+          you go by the RYM crowd. Surprises: ratings it got most wrong while they were held out. How good is it: its held-out error
+          against guessing your average and against the RYM rating alone, how well it ranks, and its guesses plotted against yours.
+          When it finds no pattern (no better than your average), it says so instead of pretending.
 
   1.86.0 — 2026-11-07 — Crate Galaxy (⚙ → "Crate Galaxy…"): your whole crate as a map of stars, each release placed near what it shares the most with, and wormholes between any two releases to play as one queue. Page only.
           How close two releases sit comes from their genres (with their parents in your Genre Taxonomy, fainter each level up), RYM

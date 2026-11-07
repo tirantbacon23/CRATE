@@ -634,3 +634,31 @@ suite('Crate Galaxy', () => {
     eq([...L.pos].every(Number.isFinite), true);
   });
 });
+
+suite('Taste Engine', () => {
+  test('conjugate gradients solve the ridge exactly (a small case worked by hand)', () => {
+    const fit = app('teFit'), row = (c, v) => ({ c: Int32Array.from(c), v: Float64Array.from(v) });
+    // X = [[1,1],[1,0],[1,2]], y = [3,1,5], λ = 1 on the second column only: (XᵀX + diag(0,1)) w = Xᵀy -> [[3,3],[3,6]] w = [9,13] -> w = [5/3, 4/3]
+    const w = fit([row([0, 1], [1, 1]), row([0], [1]), row([0, 1], [1, 2])], Float64Array.from([3, 1, 5]), 1, Float64Array.from([0, 1]), 2);
+    eq([w[0].toFixed(6), w[1].toFixed(6)], [(5 / 3).toFixed(6), (4 / 3).toFixed(6)]);
+  });
+  test('it finds a taste it was given: loves one genre, dislikes another, beats guessing the average, and is least sure of what it never saw', () => {
+    const train = app('teTrain'), why = app('teWhy'), picks = app('tePicks'), r = app('gxRand')(11), items = [];
+    const genres = ['Shoegaze', 'Polka', 'Jazz', 'Techno', 'Folk'], base = { Shoegaze: 4.6, Polka: 1.4, Jazz: 3, Techno: 3, Folk: 3 };
+    for (let i = 0; i < 150; i++) { const g = genres[i % 5]; items.push({ row: i + 2, artist: 'A' + (i % 37), title: 'T' + i, genre: g, genre2: '', releaseDate: String(1970 + (i % 40)), rymRating: 0, rymVotes: 0, rating: Math.max(1, Math.min(5, Math.round(base[g] + (r() - 0.5)))) }); }
+    const unseen = { row: 999, artist: 'Z', title: 'Zz', genre: 'Gamelan', genre2: '', releaseDate: '1960', rymRating: 0, rymVotes: 0, rating: 0 };
+    const shoe = { row: 998, artist: 'Y', title: 'Yy', genre: 'Shoegaze', genre2: '', releaseDate: '1991', rymRating: 0, rymVotes: 0, rating: 0 };
+    const m = train(items.concat([unseen, shoe]), {}, { boot: 10 });
+    const W = (n) => m.w[m.S.cols.get(n)];
+    eq([W('g:shoegaze') > 0.8, W('g:polka') < -0.8], [true, true]);
+    eq(m.cv.mae < m.cv.maeMean * 0.6, true);
+    eq(m.pred.get(shoe).mean > 4, true);
+    eq(why(m, shoe, 1)[0].name, 'g:shoegaze');
+    eq(m.pred.get(unseen).sd >= 0, true);
+    const p = picks(m, [unseen, shoe], 0, 2); eq(p[0].it, shoe);
+  });
+  test('too few ratings: it says so instead of guessing', () => {
+    const m = app('teTrain')([{ row: 2, artist: 'a', title: 'b', genre: 'Rock', rating: 4 }], {});
+    eq([m.tooFew, m.rated], [true, 1]);
+  });
+});
