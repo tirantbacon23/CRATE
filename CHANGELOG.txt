@@ -17,7 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.85.10
+  CURRENT_VERSION: 1.85.11
+
+  1.85.11 — 2026-11-07 — Match songs: a song's kept YouTube link can be removed. Page only.
+          A "Kept" YouTube cell in Match songs now has a Remove button. It
+          clears the song's YouTube link (also one typed into the release's
+          own tracklist), so the song can be matched again or left without
+          one. Each removal goes into Match songs' history: "Undo last" (or
+          History) puts the link back.
 
   1.85.10 — 2026-11-05 — Releases are bold the way Rate Your Music prints them: the add-on (1.17.0) reads which titles a chart or list page draws in bold, and CRATE follows that instead of guessing from the rank. Page and add-on.
           When a page shows some titles bold and others not, each release seen there is marked bold or not bold (a page drawn all one way

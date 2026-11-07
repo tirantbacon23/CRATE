@@ -888,6 +888,23 @@ function bmApplyRel(rel, onlyKind, histLabel) {
   }).catch(() => { /* a failed save has already said so */ });
   return b.chain;
 }
+function bmUnlink(rel, idx, kind) {                                 // "Remove" on a kept link: the song is left without one (Undo last puts it back)
+  const b = bm, s = rel.songs && rel.songs.find(x => x.idx === idx); if (!s) return;
+  const f = kind === 'spotify' ? 'spotifyLink' : 'youtubeLink', old = s[f] || '', item = rel.item; if (!old) return;
+  b.chain = b.chain.then(async () => {
+    const mt = (item.manualTracks || []).find(t => t.trackNumber === s.trackNum || t.title === s.title);
+    if (mt && mt[f]) {                                               // a link typed into the tracklist itself: trackData's empty one would fall back to it
+      const manualTracks = item.manualTracks.map(t => t === mt ? Object.assign({}, t, { [f]: '' }) : t);
+      try { await postUpdate({ action: 'editAlbum', row: item.row, ManualTracks: JSON.stringify(manualTracks) }); }
+      catch (err) { flashGlobalToast('Couldn’t remove the link — try again.'); return; }
+      item.manualTracks = manualTracks;
+    }
+    if (!await saveSongLinks(item, { [s.trackNum]: { [f]: '' } })) return;
+    s[f] = ''; delete rel.pick[kind][idx]; if (rel.broken[kind]) delete rel.broken[kind][idx];
+    bmHistPush(bmHistStart(`Removed ${bmName(kind)} link · ${s.title}`, 'release'), { row: rel.row, artist: item.artist, title: item.title, prev: { [s.trackNum]: { [f]: old } }, n: 1 });          // undo writes the old link back into trackData, which wins over the tracklist
+    flashGlobalToast(`Removed the ${bmName(kind)} link for “${s.title}”.`); bmRedraw();
+  }).catch(() => { /* a failed save has already said so */ });
+}
 async function bmApply(rels, label) {
   if (!bm) return; rels = rels || bm.rels.filter(r => r.include);
   const n0 = rels.reduce((a, r) => a + Object.keys(r.pick.spotify).length + Object.keys(r.pick.youtube).length, 0); if (!n0) return;
@@ -1109,7 +1126,7 @@ function bmCellHtml(rel, s, kind) { return `<div class="bm-cellw" data-k="${bmNa
 function bmCellInner(rel, s, kind) {
   const c = bmCellOf(rel, s, kind), da = `data-row="${escapeHtml(rel.row)}" data-idx="${s.idx}" data-kind="${kind}"`;
   const br = rel.broken[kind] && rel.broken[kind][s.idx], brNote = br ? `<div class="bm-m bm-warnc">${escapeHtml(br.reason)}</div>` : '';
-  if (c.s === 'kept') { const yi = kind === 'youtube' ? ytInfoOf(s.youtubeLink) : null; return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct"><div class="bm-t${yi ? '' : ' bm-dim'}"${yi ? ` title="${escapeHtml(yi.t)}"` : ''}>${yi ? escapeHtml(yi.t) : 'Your link'}</div><div class="bm-m">${yi && yi.c ? escapeHtml(yi.c) + ' \u00b7 ' : ''}kept${bm.songsMode === 'check' && rel.checked[kind] ? ' · checked: works' : ''}</div></div>${bmChip('have', 'Kept')}</div>`; }
+  if (c.s === 'kept') { const yi = kind === 'youtube' ? ytInfoOf(s.youtubeLink) : null; return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct"><div class="bm-t${yi ? '' : ' bm-dim'}"${yi ? ` title="${escapeHtml(yi.t)}"` : ''}>${yi ? escapeHtml(yi.t) : 'Your link'}</div><div class="bm-m">${yi && yi.c ? escapeHtml(yi.c) + ' \u00b7 ' : ''}kept${bm.songsMode === 'check' && rel.checked[kind] ? ' · checked: works' : ''}</div></div>${bmChip('have', 'Kept')}${kind === 'youtube' ? `<button type="button" class="chip-btn bm-sm" data-bm="unlink" ${da} title="Remove this YouTube link from the song" aria-label="Remove the YouTube link for ${escapeHtml(s.title)}">Remove</button>` : ''}</div>`; }
   if (c.s === 'wait') return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct bm-dim">${rel.st[kind] === 'skip' ? escapeHtml(rel.err[kind] || 'Not run') : rel.st[kind] === 'work' ? 'Looking…' : 'Queued'}${brNote}</div></div>`;
   if (c.s === 'error') return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct bm-warnc">${escapeHtml(rel.err[kind] || 'Could not look this up')}</div></div>`;
   if (c.s === 'none') return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct"><div class="bm-dim">No match</div>${brNote}</div>${kind === 'youtube' ? `<button type="button" class="chip-btn bm-sm" data-bm="yt-song" ${da}>Search</button>` : ''}<button type="button" class="chip-btn bm-sm" data-bm="choose" ${da}>Paste</button></div>`;
@@ -1371,6 +1388,7 @@ function bmClick(e) {
   else if (a === 'preview') { const r = relOf(); bmPreview(r, r.songs.find(s => s.idx === idx), kind, t.dataset.id); }
   else if (a === 'compare') { const r = relOf(); bmCompare(r, r.songs.find(s => s.idx === idx), kind); }
   else if (a === 'reject') { const r = relOf(); bmReject(r, idx, kind, t.dataset.id); }
+  else if (a === 'unlink') { t.disabled = true; bmUnlink(relOf(), idx, kind); }
   else if (a === 'paste-song') { const r = relOf(), inp = bmEl('bmModal').querySelector(`[data-keep="paste-song-${CSS.escape(r.row)}-${idx}-${kind}"]`); bmPasteSong(r, idx, kind, inp && inp.value); }
   else if (a === 'yt-song') {
     const r = relOf(); if (!r) return;
