@@ -223,6 +223,7 @@
           <button type="button" id="menuTidyNames">Tidy artist names…</button>
           <button type="button" id="menuFillTracklists">Fill tracklists from Rate Your Music…</button>
           <button type="button" id="menuUpdateNever">Update releases not yet updated from Rate Your Music…</button>
+          <button type="button" id="menuAsk">Ask your crate…</button>
           <button type="button" id="menuPickMood">Pick by mood…</button>
           <button type="button" id="menuGalaxy">Crate Galaxy…</button>
           <button type="button" id="menuTaste">Taste Engine…</button>
@@ -828,6 +829,12 @@
   <div class="mood-head"><div><div class="mood-title" id="teTitle">TASTE ENGINE</div><div class="mood-sub" id="teSub"></div></div><button type="button" class="mood-x" id="teClose" aria-label="Close">×</button></div>
   <div class="te-tabs" role="tablist"><button type="button" class="te-tab" data-te-tab="next">Listen next</button><button type="button" class="te-tab" data-te-tab="teach">Teach it</button><button type="button" class="te-tab" data-te-tab="taste">Your taste</button><button type="button" class="te-tab" data-te-tab="surprise">Surprises</button><button type="button" class="te-tab" data-te-tab="how">How good is it</button></div>
   <div class="te-body" id="teBody"></div>
+</div></div>
+<div id="aqOverlay" class="mood-overlay" hidden><div class="mood-dialog aq-dialog" role="dialog" aria-modal="true" aria-labelledby="aqTitle">
+  <div class="mood-head"><div><div class="mood-title" id="aqTitle">ASK YOUR CRATE</div><div class="mood-sub">Say what you want to hear. Enter keeps it in Recent; Tab takes a suggestion.</div></div><button type="button" class="mood-x" id="aqClose" aria-label="Close">×</button></div>
+  <div class="aq-ask"><input type="text" id="aqInput" placeholder="e.g. 90s shoegaze I rated 4+ and haven't played in a year" autocomplete="off" spellcheck="false" aria-label="Ask your crate" aria-autocomplete="list" aria-controls="aqSugg"><div class="aq-sugg" id="aqSugg" role="listbox" hidden></div></div>
+  <div class="aq-chips" id="aqChips" aria-live="polite"></div>
+  <div class="te-body" id="aqResults"></div>
 </div></div>
 <div id="descBrowseOverlay" class="desc-overlay" hidden><div class="desc-dialog" role="dialog" aria-modal="true" aria-labelledby="descBrowseTitle"><div class="desc-head"><div><div class="desc-title" id="descBrowseTitle">DESCRIPTORS</div><div class="desc-sub">Pick the ones that fit. The number is how many of your releases already have it.</div></div><div class="desc-head-btns"><input type="search" id="descBrowseFilter" class="desc-filter" placeholder="Filter…" aria-label="Filter descriptors" autocomplete="off"><button type="button" id="descBrowseDone" class="desc-btn primary">Done</button></div></div><div id="descBrowseBody" class="desc-body"></div></div></div>
 <div id="rymQOverlay" class="rymq-overlay" hidden><div class="rymq-dialog" id="rymQDialog" role="dialog" aria-modal="true" aria-labelledby="rymQTitle"></div></div>
@@ -2185,46 +2192,47 @@
   </div>
 </div>
 
-<script src="js/01-core.js?v=1.87.0"></script>
-<script src="js/02-auth.js?v=1.87.0"></script>
-<script src="js/03-taxonomy-layout.js?v=1.87.0"></script>
-<script src="js/04-obsidian-export.js?v=1.87.0"></script>
-<script src="js/05-init-genres.js?v=1.87.0"></script>
-<script src="js/06-events.js?v=1.87.0"></script>
-<script src="js/07-prefs-fetch.js?v=1.87.0"></script>
-<script src="js/08-tabs-panels.js?v=1.87.0"></script>
-<script src="js/09-descriptors-mood-merge.js?v=1.87.0"></script>
-<script src="js/10-filters-search.js?v=1.87.0"></script>
-<script src="js/11-grid-player.js?v=1.87.0"></script>
-<script src="js/12-player-menus.js?v=1.87.0"></script>
-<script src="js/13-diary-scrobbles-stats.js?v=1.87.0"></script>
-<script src="js/14-artist-playlists.js?v=1.87.0"></script>
-<script src="js/15-shuffle-artist-info.js?v=1.87.0"></script>
-<script src="js/16-tabbar-updatelog.js?v=1.87.0"></script>
-<script src="js/17-match-songs.js?v=1.87.0"></script>
-<script src="js/18-exchange.js?v=1.87.0"></script>
-<script src="js/19-sound.js?v=1.87.0"></script>
-<script src="js/20-export-import.js?v=1.87.0"></script>
-<script src="js/21-addon-genre-page.js?v=1.87.0"></script>
-<script src="js/22-deck.js?v=1.87.0"></script>
-<script src="js/23-timeline-map.js?v=1.87.0"></script>
-<script src="js/24-diary-log.js?v=1.87.0"></script>
-<script src="js/25-tracklist-add.js?v=1.87.0"></script>
-<script src="js/26-layout-dnd.js?v=1.87.0"></script>
-<script src="js/27-tracklist-builder-rym.js?v=1.87.0"></script>
-<script src="js/28-edit-links-youtube.js?v=1.87.0"></script>
-<script src="js/29-lastfm-scrobbling.js?v=1.87.0"></script>
-<script src="js/30-new-releases.js?v=1.87.0"></script>
-<script src="js/31-lastfm-import.js?v=1.87.0"></script>
-<script src="js/32-utils.js?v=1.87.0"></script>
-<script src="js/33-pull-details.js?v=1.87.0"></script>
-<script src="js/34-fill-blanks.js?v=1.87.0"></script>
-<script src="js/35-catalogue-stats.js?v=1.87.0"></script>
-<script src="js/36-galaxy.js?v=1.87.0"></script>
-<script src="js/37-taste.js?v=1.87.0"></script>
-<script src="js/99-boot.js?v=1.87.0"></script>
+<script src="js/01-core.js?v=1.88.0"></script>
+<script src="js/02-auth.js?v=1.88.0"></script>
+<script src="js/03-taxonomy-layout.js?v=1.88.0"></script>
+<script src="js/04-obsidian-export.js?v=1.88.0"></script>
+<script src="js/05-init-genres.js?v=1.88.0"></script>
+<script src="js/06-events.js?v=1.88.0"></script>
+<script src="js/07-prefs-fetch.js?v=1.88.0"></script>
+<script src="js/08-tabs-panels.js?v=1.88.0"></script>
+<script src="js/09-descriptors-mood-merge.js?v=1.88.0"></script>
+<script src="js/10-filters-search.js?v=1.88.0"></script>
+<script src="js/11-grid-player.js?v=1.88.0"></script>
+<script src="js/12-player-menus.js?v=1.88.0"></script>
+<script src="js/13-diary-scrobbles-stats.js?v=1.88.0"></script>
+<script src="js/14-artist-playlists.js?v=1.88.0"></script>
+<script src="js/15-shuffle-artist-info.js?v=1.88.0"></script>
+<script src="js/16-tabbar-updatelog.js?v=1.88.0"></script>
+<script src="js/17-match-songs.js?v=1.88.0"></script>
+<script src="js/18-exchange.js?v=1.88.0"></script>
+<script src="js/19-sound.js?v=1.88.0"></script>
+<script src="js/20-export-import.js?v=1.88.0"></script>
+<script src="js/21-addon-genre-page.js?v=1.88.0"></script>
+<script src="js/22-deck.js?v=1.88.0"></script>
+<script src="js/23-timeline-map.js?v=1.88.0"></script>
+<script src="js/24-diary-log.js?v=1.88.0"></script>
+<script src="js/25-tracklist-add.js?v=1.88.0"></script>
+<script src="js/26-layout-dnd.js?v=1.88.0"></script>
+<script src="js/27-tracklist-builder-rym.js?v=1.88.0"></script>
+<script src="js/28-edit-links-youtube.js?v=1.88.0"></script>
+<script src="js/29-lastfm-scrobbling.js?v=1.88.0"></script>
+<script src="js/30-new-releases.js?v=1.88.0"></script>
+<script src="js/31-lastfm-import.js?v=1.88.0"></script>
+<script src="js/32-utils.js?v=1.88.0"></script>
+<script src="js/33-pull-details.js?v=1.88.0"></script>
+<script src="js/34-fill-blanks.js?v=1.88.0"></script>
+<script src="js/35-catalogue-stats.js?v=1.88.0"></script>
+<script src="js/36-galaxy.js?v=1.88.0"></script>
+<script src="js/37-taste.js?v=1.88.0"></script>
+<script src="js/38-ask.js?v=1.88.0"></script>
+<script src="js/99-boot.js?v=1.88.0"></script>
 
-<link rel="stylesheet" href="css/crate.css?v=1.87.0">
+<link rel="stylesheet" href="css/crate.css?v=1.88.0">
 
 </body>
 </html>

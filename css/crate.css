@@ -4315,3 +4315,26 @@ html, body {
 .te-calib { width: 100%; max-width: 300px; } .te-calib circle { fill: rgba(240,194,106,0.55); } .te-calib line { stroke: rgba(255,255,255,0.25); stroke-dasharray: 4 4; } .te-calib text { fill: var(--text-dim, #8B93A0); font: 10px 'IBM Plex Mono', monospace; }
 @media (max-width: 760px) { .te-cols, .te-how { grid-template-columns: 1fr; } .te-side { max-width: 48%; } .te-body { padding: 8px 14px 20px; } .te-tabs { padding: 6px 10px 0; } }
 
+/* ---------- Ask your crate ---------- */
+.aq-ask { position: relative; padding: 6px 24px 4px; flex: none; }
+.aq-ask input { width: 100%; background: var(--bg, #12161C); color: var(--text, #EDE7DC); border: 1px solid var(--line, #2A313C); border-radius: 10px; padding: 13px 16px; font: 16px Inter, sans-serif; outline: none; }
+.aq-ask input:focus { border-color: var(--accent, #D6A24C); }
+.aq-sugg { position: absolute; left: 24px; right: 24px; top: calc(100% - 2px); z-index: 3; background: var(--bg-elevated, #1B212B); border: 1px solid #3A4250; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.5); overflow: hidden; }
+.aq-sugg[hidden] { display: none; }
+.aq-s { display: flex; justify-content: space-between; gap: 10px; width: 100%; background: none; border: 0; color: inherit; padding: 8px 14px; font: 13px Inter, sans-serif; text-align: left; cursor: pointer; }
+.aq-s.on, .aq-s:hover { background: rgba(214,162,76,0.12); } .aq-s em { font: 10px 'IBM Plex Mono', monospace; font-style: normal; color: var(--text-dim, #8B93A0); text-transform: uppercase; }
+.aq-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 24px 6px; flex: none; min-height: 12px; }
+.aq-chip { font: 11px 'IBM Plex Mono', monospace; padding: 4px 9px; border-radius: 12px; background: rgba(127,209,185,0.1); border: 1px solid rgba(127,209,185,0.35); color: #A9E2D2; }
+.aq-chip.aq-neg { background: rgba(232,139,122,0.08); border-color: rgba(232,139,122,0.35); color: #F2B8AC; }
+.aq-chip.aq-unk { background: transparent; border-style: dashed; border-color: #4A5260; color: var(--text-dim, #8B93A0); }
+.aq-chip button { background: none; border: 0; padding: 0; color: #F0C26A; font: inherit; text-decoration: underline; cursor: pointer; }
+.aq-ex { display: block; background: none; border: 0; color: var(--text, #EDE7DC); font: 13px Inter, sans-serif; padding: 6px 0; cursor: pointer; text-align: left; } .aq-ex:hover { color: var(--accent, #D6A24C); } .aq-ex::before { content: '→ '; color: var(--text-dim, #8B93A0); }
+.aq-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px 0 10px; font: 13px Inter, sans-serif; position: sticky; top: -8px; background: var(--bg-card, #1B212B); z-index: 1; } .aq-acts { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+.aq-row { display: flex; align-items: center; gap: 12px; width: 100%; background: none; border: 0; border-bottom: 1px solid rgba(255,255,255,0.04); color: inherit; padding: 7px 4px; text-align: left; cursor: pointer; } .aq-row:hover { background: rgba(255,255,255,0.03); }
+.aq-row img { width: 44px; height: 44px; object-fit: cover; border-radius: 4px; flex: none; }
+.aq-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; font: 13px Inter, sans-serif; } .aq-main b, .aq-main i, .aq-main em { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aq-main i { font-style: normal; color: var(--text-dim, #8B93A0); font-size: 12px; } .aq-main em { font: 10px 'IBM Plex Mono', monospace; font-style: normal; color: #C9A35E; }
+.aq-nums { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font: 11px 'IBM Plex Mono', monospace; color: var(--text-dim, #8B93A0); flex: none; } .aq-nums b { color: #F0C26A; font-size: 13px; } .aq-dim { opacity: .6; }
+.aq-more { margin: 14px auto 0; display: block; }
+@media (max-width: 760px) { .aq-ask, .aq-chips { padding-left: 14px; padding-right: 14px; } .aq-sugg { left: 14px; right: 14px; } .aq-nums { max-width: 38%; } }
+

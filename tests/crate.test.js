@@ -662,3 +662,79 @@ suite('Taste Engine', () => {
     eq([m.tooFew, m.rated], [true, 1]);
   });
 });
+
+suite('Ask your crate', () => {
+  const tax = { shoegaze: { label: 'Shoegaze', parents: ['Alternative Rock'] }, 'dream pop': { label: 'Dream Pop', parents: ['Alternative Rock'] }, 'alternative rock': { label: 'Alternative Rock', parents: ['Rock'] }, rock: { label: 'Rock', parents: [] }, 'post-punk': { label: 'Post-Punk', parents: ['Rock'] }, 'hard bop': { label: 'Hard Bop', parents: ['Jazz'] }, jazz: { label: 'Jazz', parents: [] } };
+  const R = (row, artist, title, o) => Object.assign({ row, artist, title, type: 'Album', genre: '', genre2: '', releaseDate: '', label: '', rymDescriptors: '', region: '', location: '', rating: 0, rymRating: 0, rymVotes: 0, dateAdded: '', scene: '', movement: '' }, o);
+  const items = [
+    R(2, 'My Bloody Valentine', 'Loveless', { genre: 'Shoegaze', releaseDate: '1991-11-04', label: 'Creation', rating: 5, rymRating: 4.1, rymVotes: 60000, region: 'Ireland', rymDescriptors: 'noisy, dense, ethereal', dateAdded: '2024-02-01' }),
+    R(3, 'Slowdive', 'Souvlaki', { genre: 'Shoegaze, Dream Pop', releaseDate: '1993-05-17', label: 'Creation', rating: 4, rymRating: 3.9, rymVotes: 30000, region: 'United Kingdom', location: 'Reading, England', dateAdded: '2026-10-20' }),
+    R(4, 'Lush', 'Spooky', { genre: 'Dream Pop', releaseDate: '1992', label: '4AD', rating: 3, rymRating: 3.4, rymVotes: 4000, region: 'United Kingdom', dateAdded: '2025-06-01' }),
+    R(5, 'Joy Division', 'Closer', { genre: 'Post-Punk', releaseDate: '1980-07-18', label: 'Factory', rating: 4.5, rymRating: 4.0, rymVotes: 50000, region: 'United Kingdom', rymDescriptors: 'dark, melancholic', dateAdded: '2023-01-01' }),
+    R(6, 'Art Blakey', 'Moanin’', { genre: 'Hard Bop', releaseDate: '1959', label: 'Blue Note', rating: 0, rymRating: 3.95, rymVotes: 12000, region: 'United States', dateAdded: '2026-11-01' }),
+    R(7, 'Cornelius', 'Fantasma', { genre: 'Shibuya-kei', releaseDate: '1997', label: 'Trattoria', rating: 0, rymRating: 3.7, rymVotes: 8000, region: 'Japan', dateAdded: '2026-09-01' }),
+    R(8, 'Slowdive', 'Morningrise', { genre: 'Shoegaze', releaseDate: '1991', label: 'Creation', rating: 0, rymRating: 3.6, rymVotes: 400, region: 'United Kingdom', type: 'EP', dateAdded: '2026-08-01' })
+  ];
+  const plays = [{ artist: 'My Bloody Valentine', title: 'Loveless', n: 12, date: '2026-10-30' }, { artist: 'Slowdive', title: 'Souvlaki', n: 2, date: '2024-03-01' }, { artist: 'Joy Division', title: 'Closer', n: 1, date: '2026-01-10' }];
+  let ctx; const ask = (t) => { ctx = ctx || app('aqContext')(items, tax, plays, new Date('2026-11-07T12:00:00Z')); const q = app('aqParse')(t, ctx); return { q, t: app('aqRun')(items, q, ctx).map(x => x.title).sort() }; };
+  const got = (t) => ask(t).t;
+  test('genres take in everything under them; descriptors, labels, places, artists and titles are known by name', () => {
+    eq(got('shoegaze'), ['Loveless', 'Morningrise', 'Souvlaki']);
+    eq(got('alternative rock'), ['Loveless', 'Morningrise', 'Souvlaki', 'Spooky']);
+    eq(got('rock not shoegaze'), ['Closer', 'Spooky']);
+    eq(got('shoegaze or post-punk'), ['Closer', 'Loveless', 'Morningrise', 'Souvlaki']);
+    eq(got('melancholic'), ['Closer']);
+    eq(got('on creation'), ['Loveless', 'Morningrise', 'Souvlaki']);
+    eq(got('dream pop not on Creation'), ['Spooky']);
+    eq(got('from japan'), ['Fantasma']); eq(got('japanese'), ['Fantasma']);
+    eq(got('british post punk'), ['Closer']);
+    eq(got('by slowdive'), ['Morningrise', 'Souvlaki']);
+    eq(got('slowdive'), ['Morningrise', 'Souvlaki']);
+    eq(got('loveless'), ['Loveless']);
+  });
+  test('years and decades: "90s", "early 90s", "1990-1992", between, before, since, "from the 50s", "1990s"', () => {
+    eq(got('90s'), ['Fantasma', 'Loveless', 'Morningrise', 'Souvlaki', 'Spooky']);
+    eq(got('early 90s'), ['Loveless', 'Morningrise', 'Souvlaki', 'Spooky']);
+    eq(got('late 90s'), ['Fantasma']);
+    eq(got('1990-1992'), ['Loveless', 'Morningrise', 'Spooky']);
+    eq(got('released between 1991 and 1992'), ['Loveless', 'Morningrise', 'Spooky']);
+    eq(got('before 1981'), ['Closer', 'Moanin’']);
+    eq(got('since 1993'), ['Fantasma', 'Souvlaki']);
+    eq(got('from the 50s'), ['Moanin’']);
+    eq(got('1990s shoegaze'), ['Loveless', 'Morningrise', 'Souvlaki']);
+  });
+  test('your ratings and RYM’s: 4+, above, stars, unrated, favourites, on rym, obscure, a range', () => {
+    eq(got('rated 4+'), ['Closer', 'Loveless', 'Souvlaki']);
+    eq(got('i rated above 4'), ['Closer', 'Loveless']);
+    eq(got('5 stars'), ['Loveless']);
+    eq(got('unrated'), ['Fantasma', 'Moanin’', 'Morningrise']);
+    eq(got('not rated'), ['Fantasma', 'Moanin’', 'Morningrise']);
+    eq(got('favourites'), ['Closer', 'Loveless']);
+    eq(got('rated 3.95+ on rym'), ['Closer', 'Loveless', 'Moanin’']);
+    eq(got('rym 3.9 or more'), ['Closer', 'Loveless', 'Moanin’', 'Souvlaki']);
+    eq(got('obscure shoegaze'), ['Morningrise']);
+    eq(got('rated 3-4'), ['Souvlaki', 'Spooky']);
+  });
+  test('plays and when added: not played in a year, never played, more than 5 times, this year, the last 3 months', () => {
+    eq(got("haven't played in a year"), ['Fantasma', 'Moanin’', 'Morningrise', 'Souvlaki', 'Spooky']);
+    eq(got('never played'), ['Fantasma', 'Moanin’', 'Morningrise', 'Spooky']);
+    eq(got('played more than 5 times'), ['Loveless']);
+    eq(got('played this year'), ['Closer', 'Loveless']);
+    eq(got('not played since 2025'), ['Fantasma', 'Moanin’', 'Morningrise', 'Souvlaki', 'Spooky']);
+    eq(got('added this year'), ['Fantasma', 'Moanin’', 'Morningrise', 'Souvlaki']);
+    eq(got('added in the last 3 months'), ['Fantasma', 'Moanin’', 'Souvlaki']);
+    eq(got('added before 2024'), ['Closer']);
+  });
+  test('the whole sentence at once, types, sorting and counts; what it couldn’t read is said, with the nearest word', () => {
+    eq(got("90s shoegaze I rated 4+ and haven't played in a year, not on Creation"), []);
+    eq(got("90s shoegaze I rated 4+ and haven't played in a year"), ['Souvlaki']);
+    eq(got('eps'), ['Morningrise']); eq(got('shoegaze albums'), ['Loveless', 'Souvlaki']);
+    const best = ask('best 2'); eq(app('aqRun')(items, best.q, ctx).map(x => x.title), ['Loveless', 'Closer']);
+    const old = ask('oldest first'); eq(app('aqRun')(items, old.q, ctx)[0].title, 'Moanin’');
+    const typo = ask('shoegase'); eq([typo.t.length, typo.q.unknown[0].word, typo.q.unknown[0].sugg.label, typo.q.unknown[0].applied], [3, 'shoegase', 'Shoegaze', true]);
+    const lost = ask('shoegaze zxqv'); eq([lost.t.length, lost.q.unknown[0].word, lost.q.chips], [0, 'zxqv', ['Shoegaze']]);
+    eq(ask('rock not shoegaze').q.chips, ['Rock (and 4 under it)', 'Not: Shoegaze']);
+    eq(app('aqComplete')('slow', ctx)[0].label, 'Slowdive');
+    eq(app('aqComplete')('by co', ctx).map(x => x.kind).every(k => k === 'artist'), true);
+  });
+});

@@ -17,7 +17,21 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.87.0
+  CURRENT_VERSION: 1.88.0
+
+  1.88.0 — 2026-11-07 — Ask your crate (⚙ → "Ask your crate…"): search in plain English, e.g. "90s shoegaze I rated 4+ and haven't played in a year, not on Creation". What it understood is shown back as chips. Page only.
+          No AI service: a hand-written grammar over a lexicon built from your own crate. A genre takes in everything under it in
+          your Genre Taxonomy ("rock" finds shoegaze); descriptors, scenes, movements, labels, artists, places and titles are known by
+          name, longest first. It reads your rating and RYM's ("rated 4+", "5 stars", "unrated", "favourites", "rym 3.8+",
+          "acclaimed", "obscure", "popular", "bold"), years and decades ("early 90s", "1990-1995", "between 1975 and 1985",
+          "before 1970", "since 2015"), when you added and played things ("added this year", "in the last 3 months", "haven't
+          played in a year", "never played", "played more than 10 times"), places ("from Japan", "british"), types ("eps",
+          "singles", "live"), "by", "on", "not / except / without", "or", and sorting and counts ("best 20", "10 random",
+          "newest first", "most played").
+          A word it can't place is searched in titles and artists; a near miss of a name is read as that name ("shoegase" as
+          Shoegaze) and says so; anything else matches nothing and says so, rather than being quietly dropped. Excluding something
+          your crate doesn't have excludes nothing, and says that too. Suggestions as you type (Tab or the arrows to take one);
+          Enter keeps the question in Recent. Results can be played, shuffled or saved as a playlist.
 
   1.87.0 — 2026-11-07 — Taste Engine (⚙ → "Taste Engine…"): learns how you rate from the releases you have rated, predicts the rest with how sure it is, says why, and picks what to play next. Page only.
           Each release is described by what it is made of (genres with their taxonomy parents, descriptors, scene, movement, label,
