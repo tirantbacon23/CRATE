@@ -17,7 +17,21 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.85.20
+  CURRENT_VERSION: 1.85.21
+
+  1.85.21 — 2026-11-07 — Match songs looks for a full-release video when no YouTube playlist fits, and links each song to its part of it. Page only.
+          YouTube in Match songs now goes: a playlist that fits, else a
+          full-release video, else each song searched one by one. The video
+          is looked for on the same terms as the song-by-song search: by
+          itself through the YouTube add-on, or with an API key when song by
+          song is on (one 100-unit search for the release). It needs every
+          song's length: each song is linked to its part of the video, back
+          to back from the lengths (no intro). A video whose title fits and
+          whose length is within 3% of your songs' is confident, ticked like
+          any match, and then the song-by-song search isn't needed. The
+          YouTube box names the video and how its length compares, and its
+          menu lists the other videos found, "Find a full-release video"
+          (on request, with the API) and the Full-release video editor.
 
   1.85.20 — 2026-11-07 — Full-release video: "Find videos" searches YouTube for the whole release and ranks what it finds by how close each video's length is to your songs'. Page only.
           It searches "artist title full album" through the YouTube add-on (no

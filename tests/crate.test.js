@@ -577,3 +577,14 @@ suite('Full-release video: finding the video', () => {
     eq([full.diffMs, f(item, 0, { title: 'x', durationMs: 5000 }).diffMs], [12000, 0]);
   });
 });
+
+suite('Match songs: a full-release video', () => {
+  test('each song gets its part of the video, back to back from its length; confident only when the length fits', () => {
+    const cands = app('bmFullVideoCands'), sure = app('ytFullVideoConfident');
+    const songs = [{ idx: 0, durationMs: 183000 }, { idx: 1, durationMs: 136000 }, { idx: 2, durationMs: 174000 }];
+    const out = cands(songs, { id: 'bbbbbbbbbbb', title: 'Psychocandy (Full Album)', channel: 'Fan', score: 90, diffMs: 4000 }, true);
+    eq([0, 1, 2].map(i => out[i][0].link), ['https://www.youtube.com/watch?v=bbbbbbbbbbb&end=183', 'https://www.youtube.com/watch?v=bbbbbbbbbbb&t=183&end=319', 'https://www.youtube.com/watch?v=bbbbbbbbbbb&t=319&end=493']);
+    eq([out[1][0].band, out[1][0].source], ['confident', 'fullvideo']);
+    eq([sure({ score: 90, durationMs: 497000, diffMs: 4000 }, 493000), sure({ score: 90, durationMs: 600000, diffMs: 107000 }, 493000), sure({ score: 60, durationMs: 493000, diffMs: 0 }, 493000)], [true, false, false]);
+  });
+});

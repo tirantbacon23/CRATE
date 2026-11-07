@@ -583,28 +583,33 @@ function fvScoreVideo(item, totalMs, v) {                           // -> { scor
   }
   return { score: Math.round(40 * title + 15 * artist + 35 * len + 10 * full), diffMs };
 }
+async function ytFindFullVideos(item, knownMs) {                    // YouTube videos that may be the whole release, best first (at most six): through the add-on (free) or the API (100 units; remembered). Throws as the lookups do.
+  const viaAddon = ytUseAddon();
+  const clean = String(item.title).replace(/\s*\[.*?\]|\s*\(.*?\)/g, '').trim(), q = `${item.artist} ${clean} full album`, ck = 'full|' + ytCacheNorm(q);
+  let vids = [];
+  const known = viaAddon ? null : ytCacheGet(ck);
+  if (known) vids = known.v.vids;
+  else if (viaAddon) vids = (await ytAddonRequest({ kind: 'search-video', q })).slice(0, 12).map(v => ({ id: v.id, title: v.title || '', channel: v.channel || '', durationMs: v.durationMs || 0 }));
+  else {
+    const d = await smYtApi('search', { part: 'snippet', type: 'video', maxResults: 10, q }, 100), ids = (d.items || []).filter(x => x.id && x.id.videoId).map(x => x.id.videoId);
+    const det = ids.length ? await smYtDetails(ids) : new Map();
+    vids = ids.map(id => { const t = det.get(id) || {}; return { id, title: t.title || '', channel: t.channel || '', durationMs: t.durationMs || 0, blocked: !!t.blocked }; });
+    ytCachePut(ck, { vids }, vids.length ? YT_REL_TTL : YT_NONE_TTL);
+  }
+  return vids.filter(v => v.id && !v.blocked).map(v => Object.assign({}, v, fvScoreVideo(item, knownMs, v))).filter(v => v.score >= 35 && !(knownMs && v.durationMs && v.durationMs < knownMs * 0.6)).sort((a, b) => b.score - a.score).slice(0, 6);
+}
+function ytFullVideoConfident(v, knownMs) { return !!(v && knownMs && v.durationMs && v.score >= 75 && Math.abs(v.diffMs) <= Math.max(20000, knownMs * 0.03)); }          // its title fits and its length is within 3% (20 s at least) of your songs'
 async function fvFindVideos() {
   if (!fv) return; const box = fvEl('fullVideoFound'), it = fv.item, me = fv;
   const viaAddon = ytUseAddon();
   if (!viaAddon && !loadYoutubeApiKey()) { box.hidden = false; box.innerHTML = '<div class="fv-note">Finding videos needs the CRATE for YouTube add-on or a YouTube API key (\u2699 \u2192 YouTube API\u2026). <b>Search \u2197</b> opens YouTube instead.</div>'; return; }
   if (!viaAddon && !confirm('Searching YouTube costs 100 of today\u2019s quota units. Go ahead?')) return;
-  const clean = String(it.title).replace(/\s*\[.*?\]|\s*\(.*?\)/g, '').trim(), q = `${it.artist} ${clean} full album`, ck = 'full|' + ytCacheNorm(q);
   box.hidden = false; box.innerHTML = '<div class="fv-note">Looking on YouTube\u2026</div>'; fvEl('fullVideoFind').disabled = true;
-  let vids = [];
-  try {
-    const known = viaAddon ? null : ytCacheGet(ck);
-    if (known) vids = known.v.vids;
-    else if (viaAddon) vids = (await ytAddonRequest({ kind: 'search-video', q })).slice(0, 12).map(v => ({ id: v.id, title: v.title || '', channel: v.channel || '', durationMs: v.durationMs || 0 }));
-    else {
-      const d = await smYtApi('search', { part: 'snippet', type: 'video', maxResults: 10, q }, 100), ids = (d.items || []).filter(x => x.id && x.id.videoId).map(x => x.id.videoId);
-      const det = ids.length ? await smYtDetails(ids) : new Map();
-      vids = ids.map(id => { const t = det.get(id) || {}; return { id, title: t.title || '', channel: t.channel || '', durationMs: t.durationMs || 0, blocked: !!t.blocked }; });
-      ytCachePut(ck, { vids }, vids.length ? YT_REL_TTL : YT_NONE_TTL);
-    }
-  } catch (e) { if (fv === me) box.innerHTML = `<div class="fv-note">${escapeHtml(viaAddon ? ytAddonErrText(e) : String((e && e.message) || e))}</div>`; fvEl('fullVideoFind').disabled = false; return; }
-  fvEl('fullVideoFind').disabled = false; if (fv !== me) return;
   const total = fv.rows.reduce((a, r) => a + (r.len || 0), 0) * 1000, known = fv.rows.every(r => r.len > 0) ? total : 0;
-  const ranked = vids.filter(v => v.id && !v.blocked).map(v => Object.assign({}, v, fvScoreVideo(it, known, v))).filter(v => v.score >= 35 && !(known && v.durationMs && v.durationMs < known * 0.6)).sort((a, b) => b.score - a.score).slice(0, 6);
+  let ranked = [];
+  try { ranked = await ytFindFullVideos(it, known); }
+  catch (e) { if (fv === me) box.innerHTML = `<div class="fv-note">${escapeHtml(viaAddon ? ytAddonErrText(e) : String((e && e.message) || e))}</div>`; fvEl('fullVideoFind').disabled = false; return; }
+  fvEl('fullVideoFind').disabled = false; if (fv !== me) return;
   fv.found = ranked;
   if (!ranked.length) { box.innerHTML = '<div class="fv-note">Nothing on YouTube looks like the whole release. <b>Search \u2197</b> to look yourself.</div>'; return; }
   const diffTxt = (v) => !known || !v.durationMs ? '' : Math.abs(v.diffMs) <= 5000 ? ' \u00b7 same length as your songs' : ` \u00b7 ${ytFormatTime(Math.abs(v.diffMs) / 1000)} ${v.diffMs > 0 ? 'longer' : 'shorter'} than your songs`;
