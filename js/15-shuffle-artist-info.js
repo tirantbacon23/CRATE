@@ -232,7 +232,7 @@ async function playCrateQueueIndex(myId, index) {
   // play here and is skipped rather than guessed at.
   if (isManualAlbum(item)) {
     crateQueueExpectedSpotifyTrackId = null;
-    flashGlobalToast(`Skipping "${trackName}" \u2014 no link saved.`);
+    flashGlobalToast(releaseFullVideoId(item) ? `Skipping "${trackName}" \u2014 no time saved for it in the full-release video (\u22ef \u2192 Full-release video\u2026).` : `Skipping "${trackName}" \u2014 no link saved.`);
     mqAdd([item], 'skipped', trackName);          // queued for Match songs
     playCrateQueueIndex(myId, index + 1);
     return;

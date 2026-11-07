@@ -544,3 +544,13 @@ suite('Search: a release’s songs under a search', () => {
     } finally { S.query = was; }
   });
 });
+
+suite('Unlinked-song flags and a full-release video', () => {
+  test('a release with a full-release video has no red flags; one without still does', () => {
+    const gaps = app('songLinkGaps'), full = app('releaseFullVideoId'), V = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+    const mk = (o) => Object.assign({ row: 999998, artist: 'A', title: 'B', hasManualTracklist: true, trackData: {}, manualTracks: [{ trackNumber: 1, title: 'One', youtubeLink: '' }, { trackNumber: 2, title: 'Two', youtubeLink: '' }, { trackNumber: 3, title: 'Three', youtubeLink: '' }] }, o);
+    const none = mk({}), ownLink = mk({ link: V }), timed = mk({ trackData: { 2: { youtubeLink: V + '&t=200&end=400' } } }), oneSong = mk({ trackData: { 2: { youtubeLink: V } } });
+    eq([!!gaps(none), !!gaps(ownLink), !!gaps(timed), !!gaps(oneSong)], [true, false, false, true]);
+    eq([full(ownLink), full(timed), full(oneSong)], ['dQw4w9WgXcQ', 'dQw4w9WgXcQ', '']);
+  });
+});

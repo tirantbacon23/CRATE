@@ -17,7 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.85.16
+  CURRENT_VERSION: 1.85.17
+
+  1.85.17 — 2026-11-07 — A release with a full-release video has no red "!" flags. Page only.
+          A release counts as having one when its own link is a YouTube
+          video, a song's YouTube link says where it ends in a video (as the
+          Full-release video dialog saves it), or two songs share one video.
+          Its songs and the release itself are then not flagged. A song with
+          no time saved in the video is still skipped when played, and the
+          message now says so (⋯ → Full-release video…). That dialog also
+          starts from the release's own link when it is a YouTube video.
 
   1.85.16 — 2026-11-07 — A search by artist no longer hides some of a release's songs. Page only.
           "artist:the jesus and m" is read as artist "the" plus the words

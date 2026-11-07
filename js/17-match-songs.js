@@ -16,8 +16,23 @@ function songLinkProblem(links) {
   if (trackSpotifyUriFromLink(sp) || (yt && youtubeVideoIdFromUrl(yt)) || /^https?:\/\/\S+$/i.test(sc)) return '';
   return 'invalid';
 }
+// A release with a full-release video (one YouTube video that is the whole release) isn't flagged: the release's own link is a YouTube video,
+// a song's YouTube link says where it ends in a video (the Full-release video dialog), or two songs share one video. -> its video id, or ''
+function releaseFullVideoId(item) {
+  try {
+    const own = youtubeVideoIdFromUrl(item && item.link); if (own) return own;
+    const counts = {};
+    for (const [i, t] of (item.manualTracks || []).entries()) {
+      if (!t || !String(t.title || '').trim()) continue;
+      const yt = trackLinkOverridesFor(item, t.trackNumber || (i + 1), t.title).youtubeLink, id = youtubeVideoIdFromUrl(yt); if (!id) continue;
+      if (youtubeSegmentFromUrl(yt).end) return id;          // (an end: a part of a longer video; a start alone can be a link shared "at 0:30")
+      if ((counts[id] = (counts[id] || 0) + 1) >= 2) return id;
+    }
+  } catch (e) { /* an odd tracklist: judged as having none */ }
+  return '';
+}
 function songLinkGaps(item) {
-  if (!isManualAlbum(item)) return null;
+  if (!isManualAlbum(item) || releaseFullVideoId(item)) return null;
   // This runs while every card is drawn, so it must never be able to break drawing: the app's own link lookup throws on
   // an odd tracklist (a null entry from a hand-edited sheet cell, say), and a release that can't be judged is simply
   // not flagged rather than taking the whole grid down with it.
@@ -62,7 +77,7 @@ function refreshLinkFlagsFor(item) {
 // One song's own flag in a hand-made release's tracklist — the same test as the release's flag, on the links the
 // track object already carries (merged with its saved overrides), so the two can never disagree.
 function songFlagHtml(item, t) {
-  if (!isManualAlbum(item) || !t) return '';
+  if (!isManualAlbum(item) || !t || releaseFullVideoId(item)) return '';
   const problem = songLinkProblem({ spotifyLink: t.spotifyLink, youtubeLink: t.youtubeLink, soundcloudLink: t.soundcloudLink });
   if (!problem) return '';
   const tip = problem === 'invalid' ? 'This song\u2019s link can\u2019t be played \u2014 playing the release skips it.' : 'This song has no link \u2014 playing the release skips it.';

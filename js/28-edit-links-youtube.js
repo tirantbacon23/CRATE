@@ -485,7 +485,7 @@ async function fvOpen(item, hintUrl) {
   try { mergeTrackLinkOverrides(item, tracks); } catch (e) { /* as they are */ }
   const counts = {}; tracks.forEach(t => { const id = youtubeVideoIdFromUrl(t.youtubeLink); if (id) counts[id] = (counts[id] || 0) + 1; });
   const common = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0], shared = common && counts[common] >= 2 ? common : '';          // two songs on one video: that is the full-release video already
-  const hint = youtubeVideoIdFromUrl(hintUrl);
+  const hint = youtubeVideoIdFromUrl(hintUrl) || (shared ? '' : youtubeVideoIdFromUrl(item.link));          // (the release's own link, when it is a YouTube video)
   const id = hint || shared, url = id ? 'https://www.youtube.com/watch?v=' + id : '';
   fv = { item, rows: tracks.map(t => { const same = id && youtubeVideoIdFromUrl(t.youtubeLink) === id, g = same ? youtubeSegmentFromUrl(t.youtubeLink) : { start: 0, end: 0 }; return { n: t.trackNumber, title: t.trackName || '', start: same ? ytFormatTime(g.start) : '', end: g.end ? ytFormatTime(g.end) : '', len: Math.round((Number(t.trackTimeMillis) || 0) / 1000) }; }), intro: 0 };
   const firstStart = fv.rows.map(r => r.start.trim() ? ytParseTime(r.start) : NaN).find(s => s >= 0); if (firstStart > 0) fv.intro = firstStart;          // times saved before: the intro is where song 1 starts
