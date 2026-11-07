@@ -779,7 +779,7 @@ async function bmRunLane(kind) {
         if (bm !== b) return;
         const msg = kind === 'youtube' ? ytAddonErrText(e) : String((e && e.message) || e);
         rel.st[kind] = 'error'; rel.err[kind] = msg;
-        if (/session expired|daily|quota/i.test(String((e && e.message) || e))) { rel.st[kind] = 'wait'; halt(msg); return; }
+        if (/session expired|daily|quota|too many requests/i.test(String((e && e.message) || e))) { rel.st[kind] = 'wait'; halt(msg); return; }          // (the release waits for Resume rather than failing, and so do the rest)
       }
       bmRedraw();
       if (kind === 'spotify' && par === 1) await new Promise(r => setTimeout(r, 120));
@@ -1142,6 +1142,7 @@ function bmCellInner(rel, s, kind) {
   const c = bmCellOf(rel, s, kind), da = `data-row="${escapeHtml(rel.row)}" data-idx="${s.idx}" data-kind="${kind}"`;
   const br = rel.broken[kind] && rel.broken[kind][s.idx], brNote = br ? `<div class="bm-m bm-warnc">${escapeHtml(br.reason)}</div>` : '';
   if (c.s === 'kept') { const yi = kind === 'youtube' ? ytInfoOf(s.youtubeLink) : null; return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct"><div class="bm-t${yi ? '' : ' bm-dim'}"${yi ? ` title="${escapeHtml(yi.t)}"` : ''}>${yi ? escapeHtml(yi.t) : 'Your link'}</div><div class="bm-m">${yi && yi.c ? escapeHtml(yi.c) + ' \u00b7 ' : ''}kept${bm.songsMode === 'check' && rel.checked[kind] ? ' · checked: works' : ''}</div></div>${bmChip('have', 'Kept')}${kind === 'youtube' ? `<button type="button" class="chip-btn bm-sm" data-bm="unlink" ${da} title="Remove this YouTube link from the song" aria-label="Remove the YouTube link for ${escapeHtml(s.title)}">Remove</button>` : ''}</div>`; }
+  if (c.s === 'wait' && rel.st[kind] === 'error') return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct bm-warnc">${escapeHtml(rel.err[kind] || 'Could not look this up')}</div></div>`;          // the lookup failed before it had any answer: said, not "Queued"
   if (c.s === 'wait') return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct bm-dim">${rel.st[kind] === 'skip' ? escapeHtml(rel.err[kind] || 'Not run') : rel.st[kind] === 'work' ? 'Looking…' : 'Queued'}${brNote}</div></div>`;
   if (c.s === 'error') return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct bm-warnc">${escapeHtml(rel.err[kind] || 'Could not look this up')}</div></div>`;
   if (c.s === 'none') return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct"><div class="bm-dim">No match</div>${brNote}</div>${kind === 'youtube' ? `<button type="button" class="chip-btn bm-sm" data-bm="yt-song" ${da}>Search</button>` : ''}<button type="button" class="chip-btn bm-sm" data-bm="choose" ${da}>Paste</button></div>`;
@@ -1555,10 +1556,17 @@ async function smSpotifyGetter() {                                   // a JSON r
   const token = await getSpotifyToken();
   if (!token) return null;
   return async (url) => {
-    const res = await spotifyApiFetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
-    if (res.status === 401) { spotifyToken = null; throw new Error('Spotify\u2019s session expired \u2014 try again'); }
-    if (!res.ok) throw new Error('Spotify answered ' + res.status);
-    return res.json();
+    for (let tries = 0; ; tries++) {
+      const res = await spotifyApiFetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
+      if (res.status === 401) { spotifyToken = null; throw new Error('Spotify\u2019s session expired \u2014 try again'); }
+      if (res.status === 429) {                                      // too many requests: the queue waits out Spotify's Retry-After before the next try; a wait of more than a minute is said instead
+        const wait = spotifyRateLimitedUntil - Date.now();
+        if (tries < 4 && wait <= 60000) continue;
+        throw new Error(`Spotify says too many requests: wait ${wait > 90000 ? `about ${Math.ceil(wait / 60000)} minutes` : 'a minute'}, then press Resume`);
+      }
+      if (!res.ok) throw new Error('Spotify answered ' + res.status);
+      return res.json();
+    }
   };
 }
 async function smSpotifyReadAlbum(getJson, id, mine) {               // one album, every track (in pages of 50)

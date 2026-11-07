@@ -490,7 +490,7 @@ async function fvOpen(item, hintUrl) {
   fv = { item, rows: tracks.map(t => { const same = id && youtubeVideoIdFromUrl(t.youtubeLink) === id, g = same ? youtubeSegmentFromUrl(t.youtubeLink) : { start: 0, end: 0 }; return { n: t.trackNumber, title: t.trackName || '', start: same ? ytFormatTime(g.start) : '', end: g.end ? ytFormatTime(g.end) : '', len: Math.round((Number(t.trackTimeMillis) || 0) / 1000) }; }), intro: 0 };
   const firstStart = fv.rows.map(r => r.start.trim() ? ytParseTime(r.start) : NaN).find(s => s >= 0); if (firstStart > 0) fv.intro = firstStart;          // times saved before: the intro is where song 1 starts
   const autoFill = !!id && fv.rows.every(r => !r.start && !r.end) && fv.rows.every(r => r.len > 0);          // a video with no times yet, and every song's length known: placed back to back to begin with
-  fvEl('fullVideoSub').textContent = `${item.artist} \u2014 ${item.title}`; fvEl('fullVideoUrl').value = url; fvEl('fullVideoPasteBox').hidden = true; fvEl('fullVideoPasteText').value = ''; fvEl('fullVideoPasteMsg').textContent = '';
+  fvEl('fullVideoFound').hidden = true; fvEl('fullVideoFound').innerHTML = ''; fvEl('fullVideoSub').textContent = `${item.artist} \u2014 ${item.title}`; fvEl('fullVideoUrl').value = url; fvEl('fullVideoPasteBox').hidden = true; fvEl('fullVideoPasteText').value = ''; fvEl('fullVideoPasteMsg').textContent = '';
   fvEl('fullVideoIntro').value = ytFormatTime(fv.intro); fvEl('fullVideoIntro').classList.remove('bad'); fvEl('fullVideoFromLengths').disabled = !fv.rows.some(r => r.len > 0);
   if (autoFill) fvFromLengths(true); else fvRender();
   fvEl('fullVideoOverlay').hidden = false;
@@ -570,6 +570,52 @@ function fvSetIntro() {                                             // a new int
   fv.rows.forEach(r => { r.start = move(r.start); r.end = move(r.end); });
   fvRender();
 }
+// ----- finding the video: a YouTube search for the whole release, ranked by its title, its artist and how close its length is to your songs' -----
+function fvWords(s) { return smFold(s).replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w && w !== 'the'); }
+function fvScoreVideo(item, totalMs, v) {                           // -> { score 0..100, diffMs (video length minus the songs', 0 when either is unknown) }
+  const have = new Set(fvWords(`${v.title} ${v.channel || ''}`)), frac = (s) => { const w = fvWords(s); return w.length ? w.filter(x => have.has(x)).length / w.length : 0; };
+  const title = frac(smCore(item.title)), artist = frac(item.artist), full = /\b(full|complete|whole|entire)\s+(album|ep|lp|record)\b|\bfull\s+(length|release)\b/i.test(v.title) ? 1 : 0;
+  let len = 0.5, diffMs = 0;
+  if (totalMs > 0 && v.durationMs > 0) {
+    diffMs = v.durationMs - totalMs; const d = Math.abs(diffMs) / totalMs;
+    len = d <= 0.03 ? 1 : Math.max(0, 1 - d * 3);
+    if (v.durationMs < totalMs * 0.6) len = 0;                       // much shorter than the release: one song, a trailer
+  }
+  return { score: Math.round(40 * title + 15 * artist + 35 * len + 10 * full), diffMs };
+}
+async function fvFindVideos() {
+  if (!fv) return; const box = fvEl('fullVideoFound'), it = fv.item, me = fv;
+  const viaAddon = ytUseAddon();
+  if (!viaAddon && !loadYoutubeApiKey()) { box.hidden = false; box.innerHTML = '<div class="fv-note">Finding videos needs the CRATE for YouTube add-on or a YouTube API key (\u2699 \u2192 YouTube API\u2026). <b>Search \u2197</b> opens YouTube instead.</div>'; return; }
+  if (!viaAddon && !confirm('Searching YouTube costs 100 of today\u2019s quota units. Go ahead?')) return;
+  const clean = String(it.title).replace(/\s*\[.*?\]|\s*\(.*?\)/g, '').trim(), q = `${it.artist} ${clean} full album`, ck = 'full|' + ytCacheNorm(q);
+  box.hidden = false; box.innerHTML = '<div class="fv-note">Looking on YouTube\u2026</div>'; fvEl('fullVideoFind').disabled = true;
+  let vids = [];
+  try {
+    const known = viaAddon ? null : ytCacheGet(ck);
+    if (known) vids = known.v.vids;
+    else if (viaAddon) vids = (await ytAddonRequest({ kind: 'search-video', q })).slice(0, 12).map(v => ({ id: v.id, title: v.title || '', channel: v.channel || '', durationMs: v.durationMs || 0 }));
+    else {
+      const d = await smYtApi('search', { part: 'snippet', type: 'video', maxResults: 10, q }, 100), ids = (d.items || []).filter(x => x.id && x.id.videoId).map(x => x.id.videoId);
+      const det = ids.length ? await smYtDetails(ids) : new Map();
+      vids = ids.map(id => { const t = det.get(id) || {}; return { id, title: t.title || '', channel: t.channel || '', durationMs: t.durationMs || 0, blocked: !!t.blocked }; });
+      ytCachePut(ck, { vids }, vids.length ? YT_REL_TTL : YT_NONE_TTL);
+    }
+  } catch (e) { if (fv === me) box.innerHTML = `<div class="fv-note">${escapeHtml(viaAddon ? ytAddonErrText(e) : String((e && e.message) || e))}</div>`; fvEl('fullVideoFind').disabled = false; return; }
+  fvEl('fullVideoFind').disabled = false; if (fv !== me) return;
+  const total = fv.rows.reduce((a, r) => a + (r.len || 0), 0) * 1000, known = fv.rows.every(r => r.len > 0) ? total : 0;
+  const ranked = vids.filter(v => v.id && !v.blocked).map(v => Object.assign({}, v, fvScoreVideo(it, known, v))).filter(v => v.score >= 35 && !(known && v.durationMs && v.durationMs < known * 0.6)).sort((a, b) => b.score - a.score).slice(0, 6);
+  fv.found = ranked;
+  if (!ranked.length) { box.innerHTML = '<div class="fv-note">Nothing on YouTube looks like the whole release. <b>Search \u2197</b> to look yourself.</div>'; return; }
+  const diffTxt = (v) => !known || !v.durationMs ? '' : Math.abs(v.diffMs) <= 5000 ? ' \u00b7 same length as your songs' : ` \u00b7 ${ytFormatTime(Math.abs(v.diffMs) / 1000)} ${v.diffMs > 0 ? 'longer' : 'shorter'} than your songs`;
+  box.innerHTML = `<div class="fv-note">${known ? `Your songs come to ${ytFormatTime(known / 1000)}. ` : ''}Best first: pick one to use it.</div>` + ranked.map((v, i) => `<div class="fv-found-row"><div class="fv-found-t"><div class="sm-title" title="${escapeHtml(v.title)}">${escapeHtml(v.title)}</div><div class="fv-note">${escapeHtml(v.channel)}${v.durationMs ? ' \u00b7 ' + ytFormatTime(v.durationMs / 1000) : ''}${escapeHtml(diffTxt(v))}</div></div><button type="button" class="chip-btn" data-fv-found-play="${i}" aria-label="Play ${escapeHtml(v.title)}">\u25b6</button><button type="button" class="chip-btn" data-fv-found-use="${i}">Use</button></div>`).join('');
+}
+function fvUseFound(i) {
+  const v = fv && fv.found && fv.found[i]; if (!v) return;
+  fvEl('fullVideoUrl').value = 'https://www.youtube.com/watch?v=' + v.id; fvEl('fullVideoFound').hidden = true;
+  if (fv.rows.every(r => !r.start.trim() && !r.end.trim()) && fv.rows.some(r => r.len > 0)) fvFromLengths(true); else fvValidate();          // nothing typed yet: placed from the song lengths
+  if (v.diffMs > 5000 && v.durationMs) fvEl('fullVideoStatus').textContent += ` The video is ${ytFormatTime(v.diffMs / 1000)} longer than your songs: if it opens with an intro, set Intro.`;
+}
 function fvEndsFromNext() {
   if (!fv) return; fvValidate();
   const id = youtubeVideoIdFromUrl(fvEl('fullVideoUrl').value.trim()); let total = 0;
@@ -601,6 +647,11 @@ fvEl('fullVideoPasteBtn').addEventListener('click', () => { const b = fvEl('full
 fvEl('fullVideoPasteApply').addEventListener('click', fvApplyPaste);
 fvEl('fullVideoEnds').addEventListener('click', fvEndsFromNext);
 fvEl('fullVideoFromLengths').addEventListener('click', () => fvFromLengths());
+fvEl('fullVideoFind').addEventListener('click', fvFindVideos);
+fvEl('fullVideoFound').addEventListener('click', (e) => {
+  const use = e.target.closest('[data-fv-found-use]'); if (use) { fvUseFound(+use.dataset.fvFoundUse); return; }
+  const play = e.target.closest('[data-fv-found-play]'); if (play && fv && fv.found) { const v = fv.found[+play.dataset.fvFoundPlay]; if (v) openYoutubePlayer('https://www.youtube.com/watch?v=' + v.id, v.title, [], fv.item); }
+});
 fvEl('fullVideoIntro').addEventListener('change', fvSetIntro);
 fvEl('fullVideoClear').addEventListener('click', () => { if (!fv) return; fv.rows.forEach(r => { r.start = ''; r.end = ''; }); fvRender(); });
 fvEl('fullVideoList').addEventListener('input', fvValidate);

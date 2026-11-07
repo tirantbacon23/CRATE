@@ -17,7 +17,37 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.85.17
+  CURRENT_VERSION: 1.85.20
+
+  1.85.20 — 2026-11-07 — Full-release video: "Find videos" searches YouTube for the whole release and ranks what it finds by how close each video's length is to your songs'. Page only.
+          It searches "artist title full album" through the YouTube add-on (no
+          quota) or the API (100 units, asked first; remembered like other
+          searches). Each video is scored on the release's title and artist
+          in its title or channel, words like "Full Album", and its length
+          against your songs' total; one much shorter than the release (a
+          song, a trailer) is left out. The best six are listed with their
+          length and how much longer or shorter they are. Use puts the link
+          in and, with no times typed yet, places the songs from their
+          lengths; a video longer than your songs suggests setting Intro.
+
+  1.85.19 — 2026-11-07 — Scenes & Movements is one group in the genre list. Page only.
+          The group CRATE makes for the Scene and Movement fields was spelled
+          "Scenes and Movements"; a genre you filed under your own "Scenes &
+          Movements" made a second group beside it. The two spellings are now
+          one group, named as your taxonomy names it ("Scenes & Movements"
+          when it has none), holding only Scenes and Movements: a genre filed
+          straight under the group goes under Scenes (Movements if it is a
+          movement by its field or ends in "Movement").
+
+  1.85.18 — 2026-11-07 — Match songs waits out Spotify's "too many requests" (429) instead of giving up on the release. Page only.
+          The request queue already waited for Spotify's Retry-After, but
+          Match songs never asked again, so the first 429 failed the whole
+          release ("Spotify answered 429") while its songs still said
+          "Queued". Now a lookup is asked again after the wait (up to four
+          times). When Spotify asks for more than a minute, the Spotify lane
+          stops with "wait about N minutes, then press Resume" and the
+          releases left wait for Resume rather than failing one by one. A
+          release whose lookup failed shows the reason on its songs.
 
   1.85.17 — 2026-11-07 — A release with a full-release video has no red "!" flags. Page only.
           A release counts as having one when its own link is a YouTube

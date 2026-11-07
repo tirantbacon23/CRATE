@@ -1910,7 +1910,7 @@
   <div class="arrange-modal add-modal fv-modal" role="dialog" aria-modal="true" aria-labelledby="fullVideoTitle">
     <div class="arrange-header"><div><h2 id="fullVideoTitle">Full-release video</h2><p id="fullVideoSub" class="sm-sub"></p></div><button id="fullVideoClose" class="modal-x" aria-label="Close">✕</button></div>
     <div class="arrange-body fv-body">
-      <div class="fv-url"><input type="text" id="fullVideoUrl" placeholder="https://www.youtube.com/watch?v=… (the video that is the whole release)" aria-label="Link to the full-release video" autocomplete="off"><button type="button" id="fullVideoOpenPlayer" class="chip-btn" title="Play it in CRATE's player, then press the clock beside a song as it begins">▶ Play it here</button><button type="button" id="fullVideoSearch" class="chip-btn" title="Look for the full album on YouTube">Search ↗</button></div>
+      <div class="fv-url"><input type="text" id="fullVideoUrl" placeholder="https://www.youtube.com/watch?v=… (the video that is the whole release)" aria-label="Link to the full-release video" autocomplete="off"><button type="button" id="fullVideoOpenPlayer" class="chip-btn" title="Play it in CRATE's player, then press the clock beside a song as it begins">▶ Play it here</button><button type="button" id="fullVideoFind" class="chip-btn" title="Search YouTube for the whole release, ranked by how close each video's length is to your songs">Find videos</button><button type="button" id="fullVideoSearch" class="chip-btn" title="Look for the full album on YouTube">Search ↗</button></div><div id="fullVideoFound" class="fv-found" hidden></div>
       <p class="fv-note">Say where each song starts and ends in the video. Play it with the button above, and press ⏱ beside a song as it begins; or paste the times from the video's description.</p>
       <div class="fv-tools"><button type="button" id="fullVideoPasteBtn" class="chip-btn">Paste times…</button><label class="fv-intro" title="How long the video runs before the first song starts: changing it moves every time by the same amount">Intro <input type="text" id="fullVideoIntro" value="0:00" aria-label="Intro before the first song" autocomplete="off"></label><button type="button" id="fullVideoFromLengths" class="chip-btn" title="Place every song back to back from the lengths you have, after the intro">From song lengths</button><button type="button" id="fullVideoEnds" class="chip-btn" title="Each song ends where the next one starts">Ends from next start</button><button type="button" id="fullVideoClear" class="chip-btn">Clear times</button><span id="fullVideoStatus" class="fv-note" role="status"></span></div>
       <div id="fullVideoPasteBox" class="fv-paste" hidden><textarea id="fullVideoPasteText" rows="5" placeholder="Paste the video's description, one song per line, for example:&#10;0:00 Drive My Car&#10;2:30 Norwegian Wood&#10;4:46 You Won't See Me" aria-label="Times pasted from the video's description"></textarea><div class="fv-paste-row"><button type="button" id="fullVideoPasteApply" class="config-btn">Use these times</button><span id="fullVideoPasteMsg" class="fv-note" role="status"></span></div></div>
@@ -2168,44 +2168,44 @@
   </div>
 </div>
 
-<script src="js/01-core.js?v=1.85.17"></script>
-<script src="js/02-auth.js?v=1.85.17"></script>
-<script src="js/03-taxonomy-layout.js?v=1.85.17"></script>
-<script src="js/04-obsidian-export.js?v=1.85.17"></script>
-<script src="js/05-init-genres.js?v=1.85.17"></script>
-<script src="js/06-events.js?v=1.85.17"></script>
-<script src="js/07-prefs-fetch.js?v=1.85.17"></script>
-<script src="js/08-tabs-panels.js?v=1.85.17"></script>
-<script src="js/09-descriptors-mood-merge.js?v=1.85.17"></script>
-<script src="js/10-filters-search.js?v=1.85.17"></script>
-<script src="js/11-grid-player.js?v=1.85.17"></script>
-<script src="js/12-player-menus.js?v=1.85.17"></script>
-<script src="js/13-diary-scrobbles-stats.js?v=1.85.17"></script>
-<script src="js/14-artist-playlists.js?v=1.85.17"></script>
-<script src="js/15-shuffle-artist-info.js?v=1.85.17"></script>
-<script src="js/16-tabbar-updatelog.js?v=1.85.17"></script>
-<script src="js/17-match-songs.js?v=1.85.17"></script>
-<script src="js/18-exchange.js?v=1.85.17"></script>
-<script src="js/19-sound.js?v=1.85.17"></script>
-<script src="js/20-export-import.js?v=1.85.17"></script>
-<script src="js/21-addon-genre-page.js?v=1.85.17"></script>
-<script src="js/22-deck.js?v=1.85.17"></script>
-<script src="js/23-timeline-map.js?v=1.85.17"></script>
-<script src="js/24-diary-log.js?v=1.85.17"></script>
-<script src="js/25-tracklist-add.js?v=1.85.17"></script>
-<script src="js/26-layout-dnd.js?v=1.85.17"></script>
-<script src="js/27-tracklist-builder-rym.js?v=1.85.17"></script>
-<script src="js/28-edit-links-youtube.js?v=1.85.17"></script>
-<script src="js/29-lastfm-scrobbling.js?v=1.85.17"></script>
-<script src="js/30-new-releases.js?v=1.85.17"></script>
-<script src="js/31-lastfm-import.js?v=1.85.17"></script>
-<script src="js/32-utils.js?v=1.85.17"></script>
-<script src="js/33-pull-details.js?v=1.85.17"></script>
-<script src="js/34-fill-blanks.js?v=1.85.17"></script>
-<script src="js/35-catalogue-stats.js?v=1.85.17"></script>
-<script src="js/99-boot.js?v=1.85.17"></script>
+<script src="js/01-core.js?v=1.85.20"></script>
+<script src="js/02-auth.js?v=1.85.20"></script>
+<script src="js/03-taxonomy-layout.js?v=1.85.20"></script>
+<script src="js/04-obsidian-export.js?v=1.85.20"></script>
+<script src="js/05-init-genres.js?v=1.85.20"></script>
+<script src="js/06-events.js?v=1.85.20"></script>
+<script src="js/07-prefs-fetch.js?v=1.85.20"></script>
+<script src="js/08-tabs-panels.js?v=1.85.20"></script>
+<script src="js/09-descriptors-mood-merge.js?v=1.85.20"></script>
+<script src="js/10-filters-search.js?v=1.85.20"></script>
+<script src="js/11-grid-player.js?v=1.85.20"></script>
+<script src="js/12-player-menus.js?v=1.85.20"></script>
+<script src="js/13-diary-scrobbles-stats.js?v=1.85.20"></script>
+<script src="js/14-artist-playlists.js?v=1.85.20"></script>
+<script src="js/15-shuffle-artist-info.js?v=1.85.20"></script>
+<script src="js/16-tabbar-updatelog.js?v=1.85.20"></script>
+<script src="js/17-match-songs.js?v=1.85.20"></script>
+<script src="js/18-exchange.js?v=1.85.20"></script>
+<script src="js/19-sound.js?v=1.85.20"></script>
+<script src="js/20-export-import.js?v=1.85.20"></script>
+<script src="js/21-addon-genre-page.js?v=1.85.20"></script>
+<script src="js/22-deck.js?v=1.85.20"></script>
+<script src="js/23-timeline-map.js?v=1.85.20"></script>
+<script src="js/24-diary-log.js?v=1.85.20"></script>
+<script src="js/25-tracklist-add.js?v=1.85.20"></script>
+<script src="js/26-layout-dnd.js?v=1.85.20"></script>
+<script src="js/27-tracklist-builder-rym.js?v=1.85.20"></script>
+<script src="js/28-edit-links-youtube.js?v=1.85.20"></script>
+<script src="js/29-lastfm-scrobbling.js?v=1.85.20"></script>
+<script src="js/30-new-releases.js?v=1.85.20"></script>
+<script src="js/31-lastfm-import.js?v=1.85.20"></script>
+<script src="js/32-utils.js?v=1.85.20"></script>
+<script src="js/33-pull-details.js?v=1.85.20"></script>
+<script src="js/34-fill-blanks.js?v=1.85.20"></script>
+<script src="js/35-catalogue-stats.js?v=1.85.20"></script>
+<script src="js/99-boot.js?v=1.85.20"></script>
 
-<link rel="stylesheet" href="css/crate.css?v=1.85.17">
+<link rel="stylesheet" href="css/crate.css?v=1.85.20">
 
 </body>
 </html>

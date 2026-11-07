@@ -2407,6 +2407,7 @@ html, body {
   .fv-url { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; flex: 0 0 auto; }
   .fv-url input { flex: 1 1 320px; min-width: 0; box-sizing: border-box; background: var(--bg-card); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 7px 9px; font: 12px 'IBM Plex Mono', monospace; }
   .fv-note { font-size: 12px; color: var(--text-dim); margin: 8px 0 0; }
+  .fv-found { flex: 0 1 auto; max-height: 220px; overflow-y: auto; margin-top: 6px; border: 1px solid var(--line); border-radius: 6px; padding: 2px 10px 8px; } .fv-found-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); } .fv-found-row:first-of-type { border-top: 0; } .fv-found-t { flex: 1; min-width: 0; } .fv-found-t .sm-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .fv-found-t .fv-note { margin: 2px 0 0; }
   .fv-tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0; flex: 0 0 auto; }
   .fv-tools .fv-note { margin: 0 0 0 4px; }
   .fv-paste { flex: 0 0 auto; margin: 4px 0 8px; }

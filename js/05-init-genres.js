@@ -41,19 +41,34 @@ async function obsRun() {
 })();
 
 function getGenreParents(taxonomy, genre) {
-  const key = genreTaxonomyKey(genre), entry = taxonomy[key], own = (entry && entry.parents) || [];
+  const key = genreTaxonomyKey(genre), entry = taxonomy[key]; let own = (entry && entry.parents) || [];
   // A genre from a release's Scene field also sits under "Scenes", one from its Movement field under "Movements", besides any parents of its own;
-  // and those two sit under "Scenes and Movements" (unless the taxonomy gives them parents itself). Labels as the taxonomy spells them, when it has them.
-  const label = (k) => (taxonomy[k] && taxonomy[k].label) || SCENE_PARENTS[k];
-  if ((key === 'scenes' || key === 'movements') && !own.length) return [label(SCENE_PARENT_KEY)];
-  if (SCENE_PARENTS[key]) return own;
-  const kinds = sceneGenreKeys().get(key); if (!kinds) return own;
+  // and those two sit under "Scenes & Movements" (unless the taxonomy gives them parents itself). Labels as the taxonomy spells them, when it has them.
+  // "Scenes & Movements" and "Scenes and Movements" are one group, named as your taxonomy names it; a genre you filed straight under it goes under
+  // its Scenes or Movements instead, so the group only ever holds those two.
+  const label = (k) => (taxonomy[k] && taxonomy[k].label) || SCENE_PARENTS[k], group = sceneGroupLabel(taxonomy), toGroup = (p) => isSceneGroup(p) ? group : p;
+  if (isSceneGroup(key)) return own;
+  if (key === 'scenes' || key === 'movements') return own.length ? [...new Set(own.map(toGroup))] : [group];
+  const kinds = sceneGenreKeys().get(key), direct = own.some(isSceneGroup);
+  if (!kinds && !direct) return own;
+  own = own.filter(p => !isSceneGroup(p));
   const have = new Set(own.map(genreTaxonomyKey)), add = [];
-  if (kinds.has('scene') && !have.has('scenes')) add.push(label('scenes'));
-  if (kinds.has('movement') && !have.has('movements')) add.push(label('movements'));
+  const scene = kinds ? kinds.has('scene') : false, movement = kinds ? kinds.has('movement') : false;
+  if (direct && !scene && !movement && !have.has('scenes') && !have.has('movements')) add.push(label(/\bmovement$/i.test(String(genre).trim()) ? 'movements' : 'scenes'));          // filed under the group with no Scene or Movement field to say which: a "… Movement" is a movement, anything else a scene
+  if (scene && !have.has('scenes')) add.push(label('scenes'));
+  if (movement && !have.has('movements')) add.push(label('movements'));
   return add.length ? own.concat(add) : own;
 }
-const SCENE_PARENT_KEY = 'scenes and movements', SCENE_PARENTS = { 'scenes and movements': 'Scenes and Movements', scenes: 'Scenes', movements: 'Movements' };
+const SCENE_PARENTS = { scenes: 'Scenes', movements: 'Movements' };
+function isSceneGroup(g) { return String(g || '').trim().toLowerCase().replace(/\s*(?:&|\+|\band\b)\s*/g, ' and ').replace(/\s+/g, ' ') === 'scenes and movements'; }
+function sceneGroupLabel(taxonomy) {                                 // the group's name as the taxonomy spells it (the "&" spelling if it has both), "Scenes & Movements" if it has none; kept for two seconds
+  if (sceneGroupCache && sceneGroupCache.tax === taxonomy && Date.now() - sceneGroupCache.at < 2000) return sceneGroupCache.label;
+  const seen = [];
+  Object.values(taxonomy || {}).forEach(e => { if (!e) return; [e.label, ...(e.parents || [])].forEach(p => { if (isSceneGroup(p)) seen.push(String(p).trim()); }); });
+  const label = seen.find(s => s.includes('&')) || seen[0] || 'Scenes & Movements';          // both spellings there: the "&" one
+  sceneGroupCache = { tax: taxonomy, at: Date.now(), label }; return label;
+}
+let sceneGroupCache = null;
 function sceneGenreKeys() {                                          // genre key → the field(s) it comes from ('scene', 'movement') across the crate; kept for two seconds, like sceneKnownGenres
   if (sceneKeysCache && Date.now() - sceneKeysCache.at < 2000) return sceneKeysCache.map;
   const map = new Map(); sceneKeysCache = { at: Date.now(), map };
