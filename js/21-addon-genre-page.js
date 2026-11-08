@@ -637,6 +637,7 @@ function giSortItems(items, sort) {
   else if (sort === 'rating') out.sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0) || a.title.localeCompare(b.title));
   else if (sort === 'artist') out.sort((a, b) => a.artist.localeCompare(b.artist) || byYear(1)(a, b));
   else if (sort === 'title') out.sort((a, b) => a.title.localeCompare(b.title));
+  else if (sort === 'added') { const ad = (r) => { const ms = dateVal(r.dateAdded); return ms === -Infinity ? null : ms; }; out.sort((a, b) => { const x = ad(a), y = ad(b); if (x === null && y === null) return byYear(-1)(a, b); if (x === null) return 1; if (y === null) return -1; return y - x || a.title.localeCompare(b.title); }); }          // the newest in your crate first; ones with no date added last
   else out.sort(byYear(1));
   return out;
 }
@@ -854,7 +855,7 @@ function giRenderReleases(genre, ui, items) {
       <div class="gi-rel-title"><h2 class="gi-h2">Releases</h2><span class="gi-rel-count">${ui.year ? `${shown.length} of ${items.length}` : items.length}</span>${ui.year ? `<button type="button" class="gi-chip" data-gi="clear-year">${ui.year} \u00d7</button>` : ''}</div>
       <div class="gi-rel-tools">
         <label class="gi-check"><input type="checkbox" id="giIncludeSub"${ui.includeSub ? ' checked' : ''}> Include sub-genres</label>
-        <select id="giSort" class="gi-select" aria-label="Sort releases">${opt('year', 'Year (oldest first)')}${opt('yeardesc', 'Year (newest first)')}${opt('rating', 'Rating')}${opt('artist', 'Artist A\u2013Z')}${opt('title', 'Title A\u2013Z')}</select>
+        <select id="giSort" class="gi-select" aria-label="Sort releases">${opt('year', 'Year (oldest first)')}${opt('yeardesc', 'Year (newest first)')}${opt('added', 'Recently added')}${opt('rating', 'Rating')}${opt('artist', 'Artist A\u2013Z')}${opt('title', 'Title A\u2013Z')}</select>
         <span class="gi-seg"><button type="button" class="gi-seg-btn${ui.view === 'covers' ? ' active' : ''}" data-gi="view" data-view="covers" aria-label="Covers" aria-pressed="${ui.view === 'covers'}" title="Covers">\u25a6</button><button type="button" class="gi-seg-btn${ui.view === 'list' ? ' active' : ''}" data-gi="view" data-view="list" aria-label="List" aria-pressed="${ui.view === 'list'}" title="List">\u2630</button></span>
       </div></div>${body}`;
 }

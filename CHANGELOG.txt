@@ -17,7 +17,19 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.89.6
+  CURRENT_VERSION: 1.89.7
+
+  1.89.7 — 2026-11-08 — Match songs: a full-release video's songs can be ticked in one click, and a finished run can be applied or closed from its pill. A genre's releases can be sorted by when you added them. Page only.
+          FULL-RELEASE VIDEO: one that isn't sure (its title or length a
+          little off) was offered with nothing ticked, so a run that found
+          one had nothing to apply unless each song was ticked by hand. Its
+          YouTube box now has "Tick all its songs" (and "Untick its songs").
+          THE PILL: "Matching finished" at the bottom has "Apply N links" when
+          something is ticked, and ✕ to close the run (asked first if ticked
+          links would be lost), so it doesn't stay there waiting.
+          GENRE PAGE: the Releases sort has "Recently added": the newest in
+          your crate first, ones with no date added last. (The main grid's ⇅
+          already had it.)
 
   1.89.6 — 2026-11-08 — Right-click the player: look the release up on RateYourMusic, or copy a link to what's playing. The artist's name opens the artist's page. Page only.
           The player's right-click menu (and the Up Next queue's, for the

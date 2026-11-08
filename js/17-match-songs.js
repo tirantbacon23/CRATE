@@ -689,6 +689,14 @@ async function bmUseFullVideo(rel, id) {                             // another 
   rel.youtube.fullVideo = Object.assign({}, v, { confident: true, others: all.filter(x => x.id !== id) }); delete rel.youtube.fullVideoAside;
   bmRedraw();
 }
+function bmFullVideoParts(rel) {                                     // the songs offered a part of the full-release video (not ones already linked), and whether each part is ticked
+  const y = rel.youtube; if (!y || !y.fullVideo || !rel.songs) return [];
+  return rel.songs.map(s => { const c = bmCellOf(rel, s, 'youtube'); if (c.s === 'kept') return null; const part = (y.byIdx[s.idx] || []).find(x => x.source === 'fullvideo'); return part ? { idx: s.idx, id: part.id, on: rel.pick.youtube[s.idx] === part.id } : null; }).filter(Boolean);
+}
+function bmFullVideoTickAll(rel) {                                   // "Tick all its songs": one click for the whole video, sure or not (or untick them all)
+  const parts = bmFullVideoParts(rel), on = !parts.every(x => x.on);
+  parts.forEach(x => bmSetPick(rel, x.idx, 'youtube', on ? x.id : '', true)); bmRedraw();
+}
 function bmFullVideoAside(rel) {                                     // "Search song by song" chosen while a full-release video is offered: its parts stop counting as matches (else every song has one and nothing is searched);
   const y = rel.youtube; if (!y || !y.fullVideo) return;              // the video stays in the menu to take back
   Object.keys(y.byIdx || {}).forEach(idx => { const had = y.byIdx[idx], keep = had.filter(c => c.source !== 'fullvideo'); if (keep.length) y.byIdx[idx] = keep; else delete y.byIdx[idx];
@@ -1089,7 +1097,7 @@ function bmStripRender() {
   const lane = (k) => { const l = bm.lanes[k]; if (!l || l.s === 'off') return ''; const rels = bm.rels.filter(r => r.include), total = rels.length, done = rels.filter(r => r.st[k] !== 'wait' && r.st[k] !== 'work').length, stopped = (k === 'youtube' && ytAddon.state === 'stopped' && l.s === 'work') || l.s === 'stopped';
     return `<div class="bm-sl"><div class="bm-sl-t"><b>${bmName(k)}</b><span class="bm-m">${done} of ${total}${stopped ? ' · waiting for you' : l.s === 'done' ? ' · done' : ''}</span></div><div class="bm-bar${stopped ? ' warn' : ''}"><i style="width:${total ? Math.round(done / total * 100) : 0}%"></i></div></div>`; };
   const t = bmPickTotals();
-  s.innerHTML = `<div class="bm-sh"><b>${bm.running ? 'Matching songs' : 'Matching finished'}</b><span class="bm-m">${bmPl(bm.rels.length, 'release')}${t.n ? ` · ${t.n} ticked` : ''}</span></div>${bmKinds().map(lane).join('')}<button type="button" class="chip-btn" data-bm="show-dialog">${bm.running ? 'Open' : 'Review'}</button>`; s.hidden = false;
+  s.innerHTML = `<div class="bm-sh"><b>${bm.running ? 'Matching songs' : 'Matching finished'}</b><span class="bm-m">${bmPl(bm.rels.length, 'release')}${t.n ? ` · ${t.n} ticked` : ''}</span></div>${bmKinds().map(lane).join('')}<button type="button" class="chip-btn" data-bm="show-dialog">${bm.running ? 'Open' : 'Review'}</button>${!bm.running && t.n ? `<button type="button" class="config-btn" data-bm="strip-apply"${bm.applying ? ' disabled' : ''}>Apply ${bmPl(t.n, 'link')}</button>` : ''}${bm.running ? '' : '<button type="button" class="modal-x bm-strip-x" data-bm="strip-close" aria-label="Close the finished run" title="Close (asks first if ticked links would be lost)">✕</button>'}`; s.hidden = false;          // finished: apply what is ticked, or close it, without opening it
 }
 
 // ----- Start -----
@@ -1235,7 +1243,7 @@ function bmSourcePanel(rel, kind) {
   else if (r) {
     const list = kind === 'spotify' ? (r.editions || []) : (r.lists || []), cur = kind === 'spotify' ? r.albumId : r.playlistId;
     if (kind === 'spotify') { title = r.albumName ? escapeHtml(r.albumName) : 'No edition fits: songs were searched one by one'; meta = r.albumName ? `fits ${(list.find(e => e.id === cur) || {}).matched || 0} of ${n}${r.searched ? ` · ${r.searched} found by searching` : ''}` : ''; }
-    else if (r.fullVideo) { const v = r.fullVideo; title = `Full-release video: ${escapeHtml(v.title)}`; meta = `${escapeHtml(v.channel)}${v.durationMs ? ` · ${ytFormatTime(v.durationMs / 1000)}` : ''} · ${!v.diffMs || Math.abs(v.diffMs) <= 5000 ? 'as long as your songs' : `${ytFormatTime(Math.abs(v.diffMs) / 1000)} ${v.diffMs > 0 ? 'longer' : 'shorter'} than your songs`}${v.timing ? ` · ${ytTimingWhy(v.timing)}` : ''}${v.confident ? '' : ' · check it before keeping it'}`; }
+    else if (r.fullVideo) { const v = r.fullVideo; title = `Full-release video: ${escapeHtml(v.title)}`; meta = `${escapeHtml(v.channel)}${v.durationMs ? ` · ${ytFormatTime(v.durationMs / 1000)}` : ''} · ${!v.diffMs || Math.abs(v.diffMs) <= 5000 ? 'as long as your songs' : `${ytFormatTime(Math.abs(v.diffMs) / 1000)} ${v.diffMs > 0 ? 'longer' : 'shorter'} than your songs`}${v.timing ? ` · ${ytTimingWhy(v.timing)}` : ''}${v.confident ? '' : ' · check it before keeping it'}`; const fp = bmFullVideoParts(rel); if (fp.length) meta += ` <button type="button" class="chip-btn bm-sm" data-bm="fv-tickall">${fp.every(x => x.on) ? 'Untick its songs' : `Tick all its songs (${fp.length})`}</button>`; }
     else { title = r.playlistTitle ? escapeHtml(r.playlistTitle) : 'No playlist fits this tracklist'; meta = r.playlistTitle ? `${escapeHtml(r.playlistChannel || '')} · fits ${(list.find(e => e.id === cur) || {}).matched || 0} of ${n}` : r.fullNone ? 'and no full-release video looks like it' : ''; }
     const opts = list.slice().sort((a, b) => (b.fit || 0) - (a.fit || 0)).map(e => `<option value="ed:${escapeHtml(e.id)}"${e.id === cur ? ' selected' : ''}>${escapeHtml(e.name)}${kind === 'youtube' && e.channel ? ` (${escapeHtml(e.channel)})` : ''} · fits ${e.matched || 0} of ${n}</option>`).join('');
     const extra = kind === 'spotify' ? '<option value="paste">Paste an album link…</option>' : `${r.fullVideo || r.fullVideoAside ? [r.fullVideo || r.fullVideoAside].concat((r.fullVideo || r.fullVideoAside).others || []).map(v => `<option value="fvid:${escapeHtml(v.id)}"${r.fullVideo && v.id === r.fullVideo.id ? ' selected' : ''}>Full-release video: ${escapeHtml(v.title)}${v.durationMs ? ` (${ytFormatTime(v.durationMs / 1000)})` : ''}</option>`).join('') : ''}<option value="songs">Search song by song for the rest</option>${bmSongsTotalMs(rel.songs || []) && (rel.songs || []).length >= BM_FULLVIDEO_MIN_SONGS ? `<option value="fvfind">Find a full-release video${ytUseAddon() ? '' : ' (100 quota units)'}</option>` : ''}<option value="fv">Full-release video editor…</option><option value="paste">Paste a playlist link…</option>`;
@@ -1462,6 +1470,9 @@ function bmClick(e) {
   else if (a === 'rel-rerun') bmRerun([bmSelRel()]);
   else if (a === 'rel-skip') { const r = bmSelRel(); r.include = !r.include; if (r.include) bmKickLanes(); bmRedraw(); }
   else if (a === 'rel-edit') { const r = bmSelRel(); bmHide(); tgOpen(r.item); }
+  else if (a === 'fv-tickall') bmFullVideoTickAll(bmSelRel());
+  else if (a === 'strip-apply') bmApply();
+  else if (a === 'strip-close') bmClose();
   else if (a === 'rel-apply') { const r = bmSelRel(); bmApply([r], r.item.title); }
   else if (a === 'run-kind') bmRunKindFor(bmSelRel(), kind);
   else if (a === 'retry-kind') bmRerun([bmSelRel()], [kind]);

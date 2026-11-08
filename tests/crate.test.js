@@ -818,3 +818,22 @@ suite('Full-release video: outtakes and editions', () => {
     finally { app('smPrefsSave')({ edition: 'any' }); }
   });
 });
+
+suite('Genre page: recently added', () => {
+  test('the newest in your crate first; ones with no date added last', () => {
+    const s = app('giSortItems'), mk = (t, d, r) => ({ title: t, dateAdded: d, releaseDate: r || '1990' });
+    eq(s([mk('a', '2026-01-03'), mk('b', ''), mk('c', '2026-11-07'), mk('d', '2025-05-01')], 'added').map(x => x.title), ['c', 'a', 'd', 'b']);
+  });
+});
+
+suite('Match songs: ticking a whole full-release video', () => {
+  test('one click ticks every song’s part of the video (and unticks them); a song already linked is left out', () => {
+    const tickAll = app('bmFullVideoTickAll'), parts = app('bmFullVideoParts'), cands = app('bmFullVideoCands');
+    const songs = [{ idx: 0, title: 'A', durationMs: 180000, youtubeLink: '' }, { idx: 1, title: 'B', durationMs: 200000, youtubeLink: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }, { idx: 2, title: 'C', durationMs: 100000, youtubeLink: '' }];
+    const byIdx = cands(songs, { id: 'fullvideo02', title: 'X', channel: 'Fan', score: 70, diffMs: 60000, durationMs: 540000 }, false);
+    const rel = { songs, item: { artist: 'A', title: 'X' }, youtube: { status: 'done', byIdx, fullVideo: { id: 'fullvideo02' } }, pick: { spotify: {}, youtube: {} }, touched: { spotify: {}, youtube: {} }, broken: { spotify: {}, youtube: {} } };
+    eq(parts(rel).map(p => [p.idx, p.on]), [[0, false], [2, false]]);
+    tickAll(rel); eq(Object.keys(rel.pick.youtube).sort(), ['0', '2']);
+    tickAll(rel); eq(Object.keys(rel.pick.youtube), []);
+  });
+});
