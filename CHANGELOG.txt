@@ -17,7 +17,25 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.90.2
+  CURRENT_VERSION: 1.90.3
+
+  1.90.3 — 2026-11-08 — CRATE can be added to a phone's home screen and opens full-screen, with no browser address bar. Toasts no longer cover the tab bar. Page only.
+          THE APP FILES: index.html already pointed to manifest.webmanifest
+          and icons/, but neither was ever uploaded, so a home-screen CRATE
+          opened in ordinary Safari. Both are here now: the manifest (name,
+          full-screen, the app's colours) and the icons (the gold wordmark on
+          the dark background; a C for the browser tab). iPhone also gets its
+          own tags: full-screen, a see-through status bar, the name CRATE.
+          To use it on an iPhone: Safari → Share → Add to Home Screen, then
+          open CRATE from that icon.
+          NOTCH: the page now reaches the screen's edges (viewport-fit=cover),
+          so the safe-area padding the CSS already had takes effect: the
+          header clears the notch, the tab bar the home indicator, and dialogs
+          centred in the window (the album page, Galaxy, …) start below the
+          status bar.
+          TOASTS ("Copied …", "Saved …") sat at the bottom right, over the tab
+          bar on a phone: they show above it now, and above the player and the
+          Processing strip.
 
   1.90.2 — 2026-11-08 — Search on a phone: tapping ⌕ always puts you in the box, it shares its row with ▤ and ⚙, ✕ clears it, and the keyboard no longer capitalises or autocorrects. Page only.
           TAPPING ⌕: pressing it gave the icon focus, which opened the box and

@@ -1,0 +1,17 @@
+{
+  "name": "CRATE — a listening log",
+  "short_name": "CRATE",
+  "description": "A listening log: your releases, diary, scrobbles and stats.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#12161C",
+  "theme_color": "#14181D",
+  "icons": [
+    { "src": "icons/crate-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/crate-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/crate-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
