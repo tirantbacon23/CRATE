@@ -17,7 +17,18 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.91.1
+  CURRENT_VERSION: 1.91.2
+
+  1.91.2 — 2026-11-08 — On a phone, a cover's stars tag shows the RYM average instead of cutting it to "…", and the player no longer has an empty strip under it. Page only.
+          STARS TAG: it holds the stars and the Rate Your Music average (RYM
+          3.45) on one line, which didn't fit a phone-sized cover: it was cut
+          to "★★★★ …", with the type tag (LP) covering its end. On a phone it
+          is two lines, stars over the average, kept clear of the type tag,
+          and a long catalogue number ends in "…" before the red ! corner.
+          PLAYER: it padded its bottom for the iPhone's home indicator, but on
+          a phone it sits above the tab bar, which already does: an empty
+          strip under the player. That room is only added now while a dialog
+          has moved the player to the bottom of the screen.
 
   1.91.1 — 2026-11-08 — Fix: the catalogue number, type and stars on the covers could only be changed from the Album covers view, though they show in the Albums view too. Page only.
           Panel Settings for the Albums grid now has "Tags on artwork" (top
