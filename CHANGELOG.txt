@@ -17,7 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.90.4
+  CURRENT_VERSION: 1.90.5
+
+  1.90.5 — 2026-11-08 — Holding an image on a phone no longer pops up an enlarged preview. Page only.
+          On a touch screen, holding a cover opened the phone's own preview
+          (iPhone: an enlarged copy with "Save to Photos"; Android: the
+          browser's image menu), which also got in the way of a card's own
+          long-press (Quick actions). Both are off for images on touch
+          screens, and holding a card, the player or Quick Peek no longer
+          starts selecting text. A mouse's right-click on an image is as
+          before.
 
   1.90.4 — 2026-11-08 — A pinch or a double tap no longer zooms the page on a phone. Page only.
           Three parts, since iPhone Safari ignores the usual one: the viewport

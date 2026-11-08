@@ -284,6 +284,13 @@ html, body {
 }
   body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; min-height: 100vh; }
   html { touch-action: manipulation; }   /* no double-tap zoom (applies to everything under it; see the viewport tag in index.html) */
+  /* Touch screens: holding an image popped up the phone's own enlarged preview ("Save to Photos" …), which also got in the
+     way of a card's long-press (Quick actions). No preview or callout on images, and no text selection started by holding a
+     card. (-webkit-touch-callout is inherited, so a card's links don't preview either.) */
+  @media (hover: none) {
+    img { -webkit-touch-callout: none; -webkit-user-drag: none; -webkit-user-select: none; user-select: none; }
+    .card, .album-quick-peek, .mini-player, .deck-art { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  }
 
 #app { 
   /* Fills the full window width always — no max-width cap or centering
