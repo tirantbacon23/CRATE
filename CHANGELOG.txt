@@ -17,7 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.91.0
+  CURRENT_VERSION: 1.91.1
+
+  1.91.1 — 2026-11-08 — Fix: the catalogue number, type and stars on the covers could only be changed from the Album covers view, though they show in the Albums view too. Page only.
+          Panel Settings for the Albums grid now has "Tags on artwork" (top
+          left, bottom right, bottom left: set one to Empty to hide it) above
+          its "Fields below cover". It is the same setting as Album covers',
+          so a change in either view shows in both.
 
   1.91.0 — 2026-11-08 — On a phone, Spotify plays through the Spotify app, so it keeps playing with the phone locked; and the lock screen shows what's playing, with working buttons. Page only.
           SPOTIFY ON A PHONE: CRATE's in-browser Spotify player only runs on

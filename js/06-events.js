@@ -1500,6 +1500,14 @@ function renderConfigSlots(mode) {
     addRows('covers', labels.covers);
     addSubheading('Fields below cover');
     addRows('coversBelow', labels.coversBelow);
+  } else if (mode === 'grid') {
+    // The tags on the artwork (catalogue number, type, stars) show on the Albums grid too, but could only be changed from
+    // Album covers' settings, so in the Albums view there was no way to turn them off. Same setting (state.fields.covers),
+    // reachable from both views now.
+    addSubheading('Tags on artwork');
+    addRows('covers', labels.covers);
+    addSubheading('Fields below cover');
+    addRows('grid', labels.grid);
   } else if (mode === 'queueReleaseTracks') {
     // "Release and Tracks" queue view — same dual-group pattern as
     // 'covers' just above: the release-level block shown once per
