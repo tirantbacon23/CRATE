@@ -794,3 +794,13 @@ suite('Genre page: progress on Rate Your Music', () => {
     eq([ranges([1, 2, 5]), app('rymGenreSlug')('Rock & Roll'), app('rymChartName')('/charts/top/album/1980s/g:post-punk/')], ['1–2, 5', 'rock-and-roll', 'Top · album · 1980s']);
   });
 });
+
+suite('Genre page: top on Rate Your Music', () => {
+  test('top rated weighs in how many rated it; most popular is by how many rated it; unrated left out', () => {
+    const top = app('giRymTop'), mk = (t, r, v) => ({ title: t, rymRating: r, rymVotes: v });
+    const items = [mk('few', 4.4, 3), mk('loved', 4.12, 2400), mk('big', 3.7, 54000), mk('solid', 4.05, 9200), mk('none', 0, 0), mk('meh', 3.2, 200)];
+    eq(top(items, 'rated', 3).map(r => r.title), ['loved', 'solid', 'few']);
+    eq(top(items, 'popular', 3).map(r => r.title), ['big', 'solid', 'loved']);
+    eq(top(items, 'rated', 10).length, 5);
+  });
+});

@@ -17,7 +17,17 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.89.2
+  CURRENT_VERSION: 1.89.3
+
+  1.89.3 — 2026-11-08 — A genre's page lists its releases as Rate Your Music rates them: top rated, or most popular. Page only.
+          A card under About, "On Rate Your Music", with a switch: Top rated
+          (RYM's average, weighted by how many rated it, so a 4.3 from 12
+          people doesn't outrank a 4.1 from 9,000) or Most popular (most
+          ratings). Ten at first, 25 with "Show more"; each row has the RYM
+          average and how many rated it, and your own rating; click to open,
+          double-click to play. It follows "Include sub-genres". Links to
+          RYM's own chart for the genre. Releases with no RYM rating aren't
+          listed (the RYM add-on and "Update from Rate Your Music" fill them).
 
   1.89.2 — 2026-11-08 — A genre's page shows how far you are through it on Rate Your Music: the pages done, the ones opened but not done, and the next one to check. Page and RYM add-on 1.19.0.
           The RYM add-on (1.18.0) notes each genre and chart page you open on

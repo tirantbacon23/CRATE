@@ -2572,7 +2572,12 @@ html, body {
 
 
   .gi-cols { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; margin-top: 16px; }
-  .gi-about { flex: 1.5 1 380px; min-width: 0; }
+  .gi-main { display: flex; flex-direction: column; gap: 16px; flex: 1.5 1 380px; min-width: 0; }
+  .gi-about { min-width: 0; }
+  .gi-rymtop-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .gi-list-row.gi-rymtop-row { grid-template-columns: 20px 40px minmax(0, 1fr) 62px 44px; } .gi-rymtop-n { font: 11px 'IBM Plex Mono', monospace; color: var(--text-dim); text-align: right; }
+  .gi-rymtop-r { font: 600 13px 'IBM Plex Mono', monospace; color: var(--accent); text-align: right; } .gi-rymtop-r small { display: block; font-weight: 400; font-size: 10.5px; color: var(--text-dim); }
+  .gi-rymtop-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px; } .gi-rymtop-foot a { color: var(--accent); }
   .gi-side { display: flex; flex-direction: column; gap: 16px; flex: 1 1 320px; min-width: 0; }
   .gi-desc p { margin: 0 0 10px; font-size: 14px; line-height: 1.6; color: var(--text); white-space: pre-line; overflow-wrap: anywhere; }
   .gi-desc.clamped { max-height: 11.2em; overflow: hidden; }
