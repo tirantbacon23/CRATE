@@ -289,6 +289,10 @@ html, body {
      card. (-webkit-touch-callout is inherited, so a card's links don't preview either.) */
   @media (hover: none) {
     img { -webkit-touch-callout: none; -webkit-user-drag: none; -webkit-user-select: none; user-select: none; }
+    /* Newer iOS ignores touch-callout on images and still offers Save to Photos / Copy Subject / Look Up. An image that touches
+       pass straight through can't be held at all: the press lands on the card or button around it, which is where every tap
+       handler lives anyway. The two images with a tap of their own (the player's cover, Quick Peek's cover) keep theirs. */
+    img:not(#miniPlayerArt):not(#albumQuickPeekArt) { pointer-events: none; }
     .card, .album-quick-peek, .mini-player, .deck-art { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
   }
 
@@ -4401,7 +4405,7 @@ html, body {
   body.jobs-strip-on .global-toast { bottom: calc(var(--mobile-navbar-h) + var(--mobile-chrome-gap, 0px) + env(safe-area-inset-bottom, 0px) + 60px); }   /* and above the Processing strip */
   body.jobs-strip-on.has-mini-player:not(.mp-docked-top) .global-toast { bottom: calc(var(--mobile-navbar-h) + var(--mobile-chrome-gap, 0px) + env(safe-area-inset-bottom, 0px) + 156px); }
   /* A full-screen dialog (Advanced search, Add album, …) covers the page: the Processing strip would only cover the dialog's own fields. */
-  body.dialog-open .jobs-strip { display: none; }
+  body.dialog-open .jobs-strip, body.qa-open .jobs-strip { display: none; }   /* (and the Quick actions sheet, whose last rows it covered) */
 
   /* The ⚙ menu is anchored to the gear's right edge at its natural width, which is wider than a phone: its left side ran
      off the screen. Here it is a full-width panel under the header instead, scrolling inside if it's taller than the room.

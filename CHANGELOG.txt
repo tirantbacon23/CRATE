@@ -17,7 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.90.6
+  CURRENT_VERSION: 1.90.7
+
+  1.90.7 — 2026-11-08 — Fix: on a newer iPhone, holding a cover still brought up the phone's enlarged copy with Save to Photos / Copy Subject / Look Up. Page only.
+          That iOS ignores 1.90.5's setting for images. On touch screens,
+          images now let touches pass through to the card or button around
+          them (where every tap is handled anyway), so there is no image to
+          hold: a long-press on a cover opens only CRATE's Quick actions. The
+          player's cover and Quick Peek's cover, which have taps of their
+          own, are left as they were. The Processing strip also steps aside
+          while Quick actions is open (it covered its last rows).
 
   1.90.6 — 2026-11-08 — Fix: the page showed without its styles for a moment while loading (bare text and grey buttons on white). Page only.
           The stylesheet was linked at the very end of the page (since the
