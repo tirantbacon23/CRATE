@@ -205,3 +205,37 @@ function phoneTapToStartDone() {
   on('nexttrack', () => masterPlayerStepTrack(1));
   paint();
 })();
+
+// ---- In the CRATE iPhone app (ios/): the lock screen is the app's ----
+// The app shows what's playing on the lock screen from what this reports, and passes the lock screen's buttons back to
+// window.crateRemote. In a browser there is no window.webkit.messageHandlers.crate, and nothing is sent.
+window.crateRemote = function (action) {
+  const pp = el.miniPlayerPlayPause; if (!pp) return;
+  if (action === 'play') { if (pp.title === 'Play') pp.click(); }
+  else if (action === 'pause') { if (pp.title === 'Pause') pp.click(); }
+  else if (action === 'toggle') pp.click();
+  else if (action === 'next') masterPlayerStepTrack(1);
+  else if (action === 'previous') masterPlayerStepTrack(-1);
+};
+(function wireNativeApp() {
+  const app = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.crate;
+  if (!app || !el.miniPlayer) return;
+  const text = (e) => (e && e.textContent || '').trim();
+  let lastKey = '';
+  const send = () => {
+    const title = text(el.miniPlayerTitle);
+    const showing = !el.miniPlayer.hidden && !!title && title !== '—';
+    const playing = showing && el.miniPlayerPlayPause.title === 'Pause';
+    const artist = text(el.miniPlayerArtist), album = text(el.miniPlayerAlbum);
+    const src = el.miniPlayerArt && (el.miniPlayerArt.currentSrc || el.miniPlayerArt.src) || '';
+    const art = src.startsWith('data:') ? '' : src;
+    const key = showing ? [title, artist, album, art, playing].join('\u0001') : '';
+    if (key === lastKey) return;                                    // a new song, cover, or play / pause: the clock ticking isn't news
+    lastKey = key;
+    let duration = 0, position = 0;
+    try { duration = (getCurrentDurationMs() || 0) / 1000; position = (getEstimatedPosition() || 0) / 1000; } catch (e) { /* not known yet */ }
+    try { app.postMessage({ type: 'nowPlaying', title: showing ? title : '', artist, album, art, playing, duration, position }); } catch (e) { /* the app went away */ }
+  };
+  new MutationObserver(send).observe(el.miniPlayer, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['src', 'title', 'hidden'] });
+  send();
+})();

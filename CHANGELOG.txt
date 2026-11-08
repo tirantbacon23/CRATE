@@ -17,7 +17,21 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.91.4
+  CURRENT_VERSION: 1.92.0
+
+  1.92.0 — 2026-11-08 — CRATE for iPhone: an app (ios/) that opens CRATE full screen and keeps the music playing with the phone locked. Page: what's playing goes to the app's lock screen.
+          THE APP (ios/, Swift, generated with XcodeGen): CRATE's page in a full
+          screen web view, as an audio app to iOS, so it may keep playing with
+          the phone locked. Its page keeps running in the background (the next
+          song starts by itself); YouTube's player isn't told the app was
+          hidden, and is started again if iOS pauses it anyway; YouTube and
+          SoundCloud may start without a tap; the lock screen has the song,
+          cover, play / pause and previous / next; Google's sign-in window,
+          CRATE's confirmations and links to other apps work. Install with
+          Sideloadly or AltStore: ios/README.md. Untested on an iPhone so far.
+          THE PAGE (js/39-phone-playback.js): inside the app, it reports what's
+          playing to it and answers the lock screen's buttons
+          (window.crateRemote). In a browser nothing changes.
 
   1.91.4 — 2026-11-08 — "Play in the YouTube app" (Quick actions, on a phone): hands a release's YouTube videos to the YouTube app, which can keep playing with the phone locked. Page only.
           iOS pauses YouTube in a web page when the phone locks; the YouTube
