@@ -1,0 +1,53 @@
+# Builds CRATE for iPhone (ios/) on a GitHub Mac and publishes CRATE.ipa, unsigned, to the "iPhone app" release
+# (https://github.com/tirantbacon23/CRATE/releases/tag/ios-app). Sideloadly or AltStore sign it with your own Apple ID as they
+# install it: see ios/README.md. Runs when the app's files change on main, or from the Actions tab (Run workflow).
+name: iPhone app
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['ios/**', '.github/workflows/ios.yml']
+
+permissions:
+  contents: write          # to publish CRATE.ipa to the "iPhone app" release
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate the Xcode project (XcodeGen, from ios/project.yml)
+        run: |
+          brew install xcodegen
+          cd ios && xcodegen generate
+
+      - name: Build (unsigned; the installer signs it)
+        run: |
+          cd ios
+          xcodebuild -project CRATE.xcodeproj -scheme CRATE -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+
+      - name: Package CRATE.ipa
+        run: |
+          cd ios
+          rm -rf Payload && mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/CRATE.app Payload/
+          zip -qry CRATE.ipa Payload
+          ls -la CRATE.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CRATE-ipa
+          path: ios/CRATE.ipa
+
+      - name: Publish to the "iPhone app" release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view ios-app >/dev/null 2>&1 || gh release create ios-app --title "iPhone app" --prerelease \
+            --notes "CRATE for iPhone, rebuilt whenever ios/ changes. Install CRATE.ipa with Sideloadly or AltStore: see ios/README.md."
+          gh release upload ios-app ios/CRATE.ipa --clobber
