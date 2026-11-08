@@ -173,8 +173,9 @@ const ART_LOOKUPS_AT_ONCE = 4; let artLookupsActive = 0; const artLookupWaiting 
 (function bodyStateClasses() {
   const body = document.body, mp = document.getElementById('miniPlayer'), qa = document.getElementById('qaOverlay'), sw = document.getElementById('searchWrap'), top = sw && sw.closest('.topbar');
   const overlays = document.getElementsByClassName('arrange-overlay');          // live: includes dialogs made later
+  const floating = document.getElementsByClassName('floating-modal');          // Panels configuration and Panel Settings: dialogs without an overlay, full-screen on a phone
   const paintMp = () => body.classList.toggle('mp-docked-top', !!(mp && mp.classList.contains('docked-top') && !mp.classList.contains('detached') && !mp.hidden));
-  const paintDialogs = () => { let open = false; for (const o of overlays) { if (!o.hidden) { open = true; break; } } body.classList.toggle('dialog-open', open); };
+  const paintDialogs = () => { let open = false; for (const o of overlays) { if (!o.hidden) { open = true; break; } } if (!open) for (const f of floating) { if (!f.hidden) { open = true; break; } } body.classList.toggle('dialog-open', open); };
   const paintQa = () => body.classList.toggle('qa-open', !!(qa && qa.classList.contains('open')));
   const paintSearch = () => { if (!top || !sw) return; top.classList.toggle('search-focus', sw.contains(document.activeElement)); top.classList.toggle('search-has-value', sw.classList.contains('mobile-search-has-value')); };
   const watchAttrs = new MutationObserver((recs) => { let m = false, d = false, q = false, s2 = false; recs.forEach(r => { if (r.target === mp) m = true; else if (r.target === qa) q = true; else if (r.target === sw) s2 = true; else d = true; }); if (m) paintMp(); if (d) paintDialogs(); if (q) paintQa(); if (s2) paintSearch(); });
@@ -183,6 +184,7 @@ const ART_LOOKUPS_AT_ONCE = 4; let artLookupsActive = 0; const artLookupWaiting 
   if (qa) watchAttrs.observe(qa, { attributes: true, attributeFilter: ['class'] });
   if (sw) { watchAttrs.observe(sw, { attributes: true, attributeFilter: ['class'] }); sw.addEventListener('focusin', paintSearch); sw.addEventListener('focusout', () => setTimeout(paintSearch, 0)); }
   for (const o of overlays) watch(o);
+  for (const f of floating) watch(f);
   new MutationObserver((recs) => { let any = false; recs.forEach(r => { r.addedNodes.forEach(n => { if (n.nodeType === 1 && n.classList.contains('arrange-overlay')) { watch(n); any = true; } }); r.removedNodes.forEach(n => { if (n.nodeType === 1 && n.classList.contains('arrange-overlay')) any = true; }); }); if (any) paintDialogs(); }).observe(body, { childList: true });
   paintMp(); paintDialogs(); paintQa(); paintSearch();
 })();

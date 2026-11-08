@@ -17,7 +17,25 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.90.7
+  CURRENT_VERSION: 1.90.8
+
+  1.90.8 — 2026-11-08 — Panels configuration and Panel Settings fit a phone, and no dialog is covered by the player any more. Page only.
+          PANELS CONFIGURATION / PANEL SETTINGS are floating windows on a
+          computer. On a phone they ran off the bottom of the screen, under
+          the player; the page behind scrolled instead of the window; the
+          "Clicking an album cover opens" dropdown ran off the right edge with
+          its label squeezed into a column one word wide; and the layout boxes
+          didn't use the full width. On a phone they are now full-screen
+          sheets that scroll inside, with each dropdown under its label at the
+          full width, the layout boxes stacked full width, and CRATE's gold
+          checkboxes instead of the browser's blue.
+          PLAYER: a full-screen dialog covers the tab bar, but the player
+          (kept above dialogs on purpose) stayed at tab-bar height, floating
+          over the dialog with the dialog showing beneath it. While one is
+          open the player moves to the bottom of the screen and the dialog's
+          last rows scroll clear of it (Add a release, Edit, these two, …).
+          These two also count as an open dialog now, so the Processing strip
+          and the RYM waiting bar step aside for them as for every other.
 
   1.90.7 — 2026-11-08 — Fix: on a newer iPhone, holding a cover still brought up the phone's enlarged copy with Save to Photos / Copy Subject / Look Up. Page only.
           That iOS ignores 1.90.5's setting for images. On touch screens,

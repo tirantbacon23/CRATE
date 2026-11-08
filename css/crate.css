@@ -4407,6 +4407,33 @@ html, body {
   /* A full-screen dialog (Advanced search, Add album, …) covers the page: the Processing strip would only cover the dialog's own fields. */
   body.dialog-open .jobs-strip, body.qa-open .jobs-strip { display: none; }   /* (and the Quick actions sheet, whose last rows it covered) */
 
+  /* Panels configuration and Panel Settings are floating windows on a computer (pinned 80px from the top, 90vw wide).
+     On a phone that ran off the bottom of the screen, under the player, and the page behind scrolled instead of the
+     window: here they are full-screen sheets like the phone's other dialogs, scrolling inside, clear of the notch. */
+  #arrangeModal, #mainConfigModal { top: 0; left: 0; right: 0; bottom: 0; width: auto; max-width: none; height: auto; max-height: none;
+    border: none; border-radius: 0; display: flex; flex-direction: column; overflow: hidden; padding-top: env(safe-area-inset-top); padding-bottom: 0; }
+  #arrangeModal[hidden], #mainConfigModal[hidden] { display: none; }
+  #arrangeModal > .arrange-header, #mainConfigModal > .arrange-header { flex: none; padding: 12px 16px; }
+  #arrangeModal > .arrange-body, #mainConfigModal > .arrange-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 14px 16px calc(24px + env(safe-area-inset-bottom, 0px)); }
+  #arrangeModal .modal-x, #mainConfigModal .modal-x { min-width: 40px; min-height: 40px; font-size: 17px; }
+  #arrangeModal > .arrange-body > *, #mainConfigModal > .arrange-body > * { flex-shrink: 0; }   /* the body is a fixed-height flex column now: its sections scroll instead of being squashed to fit */
+  /* A row with a dropdown: the label on top, the dropdown under it at the window's width (it ran off the right edge,
+     squeezing "Clicking an album cover opens" into a column one word wide). */
+  .floating-modal input[type="checkbox"], .floating-modal input[type="radio"] { accent-color: var(--accent); }   /* the layout list's boxes were the browser's blue */
+  .floating-modal .arrange-row { flex-wrap: wrap; }
+  .floating-modal .arrange-row select { flex: 1 1 100%; min-width: 0; max-width: 100%; }
+  .floating-modal .arrange-row-label { flex: 1 1 100%; }
+  /* Layout: the panel boxes and the list of elements stack, each the full width (they kept their side-by-side shares). */
+  .layout-config-body { flex-direction: column; align-items: stretch; }
+  .layout-panels-col, .layout-available-col { flex: none; width: 100%; }
+
+  /* While a full-screen dialog is open it covers the tab bar, but the player (deliberately above dialogs) stayed at
+     tab-bar height, floating over the dialog with the dialog showing beneath it. It moves to the bottom of the screen
+     instead, and the dialog's last rows scroll clear of it. */
+  body.dialog-open .mini-player:not(.docked-top) { bottom: 0; }
+  body.dialog-open.has-mini-player:not(.mp-docked-top) #arrangeModal > .arrange-body,
+  body.dialog-open.has-mini-player:not(.mp-docked-top) #mainConfigModal > .arrange-body { padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px)); }
+
   /* The ⚙ menu is anchored to the gear's right edge at its natural width, which is wider than a phone: its left side ran
      off the screen. Here it is a full-width panel under the header instead, scrolling inside if it's taller than the room.
      (Its position, offsets and width are inline styles, hence !important.) */
@@ -4472,4 +4499,8 @@ html, body {
   body.has-mini-player:not(.mp-docked-top) .jobs-strip,
   body.has-mini-player:not(.mp-docked-top) .bm-strip,
   body.has-mini-player:not(.mp-docked-top) .bg-status { bottom: calc(var(--mobile-navbar-h) + var(--mobile-chrome-gap, 0px) + env(safe-area-inset-bottom, 0px) + 72px); }
+}
+@media (max-width: 620px) {
+  /* (see "While a full-screen dialog is open" in the phone layout pass: the player sits at the bottom of the screen over the dialog) */
+  body.dialog-open.has-mini-player:not(.mp-docked-top) .arrange-modal:not(.map-modal):not(.floating-modal) { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
 }
