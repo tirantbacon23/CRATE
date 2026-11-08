@@ -12,7 +12,11 @@
 <head>
 <script>/* tests only (tests/README.md): a fake sign-in and back end, never on a real address */ if (/[?&]crate-test(&|$)/.test(location.search) && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) document.write('<script src="tests/mock.js"><\/script>');</script>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<!-- No zooming the page with a pinch or a double tap (asked for: it's an app, not a document). Android takes the viewport
+     setting above; iPhone Safari ignores it, so "touch-action: manipulation" in the CSS stops double-tap zoom there and this
+     stops pinch zoom. Maps and Galaxy still pinch: they use touch events inside their own boxes, not the page's gesture. -->
+<script>document.addEventListener('gesturestart', function (e) { e.preventDefault(); }); document.addEventListener('gesturechange', function (e) { e.preventDefault(); });</script>
 <!-- Added to an iPhone's home screen, CRATE opens full-screen (no Safari address bar or toolbar), under a see-through status
      bar: viewport-fit=cover lets the page reach the screen's edges, and the safe-area padding in the CSS keeps the header
      clear of the notch and the tab bar clear of the home indicator. manifest.webmanifest says the same to Android and iOS 16.4+. -->
@@ -2201,47 +2205,47 @@
   </div>
 </div>
 
-<script src="js/01-core.js?v=1.90.3"></script>
-<script src="js/02-auth.js?v=1.90.3"></script>
-<script src="js/03-taxonomy-layout.js?v=1.90.3"></script>
-<script src="js/04-obsidian-export.js?v=1.90.3"></script>
-<script src="js/05-init-genres.js?v=1.90.3"></script>
-<script src="js/06-events.js?v=1.90.3"></script>
-<script src="js/07-prefs-fetch.js?v=1.90.3"></script>
-<script src="js/08-tabs-panels.js?v=1.90.3"></script>
-<script src="js/09-descriptors-mood-merge.js?v=1.90.3"></script>
-<script src="js/10-filters-search.js?v=1.90.3"></script>
-<script src="js/11-grid-player.js?v=1.90.3"></script>
-<script src="js/12-player-menus.js?v=1.90.3"></script>
-<script src="js/13-diary-scrobbles-stats.js?v=1.90.3"></script>
-<script src="js/14-artist-playlists.js?v=1.90.3"></script>
-<script src="js/15-shuffle-artist-info.js?v=1.90.3"></script>
-<script src="js/16-tabbar-updatelog.js?v=1.90.3"></script>
-<script src="js/17-match-songs.js?v=1.90.3"></script>
-<script src="js/18-exchange.js?v=1.90.3"></script>
-<script src="js/19-sound.js?v=1.90.3"></script>
-<script src="js/20-export-import.js?v=1.90.3"></script>
-<script src="js/21-addon-genre-page.js?v=1.90.3"></script>
-<script src="js/22-deck.js?v=1.90.3"></script>
-<script src="js/23-timeline-map.js?v=1.90.3"></script>
-<script src="js/24-diary-log.js?v=1.90.3"></script>
-<script src="js/25-tracklist-add.js?v=1.90.3"></script>
-<script src="js/26-layout-dnd.js?v=1.90.3"></script>
-<script src="js/27-tracklist-builder-rym.js?v=1.90.3"></script>
-<script src="js/28-edit-links-youtube.js?v=1.90.3"></script>
-<script src="js/29-lastfm-scrobbling.js?v=1.90.3"></script>
-<script src="js/30-new-releases.js?v=1.90.3"></script>
-<script src="js/31-lastfm-import.js?v=1.90.3"></script>
-<script src="js/32-utils.js?v=1.90.3"></script>
-<script src="js/33-pull-details.js?v=1.90.3"></script>
-<script src="js/34-fill-blanks.js?v=1.90.3"></script>
-<script src="js/35-catalogue-stats.js?v=1.90.3"></script>
-<script src="js/36-galaxy.js?v=1.90.3"></script>
-<script src="js/37-taste.js?v=1.90.3"></script>
-<script src="js/38-ask.js?v=1.90.3"></script>
-<script src="js/99-boot.js?v=1.90.3"></script>
+<script src="js/01-core.js?v=1.90.4"></script>
+<script src="js/02-auth.js?v=1.90.4"></script>
+<script src="js/03-taxonomy-layout.js?v=1.90.4"></script>
+<script src="js/04-obsidian-export.js?v=1.90.4"></script>
+<script src="js/05-init-genres.js?v=1.90.4"></script>
+<script src="js/06-events.js?v=1.90.4"></script>
+<script src="js/07-prefs-fetch.js?v=1.90.4"></script>
+<script src="js/08-tabs-panels.js?v=1.90.4"></script>
+<script src="js/09-descriptors-mood-merge.js?v=1.90.4"></script>
+<script src="js/10-filters-search.js?v=1.90.4"></script>
+<script src="js/11-grid-player.js?v=1.90.4"></script>
+<script src="js/12-player-menus.js?v=1.90.4"></script>
+<script src="js/13-diary-scrobbles-stats.js?v=1.90.4"></script>
+<script src="js/14-artist-playlists.js?v=1.90.4"></script>
+<script src="js/15-shuffle-artist-info.js?v=1.90.4"></script>
+<script src="js/16-tabbar-updatelog.js?v=1.90.4"></script>
+<script src="js/17-match-songs.js?v=1.90.4"></script>
+<script src="js/18-exchange.js?v=1.90.4"></script>
+<script src="js/19-sound.js?v=1.90.4"></script>
+<script src="js/20-export-import.js?v=1.90.4"></script>
+<script src="js/21-addon-genre-page.js?v=1.90.4"></script>
+<script src="js/22-deck.js?v=1.90.4"></script>
+<script src="js/23-timeline-map.js?v=1.90.4"></script>
+<script src="js/24-diary-log.js?v=1.90.4"></script>
+<script src="js/25-tracklist-add.js?v=1.90.4"></script>
+<script src="js/26-layout-dnd.js?v=1.90.4"></script>
+<script src="js/27-tracklist-builder-rym.js?v=1.90.4"></script>
+<script src="js/28-edit-links-youtube.js?v=1.90.4"></script>
+<script src="js/29-lastfm-scrobbling.js?v=1.90.4"></script>
+<script src="js/30-new-releases.js?v=1.90.4"></script>
+<script src="js/31-lastfm-import.js?v=1.90.4"></script>
+<script src="js/32-utils.js?v=1.90.4"></script>
+<script src="js/33-pull-details.js?v=1.90.4"></script>
+<script src="js/34-fill-blanks.js?v=1.90.4"></script>
+<script src="js/35-catalogue-stats.js?v=1.90.4"></script>
+<script src="js/36-galaxy.js?v=1.90.4"></script>
+<script src="js/37-taste.js?v=1.90.4"></script>
+<script src="js/38-ask.js?v=1.90.4"></script>
+<script src="js/99-boot.js?v=1.90.4"></script>
 
-<link rel="stylesheet" href="css/crate.css?v=1.90.3">
+<link rel="stylesheet" href="css/crate.css?v=1.90.4">
 
 </body>
 </html>

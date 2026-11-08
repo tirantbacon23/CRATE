@@ -283,6 +283,7 @@ html, body {
   background: var(--bg); /* Ensures the dark color fills the monitor */
 }
   body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; min-height: 100vh; }
+  html { touch-action: manipulation; }   /* no double-tap zoom (applies to everything under it; see the viewport tag in index.html) */
 
 #app { 
   /* Fills the full window width always — no max-width cap or centering

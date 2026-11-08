@@ -17,7 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.90.3
+  CURRENT_VERSION: 1.90.4
+
+  1.90.4 — 2026-11-08 — A pinch or a double tap no longer zooms the page on a phone. Page only.
+          Three parts, since iPhone Safari ignores the usual one: the viewport
+          tag (maximum-scale=1, user-scalable=no) for Android, touch-action:
+          manipulation on the page for double-tap zoom, and Safari's own pinch
+          gesture cancelled. The maps and Galaxy still zoom with a pinch inside
+          their own boxes.
 
   1.90.3 — 2026-11-08 — CRATE can be added to a phone's home screen and opens full-screen, with no browser address bar. Toasts no longer cover the tab bar. Page only.
           THE APP FILES: index.html already pointed to manifest.webmanifest
