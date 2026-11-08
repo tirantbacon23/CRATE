@@ -17,7 +17,18 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.89.1
+  CURRENT_VERSION: 1.89.2
+
+  1.89.2 — 2026-11-08 — A genre's page shows how far you are through it on Rate Your Music: the pages done, the ones opened but not done, and the next one to check. Page and RYM add-on 1.19.0.
+          The RYM add-on (1.18.0) notes each genre and chart page you open on
+          Rate Your Music and which are done; from 1.19.0 it hands that to
+          CRATE. A genre's page has a card, "On Rate Your Music", in the side
+          column: for the genre's own page and any chart of it ("Top · album
+          · 1980s"), what is done ("1–5, 8"), what was opened but not done,
+          when you last looked, and a link to the next page to check. With
+          nothing yet, it links to the genre on RYM. CRATE keeps the last copy
+          it was given (crate_rym_pages_v1), so the card shows when the
+          add-on isn't answering. Install the new crate-rym-addon.zip.
 
   1.89.1 — 2026-11-08 — Match songs: releases can be removed from a run's queue. Page only.
           The Queue tab has a ✕ at the end of each release's row, and

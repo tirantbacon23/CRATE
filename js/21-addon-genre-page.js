@@ -657,7 +657,7 @@ function giEnsureSkeleton() {
     <section id="giChart" class="gi-card gi-chart" aria-label="Years active"></section>
     <div class="gi-cols">
       <section id="giAbout" class="gi-card gi-about" aria-label="About this genre"></section>
-      <div class="gi-side"><section id="giStats" class="gi-card" aria-label="Your crate"></section><section id="giFamily" class="gi-card" aria-label="Family"></section></div>
+      <div class="gi-side"><section id="giStats" class="gi-card" aria-label="Your crate"></section><section id="giRym" class="gi-card" aria-label="Cataloguing on Rate Your Music"></section><section id="giFamily" class="gi-card" aria-label="Family"></section></div>
     </div>
     <section id="giArtists" class="gi-artists" aria-label="Top artists in this genre"></section>
     <section id="giReleases" class="gi-releases" aria-label="Releases"></section>`;
@@ -685,6 +685,7 @@ function giRenderAll(genre) {
   giRenderChart(genre, ui, items);
   giRenderAbout(genre, ui);
   giRenderStats(items);
+  giRenderRymPages(genre);
   giRenderFamily(family);
   giRenderArtists(items);
   giRenderReleases(genre, ui, items);
@@ -733,6 +734,54 @@ function giRenderAbout(genre, ui) {
   if (ui.editing) { const ta = $gi('giDescInput'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }
   const d = $gi('giDesc'), more = $gi('giMore');
   if (d && more) more.hidden = !(ui.descOpen || d.scrollHeight > d.clientHeight + 4);   // only offer "Read more" when the text is actually cut
+}
+// ---- How far you are through a genre on Rate Your Music: the RYM add-on (1.19.0) notes each genre and chart page you open there, and which are done
+// (sent to CRATE, marked done, or everything on it in your crate). CRATE keeps the last copy it was given, so this shows when the add-on isn't answering.
+const RYM_PAGES_KEY = 'crate_rym_pages_v1';
+let rymPages = null;
+function rymPagesAll() { if (!rymPages) { try { rymPages = JSON.parse(localStorage.getItem(RYM_PAGES_KEY) || '{}') || {}; } catch (e) { rymPages = {}; } } return rymPages; }
+function rymCleanPages(raw) {                                         // what the add-on sends is untrusted: list addresses of the right shape, page numbers, plain text and numbers
+  const out = {}, num = (v) => { const n = Number(v); return isFinite(n) && n >= 0 ? n : 0; };
+  Object.keys(raw || {}).slice(0, 400).forEach(k => {
+    const L = raw[k]; if (!L || typeof L !== 'object' || !/^\/(genre|charts)\/[^\s?#]{1,200}\/$/.test(k)) return;
+    const pages = {}; Object.keys(L.pages || {}).slice(0, 300).forEach(n => { const p = L.pages[n]; if (!/^\d{1,3}$/.test(n) || +n < 1 || !p || typeof p !== 'object') return;
+      pages[+n] = { d: p.d ? 1 : 0, h: ['you', 'sent', 'all', 'no'].includes(p.h) ? p.h : '', o: num(p.o), e: num(p.e), n: num(p.n), f: num(p.f), s: num(p.s) }; });
+    out[k] = { k, kind: k.startsWith('/genre/') ? 'genre' : 'chart', label: String(L.label || '').slice(0, 120), s: num(L.s), pages };
+  });
+  return out;
+}
+function rymPagesArrived(pages) {
+  rymPages = pages; try { localStorage.setItem(RYM_PAGES_KEY, JSON.stringify(pages)); } catch (e) { /* kept for this visit only */ }
+  if (state.activeTab === 'genreInfo' && state.activeGenreTab && document.getElementById('giRym')) giRenderRymPages(state.activeGenreTab);
+}
+function rymGenreSlug(genre) { return smFold(genre).replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }          // "Post-Punk" -> "post-punk", as RYM spells its genre addresses
+function rymGenreNorm(s) { return smFold(String(s || '').replace(/-/g, ' ')).replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ''); }
+function rymPagesForGenre(genre, all) {                               // this genre's lists: its own genre page, and any chart of it; the genre page first, then the one opened last
+  const want = rymGenreNorm(genre), slugOf = (k) => { const m = k.kind === 'genre' ? /^\/genre\/([^\/]+)\/$/.exec(k.k) : /\/g:([^\/]+)\//.exec(k.k); try { return m ? decodeURIComponent(m[1]) : ''; } catch (e) { return m ? m[1] : ''; } };
+  return Object.values(all || {}).filter(L => { const sl = slugOf(L); return (sl && rymGenreNorm(sl) === want) || (L.kind === 'genre' && rymGenreNorm(L.label) === want); })
+    .sort((a, b) => (a.kind === 'genre' ? 0 : 1) - (b.kind === 'genre' ? 0 : 1) || (b.s || 0) - (a.s || 0));
+}
+function rymPageRanges(nums) { const n = [...new Set(nums.map(Number))].filter(x => x > 0).sort((a, b) => a - b), out = []; for (let i = 0; i < n.length; i++) { let j = i; while (j + 1 < n.length && n[j + 1] === n[j] + 1) j++; out.push(j > i ? `${n[i]}\u2013${n[j]}` : String(n[i])); i = j; } return out.join(', '); }
+function rymListProgress(L) { const pages = (L && L.pages) || {}, nums = Object.keys(pages).map(Number).filter(x => x > 0).sort((a, b) => a - b), done = nums.filter(x => pages[x].d), open = nums.filter(x => !pages[x].d); let next = 1; while (pages[next] && pages[next].d) next++; return { done, open, next }; }
+function rymListUrl(key, page) { return 'https://rateyourmusic.com' + key + (page > 1 ? page + '/' : ''); }
+function rymChartName(key) {                                          // "/charts/top/album/1980s/g:post-punk/" -> "Top album · 1980s"
+  const parts = key.split('/').filter(p => p && p !== 'charts' && !/^g:/.test(p)).map(p => { try { return decodeURIComponent(p); } catch (e) { return p; } });
+  const s = parts.join(' \u00b7 ').replace(/-/g, ' '); return s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Chart';
+}
+function giRenderRymPages(genre) {
+  const box = $gi('giRym'); if (!box) return;
+  const lists = rymPagesForGenre(genre, rymPagesAll()), slug = rymGenreSlug(genre), day = (t) => t ? new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '';
+  if (!lists.length) {
+    box.innerHTML = `<div class="gi-card-label">On Rate Your Music</div><p class="gi-rym-none">Not checked yet. <a href="https://rateyourmusic.com/genre/${escapeHtml(slug)}/" target="_blank" rel="noopener">Open ${escapeHtml(genre)} on RYM \u2197</a></p><p class="gi-rym-hint">With the CRATE for RateYourMusic add-on (1.19.0 or later), the pages you go through there are tracked here.</p>`;
+    return;
+  }
+  const rows = lists.slice(0, 6).map(L => {
+    const pr = rymListProgress(L), name = L.kind === 'genre' ? 'Genre page' : rymChartName(L.k);
+    return `<div class="gi-rym-list"><div class="gi-rym-name">${escapeHtml(name)}<span class="gi-rym-when">${L.s ? ' \u00b7 ' + escapeHtml(day(L.s)) : ''}</span></div>
+      <div class="gi-rym-line">${pr.done.length ? `Done: <b>${escapeHtml(rymPageRanges(pr.done))}</b>` : 'None done yet'}${pr.open.length ? ` \u00b7 opened, not done: ${escapeHtml(rymPageRanges(pr.open))}` : ''}</div>
+      <a class="gi-rym-next" href="${escapeHtml(rymListUrl(L.k, pr.next))}" target="_blank" rel="noopener">Next: page ${pr.next} \u2197</a></div>`;
+  }).join('');
+  box.innerHTML = `<div class="gi-card-label">On Rate Your Music</div>${rows}`;
 }
 function giRenderStats(items) {
   const s = genreStatsOf(items), cell = (k, v) => `<div class="gi-stat"><div class="gi-stat-v">${v}</div><div class="gi-stat-k">${k}</div></div>`;

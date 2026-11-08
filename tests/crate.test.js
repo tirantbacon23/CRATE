@@ -776,3 +776,21 @@ suite('Ask your crate', () => {
     eq(app('aqComplete')('by co', ctx).map(x => x.kind).every(k => k === 'artist'), true);
   });
 });
+
+suite('Genre page: progress on Rate Your Music', () => {
+  test('a genre finds its RYM genre page and its charts; what the add-on sends is cleaned', () => {
+    const clean = app('rymCleanPages'), find = app('rymPagesForGenre'), prog = app('rymListProgress'), ranges = app('rymPageRanges');
+    const all = clean({
+      '/genre/post-punk/': { label: 'Post-Punk', s: 5, pages: { 1: { d: 1, h: 'sent' }, 2: { d: 1 }, 3: { d: 0 }, 5: { d: 1 } } },
+      '/charts/top/album/1980s/g:post-punk/': { label: 'x', s: 9, pages: { 1: { d: 1 } } },
+      '/genre/shoegaze/': { label: 'Shoegaze', pages: { 1: { d: 1 } } },
+      'javascript:alert(1)': { pages: { 1: { d: 1 } } },
+      '/genre/rock/': { pages: { 0: { d: 1 }, x: {}, 2: { d: 1, h: '<b>' } } } });
+    eq(Object.keys(all).sort(), ['/charts/top/album/1980s/g:post-punk/', '/genre/post-punk/', '/genre/rock/', '/genre/shoegaze/']);
+    eq(all['/genre/rock/'].pages, { 2: { d: 1, h: '', o: 0, e: 0, n: 0, f: 0, s: 0 } });
+    const lists = find('Post-Punk', all);
+    eq(lists.map(l => l.k), ['/genre/post-punk/', '/charts/top/album/1980s/g:post-punk/']);
+    eq(prog(lists[0]), { done: [1, 2, 5], open: [3], next: 3 });
+    eq([ranges([1, 2, 5]), app('rymGenreSlug')('Rock & Roll'), app('rymChartName')('/charts/top/album/1980s/g:post-punk/')], ['1–2, 5', 'rock-and-roll', 'Top · album · 1980s']);
+  });
+});
