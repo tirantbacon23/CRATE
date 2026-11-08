@@ -4345,3 +4345,85 @@ html, body {
 .aq-more { margin: 14px auto 0; display: block; }
 @media (max-width: 760px) { .aq-ask, .aq-chips { padding-left: 14px; padding-right: 14px; } .aq-sugg { left: 14px; right: 14px; } .aq-nums { max-width: 38%; } }
 
+
+/* ---- Phone layout pass (1.90.0) ----
+   Kept last in the file on purpose: every rule here overrides an earlier, equally specific mobile rule, and
+   equal-specificity rules resolve by source order. Desktop (> 900px) is untouched.
+   What it changes, from a sketch of the 390px screen:
+   - 12px side gutters instead of 40px: the grid gets ~56px more width, which is what lets three covers fit per row.
+   - One slim header row: ghost icon buttons (no box) beside a smaller wordmark.
+   - Bottom tab bar: an icon above each label, the active tab in accent colour with a bar on top, instead of a solid block.
+   - Processing / Match songs / background-status strips float ABOVE the tab bar (and the player), not on top of it:
+     they used to sit at bottom: 16px and cover the tabs so none could be tapped.
+   - Album cards show two text lines (usually title and artist); the stars and format are already on the cover.
+   - The catalogue stats bar under the grid is one line, so it doesn't eat four rows of covers. */
+@media (max-width: 900px) {
+  :root { --mobile-navbar-h: 58px; --m-gutter: 12px; }
+  #app { padding-left: max(var(--m-gutter), env(safe-area-inset-left)); padding-right: max(var(--m-gutter), env(safe-area-inset-right)); padding-top: max(10px, env(safe-area-inset-top)); }
+
+  /* Header */
+  .topbar { gap: 4px; padding-bottom: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .brand h1 { font-size: 28px; letter-spacing: 1.5px; }
+  .topbar .icon-btn, .topbar .search-icon { width: 40px; height: 40px; background: transparent; border-color: transparent; border-radius: 10px; }
+  .topbar .icon-btn:active, .topbar .search-icon:active { background: var(--bg-elevated); }
+  .topbar .controls { gap: 2px; }
+  .topbar .search-icon { font-size: 22px; }
+  #layoutMenu .icon-btn { background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 6px; }  /* the buttons moved into the ⚙ menu keep their look */
+
+  /* View bar (ALBUMS ▾ · grid/list · sort) */
+  #musicViewElement > .panel-bar { min-height: 0; padding-bottom: 6px; margin-bottom: 10px; }
+  #musicViewElement .view-btn { width: 34px; height: 30px; }
+  #musicViewElement #sortFilterBtn { width: 36px; height: 32px; background: transparent; border-color: transparent; }
+
+  /* Album grid: three across on a phone */
+  .grid { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 14px 8px; }
+  #gridContainer.close-gaps .grid { gap: 4px; }
+  .grid .card-info { padding: 6px 2px 2px; }
+  .grid .card-info p:nth-child(n+3) { display: none; }
+  .grid .card-title { font-size: 12.5px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .grid .card-artist { font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .grid .catalog-tag { font-size: 8.5px; padding: 1px 4px; top: 4px; left: 4px; }
+  .grid .type-tag { font-size: 8.5px; padding: 1px 4px; }
+  .grid .card-rating-overlay { bottom: 4px !important; left: 4px !important; padding: 1px 4px !important; font-size: 9px !important; }   /* its size is set inline */
+
+  /* Catalogue stats: a single line */
+  .cat-stats { flex-wrap: nowrap; overflow: hidden; white-space: nowrap; padding: 6px 2px; gap: 10px; font-size: 11px; }
+  .cat-stats > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; }
+  .cat-stats .cs-scope { flex: none; overflow: visible; }
+  .cat-stats .cs-cat { display: none; }   /* the whole-catalogue figures repeat what the scope already says, or describe what isn't shown */
+
+  /* Bottom tab bar */
+  .nav-tabs { gap: 0; padding: 0 4px env(safe-area-inset-bottom, 0px); height: calc(var(--mobile-navbar-h) + env(safe-area-inset-bottom, 0px)); box-sizing: border-box; align-items: stretch;
+    background: color-mix(in srgb, var(--bg-elevated) 92%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: none; }
+  .nav-tab { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; height: var(--mobile-navbar-h); padding: 0 2px; border-radius: 0;
+    background: none; color: var(--text-dim); font-size: 9px; letter-spacing: 0.6px; max-width: none; }
+  .nav-tab::before { font-family: 'Inter', system-ui, sans-serif; font-size: 19px; line-height: 1; letter-spacing: 0; }
+  #tabAlbums::before { content: '\266B'; }
+  #tabDiary::before { content: '\270E'; }
+  #tabScrobbles::before { content: '\2261'; font-size: 21px; }
+  #tabStats::before { content: '\25A5'; }
+  #tabArtist::before { content: '\25C9'; }
+  .artist-info-tab-btn::before { content: '\25C9'; }
+  .genre-tab-btn::before { content: '#'; font-weight: 700; }
+  .nav-tab.active { background: none; color: var(--accent); }
+  .nav-tab.active::after { content: ''; position: absolute; top: 0; left: 22%; right: 22%; height: 2px; border-radius: 0 0 2px 2px; background: var(--accent); }
+  .artist-info-tab-btn, .genre-tab-btn { gap: 3px; }
+  .artist-info-tab-label, .genre-tab-label { max-width: 100%; }
+  .nav-tab .artist-info-tab-close, .nav-tab .genre-tab-close { position: absolute; top: 3px; right: 2px; width: 16px; height: 16px; font-size: 13px; }
+
+  .mini-player:not(.docked-top) { bottom: calc(var(--mobile-navbar-h) + var(--mobile-chrome-gap, 0px) + env(safe-area-inset-bottom, 0px)); }
+  /* Floating strips sit above the tab bar, and above the player when one is showing */
+  .jobs-strip, .bm-strip, .bg-status { bottom: calc(var(--mobile-navbar-h) + var(--mobile-chrome-gap, 0px) + env(safe-area-inset-bottom, 0px) + 8px); }
+  body.has-mini-player:not(.mp-docked-top) .jobs-strip,
+  body.has-mini-player:not(.mp-docked-top) .bm-strip,
+  body.has-mini-player:not(.mp-docked-top) .bg-status { bottom: calc(var(--mobile-navbar-h) + var(--mobile-chrome-gap, 0px) + env(safe-area-inset-bottom, 0px) + 104px); }
+  .jobs-strip { left: var(--m-gutter); right: var(--m-gutter); transform: none; max-width: none; padding: 7px 12px; font-size: 12px; border-radius: 10px; }
+  .bg-status { left: var(--m-gutter); max-width: calc(100vw - 2 * var(--m-gutter)); }
+  /* the page ends above the floating strip, so it never covers the last covers or the stats line */
+  body.jobs-strip-on #app::after { content: ''; flex: 0 0 48px; }   /* #app is a flex column: a spacer at its end, whatever tab is showing */
+}
+@media (max-width: 620px) {
+  body.has-mini-player:not(.mp-docked-top) .jobs-strip,
+  body.has-mini-player:not(.mp-docked-top) .bm-strip,
+  body.has-mini-player:not(.mp-docked-top) .bg-status { bottom: calc(var(--mobile-navbar-h) + var(--mobile-chrome-gap, 0px) + env(safe-area-inset-bottom, 0px) + 72px); }
+}

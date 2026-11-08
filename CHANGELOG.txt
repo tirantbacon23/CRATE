@@ -17,7 +17,21 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.89.7
+  CURRENT_VERSION: 1.90.0
+
+  1.90.0 — 2026-11-08 — A better layout on a phone: three covers to a row, a slimmer header, a bottom tab bar with icons, and the Processing strip no longer covers the tabs. Page only.
+          TAB BAR: Processing (and the Match songs and background strips)
+          sat at the very bottom, on top of the tab bar, so Diary, Scrobbles,
+          Stats and Artist couldn't be tapped while anything was running.
+          They now float above the bar (and above the player), and the page
+          ends above them. Each tab has an icon over its name; the one open
+          is in the accent colour with a line above it.
+          MUSIC: the side margins are 12px instead of 40px, which fits three
+          covers to a row (two before). On a phone a card shows two lines
+          under the cover (usually title and artist): the stars and format
+          are already on the cover. The header is one row of plain icons
+          beside a smaller wordmark, and the stats under the grid are one
+          line. Wider than 900px nothing changes.
 
   1.89.7 — 2026-11-08 — Match songs: a full-release video's songs can be ticked in one click, and a finished run can be applied or closed from its pill. A genre's releases can be sorted by when you added them. Page only.
           FULL-RELEASE VIDEO: one that isn't sure (its title or length a
