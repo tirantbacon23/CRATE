@@ -437,7 +437,7 @@ html, body {
   .icon-btn:focus-visible, #searchInput:focus-visible {
     outline: 2px solid var(--accent); outline-offset: 1px;
   }
-  .mobile-only-btn { display: none; } /* shown only under the mobile drawer breakpoint — see that media query */
+  .mobile-only-btn, .leftnav-btn.leftnav-close { display: none; } /* shown only under the mobile drawer breakpoint — see that media query */
 
   /* ---- Three-pane layout ---- */
 .panels { 
@@ -711,6 +711,7 @@ html, body {
      visually misalign depending only on whether each happens to have
      children, which reads as one being nested under the other. */
   .genre-tree-caret-spacer { flex: 0 0 auto; width: 14px; height: 14px; }
+  .left-row.genre-row { padding-left: calc(6px + var(--depth, 0) * 16px); }   /* a genre's depth in the taxonomy (set on the row, see buildLeftRow) */
   .left-row-sub { font-size: 11px; color: var(--text-dim); margin: 1px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .left-row-count {
     font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-dim);
@@ -4413,6 +4414,21 @@ html, body {
   body.jobs-strip-on.has-mini-player:not(.mp-docked-top) .global-toast { bottom: calc(var(--mobile-navbar-h) + var(--mobile-chrome-gap, 0px) + env(safe-area-inset-bottom, 0px) + 156px); }
   /* A full-screen dialog (Advanced search, Add album, …) covers the page: the Processing strip would only cover the dialog's own fields. */
   body.dialog-open .jobs-strip, body.qa-open .jobs-strip { display: none; }   /* (and the Quick actions sheet, whose last rows it covered) */
+
+  /* ☰ drawer (Albums / Artists / Genres …): the rail is icons only, the list fills the rest of the screen, with ✕ at the foot of
+     the rail to close it (no strip of page is left to tap). The genre tree steps in 12px a level instead of 16, and its ▾ is a
+     finger-sized target. The Processing strip steps aside while it's open (it covered the list's last rows). */
+  #panels.mobile-nav-open .panel-leftnav { width: 56px; padding-left: max(4px, env(safe-area-inset-left)); padding-right: 4px; box-sizing: border-box; display: flex !important; flex-direction: column; }
+  #panels.mobile-nav-open .leftnav-label { display: none; }
+  #panels.mobile-nav-open .leftnav-btn { justify-content: center; padding: 14px 4px; }
+  #panels.mobile-nav-open .leftnav-icon { font-size: 18px; width: auto; }
+  #panels.mobile-nav-open .leftnav-btn.leftnav-close { display: flex; margin-top: auto; margin-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); color: var(--text); }   /* (the drawer covers the tab bar) */
+  #panels.mobile-nav-open .panel-left { left: 56px; width: calc(100vw - 56px); max-width: none; box-sizing: border-box; padding-right: max(8px, env(safe-area-inset-right)); padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+  #panels.mobile-nav-open .left-row { gap: 6px; }
+  #panels.mobile-nav-open .left-row.genre-row { padding-left: calc(4px + var(--depth, 0) * 12px); }
+  #panels.mobile-nav-open .genre-tree-caret, #panels.mobile-nav-open .genre-tree-caret-spacer { width: 26px; height: 34px; margin: -8px 0; font-size: 12px; }
+  #panels.mobile-nav-open .genre-info-btn { width: 28px; height: 28px; margin-left: 2px; }
+  body.mobile-drawer-open .jobs-strip { display: none; }
 
   /* Panels configuration and Panel Settings are floating windows on a computer (pinned 80px from the top, 90vw wide).
      On a phone that ran off the bottom of the screen, under the player, and the page behind scrolled instead of the

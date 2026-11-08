@@ -17,7 +17,17 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.92.0
+  CURRENT_VERSION: 1.92.1
+
+  1.92.1 — 2026-11-08 — On a phone, the ☰ drawer uses the whole screen: icon-only rail with ✕ to close, tighter genre tree, bigger ▾. Page only.
+          The rail (Music / Playlist Explorer) took 84px with its labels cut
+          to "PLAY…", and the list didn't reach the edge of a wider phone. On
+          a phone the rail is icons only (56px) with ✕ at its foot to close
+          the drawer, and the list fills the rest of the screen. The genre
+          tree steps in 12px a level instead of 16 (so deep genres keep their
+          names), its ▾ is a finger-sized target, and the Processing strip
+          steps aside while the drawer is open. (A genre row's depth is now a
+          CSS variable, --depth: computers keep their 16px a level.)
 
   1.92.0 — 2026-11-08 — CRATE for iPhone: an app (ios/) that opens CRATE full screen and keeps the music playing with the phone locked. Page: what's playing goes to the app's lock screen.
           THE APP (ios/, Swift, generated with XcodeGen): CRATE's page in a full

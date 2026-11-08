@@ -303,7 +303,7 @@ function buildLeftRow(entry, mode) {
     // filterCollapsedGenreRows/toggleGenreCollapse.
     if (mode === 'genre') {
       const depth = entry.depth || 0;
-      row.style.paddingLeft = depth ? (6 + depth * 16) + 'px' : '';
+      row.classList.add('genre-row'); row.style.setProperty('--depth', depth);          // indented in the CSS (.left-row.genre-row): 16px a level, less on a phone
       const titleEl = row.querySelector('.left-row-title');
       if (depth === 0) {
         titleEl.classList.add('genre-tree-root');
