@@ -605,8 +605,9 @@ function fvScoreVideo(item, totalMs, v) {                           // -> { scor
     if (v.durationMs < totalMs * 0.6) len = 0;                       // much shorter than the release: one song, a trailer
   }
   const mine = ` ${fvWords(`${item.title} ${item.artist} ${item.type || ''}`).join(' ')} `, theirs = ` ${fvWords(v.title).join(' ')} `;
-  const odd = ['reaction', 'reacts', 'review', 'cover', 'covers', 'tribute', 'karaoke', 'slowed', 'reverb', 'sped up', 'nightcore', '8d', 'remix', 'remixed', 'bass boosted', 'instrumental', 'acapella', '8 bit', 'piano version', 'live'];
-  const other = odd.some(w => theirs.includes(` ${w} `) && !mine.includes(` ${w} `)) ? 1 : 0;          // a reaction, a cover, a slowed or live version: not the release (unless the release is one)
+  const odd = ['reaction', 'reacts', 'review', 'cover', 'covers', 'tribute', 'karaoke', 'slowed', 'reverb', 'sped up', 'nightcore', '8d', 'remix', 'remixed', 'bass boosted', 'instrumental', 'acapella', '8 bit', 'piano version', 'live', 'demo', 'demos', 'outtake', 'outtakes', 'rehearsal', 'rehearsals', 'alternate', 'alt take', 'acoustic', 'unplugged'];
+  const takes = /\btakes? \d/.test(theirs) && !/\btakes? \d/.test(mine);          // "(take 4-6)": studio takes of one song
+  const other = takes || odd.some(w => theirs.includes(` ${w} `) && !mine.includes(` ${w} `)) ? 1 : 0;          // a reaction, a cover, a slowed or live version, demos and outtakes: not the release (unless the release is one)
   const topic = / - topic$/i.test(v.channel || '') && artist >= 0.99 ? 1 : 0, yr = (String(item.releaseDate || '').match(/\b(?:19|20)\d{2}\b/) || [])[0], year = yr && theirs.includes(` ${yr} `) ? 1 : 0;          // the artist's own "- Topic" channel; the release's year in the title
   return { score: Math.max(0, Math.min(100, Math.round(40 * title + 15 * artist + 35 * len + 10 * full + 5 * topic + 5 * year - 35 * other))), diffMs, titleFit: title };
 }

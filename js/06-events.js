@@ -983,8 +983,10 @@ function bindEvents() {
   // track is showing in the same slot, guarded via activePlayerEngine.
   // Same mobile bail-out as the art click above, same reasoning.
   el.miniPlayerTitle.addEventListener('click', () => { if (isMiniPlayerMobileLayout()) return; if (activePlayerEngine === 'spotify') goToTrackPage(currentSpotifyTrack); });
-  el.miniPlayerArtist.addEventListener('click', () => { if (isMiniPlayerMobileLayout()) return; if (activePlayerEngine === 'spotify') goToArtistTracks(currentSpotifyTrack); });
-  el.miniPlayerAlbum.addEventListener('click', () => { if (isMiniPlayerMobileLayout()) return; if (activePlayerEngine === 'spotify') goToTrackPage(currentSpotifyTrack); });
+  // A line that shows the artist (the player's lines are yours to choose) opens the artist's page; otherwise they do what they did.
+  const playerArtistName = (slot) => { if ((state.fields.miniPlayer || [])[slot] !== 'artist') return ''; return (nowPlayingItem && nowPlayingItem.artist) || (activePlayerEngine === 'spotify' && currentSpotifyTrack && currentSpotifyTrack.artists && currentSpotifyTrack.artists[0] ? currentSpotifyTrack.artists[0].name : ''); };
+  el.miniPlayerArtist.addEventListener('click', (e) => { if (isMiniPlayerMobileLayout() || e.target.closest('a')) return; const a = playerArtistName(0); if (a) { openArtistInfoTab(a); return; } if (activePlayerEngine === 'spotify') goToArtistTracks(currentSpotifyTrack); });
+  el.miniPlayerAlbum.addEventListener('click', (e) => { if (isMiniPlayerMobileLayout() || e.target.closest('a')) return; const a = playerArtistName(1); if (a) { openArtistInfoTab(a); return; } if (activePlayerEngine === 'spotify') goToTrackPage(currentSpotifyTrack); });
   // Right-click anywhere on the player's track area (art, title, artist, album)
   // — see openPlayerTrackContextMenu. Only swallows the browser's own menu when
   // there's actually something playing to act on.

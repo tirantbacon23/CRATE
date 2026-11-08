@@ -656,9 +656,10 @@ function giEnsureSkeleton() {
     <div id="giTitle" class="gi-titlebar"></div>
     <section id="giChart" class="gi-card gi-chart" aria-label="Years active"></section>
     <div class="gi-cols">
-      <div class="gi-main"><section id="giAbout" class="gi-card gi-about" aria-label="About this genre"></section><section id="giRymTop" class="gi-card" aria-label="Top on Rate Your Music"></section></div>
+      <section id="giAbout" class="gi-card gi-about" aria-label="About this genre"></section>
       <div class="gi-side"><section id="giStats" class="gi-card" aria-label="Your crate"></section><section id="giRym" class="gi-card" aria-label="Cataloguing on Rate Your Music"></section><section id="giFamily" class="gi-card" aria-label="Family"></section></div>
     </div>
+    <section id="giRymTop" class="gi-artists gi-rymtop" aria-label="Top on Rate Your Music"></section>
     <section id="giArtists" class="gi-artists" aria-label="Top artists in this genre"></section>
     <section id="giReleases" class="gi-releases" aria-label="Releases"></section>`;
 }
@@ -793,21 +794,20 @@ function giRymTop(items, mode, limit) {
   const score = (r) => { const v = rymVotesNum(r.rymVotes) || 0, R = rymNum(r.rymRating); return (v * R + m * mean) / (v + m); };
   return rated.map(r => ({ r, s: score(r) })).sort((a, b) => b.s - a.s || rymNum(b.r.rymRating) - rymNum(a.r.rymRating)).slice(0, limit).map(x => x.r);
 }
-function giRenderRymTop(genre, ui, items) {
+function giRenderRymTop(genre, ui, items) {                         // a row of covers, like the Top artists row under it: rank and RYM average on each cover; it scrolls sideways
   const box = $gi('giRymTop'); if (!box) return;
-  const mode = ui.rymTop === 'popular' ? 'popular' : 'rated', limit = ui.rymTopAll ? 25 : 10, list = giRymTop(items, mode, limit);
+  const mode = ui.rymTop === 'popular' ? 'popular' : 'rated', list = giRymTop(items, mode, 25);
   const nRated = items.filter(r => rymNum(r.rymRating) > 0).length, slug = rymGenreSlug(genre);
   const seg = (v, t) => `<button type="button" class="gi-seg-btn${mode === v ? ' active' : ''}" data-gi="rymtop" data-mode="${v}" aria-pressed="${mode === v}">${t}</button>`;
   const head = `<div class="gi-section-head gi-rymtop-head"><span class="gi-card-label">On Rate Your Music</span><span class="gi-seg gi-seg-text">${seg('rated', 'Top rated')}${seg('popular', 'Most popular')}</span></div>`;
   const chart = `https://rateyourmusic.com/charts/${mode === 'popular' ? 'popular' : 'top'}/album/all-time/g:${encodeURIComponent(slug)}/`;
-  if (!list.length) { box.innerHTML = `${head}<p class="ai-empty">None of these releases has a RYM rating yet. <a href="${escapeHtml(chart)}" target="_blank" rel="noopener">RYM's chart for ${escapeHtml(genre)} \u2197</a></p>`; return; }
+  if (!list.length) { box.innerHTML = items.length ? `${head}<p class="gi-rym-hint">None of these releases has a RYM rating yet. <a href="${escapeHtml(chart)}" target="_blank" rel="noopener">RYM's chart for ${escapeHtml(genre)} \u2197</a></p>` : ''; return; }
   aiTouchArt(list);
-  const rows = list.map((it, i) => { const R = rymNum(it.rymRating), v = rymVotesNum(it.rymVotes), mine = Number(it.rating) || 0;
-    return `<div class="gi-list-row gi-rymtop-row" data-row="${escapeHtml(String(it.row))}" tabindex="0" title="Click to open \u00b7 double-click to play \u00b7 right-click for more">
-      <span class="gi-rymtop-n">${i + 1}</span><span class="gi-list-cover">${aiArtImg(it, 'gi-list-img')}</span><span class="gi-list-main"><span class="gi-list-title">${escapeHtml(it.title)}</span><span class="gi-list-artist">${escapeHtml(it.artist)}${genreYear(it) ? ' \u00b7 ' + genreYear(it) : ''}</span></span>
-      <span class="gi-rymtop-r" title="RYM average${v ? ` from ${v.toLocaleString()} ratings` : ''}">${R.toFixed(2)}<small>${v ? (v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'k' : v) : ''}</small></span><span class="gi-list-rating" title="Your rating">${mine > 0 ? '\u2605 ' + (Number.isInteger(mine) ? mine : mine.toFixed(1)) : ''}</span></div>`; }).join('');
-  const more = nRated > 10 ? `<button type="button" class="ai-link-btn" data-gi="rymtop-more">${ui.rymTopAll ? 'Show 10' : `Show ${Math.min(25, nRated)}`}</button>` : '';
-  box.innerHTML = `${head}<div class="gi-list">${rows}</div><div class="gi-rymtop-foot">${more}<span class="gi-rym-hint">${mode === 'popular' ? 'By how many rated it on RYM' : 'By RYM average, weighted by how many rated it'} \u00b7 ${nRated} of ${items.length} rated \u00b7 <a href="${escapeHtml(chart)}" target="_blank" rel="noopener">RYM's own chart \u2197</a></span></div>`;
+  const k = (v) => v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'k' : String(v);
+  const tiles = list.map((it, i) => { const R = rymNum(it.rymRating), v = rymVotesNum(it.rymVotes);
+    return `<div class="ai-album gi-rymtop-tile" data-row="${escapeHtml(String(it.row))}" tabindex="0" title="${escapeHtml(`${it.artist} \u2014 ${it.title}`)}: RYM ${R.toFixed(2)}${v ? ` from ${v.toLocaleString()} ratings` : ''} \u00b7 click to open \u00b7 double-click to play \u00b7 right-click for more">
+      <div class="ai-cover">${aiArtImg(it, 'ai-cover-img')}<span class="gi-rymtop-rank">${i + 1}</span><span class="gi-rymtop-r">${R.toFixed(2)}</span></div><div class="ai-album-title">${escapeHtml(it.title)}</div><div class="ai-album-year">${escapeHtml(it.artist)}${v ? ' \u00b7 ' + k(v) : ''}</div></div>`; }).join('');
+  box.innerHTML = `${head}<div class="gi-artist-row gi-rymtop-row">${tiles}</div><div class="gi-rymtop-foot gi-rym-hint">${mode === 'popular' ? 'By how many rated it on RYM' : 'By RYM average, weighted by how many rated it'} \u00b7 ${nRated} of ${items.length} rated \u00b7 <a href="${escapeHtml(chart)}" target="_blank" rel="noopener">RYM's own chart \u2197</a></div>`;
 }
 function giRenderStats(items) {
   const s = genreStatsOf(items), cell = (k, v) => `<div class="gi-stat"><div class="gi-stat-v">${v}</div><div class="gi-stat-k">${k}</div></div>`;
@@ -890,7 +890,6 @@ function giClick(e) {
     else if (a === 'rym-use') giUseRymDescription(genre);
     else if (a === 'more') { ui.descOpen = !ui.descOpen; giRenderAbout(genre, ui); }
     else if (a === 'rymtop') { ui.rymTop = act.dataset.mode; giRenderRymTop(genre, ui, genreReleasesOf(genre, ui.includeSub)); }
-    else if (a === 'rymtop-more') { ui.rymTopAll = !ui.rymTopAll; giRenderRymTop(genre, ui, genreReleasesOf(genre, ui.includeSub)); }
     else if (a === 'year') { if (act.dataset.n === '0') return; ui.year = ui.year === Number(act.dataset.year) ? null : Number(act.dataset.year); const items = genreReleasesOf(genre, ui.includeSub); giRenderChart(genre, ui, items); giRenderReleases(genre, ui, items); }
     else if (a === 'clear-year') { ui.year = null; const items = genreReleasesOf(genre, ui.includeSub); giRenderChart(genre, ui, items); giRenderReleases(genre, ui, items); }
     else if (a === 'clear-compare') { ui.compare = null; giRenderChart(genre, ui, genreReleasesOf(genre, ui.includeSub)); }

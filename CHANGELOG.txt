@@ -17,7 +17,43 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.89.3
+  CURRENT_VERSION: 1.89.6
+
+  1.89.6 — 2026-11-08 — Right-click the player: look the release up on RateYourMusic, or copy a link to what's playing. The artist's name opens the artist's page. Page only.
+          The player's right-click menu (and the Up Next queue's, for the
+          track playing) has "Look up on RateYourMusic ↗" (the release's RYM
+          page, found the way "View on RateYourMusic" finds it; for a Spotify
+          track not in your crate, RYM's search for its album) and "Copy link
+          to what's playing": the Spotify track, the SoundCloud track, or the
+          YouTube video, at the song's start when it is part of a full-release
+          video. A release's own right-click menu offers the copy too while it
+          is the one playing.
+          ARTIST: the artist's name in the player (on whichever of its lines
+          shows the artist) and on the album page now opens the artist's
+          information page, as it already did in Quick Peek. The album page
+          used to go to the Artist tab's discography instead.
+
+  1.89.5 — 2026-11-08 — A genre's "On Rate Your Music" list is a row of covers, like Top artists, instead of a list under About. Page only.
+          It sits full width above "Top artists in this genre" and scrolls
+          sideways: up to 25 releases, each cover with its rank (top left)
+          and RYM average (bottom right), the title, the artist and how many
+          rated it (9.2k). The Top rated / Most popular switch, what the order
+          is by, and the link to RYM's own chart are kept. Click a cover to
+          open it, double-click to play. The About card is on its own again.
+
+  1.89.4 — 2026-11-08 — Match songs: no full-release video for a single or a two-song release, outtakes count against a video, and "Search song by song" works while a video is offered. Page only.
+          SHORT RELEASES: a release of one or two songs isn't matched to a
+          "full-release video" (it found a video of the A-side, even studio
+          takes of it, and cut it in two); it goes to the song-by-song search.
+          OUTTAKES: "take 4-6", demos, outtakes, rehearsals, alternate takes,
+          acoustic and unplugged versions count against a video, like covers
+          and live versions (unless the release is one).
+          SONG BY SONG: chosen in the YouTube menu while a full-release video
+          was offered, it did nothing, as every song already had a match (its
+          part of the video). Now the video is set aside, every song not
+          linked is searched, and the video stays in the menu to take back.
+          Also fixed: Preferences → edition (original or remastered) never
+          had any effect; the words it looks for were never matched.
 
   1.89.3 — 2026-11-08 — A genre's page lists its releases as Rate Your Music rates them: top rated, or most popular. Page only.
           A card under About, "On Rate Your Music", with a switch: Top rated

@@ -103,6 +103,9 @@ function openTrackActionsMenu({ item, trackName, trackNum, spotifyTrack, x, y, q
     <button type="button" data-player-action="artist" ${crateArtist ? '' : needsCrate}>Go to artist</button>
     <button type="button" data-player-action="album" ${item ? '' : needsCrate}>Go to album</button>
     <button type="button" data-player-action="credits" ${item ? '' : needsCrate}>View credits</button>
+    <div class="menu-divider"></div>
+    <button type="button" data-player-action="rym" ${item || spotifyTrack ? '' : needsCrate}>Look up on RateYourMusic \u2197</button>
+    ${queueEntry && qIdx !== crateQueueIndex ? '' : `<button type="button" data-player-action="copyLink" ${nowPlayingLink() ? '' : 'disabled title="Nothing is playing"'}>Copy link to what\u2019s playing</button>`}
     ${queueEntry ? '' : '<div class="menu-divider"></div><button type="button" data-player-action="fields">Choose what the player shows\u2026</button>'}
   `;
   document.body.appendChild(menu);
@@ -134,6 +137,8 @@ function openTrackActionsMenu({ item, trackName, trackNum, spotifyTrack, x, y, q
     else if (action === 'queueRemove') crateQueueRemove(queueEntry);
     else if (action === 'artist') openArtistInfoTab(crateArtist);
     else if (action === 'album') { switchTab('albums'); openDeck(item); }
+    else if (action === 'rym') { if (item) openAlbumOnRym(item); else { const a = spotifyTrack.artists && spotifyTrack.artists[0] ? spotifyTrack.artists[0].name : '', t = (spotifyTrack.album && spotifyTrack.album.name) || ''; window.open(rymSearchUrl({ artist: a, title: t }), '_blank', 'noopener,noreferrer'); } }          // (a track that isn't in your crate: RYM's search for its album)
+    else if (action === 'copyLink') copyNowPlayingLink();
     else if (action === 'addToCrate') openNowPlayingAddMenu(spotifyTrack, x, y);
     else if (action === 'fields') { renderConfigSlots('miniPlayer'); el.mainConfigModal.hidden = false; }   // the same settings as Panels configuration → Now Playing Bar → Panel Settings…
     else if (action === 'credits') {
@@ -749,6 +754,7 @@ function openAlbumCardContextMenu(item, x, y) {
     <div class="menu-divider"></div>
     <button type="button" data-card-action="spotify">Open on Spotify ↗</button>
     <button type="button" data-card-action="rym">View on RateYourMusic ↗</button>
+    ${nowPlayingItem === item && nowPlayingLink() ? '<button type="button" data-card-action="copyLink">Copy link to what\u2019s playing</button>' : ''}
     <button type="button" data-card-action="rymUpdate">${selItems.length > 1 ? `Update ${selItems.length} selected from Rate Your Music\u2026` : 'Update from Rate Your Music'}</button>
     ${selItems.length > 1 ? '' : '<button type="button" data-card-action="match">Match songs\u2026</button>'}
     ${selItems.length > 1 ? `<button type="button" data-card-action="matchMany">Match songs for ${selItems.length} selected\u2026</button>` : ''}
@@ -793,6 +799,7 @@ function openAlbumCardContextMenu(item, x, y) {
     else if (action === 'queue') queueAlbumTracks(item);
     else if (action === 'spotify') openAlbumOnSpotify(item);
     else if (action === 'rym') openAlbumOnRym(item);
+    else if (action === 'copyLink') copyNowPlayingLink();
     else if (action === 'rymUpdate') rymFetchUpdates(selItems);
     else if (action === 'match') openSongMatcher(item);
     else if (action === 'matchMany') bmOpen({ ticked: selItems, view: (state.filtered || []).slice() });
@@ -900,6 +907,18 @@ async function openAlbumOnSpotify(item) {
 // wins immediately (see getExternalLinksFor), otherwise this is the same
 // Wikidata/MusicBrainz lookup the cover-link "R" icon uses — falling back
 // to a plain RYM search if no direct match has been found for this album.
+// The link to what is playing now, to share or keep: the Spotify track, the YouTube video (at the song's start, for a song that is part of a
+// full-release video), or the SoundCloud track. '' when nothing is playing.
+function nowPlayingLink() {
+  if (activePlayerEngine === 'youtube') { const q = ytQueue[ytQueueIndex]; if (!q || !q.videoId) return ''; const s = Math.round(Number(q.start) || 0); return `https://www.youtube.com/watch?v=${q.videoId}${s > 0 ? '&t=' + s + 's' : ''}`; }
+  if (activePlayerEngine === 'spotify') { const t = currentSpotifyTrack, id = t && (t.id || String(t.uri || '').split(':').pop()); return id ? `https://open.spotify.com/track/${id}` : ''; }
+  if (activePlayerEngine === 'soundcloud') { const q = scQueue[scQueueIndex]; return (q && q.url) || ''; }
+  return '';
+}
+async function copyNowPlayingLink() {
+  const link = nowPlayingLink(); if (!link) { flashGlobalToast('Nothing is playing.'); return; }
+  flashGlobalToast(await cxCopy(link) ? `Copied: ${link}` : `Couldn\u2019t copy. The link is ${link}`);
+}
 async function openAlbumOnRym(item) {
   const links = await getExternalLinksFor(item);
   window.open(links.rym || rymSearchUrl(item), '_blank', 'noopener,noreferrer');

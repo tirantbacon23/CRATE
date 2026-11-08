@@ -804,3 +804,17 @@ suite('Genre page: top on Rate Your Music', () => {
     eq(top(items, 'rated', 10).length, 5);
   });
 });
+
+suite('Full-release video: outtakes and editions', () => {
+  test('studio takes, demos and outtakes count against a video, unless the release is one; the edition preference can match', () => {
+    const f = app('fvScoreVideo'), item = { artist: 'The Beatles', title: 'Beatles for Sale' };
+    const plain = f(item, 557000, { title: 'The Beatles - Beatles for Sale (Full Album)', durationMs: 557000 }).score;
+    const takes = f(item, 557000, { title: 'The Beatles - Beatles for Sale (takes 1-9)', durationMs: 557000 }).score;
+    const demos = f(item, 557000, { title: 'The Beatles - Beatles for Sale demos', durationMs: 557000 }).score;
+    const own = f({ artist: 'The Beatles', title: 'Beatles for Sale Demos' }, 557000, { title: 'The Beatles - Beatles for Sale Demos', durationMs: 557000 }).score;
+    ok(takes < plain - 30 && demos < plain - 30 && own >= 75);
+    const S = app('state'); app('smPrefsSave')({ edition: 'remaster' });
+    try { eq([app('smEditionNudge')('Beatles for Sale (Remastered)'), app('smEditionNudge')('Beatles for Sale')], [3, 0]); }
+    finally { app('smPrefsSave')({ edition: 'any' }); }
+  });
+});

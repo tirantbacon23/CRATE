@@ -269,7 +269,7 @@ function smAlbumFit(songs, cands) {
 }
 // Your edition preference (Preferences) nudges the choice: a few points for, or against, a remastered/deluxe/expanded edition.
 function smEditionNudge(name) {
-  const pf = smPrefs(), re = /(remaster(ed)?|deluxe|expanded|anniversary|special edition|bonus)/i;
+  const pf = smPrefs(), re = /\b(remaster(ed)?|deluxe|expanded|anniversary|special edition|bonus)\b/i;
   return pf.edition === 'original' ? (re.test(name || '') ? -3 : 0) : pf.edition === 'remaster' ? (re.test(name || '') ? 3 : 0) : 0;
 }
 function smBestAlbum(songs, albums) {   // albums: [{id, name, tracks:[...]}] -> the best fit (or null)
@@ -664,8 +664,9 @@ function bmFullVideoCands(songs, v, confident) {                     // -> byIdx
       parts: [{ label: 'the video: title, artist and length against your songs', points: v.score }] }]; });
   return out;
 }
+const BM_FULLVIDEO_MIN_SONGS = 3;
 async function bmFindFullVideo(rel) {                                // -> true when a video was found and offered
-  const songs = rel.songs || [], total = bmSongsTotalMs(songs); if (!total) return false;
+  const songs = rel.songs || [], total = bmSongsTotalMs(songs); if (!total || songs.length < BM_FULLVIDEO_MIN_SONGS) return false;          // a single or a two-song release: its "full video" is the A-side's own, so the song-by-song search is the one for it
   const ranked = await ytFindFullVideos(rel.item, total); if (!ranked.length) { if (rel.youtube) rel.youtube.fullNone = true; return false; }
   await ytTimeVideos(ranked.slice(0, 2), songs.map(s => s.title || ''), songs.map(s => s.durationMs / 1000));          // the best two: their chapters can make the second the one to use
   const top = ranked.slice(0, 2).filter(x => ytFullVideoConfident(x, total)), v = top.find(x => x.timing && x.timing.agree) || top[0] || ranked[0];          // a sure video timed by its chapters before one placed from lengths
@@ -678,15 +679,21 @@ async function bmFindFullVideo(rel) {                                // -> true 
   return true;
 }
 async function bmUseFullVideo(rel, id) {                             // another of the videos found, chosen in the YouTube box
-  const fvx = rel.youtube && rel.youtube.fullVideo; if (!fvx) return;
+  const fvx = rel.youtube && (rel.youtube.fullVideo || rel.youtube.fullVideoAside), now = () => rel.youtube.fullVideo || rel.youtube.fullVideoAside; if (!fvx) return;          // (one set aside for the song-by-song search can be taken back)
   const all = [fvx].concat(fvx.others || []), v = all.find(x => x.id === id); if (!v || !rel.songs) return;
   if (!v.timing) { rel.youtube.searching = true; bmRedraw(); try { await ytTimeVideos([v], rel.songs.map(s => s.title || ''), rel.songs.map(s => s.durationMs / 1000)); } finally { rel.youtube.searching = false; } }          // its chapters, when it has them
-  if (rel.youtube.fullVideo !== fvx) return;
+  if (now() !== fvx) return;
   const total = bmSongsTotalMs(rel.songs), score = v.score != null ? v.score : fvScoreVideo(rel.item, total, v).score;
   const cands = bmFullVideoCands(rel.songs, Object.assign({ score }, v), true);
   Object.entries(cands).forEach(([idx, list]) => { const had = (rel.youtube.byIdx[idx] || []).filter(c => c.source !== 'fullvideo'); rel.youtube.byIdx[idx] = list.concat(had); bmSetPick(rel, +idx, 'youtube', list[0].id, true); });
-  rel.youtube.fullVideo = Object.assign({}, v, { confident: true, others: all.filter(x => x.id !== id) });
+  rel.youtube.fullVideo = Object.assign({}, v, { confident: true, others: all.filter(x => x.id !== id) }); delete rel.youtube.fullVideoAside;
   bmRedraw();
+}
+function bmFullVideoAside(rel) {                                     // "Search song by song" chosen while a full-release video is offered: its parts stop counting as matches (else every song has one and nothing is searched);
+  const y = rel.youtube; if (!y || !y.fullVideo) return;              // the video stays in the menu to take back
+  Object.keys(y.byIdx || {}).forEach(idx => { const had = y.byIdx[idx], keep = had.filter(c => c.source !== 'fullvideo'); if (keep.length) y.byIdx[idx] = keep; else delete y.byIdx[idx];
+    if (rel.pick.youtube[idx] && had.some(c => c.source === 'fullvideo' && c.id === rel.pick.youtube[idx])) delete rel.pick.youtube[idx]; });
+  y.fullVideoAside = y.fullVideo; delete y.fullVideo;
 }
 async function bmSearchRest(rel) {                                  // YouTube, song by song, for what the playlist didn't have
   if (!rel.youtube || rel.youtube.status !== 'done') rel.youtube = Object.assign({ status: 'done', byIdx: {} }, rel.youtube && rel.youtube.status === 'done' ? rel.youtube : {});
@@ -697,7 +704,7 @@ async function bmSearchRest(rel) {                                  // YouTube, 
   finally { delete rel.youtube.searching; bmRedraw(); }
 }
 function bmSearchRestAsked(rel) {                                    // the same, when you asked for it: a failure is said (a run's lane handles its own)
-  if (!rel) return; bmSearchRest(rel).catch(e => { const m = ytUseAddon() ? ytAddonErrText(e) : String((e && e.message) || e); rel.err.youtube = m; flashGlobalToast(/^quota$/.test(m) ? 'Today’s YouTube quota is used up: song-by-song search works again tomorrow (or through the YouTube add-on).' : m); bmRedraw(); });
+  if (!rel) return; bmFullVideoAside(rel); bmSearchRest(rel).catch(e => { const m = ytUseAddon() ? ytAddonErrText(e) : String((e && e.message) || e); rel.err.youtube = m; flashGlobalToast(/^quota$/.test(m) ? 'Today’s YouTube quota is used up: song-by-song search works again tomorrow (or through the YouTube add-on).' : m); bmRedraw(); });
 }
 // How many releases each service works on at once, chosen on the Start screen and remembered on this device.
 // Spotify's requests then run that many at once too (spotifyApiParallel). For YouTube through the add-on, how many
@@ -1231,7 +1238,7 @@ function bmSourcePanel(rel, kind) {
     else if (r.fullVideo) { const v = r.fullVideo; title = `Full-release video: ${escapeHtml(v.title)}`; meta = `${escapeHtml(v.channel)}${v.durationMs ? ` · ${ytFormatTime(v.durationMs / 1000)}` : ''} · ${!v.diffMs || Math.abs(v.diffMs) <= 5000 ? 'as long as your songs' : `${ytFormatTime(Math.abs(v.diffMs) / 1000)} ${v.diffMs > 0 ? 'longer' : 'shorter'} than your songs`}${v.timing ? ` · ${ytTimingWhy(v.timing)}` : ''}${v.confident ? '' : ' · check it before keeping it'}`; }
     else { title = r.playlistTitle ? escapeHtml(r.playlistTitle) : 'No playlist fits this tracklist'; meta = r.playlistTitle ? `${escapeHtml(r.playlistChannel || '')} · fits ${(list.find(e => e.id === cur) || {}).matched || 0} of ${n}` : r.fullNone ? 'and no full-release video looks like it' : ''; }
     const opts = list.slice().sort((a, b) => (b.fit || 0) - (a.fit || 0)).map(e => `<option value="ed:${escapeHtml(e.id)}"${e.id === cur ? ' selected' : ''}>${escapeHtml(e.name)}${kind === 'youtube' && e.channel ? ` (${escapeHtml(e.channel)})` : ''} · fits ${e.matched || 0} of ${n}</option>`).join('');
-    const extra = kind === 'spotify' ? '<option value="paste">Paste an album link…</option>' : `${r.fullVideo ? [r.fullVideo].concat(r.fullVideo.others || []).map(v => `<option value="fvid:${escapeHtml(v.id)}"${v.id === r.fullVideo.id ? ' selected' : ''}>Full-release video: ${escapeHtml(v.title)}${v.durationMs ? ` (${ytFormatTime(v.durationMs / 1000)})` : ''}</option>`).join('') : ''}<option value="songs">Search song by song for the rest</option>${bmSongsTotalMs(rel.songs || []) ? `<option value="fvfind">Find a full-release video${ytUseAddon() ? '' : ' (100 quota units)'}</option>` : ''}<option value="fv">Full-release video editor…</option><option value="paste">Paste a playlist link…</option>`;
+    const extra = kind === 'spotify' ? '<option value="paste">Paste an album link…</option>' : `${r.fullVideo || r.fullVideoAside ? [r.fullVideo || r.fullVideoAside].concat((r.fullVideo || r.fullVideoAside).others || []).map(v => `<option value="fvid:${escapeHtml(v.id)}"${r.fullVideo && v.id === r.fullVideo.id ? ' selected' : ''}>Full-release video: ${escapeHtml(v.title)}${v.durationMs ? ` (${ytFormatTime(v.durationMs / 1000)})` : ''}</option>`).join('') : ''}<option value="songs">Search song by song for the rest</option>${bmSongsTotalMs(rel.songs || []) && (rel.songs || []).length >= BM_FULLVIDEO_MIN_SONGS ? `<option value="fvfind">Find a full-release video${ytUseAddon() ? '' : ' (100 quota units)'}</option>` : ''}<option value="fv">Full-release video editor…</option><option value="paste">Paste a playlist link…</option>`;
     ctl = `<select data-bm="src" data-kind="${kind}" aria-label="${bmName(kind)} source">${cur || (kind === 'youtube' && r.fullVideo) ? '' : '<option value="" selected>Change…</option>'}${opts}${extra}</select>`;
   }
   const paste = bm.pasteFor === kind ? `<div class="bm-paste"><input type="text" placeholder="${kind === 'spotify' ? 'https://open.spotify.com/album/…' : 'https://www.youtube.com/playlist?list=…'}" data-keep="paste-src-${kind}" aria-label="Paste a ${kind === 'spotify' ? 'Spotify album' : 'YouTube playlist'} link"><button type="button" class="chip-btn" data-bm="paste-src" data-kind="${kind}">Use</button><button type="button" class="chip-btn" data-bm="paste-src-cancel">Cancel</button></div>` : '';

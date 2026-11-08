@@ -12,11 +12,7 @@ function openDeck(item) {
   el.deckTitle.textContent = item.title;
   el.deckTitle.insertAdjacentHTML('beforeend', linkFlagHtml(item, 'after'));
   el.deckArtist.textContent = item.artist;
-  el.deckArtist.onclick = () => {
-    state.artistSelectedName = item.artist;
-    closeDeck();
-    switchTab('artist');
-  };
+  el.deckArtist.onclick = () => { closeDeck(); openArtistInfoTab(item.artist); };          // the artist's page, as from Quick Peek and the player
 
   const year = dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getUTCFullYear() : '';
   const metaParts = [year, genreDisplayStr(item), item.region, item.label].filter(Boolean);
