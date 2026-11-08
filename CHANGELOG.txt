@@ -17,7 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.90.5
+  CURRENT_VERSION: 1.90.6
+
+  1.90.6 — 2026-11-08 — Fix: the page showed without its styles for a moment while loading (bare text and grey buttons on white). Page only.
+          The stylesheet was linked at the very end of the page (since the
+          split into files in 1.78.0), so the browser drew all the markup
+          before reaching it. It is in the <head> now, after Leaflet's, so
+          nothing is drawn until CRATE's styles are there.
 
   1.90.5 — 2026-11-08 — Holding an image on a phone no longer pops up an enlarged preview. Page only.
           On a touch screen, holding a cover opened the phone's own preview
