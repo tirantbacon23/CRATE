@@ -93,6 +93,17 @@ function bindEvents() {
   // tapping it can focus the — collapsed-to-invisible-on-mobile — input;
   // :focus-within in the CSS does the actual expand/collapse.
   el.searchIconBtn.addEventListener('click', () => el.searchInput.focus());
+  // The icon must not take focus when pressed: focus inside the search box is what opens it (:focus-within), and opening it
+  // moves the icon, so the finger lifted somewhere else, no click happened, and the box never got focus (the first letters
+  // typed went nowhere). Same for the ✕ below, so that pressing it doesn't blur the box and close it before its click.
+  el.searchIconBtn.addEventListener('mousedown', (e) => e.preventDefault());
+  const searchClearBtn = document.getElementById('searchClearBtn');
+  if (searchClearBtn) {
+    searchClearBtn.addEventListener('mousedown', (e) => e.preventDefault());
+    searchClearBtn.addEventListener('click', () => { el.searchInput.value = ''; el.searchWrap.classList.remove('mobile-search-has-value'); el.searchInput.dispatchEvent(new Event('input')); el.searchInput.blur(); });   // the box closes at once; the grid follows when the (debounced) input handler runs
+  }
+  // Phone: the keyboard's Search key puts the keyboard away so the results can be seen (the search itself runs as you type).
+  el.searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && window.matchMedia('(max-width: 900px)').matches) el.searchInput.blur(); });
 
   // Advanced search modal — see #advSearchOverlay's HTML comment for why
   // this just assembles a query string into #searchInput rather than

@@ -409,6 +409,7 @@ html, body {
     background: none; border: none; border-radius: 4px; color: var(--text-dim); font-size: 11px; cursor: pointer;
   }
   .adv-search-btn:hover, .adv-search-btn.active { color: var(--accent); background: var(--bg-card); }
+  .search-clear-btn { display: none; }   /* phone only: see the phone layout pass at the end of the file */
   #searchInput {
     background: var(--bg-elevated); border: 1px solid var(--line); color: var(--text); border-radius: 6px;
     padding: 9px 26px 9px 32px; font-family: 'Inter', sans-serif; font-size: 13px; width: 200px; outline: none;
@@ -4369,6 +4370,20 @@ html, body {
   .topbar .icon-btn:not(#layoutMenu .icon-btn):active, .topbar .search-icon:active { background: var(--bg-elevated); }
   .topbar .controls { gap: 2px; }
   .topbar .search-icon { font-size: 22px; }
+
+  /* Search, open: the box shares its row with ▤ and ⚙ (it used to take a row of its own and push them onto a third),
+     with ✕ to clear it and a finger-sized ▾ for Advanced search. */
+  .topbar.search-focus .search-wrap, .topbar.search-has-value .search-wrap,
+  .search-wrap:focus-within, .search-wrap.mobile-search-has-value { flex: 1 1 0; min-width: 0; }
+  .topbar.search-focus .controls, .topbar.search-has-value .controls { flex-wrap: nowrap; }
+  .search-wrap:focus-within #searchInput, .search-wrap.mobile-search-has-value #searchInput { min-width: 0; height: 40px; box-sizing: border-box; padding: 0 70px 0 10px; border-radius: 10px; }
+  .search-wrap .adv-search-btn { width: 34px; height: 34px; right: 3px; font-size: 13px; }
+  .search-wrap.mobile-search-has-value .search-clear-btn { display: flex; align-items: center; justify-content: center; position: absolute; right: 37px; top: 50%; transform: translateY(-50%);
+    width: 30px; height: 30px; padding: 0; border: none; border-radius: 50%; background: var(--bg-card); color: var(--text-dim); font-size: 12px; cursor: pointer; }
+  .search-clear-btn:active { color: var(--text); }
+  #searchInput { transition: none; }   /* its width animation made ▤ ⚙ ⌕ wrap to a second row for a moment as the box closed */
+  /* A full-screen dialog (Advanced search, Add album, …) covers the page: the Processing strip would only cover the dialog's own fields. */
+  body.dialog-open .jobs-strip { display: none; }
 
   /* The ⚙ menu is anchored to the gear's right edge at its natural width, which is wider than a phone: its left side ran
      off the screen. Here it is a full-width panel under the header instead, scrolling inside if it's taller than the room.

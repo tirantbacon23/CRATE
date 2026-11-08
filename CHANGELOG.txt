@@ -17,7 +17,21 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.90.1
+  CURRENT_VERSION: 1.90.2
+
+  1.90.2 — 2026-11-08 — Search on a phone: tapping ⌕ always puts you in the box, it shares its row with ▤ and ⚙, ✕ clears it, and the keyboard no longer capitalises or autocorrects. Page only.
+          TAPPING ⌕: pressing it gave the icon focus, which opened the box and
+          moved the icon from under the finger, so the tap never became a
+          click and the box never got focus: the first letters typed went
+          nowhere (seen in Chrome; Safari doesn't focus a tapped button).
+          ROW: open, the box shares the row with ▤ and ⚙ instead of taking a
+          row of its own and pushing them onto a third. ✕ empties it and closes
+          it; ▾ (Advanced search) is big enough to tap. No width animation as
+          it closes (the icons jumped to a second row for a moment).
+          KEYBOARD: no auto-capitals, autocorrect or spellcheck on artist
+          names, and the return key reads Search and puts the keyboard away.
+          ADVANCED SEARCH: the Processing strip no longer sits over its
+          fields while a full-screen dialog is open.
 
   1.90.1 — 2026-11-08 — On a phone the ⚙ menu fits the screen: it opened pinned to the gear's right edge at its full width, so its left side was cut off. Page only.
           It is now a full-width panel under the header that scrolls inside,
