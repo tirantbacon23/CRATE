@@ -1371,6 +1371,8 @@ async function initSpotifyPlayerIfReady() {
   if (spotifyPlayer) return; // already set up this session
   const tokens = loadSpotifyUserTokens();
   if (!tokens) return; // not connected — nothing to initialize yet
+  // A phone: the SDK doesn't run there. Playback goes to the Spotify app through the Web API instead (js/39-phone-playback.js).
+  if (isPhonePlayback()) { spotifyPlayer = makePhoneSpotifyPlayer(); spotifyDeviceReady = null; return; }
 
   await window.spotifyWebPlaybackReady;
 

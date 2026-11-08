@@ -17,7 +17,25 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.90.8
+  CURRENT_VERSION: 1.91.0
+
+  1.91.0 — 2026-11-08 — On a phone, Spotify plays through the Spotify app, so it keeps playing with the phone locked; and the lock screen shows what's playing, with working buttons. Page only.
+          SPOTIFY ON A PHONE: CRATE's in-browser Spotify player only runs on
+          computers (Spotify doesn't support it in phone browsers), so a
+          Spotify release never started on a phone. There, CRATE now sends it
+          to the Spotify app on the phone through Spotify's Web API: the music
+          comes from the app, so locking the phone doesn't stop it, and
+          Spotify's own lock-screen controls work. The player bar's play /
+          pause, previous / next and seek control the app the same way. If
+          Spotify doesn't list the app (it hasn't been opened for a while),
+          CRATE says to open it and play and pause any song first, with a tap
+          to open it. "Play Spotify on…" in Quick actions (phone only) picks
+          another Spotify device instead (a speaker, a computer); CRATE plays
+          there from then on. New file: js/39-phone-playback.js.
+          LOCK SCREEN: the song, artist, album and cover from the player bar,
+          with play / pause and previous / next. iOS still pauses YouTube and
+          SoundCloud when the phone locks (they are embedded video and
+          widgets); this names what was playing and gives working buttons.
 
   1.90.8 — 2026-11-08 — Panels configuration and Panel Settings fit a phone, and no dialog is covered by the player any more. Page only.
           PANELS CONFIGURATION / PANEL SETTINGS are floating windows on a

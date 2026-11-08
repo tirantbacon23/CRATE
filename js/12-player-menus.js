@@ -1124,6 +1124,7 @@ async function playSpotifyUri(uriOrUris) {
   // playback are all mutually exclusive — see stopOtherEngines.
   stopOtherEngines('spotify');
   const token = await getSpotifyUserAccessToken();
+  if (token && spotifyPlayer && spotifyPlayer.phone && !(await resolvePhoneSpotifyDevice(false))) { phoneSpotifyNoDevice(); return false; }   // a phone: which Spotify device to play on (see js/39-phone-playback.js)
   if (!token || !spotifyDeviceId) {
     flashGlobalToast('Spotify device isn\u2019t ready yet — try again in a moment.');
     return false;
@@ -1176,6 +1177,7 @@ async function sendSpotifyPlayRequest(token, body, allowRetry) {
       const recovered = await recoverStaleSpotifyDeviceId(token);
       if (recovered) return sendSpotifyPlayRequest(token, body, false); // one retry only — don't loop if it's still wrong
     }
+    if (res.status === 404 && spotifyPlayer && spotifyPlayer.phone) { phoneSpotifyNoDevice(); return false; }   // the Spotify app has dropped off Spotify's device list (closed a while ago)
     flashGlobalToast(`Spotify playback didn\u2019t start (error ${res.status}) \u2014 try again, or reconnect via the device picker.`);
     return false;
   } catch (e) {
@@ -1190,6 +1192,7 @@ async function sendSpotifyPlayRequest(token, body, allowRetry) {
 // has gone stale, and updates spotifyDeviceId if a different one turns up.
 // Returns true only if it found a (possibly new) id to retry with.
 async function recoverStaleSpotifyDeviceId(token) {
+  if (spotifyPlayer && spotifyPlayer.phone) { const before = spotifyDeviceId; const id = await resolvePhoneSpotifyDevice(true); return !!id && id !== before; }   // a phone: look for its Spotify app again
   try {
     const res = await fetch('https://api.spotify.com/v1/me/player/devices', {
       headers: { 'Authorization': 'Bearer ' + token }
@@ -1275,7 +1278,7 @@ async function refreshDevicePanel() {
 function deviceRowHtml(d) {
   const icon = d.type === 'Smartphone' ? '📱' : d.type === 'Speaker' ? '🔊' : d.type === 'TV' ? '📺' : d.id === spotifyDeviceId ? '🎧' : '💻';
   const isThisDevice = d.id === spotifyDeviceId;
-  const label = isThisDevice ? `${escapeHtml(d.name)} (this browser)` : escapeHtml(d.name);
+  const label = isThisDevice ? `${escapeHtml(d.name)} (${spotifyPlayer && spotifyPlayer.phone ? 'CRATE plays here' : 'this browser'})` : escapeHtml(d.name);
   return `
     <div class="queue-row device-row${d.is_active ? ' queue-row-current' : ''} device-row-clickable" data-device-id="${escapeHtml(d.id)}" role="button" tabindex="0">
       <span class="device-row-icon" aria-hidden="true">${icon}</span>
@@ -1301,6 +1304,7 @@ async function transferSpotifyPlayback(deviceId) {
       return;
     }
     el.devicePanel.hidden = true;
+    if (spotifyPlayer && spotifyPlayer.phone) { spotifyDeviceId = deviceId; savePhoneSpotifyDevice({ id: deviceId }); }   // a phone: CRATE plays there from now on
     flashGlobalToast('Playback moved.');
     setTimeout(() => { if (!el.queuePanel.hidden) refreshQueuePanel(); }, 700);
   } catch (e) {

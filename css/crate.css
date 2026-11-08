@@ -1879,6 +1879,11 @@ html, body {
 
   /* Device popover (Spotify Connect device picker) — reuses .queue-panel layout */
   .device-panel { max-height: min(320px, calc(100vh - 190px)); }
+  /* A phone's "Play Spotify on…" (js/39-phone-playback.js): the device list moved out of the player bar, above the tab bar and player. */
+  .device-panel.device-sheet { position: fixed; z-index: 330; left: 12px; right: 12px; width: auto; top: auto; max-height: 60vh;
+    bottom: calc(var(--mobile-navbar-h, 0px) + var(--mobile-chrome-gap, 0px) + env(safe-area-inset-bottom, 0px) + 12px); }
+  body.has-mini-player .device-panel.device-sheet { bottom: calc(var(--mobile-navbar-h, 0px) + var(--mobile-chrome-gap, 0px) + env(safe-area-inset-bottom, 0px) + 80px); }
+  .device-sheet .device-row { min-height: 48px; }
 
   /* ---- Album covers view: quick tracklist peek (openAlbumQuickPeek) ---- */
   .album-quick-peek {
