@@ -17,7 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.89.0
+  CURRENT_VERSION: 1.89.1
+
+  1.89.1 — 2026-11-08 — Match songs: releases can be removed from a run's queue. Page only.
+          The Queue tab has a ✕ at the end of each release's row, and
+          "Remove" among the actions for the releases you select. Links
+          already applied stay; ticked links not applied yet are dropped with
+          the release (you are asked first). A run left with nothing in it
+          closes. The "Waiting in the match queue" line has "Clear" beside
+          "Add them to this run".
+
 
   1.89.0 — 2026-11-07 — Full-release videos are timed by the video itself. When Match songs (or ⋯ → Full-release video… → Find) finds a video
           of the whole release, it now reads the video's own chapters, or the "0:00 Song" times in its description, and puts each song

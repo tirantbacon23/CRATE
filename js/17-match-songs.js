@@ -1151,13 +1151,13 @@ function bmQueueHtml() {
   const rows = bmQueueRows(), shown = bmShownKinds(), sel = bm.qsel;
   const allOn = rows.length > 0 && rows.every(x => sel.has(x.r.row));
   const body = rows.map(({ r, s }) => `<tr class="bm-qrow${r.row === bm.sel ? ' on' : ''}" data-bm="open-rel" data-row="${escapeHtml(r.row)}"><td class="bm-tick"><input type="checkbox" data-bm="qsel" data-row="${escapeHtml(r.row)}"${sel.has(r.row) ? ' checked' : ''} aria-label="Select ${escapeHtml(r.item.title)}"></td>
-    <td><div class="bm-t">${escapeHtml(r.item.title)}</div><div class="bm-dim">${escapeHtml(r.item.artist)}${r.songs ? ` · ${r.songs.length} songs` : ''}</div></td>${shown.map(k => `<td class="bm-qbar">${bmBarHtml(r, k)}</td>`).join('')}<td>${bmChip(s.tone, escapeHtml(s.label))}</td></tr>`).join('');
+    <td><div class="bm-t">${escapeHtml(r.item.title)}</div><div class="bm-dim">${escapeHtml(r.item.artist)}${r.songs ? ` · ${r.songs.length} songs` : ''}</div></td>${shown.map(k => `<td class="bm-qbar">${bmBarHtml(r, k)}</td>`).join('')}<td>${bmChip(s.tone, escapeHtml(s.label))}</td><td class="bm-qx"><button type="button" class="bm-linkbtn" data-bm="qremove" data-row="${escapeHtml(r.row)}" title="Remove from this run" aria-label="Remove ${escapeHtml(r.item.title)} from this run">\u2715</button></td></tr>`).join('');
   const mq = mqAll().length, why = mqWhyCounts();
-  const later = mq ? `<div class="bm-later bm-dim">Waiting in the match queue: ${[why.skipped ? `${bmPl(why.skipped, 'release')} with songs the player skipped` : '', why.added ? `${bmPl(why.added, 'new release')}` : '', why.menu ? `${bmPl(why.menu, 'release')} you added` : ''].filter(Boolean).join(' · ')} <button type="button" class="chip-btn" data-bm="mq-add">Add them to this run</button></div>` : '';
+  const later = mq ? `<div class="bm-later bm-dim">Waiting in the match queue: ${[why.skipped ? `${bmPl(why.skipped, 'release')} with songs the player skipped` : '', why.added ? `${bmPl(why.added, 'new release')}` : '', why.menu ? `${bmPl(why.menu, 'release')} you added` : ''].filter(Boolean).join(' · ')} <button type="button" class="chip-btn" data-bm="mq-add">Add them to this run</button> <button type="button" class="chip-btn" data-bm="mq-clear">Clear</button></div>` : '';
   return `<div class="bm-tool"><div class="bm-fchips">${chip('all', 'All', bm.rels.length)}${chip('look', 'Needs a look', cnt('look'))}${chip('problem', 'Problems', cnt('problem'))}${chip('ready', 'Ready', cnt('ready'))}${chip('done', 'Done', cnt('done'))}</div>
     <div class="bm-tool-r"><input type="search" class="bm-search" placeholder="Find a release" value="${escapeHtml(bm.qsearch || '')}" data-keep="qsearch" data-bm="qsearch" aria-label="Find a release"><select data-bm="qsort" aria-label="Sort"><option value="look"${bm.qsort === 'look' ? ' selected' : ''}>Needs a look first</option><option value="added"${bm.qsort === 'added' ? ' selected' : ''}>As added</option><option value="az"${bm.qsort === 'az' ? ' selected' : ''}>Artist A–Z</option></select></div></div>
-  <div class="bm-body" data-scroll="queue"><table class="bm-qtable"><thead><tr><th class="bm-tick"><input type="checkbox" data-bm="qsel-all"${allOn ? ' checked' : ''} aria-label="Select every release shown"></th><th>Release</th>${shown.map(k => `<th>${bmName(k)}</th>`).join('')}<th>Status</th></tr></thead><tbody>${body || `<tr><td colspan="${3 + shown.length}" class="bm-pad bm-dim">No releases under this filter.</td></tr>`}</tbody></table>${later}</div>
-  <div class="bm-bulk"><span class="bm-m">${sel.size ? `${sel.size} selected` : 'Select releases for these:'}</span><button type="button" class="chip-btn" data-bm="bulk-tick">Tick confident</button><button type="button" class="chip-btn" data-bm="bulk-rerun">Re-run</button><button type="button" class="chip-btn" data-bm="bulk-skip">Skip</button><button type="button" class="chip-btn" data-bm="bulk-include">Include</button><button type="button" class="chip-btn" data-bm="bulk-top">Move to top</button><span class="bm-sp"></span><button type="button" class="chip-btn" data-bm="export-csv">Export unmatched (CSV)</button></div>`;
+  <div class="bm-body" data-scroll="queue"><table class="bm-qtable"><thead><tr><th class="bm-tick"><input type="checkbox" data-bm="qsel-all"${allOn ? ' checked' : ''} aria-label="Select every release shown"></th><th>Release</th>${shown.map(k => `<th>${bmName(k)}</th>`).join('')}<th>Status</th><th class="bm-qx"></th></tr></thead><tbody>${body || `<tr><td colspan="${4 + shown.length}" class="bm-pad bm-dim">No releases under this filter.</td></tr>`}</tbody></table>${later}</div>
+  <div class="bm-bulk"><span class="bm-m">${sel.size ? `${sel.size} selected` : 'Select releases for these:'}</span><button type="button" class="chip-btn" data-bm="bulk-tick">Tick confident</button><button type="button" class="chip-btn" data-bm="bulk-rerun">Re-run</button><button type="button" class="chip-btn" data-bm="bulk-skip">Skip</button><button type="button" class="chip-btn" data-bm="bulk-include">Include</button><button type="button" class="chip-btn" data-bm="bulk-top">Move to top</button><button type="button" class="chip-btn" data-bm="bulk-remove">Remove</button><span class="bm-sp"></span><button type="button" class="chip-btn" data-bm="export-csv">Export unmatched (CSV)</button></div>`;
 }
 // ----- Release -----
 function bmSelRel() { return bm.rels.find(r => r.row === bm.sel) || bm.rels[0] || null; }
@@ -1407,6 +1407,17 @@ function bmCompare(rel, s, kind) {                                  // the same 
 
 // ----- clicks, changes and keys -----
 function bmTickFor(rel, idx, kind, on) { const s = rel.songs.find(x => x.idx === idx), c = bmCellOf(rel, s, kind); if (c.cands.length) bmSetPick(rel, idx, kind, on ? (rel.pick[kind][idx] || c.top.id) : '', true); }
+function bmRemoveRels(rels) {                                        // releases taken out of the run: links already applied stay; ticks not yet applied go with them (asked first)
+  rels = (rels || []).filter(Boolean); if (!bm || !rels.length) return;
+  const ticked = rels.reduce((a, r) => a + bmRelPicks(r), 0);
+  if (ticked && !confirm(`Remove ${rels.length === 1 ? `\u201c${rels[0].item.title}\u201d` : bmPl(rels.length, 'release')} from this run? ${bmPl(ticked, 'ticked link')} not applied yet will be dropped.`)) return;
+  const gone = new Set(rels); rels.forEach(r => { r.include = false; bm.qsel.delete(r.row); });          // (a lane working on one finishes it, into nothing)
+  bm.rels = bm.rels.filter(r => !gone.has(r));
+  if (!bm.rels.length) { bmClose(true); flashGlobalToast('Removed: nothing was left in the run, so it is closed.'); return; }
+  if (!bm.rels.some(r => r.row === bm.sel)) bm.sel = bm.rels[0].row;
+  flashGlobalToast(`Removed ${rels.length === 1 ? `\u201c${rels[0].item.title}\u201d` : bmPl(rels.length, 'release')} from this run.`);
+  bmRedraw(); bmCheckDone();
+}
 function bmQselRels() { return bm.rels.filter(r => bm.qsel.has(r.row)); }
 function bmGoRel(rel) { if (!rel) return; bm.sel = rel.row; bm.view = 'rel'; bm.focus = null; bm.open = null; bm.why = null; bm.pasteFor = null; bm.scrollFocus = true; bmRender(); }
 async function bmResumeSaved() {
@@ -1434,6 +1445,9 @@ function bmClick(e) {
   else if (a === 'bulk-tick') { const rs = bm.qsel.size ? bmQselRels() : bm.rels; rs.forEach(r => bmShownKinds().forEach(k => bmSetPicks(r, k))); bmRender(); }
   else if (a === 'bulk-rerun') { const rs = bmQselRels(); if (!rs.length) { flashGlobalToast('Select the releases to look up again first.'); return; } bmRerun(rs); }
   else if (a === 'bulk-skip' || a === 'bulk-include') { const rs = bmQselRels(); if (!rs.length) { flashGlobalToast('Select releases first.'); return; } rs.forEach(r => { r.include = a === 'bulk-include'; }); if (a === 'bulk-include') bmKickLanes(); bmRedraw(); }
+  else if (a === 'bulk-remove') { const rs = bmQselRels(); if (!rs.length) { flashGlobalToast('Select releases first.'); return; } bmRemoveRels(rs); }
+  else if (a === 'qremove') bmRemoveRels([bm.rels.find(r => r.row === t.dataset.row)]);
+  else if (a === 'mq-clear') { const n = mqAll().length; if (n && confirm(`Clear the match queue? ${bmPl(n, 'release')} waiting there won\u2019t be matched unless you add them again.`)) { mqSave([]); bmRender(); jobsRefresh(); } }
   else if (a === 'bulk-top') { const rs = bmQselRels(); if (!rs.length) { flashGlobalToast('Select releases first.'); return; } bm.rels = rs.concat(bm.rels.filter(r => !bm.qsel.has(r.row))); bm.qsort = 'added'; bmRedraw(); }
   else if (a === 'export-csv') bmExportCsv();
   else if (a === 'mq-add') { const items = mqItems().filter(it => !bm.rels.some(r => r.item === it)); items.forEach(it => { const r = bmMk(it); ['spotify', 'youtube'].filter(k => !bm.svc[k]).forEach(k => { r.st[k] = 'skip'; r.err[k] = 'Not run'; }); bm.rels.push(r); }); mqRemove(mqItems()); bmKickLanes(); flashGlobalToast(`Added ${bmPl(items.length, 'release')} to this run.`); bmRedraw(); }
