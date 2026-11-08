@@ -4522,3 +4522,18 @@ html, body {
   /* (see "While a full-screen dialog is open" in the phone layout pass: the player sits at the bottom of the screen over the dialog) */
   body.dialog-open.has-mini-player:not(.mp-docked-top) .arrange-modal:not(.map-modal):not(.floating-modal) { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
 }
+
+/* ---- A phone: tap YouTube's / SoundCloud's own player to start it (js/39-phone-playback.js, phoneTapToStartShow) ----
+   The player is shown large above the player bar, with a note above it. Its box is only restyled in place (never moved:
+   that would reload the iframe). --tts-video-h is the box's height at the full width less the 12px gutters. */
+:root { --tts-bottom: calc(var(--mobile-navbar-h, 0px) + var(--mobile-chrome-gap, 0px) + env(safe-area-inset-bottom, 0px) + 76px); --tts-video-h: calc((100vw - 24px) * 9 / 16); }
+body.tap-to-start-youtube .mini-player-video-wrap { position: fixed; left: 12px; right: 12px; width: auto !important; height: var(--tts-video-h) !important; bottom: var(--tts-bottom); z-index: 2; border-radius: 10px; box-shadow: 0 0 0 2px var(--accent), 0 16px 40px rgba(0,0,0,0.6); }
+body.tap-to-start-soundcloud .sc-player-mount { left: 12px; right: 12px; top: auto; width: auto; height: 166px; bottom: var(--tts-bottom); z-index: 310; border-radius: 10px; box-shadow: 0 0 0 2px var(--accent), 0 16px 40px rgba(0,0,0,0.6); }
+body.tap-to-start-soundcloud .sc-player-mount iframe { width: 100%; height: 166px; }
+.tap-to-start-hint { position: fixed; left: 12px; right: 12px; z-index: 320; display: flex; align-items: flex-start; gap: 8px; padding: 10px 8px 10px 14px; box-sizing: border-box;
+  background: var(--bg-elevated); border: 1px solid var(--accent); border-radius: 10px; box-shadow: 0 10px 24px rgba(0,0,0,0.5); font-size: 13px; line-height: 1.4; color: var(--text);
+  bottom: calc(var(--tts-bottom) + var(--tts-video-h) + 10px); }
+body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom) + 166px + 10px); }
+.tap-to-start-hint[hidden] { display: none; }
+.tap-to-start-hint p { margin: 0; flex: 1; }
+.tap-to-start-hint .modal-x { min-width: 32px; min-height: 32px; }

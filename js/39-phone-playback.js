@@ -92,6 +92,49 @@ function openPhoneDevicePicker() {
   }
 })();
 
+// ---- YouTube and SoundCloud on a phone: one tap on their own player ----
+// A phone lets a page start sound only in answer to a tap. CRATE starts a YouTube video or SoundCloud track after looking it up,
+// a moment after the tap, so the phone can refuse: the video loads but never starts (and the bar showed it as playing). What
+// always works is a tap on YouTube's (or SoundCloud's) own player, and after that first one the same player may start the
+// following songs by itself. So when one hasn't started 3.5 seconds after CRATE asked, the player is shown large above the bar
+// with "Tap the video to start it", and goes back to its place once it plays. (The iframes are only restyled, never moved:
+// moving an iframe reloads it.)
+let tapStartTimer = 0;
+function phoneTapToStartWatch(engine) {
+  if (!isPhonePlayback()) return;
+  clearTimeout(tapStartTimer);
+  phoneTapToStartDone();
+  tapStartTimer = setTimeout(() => {
+    if (activePlayerEngine !== engine) return;
+    if (engine === 'youtube') {
+      let st = -1; try { st = ytPlayer && ytPlayer.getPlayerState ? ytPlayer.getPlayerState() : -1; } catch (e) { /* not ready */ }
+      if (st !== 1 && st !== 3) phoneTapToStartShow('youtube');          // 1 playing, 3 buffering
+    } else if (engine === 'soundcloud' && scWidget) {
+      try { scWidget.isPaused((paused) => { if (paused && activePlayerEngine === 'soundcloud') phoneTapToStartShow('soundcloud'); }); } catch (e) { /* not ready */ }
+    }
+  }, 3500);
+}
+function phoneTapToStartShow(engine) {
+  let hint = document.getElementById('tapToStartHint');
+  if (!hint) {
+    hint = document.createElement('div'); hint.id = 'tapToStartHint'; hint.className = 'tap-to-start-hint'; hint.setAttribute('role', 'status');
+    hint.innerHTML = '<p></p><button type="button" class="modal-x" aria-label="Close">✕</button>';
+    hint.querySelector('button').addEventListener('click', phoneTapToStartDone);
+    document.body.appendChild(hint);
+  }
+  hint.querySelector('p').textContent = engine === 'youtube'
+    ? 'Tap the video to start it. Your phone needs one tap on YouTube’s own player; after that, the next songs start by themselves.'
+    : 'Tap the play button below to start it. Your phone needs one tap on SoundCloud’s own player; after that, the next songs start by themselves.';
+  hint.hidden = false;
+  document.body.classList.add('tap-to-start', 'tap-to-start-' + engine);
+  if (engine === 'youtube') setYtPlayPauseUI(true); else setScPlayPauseUI(true);          // the bar said it was playing; it isn't yet
+}
+function phoneTapToStartDone() {
+  clearTimeout(tapStartTimer);
+  document.body.classList.remove('tap-to-start', 'tap-to-start-youtube', 'tap-to-start-soundcloud');
+  const hint = document.getElementById('tapToStartHint'); if (hint) hint.hidden = true;
+}
+
 // ---- Lock screen / Control Center (Media Session) ----
 (function wireMediaSession() {
   if (!('mediaSession' in navigator) || !el.miniPlayer) return;

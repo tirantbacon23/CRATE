@@ -444,6 +444,7 @@ function onYtPlayerStateChange(e) {
     return;
   }
   if (e.data === YT.PlayerState.PLAYING) {
+    phoneTapToStartDone();
     setYtPlayPauseUI(false);
     ytDuration = ytPlayer.getDuration() || 0;
     ytScrobbleResume();          // Last.fm: the clock for THIS play runs while it plays (and the "now playing" is sent the first time)
@@ -749,6 +750,7 @@ function playYtQueueIndex(i) {
   ytSeg = { start: q.start || 0, end: q.end || 0, fired: false, loadedAt: Date.now() };
   ensureYtPlayer().then(player => { player.loadVideoById(q.start || q.end ? Object.assign({ videoId: q.videoId, startSeconds: q.start || 0 }, q.end ? { endSeconds: q.end } : {}) : q.videoId); player.playVideo(); });          // (a track inside a full-release video starts and stops at its own times)
   setYtPlayPauseUI(false);
+  phoneTapToStartWatch('youtube');          // a phone may refuse to start it without a tap on YouTube's own player (js/39-phone-playback.js)
 }
 
 // Stops YouTube playback — used both for the mutual-exclusion handoff when
@@ -823,6 +825,7 @@ function loadSoundcloudWidgetApi() {
 // per-event callbacks instead of one combined onStateChange.
 function bindScWidgetEvents() {
   scWidget.bind(SC.Widget.Events.PLAY, () => {
+    phoneTapToStartDone();
     setScPlayPauseUI(false);
     scWidget.getDuration(d => { scDuration = d || 0; });
   });
@@ -942,6 +945,7 @@ function playScQueueIndex(i) {
     ensureScWidget(q.url);
   }
   setScPlayPauseUI(false);
+  phoneTapToStartWatch('soundcloud');
 }
 
 // Stops SoundCloud playback — used both for the mutual-exclusion handoff

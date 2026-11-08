@@ -17,7 +17,19 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.91.2
+  CURRENT_VERSION: 1.91.3
+
+  1.91.3 — 2026-11-08 — On a phone, a YouTube video or SoundCloud track that doesn't start is shown large, to be tapped once to start. Page only.
+          A phone lets a page start sound only in answer to a tap, and CRATE
+          starts a video a moment after the tap (once it has looked it up),
+          so a phone could refuse: the video loaded but never played, while
+          the bar showed it as playing. A tap on YouTube's (or SoundCloud's)
+          own player always works, and after that first one the same player
+          starts the following songs by itself. So when one hasn't started
+          3.5 seconds after CRATE asked, the player is shown large above the
+          bar with "Tap the video to start it" (SoundCloud's widget, kept off
+          the screen until now, is brought on), and goes back to its place
+          once it plays. The bar shows Play meanwhile. Computers unchanged.
 
   1.91.2 — 2026-11-08 — On a phone, a cover's stars tag shows the RYM average instead of cutting it to "…", and the player no longer has an empty strip under it. Page only.
           STARS TAG: it holds the stars and the Rate Your Music average (RYM
