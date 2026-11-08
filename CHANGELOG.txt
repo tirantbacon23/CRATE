@@ -17,7 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.90.0
+  CURRENT_VERSION: 1.90.1
+
+  1.90.1 — 2026-11-08 — On a phone the ⚙ menu fits the screen: it opened pinned to the gear's right edge at its full width, so its left side was cut off. Page only.
+          It is now a full-width panel under the header that scrolls inside,
+          ending above the tab bar (and above the Processing strip while one
+          is showing). The Actions in it (Listened filter, Add album, …) are
+          full-width rows again; 1.90.0's plain header icons had squeezed
+          them into small squares.
 
   1.90.0 — 2026-11-08 — A better layout on a phone: three covers to a row, a slimmer header, a bottom tab bar with icons, and the Processing strip no longer covers the tabs. Page only.
           TAB BAR: Processing (and the Match songs and background strips)

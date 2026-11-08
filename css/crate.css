@@ -4364,11 +4364,20 @@ html, body {
   /* Header */
   .topbar { gap: 4px; padding-bottom: 8px; margin-bottom: 8px; flex-wrap: wrap; }
   .brand h1 { font-size: 28px; letter-spacing: 1.5px; }
-  .topbar .icon-btn, .topbar .search-icon { width: 40px; height: 40px; background: transparent; border-color: transparent; border-radius: 10px; }
-  .topbar .icon-btn:active, .topbar .search-icon:active { background: var(--bg-elevated); }
+  /* (not the buttons moved into the ⚙ menu: those keep the menu's own full-width rows) */
+  .topbar .icon-btn:not(#layoutMenu .icon-btn), .topbar .search-icon { width: 40px; height: 40px; background: transparent; border-color: transparent; border-radius: 10px; }
+  .topbar .icon-btn:not(#layoutMenu .icon-btn):active, .topbar .search-icon:active { background: var(--bg-elevated); }
   .topbar .controls { gap: 2px; }
   .topbar .search-icon { font-size: 22px; }
-  #layoutMenu .icon-btn { background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 6px; }  /* the buttons moved into the ⚙ menu keep their look */
+
+  /* The ⚙ menu is anchored to the gear's right edge at its natural width, which is wider than a phone: its left side ran
+     off the screen. Here it is a full-width panel under the header instead, scrolling inside if it's taller than the room.
+     (Its position, offsets and width are inline styles, hence !important.) */
+  #layoutMenu { position: fixed !important; top: calc(max(10px, env(safe-area-inset-top)) + 48px) !important;
+    left: var(--m-gutter) !important; right: var(--m-gutter) !important; width: auto !important; min-width: 0 !important; box-sizing: border-box;
+    max-height: calc(100dvh - max(10px, env(safe-area-inset-top)) - 48px - var(--mobile-navbar-h) - env(safe-area-inset-bottom, 0px) - 12px) !important; }
+  #layoutMenu button, #layoutMenu label { white-space: normal; }
+  body.jobs-strip-on #layoutMenu { max-height: calc(100dvh - max(10px, env(safe-area-inset-top)) - 48px - var(--mobile-navbar-h) - env(safe-area-inset-bottom, 0px) - 64px) !important; }   /* ends above the Processing strip */
 
   /* View bar (ALBUMS ▾ · grid/list · sort) */
   #musicViewElement > .panel-bar { min-height: 0; padding-bottom: 6px; margin-bottom: 10px; }
