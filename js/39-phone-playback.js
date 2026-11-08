@@ -92,6 +92,45 @@ function openPhoneDevicePicker() {
   }
 })();
 
+// ---- "Play in the YouTube app" (Quick actions, phone only) ----
+// iOS pauses YouTube in a web page when the phone locks; the YouTube app keeps playing (with YouTube Premium). This hands the
+// release to the app: one video (a full-release video, a single) is its plain watch link, from where the first song starts;
+// several (a video per song) are a watch_videos list of them in order, which YouTube turns into a playlist. It is a real link
+// the person taps (#qaYoutubeAppBtn), not a script opening it, since iOS only gives a tapped link to an app.
+async function youtubeAppLinkFor(item) {
+  let tracks = [];
+  try { tracks = (await getTracksFor(item)) || []; } catch (e) { return ''; }
+  const ids = [];
+  let firstStart = 0;
+  tracks.forEach(t => {
+    const id = t.youtubeLink && youtubeVideoIdFromUrl(t.youtubeLink);
+    if (!id || ids.includes(id)) return;
+    if (!ids.length) firstStart = (youtubeSegmentFromUrl(t.youtubeLink) || {}).start || 0;
+    ids.push(id);
+  });
+  if (!ids.length) return '';
+  if (ids.length === 1) return 'https://www.youtube.com/watch?v=' + ids[0] + (firstStart ? '&t=' + firstStart + 's' : '');
+  return 'https://www.youtube.com/watch_videos?video_ids=' + ids.slice(0, 50).join(',');          // (YouTube takes up to 50)
+}
+(function wireYoutubeAppLink() {
+  const a = document.getElementById('qaYoutubeAppBtn'); if (!a || !el.qaOverlay) return;
+  let forItem = null;
+  const paint = () => {
+    if (!el.qaOverlay.classList.contains('open')) return;
+    const item = quickActionsItem;
+    if (item === forItem && a.getAttribute('href')) return;
+    forItem = item; a.hidden = true; a.removeAttribute('href');
+    if (!item || !isPhonePlayback()) return;
+    youtubeAppLinkFor(item).then(url => { if (forItem === item && url) { a.href = url; a.hidden = false; } });
+  };
+  new MutationObserver(paint).observe(el.qaOverlay, { attributes: true, attributeFilter: ['class'] });
+  a.addEventListener('click', () => {
+    if (activePlayerEngine === 'youtube' && ytPlayer && ytPlayer.pauseVideo) { try { ytPlayer.pauseVideo(); } catch (e) { /* not ready */ } }   // the app plays it now, not CRATE
+    phoneTapToStartDone();
+    setTimeout(closeQuickActions, 300);
+  });
+})();
+
 // ---- YouTube and SoundCloud on a phone: one tap on their own player ----
 // A phone lets a page start sound only in answer to a tap. CRATE starts a YouTube video or SoundCloud track after looking it up,
 // a moment after the tap, so the phone can refuse: the video loads but never starts (and the bar showed it as playing). What

@@ -17,7 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.91.3
+  CURRENT_VERSION: 1.91.4
+
+  1.91.4 — 2026-11-08 — "Play in the YouTube app" (Quick actions, on a phone): hands a release's YouTube videos to the YouTube app, which can keep playing with the phone locked. Page only.
+          iOS pauses YouTube in a web page when the phone locks; the YouTube
+          app keeps playing (with YouTube Premium). A release with one video
+          (a full-release video, a single) opens it from where its first song
+          starts; one with a video per song opens them in order as a YouTube
+          playlist (up to 50). It is a real link you tap, so iOS can give it
+          to the app; CRATE's own player pauses. Shown only on a phone, and
+          only for releases with YouTube links.
 
   1.91.3 — 2026-11-08 — On a phone, a YouTube video or SoundCloud track that doesn't start is shown large, to be tapped once to start. Page only.
           A phone lets a page start sound only in answer to a tap, and CRATE

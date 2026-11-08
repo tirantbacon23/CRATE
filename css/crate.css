@@ -1013,6 +1013,8 @@ html, body {
     color: var(--text); font-size: 14.5px; padding: 13px 8px; cursor: pointer;
   }
   .qa-row-btn:last-of-type { border-bottom: none; }
+  a.qa-row-btn, a.qa-row-btn:last-of-type { box-sizing: border-box; text-decoration: none; border-bottom: 1px solid var(--line); }   /* (the only link among the buttons, so :last-of-type above took its line away) */
+  a.qa-row-btn[hidden] { display: none; }
   .qa-row-btn:hover { color: var(--accent); }
   .qa-row-btn.qa-danger { color: #d9534f; }
   .qa-row-btn.qa-danger:hover { color: #ff6f66; }
