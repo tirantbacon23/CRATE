@@ -193,7 +193,7 @@ async function pbToken() {
 async function pbPost(s) {
   if (pbBackend !== true) return;
   const set = pbSet(), idToken = await pbToken(); if (!idToken) return;
-  const state = JSON.stringify(Object.assign({}, s, { dev: set.id, devName: set.name }));
+  const state = JSON.stringify(Object.assign({}, s, { dev: set.id, devName: set.name, since: pbKeySince }));
   try {
     const r = await fetch(CONFIG.SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'playSync', state, idToken }) });
     const d = await r.json();
@@ -239,17 +239,24 @@ function pbRemoteGot(rm) {
     if (Math.abs((mine.pos || 0) - pos) > 8000) pbSeekMs(pos);
     return;
   }
-  if (s.playing && pbPlaying()) { pbHandoffPause = true; el.miniPlayerPlayPause.click(); flashGlobalToast(`Now playing on ${rm.devName || 'another device'}.`); }          // one plays at a time
+  // One plays at a time — but only when the other device STARTS something (or changes song). (1.94.1) It also says "still playing" every 25 s,
+  // and a device that wrongly thought it was playing (its player showing ⏸ with nothing coming out) paused this one with every reminder. So a
+  // reminder already seen does nothing, and nor does a song that has been playing there since before this device started its own.
+  const actKey = `${rm.dev}|${s.r}|${s.t}|${s.since || ''}`;
+  const startedBeforeMine = s.since && pbPlaying() && pbKeySince && s.since < pbKeySince - 2000;
+  if (s.playing && pbPlaying() && actKey !== pbActedKey && !startedBeforeMine) { pbActedKey = actKey; pbHandoffPause = true; el.miniPlayerPlayPause.click(); flashGlobalToast(`Now playing on ${rm.devName || 'another device'}.`); }
+  else if (s.playing) pbActedKey = actKey;
   if (pbPillState && pbPillState.kind === 'local') return;              // (your own "Carry on" stays until you answer it)
   pbPillShow({ kind: 'remote', s, dev: rm.devName, age: rm.age, seenAt: rm.seenAt });
 }
 function pbItemOfSame(a, b) { return a.r === b.r; }
 let pbHandoffPause = false, pbFollowSpotifyTold = false;
-let pbPrevKey = '';
+let pbPrevKey = '', pbKeySince = 0, pbSinceKey = '', pbActedKey = '';
 function pbWatch() {                                                    // every second: tell the other devices when what's playing here changes
   const set = pbSet();
   const qk = `${crateQueueId}|${crateQueueIndex}`; if (qk !== pbQueueSeen) { pbQueueSeen = qk; pbQueueMovedAt = Date.now(); }
   const s = pbSnapshot();
+  if (s) { const sk = `${s.r}|${s.t}|${s.playing}`; if (sk !== pbSinceKey) { pbSinceKey = sk; pbKeySince = Date.now(); } }          // (1.94.1) since when this song has been playing (or paused) here
   if (pbPillState && pbPillState.kind === 'remote' && pbPlaying()) pbPillHide();          // playing here now
   if (!set.on || set.follow || pbBackend !== true || !s) { if (s) pbLastKey = `${s.r}|${s.t}|${s.playing}|${s.vol}`; return; }
   const key = `${s.r}|${s.t}|${s.playing}|${s.vol}`, now = Date.now();

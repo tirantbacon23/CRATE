@@ -17,7 +17,17 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.94.0
+  CURRENT_VERSION: 1.94.1
+
+  1.94.1 — 2026-11-09 — Fixed: with playback synced, a device kept pausing itself while it was the one playing. Page only.
+          The device that's playing says "still playing" every 25 seconds,
+          and each of those reminders was taken as "another device has
+          started": a device that wrongly thought it was playing (its player
+          showing ⏸ with nothing coming out) paused the other one again and
+          again. Now only starting a song, or changing to another, takes over;
+          a reminder already heard does nothing, and nor does a song that has
+          been playing there since before this device started its own (then
+          this one is the latest, and the other pauses instead).
 
   1.94.0 — 2026-11-09 — The Map shows which records are kin, across the world; the Tracks view plays YouTube links and filters by them; Pull details names its release. Page only.
           THE MAP knows what Crate Galaxy knows: how alike two releases are
