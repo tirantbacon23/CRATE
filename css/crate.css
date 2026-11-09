@@ -411,6 +411,7 @@ html, body {
 
   .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .search-wrap { position: relative; }
+  .tab-bar-popout { font-size: 15px; } @media (max-width: 900px) { .tab-bar-popout { display: none; } }
   .loc-strip { position: fixed; left: 50%; bottom: 70px; transform: translateX(-50%); z-index: 900; display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px; background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 22px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); font-size: 12.5px; color: var(--text); white-space: nowrap; }
   .search-suggest { position: absolute; top: calc(100% + 4px); left: 0; min-width: 100%; width: max(100%, 380px); max-height: min(60vh, 440px); overflow-y: auto; z-index: 400; background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45); padding: 4px; }
   .ss-item { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; align-items: baseline; gap: 10px; padding: 6px 8px; border-radius: 5px; cursor: pointer; font-size: 13px; }

@@ -310,3 +310,60 @@ function initUpdateLog() {
   });
   el.updateLogNote.addEventListener('click', (e) => { if (e.target.closest('[data-update-log-reload]')) location.reload(); });
 }
+
+// ---- A tab in a window of its own: ⧉ at the end of the tab bar (the tab you are on), or a tab's right-click / middle-click. The new window is CRATE
+// itself, opened on that tab (#popout=… in its address, read once the crate has loaded): same sign-in, same crate, its own place on your screen.
+const POP_HASH = '#popout=';
+const POP_TABS = { tabAlbums: 'albums', tabDiary: 'diary', tabScrobbles: 'scrobbles', tabStats: 'stats', tabArtist: 'artist' };
+function popTabDesc(btn) {                                            // the tab a button stands for, or null
+  if (!btn) return null;
+  if (POP_TABS[btn.id]) return { tab: POP_TABS[btn.id] };
+  if (btn.classList.contains('artist-info-tab-btn') && btn.dataset.artist) return { artist: btn.dataset.artist };
+  if (btn.classList.contains('genre-tab-btn') && btn.dataset.genre) return { genre: btn.dataset.genre };
+  return null;
+}
+function popActiveDesc() {
+  if (state.activeTab === 'artistInfo' && state.activeArtistInfoTab) return { artist: state.activeArtistInfoTab };
+  if (state.activeTab === 'genreInfo' && state.activeGenreTab) return { genre: state.activeGenreTab };
+  return { tab: state.activeTab || 'albums' };
+}
+function popName(d) { return d.artist || d.genre || ({ albums: 'Music', diary: 'Diary', scrobbles: 'Scrobbles', stats: 'Stats', artist: 'Artist' }[d.tab] || 'CRATE'); }
+function popOutTab(d) {
+  if (!d) return;
+  const url = location.href.split('#')[0] + POP_HASH + encodeURIComponent(JSON.stringify(d));
+  const w = window.open(url, '_blank', 'popup=yes,width=1280,height=860');
+  if (!w) flashGlobalToast('Your browser stopped the new window: allow pop-ups for this site, then try again.');
+}
+function popApplyFromAddress() {                                      // in the new window: go to the tab it was opened for, once the crate is in
+  if (!location.hash.startsWith(POP_HASH)) return;
+  let d = null; try { d = JSON.parse(decodeURIComponent(location.hash.slice(POP_HASH.length))); } catch (e) { d = null; }
+  history.replaceState(null, '', location.href.split('#')[0]);          // (a reload is then an ordinary CRATE window)
+  if (!d || typeof d !== 'object') return;
+  const t0 = Date.now(), go = () => {
+    if (!state.catalogFetchedAt && Date.now() - t0 < 30000) { setTimeout(go, 250); return; }
+    if (typeof d.artist === 'string' && d.artist) openArtistInfoTab(d.artist.slice(0, 200));
+    else if (typeof d.genre === 'string' && d.genre) openGenreTab(d.genre.slice(0, 200));
+    else if (Object.values(POP_TABS).includes(d.tab)) switchTab(d.tab);
+    document.title = `${popName(d)} \u2014 CRATE`;
+  };
+  go();
+}
+(function wirePopout() {
+  const bar = document.getElementById('tabBar'); if (!bar) return;
+  const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'tabPopoutBtn'; btn.className = 'tab-bar-btn tab-bar-popout'; btn.title = 'Open this tab in a new window'; btn.setAttribute('aria-label', 'Open this tab in a new window'); btn.textContent = '\u29c9';
+  bar.appendChild(btn);
+  btn.addEventListener('click', () => popOutTab(popActiveDesc()));
+  bar.addEventListener('auxclick', (e) => { if (e.button !== 1) return; const d = popTabDesc(e.target.closest('.nav-tab')); if (d) { e.preventDefault(); popOutTab(d); } });          // middle-click, as in a browser
+  bar.addEventListener('mousedown', (e) => { if (e.button === 1 && e.target.closest('.nav-tab')) e.preventDefault(); });          // (no auto-scroll cursor)
+  bar.addEventListener('contextmenu', (e) => {
+    const tab = e.target.closest('.nav-tab'), d = popTabDesc(tab); if (!d) return;
+    e.preventDefault(); closeNowPlayingAddMenu();
+    const menu = document.createElement('div'); menu.className = 'panel-mode-menu now-playing-add-menu';
+    menu.innerHTML = `<div class="menu-section-title">${escapeHtml(popName(d))}</div><button type="button" data-pop>Open in new window \u29c9</button>`;
+    document.body.appendChild(menu); positionFloatingMenu(menu, e.clientX, e.clientY);
+    menu.addEventListener('click', (ev) => { if (ev.target.closest('[data-pop]')) { closeNowPlayingAddMenu(); popOutTab(d); } });
+    nowPlayingAddMenuEl = menu; setTimeout(() => document.addEventListener('click', closeNowPlayingAddMenuOnOutsideClick), 0);          // (closes like the other menus)
+  });
+  popApplyFromAddress();
+})();
+

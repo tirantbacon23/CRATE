@@ -17,7 +17,17 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.93.1
+  CURRENT_VERSION: 1.93.2
+
+  1.93.2 — 2026-11-09 — A tab can be opened in a window of its own. Page only.
+          ⧉ at the end of the tab bar opens the tab you are on in a new
+          window; right-clicking a tab (Music, Diary, Scrobbles, Stats,
+          Artist, or an artist's or genre's tab) offers "Open in new window",
+          and a middle-click does it straight away, as in a browser. The new
+          window is CRATE itself, opened on that tab once the crate has
+          loaded, with the same sign-in, and its title names the tab ("Frank
+          Zappa — CRATE"). Not on a phone. If nothing opens, allow pop-ups
+          for the site.
 
   1.93.1 — 2026-11-09 — Search finds and suggests songs by their titles. Page only.
           The search box's suggestions have Tracks: a song whose title
