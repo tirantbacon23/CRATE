@@ -106,3 +106,13 @@ suite('RYM add-on: release details with a tracklist', () => {
     eq(got[0].d, { label: 'Blanco y Negro', catalog: '', date: '', genre: '', cover: 'https://e.snmc.io/i/600/x.jpg' });
   });
 });
+
+suite('RYM add-on: an artist’s page', () => {
+  test('the facts beside the name: born, died, members with roles, member of, also known as', async () => {
+    const C = await addon();
+    eq(C.splitNameList('John Lennon (vocals, guitar, 1960-70), Paul McCartney (bass), George Harrison'), [{ name: 'John Lennon', role: 'vocals, guitar, 1960-70' }, { name: 'Paul McCartney', role: 'bass' }, { name: 'George Harrison', role: '' }]);
+    const e = C.artistFromFields([{ label: 'Born', text: '21 December 1940, Baltimore, MD, United States' }, { label: 'Member of', text: 'The Mothers of Invention, Plastic Ono Band' }, { label: 'Also Known As', text: 'Zappa' }, { label: 'Notes', text: 'x' }], 'Frank Zappa', '/artist/frank-zappa');
+    eq([e.born, e.memberOf, e.aka, e.notes], ['21 December 1940, Baltimore, MD, United States', ['The Mothers of Invention', 'Plastic Ono Band'], ['Zappa'], undefined]);
+    eq(C.artistFromFields([{ label: 'Genres', text: 'Rock' }], 'X', '/artist/x'), null);          // nothing about the artist itself: not kept
+  });
+});

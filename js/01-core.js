@@ -5,7 +5,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.92.6';
+const APP_VERSION = '1.92.7';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -433,7 +433,7 @@ function rymAfterAdd(payload, res) {                               // a rating t
   if (res && res.rymSaved) { state.backendRym = true; return; }
   rymLocalAll()[artKey({ artist: payload.Artist, title: payload.Title })] = { r, n: rymVotesNum(payload.RymVotes), s: 'm', t: Date.now() }; rymLocalSave(); rymNoteLocalOnly();
 }
-function rymRequestFromAddon() { rymLastReq = Date.now(); try { window.postMessage({ source: 'crate-app', type: 'request-rym-ratings' }, window.location.origin); window.postMessage({ source: 'crate-app', type: 'request-rym-genres' }, window.location.origin); window.postMessage({ source: 'crate-app', type: 'request-rym-pages' }, window.location.origin); } catch (e) { /* no add-on */ } }
+function rymRequestFromAddon() { rymLastReq = Date.now(); try { window.postMessage({ source: 'crate-app', type: 'request-rym-ratings' }, window.location.origin); window.postMessage({ source: 'crate-app', type: 'request-rym-genres' }, window.location.origin); window.postMessage({ source: 'crate-app', type: 'request-rym-pages' }, window.location.origin); window.postMessage({ source: 'crate-app', type: 'request-rym-artists' }, window.location.origin); } catch (e) { /* no add-on */ } }
 function rymCoverage() { const raw = state.raw || [], has = raw.filter(r => r.rymRating); return { total: raw.length, has: has.length, typed: has.filter(r => r.rymSrc === 'm').length, auto: has.filter(r => r.rymSrc === 'a').length, hist: raw.filter(r => r.rymHist && r.rymHist.length >= 2).length }; }
 // END rym-data
 
@@ -543,6 +543,7 @@ function initRymRatings() {
     const d = e.data; if (!d || d.source !== 'crate-addon') return;
     if (d.type === 'rym-genres' && Array.isArray(d.genres)) { rymHandleGenres(rymCleanGenres(d.genres)); return; }
     if (d.type === 'rym-pages' && d.pages && typeof d.pages === 'object') { rymPagesArrived(rymCleanPages(d.pages)); return; }
+    if (d.type === 'rym-artists' && Array.isArray(d.artists)) { rymArtistsArrived(rymCleanArtists(d.artists)); return; }
     if (d.type === 'rym-tracklists' && Array.isArray(d.tracklists)) { rymTracklistsArrived(rymCleanTracklists(d.tracklists)); return; }
     if (d.type === 'rym-outbox' && Array.isArray(d.batches)) { rymOutboxArrived(rymCleanOutbox(d.batches)); return; }
     if (d.type !== 'rym-ratings' || !Array.isArray(d.ratings)) return;

@@ -888,3 +888,10 @@ suite('Artist types and members', () => {
     finally { app('artistDetailsMap = ' + JSON.stringify(was[0]) + '; artistAliasMap = ' + JSON.stringify(was[1])); }
   });
 });
+
+suite('Artists from Rate Your Music', () => {
+  test('what the add-on sends about artist pages is cleaned', () => {
+    const got = app('rymCleanArtists')([{ p: '/artist/frank-zappa', name: 'Frank Zappa', born: '1940', memberOf: ['A', 7, ''], aka: 'nope', members: [{ name: 'X', role: 'y' }, { role: 'no name' }] }, { p: 'javascript:alert(1)', name: 'Bad' }, { p: '/artist/x' }]);
+    eq(got.length, 1); eq([got[0].born, got[0].memberOf, got[0].aka, got[0].members], ['1940', ['A'], [], [{ name: 'X', role: 'y' }]]);
+  });
+});

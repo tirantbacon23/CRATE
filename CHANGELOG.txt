@@ -17,7 +17,22 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.92.6
+  CURRENT_VERSION: 1.92.7
+
+  1.92.7 — 2026-11-09 — An artist's details read like RYM's (Type, Born, Died, Also known as, Members, Member of) with an Edit button, and Fill from RYM takes them from the artist's page on Rate Your Music. Page and RYM add-on 1.21.0.
+          TIDIER: under the artist's name, the details are a short list of
+          labels and values; names are links to their pages. The boxes, the
+          type menu and ★/✕ are only there after "✎ Edit details" (Done puts
+          them away), and only on the artist you pressed it on.
+          FROM RYM: the add-on (1.21.0) notes what an artist's page on Rate
+          Your Music lists beside the name (born or formed, died or
+          disbanded, members with their roles, member of, also known as) and
+          hands it to CRATE. "Fill from RYM" adds it: the type (born: Person;
+          formed or members: Band), the dates, the members, this artist as a
+          member of each band it was in, and the other names as aliases (one
+          that is already another artist's alias is left there). It only
+          adds; nothing you set is changed. For an artist whose RYM page the
+          add-on hasn't read yet, it opens that page.
 
   1.92.6 — 2026-11-09 — Artists have a type (Person, Band, Group…), a band has members, and a member's page says which bands they are in. Page and Apps Script backend.
           On an artist's page, under "Also known as": a Type (Person, Band,

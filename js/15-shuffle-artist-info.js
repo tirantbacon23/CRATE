@@ -590,14 +590,7 @@ function artistAliasesChanged() {                                    // grouping
   if (typeof applyFiltersSort === 'function') applyFiltersSort();
   if (state.activeTab === 'artistInfo' && state.activeArtistInfoTab) renderArtistInfoTab();
 }
-function aiRenderAliases() {                                         // "Also known as" under the artist's name, with Add and ✕
-  const box = document.getElementById('aiAliases'), artist = state.activeArtistInfoTab; if (!box || !artist) return;
-  const names = artistAliasesOf(artist), owned = new Set(state.raw.map(r => r.artist));
-  box.innerHTML = `<span class="ai-aka-k" title="${escapeHtml(artist)} is the main name; these are lesser names of it. \u2605 makes one of them the main name.">Also known as</span>${names.map(n => `<span class="ai-aka">${escapeHtml(n)}<button type="button" class="ai-aka-x" data-alias-main="${escapeHtml(n)}" aria-label="Make ${escapeHtml(n)} the main name" title="Make this the main name (${escapeHtml(artist)} becomes one of its aliases)">\u2605</button><button type="button" class="ai-aka-x" data-alias="${escapeHtml(n)}" aria-label="Remove the alias ${escapeHtml(n)}" title="Remove">\u2715</button></span>`).join('')}`
-    + `<span class="ai-aka-add"><input type="text" id="aiAliasInput" list="aiAliasNames" placeholder="${names.length ? 'Another name' : 'Add a name it goes by'}" aria-label="Add another name ${escapeHtml(artist)} goes by" autocomplete="off"><button type="button" class="chip-btn" data-alias-add>Add</button></span>`
-    + `<datalist id="aiAliasNames">${[...owned].filter(n => !sameArtist(n, artist)).sort((a, b) => a.localeCompare(b)).slice(0, 3000).map(n => `<option value="${escapeHtml(n)}">`).join('')}</datalist>`
-    + (artistAliasBackend === false && names.length ? '<span class="ai-aka-note" title="Update and redeploy the Apps Script backend to keep aliases with your account">kept in this browser</span>' : '');
-}
+function aiRenderAliases() { aiRenderInfo(); }
 (function wireAliases() {
   const box = document.getElementById('aiAliases'); if (!box) return;
   const add = () => { const inp = document.getElementById('aiAliasInput'), artist = state.activeArtistInfoTab; if (!inp || !artist) return; const why = artistAliasAdd(inp.value, artist); if (why) { flashGlobalToast(why); return; } flashGlobalToast(`\u201c${inp.value.trim()}\u201d is now ${artistCanon(artist)}.`); };
@@ -616,7 +609,8 @@ function artistDetailsClean(raw) {                                   // untruste
     const name = s(e && e.name, 200), k = normMatchKey(name); if (!k) return;
     const type = ARTIST_TYPES.includes(e.type) ? e.type : '', seen = new Set();
     const members = (Array.isArray(e.members) ? e.members : []).slice(0, 100).map(m => ({ name: s(m && m.name, 200), role: s(m && m.role, 80) })).filter(m => { const mk = normMatchKey(m.name); if (!mk || mk === k || seen.has(mk)) return false; seen.add(mk); return true; });
-    if (type || members.length) out[k] = Object.assign({ name, type }, members.length ? { members } : {});
+    const dates = {}; ['born', 'died', 'formed', 'disbanded'].forEach(f => { const v = s(e[f], 160); if (v) dates[f] = v; });          // as RYM writes them ("21 December 1940, Baltimore, MD, United States")
+    if (type || members.length || Object.keys(dates).length) out[k] = Object.assign({ name, type }, dates, members.length ? { members } : {});
   });
   return out;
 }
@@ -627,7 +621,7 @@ function artistMemberOf(artist) {                                     // the ban
 function artistDetailsPut(artist, change) {                          // change(d) edits a copy of this artist's details; an empty one is dropped
   const main = artistCanon(artist), k = normMatchKey(main), all = artistDetailsAll(), d = Object.assign({ name: main, type: '', members: [] }, all[k] || {}, { name: main });
   d.members = (d.members || []).map(m => Object.assign({}, m)); change(d);
-  if (d.type || d.members.length) all[k] = artistDetailsClean({ x: d })[k] || d; else delete all[k];
+  if (d.type || d.members.length || d.born || d.died || d.formed || d.disbanded) all[k] = artistDetailsClean({ x: d })[k] || d; else delete all[k];
   artistDetailsSave(true); aiRenderDetails();
 }
 function artistDetailsSave(sync) {
@@ -660,21 +654,67 @@ async function artistDetailsFromMb(artist) {                         // "Fill fr
   artistDetailsPut(artist, d => { if (mbType && !d.type) d.type = mbType; found.forEach(m => { if (!d.members.some(x => sameArtist(x.name, m.name))) d.members.push(m); }); });
   flashGlobalToast(found.length ? `Added ${found.length} member${found.length === 1 ? '' : 's'} from MusicBrainz.` : mbType ? `MusicBrainz says: ${mbType}.` : 'MusicBrainz has no type or members for this artist.');
 }
-function aiRenderDetails() {                                          // the artist's type, a band's members, and the bands a person is in
-  const box = document.getElementById('aiDetails'), artist = state.activeArtistInfoTab; if (!box || !artist) return;
-  const d = artistDetailsOf(artist), memberOf = artistMemberOf(artist), person = d.type === 'Person', owned = [...new Set(state.raw.map(r => artistCanon(r.artist)))];
-  const chip = (name, role, attrs) => `<span class="ai-aka"><button type="button" class="ai-member-link" data-member-open="${escapeHtml(name)}" title="Open ${escapeHtml(name)}">${escapeHtml(name)}</button>${role ? `<span class="ai-member-role">${escapeHtml(role)}</span>` : ''}${attrs || ''}</span>`;
-  const typeSel = `<select id="aiArtistType" class="ai-type-select" aria-label="What kind of artist ${escapeHtml(artist)} is"><option value=""${d.type ? '' : ' selected'}>Type\u2026</option>${ARTIST_TYPES.map(t => `<option${d.type === t ? ' selected' : ''}>${t}</option>`).join('')}</select>`;
-  const members = person ? '' : `<span class="ai-aka-k">Members</span>${(d.members || []).map(m => chip(m.name, m.role, `<button type="button" class="ai-aka-x" data-member-del="${escapeHtml(m.name)}" aria-label="Remove ${escapeHtml(m.name)} from the members" title="Remove">\u2715</button>`)).join('')}`
-    + `<span class="ai-aka-add"><input type="text" id="aiMemberName" list="aiMemberNames" placeholder="${(d.members || []).length ? 'Another member' : 'Add a member'}" aria-label="A member's name" autocomplete="off"><input type="text" id="aiMemberRole" class="ai-member-role-in" placeholder="role" aria-label="Their role (optional)" autocomplete="off"><button type="button" class="chip-btn" data-member-add>Add</button></span>`
-    + `<datalist id="aiMemberNames">${owned.filter(n => !sameArtist(n, artist)).sort((a, b) => a.localeCompare(b)).slice(0, 3000).map(n => `<option value="${escapeHtml(n)}">`).join('')}</datalist>`;
-  const of = memberOf.length ? `<span class="ai-aka-k">Member of</span>${memberOf.map(m => chip(m.band, m.role)).join('')}` : '';
-  const mb = aiExt(artist).profile && aiExt(artist).profile.mbid ? '<button type="button" class="ai-link-btn" data-details-mb title="Its type, and a group\u2019s members with their instruments, from MusicBrainz">Fill from MusicBrainz</button>' : '';
-  const note = artistDetailsBackend === false && (d.type || (d.members || []).length) ? '<span class="ai-aka-note" title="Update and redeploy the Apps Script backend to keep these with your account">kept in this browser</span>' : '';
-  box.innerHTML = `${typeSel}${members}${of}${mb}${note}`;
+// ---- what the RYM add-on (1.21.0) read on artists' pages on Rate Your Music: born/formed, died/disbanded, members, member of, also known as ----
+const RYM_ARTISTS_KEY = 'crate_rym_artists_v1';
+let rymArtists = null;
+function rymArtistsAll() { if (!rymArtists) { try { rymArtists = rymCleanArtists(JSON.parse(localStorage.getItem(RYM_ARTISTS_KEY) || '[]')); } catch (e) { rymArtists = []; } } return rymArtists; }
+function rymCleanArtists(list) {                                     // untrusted: an /artist/ address, text, names, bounded
+  const s = (v, n) => typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, n) : '', names = (a, n) => (Array.isArray(a) ? a : []).map(x => s(x, 200)).filter(Boolean).slice(0, n);
+  return (Array.isArray(list) ? list : []).slice(0, 3000).map(e => e && typeof e === 'object' && /^\/artist\/[^\s\/?#]{1,200}$/.test(String(e.p || '')) ? {
+    p: e.p, name: s(e.name, 200), t: Number(e.t) || 0, born: s(e.born, 160), died: s(e.died, 160), formed: s(e.formed, 160), disbanded: s(e.disbanded, 160),
+    members: (Array.isArray(e.members) ? e.members : []).slice(0, 100).map(m => ({ name: s(m && m.name, 200), role: s(m && m.role, 80) })).filter(m => m.name),
+    memberOf: names(e.memberOf, 60), aka: names(e.aka, 60) } : null).filter(e => e && e.name);
 }
+function rymArtistsArrived(list) {
+  rymArtists = list; try { localStorage.setItem(RYM_ARTISTS_KEY, JSON.stringify(list)); } catch (e) { /* kept for this visit only */ }
+  if (state.activeTab === 'artistInfo' && state.activeArtistInfoTab) aiRenderInfo();
+}
+function rymArtistFor(artist) {                                      // RYM's page for this artist: by its name or any of its names, the one read last
+  const names = [artistCanon(artist)].concat(artistAliasesOf(artist)).map(normMatchKey);
+  return rymArtistsAll().filter(e => names.includes(normMatchKey(e.name)) || (e.aka || []).some(a => normMatchKey(a) === normMatchKey(artistCanon(artist)))).sort((a, b) => (b.t || 0) - (a.t || 0))[0] || null;
+}
+function rymArtistUrl(artist) { const e = rymArtistFor(artist); return e ? 'https://rateyourmusic.com' + e.p + '/' : 'https://rateyourmusic.com/artist/' + smFold(artistCanon(artist)).replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + '/'; }
+function artistDetailsFromRym(artist) {                              // "Fill from RYM": adds what RYM says, never takes away what you set
+  const e = rymArtistFor(artist);
+  if (!e) { flashGlobalToast('Open this artist\u2019s page on Rate Your Music once (with the CRATE add-on 1.21 or later), then Fill from RYM.'); window.open(rymArtistUrl(artist), '_blank', 'noopener'); return; }
+  const main = artistCanon(artist); let n = 0;
+  artistDetailsPut(main, d => {
+    if (!d.type) { d.type = e.born || e.died ? 'Person' : (e.formed || e.disbanded || e.members.length) ? 'Band' : ''; if (d.type) n++; }
+    ['born', 'died', 'formed', 'disbanded'].forEach(f => { if (e[f] && !d[f]) { d[f] = e[f]; n++; } });
+    e.members.forEach(m => { if (!sameArtist(m.name, main) && !d.members.some(x => sameArtist(x.name, m.name))) { d.members.push(m); n++; } });
+  });
+  e.memberOf.forEach(band => { if (sameArtist(band, main) || artistMemberOf(main).some(x => sameArtist(x.band, band))) return; artistDetailsPut(band, d => { if (!d.type) d.type = 'Band'; d.members.push({ name: main, role: '' }); }); n++; });
+  const all = artistAliasesAll(); e.aka.forEach(a => { const k = normMatchKey(a); if (!k || k === normMatchKey(main) || all[k]) return; all[k] = { alias: a, to: main }; n++; });          // (a name that is already another artist's alias is left there)
+  artistAliasesSave(true); artistAliasesChanged();
+  flashGlobalToast(n ? `Added ${n} detail${n === 1 ? '' : 's'} from Rate Your Music.` : 'Nothing new on Rate Your Music for this artist.');
+}
+let aiInfoEditing = '';
+function aiRenderInfo() {                                            // the artist's facts, read like RYM's list (Type, Born, Died, Also known as, Members, Member of); ✎ Edit details for the boxes
+  const box = document.getElementById('aiAliases'), artist = state.activeArtistInfoTab; if (!box || !artist) return;
+  const old = document.getElementById('aiDetails'); if (old) { old.innerHTML = ''; old.hidden = true; }
+  const d = artistDetailsOf(artist), aka = artistAliasesOf(artist), memberOf = artistMemberOf(artist), person = d.type === 'Person', members = d.members || [], ed = !!aiInfoEditing && normMatchKey(aiInfoEditing) === normMatchKey(artist);          // (edit mode is for the artist you pressed it on)
+  const link = (name, role) => `<button type="button" class="ai-member-link" data-member-open="${escapeHtml(name)}">${escapeHtml(name)}</button>${role ? ` <span class="ai-member-role">${escapeHtml(role)}</span>` : ''}`;
+  const row = (k, v) => v ? `<div class="ai-info-k">${k}</div><div class="ai-info-v">${v}</div>` : '';
+  const list = (items) => items.join('<span class="ai-info-sep">, </span>');
+  let rows = '';
+  rows += ed ? row('Type', `<select id="aiArtistType" class="ai-type-select" aria-label="What kind of artist ${escapeHtml(artist)} is"><option value=""${d.type ? '' : ' selected'}>Not set</option>${ARTIST_TYPES.map(t => `<option${d.type === t ? ' selected' : ''}>${t}</option>`).join('')}</select>`) : row('Type', d.type ? escapeHtml(d.type) : '');
+  [['born', 'Born'], ['formed', 'Formed'], ['died', 'Died'], ['disbanded', 'Disbanded']].forEach(([f, k]) => { rows += row(k, d[f] ? escapeHtml(d[f]) : ''); });
+  rows += ed ? row('Also known as', `${aka.map(n => `<span class="ai-aka">${escapeHtml(n)}<button type="button" class="ai-aka-x" data-alias-main="${escapeHtml(n)}" aria-label="Make ${escapeHtml(n)} the main name" title="Make this the main name">\u2605</button><button type="button" class="ai-aka-x" data-alias="${escapeHtml(n)}" aria-label="Remove the alias ${escapeHtml(n)}" title="Remove">\u2715</button></span>`).join('')}<span class="ai-aka-add"><input type="text" id="aiAliasInput" list="aiAliasNames" placeholder="Another name" aria-label="Another name ${escapeHtml(artist)} goes by" autocomplete="off"><button type="button" class="chip-btn" data-alias-add>Add</button></span>`)
+    : row('Also known as', aka.length ? list(aka.map(n => escapeHtml(n))) : '');
+  if (ed && !person) rows += row('Members', `${members.map(m => `<span class="ai-aka">${link(m.name, m.role)}<button type="button" class="ai-aka-x" data-member-del="${escapeHtml(m.name)}" aria-label="Remove ${escapeHtml(m.name)} from the members" title="Remove">\u2715</button></span>`).join('')}<span class="ai-aka-add"><input type="text" id="aiMemberName" list="aiAliasNames" placeholder="Member" aria-label="A member's name" autocomplete="off"><input type="text" id="aiMemberRole" class="ai-member-role-in" placeholder="role" aria-label="Their role (optional)" autocomplete="off"><button type="button" class="chip-btn" data-member-add>Add</button></span>`);
+  else rows += row('Members', members.length ? list(members.map(m => link(m.name, m.role))) : '');
+  rows += row('Member of', memberOf.length ? list(memberOf.map(m => link(m.band, m.role))) : '');
+  const rym = rymArtistFor(artist), hasAny = !!rows, pmb = aiExt(artist).profile && aiExt(artist).profile.mbid;
+  const local = (artistAliasBackend === false && aka.length) || (artistDetailsBackend === false && (d.type || members.length)) ? '<span class="ai-aka-note" title="Update and redeploy the Apps Script backend to keep these with your account">kept in this browser</span>' : '';
+  const acts = ed
+    ? `<button type="button" class="chip-btn" data-info-done>Done</button><button type="button" class="ai-link-btn" data-details-rym title="${rym ? 'Add what RYM\u2019s page for this artist says' : 'Open the artist on Rate Your Music; with the add-on its details come back here'}">Fill from RYM</button>${pmb ? '<button type="button" class="ai-link-btn" data-details-mb>Fill from MusicBrainz</button>' : ''}${local}`
+    : `<button type="button" class="ai-link-btn" data-info-edit>${hasAny ? '\u270e Edit details' : '+ Add details'}</button>${rym && !d.born && !d.formed && !d.type ? '<button type="button" class="ai-link-btn" data-details-rym>Fill from RYM</button>' : ''}${local}`;
+  box.innerHTML = `${rows ? `<div class="ai-info${ed ? ' editing' : ''}">${rows}</div>` : ''}<div class="ai-info-acts">${acts}</div>`
+    + (ed ? `<datalist id="aiAliasNames">${[...new Set(state.raw.map(r => artistCanon(r.artist)))].filter(n => !sameArtist(n, artist)).sort((a, b) => a.localeCompare(b)).slice(0, 3000).map(n => `<option value="${escapeHtml(n)}">`).join('')}</datalist>` : '');
+}
+function aiRenderDetails() { aiRenderInfo(); }
 (function wireDetails() {
-  const box = document.getElementById('aiDetails'); if (!box) return;
+  const box = document.getElementById('aiAliases'); if (!box) return;          // (one block for names and details: see aiRenderInfo)
   const add = () => { const n = document.getElementById('aiMemberName'), r = document.getElementById('aiMemberRole'), artist = state.activeArtistInfoTab; if (!n || !artist) return; const name = n.value.trim(), role = r ? r.value.trim() : '';
     if (!name) { flashGlobalToast('Type a member\u2019s name.'); return; } if (sameArtist(name, artist)) { flashGlobalToast('That is this artist.'); return; }
     artistDetailsPut(artist, d => { const was = d.members.find(m => sameArtist(m.name, name)); if (was) { if (role) was.role = role; } else d.members.push({ name, role }); if (!d.type) d.type = 'Band'; }); setTimeout(() => { const i = document.getElementById('aiMemberName'); if (i) i.focus(); }, 0); };
@@ -682,7 +722,10 @@ function aiRenderDetails() {                                          // the art
     const o = e.target.closest('[data-member-open]'); if (o) { openArtistInfoTab(o.dataset.memberOpen); return; }
     const x = e.target.closest('[data-member-del]'); if (x) { artistDetailsPut(state.activeArtistInfoTab, d => { d.members = d.members.filter(m => !sameArtist(m.name, x.dataset.memberDel)); }); return; }
     if (e.target.closest('[data-member-add]')) { add(); return; }
-    if (e.target.closest('[data-details-mb]')) artistDetailsFromMb(state.activeArtistInfoTab);
+    if (e.target.closest('[data-details-mb]')) { artistDetailsFromMb(state.activeArtistInfoTab); return; }
+    if (e.target.closest('[data-details-rym]')) { artistDetailsFromRym(state.activeArtistInfoTab); return; }
+    if (e.target.closest('[data-info-edit]')) { aiInfoEditing = state.activeArtistInfoTab; aiRenderInfo(); const t = document.getElementById('aiArtistType'); if (t) t.focus(); return; }
+    if (e.target.closest('[data-info-done]')) { aiInfoEditing = ''; aiRenderInfo(); }
   });
   box.addEventListener('change', (e) => { if (e.target.id === 'aiArtistType') artistDetailsPut(state.activeArtistInfoTab, d => { d.type = e.target.value; }); });
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.target.id === 'aiMemberName' || e.target.id === 'aiMemberRole')) { e.preventDefault(); add(); } });
