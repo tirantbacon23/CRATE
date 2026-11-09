@@ -160,6 +160,17 @@ function setShuffle(on) {
   flashGlobalToast(state.shuffle ? 'Shuffle on' : 'Shuffle off');
 }
 
+// (1.94.4) "Play from": '' any (a song's own Spotify link, else its YouTube link, else SoundCloud, else a Spotify search), or one source only:
+// 'spotify' (its YouTube and SoundCloud links are passed over), 'youtube' or 'soundcloud' (a song without that link is skipped, and goes to
+// the Match songs queue). Kept in this browser. Set from the player's source button or ⚙ → Play from… (44-play-source.js).
+const PLAY_SOURCE_KEY = 'crate_play_source_v1';
+const PLAY_SOURCE_NAMES = { '': 'Any source', spotify: 'Spotify', youtube: 'YouTube', soundcloud: 'SoundCloud' };
+function playSource() { try { const v = localStorage.getItem(PLAY_SOURCE_KEY) || ''; return PLAY_SOURCE_NAMES[v] && v ? v : ''; } catch (e) { return ''; } }
+function playSourceSkip(item, trackName, myId, index) {          // a song the chosen source can't play: on to the next
+  flashGlobalToast(`Skipping \u201c${trackName}\u201d \u2014 no ${PLAY_SOURCE_NAMES[playSource()]} link (playing from ${PLAY_SOURCE_NAMES[playSource()]} only).`);
+  mqAdd([item], 'skipped', trackName);
+  playCrateQueueIndex(myId, index + 1);
+}
 async function playCrateQueueIndex(myId, index) {
   if (myId !== crateQueueId) return;
   // Caught up with what's loaded of a big "play everything": load the next release(s) first.
@@ -201,6 +212,15 @@ async function playCrateQueueIndex(myId, index) {
   await pauseForQueueSwitch();
   if (myId !== crateQueueId || crateQueueIndex !== index || !isPlayIntentCurrent(intent)) return;
 
+  const only = playSource();
+  if (only === 'youtube' || only === 'soundcloud') {               // one source only, and not Spotify: its link, or the next song
+    const link = only === 'youtube' ? track.youtubeLink : track.soundcloudLink;
+    crateQueueExpectedSpotifyTrackId = null;
+    if (!link) { playSourceSkip(item, trackName, myId, index); return; }
+    if (only === 'youtube') playCrateTrackOnYoutube(myId, index, link, trackName); else playCrateTrackOnSoundcloud(myId, index, link, trackName);
+    return;
+  }
+
   // A saved Spotify link override (see "Edit track properties…") always
   // wins, on any album — an exact pin the person chose ahead of both the
   // manual-tracklist YouTube link and the automatic fuzzy search below.
@@ -213,7 +233,7 @@ async function playCrateQueueIndex(myId, index) {
 
   // A saved YouTube link (trackData override or, for a manual album, its
   // own manualTracks entry — see trackLinkOverridesFor) plays next.
-  if (track.youtubeLink) {
+  if (track.youtubeLink && only !== 'spotify') {
     crateQueueExpectedSpotifyTrackId = null;
     playCrateTrackOnYoutube(myId, index, track.youtubeLink, trackName);
     return;
@@ -221,7 +241,7 @@ async function playCrateQueueIndex(myId, index) {
 
   // A saved SoundCloud link (trackData override — see trackLinkOverridesFor)
   // plays next, same priority slot as the YouTube check just above.
-  if (track.soundcloudLink) {
+  if (track.soundcloudLink && only !== 'spotify') {
     crateQueueExpectedSpotifyTrackId = null;
     playCrateTrackOnSoundcloud(myId, index, track.soundcloudLink, trackName);
     return;

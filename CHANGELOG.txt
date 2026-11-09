@@ -17,7 +17,23 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.94.3
+  CURRENT_VERSION: 1.94.4
+
+  1.94.4 — 2026-11-09 — Play from one source only (Spotify, YouTube or SoundCloud); dialogs open below a player docked at the top; the floating video steps aside for every dialog. Page only.
+          PLAY FROM: a button on the player (≡; it reads "YT only" and so on
+          when one source is chosen) and ⚙ → "Play from…": Any source (as
+          before: a song's own Spotify, YouTube or SoundCloud link, else a
+          Spotify search), Spotify only (its YouTube and SoundCloud links are
+          passed over), YouTube only or SoundCloud only (a song without that
+          link is skipped, and goes to the Match songs queue). It holds for
+          queues, a song played on its own, and a release played whole (not
+          from Spotify: song by song from the chosen source). Kept in this
+          browser.
+          PLAYER AT THE TOP: docked there, it covered the top of a dialog
+          (Pull details' title, with the release's name, was under it).
+          Dialogs now start below it.
+          FLOATING VIDEO: it stepped aside only for some dialogs; now for all of
+          them (Pull details, Merge, Mood, the RYM queue, an album's window…).
 
   1.94.3 — 2026-11-09 — Fixed: playback sync in a second CRATE window never sent or heard anything; the floating video shows its controls only on hover and no longer covers the ⚙ menu or dialogs. Page only.
           SYNC: with CRATE open more than once on a computer (two tabs, or the

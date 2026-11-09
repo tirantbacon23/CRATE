@@ -309,6 +309,14 @@ async function playTrackNow(item, trackName, trackNum) {
   // app's primary/continuous player, then YouTube.
   const links = trackLinkOverridesFor(item, trackNum, trackName);
   nowPlayingYoutubeLink = links.youtubeLink || '';
+  const only = playSource();                                         // (1.94.4) "Play from" one source only
+  if (only === 'youtube' || only === 'soundcloud') {
+    const link = only === 'youtube' ? links.youtubeLink : links.soundcloudLink;
+    if (!link) { flashGlobalToast(`\u201c${trackName}\u201d has no ${PLAY_SOURCE_NAMES[only]} link (playing from ${PLAY_SOURCE_NAMES[only]} only).`); return; }
+    if (only === 'youtube') openYoutubePlayer(link, trackName, state.trackCache[artKey(item)], item); else openSoundcloudPlayer(link, trackName, state.trackCache[artKey(item)], item);
+    return;
+  }
+  if (only === 'spotify') { links.youtubeLink = ''; links.soundcloudLink = ''; }
   const overrideUri = trackSpotifyUriFromLink(links.spotifyLink);
   if (overrideUri) {
     await showMiniPlayer(overrideUri, beginPlayIntent());
@@ -943,6 +951,7 @@ async function openAlbumOnSoundcloud(item) {
 // Spotify Connect device — same mechanism as the deck's "▶ Play" button and
 // per-track play buttons, just entered from the right-click menu instead.
 async function playAlbumNow(item) {
+  if (playSource() && playSource() !== 'spotify') return playAlbumReplacingQueue(item);          // (1.94.4) not from Spotify: song by song, from the chosen source
   nowPlayingItem = item;
   const intent = beginPlayIntent();
   flashGlobalToast(`Looking up "${item.title}" on Spotify…`);

@@ -418,6 +418,8 @@ html, body {
   .pb-pill-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .pb-pill-t b { color: var(--accent); font-weight: 600; margin-right: 4px; } .pb-pill-sub { color: var(--text-dim, #8a8f98); }
   .pb-pill-ico { color: var(--accent); } .pb-pill-go { white-space: nowrap; }
   .pb-pill-btn { background: none; border: 0; color: var(--text-dim, #8a8f98); cursor: pointer; font-size: 14px; padding: 2px 6px; } .pb-pill-btn:hover { color: var(--text); }
+  .ps-btn { font-size: 11px; white-space: nowrap; } .ps-btn.ps-on { color: var(--accent); }          /* "Play from" (44-play-source.js) */
+  .ps-menu { width: 310px; max-width: calc(100vw - 32px); } .ps-menu button[data-ps] { display: flex; gap: 8px; align-items: flex-start; text-align: left; } .ps-menu button span:last-child { display: flex; flex-direction: column; } .ps-menu small { color: var(--text-dim, #8a8f98); font-size: 11px; } .ps-dot { color: var(--accent); }
   .pb-menu { width: 330px; max-width: calc(100vw - 32px); padding-bottom: 8px; }
   .pb-opt { display: flex; gap: 8px; align-items: flex-start; padding: 6px 12px; font-size: 12.5px; cursor: pointer; } .pb-opt small { color: var(--text-dim, #8a8f98); font-size: 11.5px; line-height: 1.35; }
   .pb-name { align-items: center; cursor: default; } .pb-name input { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 4px 6px; font: inherit; }
@@ -4129,7 +4131,12 @@ html, body {
      covered the ⚙ menu. The top bar's menus now go over the player bar; while a dialog is open the video steps aside (it plays on). */
   .topbar .panel-mode-menu { z-index: 650; }
   .mini-player-video-wrap.vf-floating { transition: opacity 0.15s; }
-  body.dialog-open .mini-player-video-wrap.vf-floating:not(:fullscreen) { opacity: 0; pointer-events: none; }
+  body.dialog-open .mini-player-video-wrap.vf-floating:not(:fullscreen),
+  body:has(:is(.del-overlay, .mood-overlay, .mg-overlay, .rymq-overlay, .desc-overlay, .props-overlay, .gx-overlay):not([hidden])) .mini-player-video-wrap.vf-floating:not(:fullscreen),
+  body:has(.deck-overlay.open) .mini-player-video-wrap.vf-floating:not(:fullscreen) { opacity: 0; pointer-events: none; }          /* (1.94.4) every kind of dialog, not only the arrange-overlay ones (Pull details is a del-overlay) */
+  /* (1.94.4) The player docked at the top sits over the top of a dialog (Pull details' title, with the release's name, was under it): dialogs start below it */
+  body.mp-docked-top :is(.del-overlay, .mood-overlay, .mg-overlay, .rymq-overlay, .desc-overlay, .props-overlay, .arrange-overlay:not(.map-overlay)) { padding-top: calc(96px + env(safe-area-inset-top, 0px)); }
+  body.mp-docked-top .pd-dialog { max-height: calc(100vh - 112px); }
   /* The floating video's own controls (1.94.3): along its foot, only while the mouse is over it (in fullscreen, for a moment after it moves) */
   .vf-ctl { display: none; }
   .vf-floating .vf-ctl, .mini-player-video-wrap:fullscreen .vf-ctl { display: flex; position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; align-items: center; gap: 8px; padding: 18px 26px 8px 10px; background: linear-gradient(transparent, rgba(0,0,0,0.75)); color: #fff; font-size: 11.5px; opacity: 0; transition: opacity 0.18s; pointer-events: none; }
