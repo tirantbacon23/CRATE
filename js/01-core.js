@@ -5,7 +5,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.92.3';
+const APP_VERSION = '1.92.4';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -929,7 +929,7 @@ const state = {
   genreChartMb: 'off',  // Years active chart: 'off' = your crate only, 'both' = + MusicBrainz overlaid, 'only' = MusicBrainz alone
   genreUi: {},          // per genre (by taxonomy key): include sub-genres, sort, view, year filter, compare, editing — kept while its tab is open
   artistInfoSubTab: {}, // per artist: which of the page's sub-tabs ('stats'|'albums'|'profile'|'similar') is showing — session only
-  artistInfoTrackSort: 'plays', // Top Tracks order: 'plays' | 'album'
+  artistInfoTrackSort: 'rym', // Top Tracks order: 'rym' (RYM average, weighted by how many rated it) | 'votes' (most rated on RYM) | 'plays' | 'album'
   artistInfoShowAllTracks: false,
   artistInfoTabs: [], // ordered list of artist names, each an independently open/closeable tab — genuine multi-tab, not one reused tab. See openArtistInfoTab()/closeArtistInfoTab()/renderArtistInfoTabButtons()
   activeArtistInfoTab: null, // which one of artistInfoTabs (if any) is the currently showing one — independent of navFilter (which only ever governs the Music tab's own grid)

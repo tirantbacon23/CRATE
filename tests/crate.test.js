@@ -853,3 +853,24 @@ suite('Artist aliases', () => {
     } finally { app('artistAliasMap = ' + JSON.stringify(was)); }
   });
 });
+
+suite('RYM tracklists: lettered parts of a track', () => {
+  test('"a) Part 1" with no position of its own, under a track that has one, folds into it', () => {
+    const fold = app('rymFoldParts'), t = (pos, title, s) => Object.assign({ title, durationMs: s * 1000 }, pos ? { pos } : {});
+    const out = fold([t('A3', 'Twenty Small Cigars', 137), t('A4', 'The Nancy & Mary Music', 0), t('', 'a) Part 1', 162), t('', 'b) Part 2', 251), t('', 'c) Part 3', 157), t('B1', 'Tell Me You Love Me', 163)]);
+    eq(out.map(x => [x.pos, x.title, x.durationMs / 1000]), [['A3', 'Twenty Small Cigars', 137], ['A4', 'The Nancy & Mary Music', 570], ['B1', 'Tell Me You Love Me', 163]]);
+    eq(fold([t('', 'a) Intro', 60), t('', 'b) Song', 200)]).length, 2);          // no positions anywhere: left as songs
+  });
+});
+
+suite('Artist aliases: the main name', () => {
+  test('making an alias the main name turns the old main name, and every other alias, into lesser names of it', () => {
+    const was = app('artistAliasMap'), save = app('artistAliasesSave');
+    app('artistAliasesSave = () => {}; artistAliasMap = ' + JSON.stringify({ 'frank zappa': { alias: 'Frank Zappa', to: 'Zappa' }, 'the mothers': { alias: 'The Mothers', to: 'Zappa' } }));
+    try {
+      eq(app('artistAliasMakeMain')('Frank Zappa'), 'Frank Zappa');
+      eq([app('artistCanon')('Zappa'), app('artistCanon')('The Mothers'), app('artistCanon')('Frank Zappa')], ['Frank Zappa', 'Frank Zappa', 'Frank Zappa']);
+      eq(app('artistAliasesOf')('Frank Zappa'), ['The Mothers', 'Zappa']);
+    } finally { app('artistAliasMap = ' + JSON.stringify(was)); window.__s = save; app('artistAliasesSave = parent.__s'); }
+  });
+});

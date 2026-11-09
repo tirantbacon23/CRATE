@@ -2753,7 +2753,10 @@ html, body {
   .ai-track-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 4px 4px; font-size: 12.5px; color: var(--text-dim); cursor: default; border-radius: 3px; }
   .ai-track-row:hover { background: var(--bg-card); color: var(--text); }
   .ai-track-name { min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ai-track-plays { font: 12px 'IBM Plex Mono', monospace; flex: 0 0 auto; }
+  .ai-track-plays { font: 12px 'IBM Plex Mono', monospace; flex: 0 0 34px; text-align: right; }
+  .ai-track-rym { flex: 0 0 58px; text-align: right; font: 12px 'IBM Plex Mono', monospace; color: var(--accent); } .ai-track-rym small { margin-left: 4px; font-size: 10.5px; color: var(--text-dim); }
+  .ai-track-row:not(.wide) .ai-track-name { flex: 1 1 auto; min-width: 0; }
+  .ai-track-cols { display: flex; gap: 10px; padding: 0 4px 4px; font: 10px 'IBM Plex Mono', monospace; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim); } .ai-track-cols span:first-child { flex: 1 1 auto; } .ai-track-cols span:nth-child(2) { flex: 0 0 58px; text-align: right; } .ai-track-cols span:last-child { flex: 0 0 34px; text-align: right; } .ai-track-cols span { white-space: nowrap; }
   .ai-track-plays.zero { opacity: 0.5; }
   .ai-track-row.wide { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.6fr) 52px 36px; align-items: baseline; padding: 7px 8px; border-top: 1px solid var(--line); font-size: 13px; }
   .ai-track-row.wide .ai-track-album { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

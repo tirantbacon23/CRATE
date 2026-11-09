@@ -573,6 +573,17 @@ function artistAliasAdd(alias, main) {                               // -> '' wh
   Object.values(all).forEach(e => { if (normMatchKey(e.to) === k) e.to = main; });          // the alias had aliases of its own: they come along
   all[k] = { alias, to: main }; artistAliasesSave(true); artistAliasesChanged(); return '';
 }
+function artistAliasMakeMain(alias) {                               // ★ on an alias: it becomes the main name, and the old main name (and every other alias) a lesser one of it
+  const all = artistAliasesAll(), k = normMatchKey(alias), e = all[k]; if (!e) return '';
+  const oldMain = e.to, oldK = normMatchKey(oldMain), main = e.alias;
+  delete all[k];
+  Object.values(all).forEach(x => { if (normMatchKey(x.to) === oldK) x.to = main; });
+  all[oldK] = { alias: oldMain, to: main };
+  state.artistInfoTabs = state.artistInfoTabs.map(a => normMatchKey(a) === oldK ? main : a);          // an open tab of the old main name is now the new one's
+  if (normMatchKey(state.activeArtistInfoTab) === oldK) state.activeArtistInfoTab = main;
+  if (state.navFilter && state.navFilter.mode === 'artist' && normMatchKey(state.navFilter.value) === oldK) state.navFilter.value = main;
+  artistAliasesSave(true); if (typeof renderArtistInfoTabButtons === 'function') renderArtistInfoTabButtons(); artistAliasesChanged(); return main;
+}
 function artistAliasRemove(alias) { const all = artistAliasesAll(), k = normMatchKey(alias); if (!all[k]) return; delete all[k]; artistAliasesSave(true); artistAliasesChanged(); }
 function artistAliasesChanged() {                                    // groupings follow at once
   if (typeof buildLeftList === 'function') buildLeftList();
@@ -582,7 +593,7 @@ function artistAliasesChanged() {                                    // grouping
 function aiRenderAliases() {                                         // "Also known as" under the artist's name, with Add and ✕
   const box = document.getElementById('aiAliases'), artist = state.activeArtistInfoTab; if (!box || !artist) return;
   const names = artistAliasesOf(artist), owned = new Set(state.raw.map(r => r.artist));
-  box.innerHTML = `<span class="ai-aka-k">Also known as</span>${names.map(n => `<span class="ai-aka">${escapeHtml(n)}${owned.has(n) ? '' : ''}<button type="button" class="ai-aka-x" data-alias="${escapeHtml(n)}" aria-label="Remove the alias ${escapeHtml(n)}" title="Remove">\u2715</button></span>`).join('')}`
+  box.innerHTML = `<span class="ai-aka-k" title="${escapeHtml(artist)} is the main name; these are lesser names of it. \u2605 makes one of them the main name.">Also known as</span>${names.map(n => `<span class="ai-aka">${escapeHtml(n)}<button type="button" class="ai-aka-x" data-alias-main="${escapeHtml(n)}" aria-label="Make ${escapeHtml(n)} the main name" title="Make this the main name (${escapeHtml(artist)} becomes one of its aliases)">\u2605</button><button type="button" class="ai-aka-x" data-alias="${escapeHtml(n)}" aria-label="Remove the alias ${escapeHtml(n)}" title="Remove">\u2715</button></span>`).join('')}`
     + `<span class="ai-aka-add"><input type="text" id="aiAliasInput" list="aiAliasNames" placeholder="${names.length ? 'Another name' : 'Add a name it goes by'}" aria-label="Add another name ${escapeHtml(artist)} goes by" autocomplete="off"><button type="button" class="chip-btn" data-alias-add>Add</button></span>`
     + `<datalist id="aiAliasNames">${[...owned].filter(n => !sameArtist(n, artist)).sort((a, b) => a.localeCompare(b)).slice(0, 3000).map(n => `<option value="${escapeHtml(n)}">`).join('')}</datalist>`
     + (artistAliasBackend === false && names.length ? '<span class="ai-aka-note" title="Update and redeploy the Apps Script backend to keep aliases with your account">kept in this browser</span>' : '');
@@ -590,7 +601,7 @@ function aiRenderAliases() {                                         // "Also kn
 (function wireAliases() {
   const box = document.getElementById('aiAliases'); if (!box) return;
   const add = () => { const inp = document.getElementById('aiAliasInput'), artist = state.activeArtistInfoTab; if (!inp || !artist) return; const why = artistAliasAdd(inp.value, artist); if (why) { flashGlobalToast(why); return; } flashGlobalToast(`\u201c${inp.value.trim()}\u201d is now ${artistCanon(artist)}.`); };
-  box.addEventListener('click', (e) => { const x = e.target.closest('[data-alias]'); if (x) { artistAliasRemove(x.dataset.alias); return; } if (e.target.closest('[data-alias-add]')) add(); });
+  box.addEventListener('click', (e) => { const m = e.target.closest('[data-alias-main]'); if (m) { const main = artistAliasMakeMain(m.dataset.aliasMain); if (main) flashGlobalToast(`${main} is now the main name.`); return; } const x = e.target.closest('[data-alias]'); if (x) { artistAliasRemove(x.dataset.alias); return; } if (e.target.closest('[data-alias-add]')) add(); });
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'aiAliasInput') { e.preventDefault(); add(); } });
 })();
 function computeArtistStats(artistName) {
@@ -787,14 +798,19 @@ function aiTrackRows(artist) {
     if (!tracks && isManualAlbum(item)) tracks = item.manualTracks.map(t => ({ trackNumber: t.trackNumber, trackName: t.title, trackTimeMillis: t.durationMs || null }));
     (tracks || []).forEach(t => rows.push({
       item, trackName: t.trackName, trackNum: t.trackNumber != null ? t.trackNumber : '', ms: t.trackTimeMillis || 0,
-      order: rows.length, plays: trackScrobbleCountFor(item.artist, item.title, t.trackName)
+      order: rows.length, plays: trackScrobbleCountFor(item.artist, item.title, t.trackName),
+      ...(() => { const ov = trackLinkOverridesFor(item, t.trackNumber, t.trackName), r = rymNum(ov.rymRating) || rymNum(t.rymRating); return { rym: r, votes: r ? (rymVotesNum(ov.rymVotes) || rymVotesNum(t.rymVotes) || 0) : 0 }; })()          // the song's RYM average and how many rated it
     }));
   });
   return rows;
 }
-function aiSortedRows(artist) {
-  const rows = aiTrackRows(artist);
-  if (state.artistInfoTrackSort === 'plays') rows.sort((a, b) => b.plays - a.plays || a.order - b.order);
+function aiSortedRows(artist) {                                     // rym: RYM average weighted by how many rated it (a 4.3 from 9 people doesn't outrank a 4.0 from 250) · votes: most rated · plays: yours · album: as on the releases
+  const rows = aiTrackRows(artist), mode = state.artistInfoTrackSort, rated = rows.filter(r => r.rym);
+  const byPlays = (a, b) => b.plays - a.plays || a.order - b.order;
+  if ((mode === 'rym' || mode === 'votes') && !rated.length) { rows.sort(byPlays); return rows; }          // nothing rated on RYM yet: most played instead
+  if (mode === 'rym') { const mean = rated.reduce((s, r) => s + r.rym, 0) / rated.length, m = 50, w = (r) => r.rym ? (r.votes * r.rym + m * mean) / (r.votes + m) : -1; rows.sort((a, b) => w(b) - w(a) || byPlays(a, b)); }
+  else if (mode === 'votes') rows.sort((a, b) => b.votes - a.votes || b.rym - a.rym || byPlays(a, b));
+  else if (mode === 'plays') rows.sort(byPlays);
   return rows;
 }
 // Real tracklists for releases that haven't had theirs fetched yet (a manually
@@ -823,7 +839,8 @@ function aiTrackRowHtml(r, i, withAlbum) {
   return `<div class="ai-track-row${withAlbum ? ' wide' : ''}" data-i="${i}" title="Double-click to play \u00b7 right-click for more">
     <span class="ai-track-name">${escapeHtml(r.trackName)}</span>
     ${withAlbum ? `<span class="ai-track-album">${escapeHtml(r.item.title)}</span><span class="ai-track-time">${aiClock(r.ms)}</span>` : ''}
-    <span class="ai-track-plays${r.plays ? '' : ' zero'}">${r.plays}</span>
+    ${withAlbum ? '' : `<span class="ai-track-rym"${r.rym ? ` title="RYM ${r.rym.toFixed(2)}${r.votes ? ` from ${r.votes.toLocaleString()} ratings` : ''}"` : ''}>${r.rym ? `${r.rym.toFixed(1)}<small>${r.votes ? (r.votes >= 1000 ? (r.votes / 1000).toFixed(r.votes >= 10000 ? 0 : 1) + 'k' : r.votes) : ''}</small>` : ''}</span>`}
+    <span class="ai-track-plays${r.plays ? '' : ' zero'}" title="Your plays">${r.plays}</span>
   </div>`;
 }
 function aiRenderTopTracks(artist) {
@@ -852,7 +869,8 @@ function aiStatsBodyHtml(owned) {
     <div id="artistInfoGrid" class="ai-album-grid">${tiles}</div>
     <aside class="ai-top-tracks">
       <label class="ai-top-head"><select id="aiTrackSort" aria-label="Order of the track list">
-        <option value="plays">Top tracks</option><option value="album">Album order</option></select></label>
+        <option value="rym">Top rated (RYM)</option><option value="votes">Most popular (RYM)</option><option value="plays">Most played</option><option value="album">Album order</option></select></label>
+      <div class="ai-track-cols" aria-hidden="true"><span></span><span title="RYM average, and how many rated it">RYM</span><span>plays</span></div>
       <div id="aiTopTracks" class="ai-track-list"></div>
       <div class="ai-total"><span>TOTAL PLAY COUNT</span><span id="aiTotalPlays"></span></div>
     </aside>

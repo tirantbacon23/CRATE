@@ -17,7 +17,27 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.92.3
+  CURRENT_VERSION: 1.92.4
+
+  1.92.4 — 2026-11-09 — A track's lettered parts ("a) Part 1") are no longer songs of their own; an alias can be made the main name; an artist's Top tracks show each song's RYM rating and how many rated it, beside your plays. Page and RYM add-on 1.20.1.
+          PARTS: Rate Your Music lists the parts of a track under it with no
+          position of their own ("A4 The Nancy & Mary Music", then "a) Part 1",
+          "b) Part 2", "c) Part 3"). They were read as songs, so the release had
+          too many and the parts were flagged with no link. Now a lettered part
+          ("a)", "b.", "i.") with no position, under a track that has one, is
+          part of it, and adds its length to a track that had none. The add-on
+          (1.20.1) reads them so; CRATE also folds them in lists the add-on read
+          before. A release that already saved them as songs: Edit tracks →
+          Fill from RYM again (or delete the part rows).
+          MAIN NAME: each alias on an artist's page has ★, "Make this the main
+          name": it becomes the main name, and the old one (and every other
+          alias) a lesser name of it. On Zappa's page, add "Frank Zappa" and ★
+          it, and Frank Zappa is the main name with Zappa beneath it.
+          TOP TRACKS: on an artist's page, each song shows its RYM average and
+          how many rated it (4.1 · 260), beside your plays. The order can be
+          Top rated (RYM, weighted by how many rated it; the default), Most
+          popular (RYM, most rated), Most played or Album order. With no RYM
+          ratings for the artist's songs yet, it is by your plays.
 
   1.92.3 — 2026-11-09 — "Update from Rate Your Music" says it reads in the background: with the RYM add-on 1.20.0 no tab opens, unless Rate Your Music asks for a check. Page only (the change is in the add-on).
           The add-on 1.20.0 reads the release pages in an invisible frame of

@@ -286,10 +286,16 @@ function rymSongUrl(x) {                                       // a track's own 
   const u = typeof x === 'string' ? x.trim() : '';
   return u.length <= 300 && /^https:\/\/(www\.)?rateyourmusic\.com\/song\/[^\s"'<>?#]+$/.test(u) ? u : '';
 }
+const RYM_TL_PART = /^\(?(?:[a-z]|[ivx]{1,4})[.)]\s+\S/i;
+function rymFoldParts(tracks) {                                   // a lettered part with no position of its own ("a) Part 1") under a track that has one is part of it, not a song: as the add-on does from 1.20.1, for lists it read before
+  const out = []; let open = null;
+  tracks.forEach(t => { const prev = out[out.length - 1]; if (!t.pos && RYM_TL_PART.test(t.title) && prev && prev.pos) { if (open) open.durationMs += t.durationMs || 0; return; } const o = Object.assign({}, t); out.push(o); open = o.durationMs ? null : o; });
+  return out;
+}
 function rymCleanTracklists(list) {                              // whatever arrives is untrusted: only text and numbers, bounded
   const str = (x, n) => typeof x === 'string' ? x.slice(0, n) : '';
   return (Array.isArray(list) ? list : []).slice(0, 400).map(e => ({ p: str(e && e.p, 200), ar: str(e && e.ar, 200), ti: str(e && e.ti, 200), ty: str(e && e.ty, 30), u: str(e && e.u, 300), t: Number(e && e.t) || 0,
-    tracks: (Array.isArray(e && e.tracks) ? e.tracks : []).slice(0, 200).map(t => ({ title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), pos: rymPosStr(t && t.pos), bold: !!(t && t.bold === true), rating: rymNum(t && t.rating), votes: rymNum(t && t.rating) ? rymVotesNum(t && t.votes) : 0, url: rymSongUrl(t && t.url) })).filter(t => t.title),
+    tracks: rymFoldParts((Array.isArray(e && e.tracks) ? e.tracks : []).slice(0, 200).map(t => ({ title: str(t && t.title, 200).trim(), durationMs: Math.max(0, Math.round(Number(t && t.durationMs) || 0)), section: str(t && t.section, 40).trim(), pos: rymPosStr(t && t.pos), bold: !!(t && t.bold === true), rating: rymNum(t && t.rating), votes: rymNum(t && t.rating) ? rymVotesNum(t && t.votes) : 0, url: rymSongUrl(t && t.url) })).filter(t => t.title)),          // (lettered parts folded into their track: rymFoldParts)
     d: (() => { const d = e && e.d && typeof e.d === 'object' ? e.d : {}, cover = str(d.cover, 500); return { label: str(d.label, 200).trim(), catalog: str(d.catalog, 100).trim(), date: /^\d{4}(-\d{2}){0,2}$/.test(str(d.date, 10)) ? d.date : '', genre: str(d.genre, 400).trim(), cover: /^https:\/\//i.test(cover) ? cover : '' }; })() })).filter(e => e.p && e.tracks.length >= 2)          // d: the release's label, date, genres and cover (add-on 1.18.0), for Pull details.map(e => Object.assign(e, { wrong: rymTracklistLooksWrong(e.tracks) }));
 }
 function tlRymPick(list, probe) {                                // the add-on's tracklist for THIS release: by its saved RYM address, else artist + title + type (the rules the ratings use); the newest if several
