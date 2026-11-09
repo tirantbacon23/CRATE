@@ -604,6 +604,89 @@ function aiRenderAliases() {                                         // "Also kn
   box.addEventListener('click', (e) => { const m = e.target.closest('[data-alias-main]'); if (m) { const main = artistAliasMakeMain(m.dataset.aliasMain); if (main) flashGlobalToast(`${main} is now the main name.`); return; } const x = e.target.closest('[data-alias]'); if (x) { artistAliasRemove(x.dataset.alias); return; } if (e.target.closest('[data-alias-add]')) add(); });
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'aiAliasInput') { e.preventDefault(); add(); } });
 })();
+// ---- Artist details: what kind of artist each is (a person, a band, a group…) and a band's members, so a person's page can say which bands they
+// are in. Kept by the main name (see artistCanon), with your account (the backend's ArtistDetails setting, 1.92.6+), and in this browser until it has it.
+const ARTIST_TYPES = ['Person', 'Band', 'Group', 'Duo', 'Trio', 'Orchestra', 'Choir', 'Collective', 'Project', 'Other'];
+const ARTIST_DETAILS_KEY = 'crate_artist_details_v1', ARTIST_DETAILS_DIRTY_KEY = 'crate_artist_details_dirty';
+let artistDetailsMap = null, artistDetailsBackend = null;
+function artistDetailsAll() { if (!artistDetailsMap) { try { artistDetailsMap = artistDetailsClean(JSON.parse(localStorage.getItem(ARTIST_DETAILS_KEY) || '{}')); } catch (e) { artistDetailsMap = {}; } } return artistDetailsMap; }
+function artistDetailsClean(raw) {                                   // untrusted: a known type, members as names and short roles, bounded
+  const out = {}, s = (v, n) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n);
+  Object.values(raw && typeof raw === 'object' ? raw : {}).slice(0, 5000).forEach(e => {
+    const name = s(e && e.name, 200), k = normMatchKey(name); if (!k) return;
+    const type = ARTIST_TYPES.includes(e.type) ? e.type : '', seen = new Set();
+    const members = (Array.isArray(e.members) ? e.members : []).slice(0, 100).map(m => ({ name: s(m && m.name, 200), role: s(m && m.role, 80) })).filter(m => { const mk = normMatchKey(m.name); if (!mk || mk === k || seen.has(mk)) return false; seen.add(mk); return true; });
+    if (type || members.length) out[k] = Object.assign({ name, type }, members.length ? { members } : {});
+  });
+  return out;
+}
+function artistDetailsOf(artist) { const main = artistCanon(artist); return artistDetailsAll()[normMatchKey(main)] || { name: main, type: '', members: [] }; }
+function artistMemberOf(artist) {                                     // the bands that list this artist (or one of its names) as a member, with the role
+  return Object.values(artistDetailsAll()).flatMap(d => (d.members || []).filter(m => sameArtist(m.name, artist)).map(m => ({ band: d.name, role: m.role }))).sort((a, b) => a.band.localeCompare(b.band));
+}
+function artistDetailsPut(artist, change) {                          // change(d) edits a copy of this artist's details; an empty one is dropped
+  const main = artistCanon(artist), k = normMatchKey(main), all = artistDetailsAll(), d = Object.assign({ name: main, type: '', members: [] }, all[k] || {}, { name: main });
+  d.members = (d.members || []).map(m => Object.assign({}, m)); change(d);
+  if (d.type || d.members.length) all[k] = artistDetailsClean({ x: d })[k] || d; else delete all[k];
+  artistDetailsSave(true); aiRenderDetails();
+}
+function artistDetailsSave(sync) {
+  try { localStorage.setItem(ARTIST_DETAILS_KEY, JSON.stringify(artistDetailsMap || {})); } catch (e) { /* kept for this visit only */ }
+  if (sync === false) return;
+  try { localStorage.setItem(ARTIST_DETAILS_DIRTY_KEY, '1'); } catch (e) { /* ignore */ }
+  postUpdate({ action: 'saveArtistDetails', details: JSON.stringify(artistDetailsMap || {}) })
+    .then(res => { artistDetailsBackend = !!(res && res.detailsSaved); if (artistDetailsBackend) { try { localStorage.removeItem(ARTIST_DETAILS_DIRTY_KEY); } catch (e) { /* ignore */ } } aiRenderDetails(); })
+    .catch(() => { artistDetailsBackend = false; aiRenderDetails(); });
+}
+function artistDetailsArrived(data) {                                // the catalogue's answer: the account's details, unless this browser has some it never received
+  if (!data || data.details !== true) { artistDetailsBackend = false; return; }
+  artistDetailsBackend = true;
+  let dirty = false; try { dirty = localStorage.getItem(ARTIST_DETAILS_DIRTY_KEY) === '1'; } catch (e) { /* ignore */ }
+  if (dirty || (!data.artistDetails && Object.keys(artistDetailsAll()).length)) { artistDetailsSave(true); return; }
+  let theirs = {}; try { theirs = data.artistDetails ? JSON.parse(data.artistDetails) : {}; } catch (e) { theirs = {}; }
+  artistDetailsMap = artistDetailsClean(theirs); artistDetailsSave(false);
+}
+async function artistDetailsFromMb(artist) {                         // "Fill from MusicBrainz": its type and (for a group) its members and their instruments, from the artist this page is matched to
+  const p = aiExt(artist).profile, mbid = p && p.mbid; if (!mbid) { flashGlobalToast('This page isn\u2019t matched to a MusicBrainz artist yet.'); return; }
+  let j; try { const res = await mbFetch(`https://musicbrainz.org/ws/2/artist/${mbid}?inc=artist-rels&fmt=json`, { headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' } }); if (!res.ok) throw new Error(res.status); j = await res.json(); }
+  catch (e) { flashGlobalToast('Couldn\u2019t reach MusicBrainz \u2014 try again in a moment.'); return; }
+  const mbType = { Person: 'Person', Group: 'Band', Orchestra: 'Orchestra', Choir: 'Choir' }[j.type] || (j.type ? 'Other' : '');
+  const seen = new Map();
+  (j.relations || []).filter(r => r.type === 'member of band' && r.direction === 'backward' && r.artist && r.artist.name).forEach(r => {
+    const role = (r.attributes || []).filter(a => !/^(original|founder|additional|minor)$/i.test(a)).join(', ');
+    const was = seen.get(r.artist.name); seen.set(r.artist.name, was && was.role ? was : { name: r.artist.name, role });
+  });
+  const found = [...seen.values()];
+  artistDetailsPut(artist, d => { if (mbType && !d.type) d.type = mbType; found.forEach(m => { if (!d.members.some(x => sameArtist(x.name, m.name))) d.members.push(m); }); });
+  flashGlobalToast(found.length ? `Added ${found.length} member${found.length === 1 ? '' : 's'} from MusicBrainz.` : mbType ? `MusicBrainz says: ${mbType}.` : 'MusicBrainz has no type or members for this artist.');
+}
+function aiRenderDetails() {                                          // the artist's type, a band's members, and the bands a person is in
+  const box = document.getElementById('aiDetails'), artist = state.activeArtistInfoTab; if (!box || !artist) return;
+  const d = artistDetailsOf(artist), memberOf = artistMemberOf(artist), person = d.type === 'Person', owned = [...new Set(state.raw.map(r => artistCanon(r.artist)))];
+  const chip = (name, role, attrs) => `<span class="ai-aka"><button type="button" class="ai-member-link" data-member-open="${escapeHtml(name)}" title="Open ${escapeHtml(name)}">${escapeHtml(name)}</button>${role ? `<span class="ai-member-role">${escapeHtml(role)}</span>` : ''}${attrs || ''}</span>`;
+  const typeSel = `<select id="aiArtistType" class="ai-type-select" aria-label="What kind of artist ${escapeHtml(artist)} is"><option value=""${d.type ? '' : ' selected'}>Type\u2026</option>${ARTIST_TYPES.map(t => `<option${d.type === t ? ' selected' : ''}>${t}</option>`).join('')}</select>`;
+  const members = person ? '' : `<span class="ai-aka-k">Members</span>${(d.members || []).map(m => chip(m.name, m.role, `<button type="button" class="ai-aka-x" data-member-del="${escapeHtml(m.name)}" aria-label="Remove ${escapeHtml(m.name)} from the members" title="Remove">\u2715</button>`)).join('')}`
+    + `<span class="ai-aka-add"><input type="text" id="aiMemberName" list="aiMemberNames" placeholder="${(d.members || []).length ? 'Another member' : 'Add a member'}" aria-label="A member's name" autocomplete="off"><input type="text" id="aiMemberRole" class="ai-member-role-in" placeholder="role" aria-label="Their role (optional)" autocomplete="off"><button type="button" class="chip-btn" data-member-add>Add</button></span>`
+    + `<datalist id="aiMemberNames">${owned.filter(n => !sameArtist(n, artist)).sort((a, b) => a.localeCompare(b)).slice(0, 3000).map(n => `<option value="${escapeHtml(n)}">`).join('')}</datalist>`;
+  const of = memberOf.length ? `<span class="ai-aka-k">Member of</span>${memberOf.map(m => chip(m.band, m.role)).join('')}` : '';
+  const mb = aiExt(artist).profile && aiExt(artist).profile.mbid ? '<button type="button" class="ai-link-btn" data-details-mb title="Its type, and a group\u2019s members with their instruments, from MusicBrainz">Fill from MusicBrainz</button>' : '';
+  const note = artistDetailsBackend === false && (d.type || (d.members || []).length) ? '<span class="ai-aka-note" title="Update and redeploy the Apps Script backend to keep these with your account">kept in this browser</span>' : '';
+  box.innerHTML = `${typeSel}${members}${of}${mb}${note}`;
+}
+(function wireDetails() {
+  const box = document.getElementById('aiDetails'); if (!box) return;
+  const add = () => { const n = document.getElementById('aiMemberName'), r = document.getElementById('aiMemberRole'), artist = state.activeArtistInfoTab; if (!n || !artist) return; const name = n.value.trim(), role = r ? r.value.trim() : '';
+    if (!name) { flashGlobalToast('Type a member\u2019s name.'); return; } if (sameArtist(name, artist)) { flashGlobalToast('That is this artist.'); return; }
+    artistDetailsPut(artist, d => { const was = d.members.find(m => sameArtist(m.name, name)); if (was) { if (role) was.role = role; } else d.members.push({ name, role }); if (!d.type) d.type = 'Band'; }); setTimeout(() => { const i = document.getElementById('aiMemberName'); if (i) i.focus(); }, 0); };
+  box.addEventListener('click', (e) => {
+    const o = e.target.closest('[data-member-open]'); if (o) { openArtistInfoTab(o.dataset.memberOpen); return; }
+    const x = e.target.closest('[data-member-del]'); if (x) { artistDetailsPut(state.activeArtistInfoTab, d => { d.members = d.members.filter(m => !sameArtist(m.name, x.dataset.memberDel)); }); return; }
+    if (e.target.closest('[data-member-add]')) { add(); return; }
+    if (e.target.closest('[data-details-mb]')) artistDetailsFromMb(state.activeArtistInfoTab);
+  });
+  box.addEventListener('change', (e) => { if (e.target.id === 'aiArtistType') artistDetailsPut(state.activeArtistInfoTab, d => { d.type = e.target.value; }); });
+  box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.target.id === 'aiMemberName' || e.target.id === 'aiMemberRole')) { e.preventDefault(); add(); } });
+})();
 function computeArtistStats(artistName) {
   const albums = state.raw.filter(r => sameArtist(r.artist, artistName));
   // trackTitlesFor only knows MANUALLY entered tracklists; once a release's real tracklist has been
@@ -770,6 +853,7 @@ function aiRenderHeader(artist, owned) {
   el.artistInfoName.textContent = artist;
   el.artistInfoStats.textContent = aiStatsText(artist);
   aiRenderAliases();
+  aiRenderDetails();
   el.aiDecadeGenre.textContent = aiDecadeGenreLabel(owned);
   el.aiPlayBtn.disabled = !owned.length;
   el.aiExportBtn.disabled = !owned.length;
@@ -837,9 +921,9 @@ function aiRefreshTrackViews(artist) {
 }
 function aiTrackRowHtml(r, i, withAlbum) {
   return `<div class="ai-track-row${withAlbum ? ' wide' : ''}" data-i="${i}" title="Double-click to play \u00b7 right-click for more">
-    <span class="ai-track-name">${escapeHtml(r.trackName)}</span>
+    ${withAlbum ? '' : `<span class="ai-track-n">${i + 1}</span>`}<span class="ai-track-name" title="${escapeHtml(r.trackName)} · ${escapeHtml(r.item.title)}">${escapeHtml(r.trackName)}</span>
     ${withAlbum ? `<span class="ai-track-album">${escapeHtml(r.item.title)}</span><span class="ai-track-time">${aiClock(r.ms)}</span>` : ''}
-    ${withAlbum ? '' : `<span class="ai-track-rym"${r.rym ? ` title="RYM ${r.rym.toFixed(2)}${r.votes ? ` from ${r.votes.toLocaleString()} ratings` : ''}"` : ''}>${r.rym ? `${r.rym.toFixed(1)}<small>${r.votes ? (r.votes >= 1000 ? (r.votes / 1000).toFixed(r.votes >= 10000 ? 0 : 1) + 'k' : r.votes) : ''}</small>` : ''}</span>`}
+    ${withAlbum ? '' : `<span class="ai-track-rym"${r.rym ? ` title="RYM ${r.rym.toFixed(2)}${r.votes ? ` from ${r.votes.toLocaleString()} ratings` : ''}"` : ''}>${r.rym ? r.rym.toFixed(1) : ''}</span><span class="ai-track-votes">${r.votes ? (r.votes >= 10000 ? Math.round(r.votes / 1000) + 'k' : r.votes.toLocaleString()) : ''}</span>`}
     <span class="ai-track-plays${r.plays ? '' : ' zero'}" title="Your plays">${r.plays}</span>
   </div>`;
 }
@@ -870,7 +954,7 @@ function aiStatsBodyHtml(owned) {
     <aside class="ai-top-tracks">
       <label class="ai-top-head"><select id="aiTrackSort" aria-label="Order of the track list">
         <option value="rym">Top rated (RYM)</option><option value="votes">Most popular (RYM)</option><option value="plays">Most played</option><option value="album">Album order</option></select></label>
-      <div class="ai-track-cols" aria-hidden="true"><span></span><span title="RYM average, and how many rated it">RYM</span><span>plays</span></div>
+      <div class="ai-track-cols" aria-hidden="true"><span></span><span></span><span title="RYM average">RYM</span><span title="How many rated it on RYM">ratings</span><span title="Your plays">plays</span></div>
       <div id="aiTopTracks" class="ai-track-list"></div>
       <div class="ai-total"><span>TOTAL PLAY COUNT</span><span id="aiTotalPlays"></span></div>
     </aside>
@@ -997,7 +1081,7 @@ function aiEnsureProfile(artist) {
   return ext.promise.then(() => {
     aiRefreshBioElement(artist);       // the Main-panel biography strip, if it's showing this artist
     if (!aiShowing(artist)) return;
-    aiSetAvatar(artist, aiOwned(artist));
+    aiSetAvatar(artist, aiOwned(artist)); aiRenderDetails();
     if (aiSubTab(artist) === 'profile') aiRenderBody(artist);
   });
 }

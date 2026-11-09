@@ -874,3 +874,17 @@ suite('Artist aliases: the main name', () => {
     } finally { app('artistAliasMap = ' + JSON.stringify(was)); window.__s = save; app('artistAliasesSave = parent.__s'); }
   });
 });
+
+suite('Artist types and members', () => {
+  test('a band lists its members; a member’s page knows its bands, through aliases too; what arrives is cleaned', () => {
+    const clean = app('artistDetailsClean');
+    const map = clean({ a: { name: 'The Beatles', type: 'Band', members: [{ name: 'John Lennon', role: 'vocals, guitar' }, { name: 'john lennon' }, { name: 'The Beatles' }, { name: '' }] }, b: { name: 'Plastic Ono Band', type: 'Nonsense', members: [{ name: 'Lennon' }] }, c: { name: 'Empty' } });
+    eq(Object.keys(map).sort(), ['plastic ono band', 'the beatles']);
+    eq(map['the beatles'].members, [{ name: 'John Lennon', role: 'vocals, guitar' }]);
+    eq(map['plastic ono band'].type, '');
+    const was = [app('artistDetailsMap'), app('artistAliasMap')];
+    app('artistDetailsMap = ' + JSON.stringify(map) + '; artistAliasMap = ' + JSON.stringify({ lennon: { alias: 'Lennon', to: 'John Lennon' } }));
+    try { eq(app('artistMemberOf')('John Lennon'), [{ band: 'Plastic Ono Band', role: '' }, { band: 'The Beatles', role: 'vocals, guitar' }]); }
+    finally { app('artistDetailsMap = ' + JSON.stringify(was[0]) + '; artistAliasMap = ' + JSON.stringify(was[1])); }
+  });
+});

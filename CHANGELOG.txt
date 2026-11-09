@@ -17,7 +17,30 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.92.4
+  CURRENT_VERSION: 1.92.6
+
+  1.92.6 — 2026-11-09 — Artists have a type (Person, Band, Group…), a band has members, and a member's page says which bands they are in. Page and Apps Script backend.
+          On an artist's page, under "Also known as": a Type (Person, Band,
+          Group, Duo, Trio, Orchestra, Choir, Collective, Project, Other) and,
+          for anything but a person, Members: type a name (your crate's
+          artists are offered) and a role if you like (guitar), and Add; ✕
+          removes one, and a member's name opens their page. A person's page
+          shows "Member of" with the bands that list them (through their
+          aliases too). "Fill from MusicBrainz" takes the type, and a group's
+          members with their instruments, from the MusicBrainz artist the page
+          is matched to. Kept by the main name, with your account by a new
+          backend action (saveArtistDetails, an ArtistDetails setting): update
+          the Apps Script and redeploy. Until then they are kept in this
+          browser, and the page says so.
+          Also: with too little room beside the covers, an artist's Top tracks
+          go under them instead of over them.
+
+  1.92.5 — 2026-11-09 — An artist's Top tracks are easier to read: whole song titles, a rank, and the RYM rating, how many rated it and your plays in their own columns. Page only.
+          The list is wider and a long title wraps onto a second line instead
+          of being cut ("Chunga's Reven…"). Each song has its place in the
+          list, and the RYM average (as RYM prints it, 4.0), how many rated it
+          and your plays sit in aligned columns under their headings. Hover a
+          title for its release.
 
   1.92.4 — 2026-11-09 — A track's lettered parts ("a) Part 1") are no longer songs of their own; an alias can be made the main name; an artist's Top tracks show each song's RYM rating and how many rated it, beside your plays. Page and RYM add-on 1.20.1.
           PARTS: Rate Your Music lists the parts of a track under it with no
