@@ -17,7 +17,15 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.92.2
+  CURRENT_VERSION: 1.92.3
+
+  1.92.3 — 2026-11-09 — "Update from Rate Your Music" says it reads in the background: with the RYM add-on 1.20.0 no tab opens, unless Rate Your Music asks for a check. Page only (the change is in the add-on).
+          The add-on 1.20.0 reads the release pages in an invisible frame of
+          its own instead of a background tab each; a page Rate Your Music
+          answers with a check opens in a tab (and stops the run there if the
+          tab gets one too). CRATE's question before a run no longer says each
+          page opens in a background tab. With an older add-on, runs still use
+          tabs.
 
   1.92.2 — 2026-11-09 — Artist aliases: other names an artist goes by ("Zappa" is Frank Zappa), so their releases group under one artist. Page and Apps Script backend.
           On an artist's page, "Also known as" under the name: type another
