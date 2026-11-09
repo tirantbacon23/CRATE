@@ -330,7 +330,8 @@ function numericClauseMatches(actual, clause) {
 function releaseSearchTextNoTracks(r) {
   const year = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getUTCFullYear() : '';
   const genres = getGenreList(combinedGenreStr(r)).join(' ');
-  return `${r.artist} ${r.title} ${year} ${r.catalog} ${r.descriptor || ''} ${r.rymDescriptors || ''} ${r.scene || ''} ${r.movement || ''} ${genres}`.toLowerCase();
+  const canon = artistCanon(r.artist);
+  return `${r.artist} ${canon !== r.artist ? canon + ' ' : ''}${r.title} ${year} ${r.catalog} ${r.descriptor || ''} ${r.rymDescriptors || ''} ${r.scene || ''} ${r.movement || ''} ${genres}`.toLowerCase();
 }
 
 function combinedSearchText(r) {
@@ -398,6 +399,7 @@ function searchTokenMatches(r, token) {
   if (canonicalField === 'track') {
     return trackTitlesFor(r).some(t => t.toLowerCase().includes(value.toLowerCase()));
   }
+  if (canonicalField === 'artist') { const v = value.toLowerCase(); return [r.artist, artistCanon(r.artist)].some(n => String(n || '').toLowerCase().includes(v)); }          // an alias's releases answer to its artist's name
   return String(r[canonicalField] || '').toLowerCase().includes(value.toLowerCase());
 }
 
@@ -574,7 +576,7 @@ function albumPassesBrowse(r, searchTerms) {          // does this album pass th
     const matchesQuery = matchesSearchTerms(r, searchTerms);
     
     const matchesNav = !state.navFilter || (
-      state.navFilter.mode === 'artist' ? r.artist === state.navFilter.value :
+      state.navFilter.mode === 'artist' ? sameArtist(r.artist, state.navFilter.value) :
       state.navFilter.mode === 'genre' ? filterGenreTags(r).some(g => genreNavMatches(state.genreTaxonomy, g, state.navFilter.value)) : 
       state.navFilter.mode === 'descriptor' ? parseDescriptors(r.rymDescriptors).some(d => descKey(d) === state.navFilter.value) :
       state.navFilter.mode === 'label' ? labelKeysOf(r).includes(state.navFilter.value) :

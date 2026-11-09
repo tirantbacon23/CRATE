@@ -837,3 +837,19 @@ suite('Match songs: ticking a whole full-release video', () => {
     tickAll(rel); eq(Object.keys(rel.pick.youtube), []);
   });
 });
+
+suite('Artist aliases', () => {
+  test('an alias groups under its artist; chains resolve; what arrives is cleaned', () => {
+    const clean = app('artistAliasesClean');
+    const map = clean({ a: { alias: 'Zappa', to: 'Frank Zappa' }, b: { alias: 'The Mothers', to: 'Zappa' }, c: { alias: 'Self', to: 'self' }, d: { alias: '', to: 'X' }, e: 'junk' });
+    eq(Object.values(map).map(e => [e.alias, e.to]).sort(), [['The Mothers', 'Frank Zappa'], ['Zappa', 'Frank Zappa']]);
+    const was = app('artistAliasMap'); app('artistAliasMap = ' + JSON.stringify(map));
+    try {
+      eq([app('artistCanon')('zappa'), app('artistCanon')('The Mothers'), app('artistCanon')('Beck')], ['Frank Zappa', 'Frank Zappa', 'Beck']);
+      eq([app('sameArtist')('Zappa', 'Frank Zappa'), app('sameArtist')('Zappa', 'Beck')], [true, false]);
+      eq(app('artistAliasesOf')('Zappa'), ['The Mothers', 'Zappa']);
+      const S = app('state'), q = S.query; S.query = 'artist:frank zappa';
+      try { eq(app('searchTokenMatches')({ artist: 'Zappa', title: 'Hot Rats' }, app('getSearchTerms')()[0]), true); } finally { S.query = q; }
+    } finally { app('artistAliasMap = ' + JSON.stringify(was)); }
+  });
+});

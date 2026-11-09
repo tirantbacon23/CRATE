@@ -501,7 +501,7 @@ function buildLeftList() {
   let entries;
 
 if (mode === 'artist') {
-    entries = groupCountWithSample(sourceRaw, r => r.artist);
+    entries = groupCountWithSample(sourceRaw, r => artistCanon(r.artist));          // an alias's releases under its artist (see artistCanon)
   } else if (mode === 'year') {
     entries = groupCountWithSample(sourceRaw, r => {
       const y = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getUTCFullYear() : null;

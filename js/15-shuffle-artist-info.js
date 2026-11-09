@@ -530,14 +530,77 @@ function renderGenreDescElement() {
 // are scoped to what's actually in this crate, not an external
 // discography — "all the releases that belong to the artist" meant what's
 // owned here, same as the Music View grid itself shows once filtered.
+// ---- Artist aliases: other names an artist goes by ("Zappa" is Frank Zappa). Each alias points at one main name; everything that groups
+// releases by artist (the artist list, the artist filter and page, Top artists, search) goes by the main name, while each release keeps the
+// name it has. Kept with your account (the backend's ArtistAliases setting, 1.89.8+), and in this browser until the backend has it.
+const ARTIST_ALIAS_KEY = 'crate_artist_aliases_v1', ARTIST_ALIAS_DIRTY_KEY = 'crate_artist_aliases_dirty';
+let artistAliasMap = null, artistAliasBackend = null;          // null: not known yet whether the backend keeps them
+function artistAliasesAll() { if (!artistAliasMap) { try { artistAliasMap = artistAliasesClean(JSON.parse(localStorage.getItem(ARTIST_ALIAS_KEY) || '{}')); } catch (e) { artistAliasMap = {}; } } return artistAliasMap; }
+function artistAliasesClean(raw) {                                   // untrusted (a file, the sheet): text only, bounded, no alias of itself, no chains
+  const out = {}; Object.values(raw && typeof raw === 'object' ? raw : {}).slice(0, 2000).forEach(e => {
+    const alias = String(e && e.alias || '').trim().slice(0, 200), to = String(e && e.to || '').trim().slice(0, 200), k = normMatchKey(alias);
+    if (k && to && k !== normMatchKey(to)) out[k] = { alias, to };
+  });
+  Object.values(out).forEach(e => { const t = out[normMatchKey(e.to)]; if (t) e.to = t.to; });          // "A is B", "B is C": A is C
+  return out;
+}
+function artistCanon(name) { const s = String(name == null ? '' : name), e = artistAliasesAll()[normMatchKey(s)]; return e ? e.to : s; }
+function sameArtist(a, b) { return normMatchKey(artistCanon(a)) === normMatchKey(artistCanon(b)); }
+function artistAliasesOf(name) { const k = normMatchKey(artistCanon(name)); return Object.values(artistAliasesAll()).filter(e => normMatchKey(e.to) === k).map(e => e.alias).sort((a, b) => a.localeCompare(b)); }
+function artistAliasesSave(sync) {
+  try { localStorage.setItem(ARTIST_ALIAS_KEY, JSON.stringify(artistAliasMap || {})); } catch (e) { /* kept for this visit only */ }
+  if (sync === false) return;
+  try { localStorage.setItem(ARTIST_ALIAS_DIRTY_KEY, '1'); } catch (e) { /* ignore */ }
+  postUpdate({ action: 'saveArtistAliases', aliases: JSON.stringify(artistAliasMap || {}) })
+    .then(res => { if (res && res.aliasesSaved) { artistAliasBackend = true; try { localStorage.removeItem(ARTIST_ALIAS_DIRTY_KEY); } catch (e) { /* ignore */ } } else artistAliasBackend = false; aiRenderAliases(); })
+    .catch(() => { artistAliasBackend = false; aiRenderAliases(); });
+}
+function artistAliasesArrived(data) {                                // the catalogue's answer: the account's aliases, unless this browser has ones it never received
+  if (!data || data.aliases !== true) { artistAliasBackend = false; return; }
+  artistAliasBackend = true;
+  let dirty = false; try { dirty = localStorage.getItem(ARTIST_ALIAS_DIRTY_KEY) === '1'; } catch (e) { /* ignore */ }
+  if (dirty) { artistAliasesSave(true); return; }
+  let theirs = {}; try { theirs = data.artistAliases ? JSON.parse(data.artistAliases) : {}; } catch (e) { theirs = {}; }
+  if (!data.artistAliases && Object.keys(artistAliasesAll()).length) { artistAliasesSave(true); return; }          // the account has none yet: give it this browser's
+  artistAliasMap = artistAliasesClean(theirs); artistAliasesSave(false);
+}
+function artistAliasAdd(alias, main) {                               // -> '' when added, else why not
+  alias = String(alias || '').trim(); main = artistCanon(String(main || '').trim());
+  if (!alias || !main) return 'Type a name.';
+  const k = normMatchKey(alias); if (k === normMatchKey(main)) return 'That is this artist\u2019s own name.';
+  const all = artistAliasesAll(), was = all[k];
+  if (was && normMatchKey(was.to) !== normMatchKey(main)) return `\u201c${alias}\u201d is already an alias of ${was.to}.`;
+  Object.values(all).forEach(e => { if (normMatchKey(e.to) === k) e.to = main; });          // the alias had aliases of its own: they come along
+  all[k] = { alias, to: main }; artistAliasesSave(true); artistAliasesChanged(); return '';
+}
+function artistAliasRemove(alias) { const all = artistAliasesAll(), k = normMatchKey(alias); if (!all[k]) return; delete all[k]; artistAliasesSave(true); artistAliasesChanged(); }
+function artistAliasesChanged() {                                    // groupings follow at once
+  if (typeof buildLeftList === 'function') buildLeftList();
+  if (typeof applyFiltersSort === 'function') applyFiltersSort();
+  if (state.activeTab === 'artistInfo' && state.activeArtistInfoTab) renderArtistInfoTab();
+}
+function aiRenderAliases() {                                         // "Also known as" under the artist's name, with Add and ✕
+  const box = document.getElementById('aiAliases'), artist = state.activeArtistInfoTab; if (!box || !artist) return;
+  const names = artistAliasesOf(artist), owned = new Set(state.raw.map(r => r.artist));
+  box.innerHTML = `<span class="ai-aka-k">Also known as</span>${names.map(n => `<span class="ai-aka">${escapeHtml(n)}${owned.has(n) ? '' : ''}<button type="button" class="ai-aka-x" data-alias="${escapeHtml(n)}" aria-label="Remove the alias ${escapeHtml(n)}" title="Remove">\u2715</button></span>`).join('')}`
+    + `<span class="ai-aka-add"><input type="text" id="aiAliasInput" list="aiAliasNames" placeholder="${names.length ? 'Another name' : 'Add a name it goes by'}" aria-label="Add another name ${escapeHtml(artist)} goes by" autocomplete="off"><button type="button" class="chip-btn" data-alias-add>Add</button></span>`
+    + `<datalist id="aiAliasNames">${[...owned].filter(n => !sameArtist(n, artist)).sort((a, b) => a.localeCompare(b)).slice(0, 3000).map(n => `<option value="${escapeHtml(n)}">`).join('')}</datalist>`
+    + (artistAliasBackend === false && names.length ? '<span class="ai-aka-note" title="Update and redeploy the Apps Script backend to keep aliases with your account">kept in this browser</span>' : '');
+}
+(function wireAliases() {
+  const box = document.getElementById('aiAliases'); if (!box) return;
+  const add = () => { const inp = document.getElementById('aiAliasInput'), artist = state.activeArtistInfoTab; if (!inp || !artist) return; const why = artistAliasAdd(inp.value, artist); if (why) { flashGlobalToast(why); return; } flashGlobalToast(`\u201c${inp.value.trim()}\u201d is now ${artistCanon(artist)}.`); };
+  box.addEventListener('click', (e) => { const x = e.target.closest('[data-alias]'); if (x) { artistAliasRemove(x.dataset.alias); return; } if (e.target.closest('[data-alias-add]')) add(); });
+  box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'aiAliasInput') { e.preventDefault(); add(); } });
+})();
 function computeArtistStats(artistName) {
-  const albums = state.raw.filter(r => r.artist === artistName);
+  const albums = state.raw.filter(r => sameArtist(r.artist, artistName));
   // trackTitlesFor only knows MANUALLY entered tracklists; once a release's real tracklist has been
   // fetched (the Artist Information page does that in the background) it's in trackCache, so take
   // whichever is larger rather than undercounting every release that wasn't typed in by hand.
   const trackCount = albums.reduce((sum, a) => sum + Math.max(trackTitlesFor(a).length, (state.trackCache[artKey(a)] || []).length), 0);
-  const diaryPlays = state.diary.filter(d => d.artist === artistName).length;
-  const scrobblePlays = state.scrobbles.filter(s => s.artist === artistName).reduce((sum, s) => sum + (s.playCount || 1), 0);
+  const diaryPlays = state.diary.filter(d => sameArtist(d.artist, artistName)).length;
+  const scrobblePlays = state.scrobbles.filter(s => sameArtist(s.artist, artistName)).reduce((sum, s) => sum + (s.playCount || 1), 0);
   return { albumCount: albums.length, trackCount, totalPlays: diaryPlays + scrobblePlays };
 }
 
@@ -593,7 +656,7 @@ const aiExternal = new Map();    // artist.toLowerCase() -> { profile, promise }
 const aiTracksLoading = new Set();
 
 function aiOwned(artist) {
-  return state.raw.filter(r => r.artist === artist).sort((a, b) => {
+  return state.raw.filter(r => sameArtist(r.artist, artist)).sort((a, b) => {          // (its aliases' releases too)
     const da = dateVal(a.releaseDate), db = dateVal(b.releaseDate);
     if (da === db) return a.title.localeCompare(b.title);
     if (da === -Infinity) return 1;           // undated last
@@ -695,6 +758,7 @@ function aiSetAvatar(artist, owned) {
 function aiRenderHeader(artist, owned) {
   el.artistInfoName.textContent = artist;
   el.artistInfoStats.textContent = aiStatsText(artist);
+  aiRenderAliases();
   el.aiDecadeGenre.textContent = aiDecadeGenreLabel(owned);
   el.aiPlayBtn.disabled = !owned.length;
   el.aiExportBtn.disabled = !owned.length;
@@ -1246,7 +1310,7 @@ function currentArtistForBio() {
   if (nf && nf.mode === 'album') { const it = state.raw.find(r => String(r.row) === String(nf.value)); if (it) return it.artist; }
   if (state.filtered.length && state.filtered.length < state.raw.length) {
     const a = state.filtered[0].artist;
-    if (state.filtered.every(r => r.artist === a)) return a;
+    if (state.filtered.every(r => sameArtist(r.artist, a))) return artistCanon(a);
   }
   if (el.miniPlayer && !el.miniPlayer.hidden) {
     const np = resolveNowPlayingForMenu();
