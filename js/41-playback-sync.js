@@ -53,7 +53,7 @@ function pbSnapshot() {
     q = crateQueueList.slice(from, to).map(e => ({ r: pbId(e.item), n: (e.track && e.track.trackNumber) || 0, t: (e.track && e.track.trackName) || '' }));
     i = crateQueueIndex - from;
   }
-  return { v: 1, eng: activePlayerEngine || 'spotify', r: pbId(item), artist: item.artist || '', album: item.title || '', t: nowName, pos: Math.round(getEstimatedPosition() || 0), dur: Math.round(getCurrentDurationMs() || 0), playing: pbPlaying(), vol: pbVolume(), q, i };
+  return { v: 1, eng: activePlayerEngine || 'spotify', r: pbId(item), artist: item.artist || '', album: item.title || '', t: nowName, pos: Math.round(getEstimatedPosition() || 0), ts: Math.round(pbSrvNow()), dur: Math.round(getCurrentDurationMs() || 0), playing: pbPlaying(), vol: pbVolume(), q, i };
 }
 // (1.93.8) The volume goes with it: the player's slider is the volume of whatever is playing (Spotify, YouTube or SoundCloud), so it is read
 // from there and set there, as if you had moved it. "Same volume on every device" (on unless you turn it off) says whether a device takes it.
@@ -193,12 +193,19 @@ async function pbLocalResumeOnLoad() {
 // ---- other devices ----
 function pbSet() {
   let v = {}; try { v = JSON.parse(localStorage.getItem(PB_SET_KEY) || '{}') || {}; } catch (e) { v = {}; }
+  if (v.follow && v.strict === undefined) v.strict = true;              // (1.94.5) "Play along" became strict sync
   if (!v.id) { v.id = Math.random().toString(36).slice(2, 10); try { localStorage.setItem(PB_SET_KEY, JSON.stringify(v)); } catch (e) { /* this visit only */ } }
   if (!v.name) { const ua = navigator.userAgent || ''; v.name = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? (/Mobile/.test(ua) ? 'Android phone' : 'Android tablet') : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows PC' : /CrOS/.test(ua) ? 'Chromebook' : 'This device'; }
   return v;
 }
 function pbSetSave(patch) { const v = Object.assign(pbSet(), patch); try { localStorage.setItem(PB_SET_KEY, JSON.stringify(v)); } catch (e) { /* this visit only */ } pbSyncSchedule(0); return v; }
 let pbBackend = null;                                                  // null not asked yet, true has playSync, false an older backend
+// (1.94.5) THE SHARED CLOCK: how far this computer's clock is from the backend's, from the quickest answers (half the round trip either way),
+// so "at 1:05.3, at this moment" means the same moment on every device. A direct link between two devices (45-direct-link.js) measures the
+// other device's clock to a few milliseconds and turns its moments into this clock.
+let pbOff = 0, pbOffRtt = Infinity, pbOffAt = 0;
+function pbClockSample(t0, t1, serverNow) { const rtt = t1 - t0; if (!(serverNow > 0)) return; if (rtt <= pbOffRtt * 1.25 || Date.now() - pbOffAt > 90000) { pbOff = serverNow - (t0 + t1) / 2; pbOffRtt = rtt; pbOffAt = Date.now(); } }
+function pbSrvNow() { return Date.now() + pbOff; }
 let pbRemote = null, pbRemoteAt = 0, pbMyPostAt = 0, pbLastKey = '', pbLastPostLocal = 0, pbLastPos = 0, pbLastPosAt = 0, pbOwner = '', pbPollTimer = 0, pbPolling = false;
 async function pbToken() {
   let t = getStoredIdToken(); if (!t) return '';
@@ -208,52 +215,62 @@ async function pbToken() {
 async function pbPost(s) {
   if (pbBackend !== true) return;
   const set = pbSet(), idToken = await pbToken(); if (!idToken) return;
-  const state = JSON.stringify(Object.assign({}, s, { dev: set.id, devName: set.name, since: pbKeySince }));
+  const full = Object.assign({}, s, { dev: set.id, devName: set.name, since: pbKeySince, mid: s.mid || Math.random().toString(36).slice(2, 10) });
+  const state = JSON.stringify(full);
+  pbOwner = set.id; pbStrictRef = null; pbSeenMid = full.mid;          // (1.94.5) leading from the moment it says so, not when the backend answers
+  if (typeof dlSend === 'function') dlSend(full);                     // a direct link first (strict sync): there in a moment
   try {
-    const r = await fetch(CONFIG.SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'playSync', state, idToken }) });
+    const t0 = Date.now(), r = await fetch(CONFIG.SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'playSync', state, idToken }) });
     const d = await r.json();
-    if (d && d.playSync && d.now) { pbMyPostAt = d.now; pbOwner = set.id; pbLastSent = { t: s.t, at: Date.now() }; }
+    if (d && d.playSync && d.now) { pbClockSample(t0, Date.now(), d.now); pbMyPostAt = d.now; pbOwner = set.id; pbLastSent = { t: s.t, at: Date.now() }; }
   } catch (e) { /* tried again with the next change */ }
 }
 async function pbPoll() {
   if (pbPolling) return; pbPolling = true;
   try {
     const idToken = await pbToken(); if (!idToken) return;
-    const t0 = Date.now(), r = await fetch(CONFIG.SCRIPT_URL + '?what=play&id_token=' + encodeURIComponent(idToken)), d = await r.json();
+    const me = pbSet();
+    const t0 = Date.now(), r = await fetch(CONFIG.SCRIPT_URL + `?what=play&dev=${encodeURIComponent(me.id)}&strict=${me.strict ? 1 : 0}&name=${encodeURIComponent(me.name)}&id_token=` + encodeURIComponent(idToken)), d = await r.json();
+    const t1 = Date.now();
     if (d && isAuthError(d)) { try { await authRenew(); } catch (e) { /* next time */ } return; }
     if (!d || !d.playSync) { if (d && Array.isArray(d.rows)) pbBackend = false; return; }          // an older backend (it answered with the whole crate)
-    pbBackend = true; pbLastPollOk = Date.now();
+    pbBackend = true; pbLastPollOk = Date.now(); pbClockSample(t0, t1, d.now); pbSigBackend = !!d.sig;
+    if (typeof dlFromBackend === 'function') { try { dlFromBackend(d.devs || null, d.signals || null); } catch (er) { console.warn('direct link', er); } }
     if (!d.play) return;
     let e; try { e = JSON.parse(d.play); } catch (er) { return; }
     let s; try { s = JSON.parse(e.s); } catch (er) { return; }
     if (!s || typeof s !== 'object' || typeof s.t !== 'string') return;
     const age = Math.max(0, (d.now - e.at) + (Date.now() - t0) / 2);
-    pbRemoteGot({ s, at: e.at, dev: s.dev, devName: s.devName, age, seenAt: Date.now() });
+    pbRemoteGot({ s, at: e.at, dev: s.dev, devName: s.devName, age, seenAt: Date.now(), via: 'backend' });
   } catch (e) { /* offline: next time */ } finally { pbPolling = false; }
+}
+let pbSeenMid = '', pbStrictRef = null, pbApplyingUntil = 0, pbLastCorrect = 0;
+// (1.94.5) Which of this computer's CRATE windows strict sync acts in: the one playing (it marks itself every second while it plays, and when
+// its player is touched); if none has lately, the first CRATE window. Never a pop-out. Two windows on one computer must not both follow.
+const PB_WIN = Math.random().toString(36).slice(2, 10), PB_ACTIVE_KEY = 'crate_pb_active_v1';
+function pbActiveMark() { try { localStorage.setItem(PB_ACTIVE_KEY, JSON.stringify({ w: PB_WIN, at: Date.now() })); } catch (e) { /* this window only */ } }
+function pbIsActiveWindow() {
+  if (typeof CRATE_POPOUT_WINDOW !== 'undefined' && CRATE_POPOUT_WINDOW) return false;
+  let r = null; try { r = JSON.parse(localStorage.getItem(PB_ACTIVE_KEY) || 'null'); } catch (e) { r = null; }
+  if (r && r.w && Date.now() - r.at < 20000) return r.w === PB_WIN;
+  return typeof crateIsMain !== 'function' || crateIsMain();
 }
 function pbRemoteGot(rm) {
   const set = pbSet();
+  if (rm.s && rm.s.mid && rm.s.mid === pbSeenMid) { if (rm.via === 'link' && pbStrictRef && pbStrictRef.s.mid === rm.s.mid) pbStrictRef = rm; return; }          // (1.94.5) the same message twice (the link, then the backend)
   if (rm.at <= pbRemoteAt) return; pbRemoteAt = rm.at;
+  if (rm.s && rm.s.mid) pbSeenMid = rm.s.mid;
   pbRemote = rm; pbOwner = rm.dev;
   if (rm.dev === set.id) return;                                        // my own
   if (rm.at < pbMyPostAt) return;                                       // older than what I said since
   const s = rm.s;
-  if (set.follow && (s.eng || 'spotify') === 'spotify' && s.playing) {          // (1.93.9) Spotify plays on one device per account: playing along would stop the other one
+  if (set.strict && (s.eng || 'spotify') === 'spotify' && s.playing) {          // (1.93.9) Spotify plays on one device per account: playing along would stop the other one
     if (pbPlaying() && activePlayerEngine === 'spotify') { pbHandoffPause = true; el.miniPlayerPlayPause.click(); }
     if (!pbFollowSpotifyTold) { pbFollowSpotifyTold = true; flashGlobalToast('Spotify plays on one device at a time, so this one can\u2019t play along with a Spotify song: it shows what\u2019s playing instead.'); }
     pbPillShow({ kind: 'remote', s, dev: rm.devName, age: rm.age, seenAt: rm.seenAt });
     return;
   }
-  if (set.follow) {                                                     // playing along: do what it does
-    const mine = pbSnapshot();
-    if (!s.playing) { if (pbPlaying()) el.miniPlayerPlayPause.click(); return; }
-    const pos = (s.pos || 0) + rm.age;
-    if (!mine || pbFold(mine.t) !== pbFold(s.t) || pbItemOfSame(mine, s) === false) { pbResume(s, { quiet: true, live: true, elapsed: rm.age }); return; }
-    if (!pbPlaying()) el.miniPlayerPlayPause.click();
-    pbApplyVol(s.vol);
-    if (Math.abs((mine.pos || 0) - pos) > 8000) pbSeekMs(pos);
-    return;
-  }
+  if (set.strict) { if (pbIsActiveWindow()) pbStrictApply(rm); return; }          // strict sync: do what it does, at its moment (in the window that plays)
   // One plays at a time — but only when the other device STARTS something (or changes song). (1.94.1) It also says "still playing" every 25 s,
   // and a device that wrongly thought it was playing (its player showing ⏸ with nothing coming out) paused this one with every reminder. So a
   // reminder already seen does nothing, and nor does a song that has been playing there since before this device started its own.
@@ -265,46 +282,97 @@ function pbRemoteGot(rm) {
   pbPillShow({ kind: 'remote', s, dev: rm.devName, age: rm.age, seenAt: rm.seenAt });
 }
 function pbItemOfSame(a, b) { return a.r === b.r; }
+// ---- STRICT SYNC (1.94.5): both devices play, kept at the same moment. Whatever either does (a song, play, pause, a jump, the volume)
+// the other does; the one that didn't do it checks its place against the other's every second and jumps back into line when it is more
+// than PB_STRICT_TOL out. What a device does because the other did it is never sent back.
+const PB_STRICT_TOL = 300, PB_SEEK_LEAD = 120;                           // ms out of line before it jumps; how far ahead a jump aims (a jump takes a moment)
+function pbStrictTarget(rm) { const s = rm.s; return (s.pos || 0) + (s.playing ? Math.max(0, pbSrvNow() - (s.ts || rm.at)) : 0); }
+function pbStrictApply(rm) {
+  const s = rm.s;
+  pbPillHide();
+  // (only what is DONE here because of it is kept from being sent back: a "still playing" changes nothing here, and must not make this
+  // device deaf to a jump you make on it for the next moments)
+  const doing = () => { pbApplyingUntil = Math.max(pbApplyingUntil, Date.now() + 2500); };
+  const mine = pbSnapshot();
+  if (!s.playing) {                                                      // paused there: paused here, at its moment
+    pbStrictRef = null;
+    if (pbPlaying()) { doing(); el.miniPlayerPlayPause.click(); }
+    if (mine && mine.r === s.r && pbNamesMatch(mine.t, s.t) && Math.abs((mine.pos || 0) - (s.pos || 0)) > 1500) { doing(); pbSeekMs(s.pos || 0); }
+    return;
+  }
+  pbStrictRef = rm;
+  if (!mine || mine.r !== s.r || !pbNamesMatch(mine.t, s.t)) {          // another song: that one, from its moment now
+    pbApplyingUntil = Date.now() + 25000;
+    pbResume(s, { quiet: true, live: true, vol: true, elapsed: Math.max(0, pbSrvNow() - (s.ts || rm.at)) }).finally(() => { pbApplyingUntil = Date.now() + 2000; pbLastCorrect = 0; });
+    return;
+  }
+  if (!pbPlaying()) { doing(); el.miniPlayerPlayPause.click(); }
+  if (pbSet().vol !== false && typeof s.vol === 'number' && Math.abs(Number(el.miniPlayerVolume && el.miniPlayerVolume.value) - s.vol) >= 1) { doing(); pbApplyVol(s.vol); }
+  pbStrictKeep(false);
+}
+function pbStrictKeep(now) {                                            // back into line if it has drifted (every second, and on each message)
+  const ref = pbStrictRef, set = pbSet();
+  if (!ref || !set.on || !set.strict || !pbPlaying() || Date.now() - ref.seenAt > 30000) return;
+  const mine = pbSnapshot(); if (!mine || mine.r !== ref.s.r || !pbNamesMatch(mine.t, ref.s.t)) return;
+  const tgt = pbStrictTarget(ref), off = (getEstimatedPosition() || 0) - tgt;
+  pbDrift = Math.round(off);
+  if (Math.abs(off) <= PB_STRICT_TOL || (!now && Date.now() - pbLastCorrect < 2500)) return;
+  if (ref.s.dur && tgt > ref.s.dur - 2500) return;                       // (not in its last seconds: the next song will line up)
+  pbLastCorrect = Date.now(); pbApplyingUntil = Date.now() + 1500;
+  pbSeekMs(tgt + PB_SEEK_LEAD);
+}
+let pbDrift = null;
 let pbHandoffPause = false, pbFollowSpotifyTold = false;
 let pbPrevKey = '', pbKeySince = 0, pbSinceKey = '', pbActedKey = '';
-function pbWatch() {                                                    // every second: tell the other devices when what's playing here changes
+function pbWatch() {                                                    // (1.94.5) what changed here goes first; then, if nothing did, keep in line with the device leading
+  const sent = pbWatchSend(), set = pbSet();
+  if (!sent && set.on && set.strict && pbOwner && pbOwner !== set.id && pbIsActiveWindow()) pbStrictKeep(false);
+}
+function pbWatchSend() {                                                // every second: tell the other devices when what's playing here changes -> true when it told them
   const set = pbSet();
   const qk = `${crateQueueId}|${crateQueueIndex}`; if (qk !== pbQueueSeen) { pbQueueSeen = qk; pbQueueMovedAt = Date.now(); }
   const s = pbSnapshot();
+  if (pbPlaying()) pbActiveMark();
   if (s) { const sk = `${s.r}|${s.t}|${s.playing}`; if (sk !== pbSinceKey) { pbSinceKey = sk; pbKeySince = Date.now(); } }          // (1.94.1) since when this song has been playing (or paused) here
   if (pbPillState && pbPillState.kind === 'remote' && pbPlaying()) pbPillHide();          // playing here now
-  if (!set.on || set.follow || pbBackend !== true || !s) { if (s) pbLastKey = `${s.r}|${s.t}|${s.playing}|${s.vol}`; return; }
+  if (!set.on || pbBackend !== true || !s) { if (s) pbLastKey = `${s.r}|${s.t}|${s.playing}|${s.vol}`; return; }
   const key = `${s.r}|${s.t}|${s.playing}|${s.vol}`, now = Date.now();
-  const expect = pbLastPos + (s.playing ? now - pbLastPosAt : 0), jumped = Math.abs(s.pos - expect) > 6000;
+  if (now < pbApplyingUntil) { pbLastKey = key; pbPrevKey = key; pbLastPos = s.pos; pbLastPosAt = now; return; }          // done because the other device did it: not news
+  const expect = pbLastPos + (s.playing ? now - pbLastPosAt : 0), jumped = Math.abs(s.pos - expect) > (set.strict ? 2500 : 6000);          // (a jump you made: in strict sync, 2.5 s is enough to tell)
   pbLastPos = s.pos; pbLastPosAt = now;
   const stable = key === pbPrevKey; pbPrevKey = key;                   // (1.93.9) the same for a second: not a moment between two songs
-  if (!stable) return;
+  if (!stable && !(set.strict && s.playing !== undefined && key.split('|').slice(0, 2).join('|') === pbLastKey.split('|').slice(0, 2).join('|'))) return;          // (strict: a pause or play of the same song goes at once)
   const changed = key !== pbLastKey;
-  if (!s.playing && (pbHandoffPause || pbOwner !== set.id)) { pbHandoffPause = false; pbLastKey = key; return; }          // paused because another device took over (or it isn't mine to speak for)
-  if ((changed || jumped || (s.playing && now - pbLastPostLocal > 25000)) && now - pbLastPostLocal > 1500) {
+  if (!s.playing && (pbHandoffPause || (!set.strict && pbOwner !== set.id))) { pbHandoffPause = false; pbLastKey = key; return; }          // paused because another device took over (or it isn't mine to speak for)
+  const leading = set.strict && pbOwner === set.id, beat = leading ? 3000 : 25000;
+  if (leading && s.playing && typeof dlBeat === 'function') dlBeat(s);  // leading in strict sync: where it is, down the direct link, every second
+  const mineToTell = !pbOwner || pbOwner === set.id;                   // (1.94.5) only the device leading says "still playing" (one that never had, said it at once, took the lead, and the two took turns)
+  if ((changed || jumped || (s.playing && mineToTell && now - pbLastPostLocal > beat)) && now - pbLastPostLocal > (set.strict ? 400 : 1500)) {
     pbLastKey = key; pbLastPostLocal = now;
-    if (s.playing) { pbPost(s); return; }
+    if (s.playing || set.strict) { pbPost(s); return true; }
     // A pause: Spotify plays on one device per account, so another device starting a Spotify song pauses this one by itself. Asked first
     // whether another device has spoken since; then this pause isn't mine to tell (it would say "paused" over the one now playing).
     pbPoll().then(() => { if (pbOwner === set.id || !pbOwner) pbPost(s); });
+    return true;
   }
 }
 function pbSyncSchedule(ms) {
   clearTimeout(pbPollTimer);
   const set = pbSet(); if (!set.on) return;
-  pbPollTimer = setTimeout(async () => { await pbPoll(); pbSyncSchedule(document.hidden ? 20000 : 4000); }, ms);
+  pbPollTimer = setTimeout(async () => { await pbPoll(); pbSyncSchedule(set.strict ? (document.hidden ? 3000 : 1000) : (document.hidden ? 20000 : 4000)); }, ms);
 }
 
 // What the sync is doing, in a line (the devices menu): whether the backend answers, when it last heard, what it last sent.
-let pbLastPollOk = 0, pbLastSent = null;
+let pbLastPollOk = 0, pbLastSent = null, pbSigBackend = false;
 function pbStatusLine() {
   const ago = (t) => { const s = Math.round((Date.now() - t) / 1000); return s < 60 ? `${s} s ago` : `${Math.round(s / 60)} min ago`; };
   const parts = [];
   parts.push(pbBackend === true ? (pbLastPollOk ? `Backend answered ${ago(pbLastPollOk)}` : 'Backend ready') : pbBackend === false ? 'Backend needs updating' : 'Asking the backend\u2026');
   if (pbRemote) parts.push(`last heard: ${escapeHtml(pbRemote.devName || 'a device')}${pbRemote.dev === pbSet().id ? ' (this one)' : ''}, ${pbRemote.s.playing ? 'playing' : 'paused'} \u201c${escapeHtml(pbRemote.s.t)}\u201d`);
   if (pbLastSent) parts.push(`this device sent \u201c${escapeHtml(pbLastSent.t)}\u201d ${ago(pbLastSent.at)}`);
-  else if (pbSet().follow) parts.push('this device only listens (Play along)');
   else parts.push('this device hasn\u2019t sent anything yet');
+  if (pbSet().strict) parts.push(`strict sync${typeof dlStatus === 'function' ? ' \u00b7 ' + dlStatus() : ''}${pbDrift != null && pbOwner !== pbSet().id ? ` \u00b7 ${Math.abs(pbDrift)} ms ${pbDrift > 0 ? 'ahead' : 'behind'}` : ''}`);
+  if (pbSet().on && pbBackend === true && !pbSigBackend) parts.push('redeploy the backend for the direct link');
   return parts.join(' \u00b7 ');
 }
 // ---- the devices menu (⇄ on the player, and ⚙ → Playback on your devices…) ----
@@ -315,7 +383,7 @@ function pbDevicesMenu(anchor, x, y) {
   const other = pbRemote && pbRemote.dev !== set.id ? pbRemote : null;
   menu.innerHTML = `<div class="menu-section-title">Playback on your devices</div>`
     + `<label class="pb-opt"><input type="checkbox" data-pb-opt="on"${set.on ? ' checked' : ''}> <span>Sync playback across your devices<br><small>One plays at a time: start something here and your other devices pause; “Play here” on any of them carries on from the same moment.</small></span></label>`
-    + `<label class="pb-opt"><input type="checkbox" data-pb-opt="follow"${set.follow ? ' checked' : ''}${set.on ? '' : ' disabled'}> <span>Play along here<br><small>This device plays whatever your other devices play, at the same spot, and never takes over from them. Not with Spotify songs: Spotify plays on one device per account.</small></span></label>`
+    + `<label class="pb-opt"><input type="checkbox" data-pb-opt="strict"${set.strict ? ' checked' : ''}${set.on ? '' : ' disabled'}> <span>Strict sync: play together<br><small>Turn on on each device that should play. They play at the same moment, kept in line; whatever you do on one (a song, pause, a jump, the volume) the other does. Two devices connect directly when they can, for no delay. Not with Spotify songs (Spotify plays on one device per account): use Play from → YouTube only.</small></span></label>`
     + `<label class="pb-opt"><input type="checkbox" data-pb-opt="vol"${set.vol === false ? '' : ' checked'}${set.on ? '' : ' disabled'}> <span>Same volume on every device<br><small>Moving the volume here moves it on the device you hand over to (and on one playing along).</small></span></label>`
     + `<label class="pb-opt pb-name">This device is called <input type="text" data-pb-name maxlength="40" value="${escapeHtml(set.name)}"></label>`
     + (set.on && pbBackend === false ? '<p class="pb-note">Your backend doesn’t know about playback sync yet: paste the new apps-script-backend.gs into Apps Script and deploy it (Deploy → Manage deployments → Edit → New version).</p>' : '')
@@ -328,10 +396,10 @@ function pbDevicesMenu(anchor, x, y) {
   menu.addEventListener('change', (e) => {
     const k = e.target.dataset.pbOpt;
     if (k === 'on') { pbSetSave({ on: e.target.checked }); if (!e.target.checked) pbPillHide(); else pbPoll().then(() => { if (menu.isConnected) pbDevicesMenu(anchor, x, y); }); }
-    if (k === 'follow') pbSetSave({ follow: e.target.checked });
+    if (k === 'strict') { pbSetSave({ strict: e.target.checked, follow: false }); if (!e.target.checked && typeof dlCloseAll === 'function') dlCloseAll(); }
     if (k === 'vol') pbSetSave({ vol: e.target.checked });
     if (e.target.dataset.pbName !== undefined) pbSetSave({ name: (e.target.value || '').trim().slice(0, 40) || pbSet().name });
-    menu.querySelectorAll('[data-pb-opt="follow"], [data-pb-opt="vol"]').forEach(f => { f.disabled = !pbSet().on; });
+    menu.querySelectorAll('[data-pb-opt="strict"], [data-pb-opt="vol"]').forEach(f => { f.disabled = !pbSet().on; });
   });
   const here = menu.querySelector('[data-pb-here]');
   if (here) here.addEventListener('click', () => { closeNowPlayingAddMenu(); const o = pbRemote; pbPillHide(); pbResume(Object.assign({}, o.s, { playing: true }), { live: !!o.s.playing, elapsed: o.s.playing ? Date.now() - o.seenAt + (o.age || 0) : 0 }); });
@@ -379,13 +447,15 @@ function placeRestore() {
     b.addEventListener('click', (e) => { e.stopPropagation(); pbDevicesMenu(b); });
     q.parentNode.insertBefore(b, q);
   }
+  el.miniPlayer.addEventListener('pointerdown', () => pbActiveMark(), true);          // the player you touch is the one that plays
   const lm = document.getElementById('menuAsk');
   if (lm) {
     const m = document.createElement('button'); m.type = 'button'; m.id = 'menuPlaybackDevices'; m.textContent = 'Playback on your devices…';
     m.addEventListener('click', (e) => { e.stopPropagation(); el.layoutMenu.hidden = true; pbDevicesMenu(null); });
     lm.parentNode.insertBefore(m, lm);
   }
-  setInterval(() => { try { pbWatch(); } catch (e) { /* next second */ } }, 1000);
+  let pbWatchAt = 0;          // (1.94.5) four times a second in strict sync (a pause there is on the other device a moment later), else once a second
+  setInterval(() => { const st = pbSet(); if (!(st.on && st.strict) && Date.now() - pbWatchAt < 950) return; pbWatchAt = Date.now(); try { pbWatch(); } catch (e) { /* next time */ } }, 250);
   setInterval(() => { try { if (pbPlaying() || !el.miniPlayer.hidden) pbLocalSave(); placeSave(); } catch (e) { /* next time */ } }, 3000);
   window.addEventListener('pagehide', () => { try { pbLocalSave(); placeSave(); } catch (e) { /* closing */ } });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && pbSet().on) pbSyncSchedule(0); });

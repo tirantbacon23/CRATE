@@ -658,12 +658,12 @@ function renderFlatTrackTable() {
     // to play" skip are all handled centrally by playTrackNow now — see its
     // comment for why a manual album's fuzzy search stays skipped.
     const titleEl = rowEl.querySelector('.mt-title');
-    const originalTitle = titleEl.textContent;
+    const originalTitle = titleEl.innerHTML;          // (1.94.5) all of it, ▶ YT button and all: putting back only its text left "▶ YT" as words
     titleEl.textContent = 'Loading...';
     try {
       await playTrackNow(match.item, match.track.trackName, match.track.trackNumber);
     } finally {
-      if (titleEl.isConnected) titleEl.textContent = originalTitle;
+      if (titleEl.isConnected) titleEl.innerHTML = originalTitle;
     }
   };
   body.oncontextmenu = (e) => {

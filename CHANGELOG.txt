@@ -17,7 +17,33 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.94.4
+  CURRENT_VERSION: 1.94.5
+
+  1.94.5 — 2026-11-09 — Strict sync: two devices play together, kept at the same moment, connected directly when they can. Page and backend (redeploy apps-script-backend.gs for the direct link).
+          STRICT SYNC (⇄ → "Strict sync: play together", on each device that
+          should play; it replaces "Play along"): both devices play, at the
+          same moment. Whatever you do on either (a song, pause, play, a jump,
+          the volume) the other does; the one that didn't do it checks its
+          place against the other's four times a second and jumps back into
+          line when it is more than 0.3 s out. What a device does because the
+          other did is never sent back. Not with Spotify songs (Spotify plays
+          on one device per account): use Play from → YouTube only.
+          A SHARED CLOCK: each device measures how far its clock is from the
+          backend's (and, over the direct link, from the other device's, to a
+          few ms), so "1:05.3 at this moment" means the same moment on both.
+          THE DIRECT LINK: two strict devices introduce themselves through the
+          backend and then talk straight to each other (as video calls do):
+          a pause reaches the other in about 0.1 s, a new song starts there in
+          under a second. If they can't connect, everything still goes through
+          the backend, which strict sync then asks every second. The ⇄ status
+          line says which, and how far out of line this device is.
+          WHICH WINDOW: with CRATE open twice on a computer, strict sync acts
+          only in the window that is playing (else the first one): two windows
+          following at once would play twice.
+          BACKEND: notes which devices are here (for 2 minutes) and keeps their
+          introductions until collected; never in the sheet.
+          FIXED: in the Tracks view, double-clicking a song with a YouTube link
+          left "▶ YT" as plain words in front of its name.
 
   1.94.4 — 2026-11-09 — Play from one source only (Spotify, YouTube or SoundCloud); dialogs open below a player docked at the top; the floating video steps aside for every dialog. Page only.
           PLAY FROM: a button on the player (≡; it reads "YT only" and so on
