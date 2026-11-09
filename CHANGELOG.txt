@@ -17,15 +17,30 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.92.2
+  CURRENT_VERSION: 1.92.3
 
-  1.92.2 — 2026-11-09 — "Update from Rate Your Music" says it reads in the background: with the RYM add-on 1.20.0 no tab opens, unless Rate Your Music asks for a check. Page only (the change is in the add-on).
+  1.92.3 — 2026-11-09 — "Update from Rate Your Music" says it reads in the background: with the RYM add-on 1.20.0 no tab opens, unless Rate Your Music asks for a check. Page only (the change is in the add-on).
           The add-on 1.20.0 reads the release pages in an invisible frame of
           its own instead of a background tab each; a page Rate Your Music
           answers with a check opens in a tab (and stops the run there if the
           tab gets one too). CRATE's question before a run no longer says each
           page opens in a background tab. With an older add-on, runs still use
           tabs.
+
+  1.92.2 — 2026-11-09 — Artist aliases: other names an artist goes by ("Zappa" is Frank Zappa), so their releases group under one artist. Page and Apps Script backend.
+          On an artist's page, "Also known as" under the name: type another
+          name (your crate's artist names are offered) and Add; ✕ removes one.
+          The artist list, the artist filter, the artist's page (releases,
+          plays, stats), a genre's Top artists and search go by the main name:
+          searching "frank zappa" or artist:frank zappa finds Zappa's
+          releases, and opening "Zappa" opens Frank Zappa's page. Each
+          release keeps the artist name it has; nothing in the sheet is
+          renamed. An alias of an alias points at the main name.
+          They are kept with your account by a new backend action
+          (saveArtistAliases, an ArtistAliases setting): update the Apps
+          Script and redeploy. Until then they are kept in this browser, and
+          the artist's page says so.
+
 
   1.92.1 — 2026-11-08 — On a phone, the ☰ drawer uses the whole screen: icon-only rail with ✕ to close, tighter genre tree, bigger ▾. Page only.
           The rail (Music / Playlist Explorer) took 84px with its labels cut

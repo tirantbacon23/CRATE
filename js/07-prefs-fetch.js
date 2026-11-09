@@ -386,6 +386,7 @@ async function fetchCatalogOnce(opts) {
     // even arrived) and as the fallback if this account has never synced
     // one yet (data.genreTaxonomy null — e.g. a brand new account, or one
     // that hasn't opened the taxonomy editor since this feature shipped).
+    artistAliasesArrived(data);
     if (data.genreTaxonomy) {
       if (taxSyncState().dirty) {
         saveGenreTaxonomy(state.genreTaxonomy);          // this browser has changes the account never received: keep them and send them again, instead of replacing them with the account's older copy
