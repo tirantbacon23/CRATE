@@ -21,27 +21,38 @@ const pbFold = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[�
 const pbId = (it) => (it && (it.albumId || (it.row != null ? 'r' + it.row : ''))) || '';
 function pbItemOf(id) { if (!id) return null; return (state.raw || []).find(x => x.albumId === id || 'r' + x.row === id) || null; }
 let pbQueueMovedAt = 0, pbQueueSeen = '';
+// (1.94.2) The song playing now, whatever plays it. Only Spotify's player sets currentSpotifyTrack: while a song played from YouTube (or
+// SoundCloud) it still held the last Spotify song, so nothing was sent at all (its artist wasn't the release's), or the wrong song was.
+function pbSpotifyEngine() { return !activePlayerEngine || activePlayerEngine === 'spotify'; }
+function pbNowName() {
+  if (pbSpotifyEngine()) return (currentSpotifyTrack && currentSpotifyTrack.name) || '';
+  const shown = el.miniPlayerTitle ? el.miniPlayerTitle.textContent.trim() : '';
+  if (shown) return shown;
+  const e = crateQueueIndex >= 0 && crateQueueList[crateQueueIndex];
+  return (e && e.track && e.track.trackName) || '';
+}
 function pbNamesMatch(a, b) { a = pbFold(a); b = pbFold(b); return !!a && !!b && (a === b || a.startsWith(b) || b.startsWith(a)); }
 function pbPlaying() { return !!(el.miniPlayer && !el.miniPlayer.hidden && el.miniPlayerPlayPause && el.miniPlayerPlayPause.title === 'Pause'); }
 
 // ---- the snapshot ----
 function pbSnapshot() {
-  if (!el.miniPlayer || el.miniPlayer.hidden || !currentSpotifyTrack || !currentSpotifyTrack.name) return null;
+  const nowName = pbNowName();
+  if (!el.miniPlayer || el.miniPlayer.hidden || !nowName) return null;
   const inQueue = crateQueueList.length && crateQueueIndex >= 0 && crateQueueIndex < crateQueueList.length;
   const item = inQueue ? crateQueueList[crateQueueIndex].item : nowPlayingItem;
   if (!item) return null;
   // (1.93.9) Between two songs the release can already be the new one while the player still shows the old song (its name, its moment):
   // sent then, another device played the wrong song from the wrong place. A song whose artists aren't the release's isn't sent.
-  const arts = currentSpotifyTrack.artists;
+  const arts = pbSpotifyEngine() && currentSpotifyTrack ? currentSpotifyTrack.artists : null;          // (a YouTube or SoundCloud song has no artists to check)
   if (Array.isArray(arts) && arts.length && typeof artistsRoughlyMatch === 'function' && !artistsRoughlyMatch(item.artist, arts)) return null;
-  if (inQueue && pbFold(crateQueueList[crateQueueIndex].track && crateQueueList[crateQueueIndex].track.trackName) && !pbNamesMatch(crateQueueList[crateQueueIndex].track.trackName, currentSpotifyTrack.name) && Date.now() - pbQueueMovedAt < 6000) return null;
+  if (inQueue && pbFold(crateQueueList[crateQueueIndex].track && crateQueueList[crateQueueIndex].track.trackName) && !pbNamesMatch(crateQueueList[crateQueueIndex].track.trackName, nowName) && Date.now() - pbQueueMovedAt < 6000) return null;
   let q = null, i = -1;
   if (inQueue) {
     const from = Math.max(0, crateQueueIndex - 50), to = Math.min(crateQueueList.length, crateQueueIndex + 350);          // the songs around it (a queue of thousands isn't carried whole)
     q = crateQueueList.slice(from, to).map(e => ({ r: pbId(e.item), n: (e.track && e.track.trackNumber) || 0, t: (e.track && e.track.trackName) || '' }));
     i = crateQueueIndex - from;
   }
-  return { v: 1, eng: activePlayerEngine || 'spotify', r: pbId(item), artist: item.artist || '', album: item.title || '', t: currentSpotifyTrack.name, pos: Math.round(getEstimatedPosition() || 0), dur: Math.round(getCurrentDurationMs() || 0), playing: pbPlaying(), vol: pbVolume(), q, i };
+  return { v: 1, eng: activePlayerEngine || 'spotify', r: pbId(item), artist: item.artist || '', album: item.title || '', t: nowName, pos: Math.round(getEstimatedPosition() || 0), dur: Math.round(getCurrentDurationMs() || 0), playing: pbPlaying(), vol: pbVolume(), q, i };
 }
 // (1.93.8) The volume goes with it: the player's slider is the volume of whatever is playing (Spotify, YouTube or SoundCloud), so it is read
 // from there and set there, as if you had moved it. "Same volume on every device" (on unless you turn it off) says whether a device takes it.
@@ -96,7 +107,7 @@ async function pbResume(s, opts) {
   while (Date.now() - t0 < wait) {
     await new Promise(r => setTimeout(r, 300));
     if (seq !== pbResumeSeq || myId !== crateQueueId) return false;
-    const now = currentSpotifyTrack && pbFold(currentSpotifyTrack.name);
+    const now = pbFold(pbNowName());
     const named = !!now && [want, sent].some(w => w && (now === w || now.startsWith(w) || w.startsWith(now)));
     const going = pbPlaying() && crateQueueIndex === index;
     goingSince = going ? (goingSince || Date.now()) : 0;
@@ -167,7 +178,10 @@ function pbLocalClear() { try { localStorage.removeItem(PB_LOCAL_KEY); } catch (
 async function pbLocalResumeOnLoad() {
   const v = pbLocalLoad(); if (!v || pbPlaying()) return;
   const sync = pbSet();
-  if (sync.on && pbRemote && pbRemote.dev !== sync.id && pbRemote.s && pbRemote.s.playing) return;          // it's playing on another device now: that one shows instead
+  if (sync.on && pbRemote && pbRemote.dev !== sync.id && pbRemote.s && (pbRemote.s.playing || (pbRemote.s.since || 0) > v.at)) {          // another device is playing (or played since): that shows instead
+    pbPillShow({ kind: 'remote', s: pbRemote.s, dev: pbRemote.devName, age: pbRemote.age, seenAt: pbRemote.seenAt });
+    return;
+  }
   if (!v.s.playing) { pbPillShow({ kind: 'local', s: v.s }); return; }
   const s = Object.assign({}, v.s);
   pbPillShow({ kind: 'local', s });                                    // "Carry on", in case the browser won't start sound by itself
@@ -197,7 +211,7 @@ async function pbPost(s) {
   try {
     const r = await fetch(CONFIG.SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'playSync', state, idToken }) });
     const d = await r.json();
-    if (d && d.playSync && d.now) { pbMyPostAt = d.now; pbOwner = set.id; }
+    if (d && d.playSync && d.now) { pbMyPostAt = d.now; pbOwner = set.id; pbLastSent = { t: s.t, at: Date.now() }; }
   } catch (e) { /* tried again with the next change */ }
 }
 async function pbPoll() {
@@ -207,7 +221,7 @@ async function pbPoll() {
     const t0 = Date.now(), r = await fetch(CONFIG.SCRIPT_URL + '?what=play&id_token=' + encodeURIComponent(idToken)), d = await r.json();
     if (d && isAuthError(d)) { try { await authRenew(); } catch (e) { /* next time */ } return; }
     if (!d || !d.playSync) { if (d && Array.isArray(d.rows)) pbBackend = false; return; }          // an older backend (it answered with the whole crate)
-    pbBackend = true;
+    pbBackend = true; pbLastPollOk = Date.now();
     if (!d.play) return;
     let e; try { e = JSON.parse(d.play); } catch (er) { return; }
     let s; try { s = JSON.parse(e.s); } catch (er) { return; }
@@ -246,7 +260,7 @@ function pbRemoteGot(rm) {
   const startedBeforeMine = s.since && pbPlaying() && pbKeySince && s.since < pbKeySince - 2000;
   if (s.playing && pbPlaying() && actKey !== pbActedKey && !startedBeforeMine) { pbActedKey = actKey; pbHandoffPause = true; el.miniPlayerPlayPause.click(); flashGlobalToast(`Now playing on ${rm.devName || 'another device'}.`); }
   else if (s.playing) pbActedKey = actKey;
-  if (pbPillState && pbPillState.kind === 'local') return;              // (your own "Carry on" stays until you answer it)
+  if (pbPillState && pbPillState.kind === 'local' && !s.playing) return;          // (your own "Carry on" stays, unless another device is playing now)
   pbPillShow({ kind: 'remote', s, dev: rm.devName, age: rm.age, seenAt: rm.seenAt });
 }
 function pbItemOfSame(a, b) { return a.r === b.r; }
@@ -280,6 +294,18 @@ function pbSyncSchedule(ms) {
   pbPollTimer = setTimeout(async () => { await pbPoll(); pbSyncSchedule(document.hidden ? 20000 : 4000); }, ms);
 }
 
+// What the sync is doing, in a line (the devices menu): whether the backend answers, when it last heard, what it last sent.
+let pbLastPollOk = 0, pbLastSent = null;
+function pbStatusLine() {
+  const ago = (t) => { const s = Math.round((Date.now() - t) / 1000); return s < 60 ? `${s} s ago` : `${Math.round(s / 60)} min ago`; };
+  const parts = [];
+  parts.push(pbBackend === true ? (pbLastPollOk ? `Backend answered ${ago(pbLastPollOk)}` : 'Backend ready') : pbBackend === false ? 'Backend needs updating' : 'Asking the backend\u2026');
+  if (pbRemote) parts.push(`last heard: ${escapeHtml(pbRemote.devName || 'a device')}${pbRemote.dev === pbSet().id ? ' (this one)' : ''}, ${pbRemote.s.playing ? 'playing' : 'paused'} \u201c${escapeHtml(pbRemote.s.t)}\u201d`);
+  if (pbLastSent) parts.push(`this device sent \u201c${escapeHtml(pbLastSent.t)}\u201d ${ago(pbLastSent.at)}`);
+  else if (pbSet().follow) parts.push('this device only listens (Play along)');
+  else parts.push('this device hasn\u2019t sent anything yet');
+  return parts.join(' \u00b7 ');
+}
 // ---- the devices menu (⇄ on the player, and ⚙ → Playback on your devices…) ----
 function pbDevicesMenu(anchor, x, y) {
   closeNowPlayingAddMenu();
@@ -293,7 +319,8 @@ function pbDevicesMenu(anchor, x, y) {
     + `<label class="pb-opt pb-name">This device is called <input type="text" data-pb-name maxlength="40" value="${escapeHtml(set.name)}"></label>`
     + (set.on && pbBackend === false ? '<p class="pb-note">Your backend doesn’t know about playback sync yet: paste the new apps-script-backend.gs into Apps Script and deploy it (Deploy → Manage deployments → Edit → New version).</p>' : '')
     + (set.on && other ? `<p class="pb-note">${other.s.playing ? 'Playing' : 'Last played'} on ${escapeHtml(other.devName || 'another device')}: ${escapeHtml(other.s.t)} · ${escapeHtml(other.s.artist)}</p><button type="button" data-pb-here>Play it here ▶</button>` : '')
-    + (set.on && pbBackend === true && !other ? '<p class="pb-note">Nothing from your other devices yet. Turn this on there too.</p>' : '');
+    + (set.on && pbBackend === true && !other ? '<p class="pb-note">Nothing from your other devices yet. Turn this on there too.</p>' : '')
+    + (set.on ? `<p class="pb-note pb-status">${pbStatusLine()}</p>` : '');
   document.body.appendChild(menu);
   if (anchor) { const r = anchor.getBoundingClientRect(); positionFloatingMenu(menu, r.left, r.top - 8); } else positionFloatingMenu(menu, x || innerWidth / 2 - 160, y || 120);
   menu.addEventListener('click', (e) => e.stopPropagation());
@@ -362,6 +389,7 @@ function placeRestore() {
   window.addEventListener('pagehide', () => { try { pbLocalSave(); placeSave(); } catch (e) { /* closing */ } });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && pbSet().on) pbSyncSchedule(0); });
   if (typeof CRATE_POPOUT_WINDOW !== 'undefined' && CRATE_POPOUT_WINDOW) return;          // a pop-out window: none of the rest
+  if (/[?&]crate-test/.test(location.search)) return;          // the test page (made-up crate): never carries on with a song, nor goes back to a place
   (function whenIn() {
     if (!state.catalogFetchedAt) { setTimeout(whenIn, 400); return; }
     setTimeout(async () => {

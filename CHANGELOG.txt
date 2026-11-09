@@ -17,7 +17,26 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.94.1
+  CURRENT_VERSION: 1.94.2
+
+  1.94.2 — 2026-11-09 — Fixed: a song playing from YouTube was never synced to your other devices; a device starting up showed its own old song over what another was playing; the Map popped out didn't fill its window. Page only.
+          YOUTUBE: the sync read the song playing from what Spotify's player
+          had last reported, so while a song played from YouTube (or
+          SoundCloud) it sent nothing (that old song's artist wasn't the
+          release's) or the wrong song. It now reads the song from whichever
+          player is playing it.
+          STARTING UP: a device opened while another is playing (or has played
+          since) shows "Playing on <that device> … Play here", rather than
+          its own "Where you were" from before.
+          STATUS: ⇄ (or ⚙ → Playback on your devices…) says whether the backend
+          answers and when it last did, what it last heard from your devices,
+          and what this one last sent. (With nothing playing, ⇄ isn't on screen:
+          the ⚙ menu has it.)
+          MAP POP-OUT: the Map opened in a window of its own filled only the
+          size you had last dragged it to, over the whole of CRATE; it fills
+          the window now (and that window never changes the size your main
+          window's Map remembers).
+          The test page no longer carries on with a song after a reload.
 
   1.94.1 — 2026-11-09 — Fixed: with playback synced, a device kept pausing itself while it was the one playing. Page only.
           The device that's playing says "still playing" every 25 seconds,

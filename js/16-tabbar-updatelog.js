@@ -384,7 +384,7 @@ function popSolo(d) {
     popSoloView = d.view; document.body.classList.add('crate-solo', 'crate-solo-' + d.view);
     // The view IS this window: nothing closes it but the window's own × (a release opened from it shows on top, and Esc leaves it be).
     if (d.view === 'galaxy') { openGalaxy(); closeGalaxy = function () {}; }
-    else if (d.view === 'map') { openMapModal(); closeMapModal = function () {}; }
+    else if (d.view === 'map') { saveMapWindowPrefs = function () {}; openMapModal(); closeMapModal = function () {}; setTimeout(() => { try { if (leafletMapInstance) leafletMapInstance.invalidateSize(); } catch (e) { /* not drawn yet */ } }, 300); }          // (the map fills the window: Leaflet measures again)
     else { openTimelineModal(); closeTimelineModal = function () {}; }
     return;
   }
