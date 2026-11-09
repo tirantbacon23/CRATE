@@ -543,7 +543,7 @@ function loadFlatTrackTable(list) {
 }
 
 function trackRowKey(row) {
-  return `${row.item.row}::${row.track.trackNumber || row.idx}`;
+  return `${row.item.row}::@${row.idx}`;          // (1.93.5) by its place in the tracklist: two songs can carry the same number (the parts of one long piece), and selecting one selected both
 }
 
 // Resolves the value used to *sort* a row for a given sort key — numeric
@@ -591,7 +591,7 @@ function renderFlatTrackTable() {
   const activeCols = activeTrackColumns();
   const template = trackTableGridTemplate();
 
-  body.innerHTML = rows.map(row => {
+  const rowHtml = (row) => {
     const { item, track: t } = row;
     const rowKey = trackRowKey(row);
     const scrobbleCount = trackScrobbleCountFor(item.artist, item.title, t.trackName);
@@ -611,7 +611,26 @@ function renderFlatTrackTable() {
         ${colsHtml}
         <span class="mt-plays">${scrobbleCount > 0 ? scrobbleCount : ''}</span>
       </div>`;
-  }).join('') + loadingNote;
+  };
+  // (1.93.5) Only the rows near the screen are made: 12,000 songs drawn at once took over a second, and while tracklists load the table is
+  // redrawn every second. The first MT_CHUNK are drawn, and MT_CHUNK more each time the end comes within about two screens of view. A
+  // redraw during the same load keeps as many as were drawn, so the place you scrolled to stays; Ctrl+A still selects every row.
+  const MT_CHUNK = 300, keep = body._tok === flatTrackLoadToken ? (body._shown || 0) : 0;
+  body._tok = flatTrackLoadToken; body._rows = rows;
+  body._shown = Math.min(rows.length, Math.max(MT_CHUNK, keep));
+  body.innerHTML = rows.slice(0, body._shown).map(rowHtml).join('') + (body._shown < rows.length ? '<div class="mt-more" data-mt-more aria-hidden="true"></div>' : '') + loadingNote;
+  if (body._io) { body._io.disconnect(); body._io = null; }
+  const moreEl = body.querySelector('[data-mt-more]');
+  if (moreEl && typeof IntersectionObserver === 'function') {
+    const io2 = body._io = new IntersectionObserver((ents) => {
+      if (!ents.some(x => x.isIntersecting) || body._io !== io2) return;
+      const m = body.querySelector('[data-mt-more]'); if (!m) { io2.disconnect(); return; }
+      const n = Math.min(rows.length, body._shown + MT_CHUNK);
+      m.insertAdjacentHTML('beforebegin', rows.slice(body._shown, n).map(rowHtml).join('')); body._shown = n;
+      if (n >= rows.length) { m.remove(); io2.disconnect(); } else { io2.unobserve(m); io2.observe(m); }          // (observed again: still in view means draw more)
+    }, { rootMargin: '1500px 0px' });
+    io2.observe(moreEl);
+  } else if (moreEl) { body.innerHTML = rows.map(rowHtml).join('') + loadingNote; body._shown = rows.length; }
 
   // Event delegation: single click selects (with shift/ctrl range & toggle
   // support), double-click opens the album deck for that track's row.
@@ -704,6 +723,13 @@ function handleTrackRowClick(e, rowEl, containerEl, rowSelector) {
 // state.selectedTracks Set, so selecting "everything visible" is just
 // every such row currently in the DOM.
 function selectAllVisibleTracks() {
+  const tb = document.getElementById('trackTableBody');
+  if (tb && tb._rows && tb.isConnected && el.gridContainer.contains(tb)) {          // the Tracks table: every row, drawn yet or not
+    const keys = tb._rows.map(trackRowKey); if (!keys.length) return;
+    keys.forEach(k => state.selectedTracks.add(k)); state.lastSelectedTrackKey = keys[keys.length - 1];
+    tb.querySelectorAll('[data-track-key]').forEach(r => r.classList.add('selected'));
+    return;
+  }
   const rowEls = Array.from(el.gridContainer.querySelectorAll('[data-track-key]'));
   if (!rowEls.length) return;
   rowEls.forEach(r => state.selectedTracks.add(r.dataset.trackKey));
@@ -821,7 +847,7 @@ function loadTracksForList(list, mode) {
         tw.innerHTML = shown.map(({ t, i }) => {
           const scrobbleCount = trackScrobbleCountFor(item.artist, item.title, t.trackName);
           const trackName = t.trackName || '';
-          const rowKey = `${item.row}::${t.trackNumber || i}`;
+          const rowKey = `${item.row}::@${i}`;          // (by its place, as trackRowKey)
           const selected = state.selectedTracks.has(rowKey);
           return `
           <div class="track-row${selected ? ' selected' : ''}" data-track-key="${rowKey}" tabindex="0">
@@ -866,7 +892,7 @@ function loadTracksForList(list, mode) {
           Array.from(tw.querySelectorAll('.track-row')).forEach(r => r.classList.toggle('selected', r.dataset.trackKey === rowKey));
         }
         const selectedItems = shown
-          .map(({ t, i }) => ({ t, key: `${item.row}::${t.trackNumber || i}` }))
+          .map(({ t, i }) => ({ t, key: `${item.row}::@${i}` }))
           .filter(x => state.selectedTracks.has(x.key))
           .map(x => ({ itemType: 'track', row: item.row, albumId: item.albumId || '', trackNum: x.t.trackNumber || '', trackName: x.t.trackName || '' }));
 

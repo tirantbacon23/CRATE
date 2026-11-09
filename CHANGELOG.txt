@@ -17,7 +17,37 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.93.4
+  CURRENT_VERSION: 1.93.5
+
+  1.93.5 — 2026-11-09 — Playback carries on after a refresh and moves between your devices; CRATE reopens where you were; the Tracks view draws only what is near the screen; selecting one part of a long piece no longer selects the other. Page and backend (redeploy apps-script-backend.gs for the devices part).
+          AFTER A REFRESH: what was playing starts again at the same song and
+          moment, with its queue (the first CRATE window; never a pop-out). If
+          the browser won't start sound by itself, or it was paused, a pill
+          offers "Carry on".
+          WHERE YOU WERE: the tab you were on, your open artist and genre tabs,
+          an open playlist, the search and what was picked on the left, and
+          how far down you were, come back after a refresh.
+          YOUR DEVICES: ⇄ on the player (or ⚙ → Playback on your devices…):
+          "Sync playback across your devices". One plays at a time: start
+          something on your PC and your laptop pauses and shows "Playing on
+          Windows PC: …" with "Play here", which carries on there from the
+          same song and moment (and the PC pauses). "Play along here" makes a
+          device follow instead (it plays what the others play, at the same
+          spot, and never takes over). Each device can be named. The other
+          devices hear about it within about 6 seconds (20 in a background
+          tab). Needs the new backend: it keeps what is playing in Apps
+          Script's cache for 6 hours (never in the sheet), and remembers a
+          Google sign-in it has already checked until it runs out, so the
+          extra requests don't each ask Google again.
+          TRACKS VIEW: the table draws 300 rows, and 300 more each time you
+          come near the end; a redraw while tracklists load keeps what you
+          had scrolled to, and Ctrl+A still selects every row. (12,000 songs
+          took over a second to draw, every second while loading.)
+          FIXED: the Tracks, Album and Tracks and genre-page lists told rows
+          apart by track number, so two songs with the same number (the
+          parts of "Shine On You Crazy Diamond") were selected together, and
+          double-clicking the second played the first. They go by their
+          place in the tracklist now.
 
   1.93.4 — 2026-11-09 — A release sent from RYM is added once however many CRATE windows are open; windows follow each other's search; the Tracks view loads much faster; where-recorded look-ups are in Processing, with a queue, and for one release from its menu. Page only.
           ONE WINDOW WORKS IN THE BACKGROUND: with CRATE open in more than one

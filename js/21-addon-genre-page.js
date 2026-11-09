@@ -1687,7 +1687,7 @@ function loadTracksForPlaylistGroups(list, wrap, playlist) {
           })();
 
       tw.innerHTML = tracksToShow.length ? tracksToShow.map((t, i) => `
-        <div class="track-row" data-track-key="${item.row}::${t.trackNumber || i}">
+        <div class="track-row" data-track-key="${item.row}::@${i}">
           <span class="track-num">${trackNumHtml(t, tracks.indexOf(t))}</span>
           <span class="track-name${rymBoldTrackClass(t, item)}">${escapeHtml(t.trackName || '')}</span>
           <span class="track-time">${formatDuration(t.trackTimeMillis)}</span>
