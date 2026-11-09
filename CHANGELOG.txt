@@ -17,7 +17,23 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.94.2
+  CURRENT_VERSION: 1.94.3
+
+  1.94.3 — 2026-11-09 — Fixed: playback sync in a second CRATE window never sent or heard anything; the floating video shows its controls only on hover and no longer covers the ⚙ menu or dialogs. Page only.
+          SYNC: with CRATE open more than once on a computer (two tabs, or the
+          installed app and a tab), only the first window did the
+          background work, and playback sync was counted in it: the window
+          you played in, if it wasn't that one, never told your other devices
+          (nor heard from them). It runs in every CRATE window now (not a
+          pop-out). And a Spotify song whose artist Spotify names its own way
+          ("Beatles") is sent; that check is only made in the moment a song
+          changes.
+          FLOATING VIDEO: YouTube's own controls came up over the picture by
+          themselves whenever a song started. The YouTube player now has none;
+          the floating video has CRATE's own along its foot (play/pause, the
+          time, a seek bar, fullscreen), only while the mouse is over it (in
+          fullscreen: at the bottom edge). The ⚙ menu now opens over it, and
+          while a dialog is open the video steps aside (it plays on).
 
   1.94.2 — 2026-11-09 — Fixed: a song playing from YouTube was never synced to your other devices; a device starting up showed its own old song over what another was playing; the Map popped out didn't fill its window. Page only.
           YOUTUBE: the sync read the song playing from what Spotify's player

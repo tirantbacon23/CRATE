@@ -412,7 +412,7 @@ function ensureYtPlayer() {
   ytPlayerReadyPromise = loadYouTubeIframeApi().then(() => new Promise(resolve => {
     ytPlayer = new YT.Player('ytPlayerMount', {
       width: '100%', height: '100%',
-      playerVars: { autoplay: 1, playsinline: 1, rel: 0, modestbranding: 1 },
+      playerVars: { autoplay: 1, playsinline: 1, rel: 0, modestbranding: 1, controls: 0, iv_load_policy: 3, fs: 0 },          // (1.94.3) none of YouTube's own controls: the player bar has them, and the floating video shows CRATE's own on hover (42-floating-video.js)
       events: {
         onReady: (e) => {
           const prefs = loadYtPlayerPrefs();

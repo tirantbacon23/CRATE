@@ -36,7 +36,33 @@ function vfTitle() { const t = document.getElementById('vfTitle'); if (t) t.text
   const bar = document.createElement('div'); bar.className = 'vf-bar';
   bar.innerHTML = '<span class="vf-title" id="vfTitle">YouTube</span><button type="button" class="vf-btn" data-vf="full" title="Fullscreen" aria-label="Fullscreen">⛶</button><button type="button" class="vf-btn" data-vf="dock" title="Put the video back in the player" aria-label="Put the video back in the player">⤓</button>';
   const grip = document.createElement('div'); grip.className = 'vf-resize'; grip.title = 'Drag to resize';
-  w.appendChild(bar); w.appendChild(grip);
+  // (1.94.3) Controls of its own, over the video, only while the mouse is over it (in fullscreen: for a moment after it moves). YouTube's
+  // player is made without its own (they came up by themselves whenever a song started, over the picture).
+  const ctl = document.createElement('div'); ctl.className = 'vf-ctl';
+  ctl.innerHTML = '<button type="button" class="vf-cbtn" data-vfc="play" aria-label="Play or pause">\u23f8</button><span class="vf-time" data-vfc-t>0:00</span><div class="vf-seek" data-vfc="seek"><i data-vfc-fill></i></div><span class="vf-time" data-vfc-d>0:00</span><button type="button" class="vf-cbtn" data-vfc="full" aria-label="Fullscreen">\u26f6</button>';
+  w.appendChild(bar); w.appendChild(ctl); w.appendChild(grip);
+  const fmt = (ms) => { const s = Math.max(0, Math.round((ms || 0) / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+  const paintCtl = () => {
+    if (!(vfFloating() || document.fullscreenElement === w)) return;
+    const pos = getEstimatedPosition() || 0, dur = getCurrentDurationMs() || 0;
+    ctl.querySelector('[data-vfc-t]').textContent = fmt(pos); ctl.querySelector('[data-vfc-d]').textContent = fmt(dur);
+    ctl.querySelector('[data-vfc-fill]').style.width = (dur ? Math.min(100, pos / dur * 100) : 0) + '%';
+    ctl.querySelector('[data-vfc="play"]').textContent = el.miniPlayerPlayPause && el.miniPlayerPlayPause.title === 'Pause' ? '\u23f8' : '\u25b6';
+  };
+  setInterval(() => { if (w.matches(':hover') || w.classList.contains('vf-awake')) paintCtl(); }, 400);
+  w.addEventListener('mouseenter', paintCtl);
+  let awakeT = 0;
+  w.addEventListener('mousemove', () => { if (document.fullscreenElement !== w) return; w.classList.add('vf-awake'); clearTimeout(awakeT); awakeT = setTimeout(() => w.classList.remove('vf-awake'), 2200); });
+  ctl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const k = e.target.closest('[data-vfc]'); if (!k) return;
+    if (k.dataset.vfc === 'play') { if (el.miniPlayerPlayPause) el.miniPlayerPlayPause.click(); setTimeout(paintCtl, 150); }
+    else if (k.dataset.vfc === 'full') { if (typeof toggleYtFullscreen === 'function') toggleYtFullscreen(); }
+    else if (k.dataset.vfc === 'seek') {
+      const r = k.getBoundingClientRect(), ratio = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), dur = getCurrentDurationMs() || 0;
+      if (dur && ytPlayer && ytPlayer.seekTo) { try { ytSeekInSegment(ratio * dur / 1000); } catch (er) { /* not ready */ } setTimeout(paintCtl, 200); }
+    }
+  });
   if (fs) {                                                            // ⧉ beside ⛶ in the player bar, shown with it (YouTube only)
     const b = document.createElement('button'); b.type = 'button'; b.id = 'miniPlayerFloatBtn'; b.className = 'mini-player-btn'; b.textContent = '⧉'; b.hidden = fs.hidden;
     b.addEventListener('click', (e) => { e.stopPropagation(); vfToggle(); });

@@ -20,7 +20,7 @@ const PB_KEEP_MS = 12 * 3600e3;                                       // a refre
 const pbFold = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 const pbId = (it) => (it && (it.albumId || (it.row != null ? 'r' + it.row : ''))) || '';
 function pbItemOf(id) { if (!id) return null; return (state.raw || []).find(x => x.albumId === id || 'r' + x.row === id) || null; }
-let pbQueueMovedAt = 0, pbQueueSeen = '';
+let pbQueueMovedAt = 0, pbQueueSeen = '', pbItemSeen = null, pbItemMovedAt = 0;
 // (1.94.2) The song playing now, whatever plays it. Only Spotify's player sets currentSpotifyTrack: while a song played from YouTube (or
 // SoundCloud) it still held the last Spotify song, so nothing was sent at all (its artist wasn't the release's), or the wrong song was.
 function pbSpotifyEngine() { return !activePlayerEngine || activePlayerEngine === 'spotify'; }
@@ -44,7 +44,8 @@ function pbSnapshot() {
   // (1.93.9) Between two songs the release can already be the new one while the player still shows the old song (its name, its moment):
   // sent then, another device played the wrong song from the wrong place. A song whose artists aren't the release's isn't sent.
   const arts = pbSpotifyEngine() && currentSpotifyTrack ? currentSpotifyTrack.artists : null;          // (a YouTube or SoundCloud song has no artists to check)
-  if (Array.isArray(arts) && arts.length && typeof artistsRoughlyMatch === 'function' && !artistsRoughlyMatch(item.artist, arts)) return null;
+  if (pbItemSeen !== item) { pbItemSeen = item; pbItemMovedAt = Date.now(); }
+  if (Date.now() - Math.max(pbItemMovedAt, pbQueueMovedAt) < 6000 && Array.isArray(arts) && arts.length && typeof artistsRoughlyMatch === 'function' && !artistsRoughlyMatch(item.artist, arts)) return null;          // (1.94.3) only just after a change: Spotify can name an artist its own way
   if (inQueue && pbFold(crateQueueList[crateQueueIndex].track && crateQueueList[crateQueueIndex].track.trackName) && !pbNamesMatch(crateQueueList[crateQueueIndex].track.trackName, nowName) && Date.now() - pbQueueMovedAt < 6000) return null;
   let q = null, i = -1;
   if (inQueue) {
@@ -393,10 +394,13 @@ function placeRestore() {
   (function whenIn() {
     if (!state.catalogFetchedAt) { setTimeout(whenIn, 400); return; }
     setTimeout(async () => {
-      if (typeof crateIsMain === 'function' && !crateIsMain()) return;          // a second window: the first one carries on
-      placeRestore();
-      if (pbSet().on) { await pbPoll(); pbSyncSchedule(6000); }
-      pbLocalResumeOnLoad();
+      // (1.94.3) Playback sync runs in every CRATE window (not a pop-out): with CRATE open twice on a computer, only the first did, and the
+      // window you played in (if it wasn't that one) never told anyone, nor heard. Going back to where you were, and carrying on after a
+      // refresh, stay the first window's.
+      const main = typeof crateIsMain !== 'function' || crateIsMain();
+      if (main) placeRestore();
+      if (pbSet().on) { await pbPoll(); pbSyncSchedule(4000); }
+      if (main) pbLocalResumeOnLoad();
     }, 1200);
   })();
 })();
