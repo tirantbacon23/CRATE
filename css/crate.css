@@ -411,6 +411,12 @@ html, body {
 
   .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .search-wrap { position: relative; }
+  .loc-strip { position: fixed; left: 50%; bottom: 70px; transform: translateX(-50%); z-index: 900; display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px; background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 22px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); font-size: 12.5px; color: var(--text); white-space: nowrap; }
+  .search-suggest { position: absolute; top: calc(100% + 4px); left: 0; min-width: 100%; width: max(100%, 380px); max-height: min(60vh, 440px); overflow-y: auto; z-index: 400; background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45); padding: 4px; }
+  .ss-item { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; align-items: baseline; gap: 10px; padding: 6px 8px; border-radius: 5px; cursor: pointer; font-size: 13px; }
+  .ss-item.on, .ss-item:hover { background: var(--bg-card); } .ss-item.on .ss-label { color: var(--accent); }
+  .ss-kind { font: 10px 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); } .ss-label { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ss-sub { color: var(--text-dim); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+  @media (max-width: 900px) { .search-suggest { left: 0; right: 0; width: auto; min-width: 0; } }
   .search-icon {
     position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 14px; pointer-events: none;
     background: none; border: none; padding: 0; margin: 0; /* reset button chrome — purely decorative on desktop, same as the old <span> */

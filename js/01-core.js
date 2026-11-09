@@ -5,7 +5,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.92.9';
+const APP_VERSION = '1.93.0';
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -915,7 +915,7 @@ const state = {
   // once rather than per-row, matching the reference this was built from.
   showTrackCredits: false,
   chartGenre: null, // last-selected genre in the Release Chart element (Main panel) — see renderChartElement()
-  rymBold: true, rymBoldRank: 7500, rymQueueMode: !window.__CRATE_LEGACY_REVIEW, rymUpdateOnAdd: true, rymAutoImport: true, rymAutoApply: true, afOn: true, afOrder: null, rymTickDiffs: true, rymShowNext: true, rymAuto: true, rymMin: 0, rymMissingOnly: false, backendRym: false, backendRymHist: false, backendTaxChunks: false, rymGenreAuto: true,   // RYM ratings (see rym-data)
+  rymBold: true, rymBoldRank: 7500, rymQueueMode: !window.__CRATE_LEGACY_REVIEW, rymUpdateOnAdd: true, rymAutoImport: true, rymAutoApply: true, afOn: true, afOrder: null, rymTickDiffs: true, rymShowNext: true, rymAuto: true, rymMin: 0, rymUpdatedFilter: '', rymMissingOnly: false, backendRym: false, backendRymHist: false, backendTaxChunks: false, rymGenreAuto: true,   // RYM ratings (see rym-data)
   genreNavExact: false, // when on, the genre picked in the left panel shows only releases tagged with THAT genre, not ones under it in the taxonomy (and the counts follow)
   genreRole: 'any',   // which of a release's genres a genre filter looks at: 'any' (Genre + Secondary Genre), 'primary' (Genre only), 'secondary' (Secondary Genre only) — see genre-role
   firstGenreOnly: false, // when on, a genre only counts if it is the FIRST one listed on a release (left-panel genre filter, genre: searches, Release Chart) — see filterGenreTags

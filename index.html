@@ -119,7 +119,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <!-- CRATE's own styles, in the head so the page is never drawn without them (from 1.78.0 to 1.90.5 this sat at the very end
      of <body>, so a phone showed the bare, unstyled markup for a moment on every load). After Leaflet's, so ours win. -->
-<link rel="stylesheet" href="css/crate.css?v=1.92.9">
+<link rel="stylesheet" href="css/crate.css?v=1.93.0">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
@@ -248,6 +248,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
           <button type="button" id="menuMergeDupes">Find and merge duplicates…</button>
           <button type="button" id="menuBatchMatch">Match songs…</button>
           <button type="button" id="menuMatchNoLinks">Match releases with no song links…</button>
+          <button type="button" id="menuRecordedAt" title="Look up on MusicBrainz where each release with no Location was recorded">Find where releases were recorded…</button>
           <button type="button" id="menuBatchUndo">Undo the last song match…</button>
           <button type="button" id="menuSoundAnalysis">Sound analysis…</button>
           <button type="button" id="menuRymRatings">RYM ratings &amp; genres…</button>
@@ -492,6 +493,8 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
               <button type="button" class="sort-filter-option" data-sort="rymPop" title="Where its rating and its number of ratings stand among your releases">Most popular (RYM)</button>
               <button type="button" class="sort-filter-option" data-sort="unrated">Unrated first</button>
               <button type="button" class="sort-filter-option" data-sort="added">Recently added</button>
+              <button type="button" class="sort-filter-option" data-sort="rymUpdated" title="The releases last updated from Rate Your Music first">Recently updated from RYM</button>
+              <button type="button" class="sort-filter-option" data-sort="notUpdated" title="The releases not yet updated from Rate Your Music first">Not updated from RYM first</button>
               <button type="button" class="sort-filter-option" id="sortGenreMatchOption" data-sort="genreMatch" hidden>Closest genre match</button>
               <div class="menu-divider"></div>
               <label class="arrange-row"><input type="checkbox" id="sortFilterListenedToggle"> Listened only</label>
@@ -499,6 +502,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
               <div class="menu-section-title">RYM rating</div>
               <label class="arrange-row">At least <select id="sortRymMin" class="rym-menu-select"><option value="0">Any</option><option value="3">3.0</option><option value="3.5">3.5</option><option value="3.8">3.8</option><option value="4">4.0</option><option value="4.5">4.5</option></select></label>
               <label class="arrange-row"><input type="checkbox" id="sortRymMissing"> Missing an RYM rating</label>
+              <label class="arrange-row">Updated from RYM <select id="sortRymUpdated" class="rym-menu-select"><option value="">Any</option><option value="yes">Updated</option><option value="no">Not yet</option></select></label>
               <div class="menu-divider"></div>
               <div class="menu-section-title">Genre search</div>
               <label class="arrange-row genre-role-row">A genre counts when it’s <select id="genreRoleSelect" class="rym-menu-select"><option value="any">primary or secondary</option><option value="primary">primary only</option><option value="secondary">secondary only</option></select></label>
@@ -2220,46 +2224,47 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
   </div>
 </div>
 
-<script src="js/01-core.js?v=1.92.9"></script>
-<script src="js/02-auth.js?v=1.92.9"></script>
-<script src="js/03-taxonomy-layout.js?v=1.92.9"></script>
-<script src="js/04-obsidian-export.js?v=1.92.9"></script>
-<script src="js/05-init-genres.js?v=1.92.9"></script>
-<script src="js/06-events.js?v=1.92.9"></script>
-<script src="js/07-prefs-fetch.js?v=1.92.9"></script>
-<script src="js/08-tabs-panels.js?v=1.92.9"></script>
-<script src="js/09-descriptors-mood-merge.js?v=1.92.9"></script>
-<script src="js/10-filters-search.js?v=1.92.9"></script>
-<script src="js/11-grid-player.js?v=1.92.9"></script>
-<script src="js/12-player-menus.js?v=1.92.9"></script>
-<script src="js/13-diary-scrobbles-stats.js?v=1.92.9"></script>
-<script src="js/14-artist-playlists.js?v=1.92.9"></script>
-<script src="js/15-shuffle-artist-info.js?v=1.92.9"></script>
-<script src="js/16-tabbar-updatelog.js?v=1.92.9"></script>
-<script src="js/17-match-songs.js?v=1.92.9"></script>
-<script src="js/18-exchange.js?v=1.92.9"></script>
-<script src="js/19-sound.js?v=1.92.9"></script>
-<script src="js/20-export-import.js?v=1.92.9"></script>
-<script src="js/21-addon-genre-page.js?v=1.92.9"></script>
-<script src="js/22-deck.js?v=1.92.9"></script>
-<script src="js/23-timeline-map.js?v=1.92.9"></script>
-<script src="js/24-diary-log.js?v=1.92.9"></script>
-<script src="js/25-tracklist-add.js?v=1.92.9"></script>
-<script src="js/26-layout-dnd.js?v=1.92.9"></script>
-<script src="js/27-tracklist-builder-rym.js?v=1.92.9"></script>
-<script src="js/28-edit-links-youtube.js?v=1.92.9"></script>
-<script src="js/29-lastfm-scrobbling.js?v=1.92.9"></script>
-<script src="js/30-new-releases.js?v=1.92.9"></script>
-<script src="js/31-lastfm-import.js?v=1.92.9"></script>
-<script src="js/32-utils.js?v=1.92.9"></script>
-<script src="js/33-pull-details.js?v=1.92.9"></script>
-<script src="js/34-fill-blanks.js?v=1.92.9"></script>
-<script src="js/35-catalogue-stats.js?v=1.92.9"></script>
-<script src="js/36-galaxy.js?v=1.92.9"></script>
-<script src="js/37-taste.js?v=1.92.9"></script>
-<script src="js/38-ask.js?v=1.92.9"></script>
-<script src="js/39-phone-playback.js?v=1.92.9"></script>
-<script src="js/99-boot.js?v=1.92.9"></script>
+<script src="js/01-core.js?v=1.93.0"></script>
+<script src="js/02-auth.js?v=1.93.0"></script>
+<script src="js/03-taxonomy-layout.js?v=1.93.0"></script>
+<script src="js/04-obsidian-export.js?v=1.93.0"></script>
+<script src="js/05-init-genres.js?v=1.93.0"></script>
+<script src="js/06-events.js?v=1.93.0"></script>
+<script src="js/07-prefs-fetch.js?v=1.93.0"></script>
+<script src="js/08-tabs-panels.js?v=1.93.0"></script>
+<script src="js/09-descriptors-mood-merge.js?v=1.93.0"></script>
+<script src="js/10-filters-search.js?v=1.93.0"></script>
+<script src="js/11-grid-player.js?v=1.93.0"></script>
+<script src="js/12-player-menus.js?v=1.93.0"></script>
+<script src="js/13-diary-scrobbles-stats.js?v=1.93.0"></script>
+<script src="js/14-artist-playlists.js?v=1.93.0"></script>
+<script src="js/15-shuffle-artist-info.js?v=1.93.0"></script>
+<script src="js/16-tabbar-updatelog.js?v=1.93.0"></script>
+<script src="js/17-match-songs.js?v=1.93.0"></script>
+<script src="js/18-exchange.js?v=1.93.0"></script>
+<script src="js/19-sound.js?v=1.93.0"></script>
+<script src="js/20-export-import.js?v=1.93.0"></script>
+<script src="js/21-addon-genre-page.js?v=1.93.0"></script>
+<script src="js/22-deck.js?v=1.93.0"></script>
+<script src="js/23-timeline-map.js?v=1.93.0"></script>
+<script src="js/24-diary-log.js?v=1.93.0"></script>
+<script src="js/25-tracklist-add.js?v=1.93.0"></script>
+<script src="js/26-layout-dnd.js?v=1.93.0"></script>
+<script src="js/27-tracklist-builder-rym.js?v=1.93.0"></script>
+<script src="js/28-edit-links-youtube.js?v=1.93.0"></script>
+<script src="js/29-lastfm-scrobbling.js?v=1.93.0"></script>
+<script src="js/30-new-releases.js?v=1.93.0"></script>
+<script src="js/31-lastfm-import.js?v=1.93.0"></script>
+<script src="js/32-utils.js?v=1.93.0"></script>
+<script src="js/33-pull-details.js?v=1.93.0"></script>
+<script src="js/34-fill-blanks.js?v=1.93.0"></script>
+<script src="js/35-catalogue-stats.js?v=1.93.0"></script>
+<script src="js/36-galaxy.js?v=1.93.0"></script>
+<script src="js/37-taste.js?v=1.93.0"></script>
+<script src="js/38-ask.js?v=1.93.0"></script>
+<script src="js/39-phone-playback.js?v=1.93.0"></script>
+<script src="js/40-recorded-at.js?v=1.93.0"></script>
+<script src="js/99-boot.js?v=1.93.0"></script>
 
 </body>
 </html>

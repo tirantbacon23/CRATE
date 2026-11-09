@@ -154,9 +154,32 @@ function gxColor(i) {
 // ----- opening, and which releases -----
 function gxPool() { return (gx.onlyShown ? state.filtered : state.raw).filter(it => it && it.title); }
 function gxEl(id) { return document.getElementById(id); }
+function gxKey(pool) {                                                // what the map is made of: which releases, and what places them (genres, descriptors, scene, label, artist, year)
+  let h = 2166136261; const add = (s) => { s = String(s || ''); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } h ^= 124; };
+  pool.forEach(it => { add(it.row); add(it.artist); add(it.title); add(it.genre); add(it.genre2); add(it.rymDescriptors); add(it.scene); add(it.movement); add(it.label); add(it.releaseDate); });
+  return (gx.onlyShown ? 'f:' : 'a:') + pool.length + ':' + (h >>> 0).toString(36) + ':' + JSON.stringify(state.genreTaxonomy || {}).length;
+}
+// While it is open, the map follows your crate: a release added, changed or deleted (or, with "only what is showing", the filter changing) and it is
+// rebuilt a moment later. The stars already there keep their places and the camera stays where it is; only the new ones find theirs.
+function gxLiveUpdate() { if (!gx.open) return; clearTimeout(gx.liveT); gx.liveT = setTimeout(gxRebuildKeep, 1200); }
+function gxRebuildKeep() {
+  if (!gx.open) return;
+  const pool = gxPool(), key = gxKey(pool); if (key === gx.key) return;
+  const was = new Map(), rowOf = (i) => gx.items[i] && String(gx.items[i].row);
+  if (gx.pos) gx.items.forEach((it, i) => was.set(String(it.row), [gx.pos[2 * i], gx.pos[2 * i + 1]]));
+  const keepSel = gx.sel >= 0 ? rowOf(gx.sel) : null;
+  gx.key = key; gx.items = pool; gx.hover = gx.from = gx.to = -1; gx.path = [];
+  gx.fams = gxFamilies(pool, state.genreTaxonomy); gx.graph = gxBuild(pool, state.genreTaxonomy); gx.layout = gxLayoutInit(pool, gx.fams); gx.pos = gx.layout.pos;
+  let kept = 0; pool.forEach((it, i) => { const p = was.get(String(it.row)); if (p) { gx.pos[2 * i] = p[0]; gx.pos[2 * i + 1] = p[1]; kept++; } });
+  if (kept) gx.layout.iter = Math.max(0, gx.layout.total - 70);          // most were already placed: a gentle settle, not the whole forming again
+  gx.sel = keepSel ? pool.findIndex(it => String(it.row) === keepSel) : -1;
+  const added = pool.length - kept, gone = was.size - kept;
+  gxSetStatus(added || gone ? `Updated: ${added ? `${added} new` : ''}${added && gone ? ', ' : ''}${gone ? `${gone} gone` : ''}` : '');
+  gx.keepCam = kept > 0; gxSettle();
+}
 function openGalaxy() {
   gx.open = true; gxEl('gxOverlay').hidden = false;
-  const pool = gxPool(), key = (gx.onlyShown ? 'f:' : 'a:') + pool.length + ':' + pool.slice(0, 50).map(x => x.row).join(',') + ':' + Object.keys(state.genreTaxonomy || {}).length;
+  const pool = gxPool(), key = gxKey(pool);
   if (key !== gx.key) {
     gx.key = key; gx.items = pool; gx.hover = gx.sel = gx.from = gx.to = -1; gx.path = [];
     const hit = gx.cache.get(key);
@@ -179,10 +202,10 @@ function gxSettle() {                                                 // runs th
   const t0 = performance.now(); let done = false;
   while (!done && performance.now() - t0 < 14) done = gxLayoutStep(L, gx.graph, 2);
   gxSetStatus(done ? '' : `Forming the galaxy… ${Math.round(L.iter / L.total * 100)}%`);
-  if (L.iter < 40 || L.iter % 30 < 3) gxFit(true);
+  if (!gx.keepCam && (L.iter < 40 || L.iter % 30 < 3)) gxFit(true);          // (an update keeps the camera where you left it)
   gxDraw(); gxRenderSide();
   if (!done && gx.open) gx.layoutTimer = setTimeout(gxSettle, 0);
-  if (done) { gxFit(true); gxLabels(); gx.cache.set(gx.key, { fams: gx.fams, graph: gx.graph, layout: gx.layout, pos: gx.pos, labels: gx.labels }); gxDraw(); }
+  if (done) { if (!gx.keepCam) gxFit(true); gx.keepCam = false; gxLabels(); gx.cache.set(gx.key, { fams: gx.fams, graph: gx.graph, layout: gx.layout, pos: gx.pos, labels: gx.labels }); gxDraw(); }
 }
 function gxSetStatus(t) { const s = gxEl('gxStatus'); if (s) { s.textContent = t; s.hidden = !t; } }
 

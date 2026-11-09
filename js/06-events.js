@@ -93,6 +93,7 @@ function bindEvents() {
   // tapping it can focus the — collapsed-to-invisible-on-mobile — input;
   // :focus-within in the CSS does the actual expand/collapse.
   el.searchIconBtn.addEventListener('click', () => el.searchInput.focus());
+  initSearchSuggest();          // suggestions as you type (see ssSuggest)
   // The icon must not take focus when pressed: focus inside the search box is what opens it (:focus-within), and opening it
   // moves the icon, so the finger lifted somewhere else, no click happened, and the box never got focus (the first letters
   // typed went nowhere). Same for the ✕ below, so that pressing it doesn't blur the box and close it before its click.
@@ -151,6 +152,13 @@ function bindEvents() {
       flashGlobalToast('Genre search: ' + GENRE_SEARCH_LABELS[state.genreSearchMode].toLowerCase());
     });
   });
+
+  // The RYM part of the menu: at least a rating, missing one, and updated from Rate Your Music or not. (The first two were shown but never
+  // listened to before 1.93.0: choosing them changed nothing.)
+  const rymFilterChanged = () => { savePrefs(); buildLeftList(); applyFiltersSort(); updateMainLabel(); renderSortFilterMenu(); };
+  rymEl('sortRymMin').addEventListener('change', (e) => { state.rymMin = Number(e.target.value) || 0; rymFilterChanged(); });
+  rymEl('sortRymMissing').addEventListener('change', (e) => { state.rymMissingOnly = e.target.checked; rymFilterChanged(); });
+  rymEl('sortRymUpdated').addEventListener('change', (e) => { state.rymUpdatedFilter = ['yes', 'no'].includes(e.target.value) ? e.target.value : ''; rymFilterChanged(); });
 
   el.firstGenreOnlyToggle.addEventListener('change', () => {
     state.firstGenreOnly = el.firstGenreOnlyToggle.checked;

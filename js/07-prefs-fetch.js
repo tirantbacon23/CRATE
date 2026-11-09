@@ -47,6 +47,7 @@ function loadPrefs() {
     if (p.afOrder && typeof p.afOrder === 'object') state.afOrder = p.afOrder;
     if (rymVotesNum(p.rymBoldRank)) state.rymBoldRank = rymVotesNum(p.rymBoldRank);
     if ([0, 3, 3.5, 3.8, 4, 4.5].includes(Number(p.rymMin))) state.rymMin = Number(p.rymMin);
+    if (['', 'yes', 'no'].includes(p.rymUpdatedFilter)) state.rymUpdatedFilter = p.rymUpdatedFilter;
     if (p.panelWidths) state.panelWidths = Object.assign({}, state.panelWidths, p.panelWidths);
     if (p.fields) state.fields = Object.assign(state.fields, p.fields);
     // Once: a Tracks column showing the RELEASE's RYM rating becomes the song's own (the first) and its rating count (the second). They used to
@@ -129,7 +130,7 @@ function savePrefs() {
       shuffle: state.shuffle,
       genreSearchMode: state.genreSearchMode,
       firstGenreOnly: state.firstGenreOnly, genreRole: state.genreRole, genreNavExact: state.genreNavExact,
-      rymGenreAuto: state.rymGenreAuto, rymBold: state.rymBold, rymQueueMode: state.rymQueueMode, rymUpdateOnAdd: state.rymUpdateOnAdd, rymAutoImport: state.rymAutoImport, rymAutoApply: state.rymAutoApply, afOn: state.afOn, afOrder: state.afOrder, rymTickDiffs: state.rymTickDiffs, rymShowNext: state.rymShowNext, rymAuto: state.rymAuto, rymMissingOnly: state.rymMissingOnly, rymBoldRank: state.rymBoldRank, rymMin: state.rymMin,
+      rymGenreAuto: state.rymGenreAuto, rymBold: state.rymBold, rymQueueMode: state.rymQueueMode, rymUpdateOnAdd: state.rymUpdateOnAdd, rymAutoImport: state.rymAutoImport, rymAutoApply: state.rymAutoApply, afOn: state.afOn, afOrder: state.afOrder, rymTickDiffs: state.rymTickDiffs, rymShowNext: state.rymShowNext, rymAuto: state.rymAuto, rymMissingOnly: state.rymMissingOnly, rymBoldRank: state.rymBoldRank, rymMin: state.rymMin, rymUpdatedFilter: state.rymUpdatedFilter || '',
       statsMode: state.statsMode,
       rightPanelShowQueue: state.rightPanelShowQueue,
       rightPanelShowHistory: state.rightPanelShowHistory,
@@ -574,7 +575,7 @@ async function fetchCatalogOnce(opts) {
     if (state.activeTab === 'artist') { renderArtistList(); renderArtistDetail(); }
     checkAlbumAnniversaries();
     checkForDuplicateRows();
-    if (quiet) { catalogFlipAfter(flip, rec.added); catalogMarkArrived(rec.added); rymUpdateAdded(rec.added); afQueueAdded(rec.added); }
+    if (quiet) { catalogFlipAfter(flip, rec.added); catalogMarkArrived(rec.added); rymUpdateAdded(rec.added); afQueueAdded(rec.added); if (typeof locQueueAdded === 'function') locQueueAdded(rec.added); }
   } catch (err) {
     console.error(err);
     // AbortError is fetchWithTimeout's controller.abort() firing — a real

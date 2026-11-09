@@ -924,3 +924,29 @@ suite('Genre page: RYM row by primary or secondary genre', () => {
     } finally { S.genreTaxonomy = JSON.parse(was); }
   });
 });
+
+suite('Where a release was recorded (MusicBrainz)', () => {
+  test('the place most songs were recorded at, with its area; a second one with a third of the songs; pressing plants ignored', () => {
+    const f = app('locFromMbRelease'), at = (name, area) => ({ type: 'recorded at', place: { name, area: area ? { name: area } : undefined } }), song = (...r) => ({ recording: { relations: r } });
+    eq(f({ relations: [{ type: 'manufactured at', place: { name: 'EMI MFG.' } }], media: [{ tracks: [song(at('Abbey Road Studios', "St John's Wood")), song(at('Abbey Road Studios', "St John's Wood"))] }] }), "Abbey Road Studios, St John's Wood");
+    eq(f({ media: [{ tracks: [song(at('A')), song(at('A')), song(at('A')), song(at('B', 'London'))] }] }), 'A; B, London');
+    eq(f({ media: [{ tracks: [song(at('A')), song(at('A')), song(at('A')), song(at('A')), song(at('B'))] }] }), 'A');
+    eq(f({ media: [] }), '');
+  });
+});
+
+suite('Search suggestions', () => {
+  test('artists, releases, genres and fields offered for what is typed; a field’s values after "genre:"', () => {
+    const S = app('state'), was = S.raw;
+    S.raw = [{ row: 's1', artist: 'Frank Zappa', title: 'Hot Rats', genre: 'Jazz-Rock', label: 'Bizarre' }, { row: 's2', artist: 'Talk Talk', title: 'Laughing Stock', genre: 'Post-Rock', label: 'Verve' }];
+    app('ssIndex = null');
+    try {
+      const sug = (q) => app('ssSuggest')(q).map(s => s.kind + ':' + s.label);
+      eq(sug('zap'), ['artist:Frank Zappa']);
+      eq(sug('hot r'), ['release:Hot Rats']);
+      eq(sug('genre:post'), ['genre:Post-Rock']);
+      eq(sug('gen').includes('field:genre:'), true);
+      eq(app('ssSuggest')('zap')[0].insert, 'artist:"Frank Zappa" ');
+    } finally { S.raw = was; app('ssIndex = null'); }
+  });
+});

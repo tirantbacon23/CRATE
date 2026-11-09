@@ -17,7 +17,30 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.92.9
+  CURRENT_VERSION: 1.93.0
+
+  1.93.0 — 2026-11-09 — Search suggests as you type; Crate Galaxy follows your crate while it is open; sort and filter by whether a release has been updated from RYM; where each release was recorded, from MusicBrainz. Page only.
+          SUGGESTIONS: under the search box, artists, releases, genres and
+          labels of your crate that match what you type (a word's start
+          first). An artist, genre or label goes in as an exact filter
+          (artist:"Frank Zappa") so more can follow; a release opens. After
+          "genre:" (artist:, label:, type:…) that field's values; the start of
+          a field's name offers it. ↑/↓, Enter or Tab, Esc; mouse and touch.
+          GALAXY: while it is open, a release added, changed or deleted (or,
+          with only what is showing, the filter changing) rebuilds the map a
+          moment later; the stars already there keep their places and the
+          camera stays where it is.
+          UPDATED FROM RYM: ⇅ has "Recently updated from RYM" and "Not updated
+          from RYM first", and a filter, "Updated from RYM: Any / Updated /
+          Not yet". Fixed: the RYM rating filters there ("At least …",
+          "Missing an RYM rating") were shown but never acted on.
+          RECORDED AT: a release with no Location is looked up on
+          MusicBrainz: the place most of its songs were "recorded at", with
+          its area ("Abbey Road Studios, St John's Wood"; a second studio with
+          a third of the songs is added) becomes its Location. New releases
+          by themselves; ⚙ → "Find where releases were recorded…" for the rest
+          (about one a second, with a Stop). A Location you have is never
+          changed; one MusicBrainz doesn't know isn't asked again for 60 days.
 
   1.92.9 — 2026-11-09 — A genre's "On Rate Your Music" row can count only releases with the genre among their primary genres. Page only.
           A second switch on the row: "Primary genre" (the default) or

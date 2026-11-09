@@ -584,7 +584,8 @@ function albumPassesBrowse(r, searchTerms) {          // does this album pass th
     );
 
     const matchesListened = !state.listenedOnly || hasLoggedListen(r);
-    const matchesRym = (!state.rymMin || (r.rymRating || 0) >= state.rymMin) && (!state.rymMissingOnly || !r.rymRating);
+    const matchesRym = (!state.rymMin || (r.rymRating || 0) >= state.rymMin) && (!state.rymMissingOnly || !r.rymRating)
+      && (!state.rymUpdatedFilter || (state.rymUpdatedFilter === 'yes' ? !!r.rymUpdated : !r.rymUpdated));          // updated from Rate Your Music, or not yet
 
     return matchesQuery && matchesNav && matchesListened && matchesRym;
 }
@@ -609,13 +610,15 @@ function compareAlbumsBy(sortKey, a, b) {
     case 'rymPop': return (albumPopSortVal(b) - albumPopSortVal(a)) || ((b.rymVotes || 0) - (a.rymVotes || 0));          // the most popular first; level ones by how many rated them
     case 'unrated': return a.rating - b.rating;
     case 'added': return dateVal(b.dateAdded) - dateVal(a.dateAdded);
+    case 'rymUpdated': return dateVal(b.rymUpdated) - dateVal(a.rymUpdated) || dateVal(b.dateAdded) - dateVal(a.dateAdded);          // last updated from RYM first; never updated last
+    case 'notUpdated': return (a.rymUpdated ? 1 : 0) - (b.rymUpdated ? 1 : 0) || dateVal(b.dateAdded) - dateVal(a.dateAdded);          // not yet updated from RYM first (newest added first among them)
     case 'genreMatch': return (genreFilterWeight(b) || 0) - (genreFilterWeight(a) || 0);
     case 'newest':
     default: return dateVal(b.releaseDate) - dateVal(a.releaseDate);
   }
 }
 // ---- ...and the playlist side of it ----
-const PLAYLIST_SORT_LABELS = { newest: 'Newest release', rymVotes: 'Most RYM ratings', rymPop: 'Most popular (RYM)', oldest: 'Oldest release', artist: 'Artist A\u2013Z', title: 'Title A\u2013Z', rating: 'Top rated', rym: 'Top RYM rated', unrated: 'Unrated first', added: 'Recently added', genreMatch: 'Closest genre match' };
+const PLAYLIST_SORT_LABELS = { newest: 'Newest release', rymVotes: 'Most RYM ratings', rymPop: 'Most popular (RYM)', oldest: 'Oldest release', artist: 'Artist A\u2013Z', title: 'Title A\u2013Z', rating: 'Top rated', rym: 'Top RYM rated', unrated: 'Unrated first', added: 'Recently added', rymUpdated: 'Recently updated from RYM', notUpdated: 'Not updated from RYM first', genreMatch: 'Closest genre match' };
 function activePlaylist() { return state.activePlaylistId ? (state.playlists.find(p => p.id === state.activePlaylistId) || null) : null; }
 function playlistScopeRaw(playlist) {                            // the albums that are in this playlist (an album once, whether it is there whole or by a track): what the browser on the left lists
   const seen = new Set(), out = [];
@@ -623,7 +626,7 @@ function playlistScopeRaw(playlist) {                            // the albums t
   return out;
 }
 function playlistViewOf(playlist) {                              // the playlist as it is SHOWN: narrowed by the search box / the browser / the filters, sorted, and flagged when it is not in its own order
-  const terms = getSearchTerms(), narrowing = !!(terms.length || state.navFilter || state.listenedOnly || state.rymMin || state.rymMissingOnly);
+  const terms = getSearchTerms(), narrowing = !!(terms.length || state.navFilter || state.listenedOnly || state.rymMin || state.rymMissingOnly || state.rymUpdatedFilter);
   let entries = playlist.items.map((it, idx) => ({ it, idx, album: playlistAlbumFor(it) }));
   if (narrowing) entries = entries.filter(e => e.album && albumPassesBrowse(e.album, terms));
   let key = state.playlistSort || 'playlist';
@@ -668,6 +671,7 @@ function applyFiltersSort() {
   if (!el.genreDescElement.hidden) renderGenreDescElement(); // stays in sync with whichever genre gets clicked, not just whatever it showed when first enabled
   if (!el.artistBioElement.hidden) renderArtistBioElement(); // follows the artist you click / filter to
   if (!el.chartElement.hidden) renderChartElement(); // same idea — Release Chart's own genre select also defaults to the left panel's active filter
+  if (typeof gxLiveUpdate === 'function') gxLiveUpdate();          // an open Crate Galaxy follows the crate (see gxLiveUpdate)
 }
 
 // Syncs the "Sort & filter" popover's UI (which sort option is highlighted,
@@ -688,7 +692,7 @@ function renderSortFilterMenu() {
   el.genreSearchHint.textContent = GENRE_SEARCH_HINTS[state.genreSearchMode] || '';
   el.firstGenreOnlyToggle.checked = state.firstGenreOnly;
   { const gx = document.getElementById('genreNavExactToggle'), gxh = document.getElementById('genreNavExactHint'); gx.checked = !!state.genreNavExact; gxh.hidden = !state.genreNavExact; }
-  rymEl('sortRymMin').value = String(state.rymMin); rymEl('sortRymMissing').checked = state.rymMissingOnly;
+  rymEl('sortRymMin').value = String(state.rymMin); rymEl('sortRymMissing').checked = state.rymMissingOnly; rymEl('sortRymUpdated').value = state.rymUpdatedFilter || '';
   el.firstGenreHint.hidden = !state.firstGenreOnly;          // only worth the space while it's in effect
   el.firstGenreHint.textContent = FIRST_GENRE_HINTS[state.genreRole] || FIRST_GENRE_HINTS.any;
   { const gr = document.getElementById('genreRoleSelect'), grh = document.getElementById('genreRoleHint'); gr.value = state.genreRole; grh.hidden = state.genreRole === 'any'; grh.textContent = GENRE_ROLE_HINTS[state.genreRole] || ''; }
@@ -984,3 +988,84 @@ function groupItems(items, by) {
 
   return sortedKeys.map(k => ({ label: k, items: map.get(k) }));
 }	
+
+// ---- Suggestions as you type in the search box: artists, releases, genres and labels of your crate that match what you are typing, best first.
+// Picking an artist, genre or label puts it in as an exact filter (artist:"Frank Zappa") in place of the words typed, so more can follow; picking a
+// release opens it. After "genre:" (or artist:, label:, type:…) only that field's values are offered; the start of a field's name offers the field.
+let ssIndex = null, ssItems = [], ssActive = -1;
+const SS_FIELDS = ['artist', 'title', 'genre', 'label', 'year', 'type', 'rating', 'rym', 'catalog', 'track', 'region', 'location'];
+function ssBuildIndex() {                                            // made once per catalogue (rebuilt when it changes)
+  const raw = state.raw || [];
+  if (ssIndex && ssIndex.raw === raw && ssIndex.n === raw.length) return ssIndex;
+  const artists = new Map(), genres = new Map(), labels = new Map(), types = new Map();
+  const bump = (m, name, extra) => { const k = smFold(name); if (!k) return; const e = m.get(k) || Object.assign({ name, n: 0 }, extra || {}); e.n++; m.set(k, e); };
+  raw.forEach(r => {
+    (typeof artistParts === 'function' ? artistParts(r.artist) : [r.artist]).forEach(a => bump(artists, a));
+    allGenresForItem(r).forEach(g => { if (g && g !== 'Unknown') bump(genres, g); });
+    String(r.label || '').split(/\s*[\/,;]\s*/).forEach(l => { if (l.trim()) bump(labels, l.trim()); });
+    if (r.type && r.type !== 'Unknown') bump(types, r.type);
+  });
+  if (typeof artistAliasesAll === 'function') Object.values(artistAliasesAll()).forEach(e => { const k = smFold(e.alias); if (k && !artists.has(k)) artists.set(k, { name: e.alias, n: 0, to: e.to }); });          // an alias leads to its artist
+  ssIndex = { raw, n: raw.length, artists: [...artists.values()], genres: [...genres.values()], labels: [...labels.values()], types: [...types.values()],
+    releases: raw.map(r => ({ name: r.title, artist: r.artist, row: r.row, year: dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getUTCFullYear() : '' })) };
+  return ssIndex;
+}
+function ssScore(name, q) {                                          // 0 starts with it, 1 a word starts with it, 2 has it somewhere; -1 not at all
+  const n = smFold(name); if (!q || !n) return -1;
+  if (n.startsWith(q)) return 0; if ((' ' + n).includes(' ' + q)) return 1; return n.includes(q) ? 2 : -1;
+}
+function ssRank(list, q, limit) { return list.map(e => ({ e, s: ssScore(e.name, q) })).filter(x => x.s >= 0).sort((a, b) => a.s - b.s || (b.e.n || 0) - (a.e.n || 0) || a.e.name.length - b.e.name.length).slice(0, limit).map(x => x.e); }
+const ssQuote = (v) => `"${String(v).replace(/"/g, '')}"`;
+function ssSuggest(q) {                                              // q: the box's text -> [{ kind, label, sub, insert?, from?, row? }]
+  const ix = ssBuildIndex(), out = [];
+  const fm = /(^|\s)(-?)([a-zA-Z]+):("?)([^"]*)$/.exec(q);          // typing a field's value: "genre:sho", 'artist:"frank z'
+  if (fm && SEARCH_FIELD_ALIASES[fm[3].toLowerCase()] && !(fm[4] === '' && /\s/.test(fm[5]))) {
+    const field = SEARCH_FIELD_ALIASES[fm[3].toLowerCase()], part = smFold(fm[5]).trim(), from = fm.index + fm[1].length;
+    const list = field === 'artist' ? ix.artists : field === 'genre' ? ix.genres : field === 'label' ? ix.labels : field === 'type' ? ix.types : field === 'title' ? ix.releases : null;
+    if (!list) return [];
+    (part ? ssRank(list, part, 8) : list.slice().sort((a, b) => (b.n || 0) - (a.n || 0)).slice(0, 8)).forEach(e => out.push({ kind: field, label: e.name, sub: e.to ? `\u2192 ${e.to}` : e.artist ? e.artist : e.n ? `${e.n}` : '', insert: `${fm[2]}${fm[3]}:${ssQuote(e.name)} `, from }));
+    return out;
+  }
+  const tm = /(^|\s)(?:-?[a-zA-Z]+:(?:"[^"]*"|\S+)\s+)*([^:]*)$/.exec(q);          // the words after the last finished field:value
+  const tail = q.slice(q.length - (tm ? tm[2].length : 0)), part = smFold(tail).trim(), from = q.length - tail.length + (tail.length - tail.trimStart().length);
+  if (part.length < 2) return [];
+  if (!/\s/.test(part)) SS_FIELDS.filter(f => f.startsWith(part) && f !== part).slice(0, 2).forEach(f => out.push({ kind: 'field', label: `${f}:`, sub: 'search one field', insert: `${f}:`, from }));
+  ssRank(ix.artists, part, 4).forEach(e => out.push({ kind: 'artist', label: e.name, sub: e.to ? `\u2192 ${e.to}` : `${e.n} release${e.n === 1 ? '' : 's'}`, insert: `artist:${ssQuote(e.to || e.name)} `, from }));
+  ssRank(ix.releases, part, 4).forEach(e => out.push({ kind: 'release', label: e.name, sub: [e.artist, e.year].filter(Boolean).join(' \u00b7 '), row: e.row }));
+  ssRank(ix.genres, part, 3).forEach(e => out.push({ kind: 'genre', label: e.name, sub: `${e.n}`, insert: `genre:${ssQuote(e.name)} `, from }));
+  ssRank(ix.labels, part, 2).forEach(e => out.push({ kind: 'label', label: e.name, sub: `${e.n}`, insert: `label:${ssQuote(e.name)} `, from }));
+  return out.slice(0, 12);
+}
+function ssRender() {
+  const box = document.getElementById('searchSuggest'), inp = el.searchInput; if (!box || !inp) return;
+  if (!ssItems.length || document.activeElement !== inp) { box.hidden = true; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); return; }
+  const kindName = { field: 'Field', artist: 'Artist', release: 'Release', genre: 'Genre', label: 'Label', type: 'Type', title: 'Release' };
+  box.innerHTML = ssItems.map((s, i) => `<div class="ss-item${i === ssActive ? ' on' : ''}" id="ss-${i}" role="option" aria-selected="${i === ssActive}" data-ss="${i}"><span class="ss-kind">${kindName[s.kind] || ''}</span><span class="ss-label">${escapeHtml(s.label)}</span><span class="ss-sub">${escapeHtml(String(s.sub || ''))}</span></div>`).join('');
+  box.hidden = false; inp.setAttribute('aria-expanded', 'true');
+  if (ssActive >= 0) inp.setAttribute('aria-activedescendant', 'ss-' + ssActive); else inp.removeAttribute('aria-activedescendant');
+}
+function ssUpdate() { ssItems = ssSuggest(el.searchInput.value); ssActive = -1; ssRender(); }
+function ssPick(i) {
+  const s = ssItems[i], inp = el.searchInput; if (!s) return;
+  if (s.kind === 'release' || (s.kind === 'title' && s.row != null)) { const it = state.raw.find(r => String(r.row) === String(s.row)); ssItems = []; ssRender(); if (it) { inp.blur(); openDeck(it); } return; }
+  inp.value = inp.value.slice(0, s.from) + s.insert; inp.setSelectionRange(inp.value.length, inp.value.length);
+  inp.dispatchEvent(new Event('input')); inp.focus();
+  if (s.kind === 'field') ssUpdate(); else { ssItems = []; ssRender(); }
+}
+function initSearchSuggest() {
+  const inp = el.searchInput, wrap = el.searchWrap; if (!inp || !wrap || document.getElementById('searchSuggest')) return;
+  const box = document.createElement('div'); box.id = 'searchSuggest'; box.className = 'search-suggest'; box.setAttribute('role', 'listbox'); box.hidden = true; wrap.appendChild(box);
+  inp.setAttribute('role', 'combobox'); inp.setAttribute('aria-autocomplete', 'list'); inp.setAttribute('aria-controls', 'searchSuggest'); inp.setAttribute('aria-expanded', 'false');
+  inp.addEventListener('input', debounce(ssUpdate, 60));
+  inp.addEventListener('focus', ssUpdate);
+  inp.addEventListener('blur', () => setTimeout(ssRender, 120));
+  inp.addEventListener('keydown', (e) => {
+    if (box.hidden || !ssItems.length) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); const n = ssItems.length; ssActive = e.key === 'ArrowDown' ? (ssActive + 1 >= n ? -1 : ssActive + 1) : (ssActive <= -1 ? n - 1 : ssActive - 1); ssRender(); const on = box.querySelector('.ss-item.on'); if (on) on.scrollIntoView({ block: 'nearest' }); return; }          // (past the last: back to what you typed)
+    if ((e.key === 'Enter' || e.key === 'Tab') && ssActive >= 0) { e.preventDefault(); e.stopImmediatePropagation(); ssPick(ssActive); return; }
+    if (e.key === 'Escape') { e.preventDefault(); ssItems = []; ssRender(); }
+  }, true);
+  box.addEventListener('mousedown', (e) => e.preventDefault());          // keeps the box focused, so the click lands
+  box.addEventListener('click', (e) => { const it = e.target.closest('[data-ss]'); if (it) ssPick(+it.dataset.ss); });
+}
+
