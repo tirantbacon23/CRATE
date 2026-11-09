@@ -327,7 +327,7 @@ function popActiveDesc() {
   if (state.activeTab === 'genreInfo' && state.activeGenreTab) return { genre: state.activeGenreTab };
   return { tab: state.activeTab || 'albums' };
 }
-function popName(d) { return d.artist || d.genre || ({ albums: 'Music', diary: 'Diary', scrobbles: 'Scrobbles', stats: 'Stats', artist: 'Artist' }[d.tab] || 'CRATE'); }
+function popName(d) { return d.artist || d.genre || (d.view === 'main' ? POP_MAIN_NAMES[d.mode] : POP_VIEWS[d.view]) || ({ albums: 'Music', diary: 'Diary', scrobbles: 'Scrobbles', stats: 'Stats', artist: 'Artist' }[d.tab] || 'CRATE'); }
 function popOutTab(d) {
   if (!d) return;
   const url = location.href.split('#')[0] + POP_HASH + encodeURIComponent(JSON.stringify(d));
@@ -344,6 +344,7 @@ function popApplyFromAddress() {                                      // in the 
     if (typeof d.artist === 'string' && d.artist) openArtistInfoTab(d.artist.slice(0, 200));
     else if (typeof d.genre === 'string' && d.genre) openGenreTab(d.genre.slice(0, 200));
     else if (Object.values(POP_TABS).includes(d.tab)) switchTab(d.tab);
+    else if (typeof d.view === 'string') popSolo(d);
     document.title = `${popName(d)} \u2014 CRATE`;
   };
   go();
@@ -365,5 +366,51 @@ function popApplyFromAddress() {                                      // in the 
     nowPlayingAddMenuEl = menu; setTimeout(() => document.addEventListener('click', closeNowPlayingAddMenuOnOutsideClick), 0);          // (closes like the other menus)
   });
   popApplyFromAddress();
+})();
+
+// ---- One view in a window of its own (1.93.3): Crate Galaxy, the Map, the Timeline, or the Music view as it is (Tracks, Album covers…), each with
+// a ⧉ beside its close / in the view menu. The new window is CRATE showing only that view, full-window; × there closes the window. A Music view
+// window never changes the view the main window remembers.
+const POP_VIEWS = { galaxy: 'Crate Galaxy', map: 'Map', timeline: 'Timeline' };
+const POP_MAIN_NAMES = { albums: 'Albums', tracks: 'Tracks', albumTracks: 'Album and Tracks', covers: 'Album covers', artists: 'Artists' };
+let popSoloView = '';
+function popOutView(view) {
+  if (view === 'main') { popOutTab({ view: 'main', mode: state.mainViewMode, q: (el.searchInput.value || '').slice(0, 500) }); return; }
+  popOutTab({ view });
+  if (view === 'galaxy') closeGalaxy(); else if (view === 'map') closeMapModal(); else if (view === 'timeline') closeTimelineModal();          // it moves to the new window
+}
+function popSolo(d) {
+  if (POP_VIEWS[d.view]) {
+    popSoloView = d.view; document.body.classList.add('crate-solo', 'crate-solo-' + d.view);
+    if (d.view === 'galaxy') openGalaxy(); else if (d.view === 'map') openMapModal(); else openTimelineModal();
+    return;
+  }
+  if (d.view !== 'main' || !POP_MAIN_NAMES[d.mode]) return;
+  popSoloView = 'main'; document.body.classList.add('crate-solo', 'crate-solo-main');
+  const keep = state.mainViewMode, orig = savePrefs;
+  savePrefs = function () { const m = state.mainViewMode; state.mainViewMode = keep; try { return orig.apply(this, arguments); } finally { state.mainViewMode = m; } };
+  if (state.activeTab !== 'albums') switchTab('albums');
+  state.mainViewMode = d.mode; applyMainViewMode();
+  if (typeof d.q === 'string' && d.q) { el.searchInput.value = d.q.slice(0, 500); el.searchInput.dispatchEvent(new Event('input')); }
+  renderGrid();
+}
+(function wirePopViews() {
+  const add = (afterId, view) => {
+    const x = document.getElementById(afterId); if (!x) return;
+    const b = document.createElement('button'); b.type = 'button'; b.className = (x.className || 'modal-x') + ' pop-view-btn'; b.id = '';
+    b.title = 'Open in a new window'; b.setAttribute('aria-label', 'Open in a new window'); b.textContent = '\u29c9';
+    b.addEventListener('click', (e) => { e.stopPropagation(); popOutView(view); });
+    x.parentNode.insertBefore(b, x);
+  };
+  add('gxClose', 'galaxy'); add('mapClose', 'map'); add('timelineClose', 'timeline');
+  const menu = document.getElementById('albumsViewMenu');
+  if (menu) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'pop-view-btn'; b.textContent = 'This view in a new window \u29c9';
+    b.addEventListener('click', (e) => { e.stopPropagation(); menu.hidden = true; popOutView('main'); });
+    menu.appendChild(b);
+  }
+  document.addEventListener('click', (e) => {                        // in a pop-out window, × closes the window itself
+    if (POP_VIEWS[popSoloView] && e.target.closest('#gxClose, #mapClose, #timelineClose')) { e.stopPropagation(); window.close(); }
+  }, true);
 })();
 

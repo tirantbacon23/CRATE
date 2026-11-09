@@ -334,8 +334,16 @@ function releaseSearchTextNoTracks(r) {
   return `${r.artist} ${canon !== r.artist ? canon + ' ' : ''}${r.title} ${year} ${r.catalog} ${r.descriptor || ''} ${r.rymDescriptors || ''} ${r.scene || ''} ${r.movement || ''} ${genres}`.toLowerCase();
 }
 
+// (1.93.3) Remembered per release: the song part until its tracklist changes, the rest for one search pass (applyFiltersSort bumps
+// searchPassGen), so a query of several words reads each release once, not once per word.
+const searchTextMemo = new WeakMap();
+let searchPassGen = 0;
 function combinedSearchText(r) {
-  return `${releaseSearchTextNoTracks(r)} ${trackTitlesFor(r).join(' ').toLowerCase()}`;
+  const m = r.manualTracks, c = state.trackCache && state.trackCache[artKey(r)];
+  let e = searchTextMemo.get(r);
+  if (!e || e.m !== m || e.c !== c) { e = { m, c, songs: trackTitlesFor(r).join(' ').toLowerCase(), gen: -1, text: '' }; searchTextMemo.set(r, e); }
+  if (e.gen !== searchPassGen) { e.text = `${releaseSearchTextNoTracks(r)} ${e.songs}`; e.gen = searchPassGen; }
+  return e.text;
 }
 
 // Search matches whole RELEASES (a track title counts toward its release's
@@ -651,6 +659,7 @@ function playlistListRows(view) {                                // the default 
 }
 
 function applyFiltersSort() {
+  searchPassGen++;
   addonPublishIfChanged();      // the library just loaded or changed: tell the browser add-on (if any)
   rymMergeLocal();              // ...and show any RYM rating the sheet doesn't have yet from the copy kept in this browser
   const searchTerms = getSearchTerms();
@@ -1000,7 +1009,7 @@ const SS_FIELDS = ['artist', 'title', 'genre', 'label', 'year', 'type', 'rating'
 function ssBuildIndex() {                                            // made once per catalogue (rebuilt when it changes)
   const raw = state.raw || [];
   const cachedN = Object.keys(state.trackCache || {}).length;
-  if (ssIndex && ssIndex.raw === raw && ssIndex.n === raw.length && ssIndex.cachedN === cachedN) return ssIndex;
+  if (ssIndex && ssIndex.raw === raw && ssIndex.n === raw.length) { if (ssIndex.cachedN !== cachedN) { ssAddTracks(ssIndex, raw); ssIndex.cachedN = cachedN; } return ssIndex; }
   const artists = new Map(), genres = new Map(), labels = new Map(), types = new Map();
   const bump = (m, name, extra) => { const k = smFold(name); if (!k) return; const e = m.get(k) || Object.assign({ name, n: 0 }, extra || {}); e.n++; m.set(k, e); };
   raw.forEach(r => {
@@ -1010,11 +1019,19 @@ function ssBuildIndex() {                                            // made onc
     if (r.type && r.type !== 'Unknown') bump(types, r.type);
   });
   if (typeof artistAliasesAll === 'function') Object.values(artistAliasesAll()).forEach(e => { const k = smFold(e.alias); if (k && !artists.has(k)) artists.set(k, { name: e.alias, n: 0, to: e.to }); });          // an alias leads to its artist
-  const tracks = [], seenT = new Set();
-  raw.forEach(r => trackTitlesFor(r).forEach(t => { const k = smFold(t) + '|' + smFold(r.artist); if (seenT.has(k)) return; seenT.add(k); tracks.push({ name: t, f: smFold(t), artist: r.artist, album: r.title, n: 0 }); }));          // each song once per artist
-  ssIndex = { raw, n: raw.length, cachedN, tracks, artists: [...artists.values()], genres: [...genres.values()], labels: [...labels.values()], types: [...types.values()],
+  ssIndex = { raw, n: raw.length, cachedN, tracks: [], seenT: new Set(), trackRefs: new WeakMap(), artists: [...artists.values()], genres: [...genres.values()], labels: [...labels.values()], types: [...types.values()],
     releases: raw.map(r => ({ name: r.title, artist: r.artist, row: r.row, year: dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getUTCFullYear() : '' })) };
+  ssAddTracks(ssIndex, raw);
   return ssIndex;
+}
+function ssAddTracks(ix, raw) {                                       // each song once per artist; only releases whose tracklist is new since last time
+  raw.forEach(r => {
+    const m = r.manualTracks, c = state.trackCache && state.trackCache[artKey(r)], was = ix.trackRefs.get(r);
+    if (was && was.m === m && was.c === c) return;
+    ix.trackRefs.set(r, { m, c });
+    const fa = smFold(r.artist);
+    trackTitlesFor(r).forEach(t => { const f = smFold(t), k = f + '|' + fa; if (ix.seenT.has(k)) return; ix.seenT.add(k); ix.tracks.push({ name: t, f, artist: r.artist, album: r.title, n: 0 }); });
+  });
 }
 function ssScore(name, q, folded) {                                  // 0 starts with it, 1 a word starts with it, 2 has it somewhere; -1 not at all
   const n = folded || smFold(name); if (!q || !n) return -1;

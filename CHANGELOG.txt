@@ -17,7 +17,21 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.93.2
+  CURRENT_VERSION: 1.93.3
+
+  1.93.3 — 2026-11-09 — Crate Galaxy, the Map, the Timeline or the Music view can be opened in a window of their own; searching songs is quicker. Page only.
+          POP-OUT VIEWS: ⧉ beside the × of Crate Galaxy, the Map and the
+          Timeline moves it to a new window that it fills; × there closes
+          that window. The Music view's menu (Albums ▾) has "This view in a
+          new window": the view as it is (Tracks, Album covers…) with what
+          is in the search box, full-width without the side panels or tab
+          bar, the player still there. That window never changes which view
+          the main window remembers.
+          QUICKER SEARCH: suggestions no longer remake their whole list of
+          songs each time a tracklist arrives (only the new songs are
+          added), and a search of several words reads each release once
+          rather than once per word; a release's songs are only read again
+          when its tracklist changes.
 
   1.93.2 — 2026-11-09 — A tab can be opened in a window of its own. Page only.
           ⧉ at the end of the tab bar opens the tab you are on in a new
