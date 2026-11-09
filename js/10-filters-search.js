@@ -576,7 +576,7 @@ function albumPassesBrowse(r, searchTerms) {          // does this album pass th
     const matchesQuery = matchesSearchTerms(r, searchTerms);
     
     const matchesNav = !state.navFilter || (
-      state.navFilter.mode === 'artist' ? sameArtist(r.artist, state.navFilter.value) :
+      state.navFilter.mode === 'artist' ? creditedTo(r.artist, state.navFilter.value) :
       state.navFilter.mode === 'genre' ? filterGenreTags(r).some(g => genreNavMatches(state.genreTaxonomy, g, state.navFilter.value)) : 
       state.navFilter.mode === 'descriptor' ? parseDescriptors(r.rymDescriptors).some(d => descKey(d) === state.navFilter.value) :
       state.navFilter.mode === 'label' ? labelKeysOf(r).includes(state.navFilter.value) :

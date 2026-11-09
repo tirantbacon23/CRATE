@@ -17,7 +17,21 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.92.7
+  CURRENT_VERSION: 1.92.8
+
+  1.92.8 — 2026-11-09 — A shared credit ("Don Shinn and The Soul Agents") is listed under each of its artists. Page only.
+          A credit with "&" or "and" counts as several artists when every part
+          is an artist of your crate on its own (Paul Simon & Art Garfunkel,
+          with both in it), or when it is a full name and a "The …" band (Don
+          Shinn and The Soul Agents, Nick Cave & The Bad Seeds). One word and
+          a band (Echo & the Bunnymen, Florence and the Machine) and names like
+          Simon & Garfunkel or Earth, Wind & Fire stay one artist. The release
+          keeps its credit; the artist list, the artist filter, each artist's
+          page (releases, plays, stats), Top artists go by its artists, and
+          opening the credit opens its first artist. An artist's page lists
+          its "Shared credits". In ✎ Edit details: "Keep together" on a shared
+          credit, or "Split into …" on a credit kept whole; your choice wins,
+          and is kept with the artist details.
 
   1.92.7 — 2026-11-09 — An artist's details read like RYM's (Type, Born, Died, Also known as, Members, Member of) with an Edit button, and Fill from RYM takes them from the artist's page on Rate Your Music. Page and RYM add-on 1.21.0.
           TIDIER: under the artist's name, the details are a short list of

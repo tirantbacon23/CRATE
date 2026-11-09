@@ -2592,7 +2592,7 @@ function filterByArtist(artistName) {
   switchTab('albums');
   state.leftMode = 'artist';
   el.leftModeLabel.textContent = capitalize('artist') + 's';
-  state.navFilter = { mode: 'artist', value: artistCanon(artistName) };
+  state.navFilter = { mode: 'artist', value: artistParts(artistName)[0] };          // (a shared credit: its first artist)
   buildLeftList();
   updateMainLabel();
   applyFiltersSort();

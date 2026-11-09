@@ -895,3 +895,18 @@ suite('Artists from Rate Your Music', () => {
     eq(got.length, 1); eq([got[0].born, got[0].memberOf, got[0].aka, got[0].members], ['1940', ['A'], [], [{ name: 'X', role: 'y' }]]);
   });
 });
+
+suite('Artists: a shared credit is several artists', () => {
+  test('a full name and a "The …" band split, as do names that are each in the crate; one-word-and-band names and duos stay whole; your choice wins', () => {
+    const S = app('state'), was = [S.raw, app('artistDetailsMap'), app('artistAliasMap')];
+    S.raw = ['Don Shinn and The Soul Agents', 'Paul Simon & Art Garfunkel', 'Paul Simon', 'Art Garfunkel', 'Echo & the Bunnymen', 'Simon & Garfunkel', 'Earth, Wind & Fire'].map((a, i) => ({ row: 'x' + i, artist: a, title: 'T' + i }));
+    app('artistDetailsMap = {}; artistAliasMap = {}; artistPartsCache = null; artistDetailsSave = () => { artistPartsCache = null; }');
+    try {
+      const parts = (n) => app('artistParts')(n).join(' | ');
+      eq(['Don Shinn and The Soul Agents', 'Paul Simon & Art Garfunkel', 'Echo & the Bunnymen', 'Simon & Garfunkel', 'Earth, Wind & Fire'].map(parts), ['Don Shinn | The Soul Agents', 'Paul Simon | Art Garfunkel', 'Echo & the Bunnymen', 'Simon & Garfunkel', 'Earth, Wind & Fire']);
+      eq([app('creditedTo')('Don Shinn and The Soul Agents', 'The Soul Agents'), app('creditedTo')('Don Shinn and The Soul Agents', 'Echo')], [true, false]);
+      app('artistDetailsMap = artistDetailsClean(' + JSON.stringify({ a: { name: 'Don Shinn and The Soul Agents', keep: true }, b: { name: 'Echo & the Bunnymen', split: ['Echo', 'The Bunnymen'] } }) + '); artistPartsCache = null');          // (stored as the app stores it)
+      eq([parts('Don Shinn and The Soul Agents'), parts('Echo & the Bunnymen')], ['Don Shinn and The Soul Agents', 'Echo | The Bunnymen']);
+    } finally { S.raw = was[0]; app('artistDetailsMap = ' + JSON.stringify(was[1]) + '; artistAliasMap = ' + JSON.stringify(was[2]) + '; artistPartsCache = null'); }
+  });
+});

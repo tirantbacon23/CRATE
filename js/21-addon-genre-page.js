@@ -231,7 +231,7 @@ function genreFamilyOf(genre, items, taxonomy, allItems) {
 }
 function genreTopArtistsOf(items, limit) {
   const by = new Map();
-  items.forEach(r => { const a = artistCanon(r.artist), e = by.get(a) || { artist: a, count: 0, first: r }; e.count++; by.set(a, e); });          // aliases count as their artist
+  items.forEach(r => artistParts(r.artist).forEach(a => { const e = by.get(a) || { artist: a, count: 0, first: r }; e.count++; by.set(a, e); }));          // aliases count as their artist
   return [...by.values()].sort((a, b) => b.count - a.count || a.artist.localeCompare(b.artist)).slice(0, limit);
 }
 // The breadcrumb: follow the FIRST parent upward (a genre with two parents sits under both in the tree; the trail
@@ -1080,7 +1080,7 @@ function initArtistInfoPage() {
 // rather than opening a duplicate, same as a browser not re-opening a
 // page you already have a tab on just because you clicked its link again.
 function openArtistInfoTab(artistName) {
-  artistName = artistCanon(artistName);          // an alias opens its artist's page
+  artistName = artistParts(artistName)[0];          // an alias opens its artist's page; a shared credit its first artist's
   if (!state.artistInfoTabs.includes(artistName)) state.artistInfoTabs.push(artistName);
   state.activeArtistInfoTab = artistName;
   renderArtistInfoTabButtons();

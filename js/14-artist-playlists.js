@@ -43,7 +43,7 @@ async function renderArtistDetail() {
     return;
   }
 
-  const owned = state.raw.filter(r => sameArtist(r.artist, name));
+  const owned = state.raw.filter(r => creditedTo(r.artist, name));
   const ownedKeys = new Set(owned.map(r => lastfmNormKey(name, r.title)));
 
   el.artistDetail.innerHTML = `

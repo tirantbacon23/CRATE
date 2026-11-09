@@ -548,6 +548,7 @@ function artistCanon(name) { const s = String(name == null ? '' : name), e = art
 function sameArtist(a, b) { return normMatchKey(artistCanon(a)) === normMatchKey(artistCanon(b)); }
 function artistAliasesOf(name) { const k = normMatchKey(artistCanon(name)); return Object.values(artistAliasesAll()).filter(e => normMatchKey(e.to) === k).map(e => e.alias).sort((a, b) => a.localeCompare(b)); }
 function artistAliasesSave(sync) {
+  artistPartsCache = null;
   try { localStorage.setItem(ARTIST_ALIAS_KEY, JSON.stringify(artistAliasMap || {})); } catch (e) { /* kept for this visit only */ }
   if (sync === false) return;
   try { localStorage.setItem(ARTIST_ALIAS_DIRTY_KEY, '1'); } catch (e) { /* ignore */ }
@@ -609,10 +610,48 @@ function artistDetailsClean(raw) {                                   // untruste
     const name = s(e && e.name, 200), k = normMatchKey(name); if (!k) return;
     const type = ARTIST_TYPES.includes(e.type) ? e.type : '', seen = new Set();
     const members = (Array.isArray(e.members) ? e.members : []).slice(0, 100).map(m => ({ name: s(m && m.name, 200), role: s(m && m.role, 80) })).filter(m => { const mk = normMatchKey(m.name); if (!mk || mk === k || seen.has(mk)) return false; seen.add(mk); return true; });
-    const dates = {}; ['born', 'died', 'formed', 'disbanded'].forEach(f => { const v = s(e[f], 160); if (v) dates[f] = v; });          // as RYM writes them ("21 December 1940, Baltimore, MD, United States")
+    const dates = {}; ['born', 'died', 'formed', 'disbanded'].forEach(f => { const v = s(e[f], 160); if (v) dates[f] = v; });
+    const split = (Array.isArray(e.split) ? e.split : []).map(x => s(x, 200)).filter(Boolean).slice(0, 10); if (split.length >= 2) dates.split = split; else if (e.keep === true) dates.keep = true;          // a shared credit: split into these artists, or kept as one          // as RYM writes them ("21 December 1940, Baltimore, MD, United States")
     if (type || members.length || Object.keys(dates).length) out[k] = Object.assign({ name, type }, dates, members.length ? { members } : {});
   });
   return out;
+}
+// ---- A shared credit ("Don Shinn and The Soul Agents") is several artists: the release is listed under each. Split on "&" / "and" when every part is
+// an artist of your crate on its own, or when it is a full name and a "The …" band; never on one word and a "The …" band (Echo & the Bunnymen, Florence
+// and the Machine), nor a name like Simon & Garfunkel. Your Split or Keep together (Edit details) always wins; an alias of the whole credit too.
+let artistPartsCache = null;
+const ARTIST_AND = /\s+(?:&|and)\s+/i;
+function artistNaiveParts(name) { return String(name || '').split(ARTIST_AND).map(x => x.trim()).filter(Boolean); }
+function artistParts(name) {                                         // -> the artists a credit is, by their main names (one, for most)
+  const raw = state.raw || [];
+  if (!artistPartsCache || artistPartsCache.raw !== raw || artistPartsCache.n !== raw.length) artistPartsCache = { raw, n: raw.length, map: new Map(), known: null };
+  const c = artistPartsCache, s = String(name == null ? '' : name), k = normMatchKey(s); if (c.map.has(k)) return c.map.get(k);
+  let out = null;
+  const d = artistDetailsAll()[k];
+  if (artistAliasesAll()[k] || (d && d.keep)) out = [artistCanon(s)];
+  else if (d && d.split) out = d.split.map(artistCanon);
+  else {
+    const parts = artistNaiveParts(s);
+    if (parts.length >= 2) {
+      if (!c.known) c.known = new Set(raw.filter(r => artistNaiveParts(r.artist).length < 2).map(r => normMatchKey(artistCanon(r.artist))));
+      const allKnown = parts.every(p => c.known.has(normMatchKey(artistCanon(p))));
+      const leaderAndBand = parts.length === 2 && /^the\s+\S/i.test(parts[1]) && !/^the\s/i.test(parts[0]) && parts[0].split(/\s+/).length >= 2;
+      if (allKnown || leaderAndBand) out = parts.map(artistCanon);
+    }
+  }
+  out = [...new Map((out || [artistCanon(s)]).map(x => [normMatchKey(x), x])).values()];
+  c.map.set(k, out); return out;
+}
+function creditedTo(credit, artist) { const k = normMatchKey(artistCanon(artist)); return artistParts(credit).some(p => normMatchKey(p) === k); }          // is this release (by its credit) one of this artist's?
+function artistSplitSet(credit, how) {                               // how: [parts] to split, 'keep' to keep together, null to go back to the automatic rule
+  const k = normMatchKey(credit), all = artistDetailsAll(), d = Object.assign({ name: credit, type: '', members: [] }, all[k] || {}, { name: credit });
+  delete d.split; delete d.keep; if (Array.isArray(how)) d.split = how; else if (how === 'keep') d.keep = true;
+  if (d.type || (d.members || []).length || d.born || d.died || d.formed || d.disbanded || d.split || d.keep) all[k] = artistDetailsClean({ x: d })[k] || d; else delete all[k];
+  artistDetailsSave(true); artistAliasesChanged();
+}
+function artistSharedCredits(artist) {                                // the shared credits in your crate this artist is one of
+  const k = normMatchKey(artistCanon(artist));
+  return [...new Set((state.raw || []).map(r => r.artist))].filter(a => { const p = artistParts(a); return p.length > 1 && p.some(x => normMatchKey(x) === k); }).sort((a, b) => a.localeCompare(b));
 }
 function artistDetailsOf(artist) { const main = artistCanon(artist); return artistDetailsAll()[normMatchKey(main)] || { name: main, type: '', members: [] }; }
 function artistMemberOf(artist) {                                     // the bands that list this artist (or one of its names) as a member, with the role
@@ -621,10 +660,11 @@ function artistMemberOf(artist) {                                     // the ban
 function artistDetailsPut(artist, change) {                          // change(d) edits a copy of this artist's details; an empty one is dropped
   const main = artistCanon(artist), k = normMatchKey(main), all = artistDetailsAll(), d = Object.assign({ name: main, type: '', members: [] }, all[k] || {}, { name: main });
   d.members = (d.members || []).map(m => Object.assign({}, m)); change(d);
-  if (d.type || d.members.length || d.born || d.died || d.formed || d.disbanded) all[k] = artistDetailsClean({ x: d })[k] || d; else delete all[k];
+  if (d.type || d.members.length || d.born || d.died || d.formed || d.disbanded || d.split || d.keep) all[k] = artistDetailsClean({ x: d })[k] || d; else delete all[k];
   artistDetailsSave(true); aiRenderDetails();
 }
 function artistDetailsSave(sync) {
+  artistPartsCache = null;
   try { localStorage.setItem(ARTIST_DETAILS_KEY, JSON.stringify(artistDetailsMap || {})); } catch (e) { /* kept for this visit only */ }
   if (sync === false) return;
   try { localStorage.setItem(ARTIST_DETAILS_DIRTY_KEY, '1'); } catch (e) { /* ignore */ }
@@ -704,6 +744,9 @@ function aiRenderInfo() {                                            // the arti
   if (ed && !person) rows += row('Members', `${members.map(m => `<span class="ai-aka">${link(m.name, m.role)}<button type="button" class="ai-aka-x" data-member-del="${escapeHtml(m.name)}" aria-label="Remove ${escapeHtml(m.name)} from the members" title="Remove">\u2715</button></span>`).join('')}<span class="ai-aka-add"><input type="text" id="aiMemberName" list="aiAliasNames" placeholder="Member" aria-label="A member's name" autocomplete="off"><input type="text" id="aiMemberRole" class="ai-member-role-in" placeholder="role" aria-label="Their role (optional)" autocomplete="off"><button type="button" class="chip-btn" data-member-add>Add</button></span>`);
   else rows += row('Members', members.length ? list(members.map(m => link(m.name, m.role))) : '');
   rows += row('Member of', memberOf.length ? list(memberOf.map(m => link(m.band, m.role))) : '');
+  const shared = artistSharedCredits(artist), naive = artistNaiveParts(artist), whole = naive.length >= 2 && artistParts(artist).length === 1;
+  rows += row('Shared credits', shared.length ? list(shared.map(c => `${escapeHtml(c)}${ed ? ` <button type="button" class="ai-link-btn" data-credit-keep="${escapeHtml(c)}" title="List ${escapeHtml(c)} as one artist, not split">Keep together</button>` : ''}`)) : '');
+  if (ed && whole) rows += row('One artist?', `<button type="button" class="ai-link-btn" data-credit-split="${escapeHtml(artist)}">Split into ${naive.map(escapeHtml).join(' + ')}</button>`);
   const rym = rymArtistFor(artist), hasAny = !!rows, pmb = aiExt(artist).profile && aiExt(artist).profile.mbid;
   const local = (artistAliasBackend === false && aka.length) || (artistDetailsBackend === false && (d.type || members.length)) ? '<span class="ai-aka-note" title="Update and redeploy the Apps Script backend to keep these with your account">kept in this browser</span>' : '';
   const acts = ed
@@ -722,6 +765,8 @@ function aiRenderDetails() { aiRenderInfo(); }
     const o = e.target.closest('[data-member-open]'); if (o) { openArtistInfoTab(o.dataset.memberOpen); return; }
     const x = e.target.closest('[data-member-del]'); if (x) { artistDetailsPut(state.activeArtistInfoTab, d => { d.members = d.members.filter(m => !sameArtist(m.name, x.dataset.memberDel)); }); return; }
     if (e.target.closest('[data-member-add]')) { add(); return; }
+    const ks = e.target.closest('[data-credit-keep]'); if (ks) { artistSplitSet(ks.dataset.creditKeep, 'keep'); flashGlobalToast(`${ks.dataset.creditKeep} is listed as one artist.`); return; }
+    const sp = e.target.closest('[data-credit-split]'); if (sp) { const c = sp.dataset.creditSplit, parts = artistNaiveParts(c); artistSplitSet(c, parts); flashGlobalToast(`${c} is listed as ${parts.join(' and ')}.`); openArtistInfoTab(parts[0]); return; }
     if (e.target.closest('[data-details-mb]')) { artistDetailsFromMb(state.activeArtistInfoTab); return; }
     if (e.target.closest('[data-details-rym]')) { artistDetailsFromRym(state.activeArtistInfoTab); return; }
     if (e.target.closest('[data-info-edit]')) { aiInfoEditing = state.activeArtistInfoTab; aiRenderInfo(); const t = document.getElementById('aiArtistType'); if (t) t.focus(); return; }
@@ -731,13 +776,13 @@ function aiRenderDetails() { aiRenderInfo(); }
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.target.id === 'aiMemberName' || e.target.id === 'aiMemberRole')) { e.preventDefault(); add(); } });
 })();
 function computeArtistStats(artistName) {
-  const albums = state.raw.filter(r => sameArtist(r.artist, artistName));
+  const albums = state.raw.filter(r => creditedTo(r.artist, artistName));
   // trackTitlesFor only knows MANUALLY entered tracklists; once a release's real tracklist has been
   // fetched (the Artist Information page does that in the background) it's in trackCache, so take
   // whichever is larger rather than undercounting every release that wasn't typed in by hand.
   const trackCount = albums.reduce((sum, a) => sum + Math.max(trackTitlesFor(a).length, (state.trackCache[artKey(a)] || []).length), 0);
-  const diaryPlays = state.diary.filter(d => sameArtist(d.artist, artistName)).length;
-  const scrobblePlays = state.scrobbles.filter(s => sameArtist(s.artist, artistName)).reduce((sum, s) => sum + (s.playCount || 1), 0);
+  const diaryPlays = state.diary.filter(d => creditedTo(d.artist, artistName)).length;
+  const scrobblePlays = state.scrobbles.filter(s => creditedTo(s.artist, artistName)).reduce((sum, s) => sum + (s.playCount || 1), 0);
   return { albumCount: albums.length, trackCount, totalPlays: diaryPlays + scrobblePlays };
 }
 
@@ -793,7 +838,7 @@ const aiExternal = new Map();    // artist.toLowerCase() -> { profile, promise }
 const aiTracksLoading = new Set();
 
 function aiOwned(artist) {
-  return state.raw.filter(r => sameArtist(r.artist, artist)).sort((a, b) => {          // (its aliases' releases too)
+  return state.raw.filter(r => creditedTo(r.artist, artist)).sort((a, b) => {          // (its aliases' releases too)
     const da = dateVal(a.releaseDate), db = dateVal(b.releaseDate);
     if (da === db) return a.title.localeCompare(b.title);
     if (da === -Infinity) return 1;           // undated last
@@ -1455,7 +1500,7 @@ function currentArtistForBio() {
   if (nf && nf.mode === 'album') { const it = state.raw.find(r => String(r.row) === String(nf.value)); if (it) return it.artist; }
   if (state.filtered.length && state.filtered.length < state.raw.length) {
     const a = state.filtered[0].artist;
-    if (state.filtered.every(r => sameArtist(r.artist, a))) return artistCanon(a);
+    if (state.filtered.every(r => creditedTo(r.artist, a))) return artistCanon(a);
   }
   if (el.miniPlayer && !el.miniPlayer.hidden) {
     const np = resolveNowPlayingForMenu();

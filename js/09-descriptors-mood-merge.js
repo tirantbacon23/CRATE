@@ -501,7 +501,7 @@ function buildLeftList() {
   let entries;
 
 if (mode === 'artist') {
-    entries = groupCountWithSample(sourceRaw, r => artistCanon(r.artist));          // an alias's releases under its artist (see artistCanon)
+    entries = groupCountWithSample(sourceRaw, r => artistParts(r.artist));          // an alias's releases under its artist, a shared credit's under each of its artists (see artistParts)          // an alias's releases under its artist (see artistCanon)
   } else if (mode === 'year') {
     entries = groupCountWithSample(sourceRaw, r => {
       const y = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getUTCFullYear() : null;
@@ -651,9 +651,11 @@ function groupCount(items, keyFn) {
 function groupCountWithSample(items, keyFn) {
   const map = new Map();
   items.forEach(item => {
-    const k = keyFn(item);
-    if (!map.has(k)) map.set(k, { count: 0, sample: item });
-    map.get(k).count++;
+    const ks = keyFn(item);
+    (Array.isArray(ks) ? ks : [ks]).forEach(k => {          // (a key list counts the item under each)
+      if (!map.has(k)) map.set(k, { count: 0, sample: item });
+      map.get(k).count++;
+    });
   });
   return Array.from(map.entries())
     .map(([key, v]) => ({ key, label: key, sub: '', count: v.count, sampleKey: artKey(v.sample) }))
