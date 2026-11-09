@@ -950,3 +950,15 @@ suite('Search suggestions', () => {
     } finally { S.raw = was; app('ssIndex = null'); }
   });
 });
+
+suite('Search: track titles', () => {
+  test('songs of a saved tracklist and of one looked up this visit are searched and suggested', () => {
+    const S = app('state'), was = S.raw, key = app('artKey');
+    const a = { row: 't1', artist: 'Frank Zappa', title: 'Zoot Allures', manualTracks: [{ trackNumber: 1, title: 'Black Napkins' }] }, b = { row: 't2', artist: 'Talk Talk', title: 'Laughing Stock', manualTracks: [] };
+    S.raw = [a, b]; S.trackCache[key(b)] = [{ trackNumber: 1, trackName: 'Ascension Day' }]; app('ssIndex = null');
+    try {
+      eq([app('trackTitlesFor')(a), app('trackTitlesFor')(b)], [['Black Napkins'], ['Ascension Day']]);
+      eq(app('ssSuggest')('ascen').filter(s => s.kind === 'track').map(s => [s.label, s.insert]), [['Ascension Day', 'track:"Ascension Day" ']]);
+    } finally { S.raw = was; delete S.trackCache[key(b)]; app('ssIndex = null'); }
+  });
+});

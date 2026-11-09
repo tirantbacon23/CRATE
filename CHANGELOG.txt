@@ -17,7 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.93.0
+  CURRENT_VERSION: 1.93.1
+
+  1.93.1 — 2026-11-09 — Search finds and suggests songs by their titles. Page only.
+          The search box's suggestions have Tracks: a song whose title
+          matches what you type, with its artist and release ("Black Napkins
+          · Frank Zappa · Zoot Allures"). Picking one puts in track:"Black
+          Napkins": the releases with it (in the Tracks view, the song itself).
+          Searching a song's title, and track:, now also look in tracklists
+          CRATE has already looked up this visit (MusicBrainz, iTunes), not
+          only the saved ones; nothing is fetched for it.
 
   1.93.0 — 2026-11-09 — Search suggests as you type; Crate Galaxy follows your crate while it is open; sort and filter by whether a release has been updated from RYM; where each release was recorded, from MusicBrainz. Page only.
           SUGGESTIONS: under the search box, artists, releases, genres and
