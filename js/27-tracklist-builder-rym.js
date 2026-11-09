@@ -349,7 +349,7 @@ function bgStatus(text, pct, opts) {
   bar.hidden = false; document.getElementById('bgStatusText').textContent = text; document.getElementById('bgStatusFill').style.width = (pct == null ? 100 : Math.max(0, Math.min(100, pct))) + '%';
   document.getElementById('bgStatusCancel').hidden = !opts.cancel; document.getElementById('bgStatusView').hidden = !opts.view; document.getElementById('bgStatusClose').hidden = !opts.close;
 }
-// ---- "Update from Rate Your Music": the add-on opens the release pages ONE AT A TIME in a background tab, reads each as "Update CRATE from this page" does, and closes it. The add-on paces it (8-15 seconds between
+// ---- "Update from Rate Your Music": the add-on reads the release pages ONE AT A TIME (from 1.20.0 in an invisible frame of its own, opening a tab only when RYM asks for a check; before, each in a background tab), as "Update CRATE from this page" does. The add-on paces it (8-15 seconds between
 // pages), caps it (25 a run) and stops at the first page that asks for a check. Nothing is changed here by it: the pages' details arrive as waiting updates, to Review or "Apply all". ----
 const rymFetchState = { active: false, total: 0, ackTimer: 0 };
 function rymUpdateUrl(item) { const p = rymPathOfUrl(item && item.rymLink); return p ? 'https://rateyourmusic.com' + p + '/' : ''; }
@@ -365,7 +365,7 @@ function rymFetchUpdates(items, opts) {
   const use = todo.slice(0, 25), over = todo.length - use.length;
   if (use.length > 1 && !opts.queued) {
     const mins = Math.max(1, Math.round(use.length * 14.5 / 60));
-    if (!confirm(`Open ${use.length} Rate Your Music pages, one at a time, each in a background tab that closes itself, and read them?\n\nIt takes about ${mins} minute${mins === 1 ? '' : 's'}: there is a pause of 8 to 15 seconds between pages, on purpose, so Rate Your Music isn\u2019t hit quickly. If it asks for a check, the run stops and shows you that page.\n\nNothing in CRATE changes until you press Apply.${noLink ? `\n\n${noLink} without a Rate Your Music link ${noLink === 1 ? 'is' : 'are'} skipped.` : ''}${over ? `\n\nThe other ${over} wait in the queue and run after this, 25 at a time (\u2699 \u2192 Processing shows them).` : ''}`)) return;
+    if (!confirm(`Read ${use.length} Rate Your Music pages, one at a time, in the background? (With the add-on 1.20 or later no tab opens, unless Rate Your Music asks for a check.)\n\nIt takes about ${mins} minute${mins === 1 ? '' : 's'}: there is a pause of 8 to 15 seconds between pages, on purpose, so Rate Your Music isn\u2019t hit quickly. If it asks for a check, the run stops and shows you that page.\n\nNothing in CRATE changes until you press Apply.${noLink ? `\n\n${noLink} without a Rate Your Music link ${noLink === 1 ? 'is' : 'are'} skipped.` : ''}${over ? `\n\nThe other ${over} wait in the queue and run after this, 25 at a time (\u2699 \u2192 Processing shows them).` : ''}`)) return;
   }
   const qOpen = rymQ.open; if (state.rymQueueMode) { rymQBegin(use); if (opts.queued && !qOpen) { rymQ.open = false; rymQRender(); } }          // (a queued run starts quietly: its dialog doesn't jump in front of you)
   jobsState.runRows = use.map(it => String(it.row)); if (over) jobsQueueRym(todo.slice(25), true);
