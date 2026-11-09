@@ -5,7 +5,25 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.93.3';
+const APP_VERSION = '1.93.4';
+// (1.93.4) With CRATE open in more than one window (a pop-out, a second tab), only ONE of them does the work done in the background: adding
+// and applying what the Rate Your Music add-on sends, the Last.fm sync, the new-release check, and the look-ups for newly added releases. Each
+// window used to do it all itself (a release sent from RYM was added once per window). The first CRATE window opened is that one (a pop-out
+// never is); when it closes, the next one takes over by itself (a Web Lock held for as long as the window is open).
+let crateMainWindow = false;
+const CRATE_POPOUT_WINDOW = /^#popout=/.test(location.hash || '');
+function crateIsMain() { return crateMainWindow; }
+(function crateClaimMain() {
+  if (CRATE_POPOUT_WINDOW) return;
+  if (/[?&]crate-test/.test(location.search) && !/[?&]locks/.test(location.search)) { crateMainWindow = true; return; }          // (the tests: each test page is its own crate)
+  try {
+    if (navigator.locks && typeof navigator.locks.request === 'function') {
+      navigator.locks.request('crate-main-window', () => { crateMainWindow = true; setTimeout(() => { try { if (typeof crateBecameMain === 'function') crateBecameMain(); } catch (e) { /* the rest starts when it next can */ } }, 0); return new Promise(() => {}); }).catch(() => { crateMainWindow = true; });
+      return;
+    }
+  } catch (e) { /* fall through */ }
+  crateMainWindow = true;                                               // no Web Locks: every window does its own, as before
+})();
 console.log('%c[CRATE] build v' + APP_VERSION, 'font-weight:bold;font-size:14px;color:#1DB954');
 
 /* Declared first so they're available before init()/handleSpotifyAuthRedirect()
@@ -1005,7 +1023,7 @@ fields: {
   // Flat "Tracks" table state: rows are loaded once (across every album in
   // the current filter) then sorted/rendered client-side so columns behave
   // like a real file-list table instead of per-album async chunks.
-  flatTrackRows: [],
+  flatTrackRows: [], flatTrackLoading: null,
   flatTrackLoading: false,
   trackSort: { key: null, dir: 'asc' },
   selectedTracks: new Set(),

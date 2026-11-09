@@ -17,7 +17,39 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.93.3
+  CURRENT_VERSION: 1.93.4
+
+  1.93.4 — 2026-11-09 — A release sent from RYM is added once however many CRATE windows are open; windows follow each other's search; the Tracks view loads much faster; where-recorded look-ups are in Processing, with a queue, and for one release from its menu. Page only.
+          ONE WINDOW WORKS IN THE BACKGROUND: with CRATE open in more than one
+          window (a pop-out, a second tab), each used to add what the Rate
+          Your Music add-on sent, apply its updates, sync Last.fm, check for
+          new releases and look up newly added releases itself: a release
+          sent from RYM was added once per window. Now only the first CRATE
+          window does (never a pop-out); when it closes the next one takes
+          over, with what was waiting.
+          WINDOWS FOLLOW EACH OTHER: what you type in the search box, or pick
+          in the left panel (an artist, a genre…), in one window is put in
+          the others too (a Galaxy window with "Only what's showing" follows
+          it). A window that has just opened takes the others' search.
+          POP-OUTS: a pop-out Galaxy, Map or Timeline stays open: a release
+          opened from it shows on top, and Esc leaves it be; only its × (the
+          window's) closes it. The Music view's ⧉ is now a quiet button beside
+          the view's name ("Albums ▾"), not in its menu.
+          TRACKS VIEW: tracklists looked up from iTunes or MusicBrainz are kept
+          in this browser between visits (30 days; one none of them knew, 3
+          days; looked up again if the release's link changes), so the Tracks
+          view no longer fetches every release's tracklist each time CRATE
+          opens. And the table fills in as tracklists arrive ("Loading
+          tracklists… 340 of 2,200") instead of staying empty until the last.
+          RECORDED AT: ⚙ → Processing has a "Recorded at" tab: the release
+          being looked up, the queue (each one can be looked up next or taken
+          out; all of it emptied), pause and stop (and Pause all), and what
+          each run found under Done today. A release's menu has "Find where
+          it was recorded" (several selected: "Find where N selected were
+          recorded"): it goes to the front of the queue, is asked even if
+          MusicBrainz didn't know last time, and one that has a Location is
+          replaced only if you say so. The strip at the bottom is now
+          Processing's own.
 
   1.93.3 — 2026-11-09 — Crate Galaxy, the Map, the Timeline or the Music view can be opened in a window of their own; searching songs is quicker. Page only.
           POP-OUT VIEWS: ⧉ beside the × of Crate Galaxy, the Map and the

@@ -466,7 +466,7 @@ function rymQProgress(d) {
   if (!rymQ.open) { if (rymFetchState.active) rymQMirror(); else { const c = rymQCounts(); bgStatus(`Rate Your Music update finished: ${c.updated} updated${c.review ? `, ${c.review} need a look` : ''}.`, 100, { always: true, close: true, view: true }); } }
 }
 function rymQIngestAll() {                                      // every update that has arrived and not yet been taken is read, matched to your release and applied
-  if (!state.rymQueueMode) return;
+  if (!state.rymQueueMode || !crateIsMain()) return;               // (1.93.4) by one window
   const ups = rymOutState.batches.filter(b => b.kind === 'update' && !rymQ.seen.has(b.id)); if (!ups.length) return;
   ups.forEach(b => rymQ.seen.add(b.id));
   rymQ.chain = rymQ.chain.then(async () => { for (const b of ups) { try { await rymQIngest(b); } catch (e) { rymQ.seen.delete(b.id); } rymQRender(); } renderRymInbox(); });
@@ -692,7 +692,7 @@ function renderRymInbox() {
 // order you drag them into; the match queue; the syncs and when they next run), and what finished today. Each job keeps its own dialog: this panel reads
 // their state, pauses or stops them, and opens them. Collapsed, it is the strip at the bottom (jobsStrip).
 const JOBS_DONE_KEY = 'crate_jobs_done_v1', JOBS_RYM_GAP = 15000, JOBS_LF_EVERY = 6 * 3600000, JOBS_LF_AT_KEY = 'crate_lastfm_bgsync_at', JOBS_LF_ON_KEY = 'crate_lastfm_every6h';          // (15 s between queued updates: the add-on's own pace between pages)
-const JOBS_CATS = [['all', 'All'], ['need', 'Needs you'], ['rym', 'RYM'], ['fill', 'Pull details'], ['match', 'Match songs'], ['add', 'Adding'], ['sync', 'Syncs']];
+const JOBS_CATS = [['all', 'All'], ['need', 'Needs you'], ['rym', 'RYM'], ['fill', 'Pull details'], ['match', 'Match songs'], ['loc', 'Recorded at'], ['add', 'Adding'], ['sync', 'Syncs']];
 const JOBS_ICON = {
   sync: '<path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20v-4h-4"/>',
   warn: '<path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4"/><path d="M12 17h.01"/>',
@@ -749,11 +749,13 @@ function jobsPauseRym() {                                         // RYM's runs 
 function jobsPauseAll() {
   jobsState.held = true; clearTimeout(jobsState.nextTimer); jobsState.nextTimer = 0; jobsState.nextAt = 0;
   jobsPauseRym(); if (bm && bm.started && bm.running) { bm.paused = true; bmRedraw(); }
+  if (typeof loc !== 'undefined' && loc.running) loc.paused = true;
   jobsRefresh();
 }
 function jobsResumeAll() {
   jobsState.held = false; if (jobsState.waiting[0]) jobsState.waiting[0].paused = false;
   if (bm && bm.paused) { bm.paused = false; bmRedraw(); }
+  if (typeof loc !== 'undefined') loc.paused = false;
   if (!rymFetchState.active && jobsState.waiting.length) jobsStartNextRym();
   jobsRefresh();
 }
@@ -839,6 +841,7 @@ function jobsCollect() {
     const at = Number(localStorage.getItem(NEW_RELEASES_LAST_SCAN_KEY) || 0);
     wait.push({ cat: 'sync', icon: 'search', title: 'Look for new releases', sub: 'background', right: at ? jobsIn(Math.max(0, newReleaseNextAutoAt() - now)) : 'daily' });
   }
+  if (typeof locJobs === 'function') locJobs(run, need, wait);    // where releases were recorded (40-recorded-at.js)
   afJobs(run, need, wait);                                         // filling blanks from other sources (34-fill-blanks.js)
   const day0 = new Date(); day0.setHours(0, 0, 0, 0);
   const done = jobsDoneLoad().filter(e => e.t >= day0.getTime()).reverse();
@@ -859,7 +862,7 @@ function jobsStripRender() {                                       // collapsed:
   jobsBadge(c);
   const ov = document.getElementById('jobsOverlay'), on = !!(c.run.length || c.need.length) && !!(ov && ov.hidden);
   st.hidden = !on; document.body.classList.toggle('jobs-strip-on', on || !!(ov && !ov.hidden)); if (!on) return;          // (the old strips also step aside while the panel is open)
-  const bits = c.run.map(j => j.cat === 'rym' ? `RYM ${j.detail.split(' \u00b7 ')[0]}` : j.cat === 'match' ? `Matching ${Math.round(j.pct || 0)}%` : j.cat === 'add' ? 'Adding releases' : j.title);
+  const bits = c.run.map(j => j.cat === 'rym' ? `RYM ${j.detail.split(' \u00b7 ')[0]}` : j.cat === 'match' ? `Matching ${Math.round(j.pct || 0)}%` : j.cat === 'add' ? 'Adding releases' : j.cat === 'loc' ? `Recorded at ${j.detail.split(' \u00b7 ')[0]}` : j.title);
   if (c.need.length) bits.push(`${c.need.length} need${c.need.length === 1 ? 's' : ''} you`);
   const pct = c.run.find(j => typeof j.pct === 'number');
   st.innerHTML = `${jobsIco('layers')}<span class="jobs-strip-t"><b>Processing</b> ${escapeHtml(bits.join(' \u00b7 '))}</span>${pct ? `<i class="job-bar jobs-strip-bar"><b style="width:${Math.max(2, Math.min(100, pct.pct))}%"></b></i>` : ''}<button type="button" class="jobs-link" data-jobs-open>Open</button>`;
@@ -876,11 +879,11 @@ function jobsRender() {
   const sec = (key, title, list, empty) => { const l = list.filter(j => keep(j, key)); if (!l.length && f !== 'all') return ''; return `<section class="job-sec job-sec-${key}"><h3>${title}</h3>${l.length ? l.map(row).join('') : `<p class="job-empty">${empty}</p>`}</section>`; };
   const all = c.run.concat(c.need, c.wait), count = (k) => k === 'all' ? all.length : k === 'need' ? c.need.length : all.filter(j => j.cat === k).length + (k === 'fill' ? c.done.filter(e => e.kind === 'fill').length : 0);
   const tm = (t) => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  const cat = (k) => ({ rym: 'rym', fill: 'fill', match: 'match', import: 'add', scan: 'sync', lastfm: 'sync' })[k] || 'other';
+  const cat = (k) => ({ rym: 'rym', fill: 'fill', match: 'match', loc: 'loc', import: 'add', scan: 'sync', lastfm: 'sync' })[k] || 'other';
   const done = c.done.filter(e => f === 'all' || cat(e.kind) === f), lastRym = c.done.find(e => e.kind === 'rym'), lastMatch = c.done.find(e => e.kind === 'match');
   const doneRow = (e) => `<div class="job-row job-done-row">${jobsIco('check')}<div class="job-main"><div class="job-t">${escapeHtml(e.text)}</div><div class="job-d">${tm(e.t)}</div></div><div class="job-acts">${e.kind === 'fill' ? btn(afDoneAct(e)) : ''}${btn(e === lastRym && state.rymQueueMode && rymQ.entries.length && !rymFetchState.active ? { label: 'Details', fn: rymQOpen, opens: true } : e === lastMatch && bm && bm.started && !bm.running ? { label: 'Details', fn: bmShow, opens: true } : null)}</div></div>`;
   document.getElementById('jobsSum').textContent = `${jobsSummary(c)} \u00b7 paced so RYM and Spotify stay happy`;
-  const pa = document.getElementById('jobsPauseAll'), paused = jobsState.held || !!(bm && bm.paused);
+  const pa = document.getElementById('jobsPauseAll'), paused = jobsState.held || !!(bm && bm.paused) || !!(typeof loc !== 'undefined' && loc.paused);
   pa.innerHTML = `${jobsIco(paused ? 'play' : 'pause')}<span>${paused ? 'Resume all' : 'Pause all'}</span>`; pa.disabled = !paused && !c.run.length && !c.wait.some(j => j.drag != null);
   document.getElementById('jobsChips').innerHTML = JOBS_CATS.map(([k, l]) => { const n = count(k); return `<button type="button" class="job-chip${f === k ? ' on' : ''}" data-job-filter="${k}"${n || k === 'all' ? '' : ' disabled'}>${l}${(k === 'all' || k === 'need') && n ? ' ' + n : ''}</button>`; }).join('');
   body.innerHTML = sec('run', 'Running', c.run, 'Nothing is running.') + sec('need', 'Needs you', c.need, 'Nothing is waiting for you.') + sec('wait', 'Waiting \u00b7 drag to reorder', c.wait, 'Nothing is queued. A Rate Your Music update started while another is running waits here, and starts by itself.')
@@ -1168,6 +1171,7 @@ function openRymBatch(batch) {
 // same pages twice (a run that failed keeps them in the bar, for you).
 const rymAutoTried = new Set();
 function rymAutoImport() {
+  if (!crateIsMain()) return;                                       // (1.93.4) one window adds it, not every open one
   if (!state.rymAutoImport || (typeof cxImp !== 'undefined' && cxImp && (cxImp.running || !cxEl('cxImportOverlay').hidden))) return;
   const merged = rymMergeBatches(rymOutState.batches.filter(b => !rymAutoTried.has(b.id))); if (!merged) return;
   merged.ids.forEach(id => rymAutoTried.add(id));
@@ -1475,3 +1479,7 @@ async function saveNewAlbum() {
     flashToast(el.addToast, err && err.message && err.message !== 'unauthorized' ? `Couldn\u2019t save: ${err.message}` : 'Couldn\u2019t save — try again');
   }
 }
+function crateBecameMain() {                                         // this window now does the background work (see crateIsMain): what is already waiting from the add-on too
+  if (rymOutState && rymOutState.present) { rymQIngestAll(); rymAutoImport(); renderRymInbox(); }
+}
+

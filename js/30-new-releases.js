@@ -328,6 +328,7 @@ async function triggerNewReleaseScan() {
 // once a calendar day, without ever popping the modal open on its own.
 // Does nothing if Spotify isn't configured or the crate is completely empty.
 function maybeAutoScanNewReleases() {
+  if (!crateIsMain()) return;                                       // (1.93.4) one window checks
   updateNewReleasesBadge(); // reflect whatever's already cached immediately, before any network call
   if (Date.now() < newReleaseNextAutoAt()) return;
   if (!loadSpotifyCreds().clientId) return;

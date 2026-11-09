@@ -684,6 +684,7 @@ function applyFiltersSort() {
   if (!el.artistBioElement.hidden) renderArtistBioElement(); // follows the artist you click / filter to
   if (!el.chartElement.hidden) renderChartElement(); // same idea — Release Chart's own genre select also defaults to the left panel's active filter
   if (typeof gxLiveUpdate === 'function') gxLiveUpdate();          // an open Crate Galaxy follows the crate (see gxLiveUpdate)
+  if (typeof popSyncSend === 'function') popSyncSend();            // the other windows follow your search (see popSyncSend)
 }
 
 // Syncs the "Sort & filter" popover's UI (which sort option is highlighted,

@@ -509,10 +509,18 @@ function loadFlatTrackTable(list) {
     return token !== flatTrackLoadToken || state.mainViewMode !== 'tracks' || state.activePlaylistId;
   }
 
+  const total = remaining; let shownAt = 0, shownTimer = 0;
+  state.flatTrackLoading = { done: 0, total, token };
   function settle() {
+    clearTimeout(shownTimer); shownTimer = 0;
     if (stale()) return;
-    state.flatTrackRows = rows;
+    state.flatTrackLoading = remaining ? { done: total - remaining, total, token } : null;
+    state.flatTrackRows = rows.slice(); shownAt = Date.now();
     renderFlatTrackTable();
+  }
+  function settleSoon() {                                            // (1.93.4) the table fills in as tracklists arrive, at most about once a second, not only when all are in
+    if (shownTimer) return;
+    shownTimer = setTimeout(settle, Math.max(0, (shownAt ? 1000 : 250) - (Date.now() - shownAt)));
   }
 
   function next() {
@@ -527,7 +535,7 @@ function loadFlatTrackTable(list) {
       active--; remaining--;
       if (stale()) return;
       if (remaining === 0) settle();
-      else next();
+      else { settleSoon(); next(); }
     });
     next();
   }
@@ -565,8 +573,9 @@ function renderFlatTrackTable() {
   if (!body) return;
   const rows = state.flatTrackRows.slice();
 
+  const ld = state.flatTrackLoading && state.flatTrackLoading.token === flatTrackLoadToken && !state.activePlaylistId ? state.flatTrackLoading : null, loadingNote = ld ? `<p class="tracklist-status">Loading tracklists\u2026 ${ld.done.toLocaleString()} of ${ld.total.toLocaleString()}</p>` : '';
   if (rows.length === 0) {
-    body.innerHTML = '<p class="tracklist-status">No tracks found for this filter.</p>';
+    body.innerHTML = ld ? loadingNote : '<p class="tracklist-status">No tracks found for this filter.</p>';
     return;
   }
 
@@ -602,7 +611,7 @@ function renderFlatTrackTable() {
         ${colsHtml}
         <span class="mt-plays">${scrobbleCount > 0 ? scrobbleCount : ''}</span>
       </div>`;
-  }).join('');
+  }).join('') + loadingNote;
 
   // Event delegation: single click selects (with shift/ctrl range & toggle
   // support), double-click opens the album deck for that track's row.
@@ -931,6 +940,30 @@ async function findItunesAlbum(item, doFetch = fetch) {
 }
 // END itunes-match
 
+// (1.93.4) Tracklists looked up from iTunes / MusicBrainz are kept in this browser (IndexedDB 'crate-tracks') between visits, so the Tracks view
+// doesn't fetch every release's tracklist again each time CRATE opens: one is used for 30 days (a release none of them knew, for 3 days), and
+// again only while the release's link is the same. What is kept is the source's own tracklist; your song links and names are laid over it as before.
+const TL_KEEP_MS = 30 * 864e5, TL_EMPTY_MS = 3 * 864e5;
+const TL_FIELDS = ['trackNumber', 'trackName', 'trackTimeMillis', 'discNumber', 'discCount', 'pos', 'previewUrl', 'trackViewUrl', 'artistName', 'collectionName'];
+let tlDbP = null, tlMapP = null;
+function tlDb() { return tlDbP || (tlDbP = new Promise((res, rej) => { try { const r = indexedDB.open('crate-tracks', 1); r.onupgradeneeded = () => r.result.createObjectStore('lists'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); } catch (e) { rej(e); } })); }
+function tlAll() {                                                   // every kept tracklist, read once per visit
+  return tlMapP || (tlMapP = tlDb().then(db => new Promise((res) => {
+    const m = new Map(); try { const tx = db.transaction('lists', 'readonly'), st = tx.objectStore('lists'), c = st.openCursor();
+      c.onsuccess = () => { const cur = c.result; if (cur) { m.set(cur.key, cur.value); cur.continue(); } else res(m); }; c.onerror = () => res(m); } catch (e) { res(m); }
+  })).catch(() => new Map()));
+}
+async function tlGet(item, key) {
+  const m = await tlAll(), e = m.get(key); if (!e || !Array.isArray(e.tracks)) return null;
+  if ((e.link || '') !== (item.link || '') || Date.now() - e.t > (e.tracks.length ? TL_KEEP_MS : TL_EMPTY_MS)) return null;
+  return e.tracks.map(t => Object.assign({}, t));
+}
+function tlPut(item, key, tracks) {
+  const e = { t: Date.now(), link: item.link || '', tracks: (tracks || []).map(t => { const o = {}; TL_FIELDS.forEach(f => { if (t[f] !== undefined && t[f] !== null && t[f] !== '') o[f] = t[f]; }); return o; }) };
+  tlAll().then(m => m.set(key, e));
+  tlDb().then(db => { try { db.transaction('lists', 'readwrite').objectStore('lists').put(e, key); } catch (er) { /* kept for this visit only */ } }).catch(() => {});
+}
+
 async function getTracksFor(item) {
   const key = artKey(item);
   if (state.trackCache[key]) return state.trackCache[key];
@@ -958,7 +991,17 @@ async function getTracksFor(item) {
     return tracks;
   }
 
+  const kept = await tlGet(item, key);                               // looked up on an earlier visit
+  if (kept) {
+    if (state.trackCache[key]) return state.trackCache[key];
+    try { mergeTrackLinkOverrides(item, kept); } catch (e) { console.warn('mergeTrackLinkOverrides failed', item, e); }
+    state.trackCache[key] = kept;
+    if (typeof catStatsSoon === 'function') catStatsSoon();
+    return kept;
+  }
+
   let tracks = [];
+  let tlLooked = true;                                               // false when a source couldn't be asked (then an empty answer isn't kept)
   let collectionId = state.artCache[key]?.collectionId;
 
   // ATTEMPT 1: iTunes Search (Fast, handles 95% of cases)
@@ -983,7 +1026,7 @@ async function getTracksFor(item) {
         .map((r, i) => Object.assign({}, r, { trackNumber: i + 1 }));
     }
   } catch (e) {
-    console.warn("iTunes tracklist lookup failed", e);
+    console.warn("iTunes tracklist lookup failed", e); tlLooked = false;
   }
 
   // ATTEMPT 2: MusicBrainz Fallback (If iTunes doesn't have it, but we have a MB link)
@@ -1028,13 +1071,14 @@ async function getTracksFor(item) {
         }
       }
     } catch (e) {
-      console.warn("MusicBrainz tracklist fallback failed", e);
+      console.warn("MusicBrainz tracklist fallback failed", e); tlLooked = false;
     }
   }
 
   // Same guarantee as the manual-album branch above: never let a bad
   // trackData entry turn a resolved tracklist fetch into a rejected
   // promise this far down the call chain.
+  if (tracks.length || tlLooked) tlPut(item, key, tracks);                        // kept for next time (before your links are laid over it)
   try { mergeTrackLinkOverrides(item, tracks); } catch (e) { console.warn('mergeTrackLinkOverrides failed', item, e); }
   state.trackCache[key] = tracks;
   if (typeof catStatsSoon === 'function') catStatsSoon();          // its songs and length now count in the stats bar

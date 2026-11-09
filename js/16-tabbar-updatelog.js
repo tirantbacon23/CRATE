@@ -382,7 +382,10 @@ function popOutView(view) {
 function popSolo(d) {
   if (POP_VIEWS[d.view]) {
     popSoloView = d.view; document.body.classList.add('crate-solo', 'crate-solo-' + d.view);
-    if (d.view === 'galaxy') openGalaxy(); else if (d.view === 'map') openMapModal(); else openTimelineModal();
+    // The view IS this window: nothing closes it but the window's own × (a release opened from it shows on top, and Esc leaves it be).
+    if (d.view === 'galaxy') { openGalaxy(); closeGalaxy = function () {}; }
+    else if (d.view === 'map') { openMapModal(); closeMapModal = function () {}; }
+    else { openTimelineModal(); closeTimelineModal = function () {}; }
     return;
   }
   if (d.view !== 'main' || !POP_MAIN_NAMES[d.mode]) return;
@@ -403,14 +406,50 @@ function popSolo(d) {
     x.parentNode.insertBefore(b, x);
   };
   add('gxClose', 'galaxy'); add('mapClose', 'map'); add('timelineClose', 'timeline');
-  const menu = document.getElementById('albumsViewMenu');
-  if (menu) {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'pop-view-btn'; b.textContent = 'This view in a new window \u29c9';
-    b.addEventListener('click', (e) => { e.stopPropagation(); menu.hidden = true; popOutView('main'); });
-    menu.appendChild(b);
+  const vb = document.getElementById('mainViewBtn'), wrap = vb && vb.parentNode;          // a quiet ⧉ beside the view's name ("Album covers ▾")
+  if (wrap) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'pop-view-btn panel-popout'; b.textContent = '\u29c9';
+    b.title = 'Open this view in a new window'; b.setAttribute('aria-label', 'Open this view in a new window');
+    b.addEventListener('click', (e) => { e.stopPropagation(); popOutView('main'); });
+    wrap.insertBefore(b, vb.nextSibling); wrap.style.display = 'flex'; wrap.style.alignItems = 'center';          // (the menu under it is placed on its own)
   }
   document.addEventListener('click', (e) => {                        // in a pop-out window, × closes the window itself
     if (POP_VIEWS[popSoloView] && e.target.closest('#gxClose, #mapClose, #timelineClose')) { e.stopPropagation(); window.close(); }
   }, true);
 })();
+
+// ---- Windows of one CRATE follow each other's search (1.93.4): what is in the search box, and the artist / genre / year… picked in the left panel.
+// A change YOU make in one window (typing, clicking) is sent to the others on this computer (BroadcastChannel); a window that just opened asks
+// the others for theirs. Changes that are not yours (a window loading, one that came from another window) are not sent on.
+const popSync = (() => { try { return typeof BroadcastChannel === 'function' ? new BroadcastChannel('crate-view-sync') : null; } catch (e) { return null; } })();
+let popSyncLast = '', popSyncApplying = false, popSyncUserAt = 0;
+function popSyncState() { return JSON.stringify({ q: el.searchInput.value || '', nav: state.navFilter && typeof state.navFilter.mode === 'string' ? { mode: state.navFilter.mode, value: state.navFilter.value } : null }); }
+function popSyncSend(force) {                                          // called at the end of every filter pass (applyFiltersSort)
+  if (!popSync || popSyncApplying) return;
+  const msg = popSyncState();
+  if (!force && (msg === popSyncLast || Date.now() - popSyncUserAt > 1500)) { if (!force && Date.now() - popSyncUserAt > 1500) popSyncLast = msg; return; }
+  popSyncLast = msg; try { popSync.postMessage({ s: msg }); } catch (e) { /* the other windows just don't hear it */ }
+}
+function popSyncApply(msg) {
+  let d; try { d = JSON.parse(msg); } catch (e) { return; }
+  if (!d || typeof d !== 'object' || msg === popSyncState()) { popSyncLast = msg; return; }
+  popSyncLast = msg; popSyncApplying = true;
+  try {
+    el.searchInput.value = String(d.q || '').slice(0, 500);
+    state.query = el.searchInput.value.trim().toLowerCase();
+    if (el.searchWrap) el.searchWrap.classList.toggle('mobile-search-has-value', !!state.query);
+    const n = d.nav;
+    state.navFilter = n && typeof n === 'object' && typeof n.mode === 'string' && (typeof n.value === 'string' || typeof n.value === 'number') ? { mode: n.mode.slice(0, 40), value: typeof n.value === 'string' ? n.value.slice(0, 300) : n.value } : null;
+    buildLeftList(); if (typeof updateMainLabel === 'function') updateMainLabel(); applyFiltersSort();
+  } finally { popSyncApplying = false; }
+}
+if (popSync) {
+  ['keydown', 'pointerdown', 'input'].forEach(t => document.addEventListener(t, () => { popSyncUserAt = Date.now(); }, true));
+  popSync.onmessage = (e) => {
+    const m = e.data || {};
+    if (m.hello) { if (state.catalogFetchedAt) popSyncSend(true); return; }          // a window that just opened: tell it ours
+    if (typeof m.s === 'string' && m.s.length < 2000 && state.catalogFetchedAt) popSyncApply(m.s);
+  };
+  (function hello() { if (!state.catalogFetchedAt) { setTimeout(hello, 300); return; } try { popSync.postMessage({ hello: 1 }); } catch (e) { /* alone */ } })();
+}
 

@@ -762,6 +762,7 @@ function openAlbumCardContextMenu(item, x, y) {
     <button type="button" data-card-action="fullVideo">Full-release video…</button>
     <button type="button" data-card-action="editTracks">Edit tracks…</button>
     ${selItems.length > 1 ? '' : '<button type="button" data-card-action="pullDetails">Pull details\u2026</button>'}
+    <button type="button" data-card-action="recordedAt">${selItems.length > 1 ? `Find where ${selItems.length} selected were recorded` : 'Find where it was recorded'}</button>
     ${state.activePlaylistId ? '<div class="menu-divider"></div><button type="button" class="remove-menu-btn" data-card-action="removeFromPlaylist">Remove from playlist</button>' : ''}
     <div class="menu-divider"></div>
     <button type="button" class="remove-menu-btn" data-card-action="delete">${selItems.length > 1 ? `Delete ${selItems.length} selected from crate` : 'Delete from crate'}</button>
@@ -807,6 +808,7 @@ function openAlbumCardContextMenu(item, x, y) {
     else if (action === 'fullVideo') fvOpen(item);
     else if (action === 'editTracks') tgOpen(item);
     else if (action === 'pullDetails') pdOpen(item);
+    else if (action === 'recordedAt') locFind(selItems.length > 1 ? selItems : [item]);
     else if (action === 'removeFromPlaylist') removeAlbumFromActivePlaylist(item);
     else if (action === 'delete') deleteAlbumsFromContextMenu(selItems);
   });

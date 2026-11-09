@@ -575,7 +575,7 @@ async function fetchCatalogOnce(opts) {
     if (state.activeTab === 'artist') { renderArtistList(); renderArtistDetail(); }
     checkAlbumAnniversaries();
     checkForDuplicateRows();
-    if (quiet) { catalogFlipAfter(flip, rec.added); catalogMarkArrived(rec.added); rymUpdateAdded(rec.added); afQueueAdded(rec.added); if (typeof locQueueAdded === 'function') locQueueAdded(rec.added); }
+    if (quiet) { catalogFlipAfter(flip, rec.added); catalogMarkArrived(rec.added); if (crateIsMain()) { rymUpdateAdded(rec.added); afQueueAdded(rec.added); if (typeof locQueueAdded === 'function') locQueueAdded(rec.added); } }          // (1.93.4) looked up by one window
   } catch (err) {
     console.error(err);
     // AbortError is fetchWithTimeout's controller.abort() firing — a real

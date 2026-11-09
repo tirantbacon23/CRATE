@@ -350,6 +350,7 @@ function lfSyncToast(user, sync) {          // used when the review isn't shown 
   else if (n) flashGlobalToast(`Last.fm: ${n} new album${n === 1 ? '' : 's'} scrobbled but not in your crate \u2014 click to review`, { onClick: open, duration: 8000 });
 }
 async function maybeRunBackgroundLastfmSync() {
+  if (!crateIsMain()) return;                                       // (1.93.4) one window syncs
   if (lastfmBackgroundSyncRunning) return;
   const creds = loadLastfmCreds();
   if (!creds.username || !creds.apiKey) return;                 // never configured — nothing to do
