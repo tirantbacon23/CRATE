@@ -119,27 +119,37 @@ function initLinkFlags() {
 //   karaoke, cover, slowed/8D...). Where the match is made against a candidate ALBUM's track list, a matching
 //   track position adds a little. Then: >= 85 "confident", >= 65 "likely", else "weak" — and a candidate whose
 //   title isn't a near-exact match can never be "confident", however well it does on the rest.
-const SM_FLAGS = [
-  ['live', /\b(live|in concert|unplugged|bbc session|peel session)\b/],
-  ['remix', /\b(remix|remixed|rework|re ?edit|dub mix|club mix|extended mix|radio edit)\b/],
-  ['acoustic', /\b(acoustic|stripped)\b/],
-  ['instrumental', /\b(instrumental|karaoke|backing track|minus one)\b/],
-  ['demo', /\b(demo|rough mix|alternate take|alt take|outtake|early version)\b/],
-  ['cover', /\b(cover|tribute|made famous by|in the style of|originally performed)\b/],
+const SM_FLAGS = [          // the English words need whole words; Japanese ones (no spaces between words) are found anywhere in the title
+  ['live', /\b(live|in concert|unplugged|bbc session|peel session)\b|\u30e9\u30a4\u30d6|\u751f\u6f14\u594f/],
+  ['remix', /\b(remix|remixed|rework|re ?edit|dub mix|club mix|extended mix|radio edit)\b|\u30ea\u30df\u30c3\u30af\u30b9/],
+  ['acoustic', /\b(acoustic|stripped)\b|\u30a2\u30b3\u30fc\u30b9\u30c6\u30a3\u30c3\u30af|\u5f3e\u304d\u8a9e\u308a/],
+  ['instrumental', /\b(instrumental|karaoke|backing track|minus one|off vocal)\b|\u30a4\u30f3\u30b9\u30c8|\u30ab\u30e9\u30aa\u30b1|\u30aa\u30d5\u30dc\u30fc\u30ab\u30eb/],
+  ['demo', /\b(demo|rough mix|alternate take|alt take|outtake|early version)\b|\u30c7\u30e2/],
+  ['cover', /\b(cover|tribute|made famous by|in the style of|originally performed)\b|\u30ab\u30d0\u30fc|\u6b4c\u3063\u3066\u307f\u305f|\u5f3e\u3044\u3066\u307f\u305f|\u53e9\u3044\u3066\u307f\u305f|\u6f14\u594f\u3057\u3066\u307f\u305f/],
   ['altered', /\b(slowed|sped up|speed up|nightcore|8d|reverb|bass boosted|reversed)\b/],
-  ['reaction', /\b(reaction|tutorial|lesson|how to play|review)\b/]
+  ['reaction', /\b(reaction|tutorial|lesson|how to play|review)\b|\u5f3e\u304d\u65b9|\u89e3\u8aac|\u8b1b\u5ea7/]
 ];
-function smFold(s) { return foldFractions(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/&/g, ' and '); }
+// Letters and digits of every script count (Japanese, Korean, Cyrillic, ...): only punctuation and symbols become spaces.
+// (Keeping only a-z and 0-9 turned a Japanese title into nothing, so it could never match.)
+const SM_NONWORD = /[^\p{L}\p{M}\p{N}\s]/gu, SM_NONLATIN = /[^\P{L}\p{Script=Latin}]/u;
+const smWords = (s) => String(s || '').replace(SM_NONWORD, ' ').replace(/\s+/g, ' ').trim();
+function smScriptOf(s) {                // 'latin', 'other' (Japanese, Korean, ...), 'mixed', or '' when it has no letters
+  s = String(s || ''); if (!/\p{L}/u.test(s)) return '';
+  const lat = /\p{Script=Latin}/u.test(s), oth = SM_NONLATIN.test(s);
+  return lat && oth ? 'mixed' : oth ? 'other' : 'latin';
+}
+// NFKC first: full-width "\uff2d\uff36" is "MV", half-width "\uff76\uff9e" is "\u30ac"; accents are then dropped and kana put back together.
+function smFold(s) { return foldFractions(s || '').normalize('NFKC').normalize('NFD').replace(/[\u0300-\u036f]/g, '').normalize('NFC').toLowerCase().replace(/&/g, ' and '); }
 function smFlags(title) {
-  const t = smFold(title).replace(/[^a-z0-9\s]/g, ' ');
+  const t = smWords(smFold(title));
   return new Set(SM_FLAGS.filter(([, re]) => re.test(t)).map(([n]) => n));
 }
-// The words that identify the SONG: brackets and trailing " - Remastered 2011" / " - Live at ..." tails are removed
-// (the version words are judged separately, by smFlags, on the untouched title).
+// The words that identify the SONG: brackets (Japanese \u3010MV\u3011 tags and \uff5esubtitles\uff5e too) and trailing " - Remastered 2011" /
+// " - Live at ..." tails are removed (the version words are judged separately, by smFlags, on the untouched title).
 function smCore(title) {
   let t = smFold(title);
-  t = t.replace(/\s*[\(\[][^\)\]]*[\)\]]/g, ' ').replace(/\s+[-\u2013\u2014]\s+.*$/, ' ').replace(/\b(feat|ft|featuring)\b\.?\s.*$/, ' ');
-  return t.replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  t = t.replace(/\s*[\(\[\u3010\u3014\u3008\u300a][^\)\]\u3011\u3015\u3009\u300b]*[\)\]\u3011\u3015\u3009\u300b]/g, ' ').replace(/\s*[~\u301c][^~\u301c]+[~\u301c]/g, ' ').replace(/\s+[-\u2013\u2014]\s+.*$/, ' ').replace(/\b(feat|ft|featuring)\b\.?\s.*$/, ' ');
+  return smWords(t) || smWords(smFold(title));             // a title that is all brackets is still its own words
 }
 function smLev(a, b) {
   if (a === b) return 0; if (!a.length) return b.length; if (!b.length) return a.length;
@@ -158,13 +168,39 @@ function smSim(a, b) {                  // 0..1 between two already-normalised s
   const lev = 1 - smLev(a, b) / Math.max(a.length, b.length);
   return Math.max(dice, lev);
 }
-function smTitleSim(want, got) {        // the song's words, falling back on the whole untouched title (a dash can be part of a real name)
+// The ways a title can name its song. A Japanese video puts it in 「」 or 『』 ("YOASOBI「夜に駆ける」Official Music Video");
+// a title in two scripts gives both ("夜に駆ける (Yoru ni Kakeru)", "Yoru ni Kakeru / 夜に駆ける"); and "ヨルシカ - ただ君に晴れ" may
+// put the artist, written differently from yours, before the dash, so with non-Latin words either side of a dash is tried.
+// A Latin-only title is just itself, as before.
+function smTitleForms(title) {
+  const s = foldFractions(title || '').replace(/\s+/g, ' ').trim().normalize('NFKC'), forms = [s];          // fractions first: NFKC would make "½" "1⁄2"
+  let m; const q = /[「『]([^」』]+)[」』]/g;
+  while ((m = q.exec(s))) forms.push(m[1]);
+  const outer = s.replace(/[\(\[][^\)\]]*[\)\]]/g, ' ').trim(), so = smScriptOf(outer), br = /[\(\[]([^\)\]]+)[\)\]]/g;
+  while ((m = br.exec(s))) {
+    const inner = m[1].trim(), si = smScriptOf(inner);
+    if (smFlags(inner).size || /\b(remaster(ed)?|version|ver|edit|mix|feat|ft|featuring|bonus|mono|stereo|edition|take|intro|outro|interlude|reprise)\b/i.test(inner)) continue;          // a note about the version, not the title in another script
+    if (si && so && si !== so && si !== 'mixed' && so !== 'mixed') forms.push(inner, outer);
+  }
+  [/\s+\/\s+/, /\s+[-–—]\s+/].forEach((sep, k) => {
+    const parts = s.split(sep).map(x => x.trim()).filter(Boolean); if (parts.length < 2) return;
+    const kinds = parts.map(smScriptOf);
+    if (k === 0 ? new Set(kinds.filter(Boolean)).size > 1 : kinds.some(x => x === 'other' || x === 'mixed')) forms.push(...parts);
+  });
+  return [...new Set(forms)];
+}
+function smTitleSim1(want, got) {
   const a = smCore(want), b = smCore(got);
-  const whole = smSim(smFold(want).replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim(), smFold(got).replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim());
+  const whole = smSim(smWords(smFold(want)), smWords(smFold(got)));
   if (a && a.replace(/ /g, '') === b.replace(/ /g, '')) return 1;          // the same letters, spaced differently ("Half Way Down" / "Halfway Down")
   return Math.max(smSim(a, b), whole * 0.97);
 }
-function smChannelArtist(channel) { return smFold(channel).replace(/\s*-\s*topic$/, '').replace(/\s*(vevo|official|music)$/, '').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim(); }
+function smTitleSim(want, got) {        // the song's words, falling back on the whole untouched title (a dash can be part of a real name); the best of each title's forms
+  const ws = smTitleForms(want), gs = smTitleForms(got); let best = 0;
+  for (const w of ws) for (const g of gs) { best = Math.max(best, smTitleSim1(w, g)); if (best >= 1) return 1; }
+  return best;
+}
+function smChannelArtist(channel) { return smWords(smFold(channel).replace(/\s*-\s*topic$/, '').replace(/\s*(vevo|official|music|official channel|公式|オフィシャル|公式チャンネル)$/, '')); }
 // YouTube titles are mostly "Artist - Song (Official Audio)". smCore drops a trailing " - ..." as an edition tail, which on
 // that shape would delete the song and keep the artist — so a leading "<the artist> - " is removed first.
 function smStripArtistPrefix(title, artist) {
@@ -173,12 +209,16 @@ function smStripArtistPrefix(title, artist) {
   const am = smArtistMatch(artist, [m[1]]);
   return am !== null && am >= 0.75 ? m[2] : title;
 }
-function smArtistMatch(want, got) {     // 1 same, .75 one contains the other, 0 different; null when there is nothing to compare
-  const w = smFold(want).replace(/^the /, '').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+// 1 same, .75 one contains the other, 0 different; null when there is nothing to compare. A name written in another script
+// ("Yorushika" / "ヨルシカ") can't be compared, so it counts neither for nor against; "米津玄師 (Kenshi Yonezu)" is both names.
+function smArtistMatch(want, got) {
+  const ws = smTitleForms(want).map(f => smWords(smFold(f).replace(/^the /, ''))).filter(Boolean);
   const names = (Array.isArray(got) ? got : [got]).map(g => smChannelArtist(g).replace(/^the /, '')).filter(Boolean);
-  if (!w || !names.length) return null;
-  if (names.some(n => n === w)) return 1;
-  if (names.some(n => n.includes(w) || w.includes(n))) return 0.75;
+  if (!ws.length || !names.length) return null;
+  const pairs = []; ws.forEach(w => names.forEach(n => { const a = smScriptOf(w), b = smScriptOf(n); if (!a || !b || a === b || a === 'mixed' || b === 'mixed') pairs.push([w, n]); }));
+  if (!pairs.length) return null;
+  if (pairs.some(([w, n]) => w === n)) return 1;
+  if (pairs.some(([w, n]) => Math.min(w.length, n.length) >= 2 && (n.includes(w) || w.includes(n)))) return 0.75;
   return 0;
 }
 function smDurationPoints(wantMs, gotMs, tol) {   // null when either length is unknown; tol stretches (loose) or narrows (strict) the bands
@@ -209,7 +249,7 @@ function smPrefsSave(patch) {
   if (smPrefsCache.rejected.length > 500) smPrefsCache.rejected = smPrefsCache.rejected.slice(-500);
   try { localStorage.setItem(SM_PREFS_KEY, JSON.stringify(smPrefsCache)); } catch (e) { /* kept for this visit only */ }
 }
-const smArtistKey = (a) => smFold(a).replace(/^the /, '').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+const smArtistKey = (a) => smWords(smFold(a).replace(/^the /, ''));
 function smBand(score) { const c = smPrefs().confident; return score >= c ? 'confident' : score >= 65 ? 'likely' : 'weak'; }
 // song: {title, artist, durationMs, album, trackNumber}   cand: {title, artists|channel, durationMs, album, index, blocked}
 // Also returns `parts`: what each clue added or took away ({ label, points }), for the "Why this score" breakdown.
@@ -1851,7 +1891,7 @@ async function smYoutubeForRelease(item, songs) {
     const stripAlbum = (t) => String(t || '').replace(/^album\s*[-\u2013:]\s*/i, '');
     const lists = (found.items || []).filter(it => it.id && it.id.playlistId && it.snippet).map(it => ({
       id: it.id.playlistId, title: it.snippet.title, channel: it.snippet.channelTitle,
-      rank: smSim(smCore(stripAlbum(it.snippet.title)), smCore(item.title)) + (/ - topic$/i.test(it.snippet.channelTitle || '') ? 0.1 : 0) + (smArtistMatch(item.artist, it.snippet.channelTitle) === 1 ? 0.05 : 0)
+      rank: smTitleSim(item.title, stripAlbum(it.snippet.title)) + (/ - topic$/i.test(it.snippet.channelTitle || '') ? 0.1 : 0) + (smArtistMatch(item.artist, it.snippet.channelTitle) === 1 ? 0.05 : 0)
     })).filter(l => l.rank >= 0.6).sort((a, b) => b.rank - a.rank).slice(0, 2);
     for (const l of lists) playlists.push(await smYtReadPlaylist(l.id, l.title, l.channel));
     if (!viaAddon) ytCachePut(relKey, { playlists }, playlists.length ? YT_REL_TTL : YT_NONE_TTL);

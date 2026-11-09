@@ -17,7 +17,15 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.94.5
+  CURRENT_VERSION: 1.94.6
+
+  1.94.6 — 2026-11-10 — Japanese titles now match on YouTube. The song matcher kept only the letters a–z and digits, so a
+          Japanese (or any non-Latin) title or artist became empty and could never match. Every script's letters now count;
+          full-width and half-width characters are read as ordinary ones; a song named in 「」 or 『』 in a video's title
+          ("YOASOBI「夜に駆ける」Official Music Video") is found there; 【MV】 tags and ～subtitles～ are set aside; a title given in
+          two scripts ("Yoru ni Kakeru (夜に駆ける)") matches either; and an artist written in another script ("Yorushika" /
+          "ヨルシカ") counts neither for nor against. Japanese cover, live, remix, karaoke and acoustic words (歌ってみた, ライブ, …)
+          mark a different version, and finding a full-release video reads Japanese titles too.
 
   1.94.5 — 2026-11-09 — Strict sync: two devices play together, kept at the same moment, connected directly when they can. Page and backend (redeploy apps-script-backend.gs for the direct link).
           STRICT SYNC (⇄ → "Strict sync: play together", on each device that

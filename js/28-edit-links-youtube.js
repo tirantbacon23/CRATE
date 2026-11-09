@@ -595,7 +595,7 @@ function fvSetIntro() {                                             // a new int
   fvRender();
 }
 // ----- finding the video: a YouTube search for the whole release, ranked by its title, its artist and how close its length is to your songs' -----
-function fvWords(s) { return smFold(s).replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w && w !== 'the'); }
+function fvWords(s) { return smWords(smFold(s)).replace(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/gu, ' $& ').split(/\s+/).filter(w => w && w !== 'the'); }          // Japanese has no spaces between words: each kana or kanji counts as one
 function fvScoreVideo(item, totalMs, v) {                           // -> { score 0..100, diffMs (video length minus the songs', 0 when either is unknown) }
   const have = new Set(fvWords(`${v.title} ${v.channel || ''}`)), frac = (s) => { const w = fvWords(s); return w.length ? w.filter(x => have.has(x)).length / w.length : 0; };
   const title = frac(smCore(item.title)), artist = frac(item.artist), full = /\b(full|complete|whole|entire)\s+(album|ep|lp|record)\b|\bfull\s+(length|release)\b/i.test(v.title) ? 1 : 0;

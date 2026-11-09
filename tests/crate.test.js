@@ -155,6 +155,27 @@ suite('Matching songs to Spotify and YouTube', () => {
     eq(app('trackNormKey')('½ Way Down'), app('trackNormKey')('Halfway Down'));
   });
   test('different songs stay different', () => { ok(app('smTitleSim')('Way Down', 'Halfway Down') < 0.85); ok(app('trackNormKey')('Halfway Down') !== app('trackNormKey')('Way Down')); });
+  test('Japanese titles match their YouTube videos', () => {
+    const sim = app('smTitleSim');
+    eq(sim('夜に駆ける', '夜に駆ける'), 1);
+    eq(sim('夜に駆ける', 'YOASOBI「夜に駆ける」Official Music Video'), 1);
+    eq(sim('Yoru ni Kakeru (夜に駆ける)', 'YOASOBI「夜に駆ける」 Official Music Video'), 1);
+    eq(sim('ただ君に晴れ', 'ヨルシカ - ただ君に晴れ (MUSIC VIDEO)'), 1);
+    eq(sim('Lemon', '米津玄師 MV「Lemon」'), 1);
+    eq(sim('ハルジオン', '【MV】ハルジオン'), 1);
+    eq(sim('Ｌｅｍｏｎ', 'Lemon'), 1);
+    ok(sim('夜に駆ける', '群青') < 0.5);
+    ok(sim('Live Forever', 'Blur - Song 2') < 0.5);
+  });
+  test('Japanese artists and versions', () => {
+    const am = app('smArtistMatch'), fl = (t) => [...app('smFlags')(t)];
+    eq(am('米津玄師', ['米津玄師']), 1); eq(am('Kenshi Yonezu (米津玄師)', ['米津玄師']), 1);
+    eq(am('Yorushika', ['ヨルシカ - Topic']), null);           // another script: can't tell, so neither for nor against
+    eq(am('311', ['311']), 1); eq(am('The Beatles', ['Beatles - Topic']), 1); eq(am('Oasis', ['Blur']), 0);
+    eq(fl('夜に駆ける 歌ってみた'), ['cover']); eq(fl('夜に駆ける ライブ'), ['live']); eq(fl('夜に駆ける'), []);
+    const s = { title: '夜に駆ける', artist: 'YOASOBI', durationMs: 261000 };
+    eq(app('smScore')(s, { title: 'YOASOBI「夜に駆ける」 Official Music Video', channel: 'Ayase / YOASOBI', durationMs: 262000 }).band, 'confident');
+  });
 });
 
 suite('New releases', () => {
