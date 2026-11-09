@@ -102,6 +102,7 @@ function openTrackActionsMenu({ item, trackName, trackNum, spotifyTrack, x, y, q
     <div class="menu-divider"></div>
     <button type="button" data-player-action="artist" ${crateArtist ? '' : needsCrate}>Go to artist</button>
     <button type="button" data-player-action="album" ${item ? '' : needsCrate}>Go to album</button>
+    <button type="button" data-player-action="showInCatalogue" ${item ? '' : needsCrate}>Show in catalogue</button>
     <button type="button" data-player-action="credits" ${item ? '' : needsCrate}>View credits</button>
     <div class="menu-divider"></div>
     <button type="button" data-player-action="rym" ${item || spotifyTrack ? '' : needsCrate}>Look up on RateYourMusic \u2197</button>
@@ -137,6 +138,7 @@ function openTrackActionsMenu({ item, trackName, trackNum, spotifyTrack, x, y, q
     else if (action === 'queueRemove') crateQueueRemove(queueEntry);
     else if (action === 'artist') openArtistInfoTab(crateArtist);
     else if (action === 'album') { switchTab('albums'); openDeck(item); }
+    else if (action === 'showInCatalogue') showInCatalogue(item);
     else if (action === 'rym') { if (item) openAlbumOnRym(item); else { const a = spotifyTrack.artists && spotifyTrack.artists[0] ? spotifyTrack.artists[0].name : '', t = (spotifyTrack.album && spotifyTrack.album.name) || ''; window.open(rymSearchUrl({ artist: a, title: t }), '_blank', 'noopener,noreferrer'); } }          // (a track that isn't in your crate: RYM's search for its album)
     else if (action === 'copyLink') copyNowPlayingLink();
     else if (action === 'addToCrate') openNowPlayingAddMenu(spotifyTrack, x, y);
@@ -235,6 +237,7 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
     ${trackSoundcloudLink ? '<button type="button" data-track-menu-action="soundcloud">Open on SoundCloud \u2197</button>' : ''}
     <button type="button" class="remove-menu-btn" data-track-menu-action="removeTrack">Remove from tracklist</button>
     <button type="button" data-track-menu-action="view">View album</button>
+    <button type="button" data-track-menu-action="showInCatalogue">Show in catalogue</button>
     <button type="button" class="menu-parent-btn" data-track-menu-action="search">Search <span class="submenu-caret">▸</span></button>
     ${state.activePlaylistId ? '<div class="menu-divider"></div><button type="button" class="remove-menu-btn" data-track-menu-action="removeFromPlaylist">Remove from playlist</button>' : ''}
   `;
@@ -259,6 +262,7 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
 
     closeNowPlayingAddMenu();
     if (action === 'view') openDeck(item);
+    else if (action === 'showInCatalogue') showInCatalogue(item);
     else if (action === 'play') { if (isMultiSelect) playTracksNow(trackPlaylistItems); else playTrackNow(item, trackName, trackNum); }
     else if (action === 'queue') queueTracksNow(trackPlaylistItems);
     else if (action === 'entry') addTracksToEntry(trackPlaylistItems);
@@ -1201,7 +1205,7 @@ async function recoverStaleSpotifyDeviceId(token) {
     });
     if (!res.ok) return false;
     const data = await res.json();
-    const mine = (data.devices || []).find(d => d.name === 'CRATE');
+    const mine = (data.devices || []).find(d => d.name === (crateSpotifyNameUsed || crateSpotifyDeviceName()));          // this browser's own, never another device's (see crateSpotifyDeviceName)
     if (!mine) return false;
     const changed = mine.id !== spotifyDeviceId;
     spotifyDeviceId = mine.id;
@@ -1692,3 +1696,38 @@ function showState(kind, which, detail) {
 function hideState(which) {
   (which === 'diary' ? el.diaryStateMsg : which === 'scrobbles' ? el.scrobblesStateMsg : el.stateMsg).hidden = true;
 }
+
+// "Show in catalogue" (a track's menu, the player's): the Music tab in the Album covers view, scrolled to the song's release, which lights up for
+// a moment. If what you have picked or searched hides it, that is cleared first (and you are told); a playlist that's open is left for the
+// whole catalogue. (1.93.9)
+function showInCatalogue(item) {
+  if (!item) return;
+  if (typeof closeNowPlayingAddMenu === 'function') closeNowPlayingAddMenu();
+  if (el.deckOverlay && el.deckOverlay.classList.contains('open')) { try { closeDeck(); } catch (e) { /* stays open */ } }          // (from the album's own window: that closes, to show it)
+  if (state.activePlaylistId) exitPlaylistView();
+  if (state.mainViewMode !== 'covers') { state.mainViewMode = 'covers'; applyMainViewMode(); savePrefs(); }
+  const cleared = [];
+  if (!albumPassesBrowse(item, getSearchTerms())) {
+    if (el.searchInput.value || state.query) { el.searchInput.value = ''; state.query = ''; if (el.searchWrap) el.searchWrap.classList.remove('mobile-search-has-value'); cleared.push('the search'); }
+    if (state.navFilter) { state.navFilter = null; cleared.push('what was picked on the left'); }
+    if (!albumPassesBrowse(item, getSearchTerms())) {          // still hidden: the other filters (listened only, RYM rating, updated from RYM)
+      state.listenedOnly = false; state.rymMin = 0; state.rymMissingOnly = false; state.rymUpdatedFilter = ''; savePrefs(); cleared.push('the filters');
+    }
+    buildLeftList(); updateMainLabel();
+  }
+  if (state.activeType && state.activeType !== 'All' && item.type && item.type !== state.activeType) { state.activeType = 'All'; savePrefs(); cleared.push('the type'); }
+  if (state.activeTab !== 'albums') switchTab('albums');
+  applyFiltersSort();
+  const find = (tries) => {
+    const card = el.gridContainer.querySelector(`[data-album-row="${CSS.escape(String(item.row))}"]`);
+    if (!card) { if (tries > 0) setTimeout(() => find(tries - 1), 150); else flashGlobalToast(`Couldn\u2019t find \u201c${item.title}\u201d in the view.`); return; }
+    card.scrollIntoView({ block: 'center' });
+    if (typeof gridFillVisible === 'function') gridFillVisible();
+    const c = el.gridContainer.querySelector(`[data-album-row="${CSS.escape(String(item.row))}"]`) || card;
+    c.classList.remove('card-found'); void c.offsetWidth; c.classList.add('card-found');
+    setTimeout(() => c.classList.remove('card-found'), 2600);
+  };
+  requestAnimationFrame(() => find(10));
+  if (cleared.length) flashGlobalToast(`Cleared ${cleared.join(' and ')} to show \u201c${item.title}\u201d.`);
+}
+

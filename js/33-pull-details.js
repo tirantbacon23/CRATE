@@ -111,7 +111,7 @@ function pdDraw() {
   const songs = base.map((s, i) => `<div class="pd-row" style="${cols}"><div class="pd-l" title="${escapeHtml(s.title)}">${i + 1}. ${escapeHtml(s.title)}</div>${PD_SRC.map(([k]) => { if (pd.data[k].loading) return '<div class="pd-cell pd-none">…</div>'; const ms = pdLen(k, s, i, base.length); return pdCell(k, 'len' + i, ms ? tlFormatTime(ms) : null, pd.pick['len' + i] === k); }).join('')}</div>`).join('');
   const ch = pdChanges();
   ov.innerHTML = `<div class="pd-dialog" role="dialog" aria-modal="true" aria-labelledby="pdTitle">
-    <div class="pd-top"><div><div class="pd-title" id="pdTitle">Pull details</div><div class="pd-sub">${escapeHtml(it.artist)} — ${escapeHtml(it.title)} · click what you want used for each detail</div></div><button type="button" class="pd-x" data-pd-close aria-label="Close">×</button></div>
+    <div class="pd-top"><div class="pd-who"><img class="pd-cover" src="${escapeHtml(it.cover || (state.artCache[artKey(it)] || {}).art || placeholderArt(it))}" alt=""><div><div class="pd-title" id="pdTitle">Pull details — ${escapeHtml(it.title)}</div><div class="pd-sub">${escapeHtml(it.artist)}${dateVal(it.releaseDate) !== -Infinity ? ' · ' + new Date(it.releaseDate).getUTCFullYear() : ''} · click what you want used for each detail</div></div></div><button type="button" class="pd-x" data-pd-close aria-label="Close">×</button></div>
     <div class="pd-body"><div class="pd-grid">
       <div class="pd-row pd-heads" style="${cols}"><div></div>${head}</div>
       <div class="pd-sec">Release</div>${rel}

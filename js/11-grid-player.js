@@ -568,14 +568,20 @@ function trackSortValue(row, key) {
   return String(trackColumnVal(key, row.item, row.track) || '').toLowerCase();
 }
 
+// (1.94.0) The Tracks table can show only songs with a YouTube link, or only songs without one (⧉'s neighbour beside the view's name, "YouTube").
+// A song counts as having one when it has its own link (a part of a full-release video is one), or its release has a full-release video.
+const TRACK_YT_KEY = 'crate_tracks_yt_v1';
+function trackYtFilter() { try { const v = localStorage.getItem(TRACK_YT_KEY); return v === 'has' || v === 'none' ? v : ''; } catch (e) { return ''; } }
+function trackHasYoutube(item, t) { return !!(t && t.youtubeLink) || !!(typeof releaseFullVideoId === 'function' && releaseFullVideoId(item)); }
 function renderFlatTrackTable() {
   const body = document.getElementById('trackTableBody');
   if (!body) return;
-  const rows = state.flatTrackRows.slice();
+  const ytf = state.activePlaylistId ? '' : trackYtFilter();
+  const rows = state.flatTrackRows.filter(r => !ytf || (trackHasYoutube(r.item, r.track) === (ytf === 'has')));
 
   const ld = state.flatTrackLoading && state.flatTrackLoading.token === flatTrackLoadToken && !state.activePlaylistId ? state.flatTrackLoading : null, loadingNote = ld ? `<p class="tracklist-status">Loading tracklists\u2026 ${ld.done.toLocaleString()} of ${ld.total.toLocaleString()}</p>` : '';
   if (rows.length === 0) {
-    body.innerHTML = ld ? loadingNote : '<p class="tracklist-status">No tracks found for this filter.</p>';
+    body.innerHTML = ld ? loadingNote : `<p class="tracklist-status">${ytf && state.flatTrackRows.length ? (ytf === 'has' ? 'None of these songs has a YouTube link.' : 'Every one of these songs has a YouTube link.') : 'No tracks found for this filter.'}</p>`;
     return;
   }
 
@@ -607,7 +613,7 @@ function renderFlatTrackTable() {
     return `
       <div class="main-track-row${selected ? ' selected' : ''}" data-track-key="${rowKey}" tabindex="0" style="grid-template-columns: ${template}">
         <span class="mt-num">${trackNumHtml(t, row.idx)}</span>
-        <span class="mt-title${rymBoldTrackClass(t, item)}" title="${escapeHtml(t.trackName || '')}${rymTrackIsBold(item, t) ? ' · one of the songs Rate Your Music prints in bold' : ''}">${escapeHtml(t.trackName || '')}</span>
+        <span class="mt-title${rymBoldTrackClass(t, item)}" title="${escapeHtml(t.trackName || '')}${rymTrackIsBold(item, t) ? ' · one of the songs Rate Your Music prints in bold' : ''}">${t.youtubeLink ? `<button type="button" class="track-play-yt-btn mt-yt" data-youtube-link="${escapeHtml(t.youtubeLink)}" data-track-name="${escapeHtml(t.trackName || '')}" data-row="${escapeHtml(String(item.row))}" title="Play on YouTube" aria-label="Play ${escapeHtml(t.trackName || '')} on YouTube">\u25b6 YT</button>` : ''}${escapeHtml(t.trackName || '')}</span>
         ${colsHtml}
         <span class="mt-plays">${scrobbleCount > 0 ? scrobbleCount : ''}</span>
       </div>`;
@@ -1432,6 +1438,15 @@ function applyResolvedLinksToDeck(links) {
 // Requires the listener to have Spotify Premium and to have connected their
 // account via the Spotify API panel (Client ID + OAuth/PKCE login).
 let spotifyPlayer = null;
+// (1.93.9) The name this browser's player has in Spotify's device list. It was 'CRATE' in every browser, and when Spotify lost track of this
+// one, CRATE looked it up again by that name, so with CRATE open on a laptop too it could pick the LAPTOP's player and play there. Now each
+// browser's is its own: "CRATE · " and the name the device has in ⇄ (Playback on your devices), with a few letters that are this browser's alone.
+let crateSpotifyNameUsed = '';                                     // the name this browser's player was registered under
+function crateSpotifyDeviceName() {
+  let v = {}; try { v = JSON.parse(localStorage.getItem('crate_pbsync_v1') || '{}') || {}; } catch (e) { v = {}; }
+  if (!v.id) { v.id = Math.random().toString(36).slice(2, 10); try { localStorage.setItem('crate_pbsync_v1', JSON.stringify(v)); } catch (e) { /* this visit only */ } }
+  return `CRATE \u00b7 ${String(v.name || '').slice(0, 30) || 'browser'} ${v.id.slice(0, 4)}`.replace(/\s+/g, ' ').trim();
+}
 let spotifyDeviceId = null;
 let spotifyDeviceReady = null;   // Promise, resolves once the SDK device registers
 let spotifyDeviceReadyResolve = null;
@@ -1449,7 +1464,7 @@ async function initSpotifyPlayerIfReady() {
   spotifyDeviceReady = new Promise(resolve => { spotifyDeviceReadyResolve = resolve; });
 
   spotifyPlayer = new Spotify.Player({
-    name: 'CRATE',
+    name: (crateSpotifyNameUsed = crateSpotifyDeviceName()),
     getOAuthToken: async (cb) => { cb((await getSpotifyUserAccessToken()) || ''); },
     volume: (loadSpotifyPlayerPrefs().volume ?? 50) / 100
   });
@@ -2712,3 +2727,20 @@ function openNowPlayingAddMenu(track, x, y) {
   nowPlayingAddMenuEl = menu;
   setTimeout(() => document.addEventListener('click', closeNowPlayingAddMenuOnOutsideClick), 0);
 }
+
+(function wireTrackYtFilter() {                                       // a quiet switch beside the view's name, only in the Tracks view
+  const vb = document.getElementById('mainViewBtn'), wrap = vb && vb.parentNode; if (!wrap) return;
+  const b = document.createElement('button'); b.type = 'button'; b.id = 'trackYtFilterBtn'; b.className = 'track-yt-filter';
+  const labels = { '': 'YouTube: any', has: 'YouTube: has a link', none: 'YouTube: no link' };
+  const paint = () => { const v = trackYtFilter(); b.textContent = labels[v]; b.classList.toggle('on', !!v); b.title = 'Show every song, only songs with a YouTube link, or only songs without one (click to change)'; b.hidden = state.mainViewMode !== 'tracks' || !!state.activePlaylistId; };
+  b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const next = { '': 'has', has: 'none', none: '' }[trackYtFilter()];
+    try { localStorage.setItem(TRACK_YT_KEY, next); } catch (er) { /* this visit only */ }
+    paint(); renderFlatTrackTable();
+  });
+  wrap.appendChild(b); paint();
+  const orig = applyMainViewMode; applyMainViewMode = function () { const r = orig.apply(this, arguments); paint(); return r; };
+  const oc = updateMainLabel; updateMainLabel = function () { const r = oc.apply(this, arguments); paint(); return r; };
+})();
+

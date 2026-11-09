@@ -17,7 +17,92 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.93.5
+  CURRENT_VERSION: 1.94.0
+
+  1.94.0 — 2026-11-09 — The Map shows which records are kin, across the world; the Tracks view plays YouTube links and filters by them; Pull details names its release. Page only.
+          THE MAP knows what Crate Galaxy knows: how alike two releases are
+          (genres and their parents, descriptors, scene, label, artist,
+          decade, rare things counting for more), laid over the world rather
+          than drawn as stars.
+          The kinship web: faint arcs between places whose records are alike,
+          thicker the more they share, coloured by why: the same artist, the
+          same people (a band and its members, from your artists' Members),
+          the same label, the same scene, or only the sound. Each reason can
+          be hidden, and the web turned off.
+          Pins are sized by how many releases are there; "Color by" has Genre
+          family. Click a place for its card: its records, the years, what
+          they mostly are, and the places its kin are at (the web lights up
+          just for it), with Play all.
+          Click a record in a card: lines to its closest relatives anywhere,
+          its artist's trail (place to place, numbered, in the order they
+          were made, playable in order), "Journey from here", then on
+          another record "Journey … to here": the smoothest chain of alike
+          records between the two, drawn across the map and playable; Show
+          in catalogue.
+          Recorded at (Location), Where from (Region) or both; ▶ beside
+          "Spread through time" plays through the years.
+          TRACKS VIEW: a song with a YouTube link has ▶ YT (as in Album and
+          Tracks). "YouTube: any / has a link / no link" beside the view's
+          name shows every song, only those with a link (a full-release video
+          counts), or only those without.
+          PULL DETAILS: its title names the release ("Pull details —
+          Wish You Were Here"), with its cover, artist and year.
+
+  1.93.9 — 2026-11-09 — "Show in catalogue" on a song's menu; fixed: playback sync sending the wrong song, "Play along" fighting another device over Spotify, and Spotify playing on the wrong computer. Page only.
+          SHOW IN CATALOGUE: a song's right-click menu (in the Tracks views,
+          and the player's, Up Next's) has "Show in catalogue": the Music tab
+          in the Album covers view, scrolled to the song's release, which
+          lights up for a moment. A search, a pick on the left or a filter
+          that hides it is cleared first, and you are told.
+          WRONG SONG: just after you start a release, CRATE already knows the
+          new release while the player still shows the old song; sent then,
+          your other device played the wrong song from the old song's moment.
+          Now nothing is sent until what's playing has held for a second, and
+          never a song whose artist isn't the release's.
+          PLAY ALONG AND SPOTIFY: Spotify plays on one device per account, so a
+          device playing along with a Spotify song stopped the one it
+          followed, which then said "paused", and so on (the stop/start a few
+          seconds apart). A device playing along now leaves Spotify songs to
+          the other device and shows what's playing instead (YouTube and
+          SoundCloud songs it still plays along with). And a device that
+          Spotify pauses because another started tells nobody "paused" unless
+          it is still the one playing. Other devices now hear of a change
+          within about 4 seconds (was 6).
+          SPOTIFY ON THE WRONG COMPUTER: every browser's Spotify player was
+          called "CRATE", and when Spotify lost track of this one CRATE looked
+          it up again by that name: with CRATE open on another computer too,
+          it could find that one's and play there. Each browser's player now
+          has a name of its own ("CRATE · Windows PC a1b2").
+
+  1.93.8 — 2026-11-09 — Playback synced across devices takes the volume with it. Page only.
+          "Play here" sets the volume to what it was on the device you took
+          over from, and a device playing along follows the volume as it is
+          moved. Moving the volume counts as a change the other devices are
+          told about. ⇄ → "Same volume on every device" (on to begin with)
+          turns it off for a device that should keep its own.
+
+  1.93.7 — 2026-11-09 — Fixed: playback moved to another device (or carried on after a refresh) started the song from the top instead of where it was. Page only.
+          It waited for the song's name in the player to match the
+          tracklist's before going to the moment, and Spotify often names a
+          song its own way ("Pts. 1-5" for "Parts I–V"), so it never went.
+          Now the queue having reached that song and playing is enough (the
+          sender's name for it counts too). And a jump made the instant a
+          song starts can be lost (Spotify's player often carries on from
+          0:00), so it is checked a moment later and made again, up to four
+          times. From a device still playing, the seconds the hand-off took
+          are added, so it lands where that device is now.
+
+  1.93.6 — 2026-11-09 — A song playing from YouTube can show its video in a floating window. Page only.
+          ⧉ beside ⛶ in the player (it shows while a song plays from YouTube)
+          floats the video: a window over the page with the song's name on
+          its bar. Drag it by the bar, size it from its corner (it keeps the
+          video's shape), ⛶ on its bar for fullscreen, ⤓ (or a double-click on
+          the bar) to put it back in the player. The song plays on without a
+          break: it is the same video, only drawn somewhere else. Where it was
+          and how big are remembered, and the next YouTube song floats there
+          too; a song from Spotify or SoundCloud has no video, so the window
+          goes until one from YouTube plays. While it floats, the cover is
+          back in the player bar.
 
   1.93.5 — 2026-11-09 — Playback carries on after a refresh and moves between your devices; CRATE reopens where you were; the Tracks view draws only what is near the screen; selecting one part of a long piece no longer selects the other. Page and backend (redeploy apps-script-backend.gs for the devices part).
           AFTER A REFRESH: what was playing starts again at the same song and

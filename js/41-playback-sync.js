@@ -20,6 +20,8 @@ const PB_KEEP_MS = 12 * 3600e3;                                       // a refre
 const pbFold = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 const pbId = (it) => (it && (it.albumId || (it.row != null ? 'r' + it.row : ''))) || '';
 function pbItemOf(id) { if (!id) return null; return (state.raw || []).find(x => x.albumId === id || 'r' + x.row === id) || null; }
+let pbQueueMovedAt = 0, pbQueueSeen = '';
+function pbNamesMatch(a, b) { a = pbFold(a); b = pbFold(b); return !!a && !!b && (a === b || a.startsWith(b) || b.startsWith(a)); }
 function pbPlaying() { return !!(el.miniPlayer && !el.miniPlayer.hidden && el.miniPlayerPlayPause && el.miniPlayerPlayPause.title === 'Pause'); }
 
 // ---- the snapshot ----
@@ -28,13 +30,27 @@ function pbSnapshot() {
   const inQueue = crateQueueList.length && crateQueueIndex >= 0 && crateQueueIndex < crateQueueList.length;
   const item = inQueue ? crateQueueList[crateQueueIndex].item : nowPlayingItem;
   if (!item) return null;
+  // (1.93.9) Between two songs the release can already be the new one while the player still shows the old song (its name, its moment):
+  // sent then, another device played the wrong song from the wrong place. A song whose artists aren't the release's isn't sent.
+  const arts = currentSpotifyTrack.artists;
+  if (Array.isArray(arts) && arts.length && typeof artistsRoughlyMatch === 'function' && !artistsRoughlyMatch(item.artist, arts)) return null;
+  if (inQueue && pbFold(crateQueueList[crateQueueIndex].track && crateQueueList[crateQueueIndex].track.trackName) && !pbNamesMatch(crateQueueList[crateQueueIndex].track.trackName, currentSpotifyTrack.name) && Date.now() - pbQueueMovedAt < 6000) return null;
   let q = null, i = -1;
   if (inQueue) {
     const from = Math.max(0, crateQueueIndex - 50), to = Math.min(crateQueueList.length, crateQueueIndex + 350);          // the songs around it (a queue of thousands isn't carried whole)
     q = crateQueueList.slice(from, to).map(e => ({ r: pbId(e.item), n: (e.track && e.track.trackNumber) || 0, t: (e.track && e.track.trackName) || '' }));
     i = crateQueueIndex - from;
   }
-  return { v: 1, r: pbId(item), artist: item.artist || '', album: item.title || '', t: currentSpotifyTrack.name, pos: Math.round(getEstimatedPosition() || 0), dur: Math.round(getCurrentDurationMs() || 0), playing: pbPlaying(), q, i };
+  return { v: 1, eng: activePlayerEngine || 'spotify', r: pbId(item), artist: item.artist || '', album: item.title || '', t: currentSpotifyTrack.name, pos: Math.round(getEstimatedPosition() || 0), dur: Math.round(getCurrentDurationMs() || 0), playing: pbPlaying(), vol: pbVolume(), q, i };
+}
+// (1.93.8) The volume goes with it: the player's slider is the volume of whatever is playing (Spotify, YouTube or SoundCloud), so it is read
+// from there and set there, as if you had moved it. "Same volume on every device" (on unless you turn it off) says whether a device takes it.
+function pbVolume() { const v = el.miniPlayerVolume ? Number(el.miniPlayerVolume.value) : NaN; return isFinite(v) ? Math.round(v) : null; }
+function pbApplyVol(v) {
+  if (pbSet().vol === false || typeof v !== 'number' || !isFinite(v) || !el.miniPlayerVolume) return;
+  v = Math.max(0, Math.min(100, Math.round(v)));
+  if (Math.abs(Number(el.miniPlayerVolume.value) - v) < 1) return;
+  el.miniPlayerVolume.value = String(v); el.miniPlayerVolume.dispatchEvent(new Event('input', { bubbles: true }));
 }
 function pbTrackFor(it, n, t) {                                         // the queue entry's track: the real one if its tracklist is in, else what the snapshot says
   const list = state.trackCache[artKey(it)] || [];
@@ -72,17 +88,38 @@ async function pbResume(s, opts) {
   crateQueueList = entries; crateQueueIndex = -1; ytPlayingForCrateQueue = false;
   renderCrateQueuePanel();
   playCrateQueueIndex(myId, index);
-  const t0 = Date.now();
-  while (Date.now() - t0 < (opts.wait || 20000)) {                       // wait for it to be going, then go to its moment
+  // Wait for it to be going, then go to its moment. (1.93.7) "Going" is the queue having reached that entry and playing: the name the player
+  // shows can differ from the tracklist's (Spotify's "Pts. 1-5" for "Parts I–V"), and waiting for the names to agree meant it never jumped
+  // to the moment at all. The sender's own name (s.t) counts as well as the tracklist's, and after 1.5 s of that entry playing any name does.
+  const t0 = Date.now(), sent = pbFold(s.t), wait = opts.wait || 20000;
+  let goingSince = 0;
+  while (Date.now() - t0 < wait) {
     await new Promise(r => setTimeout(r, 300));
     if (seq !== pbResumeSeq || myId !== crateQueueId) return false;
     const now = currentSpotifyTrack && pbFold(currentSpotifyTrack.name);
-    if (pbPlaying() && now && (now === want || now.startsWith(want) || want.startsWith(now))) {
-      const at = (s.pos || 0) + (opts.elapsed || 0);
-      if (at > 2500 && (!s.dur || at < s.dur - 3000)) { pbSeekMs(at); await new Promise(r => setTimeout(r, 400)); }
+    const named = !!now && [want, sent].some(w => w && (now === w || now.startsWith(w) || w.startsWith(now)));
+    const going = pbPlaying() && crateQueueIndex === index;
+    goingSince = going ? (goingSince || Date.now()) : 0;
+    if (going && (named || Date.now() - goingSince > 1500)) {
+      // From another device that is still playing (opts.live), the time this took counts too: it carried on there meanwhile.
+      const base = (s.pos || 0) + (opts.elapsed || 0), live = !!opts.live && s.playing !== false;
+      const target = () => base + (live ? Date.now() - t0 : 0);
+      if (target() > 2500 && (!s.dur || target() < s.dur - 3000)) await pbSeekSure(target, seq);
+      if (opts.live || opts.vol) pbApplyVol(s.vol);                   // the other device's volume too
       if (s.playing === false && pbPlaying()) el.miniPlayerPlayPause.click();          // it was paused there: paused here too
       return true;
     }
+  }
+  return false;
+}
+// A jump made the moment a song starts can be lost (Spotify's player often ignores one then and carries on from 0:00), so it is checked a
+// moment later and made again, up to four times. target() is where it should be NOW (the time spent here counts).
+async function pbSeekSure(target, seq) {
+  for (let k = 0; k < 4; k++) {
+    pbSeekMs(target());
+    await new Promise(r => setTimeout(r, 1300));
+    if (seq !== pbResumeSeq) return false;
+    if (Math.abs((getEstimatedPosition() || 0) - target()) < 4000) return true;
   }
   return false;
 }
@@ -106,7 +143,7 @@ function pbPillRender() {
         pbPillHide();
         const s = Object.assign({}, q.s, { playing: true });
         flashGlobalToast(`Carrying on with “${s.t}”…`);
-        pbResume(s, { elapsed: q.kind === 'remote' && q.s.playing ? Date.now() - q.seenAt + (q.age || 0) : 0 }).then(ok => { if (!ok && !pbPlaying()) { flashGlobalToast('Couldn’t start it here.'); pbPillShow(q); } });
+        pbResume(s, { live: q.kind === 'remote' && !!q.s.playing, elapsed: q.kind === 'remote' && q.s.playing ? Date.now() - q.seenAt + (q.age || 0) : 0 }).then(ok => { if (!ok && !pbPlaying()) { flashGlobalToast('Couldn’t start it here.'); pbPillShow(q); } });
       }
     });
   }
@@ -186,12 +223,19 @@ function pbRemoteGot(rm) {
   if (rm.dev === set.id) return;                                        // my own
   if (rm.at < pbMyPostAt) return;                                       // older than what I said since
   const s = rm.s;
+  if (set.follow && (s.eng || 'spotify') === 'spotify' && s.playing) {          // (1.93.9) Spotify plays on one device per account: playing along would stop the other one
+    if (pbPlaying() && activePlayerEngine === 'spotify') { pbHandoffPause = true; el.miniPlayerPlayPause.click(); }
+    if (!pbFollowSpotifyTold) { pbFollowSpotifyTold = true; flashGlobalToast('Spotify plays on one device at a time, so this one can\u2019t play along with a Spotify song: it shows what\u2019s playing instead.'); }
+    pbPillShow({ kind: 'remote', s, dev: rm.devName, age: rm.age, seenAt: rm.seenAt });
+    return;
+  }
   if (set.follow) {                                                     // playing along: do what it does
     const mine = pbSnapshot();
     if (!s.playing) { if (pbPlaying()) el.miniPlayerPlayPause.click(); return; }
     const pos = (s.pos || 0) + rm.age;
-    if (!mine || pbFold(mine.t) !== pbFold(s.t) || pbItemOfSame(mine, s) === false) { pbResume(s, { quiet: true, elapsed: rm.age }); return; }
+    if (!mine || pbFold(mine.t) !== pbFold(s.t) || pbItemOfSame(mine, s) === false) { pbResume(s, { quiet: true, live: true, elapsed: rm.age }); return; }
     if (!pbPlaying()) el.miniPlayerPlayPause.click();
+    pbApplyVol(s.vol);
     if (Math.abs((mine.pos || 0) - pos) > 8000) pbSeekMs(pos);
     return;
   }
@@ -200,24 +244,33 @@ function pbRemoteGot(rm) {
   pbPillShow({ kind: 'remote', s, dev: rm.devName, age: rm.age, seenAt: rm.seenAt });
 }
 function pbItemOfSame(a, b) { return a.r === b.r; }
-let pbHandoffPause = false;
+let pbHandoffPause = false, pbFollowSpotifyTold = false;
+let pbPrevKey = '';
 function pbWatch() {                                                    // every second: tell the other devices when what's playing here changes
   const set = pbSet();
+  const qk = `${crateQueueId}|${crateQueueIndex}`; if (qk !== pbQueueSeen) { pbQueueSeen = qk; pbQueueMovedAt = Date.now(); }
   const s = pbSnapshot();
   if (pbPillState && pbPillState.kind === 'remote' && pbPlaying()) pbPillHide();          // playing here now
-  if (!set.on || set.follow || pbBackend !== true || !s) { if (s) pbLastKey = `${s.r}|${s.t}|${s.playing}`; return; }
-  const key = `${s.r}|${s.t}|${s.playing}`, now = Date.now();
+  if (!set.on || set.follow || pbBackend !== true || !s) { if (s) pbLastKey = `${s.r}|${s.t}|${s.playing}|${s.vol}`; return; }
+  const key = `${s.r}|${s.t}|${s.playing}|${s.vol}`, now = Date.now();
   const expect = pbLastPos + (s.playing ? now - pbLastPosAt : 0), jumped = Math.abs(s.pos - expect) > 6000;
   pbLastPos = s.pos; pbLastPosAt = now;
+  const stable = key === pbPrevKey; pbPrevKey = key;                   // (1.93.9) the same for a second: not a moment between two songs
+  if (!stable) return;
   const changed = key !== pbLastKey;
-  pbLastKey = key;
-  if (!s.playing && (pbHandoffPause || pbOwner !== set.id)) { pbHandoffPause = false; return; }          // paused because another device took over (or it isn't mine to speak for)
-  if ((changed || jumped || (s.playing && now - pbLastPostLocal > 25000)) && now - pbLastPostLocal > 1500) { pbLastPostLocal = now; pbPost(s); }
+  if (!s.playing && (pbHandoffPause || pbOwner !== set.id)) { pbHandoffPause = false; pbLastKey = key; return; }          // paused because another device took over (or it isn't mine to speak for)
+  if ((changed || jumped || (s.playing && now - pbLastPostLocal > 25000)) && now - pbLastPostLocal > 1500) {
+    pbLastKey = key; pbLastPostLocal = now;
+    if (s.playing) { pbPost(s); return; }
+    // A pause: Spotify plays on one device per account, so another device starting a Spotify song pauses this one by itself. Asked first
+    // whether another device has spoken since; then this pause isn't mine to tell (it would say "paused" over the one now playing).
+    pbPoll().then(() => { if (pbOwner === set.id || !pbOwner) pbPost(s); });
+  }
 }
 function pbSyncSchedule(ms) {
   clearTimeout(pbPollTimer);
   const set = pbSet(); if (!set.on) return;
-  pbPollTimer = setTimeout(async () => { await pbPoll(); pbSyncSchedule(document.hidden ? 20000 : 6000); }, ms);
+  pbPollTimer = setTimeout(async () => { await pbPoll(); pbSyncSchedule(document.hidden ? 20000 : 4000); }, ms);
 }
 
 // ---- the devices menu (⇄ on the player, and ⚙ → Playback on your devices…) ----
@@ -228,7 +281,8 @@ function pbDevicesMenu(anchor, x, y) {
   const other = pbRemote && pbRemote.dev !== set.id ? pbRemote : null;
   menu.innerHTML = `<div class="menu-section-title">Playback on your devices</div>`
     + `<label class="pb-opt"><input type="checkbox" data-pb-opt="on"${set.on ? ' checked' : ''}> <span>Sync playback across your devices<br><small>One plays at a time: start something here and your other devices pause; “Play here” on any of them carries on from the same moment.</small></span></label>`
-    + `<label class="pb-opt"><input type="checkbox" data-pb-opt="follow"${set.follow ? ' checked' : ''}${set.on ? '' : ' disabled'}> <span>Play along here<br><small>This device plays whatever your other devices play, at the same spot, and never takes over from them.</small></span></label>`
+    + `<label class="pb-opt"><input type="checkbox" data-pb-opt="follow"${set.follow ? ' checked' : ''}${set.on ? '' : ' disabled'}> <span>Play along here<br><small>This device plays whatever your other devices play, at the same spot, and never takes over from them. Not with Spotify songs: Spotify plays on one device per account.</small></span></label>`
+    + `<label class="pb-opt"><input type="checkbox" data-pb-opt="vol"${set.vol === false ? '' : ' checked'}${set.on ? '' : ' disabled'}> <span>Same volume on every device<br><small>Moving the volume here moves it on the device you hand over to (and on one playing along).</small></span></label>`
     + `<label class="pb-opt pb-name">This device is called <input type="text" data-pb-name maxlength="40" value="${escapeHtml(set.name)}"></label>`
     + (set.on && pbBackend === false ? '<p class="pb-note">Your backend doesn’t know about playback sync yet: paste the new apps-script-backend.gs into Apps Script and deploy it (Deploy → Manage deployments → Edit → New version).</p>' : '')
     + (set.on && other ? `<p class="pb-note">${other.s.playing ? 'Playing' : 'Last played'} on ${escapeHtml(other.devName || 'another device')}: ${escapeHtml(other.s.t)} · ${escapeHtml(other.s.artist)}</p><button type="button" data-pb-here>Play it here ▶</button>` : '')
@@ -240,11 +294,12 @@ function pbDevicesMenu(anchor, x, y) {
     const k = e.target.dataset.pbOpt;
     if (k === 'on') { pbSetSave({ on: e.target.checked }); if (!e.target.checked) pbPillHide(); else pbPoll().then(() => { if (menu.isConnected) pbDevicesMenu(anchor, x, y); }); }
     if (k === 'follow') pbSetSave({ follow: e.target.checked });
+    if (k === 'vol') pbSetSave({ vol: e.target.checked });
     if (e.target.dataset.pbName !== undefined) pbSetSave({ name: (e.target.value || '').trim().slice(0, 40) || pbSet().name });
-    const f = menu.querySelector('[data-pb-opt="follow"]'); if (f) f.disabled = !pbSet().on;
+    menu.querySelectorAll('[data-pb-opt="follow"], [data-pb-opt="vol"]').forEach(f => { f.disabled = !pbSet().on; });
   });
   const here = menu.querySelector('[data-pb-here]');
-  if (here) here.addEventListener('click', () => { closeNowPlayingAddMenu(); const o = pbRemote; pbPillHide(); pbResume(Object.assign({}, o.s, { playing: true }), { elapsed: o.s.playing ? Date.now() - o.seenAt + (o.age || 0) : 0 }); });
+  if (here) here.addEventListener('click', () => { closeNowPlayingAddMenu(); const o = pbRemote; pbPillHide(); pbResume(Object.assign({}, o.s, { playing: true }), { live: !!o.s.playing, elapsed: o.s.playing ? Date.now() - o.seenAt + (o.age || 0) : 0 }); });
   nowPlayingAddMenuEl = menu; setTimeout(() => document.addEventListener('click', closeNowPlayingAddMenuOnOutsideClick), 0);
 }
 
