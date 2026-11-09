@@ -795,20 +795,32 @@ function giRymTop(items, mode, limit) {
   const score = (r) => { const v = rymVotesNum(r.rymVotes) || 0, R = rymNum(r.rymRating); return (v * R + m * mean) / (v + m); };
   return rated.map(r => ({ r, s: score(r) })).sort((a, b) => b.s - a.s || rymNum(b.r.rymRating) - rymNum(a.r.rymRating)).slice(0, limit).map(x => x.r);
 }
-function giRenderRymTop(genre, ui, items) {                         // a row of covers, like the Top artists row under it: rank and RYM average on each cover; it scrolls sideways
+// Which releases the RYM row counts: those with this genre (or a sub-genre, when they are included) among their PRIMARY genres, or among primary or
+// secondary ones. Primary by default, so King Crimson's Red (Free Improvisation only among its secondary genres) isn't one of Experimental's; remembered.
+const GI_RYM_ROLE_KEY = 'crate_gi_rym_role';
+function giRymRole() { try { return localStorage.getItem(GI_RYM_ROLE_KEY) === 'any' ? 'any' : 'primary'; } catch (e) { return 'primary'; } }
+function giRymItems(genre, includeSub, items, role) {
+  if (role !== 'primary') return items;
+  const key = genreTaxonomyKey(genre);
+  return items.filter(r => genreTagsForRole(r, 'primary').some(g => genreTaxonomyKey(g) === key || (includeSub && genreMatchesFilter(state.genreTaxonomy, g, genre))));
+}
+function giRenderRymTop(genre, ui, all) {                            // a row of covers, like the Top artists row under it: rank and RYM average on each cover; it scrolls sideways
   const box = $gi('giRymTop'); if (!box) return;
+  const role = giRymRole(), items = giRymItems(genre, ui.includeSub, all, role);
   const mode = ui.rymTop === 'popular' ? 'popular' : 'rated', list = giRymTop(items, mode, 25);
   const nRated = items.filter(r => rymNum(r.rymRating) > 0).length, slug = rymGenreSlug(genre);
   const seg = (v, t) => `<button type="button" class="gi-seg-btn${mode === v ? ' active' : ''}" data-gi="rymtop" data-mode="${v}" aria-pressed="${mode === v}">${t}</button>`;
-  const head = `<div class="gi-section-head gi-rymtop-head"><span class="gi-card-label">On Rate Your Music</span><span class="gi-seg gi-seg-text">${seg('rated', 'Top rated')}${seg('popular', 'Most popular')}</span></div>`;
+  const rseg = (v, t, tip) => `<button type="button" class="gi-seg-btn${role === v ? ' active' : ''}" data-gi="rymrole" data-role="${v}" aria-pressed="${role === v}" title="${tip}">${t}</button>`;
+  const head = `<div class="gi-section-head gi-rymtop-head"><span class="gi-card-label">On Rate Your Music</span><span class="gi-rymtop-switches"><span class="gi-seg gi-seg-text">${rseg('primary', 'Primary genre', `Releases with ${escapeHtml(genre)} among their primary genres`)}${rseg('any', 'Primary + secondary', `Releases with ${escapeHtml(genre)} among their primary or secondary genres`)}</span><span class="gi-seg gi-seg-text">${seg('rated', 'Top rated')}${seg('popular', 'Most popular')}</span></span></div>`;
   const chart = `https://rateyourmusic.com/charts/${mode === 'popular' ? 'popular' : 'top'}/album/all-time/g:${encodeURIComponent(slug)}/`;
+  if (!list.length && role === 'primary' && all.length && !items.length) { box.innerHTML = `${head}<p class="gi-rym-hint">None of these releases has ${escapeHtml(genre)} among its primary genres. Choose Primary + secondary to see them.</p>`; return; }
   if (!list.length) { box.innerHTML = items.length ? `${head}<p class="gi-rym-hint">None of these releases has a RYM rating yet. <a href="${escapeHtml(chart)}" target="_blank" rel="noopener">RYM's chart for ${escapeHtml(genre)} \u2197</a></p>` : ''; return; }
   aiTouchArt(list);
   const k = (v) => v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'k' : String(v);
   const tiles = list.map((it, i) => { const R = rymNum(it.rymRating), v = rymVotesNum(it.rymVotes);
     return `<div class="ai-album gi-rymtop-tile" data-row="${escapeHtml(String(it.row))}" tabindex="0" title="${escapeHtml(`${it.artist} \u2014 ${it.title}`)}: RYM ${R.toFixed(2)}${v ? ` from ${v.toLocaleString()} ratings` : ''} \u00b7 click to open \u00b7 double-click to play \u00b7 right-click for more">
       <div class="ai-cover">${aiArtImg(it, 'ai-cover-img')}<span class="gi-rymtop-rank">${i + 1}</span><span class="gi-rymtop-r">${R.toFixed(2)}</span></div><div class="ai-album-title">${escapeHtml(it.title)}</div><div class="ai-album-year">${escapeHtml(it.artist)}${v ? ' \u00b7 ' + k(v) : ''}</div></div>`; }).join('');
-  box.innerHTML = `${head}<div class="gi-artist-row gi-rymtop-row">${tiles}</div><div class="gi-rymtop-foot gi-rym-hint">${mode === 'popular' ? 'By how many rated it on RYM' : 'By RYM average, weighted by how many rated it'} \u00b7 ${nRated} of ${items.length} rated \u00b7 <a href="${escapeHtml(chart)}" target="_blank" rel="noopener">RYM's own chart \u2197</a></div>`;
+  box.innerHTML = `${head}<div class="gi-artist-row gi-rymtop-row">${tiles}</div><div class="gi-rymtop-foot gi-rym-hint">${mode === 'popular' ? 'By how many rated it on RYM' : 'By RYM average, weighted by how many rated it'} \u00b7 ${role === 'primary' ? `${escapeHtml(genre)} as a primary genre` : 'primary or secondary genre'} \u00b7 ${nRated} of ${items.length} rated \u00b7 <a href="${escapeHtml(chart)}" target="_blank" rel="noopener">RYM's own chart \u2197</a></div>`;
 }
 function giRenderStats(items) {
   const s = genreStatsOf(items), cell = (k, v) => `<div class="gi-stat"><div class="gi-stat-v">${v}</div><div class="gi-stat-k">${k}</div></div>`;
@@ -891,6 +903,7 @@ function giClick(e) {
     else if (a === 'rym-use') giUseRymDescription(genre);
     else if (a === 'more') { ui.descOpen = !ui.descOpen; giRenderAbout(genre, ui); }
     else if (a === 'rymtop') { ui.rymTop = act.dataset.mode; giRenderRymTop(genre, ui, genreReleasesOf(genre, ui.includeSub)); }
+    else if (a === 'rymrole') { try { localStorage.setItem(GI_RYM_ROLE_KEY, act.dataset.role === 'any' ? 'any' : 'primary'); } catch (e) { /* this visit only */ } giRenderRymTop(genre, ui, genreReleasesOf(genre, ui.includeSub)); }
     else if (a === 'year') { if (act.dataset.n === '0') return; ui.year = ui.year === Number(act.dataset.year) ? null : Number(act.dataset.year); const items = genreReleasesOf(genre, ui.includeSub); giRenderChart(genre, ui, items); giRenderReleases(genre, ui, items); }
     else if (a === 'clear-year') { ui.year = null; const items = genreReleasesOf(genre, ui.includeSub); giRenderChart(genre, ui, items); giRenderReleases(genre, ui, items); }
     else if (a === 'clear-compare') { ui.compare = null; giRenderChart(genre, ui, genreReleasesOf(genre, ui.includeSub)); }

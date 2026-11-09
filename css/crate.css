@@ -2601,6 +2601,7 @@ html, body {
   .gi-rymtop-rank, .gi-rymtop-r { position: absolute; font: 600 11px/1 'IBM Plex Mono', monospace; padding: 3px 5px; border-radius: 3px; }
   .gi-rymtop-rank { top: 5px; left: 5px; background: rgba(12, 14, 19, 0.82); color: var(--text); } .gi-rymtop-r { bottom: 5px; right: 5px; background: var(--accent); color: #12161C; }
   .gi-rymtop-foot { margin-top: 6px; } .gi-rymtop-foot a { color: var(--accent); }
+  .gi-rymtop-switches { display: flex; flex-wrap: wrap; gap: 10px; }
   .gi-rymtop-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
   .gi-side { display: flex; flex-direction: column; gap: 16px; flex: 1 1 320px; min-width: 0; }
   .gi-desc p { margin: 0 0 10px; font-size: 14px; line-height: 1.6; color: var(--text); white-space: pre-line; overflow-wrap: anywhere; }

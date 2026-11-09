@@ -17,7 +17,15 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.92.8
+  CURRENT_VERSION: 1.92.9
+
+  1.92.9 — 2026-11-09 — A genre's "On Rate Your Music" row can count only releases with the genre among their primary genres. Page only.
+          A second switch on the row: "Primary genre" (the default) or
+          "Primary + secondary". With Primary genre, King Crimson's Red is no
+          longer one of Experimental's: Free Improvisation (under Experimental)
+          is only among its secondary genres. A release with the genre, or one
+          of its sub-genres when "Include sub-genres" is on, among its primary
+          genres is still there. The choice is remembered for every genre.
 
   1.92.8 — 2026-11-09 — A shared credit ("Don Shinn and The Soul Agents") is listed under each of its artists. Page only.
           A credit with "&" or "and" counts as several artists when every part

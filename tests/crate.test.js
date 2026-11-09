@@ -910,3 +910,17 @@ suite('Artists: a shared credit is several artists', () => {
     } finally { S.raw = was[0]; app('artistDetailsMap = ' + JSON.stringify(was[1]) + '; artistAliasMap = ' + JSON.stringify(was[2]) + '; artistPartsCache = null'); }
   });
 });
+
+suite('Genre page: RYM row by primary or secondary genre', () => {
+  test('primary only drops a release whose genre (or sub-genre) is only among its secondary genres', () => {
+    const S = app('state'), was = JSON.stringify(S.genreTaxonomy);
+    S.genreTaxonomy['free improvisation'] = { label: 'Free Improvisation', parents: ['Experimental'] };
+    try {
+      const items = [{ title: 'Red', genre: 'Progressive Rock', genre2: 'Free Improvisation' }, { title: 'Lot 74', genre: 'Free Improvisation', genre2: '' }, { title: '20 Jazz Funk Greats', genre: 'Experimental, Industrial', genre2: '' }];
+      const pick = app('giRymItems'), t = (l) => l.map(r => r.title);
+      eq(t(pick('Experimental', true, items, 'primary')), ['Lot 74', '20 Jazz Funk Greats']);
+      eq(t(pick('Experimental', false, items, 'primary')), ['20 Jazz Funk Greats']);
+      eq(t(pick('Experimental', true, items, 'any')), ['Red', 'Lot 74', '20 Jazz Funk Greats']);
+    } finally { S.genreTaxonomy = JSON.parse(was); }
+  });
+});
