@@ -17,8 +17,15 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.17
+  CURRENT_VERSION: 1.95.18
 
+  1.95.18 — 2026-11-11 — YouTube links CRATE finds are remembered for good: album playlists,
+          song searches and full-release videos found once are kept on this device with no
+          expiry (was 14 days) and no limit (was the latest 200), found through the add-on as
+          well as the API (the add-on's finds weren't kept before). A search that found nothing
+          is still tried again after 7 days. They now live in IndexedDB rather than
+          localStorage (no 5 MB limit); the ones already kept move across, and keep for good.
+          "Forget remembered lookups" still clears them.
   1.95.17 — 2026-11-10 — Player: how far through the release, for a song that is a part of a
           full-release video, now reads the video's own time (song 3 starting at 9:54 shows
           9:54, not 10:32 from songs 1 and 2's saved lengths added up). The total is the

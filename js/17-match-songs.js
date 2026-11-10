@@ -1754,22 +1754,46 @@ function smPacificDay() { try { return new Date().toLocaleDateString('en-CA', { 
 function smYtQuotaUsed() { try { const q = JSON.parse(localStorage.getItem(SM_YT_QUOTA_KEY) || '{}'); return q.day === smPacificDay() ? (q.used || 0) : 0; } catch (e) { return 0; } }
 function smYtQuotaAdd(n) { try { localStorage.setItem(SM_YT_QUOTA_KEY, JSON.stringify({ day: smPacificDay(), used: smYtQuotaUsed() + n })); } catch (e) { /* just not counted */ } }
 // ---- Remembering YouTube lookups (the API route): what was looked up once is not paid for again ----
-// An album's playlist lookup costs about 100 of the 10,000 daily units, a song's own search 100 more. They are kept on this device for 14 days (7 when nothing was found); an error or a quota refusal is never kept.
-const YT_CACHE_KEY = 'crate_yt_cache_v1', YT_CACHE_MAX = 200, YT_REL_TTL = 14 * 864e5, YT_NONE_TTL = 7 * 864e5;
+// An album's playlist lookup costs about 100 of the 10,000 daily units, a song's own search 100 more. What a lookup found is kept on this device
+// for good (1.95.18: it was 14 days, and only the latest 200), through the add-on as well as the API; a lookup that found nothing is kept 7 days,
+// so it is tried again; an error or a quota refusal is never kept. "Forget remembered lookups" (YouTube API settings) clears them all.
+// They live in IndexedDB (no 5 MB limit), mirrored in memory so a lookup reads them at once; older ones kept in localStorage move across.
+const YT_CACHE_KEY = 'crate_yt_cache_v1', YT_REL_TTL = 0, YT_NONE_TTL = 7 * 864e5;          // a ttl of 0: kept for good
 const ytCacheNorm = (v) => String(v == null ? '' : v).toLowerCase().replace(/\s+/g, ' ').trim();
-function ytCacheAll() { try { const o = JSON.parse(localStorage.getItem(YT_CACHE_KEY) || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch (e) { return {}; } }
-function ytCacheGet(key) { const e = ytCacheAll()[key]; return e && e.x > Date.now() && e.v ? e : null; }          // { t: when it was looked up, x: kept until, v: the answer }
-function ytCachePut(key, v, ttl) {
-  const o = ytCacheAll(), now = Date.now(); o[key] = { t: now, x: now + ttl, v };
-  Object.keys(o).forEach(k => { if (!(o[k].x > now)) delete o[k]; });
-  const ks = Object.keys(o); if (ks.length > YT_CACHE_MAX) ks.sort((a, b) => o[a].t - o[b].t).slice(0, ks.length - YT_CACHE_MAX).forEach(k => delete o[k]);
-  for (let tries = 0; tries < 4; tries++) {
-    try { localStorage.setItem(YT_CACHE_KEY, JSON.stringify(o)); return; }
-    catch (e) { const old = Object.keys(o).sort((a, b) => o[a].t - o[b].t); if (old.length <= 1) return; old.slice(0, Math.ceil(old.length / 2)).forEach(k => delete o[k]); }          // the browser's storage is full: the oldest half goes
-  }
+const ytCacheFound = (v) => !!v && typeof v === 'object' && Object.values(v).some(a => Array.isArray(a) && a.length);
+const ytCacheLive = (e, now) => !!(e && e.v && (!e.x || e.x > now));
+let ytMem = null, ytDbP = null;
+function ytCacheLegacy() {                                          // what localStorage held before 1.95.18 (anything found there is kept for good now too)
+  let o = {}; try { o = JSON.parse(localStorage.getItem(YT_CACHE_KEY) || '{}'); } catch (e) { o = {}; }
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return {};
+  Object.keys(o).forEach(k => { if (o[k] && ytCacheFound(o[k].v)) o[k].x = 0; }); return o;
 }
-function ytCacheCount() { const o = ytCacheAll(), now = Date.now(); return Object.keys(o).filter(k => o[k].x > now).length; }
-function ytCacheClear() { try { localStorage.removeItem(YT_CACHE_KEY); } catch (e) { /* nothing to clear */ } }
+function ytCacheAll() { return ytMem || (ytMem = ytCacheLegacy()); }
+function ytCacheDb() {
+  return ytDbP || (ytDbP = new Promise((res, rej) => { try { const r = indexedDB.open('crate-yt-cache', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); } catch (e) { rej(e); } }));
+}
+function ytCacheStore(mode, fn) { return ytCacheDb().then(db => new Promise((res, rej) => { const tx = db.transaction('kv', mode); fn(tx.objectStore('kv')); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); })); }
+const ytCacheReady = (async () => {                                 // every lookup kept in IndexedDB, into memory; then the old localStorage ones move across
+  try {
+    const db = await ytCacheDb(), o = ytCacheAll();
+    await new Promise((res) => { try { const c = db.transaction('kv', 'readonly').objectStore('kv').openCursor(); c.onsuccess = () => { const cur = c.result; if (!cur) return res(); const e = cur.value; if (e && (!o[cur.key] || (o[cur.key].t || 0) < (e.t || 0))) o[cur.key] = e; cur.continue(); }; c.onerror = () => res(); } catch (e) { res(); } });
+    const legacy = ytCacheLegacy(), ks = Object.keys(legacy);
+    if (ks.length) { await ytCacheStore('readwrite', st => ks.forEach(k => { if (ytCacheLive(legacy[k], Date.now())) st.put(legacy[k], k); })); try { localStorage.removeItem(YT_CACHE_KEY); } catch (e) { /* kept there too */ } }
+  } catch (e) { /* this browser keeps them in localStorage, as before */ }
+})();
+function ytCacheGet(key) { const e = ytCacheAll()[key]; return ytCacheLive(e, Date.now()) ? e : null; }          // { t: when it was looked up, x: kept until (0: for good), v: the answer }
+function ytCachePut(key, v, ttl) {
+  const now = Date.now(), e = { t: now, x: ttl ? now + ttl : 0, v }; ytCacheAll()[key] = e;
+  ytCacheStore('readwrite', st => st.put(e, key)).catch(() => {          // no IndexedDB here: localStorage, as before (the oldest half goes when it is full)
+    const o = Object.assign({}, ytCacheAll());
+    for (let tries = 0; tries < 4; tries++) {
+      try { localStorage.setItem(YT_CACHE_KEY, JSON.stringify(o)); return; }
+      catch (er) { const old = Object.keys(o).sort((x, y) => o[x].t - o[y].t); if (old.length <= 1) return; old.slice(0, Math.ceil(old.length / 2)).forEach(k => delete o[k]); }
+    }
+  });
+}
+function ytCacheCount() { const o = ytCacheAll(), now = Date.now(); return Object.keys(o).filter(k => ytCacheLive(o[k], now)).length; }
+function ytCacheClear() { ytMem = {}; try { localStorage.removeItem(YT_CACHE_KEY); } catch (e) { /* nothing to clear */ } ytCacheStore('readwrite', st => st.clear()).catch(() => {}); }
 function smRelKey(item) { return 'rel|' + ytCacheNorm(item.artist) + '|' + ytCacheNorm(String(item.title || '').replace(/\s*\[.*?\]|\s*\(.*?\)/g, '').trim()); }
 function ytPaintQuotaLine() {
   const e = document.getElementById('ytQuotaLine'); if (!e) return; const used = smYtQuotaUsed(), n = ytCacheCount();
@@ -1993,7 +2017,7 @@ async function smYoutubeForRelease(item, songs) {
   const viaAddon = ytUseAddon();
   if (!viaAddon && !loadYoutubeApiKey()) return { status: 'nokey' };
   const clean = item.title.replace(/\s*\[.*?\]|\s*\(.*?\)/g, '').trim();
-  const relKey = smRelKey(item), cached = viaAddon ? null : ytCacheGet(relKey);          // the API route remembers an album it has looked up (the add-on keeps its own memory)
+  const relKey = smRelKey(item), cached = ytCacheGet(relKey);          // an album looked up before, by either route (1.95.18: the add-on's finds are remembered too)
   const playlists = cached ? cached.v.playlists : [];
   if (!cached) {
     const found = viaAddon ? await smYtPlaylistSearchViaAddon(`${item.artist} ${clean}`) : await smYtApi('search', { part: 'snippet', type: 'playlist', maxResults: 5, q: `${item.artist} ${clean}` }, 100);
@@ -2003,7 +2027,7 @@ async function smYoutubeForRelease(item, songs) {
       rank: smTitleSim(item.title, stripAlbum(it.snippet.title)) + (/ - topic$/i.test(it.snippet.channelTitle || '') ? 0.1 : 0) + (smArtistMatch(item.artist, it.snippet.channelTitle) === 1 ? 0.05 : 0)
     })).filter(l => l.rank >= 0.6).sort((a, b) => b.rank - a.rank).slice(0, 2);
     for (const l of lists) playlists.push(await smYtReadPlaylist(l.id, l.title, l.channel));
-    if (!viaAddon) ytCachePut(relKey, { playlists }, playlists.length ? YT_REL_TTL : YT_NONE_TTL);
+    ytCachePut(relKey, { playlists }, playlists.length ? YT_REL_TTL : YT_NONE_TTL);
   }
   playlists.forEach(pl => { const f = smAlbumFit(songs, pl.tracks); pl.fit = Math.round(f.fit); pl.matched = f.matched; });
   const best = smBestAlbum(songs, playlists);
@@ -2015,8 +2039,8 @@ async function smYoutubeForRelease(item, songs) {
 }
 async function smYoutubeSearchOne(item, title) {                   // one more video search (for a song's other title): the add-on's, or the API's (100 units, remembered)
   const q = `${item.artist} ${title}`, qk = 'song|' + ytCacheNorm(q);
-  if (ytUseAddon()) return (await ytAddonRequest({ kind: 'search-video', q })).slice(0, 8).map(v => ({ id: v.id, title: v.title, channel: v.channel, durationMs: v.durationMs || 0, blocked: false, index: 0 }));
   const hit = ytCacheGet(qk); if (hit) return hit.v.cands;
+  if (ytUseAddon()) { const cands = (await ytAddonRequest({ kind: 'search-video', q })).slice(0, 8).map(v => ({ id: v.id, title: v.title, channel: v.channel, durationMs: v.durationMs || 0, blocked: false, index: 0 })); ytCachePut(qk, { cands }, cands.length ? YT_REL_TTL : YT_NONE_TTL); return cands; }
   const d = await smYtApi('search', { part: 'snippet', type: 'video', maxResults: 5, q }, 100);
   const ids = (d.items || []).filter(it => it.id && it.id.videoId).map(it => it.id.videoId), details = ids.length ? await smYtDetails(ids) : new Map();
   const cands = ids.map(id => { const dt = details.get(id) || {}; return { id, title: dt.title || '', channel: dt.channel || '', durationMs: dt.durationMs || 0, blocked: !!dt.blocked, index: 0 }; });
@@ -2027,11 +2051,12 @@ async function smYoutubeSearchSongs(item, songs, idxs, onStep) {     // 100 quot
   for (const idx of idxs) {
     const s = songs.find(x => x.idx === idx); if (!s) continue;
     const extra = s.altTitle && smWords(smFold(s.altTitle)) !== smWords(smFold(s.title)) ? await smYoutubeSearchOne(item, s.altTitle) : [];          // (1.95.12) and under its other title
-    let cands; const qk = 'song|' + ytCacheNorm(`${item.artist} ${s.title}`), hit = ytUseAddon() ? null : ytCacheGet(qk);
+    let cands; const qk = 'song|' + ytCacheNorm(`${item.artist} ${s.title}`), hit = ytCacheGet(qk);
     if (hit) cands = hit.v.cands;                                    // looked up before: nothing to pay
     else if (ytUseAddon()) {                                              // a video search through the add-on: the results already carry their lengths, so no second call
       const r = await ytAddonRequest({ kind: 'search-video', q: `${item.artist} ${s.title}` });
       cands = r.slice(0, 8).map(v => ({ id: v.id, title: v.title, channel: v.channel, durationMs: v.durationMs || 0, blocked: false, index: 0 }));
+      ytCachePut(qk, { cands }, cands.length ? YT_REL_TTL : YT_NONE_TTL);
     } else {
       const d = await smYtApi('search', { part: 'snippet', type: 'video', maxResults: 5, q: `${item.artist} ${s.title}` }, 100);
       const ids = (d.items || []).filter(it => it.id && it.id.videoId).map(it => it.id.videoId);

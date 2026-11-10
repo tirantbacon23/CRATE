@@ -804,9 +804,9 @@ async function ytFindFullVideos(item, knownMs) {                    // YouTube v
   const viaAddon = ytUseAddon();
   const clean = String(item.title).replace(/\s*\[.*?\]|\s*\(.*?\)/g, '').trim(), q = `${item.artist} ${clean} full album`, ck = 'full|' + ytCacheNorm(q);
   let vids = [];
-  const known = viaAddon ? null : ytCacheGet(ck), fromAddon = async (qq) => (await ytAddonRequest({ kind: 'search-video', q: qq })).slice(0, 12).map(v => ({ id: v.id, title: v.title || '', channel: v.channel || '', durationMs: v.durationMs || 0 }));
+  const known = ytCacheGet(ck), fromAddon = async (qq) => (await ytAddonRequest({ kind: 'search-video', q: qq })).slice(0, 12).map(v => ({ id: v.id, title: v.title || '', channel: v.channel || '', durationMs: v.durationMs || 0 }));
   if (known) vids = known.v.vids;
-  else if (viaAddon) vids = await fromAddon(q);
+  else if (viaAddon) { vids = await fromAddon(q); ytCachePut(ck, { vids }, vids.length ? YT_REL_TTL : YT_NONE_TTL); }
   else {
     const d = await smYtApi('search', { part: 'snippet', type: 'video', maxResults: 10, q }, 100), ids = (d.items || []).filter(x => x.id && x.id.videoId).map(x => x.id.videoId);
     const det = ids.length ? await smYtDetails(ids) : new Map();

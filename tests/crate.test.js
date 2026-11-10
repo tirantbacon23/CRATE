@@ -204,6 +204,15 @@ suite('Matching songs: other titles', () => {
   });
 });
 
+suite('Remembered YouTube lookups', () => {
+  test('what was found is kept for good; nothing found, for 7 days', () => {
+    const put = app('ytCachePut'), get = app('ytCacheGet'), R = app('YT_REL_TTL'), N = app('YT_NONE_TTL');
+    put('test|found', { cands: [{ id: 'abcdefghijk' }] }, R); const e = get('test|found'); ok(e, 'kept'); eq(e.x, 0);
+    put('test|none', { cands: [] }, N); const n = get('test|none'); ok(n && n.x > Date.now() && n.x <= Date.now() + 7 * 864e5 + 1000, 'none: 7 days');
+    ok(app('ytCacheFound')({ cands: [1] }) && !app('ytCacheFound')({ cands: [] }));
+  });
+});
+
 suite('How far through: parts of a full-release video', () => {
   test('song 3 from 9:54 in the video is 9:54 in, whatever the lengths saved', () => {
     const V = 'https://www.bilibili.com/video/BV11L411T7tY', id = app('youtubeVideoIdFromUrl')(V), L = app('youtubeLinkWithSegment');
