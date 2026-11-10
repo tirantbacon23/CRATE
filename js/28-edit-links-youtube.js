@@ -313,7 +313,11 @@ function biliIdFromUrl(url) {
 const isBiliId = (id) => /^bili:/.test(String(id || ''));
 function biliParts(id) { const m = /^bili:(BV[0-9A-Za-z]{10})(?:~(\d+))?$/.exec(String(id || '')); return m ? { bvid: m[1], p: +(m[2] || 1) } : null; }
 function videoPageUrl(id) { const b = biliParts(id); return b ? 'https://www.bilibili.com/video/' + b.bvid + (b.p > 1 ? '?p=' + b.p : '') : 'https://www.youtube.com/watch?v=' + id; }
-const ytSegOf = (url) => { const g = youtubeSegmentFromUrl(url); return g.start || g.end ? g : {}; };          // what a queue entry carries: nothing for an ordinary link
+const ytSegOf = (url, ms) => {                                      // what a queue entry carries: nothing for an ordinary link
+  const g = youtubeSegmentFromUrl(url), len = Math.round((Number(ms) || 0) / 1000);
+  if (!g.end && len > 0 && isBiliId(youtubeVideoIdFromUrl(url))) return { start: g.start || 0, end: (g.start || 0) + len };          // (1.95.1) Bilibili's player can't say when a video ends: a song on its own ends after its length
+  return g.start || g.end ? g : {};
+};          // what a queue entry carries: nothing for an ordinary link
 function ytParseTimestampList(text) {                               // a video description's "0:00 Song" lines -> [{ start, end, title }]
   const out = [], TIME = /(?:\d{1,2}:)?\d{1,3}:\d{2}(?!\d)/g;
   String(text || '').split(/\r?\n/).forEach(line => {
@@ -552,7 +556,7 @@ function openYoutubePlayer(url, trackName, tracks, item) {
 
   const ytTracks = (tracks || currentTracklistTracks || []).filter(t => t.youtubeLink && youtubeVideoIdFromUrl(t.youtubeLink));
   if (ytTracks.length) {
-    ytQueue = ytTracks.map(t => Object.assign({ videoId: youtubeVideoIdFromUrl(t.youtubeLink), trackName: t.trackName || 'Untitled track' }, ytSegOf(t.youtubeLink)));
+    ytQueue = ytTracks.map(t => Object.assign({ videoId: youtubeVideoIdFromUrl(t.youtubeLink), trackName: t.trackName || 'Untitled track' }, ytSegOf(t.youtubeLink, t.trackTimeMillis)));
     const seg = youtubeSegmentFromUrl(url);          // (in a full-release video every song has the same video: the clicked one is told apart by where it starts)
     let idx = ytQueue.findIndex(q => q.videoId === videoId && (q.start || 0) === seg.start && (q.end || 0) === seg.end);
     if (idx === -1) idx = ytQueue.findIndex(q => q.videoId === videoId);
@@ -621,12 +625,32 @@ function fvCurrentTime(id) {                                        // where the
   const q = ytQueue[ytQueueIndex]; if (!q || q.videoId !== id) return null;
   try { return Math.round(ytPlayer.getCurrentTime() || 0); } catch (e) { return null; }
 }
+// "Later songs move too" (1.95.1): a start moved by some seconds takes its own end and every later song's times along by as much, for
+// a gap the uploader left between songs. Off (the default), only that start moves: silence at the start of the song itself.
+const FV_FOLLOW_KEY = 'crate_fv_follow_v1';
+function fvFollowOn() { try { return localStorage.getItem(FV_FOLLOW_KEY) === '1'; } catch (e) { return false; } }
+function fvShiftFrom(i, delta) {                                    // row i's end and every later row's start and end move by delta seconds (times not given stay empty)
+  if (!fv || !delta) return 0; let n = 0;
+  const move = (t) => { if (!String(t).trim()) return t; const s = ytParseTime(t); if (isNaN(s)) return t; n++; return ytFormatTime(Math.max(0, s + delta)); };
+  fv.rows.forEach((r, k) => { if (k < i) return; if (k > i) r.start = move(r.start); r.end = move(r.end); });
+  return n;
+}
+function fvStartMoved(i, oldText, newText) {                        // after a start changes: with the switch on, the rest follow
+  if (!fv || !fvFollowOn()) return;
+  const a = String(oldText || '').trim() ? ytParseTime(oldText) : NaN, b = String(newText || '').trim() ? ytParseTime(newText) : NaN;
+  if (isNaN(a) || isNaN(b) || a === b) return;                     // a start typed for the first time has nothing to move from
+  fvValidate(); fv.rows[i].start = ytFormatTime(b);
+  const n = fvShiftFrom(i, b - a); fvRender();
+  if (n) fvEl('fullVideoStatus').textContent = `Moved ${n} later time${n === 1 ? '' : 's'} ${ytFormatTime(Math.abs(b - a))} ${b > a ? 'later' : 'earlier'} with it.`;
+}
 function fvNow(which, i) {
   const v = fvValidate(), id = youtubeVideoIdFromUrl(fvEl('fullVideoUrl').value.trim());
   if (!id) { flashGlobalToast('Paste the full-release video\u2019s link first.'); return; }
   const t = fvCurrentTime(id); if (t === null) { flashGlobalToast('Play the video with \u201c\u25b6 Play it here\u201d first, then press \u23f1 as a song begins.'); return; }
   const rowEl = (k) => document.querySelector(`#fullVideoList .fv-row[data-i="${k}"]`);
+  const was = rowEl(i).querySelector(`[data-fv="${which}"]`).value;
   rowEl(i).querySelector(`[data-fv="${which}"]`).value = ytFormatTime(t);
+  if (which === 'start' && fvFollowOn() && String(was).trim()) { fvStartMoved(i, was, ytFormatTime(t)); return; }          // (the song before keeps its own end: the gap is between them)
   if (which === 'start' && i > 0) { const prevEnd = rowEl(i - 1).querySelector('[data-fv="end"]'); if (!prevEnd.value.trim()) prevEnd.value = ytFormatTime(t); }          // where one song starts the one before it ends
   fvValidate();
 }
@@ -787,6 +811,14 @@ fvEl('fullVideoFound').addEventListener('click', (e) => {
 fvEl('fullVideoIntro').addEventListener('change', fvSetIntro);
 fvEl('fullVideoClear').addEventListener('click', () => { if (!fv) return; fv.rows.forEach(r => { r.start = ''; r.end = ''; }); fvRender(); });
 fvEl('fullVideoList').addEventListener('input', fvValidate);
+fvEl('fullVideoList').addEventListener('focusin', (e) => { if (e.target.matches && e.target.matches('[data-fv="start"]')) e.target.dataset.was = e.target.value; });          // what a start was before you typed in it
+fvEl('fullVideoList').addEventListener('change', (e) => {
+  const t = e.target; if (!t.matches || !t.matches('[data-fv="start"]')) return;
+  const row = t.closest('.fv-row[data-i]'); if (row) fvStartMoved(+row.dataset.i, t.dataset.was || '', t.value);
+  t.dataset.was = t.value;
+});
+fvEl('fullVideoFollow').checked = fvFollowOn();
+fvEl('fullVideoFollow').addEventListener('change', (e) => { try { localStorage.setItem(FV_FOLLOW_KEY, e.target.checked ? '1' : '0'); } catch (err) { /* for this visit only */ } });
 fvEl('fullVideoList').addEventListener('click', (e) => {
   const row = e.target.closest('.fv-row[data-i]'); if (!row) return; const i = +row.dataset.i;
   const now = e.target.closest('[data-fv-now]'); if (now) { fvNow(now.dataset.fvNow, i); return; }

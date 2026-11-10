@@ -217,7 +217,7 @@ async function playCrateQueueIndex(myId, index) {
     const link = only === 'youtube' ? track.youtubeLink : track.soundcloudLink;
     crateQueueExpectedSpotifyTrackId = null;
     if (!link) { playSourceSkip(item, trackName, myId, index); return; }
-    if (only === 'youtube') playCrateTrackOnYoutube(myId, index, link, trackName); else playCrateTrackOnSoundcloud(myId, index, link, trackName);
+    if (only === 'youtube') playCrateTrackOnYoutube(myId, index, link, trackName, track.trackTimeMillis); else playCrateTrackOnSoundcloud(myId, index, link, trackName);
     return;
   }
 
@@ -235,7 +235,7 @@ async function playCrateQueueIndex(myId, index) {
   // own manualTracks entry — see trackLinkOverridesFor) plays next.
   if (track.youtubeLink && only !== 'spotify') {
     crateQueueExpectedSpotifyTrackId = null;
-    playCrateTrackOnYoutube(myId, index, track.youtubeLink, trackName);
+    playCrateTrackOnYoutube(myId, index, track.youtubeLink, trackName, track.trackTimeMillis);
     return;
   }
 
@@ -302,7 +302,7 @@ async function startCrateQueueSpotify(myId, index, uri, intent, trackName) {
 // playlist" run, bypassing openYoutubePlayer()'s own "queue the rest of
 // this album" behavior — this master queue is what decides what plays
 // next, since that could mean handing off back to Spotify partway through.
-function playCrateTrackOnYoutube(myId, index, url, trackName) {
+function playCrateTrackOnYoutube(myId, index, url, trackName, ms) {          // ms: the song's length, which ends a Bilibili video that is the song alone
   const videoId = youtubeVideoIdFromUrl(url);
   if (!videoId) {
     flashGlobalToast(`Skipping "${trackName}" \u2014 that YouTube link looks invalid.`);
@@ -310,7 +310,7 @@ function playCrateTrackOnYoutube(myId, index, url, trackName) {
     return;
   }
   ytPlayingForCrateQueue = true;
-  ytQueue = [Object.assign({ videoId, trackName }, ytSegOf(url))];
+  ytQueue = [Object.assign({ videoId, trackName }, ytSegOf(url, ms))];
   ytQueueIndex = 0;
   playYtQueueIndex(0);
 }

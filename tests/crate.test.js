@@ -210,6 +210,27 @@ suite('Bilibili full-release videos', () => {
       ok(!app('biliContinues')({ videoId: 'bili:BV1GJ411x7h7~2', start: 206 }));
     } finally { b.playing = false; Object.assign(b, was, { playing: false }); }
   });
+  test('a start moved with "Later songs move too" takes the later songs along', async () => {
+    const it = app('state').raw.find(r => (r.manualTracks || []).length >= 3); if (!it) { skip('no release with a tracklist'); return; }
+    await app('fvOpen')(it, 'https://www.bilibili.com/video/BV1GJ411x7h7');
+    try {
+      const fv = app('fv'); fv.rows.forEach((r, k) => { r.start = app('ytFormatTime')(k * 60); r.end = app('ytFormatTime')(k * 60 + 60); });
+      fv.rows[2].start = ''; fv.rows[2].end = '';                   // a song with no times stays without them
+      eq(app('fvShiftFrom')(1, 6) > 0, true);
+      eq([fv.rows[0].start, fv.rows[0].end, fv.rows[1].start, fv.rows[1].end, fv.rows[2].start, fv.rows[3].start], ['0:00', '1:00', '1:00', '2:06', '', '3:06']);
+      app('fvShiftFrom')(3, -500); eq([fv.rows[3].start, fv.rows[3].end], ['3:06', '0:00']);    // the song's own start is yours to set; nothing goes before the video's start
+    } finally { app('fvClose')(); }
+  });
+  test('a Bilibili song on its own ends after its length; the track editor takes its link', () => {
+    const seg = app('ytSegOf'), B = 'https://www.bilibili.com/video/BV1GJ411x7h7';
+    eq(seg(B, 245000), { start: 0, end: 245 });
+    eq(seg(B + '?t=4', 245000), { start: 4, end: 249 });                       // a lead-in skipped with ?t= still gets the whole song
+    eq(seg(B + '?t=60&end=300', 245000), { start: 60, end: 300 });             // a part of a full-release video keeps its own end
+    eq(seg(B), {});                                                             // no length: it plays on, as before
+    eq(seg('https://www.youtube.com/watch?v=dQw4w9WgXcQ', 245000), {});         // YouTube's player says when a video ends by itself
+    const re = app('TG_LINK_RE').youtube;
+    ok(re.test(B + '?p=2')); ok(re.test('https://www.youtube.com/watch?v=dQw4w9WgXcQ')); ok(!re.test('https://www.bilibili.com/read/cv123'));
+  });
 });
 
 suite('New releases', () => {

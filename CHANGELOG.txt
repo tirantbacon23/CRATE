@@ -17,7 +17,15 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.0
+  CURRENT_VERSION: 1.95.1
+
+  1.95.1 — 2026-11-10 — Full-release video: "Later songs move too"; Bilibili songs on their own. With it ticked, moving a song's start (typed, or with ⏱) moves
+          its end and every later song's times by the same amount, for a gap the uploader left between songs. Unticked (the
+          default), only that start moves, for silence at the start of the song itself. The choice is remembered on this device.
+
+          Bilibili songs on their own (not part of a full-release video): the track editor's video column takes a Bilibili link
+          as well as a YouTube one, and such a song stops after its length from your tracklist (counted from ?t= when the link
+          skips a lead-in), so the next song starts. Bilibili's player can't say when a video ends; a song with no length plays on.
 
   1.95.0 — 2026-11-10 — Full-release videos on Bilibili. Paste a Bilibili link (bilibili.com/video/BV…, with ?p= for a part) into
           ⋯ → Full-release video…, set where each song starts and ends as for a YouTube video, and the songs play in CRATE's
