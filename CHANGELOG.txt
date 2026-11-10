@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.16
+  CURRENT_VERSION: 1.95.17
 
+  1.95.17 — 2026-11-10 — Player: how far through the release, for a song that is a part of a
+          full-release video, now reads the video's own time (song 3 starting at 9:54 shows
+          9:54, not 10:32 from songs 1 and 2's saved lengths added up). The total is the
+          video from song 1's start to the last song's end.
   1.95.16 — 2026-11-10 — Album page: click the cover to see it big (as large as the screen
           allows; iTunes artwork is fetched at 1200 px). A click anywhere or Esc closes it,
           leaving the album page open.

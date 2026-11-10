@@ -1866,7 +1866,7 @@ setInterval(updateProgressUI, 500);
 // How far through the release (1.95.7): under the song's own scrubber, the song's place in the release ("4/10"), a bar of the whole
 // release with a tick between songs, and the time into it out of its total ("14:22 / 1:25:33"). It goes by the release's tracklist
 // (its order and its song lengths), with the song playing found by name; a full-release video played whole goes by the song times
-// saved in its links instead. Shown only while what is playing is one of the release's songs.
+// saved in its links instead, whether it plays whole or song by song (1.95.17). Shown only while what is playing is one of the release's songs.
 function releaseTrackIndex(list, name) {                           // the playing song's place in the tracklist, by name (-1: not one of them)
   const fold = (s) => String(s || '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim(), n = fold(name); if (!n) return -1;
   let i = list.findIndex(t => fold(t.trackName) === n); if (i >= 0) return i;
@@ -1912,7 +1912,7 @@ function updateReleaseProgress() {
       const tracks = releaseProgressTracksFor(nowPlayingItem);
       if (tracks && tracks.length > 1) {
         const q = activePlayerEngine === 'youtube' ? ytQueue[ytQueueIndex] : null;
-        if (q && !ytSeg.start && !ytSeg.end && ytPlayer && ytPlayer.getCurrentTime) p = releaseProgressInVideo(tracks, q.videoId, ytPlayer.getCurrentTime() || 0);
+        if (q && ytPlayer && ytPlayer.getCurrentTime) p = releaseProgressInVideo(tracks, q.videoId, ytPlayer.getCurrentTime() || 0);          // (1.95.17) a part of a full-release video too: the video's own time, not your song lengths added up (they can be off from the parts)
         if (!p) p = releaseProgress(tracks, currentPlayingTrackName(), getEstimatedPosition());
       }
     }

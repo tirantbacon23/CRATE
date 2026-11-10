@@ -204,6 +204,15 @@ suite('Matching songs: other titles', () => {
   });
 });
 
+suite('How far through: parts of a full-release video', () => {
+  test('song 3 from 9:54 in the video is 9:54 in, whatever the lengths saved', () => {
+    const V = 'https://www.bilibili.com/video/BV11L411T7tY', id = app('youtubeVideoIdFromUrl')(V), L = app('youtubeLinkWithSegment');
+    const tr = [[0, 319], [319, 594], [594, 948], [948, 1264]].map((g, i) => ({ trackNumber: i + 1, trackName: 'S' + i, trackTimeMillis: 316000, youtubeLink: L(V, g[0], g[1]) }));
+    const p = app('releaseProgressInVideo')(tr, id, 596);
+    ok(p, 'found'); eq(p.index, 2); eq(p.elapsedMs, 596000); eq(p.totalMs, 1264000);
+  });
+});
+
 suite('Cover, big', () => {
   test('iTunes artwork asked for at 1200 px; other covers as they are', () => {
     const H = app('coverZoomHiRes');
