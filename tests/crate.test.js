@@ -178,6 +178,52 @@ suite('Matching songs to Spotify and YouTube', () => {
   });
 });
 
+suite('Loop', () => {
+  test('the button goes off, release, song; a song ending by itself plays again with Loop song', () => {
+    const S = app('state'), was = S.loop;
+    S.loop = ''; app('cycleLoop')(); eq(S.loop, 'release'); app('cycleLoop')(); eq(S.loop, 'song'); app('cycleLoop')(); eq(S.loop, '');
+    S.loop = 'song'; eq(app('crateQueueAfterEnd')(3), 3); S.loop = 'release'; eq(app('crateQueueAfterEnd')(3), 4);
+    S.loop = 'song'; eq(app('spotifyRepeatFor')(true), 'track'); S.loop = 'release'; eq(app('spotifyRepeatFor')(true), 'context'); eq(app('spotifyRepeatFor')(false), 'off');
+    S.loop = was;
+  });
+});
+
+suite('Matching songs: other titles', () => {
+  test('a song is found under its other title, Spotify\u2019s name for it, or its kana in romaji', () => {
+    const S = app('smScore'), cand = { title: 'Lovers at Twilight', channel: 'someone', durationMs: 0 };
+    const song = { title: '夕ぐれ時の恋人たち', artist: 'Izumi Kobayashi', album: 'Orange Sky', durationMs: 0 };
+    ok(S(song, cand, {}).titleSim < 0.5);
+    ok(S(Object.assign({}, song, { alts: ['Lovers at Twilight'] }), cand, {}).titleSim >= 0.95);
+    eq(app('smKanaRomaji')('さよならのかわりに'), 'sayonaranokawarini');
+    eq(app('smKanaRomaji')('トーキョー'), 'tookyoo');
+    eq(app('smKanaRomaji')('ちょっと'), 'chotto');
+    eq(app('smKanaRomaji')('夕ぐれ'), '');                                    // kanji: can't be read
+    ok(S({ title: 'シャララ', artist: 'X', durationMs: 0 }, { title: 'Sharara', channel: 'fan', durationMs: 0 }, {}).titleSim >= 0.95);
+    const s2 = { idx: 0, title: '夕ぐれ時の恋人たち' }; app('smSpotifyNamesToSongs')([s2], { status: 'done', byIdx: { 0: [{ title: 'Yuuguredoki no Koibitotachi', score: 80 }] } });
+    eq(s2.alts, ['Yuuguredoki no Koibitotachi']);
+  });
+});
+
+suite('Matching songs: one video, one song', () => {
+  test('a video another song has is left out; parts of a full-release video at their own times are not', () => {
+    const U = app('bmUpdates'), V = 'https://www.youtube.com/watch?v=abcdefghijk', W = 'https://www.youtube.com/watch?v=zyxwvutsrqp';
+    const songs = [{ idx: 0, trackNum: 1, youtubeLink: V }, { idx: 1, trackNum: 2, youtubeLink: '' }, { idx: 2, trackNum: 3, youtubeLink: '' }, { idx: 3, trackNum: 4, youtubeLink: '' }];
+    const res = { youtube: { byIdx: { 1: [{ id: 'a', link: V }], 2: [{ id: 'b', link: W }], 3: [{ id: 'c', link: W }] } } };
+    const r = U(songs, { spotify: {}, youtube: { 1: 'a', 2: 'b', 3: 'c' } }, res, (k, c) => c.link);
+    eq(r.n, 1); eq(r.dup, 2); ok(r.updates[3] && !r.updates[2] && !r.updates[4]);
+    const res2 = { youtube: { byIdx: { 1: [{ id: 'a', link: W + '&t=200&end=400' }], 2: [{ id: 'b', link: W + '&t=400&end=600' }] } } };
+    const r2 = U(songs, { spotify: {}, youtube: { 1: 'a', 2: 'b' } }, res2, (k, c) => c.link);
+    eq(r2.n, 2); eq(r2.dup, 0);
+    const rel = { songs: [{ trackNum: 1, title: 'A', youtubeLink: V }, { trackNum: 2, title: 'B', youtubeLink: V + '&si=x' }, { trackNum: 3, title: 'C', youtubeLink: W + '&t=10' }] };
+    eq(app('bmSameVideoAs')(rel, rel.songs[1]).trackNum, 1); eq(app('bmSameVideoAs')(rel, rel.songs[2]), null);
+  });
+  test('a full-release video has no parts after it ends', () => {
+    const songs = [1, 2, 3].map(i => ({ idx: i - 1, title: 'S' + i, durationMs: 200000 }));
+    const out = app('bmFullVideoCands')(songs, { id: 'abcdefghijk', title: 'v', durationMs: 330000, score: 50 }, false);
+    ok(out[0] && out[1] && !out[2], JSON.stringify(Object.keys(out)));
+  });
+});
+
 suite('Matching songs: fan uploads', () => {
   test('"Song Album by Artist" is the song; a "by" that isn\u2019t the artist stays part of the title', () => {
     const S = app('smScore');

@@ -266,6 +266,40 @@ function smCandTitleForms(title, song) {
   heads.forEach(h => { let f = smWords(smFold(h)); cut.forEach(k => { f = f.split(k).join(' '); }); f = smWords(f); if (f && f !== smWords(smFold(h))) out.push(f); });
   return [...new Set(out)];
 }
+// A song's other names (1.95.12). Uploaders often name a Japanese song in English or in romaji. Besides its title a song is compared
+// under: the other title you gave it (Edit track properties, or Match songs' "Others"), the name Spotify gives it when Spotify matched
+// it (Match songs runs Spotify first), and, for a title written in kana alone, the kana in romaji. (Kanji can't be read without a
+// dictionary: for those, the other title is the way.)
+const SM_KANA = { あ:'a',い:'i',う:'u',え:'e',お:'o',か:'ka',き:'ki',く:'ku',け:'ke',こ:'ko',さ:'sa',し:'shi',す:'su',せ:'se',そ:'so',た:'ta',ち:'chi',つ:'tsu',て:'te',と:'to',な:'na',に:'ni',ぬ:'nu',ね:'ne',の:'no',は:'ha',ひ:'hi',ふ:'fu',へ:'he',ほ:'ho',ま:'ma',み:'mi',む:'mu',め:'me',も:'mo',や:'ya',ゆ:'yu',よ:'yo',ら:'ra',り:'ri',る:'ru',れ:'re',ろ:'ro',わ:'wa',ゐ:'i',ゑ:'e',を:'o',ん:'n',が:'ga',ぎ:'gi',ぐ:'gu',げ:'ge',ご:'go',ざ:'za',じ:'ji',ず:'zu',ぜ:'ze',ぞ:'zo',だ:'da',ぢ:'ji',づ:'zu',で:'de',ど:'do',ば:'ba',び:'bi',ぶ:'bu',べ:'be',ぼ:'bo',ぱ:'pa',ぴ:'pi',ぷ:'pu',ぺ:'pe',ぽ:'po',ぁ:'a',ぃ:'i',ぅ:'u',ぇ:'e',ぉ:'o',ゔ:'vu' };
+function smKanaRomaji(s) {                                          // kana -> Hepburn romaji (other characters kept); '' when there is no kana or there is kanji
+  const t = String(s || '').normalize('NFKC').replace(/[\u30a1-\u30f6]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));          // katakana -> hiragana
+  if (!/[\u3041-\u3096]/.test(t) || /\p{Script=Han}/u.test(t)) return '';
+  let out = '';
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i], n = t[i + 1];
+    if (c === 'っ') { const r = SM_KANA[n] || ''; out += r ? (r.startsWith('ch') ? 't' : r[0]) : ''; continue; }
+    if (c === 'ー') { const v = (out.match(/[aeiou]$/) || [''])[0]; out += v; continue; }
+    if (n && 'ゃゅょ'.includes(n) && SM_KANA[c]) { const base = SM_KANA[c], y = { 'ゃ': 'a', 'ゅ': 'u', 'ょ': 'o' }[n]; out += /^(shi|chi|ji)$/.test(base) ? base.slice(0, -1) + y : base.slice(0, -1) + 'y' + y; i++; continue; }
+    if ('ゃゅょ'.includes(c)) { out += { 'ゃ': 'ya', 'ゅ': 'yu', 'ょ': 'yo' }[c]; continue; }
+    if (c === 'ん' && /[aiueoy]/.test(SM_KANA[n] || '')) { out += "n"; continue; }
+    out += SM_KANA[c] || c;
+  }
+  return out.replace(/\s+/g, ' ').trim();
+}
+function smSongTitles(song) {                                       // every name the song is compared under
+  const base = [song.title, ...((song && song.alts) || [])].filter(Boolean), out = [...base];
+  base.forEach(t => { const r = smKanaRomaji(t); if (r && !/[\u3040-\u30ff]/.test(r)) out.push(r, r.replace(/ou/g, 'o').replace(/uu/g, 'u').replace(/oo/g, 'o')); });          // (and with long vowels shortened: "toukyou" / "tokyo")
+  return [...new Set(out)];
+}
+function smAddOtherName(song, name) {                               // a name from elsewhere (Spotify's) joins the song's other names, unless it is the title itself
+  const n = String(name || '').trim(); if (!n || !song) return;
+  const k = smWords(smFold(n)); if (!k || k === smWords(smFold(song.title))) return;
+  song.alts = song.alts || []; if (!song.alts.some(a => smWords(smFold(a)) === k)) song.alts.push(n);
+}
+function smSpotifyNamesToSongs(songs, spotifyRes) {                 // Spotify's names for the songs it matched (likely or better), before YouTube is asked
+  if (!spotifyRes || spotifyRes.status !== 'done') return;
+  songs.forEach(s => { const c = ((spotifyRes.byIdx || {})[s.idx] || [])[0]; if (c && c.score >= 65) smAddOtherName(s, c.title); });
+}
 // song: {title, artist, durationMs, album, trackNumber}   cand: {title, artists|channel, durationMs, album, index, blocked}
 // Also returns `parts`: what each clue added or took away ({ label, points }), for the "Why this score" breakdown.
 function smScore(song, cand, opts) {
@@ -273,7 +307,8 @@ function smScore(song, cand, opts) {
   const pf = opts.prefs || smPrefs();
   const reasons = [], parts = [];
   const add = (label, points) => { parts.push({ label, points: Math.round(points) }); return points; };
-  const ts = Math.max(...smCandTitleForms(cand.title, song).map(f => smTitleSim(song.title, smStripArtistPrefix(f, song.artist))));
+  const forms = smCandTitleForms(cand.title, song).map(f => smStripArtistPrefix(f, song.artist));
+  const ts = Math.max(...smSongTitles(song).map(w => Math.max(...forms.map(f => smTitleSim(w, f)))));          // (1.95.12) the song's other names count too
   let score = add('title', Math.pow(ts, 1.5) * 55);
   reasons.push(ts >= 0.95 ? 'same title' : ts >= 0.75 ? 'similar title' : 'different title');
   let am = smArtistMatch(song.artist, cand.artists || cand.channel);
@@ -371,14 +406,21 @@ function bmEstimate(o) {                                             // o: { rel
   return out;
 }
 function bmDur(sec) { const n = Math.max(1, sec); return n < 90 ? n + (n === 1 ? ' second' : ' seconds') : Math.round(n / 60) + ' minutes'; }
-function bmUpdates(songs, pick, res, linkOf) {                      // what is ticked -> { updates: { trackNum: { spotifyLink?, youtubeLink? } }, n }
-  const updates = {}; let n = 0;
+// (1.95.14) One YouTube video is one song's, unless the songs are parts of it (a full-release video, each from its own time). bmYtKey is the video
+// and where in it the song starts; two songs of a release with the same key are the same video for both, which is never right.
+function bmYtKey(link) { const id = youtubeVideoIdFromUrl(link); return id ? id + '@' + (youtubeSegmentFromUrl(link).start || 0) : ''; }
+function bmSameVideoAs(rel, s) { const k = bmYtKey(s.youtubeLink); return k ? (rel.songs || []).find(o => o !== s && bmYtKey(o.youtubeLink) === k) || null : null; }          // the other song that has this song's video, at the same place
+function bmUpdates(songs, pick, res, linkOf) {                      // what is ticked -> { updates: { trackNum: { spotifyLink?, youtubeLink? } }, n, dup }
+  const updates = {}; let n = 0, dup = 0;
+  const taken = {}; songs.forEach(s => { const k = bmYtKey(s.youtubeLink); if (k && !(pick.youtube && pick.youtube[s.idx])) taken[k] = s; });          // videos songs already have
   ['spotify', 'youtube'].forEach(kind => songs.forEach(s => {
     const id = pick[kind] && pick[kind][s.idx]; if (!id) return;
     const list = (res[kind] && res[kind].byIdx && res[kind].byIdx[s.idx]) || [], c = list.find(x => x.id === id); if (!c) return;
-    (updates[s.trackNum] = updates[s.trackNum] || {})[kind === 'spotify' ? 'spotifyLink' : 'youtubeLink'] = linkOf(kind, c); n++;
+    const link = linkOf(kind, c);
+    if (kind === 'youtube') { const k = bmYtKey(link); if (k && taken[k] && taken[k] !== s) { dup++; return; } if (k) taken[k] = s; }          // the same video for a second song: left out
+    (updates[s.trackNum] = updates[s.trackNum] || {})[kind === 'spotify' ? 'spotifyLink' : 'youtubeLink'] = link; n++;
   }));
-  return { updates, n };
+  return { updates, n, dup };
 }
 // END batch-match
 
@@ -715,7 +757,9 @@ function bmSongsTotalMs(songs) { return songs.length && songs.every(s => s.durat
 function bmFullVideoCands(songs, v, confident) {                     // -> byIdx: each song's part of the video, as a candidate whose link carries where it starts and ends
   const t = v.timing || ytTimingFrom(songs.map(s => s.title || ''), songs.map(s => s.durationMs / 1000), { durationMs: v.durationMs || 0 });
   const url = 'https://www.youtube.com/watch?v=' + v.id, at = t.times, out = {};
+  const vSecs = (v.durationMs || 0) / 1000;
   songs.forEach((s, i) => { const g = at[i]; if (!g) return;
+    if (vSecs > 0 && g.start >= vSecs - 5) return;                    // (1.95.14) a part after the video has ended: nothing of the song is in it
     out[s.idx] = [{ id: `${v.id}@${g.start}`, title: `${v.title} \u00b7 ${ytFormatTime(g.start)}\u2013${ytFormatTime(g.end)}`, channel: v.channel || '', durationMs: (g.end - g.start) * 1000, link: youtubeLinkWithSegment(url, g.start, g.end),
       score: v.score, band: confident ? 'confident' : v.score >= 60 ? 'likely' : 'weak', source: 'fullvideo', reasons: ['part of a full-release video', ytTimingWhy(t), v.diffMs ? `the video is ${ytFormatTime(Math.abs(v.diffMs) / 1000)} ${v.diffMs > 0 ? 'longer' : 'shorter'} than your songs` : 'the video is as long as your songs'],
       parts: [{ label: 'the video: title, artist and length against your songs', points: v.score }] }]; });
@@ -724,7 +768,8 @@ function bmFullVideoCands(songs, v, confident) {                     // -> byIdx
 const BM_FULLVIDEO_MIN_SONGS = 3;
 async function bmFindFullVideo(rel) {                                // -> true when a video was found and offered
   const songs = rel.songs || [], total = bmSongsTotalMs(songs); if (!total || songs.length < BM_FULLVIDEO_MIN_SONGS) return false;          // a single or a two-song release: its "full video" is the A-side's own, so the song-by-song search is the one for it
-  const ranked = await ytFindFullVideos(rel.item, total); if (!ranked.length) { if (rel.youtube) rel.youtube.fullNone = true; return false; }
+  const ranked = (await ytFindFullVideos(rel.item, total)).filter(x => !(x.durationMs > 0) || x.durationMs >= total * 0.6);          // (1.95.14) a video far shorter than the release is one song of it, never the whole
+  if (!ranked.length) { if (rel.youtube) rel.youtube.fullNone = true; return false; }
   await ytTimeVideos(ranked.slice(0, 2), songs.map(s => s.title || ''), songs.map(s => s.durationMs / 1000));          // the best two: their chapters can make the second the one to use
   const top = ranked.slice(0, 2).filter(x => ytFullVideoConfident(x, total)), v = top.find(x => x.timing && x.timing.agree) || top[0] || ranked[0];          // a sure video timed by its chapters before one placed from lengths
   const confident = ytFullVideoConfident(v, total), cands = bmFullVideoCands(songs, v, confident);
@@ -879,6 +924,7 @@ async function bmRunLane(kind) {
           if (!broken.length) { rel[kind] = { status: 'done', byIdx: {} }; rel.st[kind] = 'done'; bmRedraw(); continue; }
           relinkOnly = broken.every(i => rel.broken[kind][i].newId);
         } else if (b.songsMode === 'gaps' && songs.every(s => smHas(s, kind))) { rel.st[kind] = 'skip'; rel.err[kind] = 'All linked'; bmRedraw(); continue; }
+        if (kind === 'youtube') smSpotifyNamesToSongs(songs, rel.spotify);          // (1.95.12) Spotify's names, when it got there first
         const r = relinkOnly ? { status: 'done', byIdx: {} } : kind === 'spotify' ? await smSpotifyForRelease(rel.item, songs) : await smYoutubeForRelease(rel.item, songs);
         if (bm !== b) return;
         if (r.status === 'nocreds' || r.status === 'nokey') {
@@ -1014,7 +1060,8 @@ function bmApplyRel(rel, onlyKind, histLabel) {
   b.chain = b.chain.then(async () => {
     if (!rel.songs) return;
     const pick = onlyKind ? { [onlyKind]: rel.pick[onlyKind] } : rel.pick;
-    const { updates, n } = bmUpdates(rel.songs, pick, { spotify: rel.spotify, youtube: rel.youtube }, (kind, c) => c.link || smCandLink(kind, c));
+    const { updates, n, dup } = bmUpdates(rel.songs, pick, { spotify: rel.spotify, youtube: rel.youtube }, (kind, c) => c.link || smCandLink(kind, c));
+    if (dup) flashGlobalToast(`Left out ${bmPl(dup, 'YouTube match')}: that video is already another song’s in “${rel.item.title}”.`);
     if (!n) return;
     const prev = {}; Object.keys(updates).forEach(num => { const td = (rel.item.trackData || {})[num] || {}; prev[num] = {}; Object.keys(updates[num]).forEach(f => { prev[num][f] = td[f] || ''; }); });
     const ok = await saveSongLinks(rel.item, updates);
@@ -1026,6 +1073,24 @@ function bmApplyRel(rel, onlyKind, histLabel) {
     rel.applied += n; b.saved += n; bmRedraw();
   }).catch(() => { /* a failed save has already said so */ });
   return b.chain;
+}
+function bmUnlinkAll(rel, kind) {                                   // (1.95.13) "Remove all N links": every song of the release is left without a link of this kind, in one save (Undo puts them all back)
+  const b = bm, f = kind === 'spotify' ? 'spotifyLink' : 'youtubeLink', item = rel && rel.item, songs = ((rel && rel.songs) || []).filter(s => s[f]); if (!songs.length) return;
+  if (!confirm(`Remove the ${bmName(kind)} links from all ${songs.length} song${songs.length === 1 ? '' : 's'} of \u201c${item.title}\u201d?\n\nHistory \u2192 Undo puts them back.`)) return;
+  b.chain = b.chain.then(async () => {
+    const hit = (t) => songs.some(s => t.trackNumber === s.trackNum || t.title === s.title);
+    let typed = false; const manualTracks = (item.manualTracks || []).map(t => { if (t[f] && hit(t)) { typed = true; return Object.assign({}, t, { [f]: '' }); } return t; });
+    if (typed) {                                                     // links typed into the tracklist itself: trackData's empty ones would fall back to them
+      try { await postUpdate({ action: 'editAlbum', row: item.row, ManualTracks: JSON.stringify(manualTracks) }); }
+      catch (err) { flashGlobalToast('Couldn\u2019t remove the links \u2014 try again.'); return; }
+      item.manualTracks = manualTracks;
+    }
+    const upd = {}, prev = {}; songs.forEach(s => { upd[s.trackNum] = { [f]: '' }; prev[s.trackNum] = { [f]: s[f] }; });
+    if (!await saveSongLinks(item, upd)) return;
+    songs.forEach(s => { s[f] = ''; delete rel.pick[kind][s.idx]; if (rel.broken[kind]) delete rel.broken[kind][s.idx]; });
+    bmHistPush(bmHistStart(`Removed ${songs.length} ${bmName(kind)} link${songs.length === 1 ? '' : 's'} · ${item.title}`, 'release'), { row: rel.row, artist: item.artist, title: item.title, prev, n: songs.length });
+    flashGlobalToast(`Removed ${songs.length} ${bmName(kind)} link${songs.length === 1 ? '' : 's'} from \u201c${item.title}\u201d.`); bmRedraw();
+  }).catch(() => { /* a failed save has already said so */ });
 }
 function bmUnlink(rel, idx, kind) {                                 // "Remove" on a kept link: the song is left without one (Undo last puts it back)
   const b = bm, s = rel.songs && rel.songs.find(x => x.idx === idx); if (!s) return;
@@ -1265,7 +1330,9 @@ function bmCellHtml(rel, s, kind) { return `<div class="bm-cellw" data-k="${bmNa
 function bmCellInner(rel, s, kind) {
   const c = bmCellOf(rel, s, kind), da = `data-row="${escapeHtml(rel.row)}" data-idx="${s.idx}" data-kind="${kind}"`;
   const br = rel.broken[kind] && rel.broken[kind][s.idx], brNote = br ? `<div class="bm-m bm-warnc">${escapeHtml(br.reason)}</div>` : '';
-  if (c.s === 'kept') { const yi = kind === 'youtube' ? ytInfoOf(s.youtubeLink) : null; return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct"><div class="bm-t${yi ? '' : ' bm-dim'}"${yi ? ` title="${escapeHtml(yi.t)}"` : ''}>${yi ? escapeHtml(yi.t) : 'Your link'}</div><div class="bm-m">${yi && yi.c ? escapeHtml(yi.c) + ' \u00b7 ' : ''}kept${bm.songsMode === 'check' && rel.checked[kind] ? ' · checked: works' : ''}</div></div>${bmChip('have', 'Kept')}${kind === 'youtube' ? `<button type="button" class="chip-btn bm-sm" data-bm="unlink" ${da} title="Remove this YouTube link from the song" aria-label="Remove the YouTube link for ${escapeHtml(s.title)}">Remove</button>` : ''}</div>`; }
+  if (c.s === 'kept') { const yi = kind === 'youtube' ? ytInfoOf(s.youtubeLink) : null, seg = kind === 'youtube' ? youtubeSegmentFromUrl(s.youtubeLink) : null, twin = kind === 'youtube' ? bmSameVideoAs(rel, s) : null;
+    const at = seg && (seg.start || seg.end) ? ` · from ${ytFormatTime(seg.start)}${seg.end ? '–' + ytFormatTime(seg.end) : ''}` : '', warn = twin ? ` · <span class="bm-warnc" title="Two songs can’t both be this video. Remove the link from the one it isn’t">same video as ${twin.trackNum ? 'song ' + escapeHtml(String(twin.trackNum)) : '“' + escapeHtml(twin.title) + '”'}</span>` : '';
+    return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct"><div class="bm-t${yi ? '' : ' bm-dim'}"${yi ? ` title="${escapeHtml(yi.t)}"` : ''}>${yi ? escapeHtml(yi.t) : 'Your link'}</div><div class="bm-m">${yi && yi.c ? escapeHtml(yi.c) + ' \u00b7 ' : ''}kept${at}${warn}${bm.songsMode === 'check' && rel.checked[kind] ? ' · checked: works' : ''}</div></div>${bmChip('have', 'Kept')}${kind === 'youtube' ? `<button type="button" class="chip-btn bm-sm" data-bm="unlink" ${da} title="Remove this YouTube link from the song" aria-label="Remove the YouTube link for ${escapeHtml(s.title)}">Remove</button>` : ''}</div>`; }
   if (c.s === 'wait' && rel.st[kind] === 'error') return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct bm-warnc">${escapeHtml(rel.err[kind] || 'Could not look this up')}</div></div>`;          // the lookup failed before it had any answer: said, not "Queued"
   if (c.s === 'wait') return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct bm-dim">${rel.st[kind] === 'skip' ? escapeHtml(rel.err[kind] || 'Not run') : rel.st[kind] === 'work' ? 'Looking…' : 'Queued'}${brNote}</div></div>`;
   if (c.s === 'error') return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct bm-warnc">${escapeHtml(rel.err[kind] || 'Could not look this up')}</div></div>`;
@@ -1275,11 +1342,32 @@ function bmCellInner(rel, s, kind) {
   const open = bm.open && bm.open.row === rel.row && bm.open.idx === s.idx && bm.open.kind === kind;
   return `<div class="bm-cell${focus ? ' focus' : ''}"><label class="bm-tick"><input type="checkbox" data-bm="tick" ${da}${ticked ? ' checked' : ''} aria-label="Use this ${bmName(kind)} match for ${escapeHtml(s.title)}"></label><div class="bm-ct"><div class="bm-t" title="${escapeHtml(ch.title)}">${escapeHtml(ch.title)}</div><div class="bm-m">${escapeHtml(bmCandSub(kind, ch, s))}</div>${brNote}</div>${bmScorePill(rel, s, kind, ch)}<button type="button" class="chip-btn bm-sm" data-bm="choose" ${da}>${open ? 'Done' : c.cands.length > 1 ? `${c.cands.length - 1} more` : 'Other'}</button></div>`;
 }
+async function bmSaveAltTitle(rel, idx, value, search) {            // (1.95.12) a song's Other title, from the drawer: saved with the song, its matches scored again, and on request a YouTube search under it
+  const s = rel && rel.songs && rel.songs.find(x => x.idx === idx); if (!s) return;
+  const v = String(value || '').trim();
+  if (v !== (s.altTitle || '')) {
+    s.alts = (s.alts || []).filter(a => a !== s.altTitle); s.altTitle = v; if (v) s.alts.unshift(v);
+    await updateTrackData(rel.item, s.trackNum, { altTitle: v });
+    [currentTracklistTracks, state.trackCache[artKey(rel.item)]].forEach(list => { if (list && list.length) mergeTrackLinkOverrides(rel.item, list); });
+    ['spotify', 'youtube'].forEach(k => { const list = rel[k] && rel[k].byIdx && rel[k].byIdx[idx]; if (list) { list.forEach(c => { if (c.source !== 'pasted' && c.source !== 'fullvideo') Object.assign(c, smScore(s, c, {})); }); list.sort((a, b) => (b.score || 0) - (a.score || 0)); } });
+    flashGlobalToast(v ? `Other title saved: \u201c${v}\u201d` : 'Other title removed'); bmRedraw();
+  }
+  if (!search || !v) return;
+  if (!ytUseAddon() && !confirm('Searching YouTube for one song costs 100 of today\u2019s quota units (200 with its other title). Go ahead?')) return;
+  if (!rel.youtube || rel.youtube.status !== 'done') { rel.youtube = { status: 'done', byIdx: {} }; rel.st.youtube = 'done'; }
+  try {
+    const added = await smYoutubeSearchSongs(rel.item, rel.songs, [idx]);
+    if (added[idx]) { const had = rel.youtube.byIdx[idx] || [], seen = new Set(added[idx].map(c => c.id)); rel.youtube.byIdx[idx] = added[idx].concat(had.filter(c => !seen.has(c.id))).sort((a, b) => (b.score || 0) - (a.score || 0)); bmFilterRejected(rel.youtube, 'youtube'); bmSetPicks(rel, 'youtube'); }
+    else flashGlobalToast('Nothing on YouTube looks like that song, under either name.');
+  } catch (err) { flashGlobalToast(ytAddonErrText(err)); }
+  bmRedraw();
+}
 function bmDrawerHtml(rel, s, kind) {
   const c = bmCellOf(rel, s, kind), name = `bmp-${rel.row}-${s.idx}-${kind}`, pickId = rel.pick[kind][s.idx], da = `data-row="${escapeHtml(rel.row)}" data-idx="${s.idx}" data-kind="${kind}"`;
   const opts = c.cands.slice(0, 5).map((x, i) => `<div class="bm-opt${pickId === x.id ? ' on' : ''}"><input type="radio" name="${name}" value="${escapeHtml(x.id)}" data-bm="pick" ${da}${pickId === x.id ? ' checked' : ''} aria-label="${escapeHtml(x.title)}"><span class="bm-opt-t"><span class="bm-m">${i + 1}</span> ${escapeHtml(x.title)}<small>${escapeHtml(bmCandSub(kind, x, s))}</small></span>${bmScorePill(rel, s, kind, x)}<button type="button" class="chip-btn bm-sm" data-bm="preview" ${da} data-id="${escapeHtml(x.id)}" aria-label="Play ${escapeHtml(x.title)}">▶</button></div>`).join('');
   return `<div class="bm-drawer"><div class="bm-dim">${bmName(kind)}: pick the right one for “${escapeHtml(s.title)}”, or neither.</div>${opts}<label class="bm-opt${!pickId ? ' on' : ''}"><input type="radio" name="${name}" value="" data-bm="pick" ${da}${!pickId ? ' checked' : ''}><span class="bm-opt-t">Neither: leave this song without a ${bmName(kind)} link</span></label>
-    <div class="bm-paste"><input type="text" placeholder="Or paste a ${kind === 'spotify' ? 'Spotify track' : 'YouTube video'} link" data-keep="paste-song-${escapeHtml(rel.row)}-${s.idx}-${kind}" aria-label="Paste a link for ${escapeHtml(s.title)}"><button type="button" class="chip-btn" data-bm="paste-song" ${da}>Use</button></div></div>`;
+    <div class="bm-paste"><input type="text" placeholder="Or paste a ${kind === 'spotify' ? 'Spotify track' : 'YouTube video'} link" data-keep="paste-song-${escapeHtml(rel.row)}-${s.idx}-${kind}" aria-label="Paste a link for ${escapeHtml(s.title)}"><button type="button" class="chip-btn" data-bm="paste-song" ${da}>Use</button></div>
+    <div class="bm-paste"><input type="text" value="${escapeHtml(s.altTitle || '')}" placeholder="Other title: its English or romaji name" data-keep="alt-${escapeHtml(rel.row)}-${s.idx}" aria-label="Other title for ${escapeHtml(s.title)}" title="Uploaders often name a song another way. Saved with the song, and used for matching from now on"><button type="button" class="chip-btn" data-bm="alt-save" ${da}>Save</button>${kind === 'youtube' ? `<button type="button" class="chip-btn" data-bm="alt-search" ${da}>Search YouTube with it</button>` : ''}</div>${(s.alts || []).filter(a => a !== s.altTitle).length ? `<div class="bm-dim">Also matched as: ${escapeHtml(s.alts.filter(a => a !== s.altTitle).join(' \u00b7 '))} (from Spotify)</div>` : ''}</div>`;
 }
 function bmWhyHtml(rel, s, kind) {
   const w = bm.why; const c = ((rel[kind] && rel[kind].byIdx[s.idx]) || []).find(x => x.id === w.id); if (!c) return '';
@@ -1307,7 +1395,9 @@ function bmSourcePanel(rel, kind) {
     ctl = `<select data-bm="src" data-kind="${kind}" aria-label="${bmName(kind)} source">${cur || (kind === 'youtube' && r.fullVideo) ? '' : '<option value="" selected>Change…</option>'}${opts}${extra}</select>`;
   }
   const paste = bm.pasteFor === kind ? `<div class="bm-paste"><input type="text" placeholder="${kind === 'spotify' ? 'https://open.spotify.com/album/…' : 'https://www.youtube.com/playlist?list=…'}" data-keep="paste-src-${kind}" aria-label="Paste a ${kind === 'spotify' ? 'Spotify album' : 'YouTube playlist'} link"><button type="button" class="chip-btn" data-bm="paste-src" data-kind="${kind}">Use</button><button type="button" class="chip-btn" data-bm="paste-src-cancel">Cancel</button></div>` : '';
-  return `<div class="bm-panel"><div class="bm-label">${bmName(kind)}</div><div class="bm-panel-row"><div class="bm-ct"><div class="bm-panel-t">${title}</div><div class="bm-m">${meta}</div></div>${ctl}</div>${paste}</div>`;
+  const kept = (rel.songs || []).filter(s => s[kind === 'spotify' ? 'spotifyLink' : 'youtubeLink']).length;          // (1.95.13) every link of this kind the release has, removed at once
+  const unall = kept ? `<button type="button" class="chip-btn bm-sm" data-bm="unlink-all" data-kind="${kind}" title="Remove the ${bmName(kind)} link from every song of this release. History \u2192 Undo puts them back">Remove all ${kept} link${kept === 1 ? '' : 's'}</button>` : '';
+  return `<div class="bm-panel"><div class="bm-label">${bmName(kind)}</div><div class="bm-panel-row"><div class="bm-ct"><div class="bm-panel-t">${title}</div><div class="bm-m">${meta}</div></div>${ctl}${unall}</div>${paste}</div>`;
 }
 function bmAlignHtml(rel) {
   if (!rel.songs || !rel.songs.length) return '';
@@ -1547,6 +1637,8 @@ function bmClick(e) {
   else if (a === 'compare') { const r = relOf(); bmCompare(r, r.songs.find(s => s.idx === idx), kind); }
   else if (a === 'reject') { const r = relOf(); bmReject(r, idx, kind, t.dataset.id); }
   else if (a === 'unlink') { t.disabled = true; bmUnlink(relOf(), idx, kind); }
+  else if (a === 'unlink-all') bmUnlinkAll(bmSelRel(), t.dataset.kind);
+  else if (a === 'alt-save' || a === 'alt-search') { const r = relOf(), inp = bmEl('bmModal').querySelector(`[data-keep="alt-${CSS.escape(r.row)}-${idx}"]`); bmSaveAltTitle(r, idx, inp ? inp.value : '', a === 'alt-search'); }
   else if (a === 'paste-song') { const r = relOf(), inp = bmEl('bmModal').querySelector(`[data-keep="paste-song-${CSS.escape(r.row)}-${idx}-${kind}"]`); bmPasteSong(r, idx, kind, inp && inp.value); }
   else if (a === 'yt-song') {
     const r = relOf(); if (!r) return;
@@ -1688,7 +1780,7 @@ let smLoadSeq = 0;
 
 async function smBuildSongs(item) {
   const tracks = (await getTracksFor(item)) || [];
-  return tracks.map((t, i) => ({ idx: i, trackNum: t.trackNumber || (i + 1), trackNumber: i + 1, title: t.trackName || '', artist: item.artist, album: item.title,
+  return tracks.map((t, i) => ({ idx: i, trackNum: t.trackNumber || (i + 1), trackNumber: i + 1, title: t.trackName || '', altTitle: t.altTitle || '', alts: t.altTitle ? [t.altTitle] : [], artist: item.artist, album: item.title,
     durationMs: t.trackTimeMillis || 0, spotifyLink: t.spotifyLink || '', youtubeLink: t.youtubeLink || '' })).filter(s => s.title);
 }
 function smTopCands(song, cands, min, limit) {
@@ -1921,10 +2013,20 @@ async function smYoutubeForRelease(item, songs) {
   }
   return { status: 'done', remembered: cached ? cached.t : 0, playlistTitle: '', byIdx: {}, none: true, lists: playlists };
 }
+async function smYoutubeSearchOne(item, title) {                   // one more video search (for a song's other title): the add-on's, or the API's (100 units, remembered)
+  const q = `${item.artist} ${title}`, qk = 'song|' + ytCacheNorm(q);
+  if (ytUseAddon()) return (await ytAddonRequest({ kind: 'search-video', q })).slice(0, 8).map(v => ({ id: v.id, title: v.title, channel: v.channel, durationMs: v.durationMs || 0, blocked: false, index: 0 }));
+  const hit = ytCacheGet(qk); if (hit) return hit.v.cands;
+  const d = await smYtApi('search', { part: 'snippet', type: 'video', maxResults: 5, q }, 100);
+  const ids = (d.items || []).filter(it => it.id && it.id.videoId).map(it => it.id.videoId), details = ids.length ? await smYtDetails(ids) : new Map();
+  const cands = ids.map(id => { const dt = details.get(id) || {}; return { id, title: dt.title || '', channel: dt.channel || '', durationMs: dt.durationMs || 0, blocked: !!dt.blocked, index: 0 }; });
+  ytCachePut(qk, { cands }, cands.length ? YT_REL_TTL : YT_NONE_TTL); return cands;
+}
 async function smYoutubeSearchSongs(item, songs, idxs, onStep) {     // 100 quota units each: only ever on request
   const added = {};
   for (const idx of idxs) {
     const s = songs.find(x => x.idx === idx); if (!s) continue;
+    const extra = s.altTitle && smWords(smFold(s.altTitle)) !== smWords(smFold(s.title)) ? await smYoutubeSearchOne(item, s.altTitle) : [];          // (1.95.12) and under its other title
     let cands; const qk = 'song|' + ytCacheNorm(`${item.artist} ${s.title}`), hit = ytUseAddon() ? null : ytCacheGet(qk);
     if (hit) cands = hit.v.cands;                                    // looked up before: nothing to pay
     else if (ytUseAddon()) {                                              // a video search through the add-on: the results already carry their lengths, so no second call
@@ -1937,6 +2039,7 @@ async function smYoutubeSearchSongs(item, songs, idxs, onStep) {     // 100 quot
       cands = ids.map(id => { const dt = details.get(id) || {}; return { id, title: dt.title || '', channel: dt.channel || '', durationMs: dt.durationMs || 0, blocked: !!dt.blocked, index: 0 }; });
       ytCachePut(qk, { cands }, cands.length ? YT_REL_TTL : YT_NONE_TTL);
     }
+    const seen = new Set(cands.map(c => c.id)); extra.forEach(c => { if (!seen.has(c.id)) { seen.add(c.id); cands.push(c); } });
     const top = smTopCands(s, cands, 35, 4).map(c => Object.assign(c, { source: 'search' }));
     if (top.length) added[idx] = top;
     if (onStep) onStep(idx, top);
@@ -1997,6 +2100,7 @@ async function smRunSpotify() {
 async function smRunYoutube() {
   const st = smState; if (!st) return;
   st.youtube = { status: 'loading', byIdx: {} }; smRender();
+  smSpotifyNamesToSongs(st.songs, st.spotify);                        // (1.95.12) Spotify's names for the songs help find them on YouTube
   try {
     const r = await smYoutubeForRelease(st.item, st.songs);
     if (smState !== st) return;
@@ -2009,7 +2113,7 @@ async function smSearchYoutubeRemaining() {
   const st = smState; if (!st) return;
   const idxs = st.songs.filter(s => !(st.youtube.byIdx[s.idx] && st.youtube.byIdx[s.idx].length)).map(s => s.idx);
   if (!idxs.length) return;
-  st.youtube.searching = { done: 0, total: idxs.length }; smRender();
+  st.youtube.searching = { done: 0, total: idxs.length }; smRender(); smSpotifyNamesToSongs(st.songs, st.spotify);
   try {
     await smYoutubeSearchSongs(st.item, st.songs, idxs, (idx, top) => {
       if (smState !== st) return;
@@ -2075,7 +2179,8 @@ function smRowHtml(s, kind) {
   let moreBlock = '';
   if (st.open === s.idx && r.status === 'done') {
     moreBlock = `<div class="sm-others">${cands.map(c => `<label class="sm-alt"><input type="radio" name="sm-alt-${s.idx}" data-sm="alt" data-id="${escapeHtml(c.id)}"${picked === c.id ? ' checked' : ''}><span class="sm-cand"><span class="sm-cand-title">${escapeHtml(c.title)}</span><span class="sm-cand-sub">${escapeHtml([Array.isArray(c.artists) ? c.artists.join(', ') : c.channel, c.album, smLen(c.durationMs)].filter(Boolean).join(' \u00b7 '))}</span></span><span class="sm-score sm-${c.band}" title="${escapeHtml((c.reasons || []).join(', '))}">${c.score}</span><button type="button" class="sm-play" data-sm="preview" data-id="${escapeHtml(c.id)}" aria-label="Preview ${escapeHtml(c.title)}">\u25b6</button></label>`).join('') || '<p class="sm-dim">No candidates.</p>'}
-      <div class="sm-paste"><input type="text" class="sm-paste-input" data-sm="paste" placeholder="Or paste a ${kind === 'spotify' ? 'Spotify track' : 'YouTube'} link…" aria-label="Paste a link for ${escapeHtml(s.title)}"><button type="button" class="ai-link-btn" data-sm="paste-use">Use</button></div></div>`;
+      <div class="sm-paste"><input type="text" class="sm-paste-input" data-sm="paste" placeholder="Or paste a ${kind === 'spotify' ? 'Spotify track' : 'YouTube'} link…" aria-label="Paste a link for ${escapeHtml(s.title)}"><button type="button" class="ai-link-btn" data-sm="paste-use">Use</button></div>
+      <div class="sm-paste sm-alt-title"><input type="text" class="sm-paste-input sm-alt-input" value="${escapeHtml(s.altTitle || '')}" placeholder="Other title: its English or romaji name…" aria-label="Other title for ${escapeHtml(s.title)}" title="Uploaders often name a song another way. Saved with the song, and used for matching from now on"><button type="button" class="ai-link-btn" data-sm="alt-save">Save</button>${kind === 'youtube' ? '<button type="button" class="ai-link-btn" data-sm="alt-search">Search YouTube with it</button>' : ''}</div>${(s.alts || []).filter(a => a !== s.altTitle).length ? `<div class="sm-dim sm-alt-note">Also matched as: ${escapeHtml(s.alts.filter(a => a !== s.altTitle).join(' \u00b7 '))} (from Spotify)</div>` : ''}</div>`;
   }
   return `<div class="sm-row${picked ? ' picked' : ''}" data-idx="${s.idx}" data-track="${s.trackNum}"><div class="sm-check">${checkbox}</div>
     <div class="sm-song"><span class="sm-num">${s.trackNum}</span><span class="sm-title">${escapeHtml(s.title)}</span><span class="sm-len">${escapeHtml(smLen(s.durationMs))}</span>${have}</div>
@@ -2130,6 +2235,30 @@ async function smSave() {
   flashGlobalToast(`Saved ${n} link${n === 1 ? '' : 's'}.`);
   smRender();
 }
+async function smSaveAltTitle(idx, row, search) {                  // (1.95.12) "Other title" in a song's Others: saved with the song, its matches scored again, and on request a YouTube search under it
+  const st = smState, s = st && st.songs.find(x => x.idx === idx); if (!s || !row) return;
+  const v = ((row.querySelector('.sm-alt-input') || {}).value || '').trim();
+  if (v !== (s.altTitle || '')) {
+    s.alts = (s.alts || []).filter(a => a !== s.altTitle); s.altTitle = v; if (v) s.alts.unshift(v);
+    if (!st.draft) {
+      await updateTrackData(st.item, s.trackNum, { altTitle: v });
+      [currentTracklistTracks, state.trackCache[artKey(st.item)]].forEach(list => { if (list && list.length) mergeTrackLinkOverrides(st.item, list); });
+    }
+    ['spotify', 'youtube'].forEach(k => { const list = st[k] && st[k].byIdx && st[k].byIdx[idx]; if (list) { list.forEach(c => Object.assign(c, smScore(s, c, {}))); list.sort((a, b) => b.score - a.score); } });
+    if (smState === st) { smRender(); flashGlobalToast(v ? `Other title saved: \u201c${v}\u201d` : 'Other title removed'); }
+  }
+  if (!search || !v || smState !== st) return;
+  st.youtube.searching = { done: 0, total: 1 }; smRender();
+  try {
+    await smYoutubeSearchSongs(st.item, st.songs, [idx], (i, top) => {
+      if (smState !== st) return; const had = st.youtube.byIdx[i] || [], seen = new Set(top.map(c => c.id));
+      st.youtube.byIdx[i] = top.concat(had.filter(c => !seen.has(c.id))).sort((a, b) => (b.score || 0) - (a.score || 0));
+      const b = st.youtube.byIdx[i][0]; if (b && b.band === 'confident' && !smHas(s, 'youtube')) st.pick.youtube[i] = b.id;
+      st.youtube.searching.done++;
+    });
+  } catch (e) { if (smState === st) st.youtube.searchError = /^quota$/.test(e.message) ? 'YouTube\u2019s daily quota is used up \u2014 it resets at midnight Pacific time.' : ytAddonErrText(e); }
+  if (smState === st) { delete st.youtube.searching; smRender(); }
+}
 function smBind() {
   const ov = el.songMatchOverlay; ov.dataset.bound = '1';
   el.songMatchClose.addEventListener('click', () => closeSongMatcher());
@@ -2154,6 +2283,7 @@ function smBind() {
     else if (a === 'setup-spotify') { closeSongMatcher(); el.menuSpotifyApi.click(); }
     else if (a === 'setup-youtube') { closeSongMatcher(); el.menuYoutubeApi.click(); }
     else if (a === 'more') { st.open = st.open === idx ? null : idx; smRender(); }
+    else if (a === 'alt-save' || a === 'alt-search') smSaveAltTitle(idx, row, a === 'alt-search');
     else if (a === 'preview') {
       const id = t.dataset.id;
       if (k === 'spotify') showMiniPlayer(`spotify:track:${id}`, beginPlayIntent());

@@ -5,7 +5,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.95.10';
+const APP_VERSION = '1.95.14';
 // (1.93.4) With CRATE open in more than one window (a pop-out, a second tab), only ONE of them does the work done in the background: adding
 // and applying what the Rate Your Music add-on sends, the Last.fm sync, the new-release check, and the look-ups for newly added releases. Each
 // window used to do it all itself (a release sent from RYM was added once per window). The first CRATE window opened is that one (a pop-out
@@ -938,6 +938,7 @@ const state = {
   genreRole: 'any',   // which of a release's genres a genre filter looks at: 'any' (Genre + Secondary Genre), 'primary' (Genre only), 'secondary' (Secondary Genre only) — see genre-role
   firstGenreOnly: false, // when on, a genre only counts if it is the FIRST one listed on a release (left-panel genre filter, genre: searches, Release Chart) — see filterGenreTags
   genreSearchMode: 'loose', // how strictly genre: searches match — 'exact' | 'subgenres' | 'loose', see genreSearchMatches / the ⇅ popover's "Genre search"
+  loop: '', // (1.95.11) player's Loop button: '' off, 'release' (the album or queue starts again at its end), 'song' (the song plays again) — see setLoop()
   shuffle: false, // player's Shuffle toggle (persisted) — see setShuffle(); applies to the crate queue, standalone YouTube/SoundCloud queues, and Spotify's own album playback
   tabHistory: [],       // [{tab, artist}] — what the tab bar's back/forward walk (session only)
   tabHistoryIndex: -1,  // -1 until initTabBar() seeds it
@@ -1129,7 +1130,7 @@ const el = {};
   'lastfmMatchedCount','lastfmMatchedList','lastfmUnmatchedCount','lastfmUnmatchedList',
   'lastfmImportBtn','lastfmBackBtn','lastfmImportStatus','globalToast',
   'miniPlayer','miniPlayerClose','miniPlayerArt','miniPlayerVideoWrap','miniPlayerTitle','miniPlayerArtist','miniPlayerAlbum','miniPlayerExtra','miniPlayerTrackInfo',
-  'miniPlayerShuffle','miniPlayerPrev','miniPlayerPlayPause','miniPlayerNext','miniPlayerVolume','miniPlayerQueueBtn','miniPlayerFullscreenBtn',
+  'miniPlayerShuffle','miniPlayerLoop','miniPlayerPrev','miniPlayerPlayPause','miniPlayerNext','miniPlayerVolume','miniPlayerQueueBtn','miniPlayerFullscreenBtn',
   'miniPlayerDetachBtn','miniPlayerDragHandle','miniPlayerDockBtn','miniPlayerMobileProgress','miniPlayerMobileProgressFill',
   'miniPlayerSeekTrack','miniPlayerSeekFill','miniPlayerSeekHandle','miniPlayerTimeCurrent','miniPlayerTimeTotal',
   'queuePanel','queuePanelClose','queuePanelNowPlaying','queuePanelList',

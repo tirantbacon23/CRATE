@@ -897,6 +897,7 @@ function bindEvents() {
   el.miniPlayerPrev.addEventListener('click', () => masterPlayerStepTrack(-1));
   el.miniPlayerNext.addEventListener('click', () => masterPlayerStepTrack(1));
   el.miniPlayerShuffle.addEventListener('click', () => setShuffle(!state.shuffle));
+  if (el.miniPlayerLoop) { el.miniPlayerLoop.addEventListener('click', cycleLoop); updateLoopButtonUI(); }
   updateShuffleButtonUI();
   el.miniPlayerVolume.addEventListener('input', () => {
     const val = Number(el.miniPlayerVolume.value);
@@ -1367,7 +1368,7 @@ async function updateTrackData(item, trackNum, updates) {
   Object.assign(item.trackData[trackNum], updates);
   
   // Cleanup empty objects so we don't save useless bloat
-  if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink && !item.trackData[trackNum].name && !item.trackData[trackNum].lengthMs && !item.trackData[trackNum].album && !item.trackData[trackNum].rymLink && !item.trackData[trackNum].rymRating && !item.trackData[trackNum].date && !item.trackData[trackNum].artist && !item.trackData[trackNum].albumArtist && !item.trackData[trackNum].soundcloudLink && !item.trackData[trackNum].credits) {
+  if (!item.trackData[trackNum].altTitle && !item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink && !item.trackData[trackNum].name && !item.trackData[trackNum].lengthMs && !item.trackData[trackNum].album && !item.trackData[trackNum].rymLink && !item.trackData[trackNum].rymRating && !item.trackData[trackNum].date && !item.trackData[trackNum].artist && !item.trackData[trackNum].albumArtist && !item.trackData[trackNum].soundcloudLink && !item.trackData[trackNum].credits) {
     delete item.trackData[trackNum];
   }
 

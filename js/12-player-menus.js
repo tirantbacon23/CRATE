@@ -501,6 +501,10 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
           <input type="text" id="trackPropsName" placeholder="Track title" value="${escapeHtml(trackName || '')}">
         </div>
         <div class="track-props-field">
+          <label for="trackPropsAltTitle">Other title</label>
+          <input type="text" id="trackPropsAltTitle" placeholder="Its English or romaji name, for finding it on YouTube and Spotify" value="${escapeHtml(links.altTitle || '')}">
+        </div>
+        <div class="track-props-field">
           <label for="trackPropsArtist">Artist</label>
           <input type="text" id="trackPropsArtist" placeholder="${escapeHtml(item.artist || '')}" value="${escapeHtml(links.artist || '')}">
         </div>
@@ -700,6 +704,7 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
       artist: (typedArtist && typedArtist !== realArtist) ? typedArtist : '',
       albumArtist: (typedAlbumArtist && typedAlbumArtist !== realArtist) ? typedAlbumArtist : '',
       lengthMs: parseLengthToMs(lengthInput.value),
+      altTitle: ((overlay.querySelector('#trackPropsAltTitle') || {}).value || '').trim(),
       album: (typedAlbum && typedAlbum !== (item.title || '').trim()) ? typedAlbum : '',
       date: dateInput.value.trim(),
       genre: genreInput.value.trim(),
@@ -1154,6 +1159,7 @@ async function playSpotifyUri(uriOrUris) {
     body = { uris: [uriOrUris] };
   }
   if (isAlbum) await setSpotifyShuffle(state.shuffle); // shuffle lives on the device — make sure it matches the button before an album starts
+  await setSpotifyRepeat(spotifyRepeatFor(isAlbum));          // (1.95.11) so does repeat: the Loop button's (only asked when it changes)
   return sendSpotifyPlayRequest(token, body, true);
 }
 

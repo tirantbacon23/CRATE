@@ -1548,7 +1548,7 @@ function maybeAdvanceCrateQueueOnEnd(track, paused, position, duration) {
 
   const endedQueueId = crateQueueId, endedIndex = crateQueueIndex;
   renderMiniPlayerTrack(track, paused, position, duration, { announceNowPlaying: true });
-  if (endedQueueId === crateQueueId && endedIndex === crateQueueIndex) playCrateQueueIndex(endedQueueId, endedIndex + 1);
+  if (endedQueueId === crateQueueId && endedIndex === crateQueueIndex) playCrateQueueIndex(endedQueueId, crateQueueAfterEnd(endedIndex));          // (1.95.11) Loop this song: the same one again
   return true;
 }
 

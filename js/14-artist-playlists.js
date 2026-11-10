@@ -998,7 +998,7 @@ function trackLinkOverridesFor(item, trackNum, trackName) {
   const youtubeLink = tData.youtubeLink || manualYoutubeLinkFor(item, trackNum, trackName);
   const spotifyLink = tData.spotifyLink || manualSpotifyLinkFor(item, trackNum, trackName);
   return {
-    youtubeLink, spotifyLink, name: tData.name || '', lengthMs: tData.lengthMs || 0,
+    youtubeLink, spotifyLink, name: tData.name || '', lengthMs: tData.lengthMs || 0, altTitle: tData.altTitle || '',
     album: tData.album || '', rymLink: tData.rymLink || '', date: tData.date || '',
     artist: tData.artist || '', albumArtist: tData.albumArtist || '',
     soundcloudLink: tData.soundcloudLink || '',
@@ -1029,6 +1029,7 @@ function mergeTrackLinkOverrides(item, tracks) {
     if (ov.spotifyLink) t.spotifyLink = ov.spotifyLink;
     else delete t.spotifyLink;
     if (ov.name) t.trackName = ov.name;
+    if (ov.altTitle) t.altTitle = ov.altTitle; else delete t.altTitle;          // (1.95.12) the song's other title (its English or romaji name), for matching
     if (ov.lengthMs) t.trackTimeMillis = ov.lengthMs;
     if (ov.album) t.albumName = ov.album;
     if (ov.rymLink) t.rymLink = ov.rymLink;

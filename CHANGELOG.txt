@@ -17,7 +17,38 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.10
+  CURRENT_VERSION: 1.95.14
+
+  1.95.14 — 2026-11-10 — Match songs: one YouTube video is one song's. Ticked matches whose
+          video another song of the release already has (or that a second ticked song
+          has) are left out when saving, with a note. A kept link that is the same video
+          as another song's says so in amber ("same video as song N"), and a kept part of
+          a full-release video shows its times. A full-release video far shorter than the
+          release is no longer offered, and songs that would start after a video ends get
+          no part of it. The full-release editor only takes a shared video as the release's
+          when its links carry times.
+  1.95.13 — 2026-11-10 — Match songs can remove all of a release's links at once. Its Spotify and YouTube panels have "Remove all N
+          links" when the release has any: after a yes, every song is left without a link of that kind, in one save (links
+          typed into the tracklist itself too). History → Undo puts them all back. Removing one song's link is as before.
+
+  1.95.12 — 2026-11-10 — Songs have an "Other title", and Match songs finds them under it. Uploaders often name a Japanese song
+          in English or in romaji ("Lovers at Twilight" for 夕ぐれ時の恋人たち), which matched nothing. A song is now compared
+          under every name it has:
+
+          • its Other title, set in Edit track properties or in Match songs (where you choose a song's match: Save, or
+            Search YouTube with it, which also looks it up under that name). Saved with the song like its links;
+          • the name Spotify gave it, when Spotify matched it (Match songs asks Spotify first; shown as "Also matched as");
+          • for a title in kana alone, the kana in romaji (シャララ / "Sharara", with long vowels both ways: "toukyou" and
+            "tokyo"). Kanji can't be read without a dictionary, so a kanji title needs its Other title.
+
+  1.95.11 — 2026-11-10 — Loop, and Intro is song 1's start. The player has a Loop button after Next: off, then loop the release
+          (the album, or the queue, starts again when it ends), then loop the song (it plays again from its own start: for a
+          song in a full-release video, its part of the video, so a cut you are setting can be heard over and over).
+          Next and Previous still move on. It works for YouTube, Bilibili, SoundCloud and the queue; Spotify playing an album
+          is set to repeat on the device, as shuffle is. Remembered with your other settings.
+
+          The Full-release dialog's Intro is song 1's own start. It took the first start found in the video instead, so with
+          song 1 on a video of its own (or with no time) Intro became song 2's start, which is song 1's length.
 
   1.95.10 — 2026-11-10 — Match songs finds fan uploads named "Song Album by Artist". A video titled "夕ぐれ時の恋人たち Orange Sky
           Endless Summer by Izumi Kobayashi & Flying Mimi Band" scored 13 for 夕ぐれ時の恋人たち: the album's name and the

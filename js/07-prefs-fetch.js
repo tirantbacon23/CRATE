@@ -39,6 +39,7 @@ function loadPrefs() {
     if (typeof p.closeGaps === 'boolean') state.closeGaps = p.closeGaps;
     if (typeof p.leftNavCompact === 'boolean') state.leftNavCompact = p.leftNavCompact;
     if (typeof p.shuffle === 'boolean') state.shuffle = p.shuffle;
+    if (p.loop === '' || p.loop === 'release' || p.loop === 'song') state.loop = p.loop;
     if (['exact', 'subgenres', 'loose'].includes(p.genreSearchMode)) state.genreSearchMode = p.genreSearchMode;
     if (typeof p.firstGenreOnly === 'boolean') state.firstGenreOnly = p.firstGenreOnly;
     if (typeof p.genreNavExact === 'boolean') state.genreNavExact = p.genreNavExact;
@@ -128,6 +129,7 @@ function savePrefs() {
       playlistFolders: state.playlistFolders,
       playlistFolderMap: state.playlistFolderMap,
       shuffle: state.shuffle,
+      loop: state.loop,
       genreSearchMode: state.genreSearchMode,
       firstGenreOnly: state.firstGenreOnly, genreRole: state.genreRole, genreNavExact: state.genreNavExact,
       rymGenreAuto: state.rymGenreAuto, rymBold: state.rymBold, rymQueueMode: state.rymQueueMode, rymUpdateOnAdd: state.rymUpdateOnAdd, rymAutoImport: state.rymAutoImport, rymAutoApply: state.rymAutoApply, afOn: state.afOn, afOrder: state.afOrder, rymTickDiffs: state.rymTickDiffs, rymShowNext: state.rymShowNext, rymAuto: state.rymAuto, rymMissingOnly: state.rymMissingOnly, rymBoldRank: state.rymBoldRank, rymMin: state.rymMin, rymUpdatedFilter: state.rymUpdatedFilter || '',

@@ -463,14 +463,16 @@ function onYtPlayerStateChange(e) {
     ytSeg.fired = true;
     if (ytPlayer === biliShim && !(ytQueueIndex < ytQueue.length - 1 && biliContinues(ytQueue[ytQueueIndex + 1]))) biliHalt();          // Bilibili's player can't be told where to stop: it is stopped here, unless the next song simply follows on in the same video
     ytScrobbleFlush(); // it ended: counts if it was played for half its length or 4 minutes (Last.fm's rule), before anything below moves on to another track
+    if (state.loop === 'song') { playYtQueueIndex(ytQueueIndex); return; }          // (1.95.11) Loop this song: from its own start again
     if (ytQueueIndex < ytQueue.length - 1) { ytAutoNext = true; playYtQueueIndex(ytQueueIndex + 1); ytAutoNext = false; return; }
+    if (state.loop === 'release' && ytQueue.length && !(ytPlayingForCrateQueue && isPlayingCrateQueue())) { playYtQueueIndex(0); return; }          // (the queue loops itself when it is in charge)
     setYtPlayPauseUI(true);
     // This video standing in for the current entry of a "Play playlist"
     // run (see playCrateTrackOnYoutube) just finished with nothing left
     // in its own local queue — hand control back to the playlist queue
     // instead of just stopping here.
     if (ytPlayingForCrateQueue && isPlayingCrateQueue()) {
-      playCrateQueueIndex(crateQueueId, crateQueueIndex + 1);
+      playCrateQueueIndex(crateQueueId, crateQueueAfterEnd(crateQueueIndex));
     }
     return;
   }
@@ -589,12 +591,12 @@ async function fvOpen(item, hintUrl) {
   tracks = tracks.filter(t => t && t.trackNumber);
   if (!tracks.length) { flashGlobalToast('This release has no tracklist yet: add one first (Edit details, or Match songs).'); return; }
   try { mergeTrackLinkOverrides(item, tracks); } catch (e) { /* as they are */ }
-  const counts = {}; tracks.forEach(t => { const id = youtubeVideoIdFromUrl(t.youtubeLink); if (id) counts[id] = (counts[id] || 0) + 1; });
+  const counts = {}; tracks.forEach(t => { const id = youtubeVideoIdFromUrl(t.youtubeLink), g = youtubeSegmentFromUrl(t.youtubeLink); if (id && (g.start || g.end)) counts[id] = (counts[id] || 0) + 1; });          // (1.95.14) only links with times: two songs on one plain video is a mistake, not the full-release video
   const common = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0], shared = common && counts[common] >= 2 ? common : '';          // two songs on one video: that is the full-release video already
   const hint = youtubeVideoIdFromUrl(hintUrl) || (shared ? '' : youtubeVideoIdFromUrl(item.link));          // (the release's own link, when it is a YouTube video)
   const id = hint || shared, url = id ? videoPageUrl(id) : '';
   fv = { item, rows: tracks.map(t => { const same = id && youtubeVideoIdFromUrl(t.youtubeLink) === id, g = same ? youtubeSegmentFromUrl(t.youtubeLink) : { start: 0, end: 0 }; return { n: t.trackNumber, title: t.trackName || '', start: same ? ytFormatTime(g.start) : '', end: g.end ? ytFormatTime(g.end) : '', len: Math.round((Number(t.trackTimeMillis) || 0) / 1000), was: same ? { s: g.start || 0, e: g.end || 0 } : null }; }), intro: 0, total: 0, totalFor: '', tlZoom: 0, tlSel: -1, tlKey: '' };
-  const firstStart = fv.rows.map(r => r.start.trim() ? ytParseTime(r.start) : NaN).find(s => s >= 0); if (firstStart > 0) fv.intro = firstStart;          // times saved before: the intro is where song 1 starts
+  const firstStart = fv.rows[0] && fv.rows[0].start.trim() ? ytParseTime(fv.rows[0].start) : NaN;          // (1.95.11) song 1's own start: not the first song found in the video (song 1 on a video of its own made Intro its length) if (firstStart > 0) fv.intro = firstStart;          // times saved before: the intro is where song 1 starts
   const autoFill = !!id && fv.rows.every(r => !r.start && !r.end) && fv.rows.every(r => r.len > 0);          // a video with no times yet, and every song's length known: placed back to back to begin with
   fvEl('fullVideoFound').hidden = true; fvEl('fullVideoFound').innerHTML = ''; fvEl('fullVideoSub').textContent = `${item.artist} \u2014 ${item.title}`; fvEl('fullVideoUrl').value = url; fvEl('fullVideoPasteBox').hidden = true; fvEl('fullVideoPasteText').value = ''; fvEl('fullVideoPasteMsg').textContent = '';
   fvEl('fullVideoIntro').value = ytFormatTime(fv.intro); fvEl('fullVideoIntro').classList.remove('bad'); fvEl('fullVideoFromLengths').disabled = !fv.rows.some(r => r.len > 0);
@@ -1231,7 +1233,9 @@ function ensureScWidget(initialUrl) {
 }
 
 function onScTrackFinish() {
+  if (state.loop === 'song') { playScQueueIndex(scQueueIndex); return; }          // (1.95.11) Loop
   if (scQueueIndex < scQueue.length - 1) { playScQueueIndex(scQueueIndex + 1); return; }
+  if (state.loop === 'release' && scQueue.length && !(scPlayingForCrateQueue && isPlayingCrateQueue())) { playScQueueIndex(0); return; }
   setScPlayPauseUI(true);
   // Mirror of onYtPlayerStateChange's ENDED handling — this SoundCloud
   // track standing in for the current entry of a "Play playlist" run (see
@@ -1239,7 +1243,7 @@ function onScTrackFinish() {
   // local queue, so hand control back to the playlist queue instead of
   // just stopping here.
   if (scPlayingForCrateQueue && isPlayingCrateQueue()) {
-    playCrateQueueIndex(crateQueueId, crateQueueIndex + 1);
+    playCrateQueueIndex(crateQueueId, crateQueueAfterEnd(crateQueueIndex));
   }
 }
 

@@ -160,6 +160,37 @@ function setShuffle(on) {
   flashGlobalToast(state.shuffle ? 'Shuffle on' : 'Shuffle off');
 }
 
+// Loop (1.95.11): the player's button goes off -> loop the release (the album, or the queue, starts again when it ends) -> loop the song
+// (it plays again from its own start: for a song in a full-release video, its part of the video, which makes it a way to hear a cut you
+// are setting over and over). Next and Previous still move on. YouTube, Bilibili, SoundCloud and the queue are looped here; Spotify
+// playing an album is set to repeat on the device itself (setSpotifyRepeat), as shuffle is.
+const LOOP_ICON = { off: 'M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z', one: 'M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4zm-4-2V9h-1l-2 1v1h1.5v4H13z' };
+function updateLoopButtonUI() {
+  const b = el.miniPlayerLoop; if (!b) return;
+  b.setAttribute('aria-pressed', state.loop ? 'true' : 'false');
+  b.title = state.loop === 'song' ? 'Loop: this song' : state.loop === 'release' ? 'Loop: the release' : 'Loop: off';
+  const p = b.querySelector('path'); if (p) p.setAttribute('d', state.loop === 'song' ? LOOP_ICON.one : LOOP_ICON.off);
+}
+let spotifyRepeatSet = null;                                         // what the device was last told
+async function setSpotifyRepeat(mode) {                              // 'track' | 'context' | 'off'
+  if (spotifyRepeatSet === mode) return true;
+  try {
+    const token = await getSpotifyUserAccessToken();
+    if (!token || !spotifyDeviceId) return false;
+    const res = await fetch(`https://api.spotify.com/v1/me/player/repeat?state=${mode}&device_id=${encodeURIComponent(spotifyDeviceId)}`, { method: 'PUT', headers: { 'Authorization': 'Bearer ' + token } });
+    const ok = res.ok || res.status === 204; if (ok) spotifyRepeatSet = mode; return ok;
+  } catch (e) { return false; }
+}
+function spotifyRepeatFor(isAlbum) { return isAlbum ? (state.loop === 'song' ? 'track' : state.loop === 'release' ? 'context' : 'off') : (state.loop === 'song' && !isPlayingCrateQueue() ? 'track' : 'off'); }          // a song of the queue: the queue loops it, so the device must not
+function setLoop(mode) {
+  state.loop = mode === 'release' || mode === 'song' ? mode : '';
+  savePrefs(); updateLoopButtonUI();
+  if (activePlayerEngine === 'spotify' && spotifyPlayer && spotifyDeviceId && !isPlayingCrateQueue()) setSpotifyRepeat(spotifyRepeatFor(!!(spotifyLastState && spotifyLastState.context && /album/.test(String(spotifyLastState.context.uri || '')))));
+  flashGlobalToast(state.loop === 'song' ? 'Loop this song' : state.loop === 'release' ? 'Loop the release' : 'Loop off');
+}
+function cycleLoop() { setLoop(state.loop === '' ? 'release' : state.loop === 'release' ? 'song' : ''); }
+function crateQueueAfterEnd(i) { return state.loop === 'song' ? i : i + 1; }          // where the queue goes when a song ends by itself
+
 // (1.94.4) "Play from": '' any (a song's own Spotify link, else its YouTube link, else SoundCloud, else a Spotify search), or one source only:
 // 'spotify' (its YouTube and SoundCloud links are passed over), 'youtube' or 'soundcloud' (a song without that link is skipped, and goes to
 // the Match songs queue). Kept in this browser. Set from the player's source button or ⚙ → Play from… (44-play-source.js).
@@ -178,6 +209,7 @@ async function playCrateQueueIndex(myId, index) {
     await crateQueueTopUp(myId, index - crateQueueIndex);
     if (myId !== crateQueueId) return;
   }
+  if (index >= crateQueueList.length && state.loop === 'release' && crateQueueList.length && !crateQueuePendingCount()) index = 0;          // (1.95.11) Loop the release: from the top again
   if (index < 0 || index >= crateQueueList.length) {
     crateQueueIndex = -1; // reached the end of the queue
     crateQueueExpectedSpotifyTrackId = null;
