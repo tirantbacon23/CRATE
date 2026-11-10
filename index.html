@@ -119,7 +119,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <!-- CRATE's own styles, in the head so the page is never drawn without them (from 1.78.0 to 1.90.5 this sat at the very end
      of <body>, so a phone showed the bare, unstyled markup for a moment on every load). After Leaflet's, so ours win. -->
-<link rel="stylesheet" href="css/crate.css?v=1.95.7">
+<link rel="stylesheet" href="css/crate.css?v=1.95.8">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
@@ -1974,7 +1974,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
     <div class="arrange-body fv-body">
       <div class="fv-url"><input type="text" id="fullVideoUrl" placeholder="A YouTube or Bilibili link to the video that is the whole release" aria-label="Link to the full-release video" autocomplete="off"><button type="button" id="fullVideoOpenPlayer" class="chip-btn" title="Play it in CRATE's player, then press the clock beside a song as it begins">▶ Play it here</button><button type="button" id="fullVideoFind" class="chip-btn" title="Search YouTube for the whole release, ranked by how close each video's length is to your songs">Find videos</button><button type="button" id="fullVideoSearch" class="chip-btn" title="Look for the full album on YouTube">Search ↗</button></div><div id="fullVideoFound" class="fv-found" hidden></div>
       <p class="fv-note">Say where each song starts and ends in the video. Play it with the button above, and press ⏱ beside a song as it begins; or paste the times from the video's description.</p>
-      <div class="fv-tools"><button type="button" id="fullVideoPasteBtn" class="chip-btn">Paste times…</button><label class="fv-intro" title="How long the video runs before the first song starts: changing it moves every time by the same amount">Intro <input type="text" id="fullVideoIntro" value="0:00" aria-label="Intro before the first song" autocomplete="off"></label><label class="fv-intro" title="How long the whole video is. Known: From song lengths spreads any small difference between it and your song lengths across the songs, so the last one ends with the video. Filled in when CRATE knows it; type a Bilibili video's length.">Video length <input type="text" id="fullVideoLength" value="" placeholder="h:mm:ss" aria-label="The video's length" autocomplete="off"></label><label class="fv-intro fv-follow" title="On: a song that starts later or earlier takes its end and every song after it along by the same amount (a gap the uploader left between songs). Off: only that start moves (silence at the start of the song itself)."><input type="checkbox" id="fullVideoFollow"> Later songs move too</label><button type="button" id="fullVideoFromLengths" class="chip-btn" title="Place every song back to back from the lengths you have, after the intro">From song lengths</button><button type="button" id="fullVideoEnds" class="chip-btn" title="Each song ends where the next one starts">Ends from next start</button><button type="button" id="fullVideoClear" class="chip-btn">Clear times</button><span id="fullVideoStatus" class="fv-note" role="status"></span></div>
+      <div class="fv-tools"><button type="button" id="fullVideoPasteBtn" class="chip-btn">Paste times…</button><label class="fv-intro" title="How long the video runs before the first song starts: changing it moves every time by the same amount">Intro <input type="text" id="fullVideoIntro" value="0:00" aria-label="Intro before the first song" autocomplete="off"></label><label class="fv-intro" title="How long the whole video is. Known: From song lengths spreads any small difference between it and your song lengths across the songs, so the last one ends with the video. Filled in when CRATE knows it; type a Bilibili video's length.">Video length <input type="text" id="fullVideoLength" value="" placeholder="h:mm:ss" aria-label="The video's length" autocomplete="off"></label><label class="fv-intro fv-follow" title="On: a song that starts later or earlier takes its end and every song after it along by the same amount (a gap the uploader left between songs). Off: only that start moves (silence at the start of the song itself)."><input type="checkbox" id="fullVideoFollow"> Later songs move too</label><label class="fv-intro fv-follow" title="On: saving also sets each song's length to its part of the video (end minus start), so the tracklist, the release's total and the player all go by these times."><input type="checkbox" id="fullVideoLengths"> Lengths from times</label><button type="button" id="fullVideoFromLengths" class="chip-btn" title="Place every song back to back from the lengths you have, after the intro">From song lengths</button><button type="button" id="fullVideoEnds" class="chip-btn" title="Each song ends where the next one starts">Ends from next start</button><button type="button" id="fullVideoClear" class="chip-btn">Clear times</button><span id="fullVideoStatus" class="fv-note" role="status"></span></div>
       <div id="fullVideoPasteBox" class="fv-paste" hidden><textarea id="fullVideoPasteText" rows="5" placeholder="Paste the video's description, one song per line, for example:&#10;0:00 Drive My Car&#10;2:30 Norwegian Wood&#10;4:46 You Won't See Me" aria-label="Times pasted from the video's description"></textarea><div class="fv-paste-row"><button type="button" id="fullVideoPasteApply" class="config-btn">Use these times</button><span id="fullVideoPasteMsg" class="fv-note" role="status"></span></div></div>
       <div id="fullVideoTimeline" class="fv-tl" hidden><div class="fv-tl-bar"><span class="fv-note" id="fullVideoTlNow" role="status"></span><span class="fv-tl-hint fv-note">Drag an edge to move it · click a song to pick it, double-click to play it · click the strip to play from there</span><span class="fv-tl-btns"><button type="button" id="fullVideoTlMark" class="chip-btn" title="The picked song starts where the video is now" disabled>⏱ Start here</button><button type="button" id="fullVideoTlOut" class="chip-btn" aria-label="Zoom out" title="Zoom out (Ctrl + wheel)">−</button><span id="fullVideoTlZoom" class="fv-note">1×</span><button type="button" id="fullVideoTlIn" class="chip-btn" aria-label="Zoom in" title="Zoom in (Ctrl + wheel)">+</button><button type="button" id="fullVideoTlFit" class="chip-btn" title="The whole video">Fit</button></span></div><div class="fv-tl-scroll"><div class="fv-tl-track"></div></div></div>
       <div id="fullVideoList" class="fv-list"></div>
@@ -2231,52 +2231,52 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
   </div>
 </div>
 
-<script src="js/01-core.js?v=1.95.7"></script>
-<script src="js/02-auth.js?v=1.95.7"></script>
-<script src="js/03-taxonomy-layout.js?v=1.95.7"></script>
-<script src="js/04-obsidian-export.js?v=1.95.7"></script>
-<script src="js/05-init-genres.js?v=1.95.7"></script>
-<script src="js/06-events.js?v=1.95.7"></script>
-<script src="js/07-prefs-fetch.js?v=1.95.7"></script>
-<script src="js/08-tabs-panels.js?v=1.95.7"></script>
-<script src="js/09-descriptors-mood-merge.js?v=1.95.7"></script>
-<script src="js/10-filters-search.js?v=1.95.7"></script>
-<script src="js/11-grid-player.js?v=1.95.7"></script>
-<script src="js/12-player-menus.js?v=1.95.7"></script>
-<script src="js/13-diary-scrobbles-stats.js?v=1.95.7"></script>
-<script src="js/14-artist-playlists.js?v=1.95.7"></script>
-<script src="js/15-shuffle-artist-info.js?v=1.95.7"></script>
-<script src="js/16-tabbar-updatelog.js?v=1.95.7"></script>
-<script src="js/17-match-songs.js?v=1.95.7"></script>
-<script src="js/18-exchange.js?v=1.95.7"></script>
-<script src="js/19-sound.js?v=1.95.7"></script>
-<script src="js/20-export-import.js?v=1.95.7"></script>
-<script src="js/21-addon-genre-page.js?v=1.95.7"></script>
-<script src="js/22-deck.js?v=1.95.7"></script>
-<script src="js/23-timeline-map.js?v=1.95.7"></script>
-<script src="js/24-diary-log.js?v=1.95.7"></script>
-<script src="js/25-tracklist-add.js?v=1.95.7"></script>
-<script src="js/26-layout-dnd.js?v=1.95.7"></script>
-<script src="js/27-tracklist-builder-rym.js?v=1.95.7"></script>
-<script src="js/28-edit-links-youtube.js?v=1.95.7"></script>
-<script src="js/29-lastfm-scrobbling.js?v=1.95.7"></script>
-<script src="js/30-new-releases.js?v=1.95.7"></script>
-<script src="js/31-lastfm-import.js?v=1.95.7"></script>
-<script src="js/32-utils.js?v=1.95.7"></script>
-<script src="js/33-pull-details.js?v=1.95.7"></script>
-<script src="js/34-fill-blanks.js?v=1.95.7"></script>
-<script src="js/35-catalogue-stats.js?v=1.95.7"></script>
-<script src="js/36-galaxy.js?v=1.95.7"></script>
-<script src="js/37-taste.js?v=1.95.7"></script>
-<script src="js/38-ask.js?v=1.95.7"></script>
-<script src="js/39-phone-playback.js?v=1.95.7"></script>
-<script src="js/40-recorded-at.js?v=1.95.7"></script>
-<script src="js/41-playback-sync.js?v=1.95.7"></script>
-<script src="js/42-floating-video.js?v=1.95.7"></script>
-<script src="js/43-map-kin.js?v=1.95.7"></script>
-<script src="js/44-play-source.js?v=1.95.7"></script>
-<script src="js/45-direct-link.js?v=1.95.7"></script>
-<script src="js/99-boot.js?v=1.95.7"></script>
+<script src="js/01-core.js?v=1.95.8"></script>
+<script src="js/02-auth.js?v=1.95.8"></script>
+<script src="js/03-taxonomy-layout.js?v=1.95.8"></script>
+<script src="js/04-obsidian-export.js?v=1.95.8"></script>
+<script src="js/05-init-genres.js?v=1.95.8"></script>
+<script src="js/06-events.js?v=1.95.8"></script>
+<script src="js/07-prefs-fetch.js?v=1.95.8"></script>
+<script src="js/08-tabs-panels.js?v=1.95.8"></script>
+<script src="js/09-descriptors-mood-merge.js?v=1.95.8"></script>
+<script src="js/10-filters-search.js?v=1.95.8"></script>
+<script src="js/11-grid-player.js?v=1.95.8"></script>
+<script src="js/12-player-menus.js?v=1.95.8"></script>
+<script src="js/13-diary-scrobbles-stats.js?v=1.95.8"></script>
+<script src="js/14-artist-playlists.js?v=1.95.8"></script>
+<script src="js/15-shuffle-artist-info.js?v=1.95.8"></script>
+<script src="js/16-tabbar-updatelog.js?v=1.95.8"></script>
+<script src="js/17-match-songs.js?v=1.95.8"></script>
+<script src="js/18-exchange.js?v=1.95.8"></script>
+<script src="js/19-sound.js?v=1.95.8"></script>
+<script src="js/20-export-import.js?v=1.95.8"></script>
+<script src="js/21-addon-genre-page.js?v=1.95.8"></script>
+<script src="js/22-deck.js?v=1.95.8"></script>
+<script src="js/23-timeline-map.js?v=1.95.8"></script>
+<script src="js/24-diary-log.js?v=1.95.8"></script>
+<script src="js/25-tracklist-add.js?v=1.95.8"></script>
+<script src="js/26-layout-dnd.js?v=1.95.8"></script>
+<script src="js/27-tracklist-builder-rym.js?v=1.95.8"></script>
+<script src="js/28-edit-links-youtube.js?v=1.95.8"></script>
+<script src="js/29-lastfm-scrobbling.js?v=1.95.8"></script>
+<script src="js/30-new-releases.js?v=1.95.8"></script>
+<script src="js/31-lastfm-import.js?v=1.95.8"></script>
+<script src="js/32-utils.js?v=1.95.8"></script>
+<script src="js/33-pull-details.js?v=1.95.8"></script>
+<script src="js/34-fill-blanks.js?v=1.95.8"></script>
+<script src="js/35-catalogue-stats.js?v=1.95.8"></script>
+<script src="js/36-galaxy.js?v=1.95.8"></script>
+<script src="js/37-taste.js?v=1.95.8"></script>
+<script src="js/38-ask.js?v=1.95.8"></script>
+<script src="js/39-phone-playback.js?v=1.95.8"></script>
+<script src="js/40-recorded-at.js?v=1.95.8"></script>
+<script src="js/41-playback-sync.js?v=1.95.8"></script>
+<script src="js/42-floating-video.js?v=1.95.8"></script>
+<script src="js/43-map-kin.js?v=1.95.8"></script>
+<script src="js/44-play-source.js?v=1.95.8"></script>
+<script src="js/45-direct-link.js?v=1.95.8"></script>
+<script src="js/99-boot.js?v=1.95.8"></script>
 
 </body>
 </html>

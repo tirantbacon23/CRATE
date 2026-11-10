@@ -645,6 +645,15 @@ suite('Full-release video: times from song lengths', () => {
     eq(f([180, 200], 12), [{ start: 12, end: 192 }, { start: 192, end: 392 }]);
     eq(f([180, 0, 95], 5), [{ start: 5, end: 185 }, null, null]);
   });
+  test('saved times reach the queued songs of that video, matched by the part they had', () => {
+    const was = app('ytQueue').slice(), wasI = app('ytQueueIndex');
+    const Q = [{ videoId: 'abcdefghijk', trackName: 'A', start: 10, end: 110 }, { videoId: 'abcdefghijk', trackName: 'B', start: 110, end: 210 }, { videoId: 'zzzzzzzzzzz', trackName: 'A', start: 10, end: 110 }];
+    const q = app('ytQueue'); q.length = 0; Q.forEach(x => q.push(x));
+    const rows = [{ row: { title: 'A', was: { s: 10, e: 110 } }, start: 12, end: 108, has: true }, { row: { title: 'B', was: { s: 110, e: 210 } }, start: 108, end: 215, has: true }];
+    const n = app('fvRetimeQueue')('abcdefghijk', rows);
+    eq(n, 2); eq([q[0].start, q[0].end, q[1].start, q[1].end], [12, 108, 108, 215]); eq([q[2].start, q[2].end], [10, 110]);          // another video's song is left alone
+    q.length = 0; was.forEach(x => q.push(x));
+  });
   test('the timeline: one handle where a song ends as the next begins; dragging moves both, and with the switch on the later songs too', () => {
     const H = app('fvTlHandles'), M = app('fvTlMove');
     const secs = [{ start: 10, end: 100 }, { start: 100, end: 200 }, { start: 205, end: 300 }];

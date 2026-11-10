@@ -17,7 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.7
+  CURRENT_VERSION: 1.95.8
+
+  1.95.8 — 2026-11-10 — Full-release videos: new times reach the player, and lengths can follow the times. Saved times used to
+          wait until the album was played again (the songs already queued kept their old parts): now saving updates every
+          queued song of that video, and while a part is playing (▶ in the dialog, or the album playing), changing its start or
+          end in the dialog changes what plays a moment later. A later end reloads the YouTube video at the same place, since
+          YouTube stops where it was told to when it loaded.
+
+          A new "Lengths from times" switch (remembered): saving also sets each song's length to its part of the video (end
+          minus start), so the tracklist, the release's total and the player go by these times.
 
   1.95.7 — 2026-11-10 — The player shows how far through the release you are. Under the song's own scrubber: the song's place
           in the release ("4/10"), a bar of the whole release with a tick between songs, and the time into it out of its

@@ -592,7 +592,7 @@ async function fvOpen(item, hintUrl) {
   const common = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0], shared = common && counts[common] >= 2 ? common : '';          // two songs on one video: that is the full-release video already
   const hint = youtubeVideoIdFromUrl(hintUrl) || (shared ? '' : youtubeVideoIdFromUrl(item.link));          // (the release's own link, when it is a YouTube video)
   const id = hint || shared, url = id ? videoPageUrl(id) : '';
-  fv = { item, rows: tracks.map(t => { const same = id && youtubeVideoIdFromUrl(t.youtubeLink) === id, g = same ? youtubeSegmentFromUrl(t.youtubeLink) : { start: 0, end: 0 }; return { n: t.trackNumber, title: t.trackName || '', start: same ? ytFormatTime(g.start) : '', end: g.end ? ytFormatTime(g.end) : '', len: Math.round((Number(t.trackTimeMillis) || 0) / 1000) }; }), intro: 0, total: 0, totalFor: '', tlZoom: 0, tlSel: -1, tlKey: '' };
+  fv = { item, rows: tracks.map(t => { const same = id && youtubeVideoIdFromUrl(t.youtubeLink) === id, g = same ? youtubeSegmentFromUrl(t.youtubeLink) : { start: 0, end: 0 }; return { n: t.trackNumber, title: t.trackName || '', start: same ? ytFormatTime(g.start) : '', end: g.end ? ytFormatTime(g.end) : '', len: Math.round((Number(t.trackTimeMillis) || 0) / 1000), was: same ? { s: g.start || 0, e: g.end || 0 } : null }; }), intro: 0, total: 0, totalFor: '', tlZoom: 0, tlSel: -1, tlKey: '' };
   const firstStart = fv.rows.map(r => r.start.trim() ? ytParseTime(r.start) : NaN).find(s => s >= 0); if (firstStart > 0) fv.intro = firstStart;          // times saved before: the intro is where song 1 starts
   const autoFill = !!id && fv.rows.every(r => !r.start && !r.end) && fv.rows.every(r => r.len > 0);          // a video with no times yet, and every song's length known: placed back to back to begin with
   fvEl('fullVideoFound').hidden = true; fvEl('fullVideoFound').innerHTML = ''; fvEl('fullVideoSub').textContent = `${item.artist} \u2014 ${item.title}`; fvEl('fullVideoUrl').value = url; fvEl('fullVideoPasteBox').hidden = true; fvEl('fullVideoPasteText').value = ''; fvEl('fullVideoPasteMsg').textContent = '';
@@ -659,7 +659,8 @@ function fvValidate() {                                             // reads wha
   const ok = !!id && !bad && has > 0;
   fvEl('fullVideoStatus').textContent = !id ? (url ? 'That link isn\u2019t a YouTube or Bilibili video, so Save stays off: paste the video\u2019s own address.' : 'Paste the full-release video\u2019s link above.') : bad ? `${bad} time${bad === 1 ? '' : 's'} to fix (in red).` : `${has} of ${fv.rows.length} songs have times.` + (warn ? ` ${warn} start${warn === 1 ? 's' : ''} earlier than a song before ${warn === 1 ? 'it' : 'them'}.` : '') + (off ? ` ${off} ${off === 1 ? 'part doesn\u2019t' : 'parts don\u2019t'} match the song\u2019s length (amber).` : '');
   fvEl('fullVideoSave').disabled = !ok;
-  fvDrawTimeline();
+  fvDrawTimeline(); fvLiveRetimeSoon(id, rows);
+  if (ok && fvLengthsOn()) { const k = rows.filter(r => r.has && r.end > r.start).length; if (k) fvEl('fullVideoStatus').textContent += ` Saving sets ${k} song length${k === 1 ? '' : 's'} from ${k === 1 ? 'its' : 'their'} times.`; }
   return { ok, url, id, rows };
 }
 function fvCurrentTime(id) {                                        // where the video is now, when CRATE's player has THIS video; else null
@@ -700,6 +701,7 @@ function fvPlayPart(i) {
   const v = fvValidate(); if (!v.id) { flashGlobalToast('Paste the full-release video\u2019s link first.'); return; }
   const r = v.rows[i], link = youtubeLinkWithSegment(v.url, r && r.start, r && r.end);
   openYoutubePlayer(link, fv.rows[i].title, [], fv.item);          // (just this part: an empty list so the rest of the album is not queued after it)
+  fv.liveQ = ytQueue[ytQueueIndex]; fv.liveI = i;                   // (1.95.8) while it plays, changing its times changes what plays
 }
 function fvApplyPaste() {
   if (!fv) return; fvValidate();
@@ -830,19 +832,69 @@ function fvEndsFromNext() {
 async function fvSave() {
   const v = fvValidate(); if (!v.ok || !fv) return;
   const item = fv.item; item.trackData = item.trackData || {}; let n = 0;
-  v.rows.forEach(r => { if (!r.has) return; const td = item.trackData[r.n] || (item.trackData[r.n] = {}); td.youtubeLink = youtubeLinkWithSegment(v.url, r.start, r.end); n++; });          // (a song with no times is left as it was)
+  const setLen = fvLengthsOn(); let lens = 0;
+  v.rows.forEach(r => { if (!r.has) return; const td = item.trackData[r.n] || (item.trackData[r.n] = {}); td.youtubeLink = youtubeLinkWithSegment(v.url, r.start, r.end); n++;          // (a song with no times is left as it was)
+    if (setLen && r.end > r.start) { td.lengthMs = (r.end - r.start) * 1000; lens++; } });          // (1.95.8) "Lengths from times": the song's length becomes its part of the video
   try { await postUpdate({ row: item.row, trackData: JSON.stringify(item.trackData) }); }
   catch (err) { flashGlobalToast('Couldn\u2019t save \u2014 try again.'); return; }
   if (currentTracklistTracks.length) mergeTrackLinkOverrides(item, currentTracklistTracks);
   const cached = state.trackCache[artKey(item)]; if (cached && cached !== currentTracklistTracks) mergeTrackLinkOverrides(item, cached);
   if (activeItem === item) renderTracklistBody(item, currentTracklistTracks);
-  flashGlobalToast(`Saved where ${n} song${n === 1 ? '' : 's'} start${n === 1 ? 's' : ''} and end${n === 1 ? 's' : ''} in the video.`); fvClose();
+  const queued = fvRetimeQueue(v.id, v.rows.map((r, i) => ({ row: fv.rows[i], start: r.start, end: r.end, has: r.has })));
+  flashGlobalToast(`Saved where ${n} song${n === 1 ? '' : 's'} start${n === 1 ? 's' : ''} and end${n === 1 ? 's' : ''} in the video` + (lens ? `, and ${lens} song length${lens === 1 ? '' : 's'}` : '') + (queued ? ' (the player has the new times too)' : '') + '.'); fvClose();
 }
 fvEl('deckFullVideoBtn').addEventListener('click', () => { if (activeItem) fvOpen(activeItem); });
 fvEl('fullVideoClose').addEventListener('click', fvClose); fvEl('fullVideoCancel').addEventListener('click', fvClose);
 fvEl('fullVideoOverlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) fvClose(); });
 fvEl('fullVideoOverlay').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); fvClose(); } });
 fvEl('fullVideoSave').addEventListener('click', fvSave);
+// ----- new times reach the player (1.95.8) -----
+// Saved times used to wait for the album to be played again: the songs already queued kept their old parts. Now saving updates every
+// queued song of this video (told apart by the part it had, else by name), and while a part is playing, changing its start or end in
+// the dialog changes what plays. "Lengths from times" (remembered) saves each song's length as its part of the video.
+const FV_LENGTHS_KEY = 'crate_fv_lengths_v1';
+function fvLengthsOn() { try { return localStorage.getItem(FV_LENGTHS_KEY) === '1'; } catch (e) { return false; } }
+function fvQueueEntryFor(q, videoId, row) {                         // is queue entry q this row's song in this video?
+  if (!q || q.videoId !== videoId || !row) return false;
+  if (row.was) return (q.start || 0) === row.was.s && (q.end || 0) === row.was.e;
+  return !!row.title && q.trackName === row.title;
+}
+function ytRetimeCurrent(start, end) {                              // the song playing now gets a new part of its video
+  const q = ytQueue[ytQueueIndex]; if (!q) return;
+  const oldEnd = q.end || 0; q.start = start || 0; q.end = end || 0;
+  ytSeg.start = q.start; ytSeg.end = q.end; ytSeg.fired = false;
+  let now = 0; try { now = (ytPlayer && ytPlayer.getCurrentTime && ytPlayer.getCurrentTime()) || 0; } catch (e) { now = 0; }
+  const from = now < q.start || (q.end && now >= q.end) ? q.start : now;
+  if (ytPlayer === biliShim) { bili.end = q.end; if (from !== now) biliShim.seekTo(from); return; }
+  if (!ytPlayer || ytPlayer !== ytRealPlayer) return;
+  try {
+    if ((q.end > oldEnd && oldEnd) || (!q.end && oldEnd)) { ytSeg.loadedAt = Date.now(); ytPlayer.loadVideoById(Object.assign({ videoId: q.videoId, startSeconds: from }, q.end ? { endSeconds: q.end } : {})); }          // YouTube stops at the end it was loaded with: a later end needs a reload
+    else if (from !== now) ytPlayer.seekTo(from, true);             // (an earlier end: the player's own watch stops it there)
+  } catch (e) { /* not ready: the next play has it */ }
+}
+function fvRetimeQueue(videoId, rows) {                             // after saving: queued songs of this video take their new parts -> how many changed
+  let n = 0; const cur = ytQueue[ytQueueIndex];
+  rows.forEach(r => {
+    if (!r.has || !r.row) return;
+    ytQueue.forEach(q => {
+      if (!(fv && fv.liveQ === q) && !fvQueueEntryFor(q, videoId, r.row)) return;
+      if (fv && fv.liveQ === q && fv.rows[fv.liveI] !== r.row) return;
+      if ((q.start || 0) === r.start && (q.end || 0) === r.end) return;
+      if (q === cur && activePlayerEngine === 'youtube') ytRetimeCurrent(r.start, r.end); else { q.start = r.start; q.end = r.end; }
+      n++;
+    });
+  });
+  return n;
+}
+let fvLiveTimer = 0;
+function fvLiveRetimeSoon(id, rows) {                               // while a part plays, its new times apply (a moment after typing stops)
+  clearTimeout(fvLiveTimer); if (!fv || !id || activePlayerEngine !== 'youtube') return;
+  const q = ytQueue[ytQueueIndex]; if (!q || q.videoId !== id) return;
+  if (fv.liveQ !== q) { const i = fv.rows.findIndex(r => fvQueueEntryFor(q, id, r)); if (i < 0) return; fv.liveQ = q; fv.liveI = i; }
+  const r = rows[fv.liveI]; if (!r || !r.has || !(r.start >= 0) || !(r.end > r.start)) return;
+  if ((q.start || 0) === r.start && (q.end || 0) === r.end) return;
+  const me = fv; fvLiveTimer = setTimeout(() => { if (fv === me && ytQueue[ytQueueIndex] === q) ytRetimeCurrent(r.start, r.end); }, 600);
+}
 // ----- the timeline (1.95.6): the whole video as a strip, each song a block on it -----
 // The songs' blocks sit where their times put them, with a tick where the song would end by the length you have (so a block running
 // past its tick, or stopping short of it, shows at a glance). Drag a block's edge to move a start or an end; where one song ends as the
@@ -1020,6 +1072,8 @@ fvEl('fullVideoList').addEventListener('change', (e) => {
   const row = t.closest('.fv-row[data-i]'); if (row) fvStartMoved(+row.dataset.i, t.dataset.was || '', t.value);
   t.dataset.was = t.value;
 });
+fvEl('fullVideoLengths').checked = fvLengthsOn();
+fvEl('fullVideoLengths').addEventListener('change', (e) => { try { localStorage.setItem(FV_LENGTHS_KEY, e.target.checked ? '1' : '0'); } catch (err) { /* for this visit only */ } fvValidate(); });
 fvEl('fullVideoFollow').checked = fvFollowOn();
 fvEl('fullVideoFollow').addEventListener('change', (e) => { try { localStorage.setItem(FV_FOLLOW_KEY, e.target.checked ? '1' : '0'); } catch (err) { /* for this visit only */ } });
 fvEl('fullVideoList').addEventListener('click', (e) => {
