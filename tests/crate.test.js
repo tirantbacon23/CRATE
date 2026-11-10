@@ -204,6 +204,24 @@ suite('Matching songs: other titles', () => {
   });
 });
 
+suite('Cover, big', () => {
+  test('iTunes artwork asked for at 1200 px; other covers as they are', () => {
+    const H = app('coverZoomHiRes');
+    eq(H('https://is1-ssl.mzstatic.com/image/thumb/Music/ab/cd/source/600x600bb.jpg'), 'https://is1-ssl.mzstatic.com/image/thumb/Music/ab/cd/source/1200x1200bb.jpg');
+    eq(H('https://i.scdn.co/image/abc'), 'https://i.scdn.co/image/abc');
+  });
+});
+
+suite('Songs sharing a number', () => {
+  test('found, and renumbered past every number in use: the first keeps it', () => {
+    const tr = [{ trackNumber: 24, trackName: 'A' }, { trackNumber: 24, trackName: 'B' }, { trackNumber: 20, trackName: 'C' }, { trackNumber: 24, trackName: 'D' }];
+    const c = app('trackNumberClashes')(tr); eq(c.length, 1); eq(c[0].n, 24); eq(c[0].titles.join(), 'A,B,D');
+    eq(app('trackNumberClashes')([{ trackNumber: 1 }, { trackNumber: 2 }]).length, 0);
+    const r = app('renumberClashingTracks')([{ trackNumber: 24, title: 'A' }, { trackNumber: 24, title: 'B' }, { trackNumber: 20, title: 'C' }, { trackNumber: 24, title: 'D' }], 30);
+    eq(r.rows.map(x => x.trackNumber).join(), '24,31,20,32'); eq(r.moved.join(), 'B,D');
+  });
+});
+
 suite('Matching songs: one video, one song', () => {
   test('a video another song has is left out; parts of a full-release video at their own times are not', () => {
     const U = app('bmUpdates'), V = 'https://www.youtube.com/watch?v=abcdefghijk', W = 'https://www.youtube.com/watch?v=zyxwvutsrqp';

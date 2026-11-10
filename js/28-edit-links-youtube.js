@@ -596,17 +596,47 @@ async function fvOpen(item, hintUrl) {
   const hint = youtubeVideoIdFromUrl(hintUrl) || (shared ? '' : youtubeVideoIdFromUrl(item.link));          // (the release's own link, when it is a YouTube video)
   const id = hint || shared, url = id ? videoPageUrl(id) : '';
   fv = { item, rows: tracks.map(t => { const same = id && youtubeVideoIdFromUrl(t.youtubeLink) === id, g = same ? youtubeSegmentFromUrl(t.youtubeLink) : { start: 0, end: 0 }; return { n: t.trackNumber, title: t.trackName || '', start: same ? ytFormatTime(g.start) : '', end: g.end ? ytFormatTime(g.end) : '', len: Math.round((Number(t.trackTimeMillis) || 0) / 1000), was: same ? { s: g.start || 0, e: g.end || 0 } : null }; }), intro: 0, total: 0, totalFor: '', tlZoom: 0, tlSel: -1, tlKey: '' };
-  const firstStart = fv.rows[0] && fv.rows[0].start.trim() ? ytParseTime(fv.rows[0].start) : NaN;          // (1.95.11) song 1's own start: not the first song found in the video (song 1 on a video of its own made Intro its length) if (firstStart > 0) fv.intro = firstStart;          // times saved before: the intro is where song 1 starts
+  const firstStart = fv.rows[0] && fv.rows[0].start.trim() ? ytParseTime(fv.rows[0].start) : NaN;          // (1.95.11) song 1's own start: not the first song found in the video (song 1 on a video of its own made Intro its length)
+  if (firstStart > 0) fv.intro = firstStart;          // times saved before: the intro is where song 1 starts
   const autoFill = !!id && fv.rows.every(r => !r.start && !r.end) && fv.rows.every(r => r.len > 0);          // a video with no times yet, and every song's length known: placed back to back to begin with
   fvEl('fullVideoFound').hidden = true; fvEl('fullVideoFound').innerHTML = ''; fvEl('fullVideoSub').textContent = `${item.artist} \u2014 ${item.title}`; fvEl('fullVideoUrl').value = url; fvEl('fullVideoPasteBox').hidden = true; fvEl('fullVideoPasteText').value = ''; fvEl('fullVideoPasteMsg').textContent = '';
   fvEl('fullVideoIntro').value = ytFormatTime(fv.intro); fvEl('fullVideoIntro').classList.remove('bad'); fvEl('fullVideoFromLengths').disabled = !fv.rows.some(r => r.len > 0);
   fvEl('fullVideoLength').value = ''; fvEl('fullVideoLength').classList.remove('bad'); fvSetTotal(id, fvPlayerLength(id));
   if (autoFill) fvFromLengths(true); else fvRender();
   if (id && !fv.total) fvFetchLength(id);
+  fvShowClashes(item, tracks, url);
   fvEl('fullVideoOverlay').hidden = false; fvDrawTimeline();          // (drawn again now its width is known)
   (url ? document.querySelector('#fullVideoList [data-fv="start"]') : fvEl('fullVideoUrl')).focus();
 }
 function fvClose() { fvEl('fullVideoOverlay').hidden = true; fv = null; }
+// (1.95.15) Songs sharing one number. A song's links, length, rating and times are all kept under its number, so songs that share one share
+// all of it: setting one song's times set them for every song with its number (and song 1's became the Intro). Say so, and offer to fix it.
+function trackNumberClashes(tracks) {                               // -> [{ n, titles }] for each number more than one song has
+  const by = {}; (tracks || []).forEach(t => { const n = t && t.trackNumber; if (n) (by[n] = by[n] || []).push(t.trackName || t.title || ''); });
+  return Object.keys(by).filter(n => by[n].length > 1).map(n => ({ n: +n, titles: by[n] }));
+}
+function renumberClashingTracks(manualTracks, minNext) {            // -> the list with every song after the first holding a number given a new one, nobody's yet
+  let next = Math.max(Number(minNext) || 0, ...(manualTracks || []).map(t => Number(t.trackNumber) || 0), 0) + 1; const seen = new Set(), moved = [];
+  const rows = (manualTracks || []).map(t => { const n = t.trackNumber; if (!n || !seen.has(n)) { if (n) seen.add(n); return t; } moved.push(t.title); return Object.assign({}, t, { trackNumber: next++ }); });
+  return { rows, moved };
+}
+function fvShowClashes(item, tracks, url) {
+  const box = fvEl('fullVideoClash'); if (!box) return;
+  const c = trackNumberClashes(tracks); if (fv) fv.clash = c.length ? new Set(c.map(x => x.n)) : null;
+  if (!c.length) { box.hidden = true; box.innerHTML = ''; return; }
+  const can = isManualAlbum(item), names = c.map(x => x.titles.map(t => `“${escapeHtml(t)}”`).join(', ')).join('; ');
+  box.innerHTML = `<span>${c.reduce((a, x) => a + x.titles.length, 0)} songs share a number in this tracklist (${names}), so they share one saved link and one set of times: what you set for one is set for all of them, and the first one’s start becomes the Intro.${can ? '' : ' Fix the tracklist in Edit details.'}</span>${can ? '<button type="button" class="chip-btn" id="fullVideoClashFix" title="The first song keeps the number and what is saved under it; the others get new numbers of their own and start empty">Give each its own number</button>' : ''}`;
+  box.hidden = false;
+  const b = fvEl('fullVideoClashFix'); if (b) b.addEventListener('click', async () => {
+    b.disabled = true; const { rows, moved } = renumberClashingTracks(item.manualTracks, tlMinNext(item)); if (!moved.length) return;
+    try { await postUpdate({ action: 'editAlbum', row: item.row, ManualTracks: JSON.stringify(rows) }); }
+    catch (err) { flashGlobalToast('Couldn’t save — try again.'); b.disabled = false; return; }
+    item.manualTracks = rows; delete state.trackCache[artKey(item)];
+    if (activeItem === item && typeof loadTracklist === 'function') { try { loadTracklist(item); } catch (e) { /* shown next time */ } }
+    flashGlobalToast(`${moved.length} song${moved.length === 1 ? '' : 's'} given ${moved.length === 1 ? 'its' : 'their'} own number. Set ${moved.length === 1 ? 'its' : 'their'} times again.`);
+    fvOpen(item, fvEl('fullVideoUrl').value.trim() || url);
+  });
+}
 // The video's length (1.95.5): song lengths from Discogs or Spotify rarely add up to the video exactly (a few seconds of silence between
 // songs, a slightly faster transfer), so "From song lengths" drifts further off with every song. Knowing the video's length, it spreads
 // the difference across the songs instead. Filled in when CRATE knows it (a video found by the search, the YouTube add-on, the player
@@ -841,7 +871,8 @@ async function fvSave() {
   const v = fvValidate(); if (!v.ok || !fv) return;
   const item = fv.item; item.trackData = item.trackData || {}; let n = 0;
   const setLen = fvLengthsOn(); let lens = 0;
-  v.rows.forEach(r => { if (!r.has) return; const td = item.trackData[r.n] || (item.trackData[r.n] = {}); td.youtubeLink = youtubeLinkWithSegment(v.url, r.start, r.end); n++;          // (a song with no times is left as it was)
+  const did = new Set();
+  v.rows.forEach(r => { if (!r.has || did.has(r.n)) return; did.add(r.n); const td = item.trackData[r.n] || (item.trackData[r.n] = {}); td.youtubeLink = youtubeLinkWithSegment(v.url, r.start, r.end); n++;          // (a song with no times is left as it was)
     if (setLen && r.end > r.start) { td.lengthMs = (r.end - r.start) * 1000; lens++; } });          // (1.95.8) "Lengths from times": the song's length becomes its part of the video
   try { await postUpdate({ row: item.row, trackData: JSON.stringify(item.trackData) }); }
   catch (err) { flashGlobalToast('Couldn\u2019t save \u2014 try again.'); return; }

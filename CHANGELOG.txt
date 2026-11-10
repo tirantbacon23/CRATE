@@ -17,8 +17,18 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.14
+  CURRENT_VERSION: 1.95.16
 
+  1.95.16 — 2026-11-10 — Album page: click the cover to see it big (as large as the screen
+          allows; iTunes artwork is fetched at 1200 px). A click anywhere or Esc closes it,
+          leaving the album page open.
+  1.95.15 — 2026-11-10 — Full-release video: songs that share a number in a tracklist share
+          everything saved under it, so one song's times were set for all of them and the
+          first one's start became the Intro (It's a Poppin' Time: five songs at 47:05).
+          The dialog now says which songs share a number and, for a typed tracklist, offers
+          "Give each its own number" (the first keeps it). Saving writes only the first
+          song's times for a shared number. The Intro is again read from song 1's saved
+          start when the dialog opens (a lost line break had put that inside a comment).
   1.95.14 — 2026-11-10 — Match songs: one YouTube video is one song's. Ticked matches whose
           video another song of the release already has (or that a second ticked song
           has) are left out when saving, with a note. A kept link that is the same video
