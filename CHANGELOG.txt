@@ -17,8 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.18
+  CURRENT_VERSION: 1.95.19
 
+  1.95.19 — 2026-11-11 — A visualizer (the bars button in the player): full screen, the cover in
+          the middle with the music drawn round it (Ring), as a spectrum (Bars) or as the
+          waveform (Wave), lit in the cover's colour and pulsing with the bass. The players
+          are other sites', whose sound a page can't read, so it asks to share this tab's
+          sound (Chrome and Edge: choose this tab, with "Also share tab audio" on); only the
+          sound is used, on this device. Sharing lasts until Stop listening or the tab
+          closes, so opening it again needs no prompt. Esc closes; double-click for full
+          screen. New file js/46-visualizer.js.
   1.95.18 — 2026-11-11 — YouTube links CRATE finds are remembered for good: album playlists,
           song searches and full-release videos found once are kept on this device with no
           expiry (was 14 days) and no limit (was the latest 200), found through the add-on as

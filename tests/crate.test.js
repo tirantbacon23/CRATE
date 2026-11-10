@@ -204,6 +204,15 @@ suite('Matching songs: other titles', () => {
   });
 });
 
+suite('Visualizer', () => {
+  test('bands run low to high, read between bins in the bass, and stay 0..1', () => {
+    const f = new Uint8Array(2048); for (let k = 0; k < 2048; k++) f[k] = k < 8 ? 255 : 40;          // 48 kHz: bins of about 11.7 Hz, loud below ~90 Hz
+    const b = app('vizBands')(f, 48000, 48); eq(b.length, 48); ok(b.every(v => v >= 0 && v <= 1));
+    ok(b[0] > 0.9 && b[47] < 0.2, b[0] + ' ' + b[47]);
+    ok(app('vizBassLevel')(f, 48000) > 0.5);
+  });
+});
+
 suite('Remembered YouTube lookups', () => {
   test('what was found is kept for good; nothing found, for 7 days', () => {
     const put = app('ytCachePut'), get = app('ytCacheGet'), R = app('YT_REL_TTL'), N = app('YT_NONE_TTL');

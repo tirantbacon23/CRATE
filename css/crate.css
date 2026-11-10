@@ -4691,3 +4691,18 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
 .tap-to-start-hint[hidden] { display: none; }
 .tap-to-start-hint p { margin: 0; flex: 1; }
 .tap-to-start-hint .modal-x { min-width: 32px; min-height: 32px; }
+
+/* (1.95.19) The visualizer: this tab's sound, drawn round the cover */
+.viz-overlay { position: fixed; inset: 0; z-index: 10040; background: radial-gradient(ellipse at center, #141820 0%, #07090c 75%); color: var(--text); overflow: hidden; }
+.viz-overlay[hidden] { display: none; }
+.viz-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.viz-center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; text-align: center; width: min(80vw, 520px); }
+.viz-art { width: min(36vmin, 340px); height: min(36vmin, 340px); object-fit: cover; border-radius: 50%; box-shadow: 0 12px 50px rgba(0,0,0,0.6); transition: transform 0.08s linear; }
+.viz-art[hidden] { display: none; }
+.viz-title { position: fixed; left: 0; right: 0; bottom: 64px; font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 16px; }
+.viz-sub { position: fixed; left: 0; right: 0; bottom: 44px; color: var(--text-dim); font-size: 14px; padding: 0 16px; }
+.viz-bar { position: absolute; top: 14px; right: 14px; display: flex; gap: 8px; }
+.viz-bar [hidden] { display: none; }
+.viz-msg { position: absolute; top: 14px; left: 16px; right: 360px; color: var(--text-dim); font-size: 13px; line-height: 1.4; }
+.mini-player-viz-btn.active { color: var(--accent); }
+@media (max-width: 700px) { .viz-msg { right: 16px; top: 56px; } .viz-title { font-size: 22px; } }
