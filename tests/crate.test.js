@@ -618,6 +618,26 @@ suite('Bold releases (RYM)', () => {
   });
 });
 
+suite('How far through the release', () => {
+  const T = (n, name, s, link) => ({ trackNumber: n, trackName: name, trackTimeMillis: s * 1000, youtubeLink: link || '' });
+  test('the songs before it plus where this one is, out of the whole', () => {
+    const f = app('releaseProgress'), tracks = [T(1, 'Sparkle', 300), T(2, 'Love Talkin’', 240), T(3, 'Ride on Time', 360)];
+    const p = f(tracks, 'Love Talkin’', 60000);
+    eq([p.index, p.count, p.elapsedMs, p.totalMs], [1, 3, 360000, 900000]);
+    eq(p.cuts.map(c => +c.toFixed(3)), [0.333, 0.6]);
+    eq(f(tracks, 'Ride On Time - 2002 Remaster', 0).index, 2);                 // a streaming service's name for it
+    eq(f(tracks, 'Something Else', 0), null);                                  // not one of the release's songs
+    eq(f([T(1, 'A', 0), T(2, 'B', 100)], 'B', 5000).elapsedMs, null);          // a length before it unknown
+  });
+  test('a full-release video played whole: the song by its saved times', () => {
+    const f = app('releaseProgressInVideo'), v = 'https://www.youtube.com/watch?v=abcdefghijk';
+    const tracks = [T(1, 'A', 100, v + '&t=10&end=110'), T(2, 'B', 100, v + '&t=110&end=210'), T(3, 'C', 100, v + '&t=212&end=312')];
+    const p = f(tracks, 'abcdefghijk', 150);
+    eq([p.index, p.count, p.elapsedMs, p.totalMs], [1, 3, 140000, 302000]);
+    eq(f(tracks, 'zzzzzzzzzzz', 150), null);
+  });
+});
+
 suite('Full-release video: times from song lengths', () => {
   test('songs back to back after the intro; one after a song with no length is not placed', () => {
     const f = app('ytTimesFromLengths');

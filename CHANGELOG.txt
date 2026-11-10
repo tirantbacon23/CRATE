@@ -17,7 +17,15 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.6
+  CURRENT_VERSION: 1.95.7
+
+  1.95.7 — 2026-11-10 — The player shows how far through the release you are. Under the song's own scrubber: the song's place
+          in the release ("4/10"), a bar of the whole release with a tick between songs, and the time into it out of its
+          total ("14:22 / 1:25:33"); hover it for the time to go.
+
+          It goes by the release's tracklist and its song lengths, finding the playing song by name (so it works for Spotify,
+          YouTube and SoundCloud alike); a full-release video played whole goes by the song times saved in its links. It shows
+          only while one of the release's songs is playing, and not on the phone-sized bar, which has no room for it.
 
   1.95.6 — 2026-11-10 — Full-release videos: a timeline. The Full-release dialog draws the whole video as a strip, each song a
           block where its times put it, with a dotted tick where the song would end by the length you have (amber when the

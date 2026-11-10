@@ -1863,6 +1863,71 @@ function updateProgressUI() {
 }
 setInterval(updateProgressUI, 500);
 
+// How far through the release (1.95.7): under the song's own scrubber, the song's place in the release ("4/10"), a bar of the whole
+// release with a tick between songs, and the time into it out of its total ("14:22 / 1:25:33"). It goes by the release's tracklist
+// (its order and its song lengths), with the song playing found by name; a full-release video played whole goes by the song times
+// saved in its links instead. Shown only while what is playing is one of the release's songs.
+function releaseTrackIndex(list, name) {                           // the playing song's place in the tracklist, by name (-1: not one of them)
+  const fold = (s) => String(s || '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim(), n = fold(name); if (!n) return -1;
+  let i = list.findIndex(t => fold(t.trackName) === n); if (i >= 0) return i;
+  if (typeof smTitleSim !== 'function') return -1;
+  let best = -1, bs = 0.85; list.forEach((t, k) => { const s = smTitleSim(name, t.trackName || ''); if (s > bs) { bs = s; best = k; } });
+  return best;
+}
+function releaseProgress(tracks, name, posMs) {                    // -> { index, count, elapsedMs (null: a length before it unknown), totalMs (null: not every length known), cuts: [0..1] } or null
+  const list = (tracks || []).filter(t => t && t.trackNumber), i = releaseTrackIndex(list, name); if (i < 0) return null;
+  const lens = list.map(t => Number(t.trackTimeMillis) || 0), before = lens.slice(0, i);
+  const known = lens.every(l => l > 0), total = known ? lens.reduce((a, b) => a + b, 0) : null;
+  const elapsed = before.every(l => l > 0) ? before.reduce((a, b) => a + b, 0) + Math.max(0, Math.min(Number(posMs) || 0, lens[i] || Infinity)) : null;
+  let at = 0; const cuts = known ? lens.slice(0, -1).map(l => (at += l) / total) : [];
+  return { index: i, count: list.length, elapsedMs: elapsed, totalMs: total, cuts };
+}
+function releaseProgressInVideo(tracks, videoId, sec) {             // a full-release video played whole: the songs' saved times in it say which one this is
+  const parts = (tracks || []).filter(t => t && t.trackNumber).map(t => { const l = t.youtubeLink || ''; if (youtubeVideoIdFromUrl(l) !== videoId) return null; const g = youtubeSegmentFromUrl(l); return { start: g.start || 0, end: g.end || 0 }; });
+  const got = parts.filter(Boolean); if (got.length < 2 || !got.some(p => p.start > 0)) return null;
+  const first = Math.min(...got.map(p => p.start)), last = Math.max(...got.map(p => p.end || p.start)), total = last - first; if (!(total > 0)) return null;
+  let index = -1; parts.forEach((p, k) => { if (p && p.start <= sec && (index < 0 || p.start >= parts[index].start)) index = k; });
+  const cuts = got.map(p => p.start).filter(s => s > first).sort((a, b) => a - b).map(s => (s - first) / total);
+  return { index: Math.max(0, index), count: parts.length, elapsedMs: Math.max(0, Math.min(sec, last) - first) * 1000, totalMs: total * 1000, cuts };
+}
+let releaseProgressTracks = { key: '', at: 0, tracks: null };
+function releaseProgressTracksFor(item) {                          // the release's tracklist with your saved links, kept for 10 s (fetched in the background when not cached yet)
+  const key = artKey(item), now = Date.now();
+  if (releaseProgressTracks.key === key && now - releaseProgressTracks.at < 10000) return releaseProgressTracks.tracks;
+  const cached = state.trackCache && state.trackCache[key];
+  if (!cached) { releaseProgressTracks = { key, at: now, tracks: null }; getTracksFor(item).catch(() => {}); return null; }
+  const tracks = cached.map(t => Object.assign({}, t)); try { mergeTrackLinkOverrides(item, tracks); } catch (e) { /* as they are */ }
+  releaseProgressTracks = { key, at: now, tracks }; return tracks;
+}
+function currentPlayingTrackName() {
+  if (activePlayerEngine === 'youtube') return (ytQueue[ytQueueIndex] && ytQueue[ytQueueIndex].trackName) || '';
+  if (activePlayerEngine === 'soundcloud') return (scQueue[scQueueIndex] && scQueue[scQueueIndex].trackName) || '';
+  return (currentSpotifyTrack && currentSpotifyTrack.name) || '';
+}
+function updateReleaseProgress() {
+  const row = document.getElementById('miniPlayerRelease'); if (!row) return;
+  let p = null;
+  try {
+    if (!el.miniPlayer.hidden && nowPlayingItem) {
+      const tracks = releaseProgressTracksFor(nowPlayingItem);
+      if (tracks && tracks.length > 1) {
+        const q = activePlayerEngine === 'youtube' ? ytQueue[ytQueueIndex] : null;
+        if (q && !ytSeg.start && !ytSeg.end && ytPlayer && ytPlayer.getCurrentTime) p = releaseProgressInVideo(tracks, q.videoId, ytPlayer.getCurrentTime() || 0);
+        if (!p) p = releaseProgress(tracks, currentPlayingTrackName(), getEstimatedPosition());
+      }
+    }
+  } catch (e) { p = null; }
+  row.hidden = !p; if (!p) return;
+  const f = (ms) => formatMs(ms), pct = p.totalMs && p.elapsedMs !== null ? Math.min(100, p.elapsedMs / p.totalMs * 100) : (p.index / p.count) * 100;
+  document.getElementById('miniPlayerReleaseSong').textContent = `${p.index + 1}/${p.count}`;
+  document.getElementById('miniPlayerReleaseFill').style.width = pct + '%';
+  document.getElementById('miniPlayerReleaseTime').textContent = p.elapsedMs === null ? '' : p.totalMs ? `${f(p.elapsedMs)} / ${f(p.totalMs)}` : f(p.elapsedMs);
+  const ticks = document.getElementById('miniPlayerReleaseTicks'), cuts = p.cuts.length ? p.cuts : Array.from({ length: p.count - 1 }, (_, k) => (k + 1) / p.count), sig = cuts.map(c => c.toFixed(4)).join();
+  if (ticks.dataset.sig !== sig) { ticks.dataset.sig = sig; ticks.innerHTML = cuts.map(c => `<i style="left:${(c * 100).toFixed(2)}%"></i>`).join(''); }
+  row.title = `Song ${p.index + 1} of ${p.count} in ${nowPlayingItem.title}` + (p.elapsedMs !== null && p.totalMs ? ` · ${f(p.elapsedMs)} in, ${f(Math.max(0, p.totalMs - p.elapsedMs))} to go (${Math.round(pct)}%)` : '');
+}
+setInterval(updateReleaseProgress, 1000);
+
 function seekRatioFromEvent(e) {
   const rect = el.miniPlayerSeekTrack.getBoundingClientRect();
   const point = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e;

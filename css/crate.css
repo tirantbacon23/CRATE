@@ -1774,7 +1774,7 @@ html, body {
     .mini-player-row { flex-wrap: nowrap; gap: 8px; }
     .mini-player-track { flex-basis: auto; flex: 1 1 auto; min-width: 0; cursor: pointer; }
     .mini-player-art, .mini-player-video-wrap { width: 34px; height: 34px; }
-    .mini-player-options, .mini-player-progress-row { display: none; }
+    .mini-player-options, .mini-player-progress-row, .mini-player-release { display: none; }
     .mini-player-transport { flex: 0 0 auto; }
     .mini-player-mobile-progress {
       display: block; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
@@ -1785,6 +1785,12 @@ html, body {
 
   /* ---- Timeline / scrubber ---- */
   .mini-player-progress-row { display: flex; align-items: center; gap: 8px; width: 100%; }
+  /* how far through the release (1.95.7) */
+  .mini-player-release { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: -2px; } .mini-player-release[hidden] { display: none; }
+  .mini-player-release .mini-player-time { font-size: 10px; opacity: 0.85; } .mini-player-release-time { min-width: 32px; white-space: nowrap; }
+  .mini-player-release-bar { position: relative; flex: 1; height: 6px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  .mini-player-release-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: var(--text-dim); opacity: 0.7; }
+  #miniPlayerReleaseTicks i { position: absolute; top: 0; bottom: 0; width: 1px; margin-left: -0.5px; background: var(--bg-elevated, #161B22); }
   .mini-player-time {
     font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--text-dim);
     flex: 0 0 auto; min-width: 32px; text-align: center; user-select: none;
