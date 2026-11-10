@@ -17,8 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.19
+  CURRENT_VERSION: 1.95.20
 
+  1.95.20 — 2026-11-11 — Lyrics (the lyrics button in the player): the playing song's words from
+          LRCLIB (free, no key). Timed lyrics light the line being sung and keep it in view
+          as the song plays, on every player (a part of a full-release video counts from its
+          own start); click a line to play from there. Untimed ones are shown as they are.
+          Found by artist, name (and Other title), album and length; Other versions lists
+          LRCLIB's other matches to choose from. − / + move the words earlier or later for
+          a song (a live take). Found words, choices and offsets are kept on this device.
+          The visualizer shows the line being sung. New file js/47-lyrics.js.
   1.95.19 — 2026-11-11 — A visualizer (the bars button in the player): full screen, the cover in
           the middle with the music drawn round it (Ring), as a spectrum (Bars) or as the
           waveform (Wave), lit in the cover's colour and pulsing with the bass. The players

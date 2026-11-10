@@ -5,7 +5,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.95.19';
+const APP_VERSION = '1.95.20';
 // (1.93.4) With CRATE open in more than one window (a pop-out, a second tab), only ONE of them does the work done in the background: adding
 // and applying what the Rate Your Music add-on sends, the Last.fm sync, the new-release check, and the look-ups for newly added releases. Each
 // window used to do it all itself (a release sent from RYM was added once per window). The first CRATE window opened is that one (a pop-out
@@ -1130,7 +1130,7 @@ const el = {};
   'lastfmMatchedCount','lastfmMatchedList','lastfmUnmatchedCount','lastfmUnmatchedList',
   'lastfmImportBtn','lastfmBackBtn','lastfmImportStatus','globalToast',
   'miniPlayer','miniPlayerClose','miniPlayerArt','miniPlayerVideoWrap','miniPlayerTitle','miniPlayerArtist','miniPlayerAlbum','miniPlayerExtra','miniPlayerTrackInfo',
-  'miniPlayerShuffle','miniPlayerLoop','miniPlayerVizBtn','miniPlayerPrev','miniPlayerPlayPause','miniPlayerNext','miniPlayerVolume','miniPlayerQueueBtn','miniPlayerFullscreenBtn',
+  'miniPlayerShuffle','miniPlayerLoop','miniPlayerVizBtn','miniPlayerLyricsBtn','miniPlayerPrev','miniPlayerPlayPause','miniPlayerNext','miniPlayerVolume','miniPlayerQueueBtn','miniPlayerFullscreenBtn',
   'miniPlayerDetachBtn','miniPlayerDragHandle','miniPlayerDockBtn','miniPlayerMobileProgress','miniPlayerMobileProgressFill',
   'miniPlayerSeekTrack','miniPlayerSeekFill','miniPlayerSeekHandle','miniPlayerTimeCurrent','miniPlayerTimeTotal',
   'queuePanel','queuePanelClose','queuePanelNowPlaying','queuePanelList',

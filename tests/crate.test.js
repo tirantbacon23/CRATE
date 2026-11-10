@@ -204,6 +204,20 @@ suite('Matching songs: other titles', () => {
   });
 });
 
+suite('Lyrics', () => {
+  test('LRC read: several times on a line, an offset tag, sorted; the line at a time', () => {
+    const L = app('lyParseLrc')(['[ar:x]', '[offset:+500]', '[00:10.00]one', '[00:20.50][01:00.00]two', '[00:15.25]', 'plain words'].join(String.fromCharCode(10)));
+    eq(L.length, 4); eq(L[0].text, 'one'); eq(L[0].t, 9.5); eq(L[1].text, ''); eq(L[3].t, 59.5);
+    const at = app('lyLineAt'); eq(at(L, 5), -1); eq(at(L, 9.5), 0); eq(at(L, 30), 2); eq(at(L, 999), 3);
+  });
+  test('a remaster tag is not part of the name; another song is not a match', () => {
+    eq(app('lyCleanTitle')('Plastic Love (2021 Remaster)'), 'Plastic Love');
+    const S = app('lyScore'), song = { title: 'Plastic Love', artist: 'Mariya Takeuchi', alt: '', durSec: 474 };
+    ok(S(song, { trackName: 'Plastic Love', artistName: 'Mariya Takeuchi', duration: 476, syncedLyrics: '[00:01.00]x' }) >= 80);
+    eq(S(song, { trackName: 'September', artistName: 'Mariya Takeuchi', duration: 300 }), -1);
+  });
+});
+
 suite('Visualizer', () => {
   test('bands run low to high, read between bins in the bass, and stay 0..1', () => {
     const f = new Uint8Array(2048); for (let k = 0; k < 2048; k++) f[k] = k < 8 ? 255 : 40;          // 48 kHz: bins of about 11.7 Hz, loud below ~90 Hz

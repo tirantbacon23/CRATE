@@ -66,7 +66,7 @@ function vizEnsureDom() {
   if (vizEl('vizOverlay')) return;
   const o = document.createElement('div'); o.id = 'vizOverlay'; o.className = 'viz-overlay'; o.hidden = true; o.setAttribute('role', 'dialog'); o.setAttribute('aria-label', 'Visualizer');
   o.innerHTML = `<canvas id="vizCanvas" class="viz-canvas"></canvas>
-    <div class="viz-center"><img id="vizArt" class="viz-art" alt=""><div id="vizTitle" class="viz-title"></div><div id="vizSub" class="viz-sub"></div></div>
+    <div class="viz-center"><img id="vizArt" class="viz-art" alt=""><div id="vizTitle" class="viz-title"></div><div id="vizSub" class="viz-sub"></div></div><div id="vizLyric" class="viz-lyric"></div>
     <div class="viz-bar">
       <button type="button" class="chip-btn" id="vizListen" title="Share this tab's sound with the visualizer (choose this tab, with &ldquo;Also share tab audio&rdquo; on)">Listen</button>
       <button type="button" class="chip-btn" id="vizStyle" title="Ring, bars or wave">Ring</button>
@@ -121,6 +121,7 @@ function vizFrame(t) {
   if (!viz.open) return;
   viz.raf = requestAnimationFrame(vizFrame);
   if (!viz.lastInfo || t - viz.lastInfo > 1000) { viz.lastInfo = t; vizRefreshInfo(); }
+  if (!viz.lastLy || t - viz.lastLy > 200) { viz.lastLy = t; const line = typeof lyricsCurrentLine === 'function' ? lyricsCurrentLine() : '', e = vizEl('vizLyric'); if (e && e.textContent !== line) e.textContent = line; }          // (1.95.20) the line being sung, when the lyrics panel has them
   const c = vizEl('vizCanvas'), x = c.getContext('2d'), W = c.width, H = c.height, dpr = viz.dpr || 1; if (!W || !H) return;
   x.clearRect(0, 0, W, H);
   const [r, g, b] = viz.color, col = (a) => `rgba(${r},${g},${b},${a})`;
