@@ -411,6 +411,7 @@ let ytApiPromise = null;         // resolves once https://www.youtube.com/iframe
 let ytPlayerReadyPromise = null; // resolves once ytPlayer itself fires onReady
 let ytIsPaused = false;
 let ytDuration = 0;
+let ytAutoNext = false;          // (1.95.9) the song now starting follows on by itself (the last one ended): only then may a Bilibili video simply play on
 let ytSeg = { start: 0, end: 0, fired: true, loadedAt: 0 };          // the part of the video the current track is (a full-release video holds many tracks); fired: its end has been handled
 let ytLastKnownVolume = 80;      // remembered across sessions, shown on the master player's shared volume slider whenever activePlayerEngine is 'youtube'
 let ytRealPlayer = null;         // the YouTube player itself: ytPlayer is it, or biliShim while a Bilibili video plays
@@ -462,7 +463,7 @@ function onYtPlayerStateChange(e) {
     ytSeg.fired = true;
     if (ytPlayer === biliShim && !(ytQueueIndex < ytQueue.length - 1 && biliContinues(ytQueue[ytQueueIndex + 1]))) biliHalt();          // Bilibili's player can't be told where to stop: it is stopped here, unless the next song simply follows on in the same video
     ytScrobbleFlush(); // it ended: counts if it was played for half its length or 4 minutes (Last.fm's rule), before anything below moves on to another track
-    if (ytQueueIndex < ytQueue.length - 1) { playYtQueueIndex(ytQueueIndex + 1); return; }
+    if (ytQueueIndex < ytQueue.length - 1) { ytAutoNext = true; playYtQueueIndex(ytQueueIndex + 1); ytAutoNext = false; return; }
     setYtPlayPauseUI(true);
     // This video standing in for the current entry of a "Play playlist"
     // run (see playCrateTrackOnYoutube) just finished with nothing left
@@ -517,7 +518,7 @@ const biliState = (code) => setTimeout(() => { if (ytPlayer === biliShim) onYtPl
 function biliPlay(q) {
   const b = biliParts(q.videoId); if (!b) return;
   if (ytRealPlayer && ytPlayer === ytRealPlayer) { try { ytRealPlayer.stopVideo(); } catch (e) { /* not ready */ } }
-  const goesOn = biliContinues(q);
+  const goesOn = ytAutoNext && biliContinues(q);                    // (1.95.9) a song you start yourself always loads at its own start: playing on was only ever meant for the next song following on, and kept a start you had just moved a few seconds from taking effect
   ytPlayer = biliShim; bili.end = q.end || 0;
   if (!goesOn) { bili.bvid = b.bvid; bili.p = b.p; biliLoad(q.start || 0); }
   biliState(YTS.PLAYING);
@@ -659,7 +660,7 @@ function fvValidate() {                                             // reads wha
   const ok = !!id && !bad && has > 0;
   fvEl('fullVideoStatus').textContent = !id ? (url ? 'That link isn\u2019t a YouTube or Bilibili video, so Save stays off: paste the video\u2019s own address.' : 'Paste the full-release video\u2019s link above.') : bad ? `${bad} time${bad === 1 ? '' : 's'} to fix (in red).` : `${has} of ${fv.rows.length} songs have times.` + (warn ? ` ${warn} start${warn === 1 ? 's' : ''} earlier than a song before ${warn === 1 ? 'it' : 'them'}.` : '') + (off ? ` ${off} ${off === 1 ? 'part doesn\u2019t' : 'parts don\u2019t'} match the song\u2019s length (amber).` : '');
   fvEl('fullVideoSave').disabled = !ok;
-  fvDrawTimeline(); fvLiveRetimeSoon(id, rows);
+  fvDrawTimeline(); fvLiveRetimeSoon(id, rows); fvIntroFollows();
   if (ok && fvLengthsOn()) { const k = rows.filter(r => r.has && r.end > r.start).length; if (k) fvEl('fullVideoStatus').textContent += ` Saving sets ${k} song length${k === 1 ? '' : 's'} from ${k === 1 ? 'its' : 'their'} times.`; }
   return { ok, url, id, rows };
 }
@@ -723,6 +724,11 @@ function fvFromLengths(quiet) {                                     // every son
   const sum = lens.reduce((a, b) => a + (b || 0), 0), room = fv.total ? fv.total - fv.intro : 0, d = room - sum, stretched = ytLengthsStretch(lens, room);
   const spread = stretched ? ` The video is ${ytFormatTime(Math.abs(d))} ${d > 0 ? 'longer' : 'shorter'} than your songs, so that is spread across them and the last song ends with the video.` : room && Math.abs(d) > 1 && k === fv.rows.length ? ` The video is ${ytFormatTime(Math.abs(d))} ${d > 0 ? 'longer' : 'shorter'} than your songs: too much to spread, so they are back to back${d > 0 ? ' (an intro? set Intro)' : ''}.` : '';
   const miss = fv.rows.length - k; fvEl('fullVideoStatus').textContent = fvLinkNote() + `Placed ${k} of ${fv.rows.length} songs from their lengths, after an intro of ${ytFormatTime(fv.intro)}.` + (miss ? ` ${miss} after a song with no length ${miss === 1 ? 'needs its' : 'need their'} times set by hand.` : '') + spread + ' Play a part to check it; change Intro if the first song starts later.';
+}
+function fvIntroFollows() {                                         // (1.95.9) the Intro box shows where the first song starts, as you change it (nothing else moves: only typing in Intro moves every song)
+  if (!fv) return; const inp = fvEl('fullVideoIntro'); if (document.activeElement === inp) return;
+  const r = fv.rows[0], s = r && String(r.start).trim() ? ytParseTime(r.start) : NaN; if (!(s >= 0) || s === fv.intro) return;
+  fv.intro = s; inp.value = ytFormatTime(s); inp.classList.remove('bad');
 }
 function fvSetIntro() {                                             // a new intro moves every time already there by the same amount
   if (!fv) return; const inp = fvEl('fullVideoIntro'), v = ytParseTime(inp.value.trim() || '0');
@@ -859,12 +865,13 @@ function fvQueueEntryFor(q, videoId, row) {                         // is queue 
   if (row.was) return (q.start || 0) === row.was.s && (q.end || 0) === row.was.e;
   return !!row.title && q.trackName === row.title;
 }
-function ytRetimeCurrent(start, end) {                              // the song playing now gets a new part of its video
+function ytRetimeCurrent(start, end, focus) {                       // the song playing now gets a new part of its video; focus 'start' plays it from the new start, 'end' plays the last 4 s up to the new end
   const q = ytQueue[ytQueueIndex]; if (!q) return;
   const oldEnd = q.end || 0; q.start = start || 0; q.end = end || 0;
   ytSeg.start = q.start; ytSeg.end = q.end; ytSeg.fired = false;
   let now = 0; try { now = (ytPlayer && ytPlayer.getCurrentTime && ytPlayer.getCurrentTime()) || 0; } catch (e) { now = 0; }
-  const from = now < q.start || (q.end && now >= q.end) ? q.start : now;
+  const from = focus === 'start' ? q.start : focus === 'end' && q.end ? Math.max(q.start, q.end - 4) : now < q.start || (q.end && now >= q.end) ? q.start : now;
+  if (focus && ytPlayer === ytRealPlayer && from !== now) { try { ytSeg.loadedAt = Date.now(); ytPlayer.loadVideoById(Object.assign({ videoId: q.videoId, startSeconds: from }, q.end ? { endSeconds: q.end } : {})); } catch (e) { /* not ready */ } return; }          // (1.95.9) heard straight away
   if (ytPlayer === biliShim) { bili.end = q.end; if (from !== now) biliShim.seekTo(from); return; }
   if (!ytPlayer || ytPlayer !== ytRealPlayer) return;
   try {
@@ -893,7 +900,8 @@ function fvLiveRetimeSoon(id, rows) {                               // while a p
   if (fv.liveQ !== q) { const i = fv.rows.findIndex(r => fvQueueEntryFor(q, id, r)); if (i < 0) return; fv.liveQ = q; fv.liveI = i; }
   const r = rows[fv.liveI]; if (!r || !r.has || !(r.start >= 0) || !(r.end > r.start)) return;
   if ((q.start || 0) === r.start && (q.end || 0) === r.end) return;
-  const me = fv; fvLiveTimer = setTimeout(() => { if (fv === me && ytQueue[ytQueueIndex] === q) ytRetimeCurrent(r.start, r.end); }, 600);
+  const focus = (q.start || 0) !== r.start ? 'start' : 'end';        // (1.95.9) what you changed is what you hear: the new start, or the run-up to the new end
+  const me = fv; fvLiveTimer = setTimeout(() => { if (fv === me && ytQueue[ytQueueIndex] === q) ytRetimeCurrent(r.start, r.end, focus); }, 600);
 }
 // ----- the timeline (1.95.6): the whole video as a strip, each song a block on it -----
 // The songs' blocks sit where their times put them, with a tick where the song would end by the length you have (so a block running

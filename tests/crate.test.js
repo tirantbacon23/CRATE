@@ -178,6 +178,20 @@ suite('Matching songs to Spotify and YouTube', () => {
   });
 });
 
+suite('Matching songs: fan uploads', () => {
+  test('"Song Album by Artist" is the song; a "by" that isn\u2019t the artist stays part of the title', () => {
+    const S = app('smScore');
+    const cand = { title: '夕ぐれ時の恋人たち Orange Sky Endless Summer by Izumi Kobayashi & Flying Mimi Band', channel: 'Dani The Greatest', durationMs: 0 };
+    const r = S({ title: '夕ぐれ時の恋人たち', artist: 'Izumi Kobayashi & Flying Mimi Band', album: 'Orange Sky -Endless Summer-', durationMs: 0 }, cand, {});
+    ok(r.titleSim >= 0.95, 'title ' + r.titleSim); ok(r.score >= 65, 'score ' + r.score);
+    const j = S({ title: '夕ぐれ時の恋人たち', artist: '小林泉美 & Flying Mimi Band', album: 'Orange Sky -Endless Summer-', durationMs: 0 }, cand, {});
+    ok(j.titleSim >= 0.95 && j.score >= 65, 'japanese artist ' + j.score);
+    eq(app('smArtistMatch')('小林泉美 & Flying Mimi Band', ['Izumi Kobayashi & Flying Mimi Band']), 0.75);
+    ok(S({ title: 'Stand', artist: 'R.E.M.', album: 'Green', durationMs: 0 }, { title: 'Stand by Me', channel: 'someone', durationMs: 0 }, {}).titleSim < 0.85);
+    ok(S({ title: 'Orange Sky', artist: 'X', album: 'Orange Sky', durationMs: 0 }, { title: 'Orange Sky by X', channel: 'fan', durationMs: 0 }, {}).titleSim >= 0.95);          // a title track keeps its name
+  });
+});
+
 suite('Discogs', () => {
   test('a looser search only accepts this release', () => {
     const fit = (t) => app('discogsResultFit')({ title: t }, 'Tatsu Yamashita', 'It\u2019s a Poppin\u2019 Time').ok;

@@ -17,7 +17,26 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.8
+  CURRENT_VERSION: 1.95.10
+
+  1.95.10 — 2026-11-10 — Match songs finds fan uploads named "Song Album by Artist". A video titled "夕ぐれ時の恋人たち Orange Sky
+          Endless Summer by Izumi Kobayashi & Flying Mimi Band" scored 13 for 夕ぐれ時の恋人たち: the album's name and the
+          "by" tail made the titles look only 15% alike, so it was never shown.
+
+          A candidate's title is now also compared without a "by <the artist>" tail, without the album's name and without the
+          artist's name (never the song's own name, so a title track keeps it; a "by" that isn't the artist stays, as in
+          "Stand by Me"), and a "by <the artist>" tail counts as the artist. Two acts that share a name count as partly the
+          same artist ("小林泉美 & Flying Mimi Band" / "Izumi Kobayashi & Flying Mimi Band").
+
+  1.95.9 — 2026-11-10 — Full-release videos: a start you change is the start you hear, and Intro no longer moves by itself.
+          Moving a song's start a few seconds and pressing ▶ (or clicking the song) kept the Bilibili video playing where it
+          was: playing on without reloading was meant only for the next song following on by itself, and now only happens
+          then. While a part plays, changing its start plays it from the new start, and changing its end plays the last 4 s
+          up to the new end, so you hear the cut you are setting.
+
+          The Intro box follows song 1's start as you change it (nothing else moves). It used to stay put while you edited
+          and then show song 1's start the next time the dialog opened, which looked like Save had put a time in it, and
+          changing it back moved every song.
 
   1.95.8 — 2026-11-10 — Full-release videos: new times reach the player, and lengths can follow the times. Saved times used to
           wait until the album was played again (the songs already queued kept their old parts): now saving updates every

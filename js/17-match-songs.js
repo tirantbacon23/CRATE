@@ -219,6 +219,9 @@ function smArtistMatch(want, got) {
   if (!pairs.length) return null;
   if (pairs.some(([w, n]) => w === n)) return 1;
   if (pairs.some(([w, n]) => Math.min(w.length, n.length) >= 2 && (n.includes(w) || w.includes(n)))) return 0.75;
+  // (1.95.10) "小林泉美 & Flying Mimi Band" / "Izumi Kobayashi & Flying Mimi Band": one of the names on both sides is partly the same act
+  const acts = (s) => s.split(/\s+(?:and|x|with|feat|ft|featuring)\s+|\s*[,\/]\s*/).map(x => x.trim()).filter(x => x.length >= 3);
+  if (pairs.some(([w, n]) => { const a = acts(w), b = acts(n); return (a.length > 1 || b.length > 1) && a.some(x => b.includes(x)); })) return 0.75;
   return 0;
 }
 function smDurationPoints(wantMs, gotMs, tol) {   // null when either length is unknown; tol stretches (loose) or narrows (strict) the bands
@@ -251,6 +254,18 @@ function smPrefsSave(patch) {
 }
 const smArtistKey = (a) => smWords(smFold(a).replace(/^the /, ''));
 function smBand(score) { const c = smPrefs().confident; return score >= c ? 'confident' : score >= 65 ? 'likely' : 'weak'; }
+// A fan's upload names a song its own way (1.95.10): "夕ぐれ時の恋人たち Orange Sky Endless Summer by Izumi Kobayashi & Flying Mimi Band"
+// is the song, then the album, then "by" the artist. The title is compared in these forms too, the best counting: without a
+// "by <the artist>" tail, without the album's name, without the artist's name. (A "by" tail that isn't the artist stays: "Stand by Me".)
+function smCandTitleForms(title, song) {
+  const t = String(title || ''), heads = [t], songKey = smWords(smFold(song.title || ''));
+  const by = /^(.*\S)\s+by\s+(\S.*)$/i.exec(t);
+  if (by) { const am = smArtistMatch(song.artist, [by[2]]); if (am === null ? by[2].trim().split(/\s+/).length >= 2 : am >= 0.75) heads.push(by[1]); }
+  const cut = [smWords(smFold(song.album || '')), song.album ? smCore(song.album) : '', smArtistKey(song.artist || '')].filter(k => k && k.length >= 3 && !songKey.includes(k) && !k.includes(songKey));          // (never the song's own name: a title track, a self-titled song)
+  const out = [...heads];
+  heads.forEach(h => { let f = smWords(smFold(h)); cut.forEach(k => { f = f.split(k).join(' '); }); f = smWords(f); if (f && f !== smWords(smFold(h))) out.push(f); });
+  return [...new Set(out)];
+}
 // song: {title, artist, durationMs, album, trackNumber}   cand: {title, artists|channel, durationMs, album, index, blocked}
 // Also returns `parts`: what each clue added or took away ({ label, points }), for the "Why this score" breakdown.
 function smScore(song, cand, opts) {
@@ -258,13 +273,15 @@ function smScore(song, cand, opts) {
   const pf = opts.prefs || smPrefs();
   const reasons = [], parts = [];
   const add = (label, points) => { parts.push({ label, points: Math.round(points) }); return points; };
-  const ts = smTitleSim(song.title, smStripArtistPrefix(cand.title, song.artist));
+  const ts = Math.max(...smCandTitleForms(cand.title, song).map(f => smTitleSim(song.title, smStripArtistPrefix(f, song.artist))));
   let score = add('title', Math.pow(ts, 1.5) * 55);
   reasons.push(ts >= 0.95 ? 'same title' : ts >= 0.75 ? 'similar title' : 'different title');
   let am = smArtistMatch(song.artist, cand.artists || cand.channel);
   // A fan's upload ("martian1138") names the artist in its title, "The Telescopes - Deep Hole Ends": that counts as the artist too.
   const tm = cand.channel && /^(.+?)\s+[-\u2013\u2014]\s+.+$/.exec(String(cand.title || '')), tam = tm ? smArtistMatch(song.artist, [tm[1]]) : null;
   if (tam !== null && (am === null || tam > am)) am = tam;
+  const tb = cand.channel && /\s+by\s+(\S.*)$/i.exec(String(cand.title || '')), tbm = tb ? smArtistMatch(song.artist, [tb[1]]) : null;          // (1.95.10) "... by The Artist": that counts too
+  if (tbm !== null && (am === null || tbm > am)) am = tbm;
   if (am === null) score += add('artist (unknown)', 8); else { score += add('artist', am * 15); reasons.push(am === 1 ? 'same artist' : am > 0 ? 'artist partly matches' : 'different artist'); }
   const tol = pf.lenTol === 'strict' ? 0.6 : pf.lenTol === 'loose' ? 1.8 : 1;
   const dp = smDurationPoints(song.durationMs, cand.durationMs, tol);
