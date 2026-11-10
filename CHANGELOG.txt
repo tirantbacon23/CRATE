@@ -17,7 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.1
+  CURRENT_VERSION: 1.95.2
+
+  1.95.2 — 2026-11-10 — Bilibili links from the English site (bilibili.com/en/video/…) work: Full-release video's Save stayed
+          off for them, as if no link had been pasted, and the track editor refused them. The dialog now also says when the link
+          isn't a YouTube or Bilibili video, instead of only reporting the times it placed.
 
   1.95.1 — 2026-11-10 — Full-release video: "Later songs move too"; Bilibili songs on their own. With it ticked, moving a song's start (typed, or with ⏱) moves
           its end and every later song's times by the same amount, for a gap the uploader left between songs. Unticked (the

@@ -184,6 +184,9 @@ suite('Bilibili full-release videos', () => {
     eq(id('https://www.bilibili.com/video/BV1GJ411x7h7/?spm_id_from=333.788'), 'bili:BV1GJ411x7h7');
     eq(id('https://www.bilibili.com/video/BV1GJ411x7h7?p=3&t=95'), 'bili:BV1GJ411x7h7~3');
     eq(id('bilibili.com/video/BV1GJ411x7h7'), 'bili:BV1GJ411x7h7');
+    eq(id('https://www.bilibili.com/en/video/BV11L411T7tY/'), 'bili:BV11L411T7tY');          // the English site
+    eq(app('youtubeLinkWithSegment')('https://www.bilibili.com/en/video/BV11L411T7tY/', 60, 120), 'https://www.bilibili.com/video/BV11L411T7tY?t=60&end=120');
+    ok(app('TG_LINK_RE').youtube.test('https://www.bilibili.com/en/video/BV11L411T7tY/'));
     eq(id('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), 'dQw4w9WgXcQ');
     eq(id('https://www.bilibili.com/read/cv123'), '');
     ok(app('isBiliId')('bili:BV1GJ411x7h7')); ok(!app('isBiliId')('dQw4w9WgXcQ'));

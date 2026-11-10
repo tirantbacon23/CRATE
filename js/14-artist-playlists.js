@@ -1110,7 +1110,7 @@ async function saveManualTracklist(item, rows, quiet) {
 // WHAT A SAVE WRITES (tgPlan): a track's own links, genre, rating, listened and note live in the release's track data, keyed by track number; its title, length, side and place in the order live in the tracklist you maintain yourself.
 // Two traps are handled here: a link saved in the track data OVERRIDES the tracklist's own (and an empty one falls through to it), so a link is cleared in both places; and a title or length typed over an old override has to remove that override.
 const TG_FIELDS = ['side', 'title', 'length', 'spotify', 'youtube', 'soundcloud', 'genre', 'rating', 'listened', 'note'], TG_LINK_FIELDS = ['spotify', 'youtube', 'soundcloud'], TG_STRUCT_FIELDS = ['side', 'title', 'length'];
-const TG_LINK_RE = { spotify: /^(?:https?:\/\/open\.spotify\.com\/(?:intl-[a-z-]+\/)?track\/[A-Za-z0-9]+|spotify:track:[A-Za-z0-9]+)/i, youtube: /^https?:\/\/(?:(?:www\.|m\.|music\.)?(?:youtube\.com|youtu\.be)\/\S+|(?:www\.|m\.)?bilibili\.com\/video\/BV[0-9A-Za-z]{10}\S*)/i, soundcloud: /^https?:\/\/(?:www\.|m\.)?soundcloud\.com\/\S+/i };
+const TG_LINK_RE = { spotify: /^(?:https?:\/\/open\.spotify\.com\/(?:intl-[a-z-]+\/)?track\/[A-Za-z0-9]+|spotify:track:[A-Za-z0-9]+)/i, youtube: /^https?:\/\/(?:(?:www\.|m\.|music\.)?(?:youtube\.com|youtu\.be)\/\S+|(?:www\.|m\.)?bilibili\.com\/(?:[a-z]{2}(?:-[a-z]{2,4})?\/)?video\/BV[0-9A-Za-z]{10}\S*)/i, soundcloud: /^https?:\/\/(?:www\.|m\.)?soundcloud\.com\/\S+/i };
 // (1.95.1) the video column takes a Bilibili video as well as a YouTube one
 const TG_LINK_NAME = { spotify: 'a Spotify track link', youtube: 'a YouTube or Bilibili link', soundcloud: 'a SoundCloud link' };
 let tgSeq = 0; const tgId = () => 'r' + (++tgSeq);

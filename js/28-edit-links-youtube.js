@@ -304,7 +304,7 @@ function youtubeLinkWithSegment(url, start, end) {                  // the video
 // A Bilibili video is kept in a song's video link just like a YouTube one ("https://www.bilibili.com/video/BV…?p=2&t=95&end=301"), so
 // a full-release video there is set up in the same Full-release video dialog and played by the same player. Inside CRATE its id is
 // "bili:<BV id>" ("bili:<BV id>~3" for part 3 of a video in parts), which is never a YouTube id: nothing sends it to YouTube.
-const BILI_RE = /^(?:https?:\/\/)?(?:www\.|m\.)?bilibili\.com\/video\/(BV[0-9A-Za-z]{10})(?![0-9A-Za-z])/i;
+const BILI_RE = /^(?:https?:\/\/)?(?:www\.|m\.)?bilibili\.com\/(?:[a-z]{2}(?:-[a-z]{2,4})?\/)?video\/(BV[0-9A-Za-z]{10})(?![0-9A-Za-z])/i;          // (1.95.2) also the English site's "bilibili.com/en/video/…"
 function biliIdFromUrl(url) {
   const t = String(url || '').trim(), m = BILI_RE.exec(t); if (!m) return '';
   let p = 1; try { p = Math.max(1, parseInt(new URL(/^https?:/i.test(t) ? t : 'https://' + t).searchParams.get('p'), 10) || 1); } catch (e) { /* part 1 */ }
@@ -616,7 +616,7 @@ function fvValidate() {                                             // reads wha
     rows.push({ n: r.n, start: sv || 0, end: ev || 0, has: sv !== null || ev !== null });
   });
   const ok = !!id && !bad && has > 0;
-  fvEl('fullVideoStatus').textContent = !id ? 'Paste the full-release video\u2019s link above.' : bad ? `${bad} time${bad === 1 ? '' : 's'} to fix (in red).` : `${has} of ${fv.rows.length} songs have times.` + (warn ? ` ${warn} start${warn === 1 ? 's' : ''} earlier than a song before ${warn === 1 ? 'it' : 'them'}.` : '') + (off ? ` ${off} ${off === 1 ? 'part doesn\u2019t' : 'parts don\u2019t'} match the song\u2019s length (amber).` : '');
+  fvEl('fullVideoStatus').textContent = !id ? (url ? 'That link isn\u2019t a YouTube or Bilibili video, so Save stays off: paste the video\u2019s own address.' : 'Paste the full-release video\u2019s link above.') : bad ? `${bad} time${bad === 1 ? '' : 's'} to fix (in red).` : `${has} of ${fv.rows.length} songs have times.` + (warn ? ` ${warn} start${warn === 1 ? 's' : ''} earlier than a song before ${warn === 1 ? 'it' : 'them'}.` : '') + (off ? ` ${off} ${off === 1 ? 'part doesn\u2019t' : 'parts don\u2019t'} match the song\u2019s length (amber).` : '');
   fvEl('fullVideoSave').disabled = !ok;
   return { ok, url, id, rows };
 }
@@ -641,7 +641,7 @@ function fvStartMoved(i, oldText, newText) {                        // after a s
   if (isNaN(a) || isNaN(b) || a === b) return;                     // a start typed for the first time has nothing to move from
   fvValidate(); fv.rows[i].start = ytFormatTime(b);
   const n = fvShiftFrom(i, b - a); fvRender();
-  if (n) fvEl('fullVideoStatus').textContent = `Moved ${n} later time${n === 1 ? '' : 's'} ${ytFormatTime(Math.abs(b - a))} ${b > a ? 'later' : 'earlier'} with it.`;
+  if (n) fvEl('fullVideoStatus').textContent = fvLinkNote() + `Moved ${n} later time${n === 1 ? '' : 's'} ${ytFormatTime(Math.abs(b - a))} ${b > a ? 'later' : 'earlier'} with it.`;
 }
 function fvNow(which, i) {
   const v = fvValidate(), id = youtubeVideoIdFromUrl(fvEl('fullVideoUrl').value.trim());
@@ -670,12 +670,13 @@ function fvApplyPaste() {
   msg.textContent = `Matched ${k} of ${fv.rows.length} songs` + (parsed.length !== fv.rows.length ? ` (the description has ${parsed.length} lines)` : '') + '.';
   fvRender();
 }
+function fvLinkNote() { return fv && !youtubeVideoIdFromUrl(fvEl('fullVideoUrl').value.trim()) ? 'Save needs a YouTube or Bilibili video link above. ' : ''; }          // (1.95.2) a status that replaces fvValidate's still says why Save is off
 function fvFromLengths(quiet) {                                     // every song placed back to back from the lengths you have, after the intro
   if (!fv) return; if (!quiet) fvValidate();
   const got = ytTimesFromLengths(fv.rows.map(r => r.len), fv.intro); let k = 0;
   fv.rows.forEach((r, i) => { const g = got[i]; if (!g) return; r.start = ytFormatTime(g.start); r.end = ytFormatTime(g.end); k++; });
   fvRender();
-  const miss = fv.rows.length - k; fvEl('fullVideoStatus').textContent = `Placed ${k} of ${fv.rows.length} songs from their lengths, after an intro of ${ytFormatTime(fv.intro)}.` + (miss ? ` ${miss} after a song with no length ${miss === 1 ? 'needs its' : 'need their'} times set by hand.` : '') + ' Play a part to check it; change Intro if the first song starts later.';
+  const miss = fv.rows.length - k; fvEl('fullVideoStatus').textContent = fvLinkNote() + `Placed ${k} of ${fv.rows.length} songs from their lengths, after an intro of ${ytFormatTime(fv.intro)}.` + (miss ? ` ${miss} after a song with no length ${miss === 1 ? 'needs its' : 'need their'} times set by hand.` : '') + ' Play a part to check it; change Intro if the first song starts later.';
 }
 function fvSetIntro() {                                             // a new intro moves every time already there by the same amount
   if (!fv) return; const inp = fvEl('fullVideoIntro'), v = ytParseTime(inp.value.trim() || '0');
