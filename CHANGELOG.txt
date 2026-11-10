@@ -17,7 +17,17 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.94.6
+  CURRENT_VERSION: 1.95.0
+
+  1.95.0 — 2026-11-10 — Full-release videos on Bilibili. Paste a Bilibili link (bilibili.com/video/BV…, with ?p= for a part) into
+          ⋯ → Full-release video…, set where each song starts and ends as for a YouTube video, and the songs play in CRATE's
+          player, one after another; a song that follows straight on in the same video plays on without reloading.
+
+          Bilibili's embedded player can't be controlled or asked where it is, so CRATE keeps its own clock from when it loads:
+          pausing unloads it and remembers where, playing or seeking loads it again at that moment, and the song moves on at its
+          end time. The clock can run a second or two ahead if the video stalls, the volume is set in Bilibili's own player, and
+          Find (which searches YouTube) and the link check don't look at Bilibili. The link is kept in the song's video link, so
+          ▶ YT plays it too. A short b23.tv link needs opening first, for its full address.
 
   1.94.6 — 2026-11-10 — Japanese titles now match on YouTube. The song matcher kept only the letters a–z and digits, so a
           Japanese (or any non-Latin) title or artist became empty and could never match. Every script's letters now count;

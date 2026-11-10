@@ -1840,7 +1840,7 @@ function updateProgressUI() {
   else if (activePlayerEngine === 'soundcloud') { if (!scWidget) return; }
   else if (!spotifyLastState) return;
   if (activePlayerEngine === 'youtube' && ytSeg.end && !ytSeg.fired && Date.now() - ytSeg.loadedAt > 1500) {          // the player is meant to stop at the end of the part by itself; if it hasn't, move on
-    try { if ((ytPlayer.getCurrentTime() || 0) >= ytSeg.end + 0.3) { onYtPlayerStateChange({ data: YT.PlayerState.ENDED }); return; } } catch (e) { /* not ready */ }
+    try { if ((ytPlayer.getCurrentTime() || 0) >= ytSeg.end + 0.3) { onYtPlayerStateChange({ data: YTS.ENDED }); return; } } catch (e) { /* not ready */ }
   }
   const duration = getCurrentDurationMs();
   const pos = duration ? Math.min(getEstimatedPosition(), duration) : getEstimatedPosition();

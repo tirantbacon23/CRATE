@@ -297,9 +297,22 @@ function youtubeSegmentFromUrl(url) {                               // { start, 
 }
 function youtubeLinkWithSegment(url, start, end) {                  // the video's plain link with where the song starts (and ends); '' when there is no video in it
   const id = youtubeVideoIdFromUrl(url); if (!id) return '';
-  const s = Math.max(0, Math.round(Number(start) || 0)), e = Math.max(0, Math.round(Number(end) || 0));
-  return 'https://www.youtube.com/watch?v=' + id + (s > 0 ? '&t=' + s : '') + (e > s ? '&end=' + e : '');
+  const s = Math.max(0, Math.round(Number(start) || 0)), e = Math.max(0, Math.round(Number(end) || 0)), base = videoPageUrl(id), sep = base.includes('?') ? '&' : '?';
+  return base + (s > 0 || e > s ? sep : '') + [s > 0 ? 't=' + s : '', e > s ? 'end=' + e : ''].filter(Boolean).join('&');
 }
+// ---- Bilibili (1.95.0) ----
+// A Bilibili video is kept in a song's video link just like a YouTube one ("https://www.bilibili.com/video/BV…?p=2&t=95&end=301"), so
+// a full-release video there is set up in the same Full-release video dialog and played by the same player. Inside CRATE its id is
+// "bili:<BV id>" ("bili:<BV id>~3" for part 3 of a video in parts), which is never a YouTube id: nothing sends it to YouTube.
+const BILI_RE = /^(?:https?:\/\/)?(?:www\.|m\.)?bilibili\.com\/video\/(BV[0-9A-Za-z]{10})(?![0-9A-Za-z])/i;
+function biliIdFromUrl(url) {
+  const t = String(url || '').trim(), m = BILI_RE.exec(t); if (!m) return '';
+  let p = 1; try { p = Math.max(1, parseInt(new URL(/^https?:/i.test(t) ? t : 'https://' + t).searchParams.get('p'), 10) || 1); } catch (e) { /* part 1 */ }
+  return 'bili:' + m[1] + (p > 1 ? '~' + p : '');
+}
+const isBiliId = (id) => /^bili:/.test(String(id || ''));
+function biliParts(id) { const m = /^bili:(BV[0-9A-Za-z]{10})(?:~(\d+))?$/.exec(String(id || '')); return m ? { bvid: m[1], p: +(m[2] || 1) } : null; }
+function videoPageUrl(id) { const b = biliParts(id); return b ? 'https://www.bilibili.com/video/' + b.bvid + (b.p > 1 ? '?p=' + b.p : '') : 'https://www.youtube.com/watch?v=' + id; }
 const ytSegOf = (url) => { const g = youtubeSegmentFromUrl(url); return g.start || g.end ? g : {}; };          // what a queue entry carries: nothing for an ordinary link
 function ytParseTimestampList(text) {                               // a video description's "0:00 Song" lines -> [{ start, end, title }]
   const out = [], TIME = /(?:\d{1,2}:)?\d{1,3}:\d{2}(?!\d)/g;
@@ -356,8 +369,9 @@ function ytTimingFrom(titles, lengths, info) {                      // where eac
 }
 function ytTimingWhy(t) { return !t ? '' : t.how === 'chapters' ? 'timed by the video’s chapters' : t.how === 'description' ? 'timed by the times in the video’s description' : t.how === 'scaled' ? 'placed from your song lengths, stretched to the video’s length' : 'placed back to back from your song lengths'; }
 // END yt-segments
-function youtubeVideoIdFromUrl(url) {
+function youtubeVideoIdFromUrl(url) {                              // a YouTube video's id; for a Bilibili video, its "bili:" id (see biliIdFromUrl)
   if (!url) return '';
+  const bili = biliIdFromUrl(url); if (bili) return bili;
   const patterns = [
     /(?:youtube\.com\/watch\?v=|youtube\.com\/embed\/|youtu\.be\/|youtube\.com\/shorts\/)([\w-]{11})/
   ];
@@ -386,6 +400,8 @@ let ytIsPaused = false;
 let ytDuration = 0;
 let ytSeg = { start: 0, end: 0, fired: true, loadedAt: 0 };          // the part of the video the current track is (a full-release video holds many tracks); fired: its end has been handled
 let ytLastKnownVolume = 80;      // remembered across sessions, shown on the master player's shared volume slider whenever activePlayerEngine is 'youtube'
+let ytRealPlayer = null;         // the YouTube player itself: ytPlayer is it, or biliShim while a Bilibili video plays
+const YTS = { ENDED: 0, PLAYING: 1, PAUSED: 2, BUFFERING: 3 };          // YouTube's player states (the numbers its API documents); the Bilibili stand-in uses them too, before YouTube's script is ever loaded
 
 function loadYouTubeIframeApi() {
   if (window.YT && window.YT.Player) return Promise.resolve();
@@ -410,7 +426,7 @@ function loadYouTubeIframeApi() {
 function ensureYtPlayer() {
   if (ytPlayerReadyPromise) return ytPlayerReadyPromise;
   ytPlayerReadyPromise = loadYouTubeIframeApi().then(() => new Promise(resolve => {
-    ytPlayer = new YT.Player('ytPlayerMount', {
+    ytPlayer = ytRealPlayer = new YT.Player('ytPlayerMount', {
       width: '100%', height: '100%',
       playerVars: { autoplay: 1, playsinline: 1, rel: 0, modestbranding: 1, controls: 0, iv_load_policy: 3, fs: 0 },          // (1.94.3) none of YouTube's own controls: the player bar has them, and the floating video shows CRATE's own on hover (42-floating-video.js)
       events: {
@@ -421,7 +437,7 @@ function ensureYtPlayer() {
           if (activePlayerEngine === 'youtube') el.miniPlayerVolume.value = ytLastKnownVolume;
           resolve(e.target);
         },
-        onStateChange: onYtPlayerStateChange
+        onStateChange: (e) => { if (ytPlayer === ytRealPlayer) onYtPlayerStateChange(e); }          // (none while a Bilibili video is playing)
       }
     });
   }));
@@ -429,8 +445,9 @@ function ensureYtPlayer() {
 }
 
 function onYtPlayerStateChange(e) {
-  if (e.data === YT.PlayerState.ENDED) {
+  if (e.data === YTS.ENDED) {
     ytSeg.fired = true;
+    if (ytPlayer === biliShim && !(ytQueueIndex < ytQueue.length - 1 && biliContinues(ytQueue[ytQueueIndex + 1]))) biliHalt();          // Bilibili's player can't be told where to stop: it is stopped here, unless the next song simply follows on in the same video
     ytScrobbleFlush(); // it ended: counts if it was played for half its length or 4 minutes (Last.fm's rule), before anything below moves on to another track
     if (ytQueueIndex < ytQueue.length - 1) { playYtQueueIndex(ytQueueIndex + 1); return; }
     setYtPlayPauseUI(true);
@@ -443,15 +460,66 @@ function onYtPlayerStateChange(e) {
     }
     return;
   }
-  if (e.data === YT.PlayerState.PLAYING) {
+  if (e.data === YTS.PLAYING) {
     phoneTapToStartDone();
     setYtPlayPauseUI(false);
     ytDuration = ytPlayer.getDuration() || 0;
     ytScrobbleResume();          // Last.fm: the clock for THIS play runs while it plays (and the "now playing" is sent the first time)
   }
-  else if (e.data === YT.PlayerState.PAUSED) { setYtPlayPauseUI(true); ytScrobblePause(); }
-  else if (e.data === YT.PlayerState.BUFFERING) ytScrobblePause();
+  else if (e.data === YTS.PAUSED) { setYtPlayPauseUI(true); ytScrobblePause(); }
+  else if (e.data === YTS.BUFFERING) ytScrobblePause();
 }
+
+// ---- The Bilibili stand-in player (1.95.0) ----
+// Bilibili's embedded player (player.bilibili.com) takes where to start but offers no way for a page to control it or ask where it is. So
+// CRATE keeps its own clock from the moment the player loads, and the rest of the app talks to biliShim exactly as to YouTube's player:
+// pausing unloads it (remembering where), playing or seeking loads it again at that moment, and the full-release loop (js/11) moves on at
+// a song's end. Its clock can run a second or two ahead if the video stalls, and the volume can only be set in Bilibili's own player.
+const bili = { frame: null, bvid: '', p: 1, playing: false, base: 0, at: 0, end: 0 };
+function biliFrame() {
+  if (bili.frame && bili.frame.isConnected) return bili.frame;
+  const f = document.createElement('iframe');
+  f.id = 'biliPlayerFrame'; f.className = 'bili-player-frame'; f.title = 'Bilibili player';
+  f.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture'; f.referrerPolicy = 'strict-origin-when-cross-origin'; f.setAttribute('allowfullscreen', ''); f.style.display = 'none';
+  f.addEventListener('load', () => { if (bili.playing) bili.at = Date.now(); });          // the clock starts when the player has loaded, not when it was asked for
+  el.miniPlayerVideoWrap.appendChild(f); bili.frame = f; return f;
+}
+function biliShow(on) {
+  const yt = document.getElementById('ytPlayerMount'); if (yt) yt.style.display = on ? 'none' : '';
+  if (bili.frame) bili.frame.style.display = on ? '' : 'none';
+}
+const biliNow = () => bili.playing ? bili.base + (Date.now() - bili.at) / 1000 : bili.base;
+function biliLoad(t) {
+  t = Math.max(0, Math.floor(Number(t) || 0));
+  biliFrame().src = 'https://player.bilibili.com/player.html?bvid=' + encodeURIComponent(bili.bvid) + '&p=' + bili.p + '&t=' + t + '&autoplay=1&danmaku=0&high_quality=1';
+  bili.base = t; bili.at = Date.now(); bili.playing = true; biliShow(true);
+}
+function biliHalt() { if (bili.playing) bili.base = biliNow(); bili.playing = false; if (bili.frame) bili.frame.src = 'about:blank'; }
+function biliStop() { biliHalt(); bili.bvid = ''; bili.end = 0; biliShow(false); }
+function biliContinues(q) {                                         // the next song starts where this one ends, in the video already playing: it plays on, nothing reloads
+  const b = q && biliParts(q.videoId);
+  return !!(b && bili.playing && b.bvid === bili.bvid && b.p === bili.p && Math.abs(biliNow() - (q.start || 0)) <= 3);
+}
+const biliState = (code) => setTimeout(() => { if (ytPlayer === biliShim) onYtPlayerStateChange({ data: code }); }, 0);
+function biliPlay(q) {
+  const b = biliParts(q.videoId); if (!b) return;
+  if (ytRealPlayer && ytPlayer === ytRealPlayer) { try { ytRealPlayer.stopVideo(); } catch (e) { /* not ready */ } }
+  const goesOn = biliContinues(q);
+  ytPlayer = biliShim; bili.end = q.end || 0;
+  if (!goesOn) { bili.bvid = b.bvid; bili.p = b.p; biliLoad(q.start || 0); }
+  biliState(YTS.PLAYING);
+}
+const biliShim = {
+  getCurrentTime: () => biliNow(),
+  getDuration: () => bili.end || 0,                                 // known only for a song inside a full-release video (its end)
+  getPlayerState: () => bili.playing ? YTS.PLAYING : YTS.PAUSED,
+  playVideo() { if (!bili.playing && bili.bvid) { biliLoad(bili.base); biliState(YTS.PLAYING); } },
+  pauseVideo() { if (bili.playing) { biliHalt(); biliState(YTS.PAUSED); } },
+  seekTo(s) { bili.base = Math.max(0, Number(s) || 0); if (bili.playing) biliLoad(bili.base); },
+  stopVideo() { biliStop(); },
+  setVolume(v) { ytLastKnownVolume = v; }, getVolume: () => ytLastKnownVolume,
+  mute() {}, unMute() {}, isMuted: () => false
+};
 
 function setYtPlayPauseUI(paused) {
   ytIsPaused = paused;
@@ -510,7 +578,7 @@ async function fvOpen(item, hintUrl) {
   const counts = {}; tracks.forEach(t => { const id = youtubeVideoIdFromUrl(t.youtubeLink); if (id) counts[id] = (counts[id] || 0) + 1; });
   const common = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0], shared = common && counts[common] >= 2 ? common : '';          // two songs on one video: that is the full-release video already
   const hint = youtubeVideoIdFromUrl(hintUrl) || (shared ? '' : youtubeVideoIdFromUrl(item.link));          // (the release's own link, when it is a YouTube video)
-  const id = hint || shared, url = id ? 'https://www.youtube.com/watch?v=' + id : '';
+  const id = hint || shared, url = id ? videoPageUrl(id) : '';
   fv = { item, rows: tracks.map(t => { const same = id && youtubeVideoIdFromUrl(t.youtubeLink) === id, g = same ? youtubeSegmentFromUrl(t.youtubeLink) : { start: 0, end: 0 }; return { n: t.trackNumber, title: t.trackName || '', start: same ? ytFormatTime(g.start) : '', end: g.end ? ytFormatTime(g.end) : '', len: Math.round((Number(t.trackTimeMillis) || 0) / 1000) }; }), intro: 0 };
   const firstStart = fv.rows.map(r => r.start.trim() ? ytParseTime(r.start) : NaN).find(s => s >= 0); if (firstStart > 0) fv.intro = firstStart;          // times saved before: the intro is where song 1 starts
   const autoFill = !!id && fv.rows.every(r => !r.start && !r.end) && fv.rows.every(r => r.len > 0);          // a video with no times yet, and every song's length known: placed back to back to begin with
@@ -549,7 +617,7 @@ function fvValidate() {                                             // reads wha
   return { ok, url, id, rows };
 }
 function fvCurrentTime(id) {                                        // where the video is now, when CRATE's player has THIS video; else null
-  if (activePlayerEngine !== 'youtube' || !ytPlayer || !ytPlayer.getCurrentTime) return null;
+  if (activePlayerEngine !== 'youtube' || !ytPlayer || !ytPlayer.getCurrentTime) return null;          // (a Bilibili video's time is CRATE's own clock: close, not exact)
   const q = ytQueue[ytQueueIndex]; if (!q || q.videoId !== id) return null;
   try { return Math.round(ytPlayer.getCurrentTime() || 0); } catch (e) { return null; }
 }
@@ -748,7 +816,11 @@ function playYtQueueIndex(i) {
 
   ytDuration = 0;
   ytSeg = { start: q.start || 0, end: q.end || 0, fired: false, loadedAt: Date.now() };
-  ensureYtPlayer().then(player => { player.loadVideoById(q.start || q.end ? Object.assign({ videoId: q.videoId, startSeconds: q.start || 0 }, q.end ? { endSeconds: q.end } : {}) : q.videoId); player.playVideo(); });          // (a track inside a full-release video starts and stops at its own times)
+  if (isBiliId(q.videoId)) biliPlay(q);                             // a Bilibili video: the stand-in player above
+  else {
+    biliStop(); ytPlayer = ytRealPlayer;
+    ensureYtPlayer().then(player => { if (ytQueue[ytQueueIndex] !== q) return; ytPlayer = player; player.loadVideoById(q.start || q.end ? Object.assign({ videoId: q.videoId, startSeconds: q.start || 0 }, q.end ? { endSeconds: q.end } : {}) : q.videoId); player.playVideo(); });          // (a track inside a full-release video starts and stops at its own times)
+  }
   setYtPlayPauseUI(false);
   phoneTapToStartWatch('youtube');          // a phone may refuse to start it without a tap on YouTube's own player (js/39-phone-playback.js)
 }

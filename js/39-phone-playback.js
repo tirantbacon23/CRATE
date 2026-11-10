@@ -104,7 +104,7 @@ async function youtubeAppLinkFor(item) {
   let firstStart = 0;
   tracks.forEach(t => {
     const id = t.youtubeLink && youtubeVideoIdFromUrl(t.youtubeLink);
-    if (!id || ids.includes(id)) return;
+    if (!id || isBiliId(id) || ids.includes(id)) return;          // (a Bilibili video can't go to the YouTube app)
     if (!ids.length) firstStart = (youtubeSegmentFromUrl(t.youtubeLink) || {}).start || 0;
     ids.push(id);
   });

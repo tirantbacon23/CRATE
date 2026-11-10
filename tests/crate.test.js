@@ -178,6 +178,40 @@ suite('Matching songs to Spotify and YouTube', () => {
   });
 });
 
+suite('Bilibili full-release videos', () => {
+  test('a Bilibili link is a video, never a YouTube id', () => {
+    const id = app('youtubeVideoIdFromUrl');
+    eq(id('https://www.bilibili.com/video/BV1GJ411x7h7/?spm_id_from=333.788'), 'bili:BV1GJ411x7h7');
+    eq(id('https://www.bilibili.com/video/BV1GJ411x7h7?p=3&t=95'), 'bili:BV1GJ411x7h7~3');
+    eq(id('bilibili.com/video/BV1GJ411x7h7'), 'bili:BV1GJ411x7h7');
+    eq(id('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), 'dQw4w9WgXcQ');
+    eq(id('https://www.bilibili.com/read/cv123'), '');
+    ok(app('isBiliId')('bili:BV1GJ411x7h7')); ok(!app('isBiliId')('dQw4w9WgXcQ'));
+  });
+  test('a song inside it keeps its part, start and end', () => {
+    const w = app('youtubeLinkWithSegment'), seg = app('youtubeSegmentFromUrl');
+    eq(w('https://www.bilibili.com/video/BV1GJ411x7h7', 95, 301), 'https://www.bilibili.com/video/BV1GJ411x7h7?t=95&end=301');
+    eq(w('https://www.bilibili.com/video/BV1GJ411x7h7?p=2', 0, 240), 'https://www.bilibili.com/video/BV1GJ411x7h7?p=2&end=240');
+    eq(w('https://www.bilibili.com/video/BV1GJ411x7h7', 0, 0), 'https://www.bilibili.com/video/BV1GJ411x7h7');
+    eq(seg('https://www.bilibili.com/video/BV1GJ411x7h7?p=2&t=95&end=301'), { start: 95, end: 301 });
+    eq(w('https://www.youtube.com/watch?v=dQw4w9WgXcQ', 5, 9), 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=5&end=9');          // YouTube links are written as before
+    eq(app('videoPageUrl')('bili:BV1GJ411x7h7~2'), 'https://www.bilibili.com/video/BV1GJ411x7h7?p=2');
+  });
+  test('the stand-in player reports its clock and pauses where it was', () => {
+    const shim = app('biliShim'), b = app('bili');
+    const was = Object.assign({}, b); b.playing = false; b.base = 120; b.bvid = '';
+    try {
+      eq(Math.round(shim.getCurrentTime()), 120); eq(shim.getPlayerState(), 2);
+      shim.seekTo(200); eq(Math.round(shim.getCurrentTime()), 200);
+      b.playing = true; b.base = 200; b.at = Date.now() - 5000; ok(Math.abs(shim.getCurrentTime() - 205) < 0.5); eq(shim.getPlayerState(), 1);
+      b.bvid = 'BV1GJ411x7h7'; b.p = 1;
+      ok(app('biliContinues')({ videoId: 'bili:BV1GJ411x7h7', start: 206 }));          // the next song follows on: no reload
+      ok(!app('biliContinues')({ videoId: 'bili:BV1GJ411x7h7', start: 400 }));
+      ok(!app('biliContinues')({ videoId: 'bili:BV1GJ411x7h7~2', start: 206 }));
+    } finally { b.playing = false; Object.assign(b, was, { playing: false }); }
+  });
+});
+
 suite('New releases', () => {
   test('the background check runs once a calendar day: after one today, the next is from midnight', () => {
     const ls = app('localStorage'), keys = [app('NEW_RELEASES_LAST_SCAN_KEY'), app('NEW_RELEASES_AUTO_TRIED_KEY')], was = keys.map(k => ls.getItem(k));

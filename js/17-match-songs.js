@@ -787,7 +787,7 @@ async function bmCheckLinks(kind, songs) {
     });
     return out;
   }
-  const ids = [...new Set(songs.map(s => youtubeVideoIdFromUrl(s.youtubeLink)).filter(Boolean))], bad = new Map();
+  const ids = [...new Set(songs.map(s => youtubeVideoIdFromUrl(s.youtubeLink)).filter(id => id && !isBiliId(id)))], bad = new Map();          // (a Bilibili video isn't checked: YouTube can't say anything about it)
   if (loadYoutubeApiKey()) {
     for (let i = 0; i < ids.length; i += 50) {
       const d = await smYtApi('videos', { part: 'status,contentDetails,snippet', id: ids.slice(i, i + 50).join(','), maxResults: 50 }, 1);
@@ -1230,7 +1230,7 @@ function ytInfoSet(id, title, channel) {
   const keys = Object.keys(a); if (keys.length > 5000) keys.slice(0, keys.length - 5000).forEach(k => delete a[k]);          // (the oldest go first)
   try { localStorage.setItem(YT_INFO_KEY, JSON.stringify(a)); } catch (e) { /* private window: asked again next time */ }
 }
-function ytInfoOf(link) { const id = youtubeVideoIdFromUrl(link); if (!id) return null; const v = ytInfoAll()[id]; if (v) return v; if (!ytInfoAsked.has(id)) { ytInfoAsked.add(id); ytInfoQ.push(id); ytInfoPump(); } return null; }
+function ytInfoOf(link) { const id = youtubeVideoIdFromUrl(link); if (!id || isBiliId(id)) return null; const v = ytInfoAll()[id]; if (v) return v; if (!ytInfoAsked.has(id)) { ytInfoAsked.add(id); ytInfoQ.push(id); ytInfoPump(); } return null; }
 function ytInfoPump() {
   while (ytInfoBusy < 3 && ytInfoQ.length) {
     const id = ytInfoQ.shift(); ytInfoBusy++;
@@ -1933,7 +1933,7 @@ function smLinkId(song, kind) {
   if (kind === 'spotify') { const u = trackSpotifyUriFromLink(song.spotifyLink); return u && u.startsWith('spotify:track:') ? u.slice('spotify:track:'.length) : null; }
   return youtubeVideoIdFromUrl(song.youtubeLink) || null;
 }
-function smCandLink(kind, c) { return kind === 'spotify' ? `https://open.spotify.com/track/${c.id}` : `https://www.youtube.com/watch?v=${c.id}`; }
+function smCandLink(kind, c) { return kind === 'spotify' ? `https://open.spotify.com/track/${c.id}` : videoPageUrl(c.id); }
 function smDefaultPicks(kind) {            // confident matches are ticked for songs that have no usable link of that kind yet; a link you already have is never replaced by default
   const st = smState, res = st[kind], picks = {};
   st.songs.forEach(s => { const best = res.byIdx && res.byIdx[s.idx] && res.byIdx[s.idx][0]; if (best && best.band === 'confident' && !smHas(s, kind)) picks[s.idx] = best.id; });
