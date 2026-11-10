@@ -17,7 +17,17 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.5
+  CURRENT_VERSION: 1.95.6
+
+  1.95.6 — 2026-11-10 — Full-release videos: a timeline. The Full-release dialog draws the whole video as a strip, each song a
+          block where its times put it, with a dotted tick where the song would end by the length you have (amber when the
+          block is more than a few seconds off it) and a red line where the video ends.
+
+          Drag a block's edge to move that start or end; where one song ends as the next begins there is one handle and both
+          move, and "Later songs move too" takes the later songs along as in the list. A picked handle moves with the arrow
+          keys (1 s, Shift 5 s). Click a song to pick it (its row lights up), double-click to play it; click anywhere else on
+          the strip to play the video from there. While CRATE's player has the video, a line follows it, and ⏱ Start here sets
+          the picked song's start where it is. Zoom with − / + / Fit or Ctrl + wheel.
 
   1.95.5 — 2026-11-10 — Full-release videos: a Video length box. Song lengths from Discogs or Spotify rarely add up to the
           video exactly (1:25:00 of songs in a 1:25:33 video: a little silence between songs, a slightly faster transfer), so

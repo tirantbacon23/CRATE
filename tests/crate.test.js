@@ -625,6 +625,17 @@ suite('Full-release video: times from song lengths', () => {
     eq(f([180, 200], 12), [{ start: 12, end: 192 }, { start: 192, end: 392 }]);
     eq(f([180, 0, 95], 5), [{ start: 5, end: 185 }, null, null]);
   });
+  test('the timeline: one handle where a song ends as the next begins; dragging moves both, and with the switch on the later songs too', () => {
+    const H = app('fvTlHandles'), M = app('fvTlMove');
+    const secs = [{ start: 10, end: 100 }, { start: 100, end: 200 }, { start: 205, end: 300 }];
+    eq(H(secs).map(h => h.key), ['s:0', 'b:0', 'e:1', 's:2', 'e:2']);
+    eq(M(secs, 'b:0', 5, false), [{ start: 10, end: 105 }, { start: 105, end: 200 }, { start: 205, end: 300 }]);
+    eq(M(secs, 'b:0', 5, true), [{ start: 10, end: 105 }, { start: 105, end: 205 }, { start: 210, end: 305 }]);
+    eq(M(secs, 's:2', -3, false)[2], { start: 202, end: 300 });
+    eq(M(secs, 's:0', -50, false)[0], { start: 0, end: 100 });                  // not below 0:00
+    eq(M(secs, 'b:0', 500, false)[1], { start: 199, end: 200 });               // song 2 keeps at least a second
+    eq(M([{ start: 0, end: NaN }], 's:0', 4, true)[0].start, 4);               // an end not set stays unset
+  });
   test('a video a little longer than the songs: the difference is spread and the last song ends with the video', () => {
     const f = app('ytTimesFromLengths');
     const got = f([1700, 1700, 1700], 0, 5133);                      // 1:25:00 of songs in a 1:25:33 video

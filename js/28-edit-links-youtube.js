@@ -592,7 +592,7 @@ async function fvOpen(item, hintUrl) {
   const common = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0], shared = common && counts[common] >= 2 ? common : '';          // two songs on one video: that is the full-release video already
   const hint = youtubeVideoIdFromUrl(hintUrl) || (shared ? '' : youtubeVideoIdFromUrl(item.link));          // (the release's own link, when it is a YouTube video)
   const id = hint || shared, url = id ? videoPageUrl(id) : '';
-  fv = { item, rows: tracks.map(t => { const same = id && youtubeVideoIdFromUrl(t.youtubeLink) === id, g = same ? youtubeSegmentFromUrl(t.youtubeLink) : { start: 0, end: 0 }; return { n: t.trackNumber, title: t.trackName || '', start: same ? ytFormatTime(g.start) : '', end: g.end ? ytFormatTime(g.end) : '', len: Math.round((Number(t.trackTimeMillis) || 0) / 1000) }; }), intro: 0, total: 0, totalFor: '' };
+  fv = { item, rows: tracks.map(t => { const same = id && youtubeVideoIdFromUrl(t.youtubeLink) === id, g = same ? youtubeSegmentFromUrl(t.youtubeLink) : { start: 0, end: 0 }; return { n: t.trackNumber, title: t.trackName || '', start: same ? ytFormatTime(g.start) : '', end: g.end ? ytFormatTime(g.end) : '', len: Math.round((Number(t.trackTimeMillis) || 0) / 1000) }; }), intro: 0, total: 0, totalFor: '', tlZoom: 0, tlSel: -1, tlKey: '' };
   const firstStart = fv.rows.map(r => r.start.trim() ? ytParseTime(r.start) : NaN).find(s => s >= 0); if (firstStart > 0) fv.intro = firstStart;          // times saved before: the intro is where song 1 starts
   const autoFill = !!id && fv.rows.every(r => !r.start && !r.end) && fv.rows.every(r => r.len > 0);          // a video with no times yet, and every song's length known: placed back to back to begin with
   fvEl('fullVideoFound').hidden = true; fvEl('fullVideoFound').innerHTML = ''; fvEl('fullVideoSub').textContent = `${item.artist} \u2014 ${item.title}`; fvEl('fullVideoUrl').value = url; fvEl('fullVideoPasteBox').hidden = true; fvEl('fullVideoPasteText').value = ''; fvEl('fullVideoPasteMsg').textContent = '';
@@ -600,7 +600,7 @@ async function fvOpen(item, hintUrl) {
   fvEl('fullVideoLength').value = ''; fvEl('fullVideoLength').classList.remove('bad'); fvSetTotal(id, fvPlayerLength(id));
   if (autoFill) fvFromLengths(true); else fvRender();
   if (id && !fv.total) fvFetchLength(id);
-  fvEl('fullVideoOverlay').hidden = false;
+  fvEl('fullVideoOverlay').hidden = false; fvDrawTimeline();          // (drawn again now its width is known)
   (url ? document.querySelector('#fullVideoList [data-fv="start"]') : fvEl('fullVideoUrl')).focus();
 }
 function fvClose() { fvEl('fullVideoOverlay').hidden = true; fv = null; }
@@ -615,6 +615,7 @@ function fvPlayerLength(id) {                                      // the video'
 function fvSetTotal(id, sec) {                                      // sets the Video length box (0 = not known)
   if (!fv) return; fv.total = sec > 0 ? Math.round(sec) : 0; fv.totalFor = id || '';
   fvEl('fullVideoLength').value = fv.total ? ytFormatTime(fv.total) : ''; fvEl('fullVideoLength').classList.remove('bad');
+  fvDrawTimeline();
 }
 async function fvFetchLength(id) {                                  // a YouTube video's length through the add-on, when it is there
   if (!id || isBiliId(id) || typeof ytUseAddon !== 'function' || !ytUseAddon()) return;
@@ -658,6 +659,7 @@ function fvValidate() {                                             // reads wha
   const ok = !!id && !bad && has > 0;
   fvEl('fullVideoStatus').textContent = !id ? (url ? 'That link isn\u2019t a YouTube or Bilibili video, so Save stays off: paste the video\u2019s own address.' : 'Paste the full-release video\u2019s link above.') : bad ? `${bad} time${bad === 1 ? '' : 's'} to fix (in red).` : `${has} of ${fv.rows.length} songs have times.` + (warn ? ` ${warn} start${warn === 1 ? 's' : ''} earlier than a song before ${warn === 1 ? 'it' : 'them'}.` : '') + (off ? ` ${off} ${off === 1 ? 'part doesn\u2019t' : 'parts don\u2019t'} match the song\u2019s length (amber).` : '');
   fvEl('fullVideoSave').disabled = !ok;
+  fvDrawTimeline();
   return { ok, url, id, rows };
 }
 function fvCurrentTime(id) {                                        // where the video is now, when CRATE's player has THIS video; else null
@@ -841,6 +843,161 @@ fvEl('fullVideoClose').addEventListener('click', fvClose); fvEl('fullVideoCancel
 fvEl('fullVideoOverlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) fvClose(); });
 fvEl('fullVideoOverlay').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); fvClose(); } });
 fvEl('fullVideoSave').addEventListener('click', fvSave);
+// ----- the timeline (1.95.6): the whole video as a strip, each song a block on it -----
+// The songs' blocks sit where their times put them, with a tick where the song would end by the length you have (so a block running
+// past its tick, or stopping short of it, shows at a glance). Drag a block's edge to move a start or an end; where one song ends as the
+// next begins there is one handle and both move. "Later songs move too" works here as in the list. A handle can also be nudged with the
+// arrow keys (1 s, Shift 5 s). Click a block to pick its song, double-click to play it; click anywhere else on the strip to play the
+// video from there. While CRATE's player has the video, a line shows where it is, and "Start here" puts the picked song's start there.
+const FV_TL_ZOOMS = [1, 2, 4, 8, 16, 32, 64];
+function fvTlSecs() {                                               // fv.rows' typed times -> [{ start, end }] in seconds (NaN when empty or not a time)
+  const p = (t) => String(t || '').trim() ? ytParseTime(t) : NaN;
+  return fv ? fv.rows.map(r => ({ start: p(r.start), end: p(r.end) })) : [];
+}
+function fvTlHandles(secs) {                                        // the strip's handles: 's:i' a start, 'e:i' an end, 'b:i' song i's end that is also song i+1's start
+  const out = [];
+  secs.forEach((r, i) => {
+    const shared = i > 0 && secs[i - 1].end >= 0 && secs[i - 1].end === r.start;
+    if (r.start >= 0 && !shared) out.push({ key: 's:' + i, t: r.start });
+    if (r.end >= 0) { const n = secs[i + 1]; out.push(n && n.start >= 0 && n.start === r.end ? { key: 'b:' + i, t: r.end } : { key: 'e:' + i, t: r.end }); }
+  });
+  return out;
+}
+function fvTlMove(secs, key, d, follow) {                           // -> new times with a handle moved d seconds (pulled back toward 0 until no song would end before it starts or go below 0:00)
+  const [kind, si] = String(key).split(':'), i = +si;
+  const apply = (dd) => secs.map((r, k) => {
+    const o = { start: r.start, end: r.end }, add = (v) => v >= 0 ? v + dd : v;
+    if (kind === 's') { if (k === i) { o.start = add(r.start); if (follow) o.end = add(r.end); } else if (follow && k > i) { o.start = add(r.start); o.end = add(r.end); } }
+    else if (kind === 'e') { if (k === i) o.end = add(r.end); else if (follow && k > i) { o.start = add(r.start); o.end = add(r.end); } }
+    else if (kind === 'b') { if (k === i) o.end = add(r.end); else if (k === i + 1) { o.start = add(r.start); if (follow) o.end = add(r.end); } else if (follow && k > i + 1) { o.start = add(r.start); o.end = add(r.end); } }
+    return o;
+  });
+  const fine = (list) => list.every((r, k) => (isNaN(r.start) || r.start >= 0) && (isNaN(r.end) || r.end >= 0) && !(r.start >= 0 && r.end >= 0 && r.end <= r.start && !(secs[k].end <= secs[k].start)));
+  let dd = Math.round(Number(d) || 0);
+  while (dd !== 0) { const got = apply(dd); if (fine(got)) return got; dd -= Math.sign(dd); }
+  return secs.map(r => ({ start: r.start, end: r.end }));
+}
+function fvTlWrite(secs) {                                          // new times into fv.rows and the list's boxes, then everything redrawn
+  if (!fv) return;
+  secs.forEach((r, i) => {
+    const row = fv.rows[i]; if (!row) return;
+    if (r.start >= 0) row.start = ytFormatTime(r.start); if (r.end >= 0) row.end = ytFormatTime(r.end);
+    const node = document.querySelector(`#fullVideoList .fv-row[data-i="${i}"]`); if (!node) return;
+    node.querySelector('[data-fv="start"]').value = row.start; node.querySelector('[data-fv="end"]').value = row.end;
+  });
+  fvValidate();
+}
+function fvTlSpan(secs) {                                           // how many seconds the strip shows
+  const ends = secs.map(r => Math.max(r.start >= 0 ? r.start : 0, r.end >= 0 ? r.end : 0)), sum = fv.rows.reduce((a, r) => a + (r.len || 0), 0);
+  return Math.max(60, fv.total || 0, ...ends, (fv.intro || 0) + sum);
+}
+function fvTlTicks(span, pps) {                                     // a ruler step that leaves room for its labels
+  const steps = [5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600];
+  return steps.find(s => s * pps >= 64) || 3600;
+}
+function fvDrawTimeline() {
+  const box = fvEl('fullVideoTimeline'); if (!box || !fv) return;
+  const secs = fvTlSecs(), any = secs.some(r => r.start >= 0 || r.end >= 0);
+  box.hidden = !any; if (!any) return;
+  const scroll = box.querySelector('.fv-tl-scroll'), track = box.querySelector('.fv-tl-track');
+  const span = fvTlSpan(secs), zoom = FV_TL_ZOOMS[fv.tlZoom || 0] || 1, width = Math.max(200, (scroll.clientWidth || 780) - 16) * zoom, pps = width / span;
+  fv.tlPps = pps; fv.tlSpan = span; track.style.width = width + 'px';
+  const x = (t) => (t * pps).toFixed(1) + 'px', step = fvTlTicks(span, pps);
+  let html = '<div class="fv-tl-ruler">';
+  for (let t = 0; t <= span; t += step) html += `<span class="fv-tl-tick" style="left:${x(t)}">${ytFormatTime(t)}</span>`;
+  html += '</div>';
+  if (fv.total) html += `<div class="fv-tl-endline" style="left:${x(fv.total)}" title="The video ends here (${ytFormatTime(fv.total)})"></div>`;
+  secs.forEach((r, i) => {
+    if (!(r.start >= 0)) return; const row = fv.rows[i], end = r.end > r.start ? r.end : NaN;
+    const w = end >= 0 ? end - r.start : (row.len || 30), off = end >= 0 && row.len && Math.abs((end - r.start) - row.len) > Math.max(3, row.len * 0.04 + 1);
+    const tip = `${row.n}. ${row.title} · ${ytFormatTime(r.start)}–${end >= 0 ? ytFormatTime(end) : '?'}${row.len ? ` · your length ${ytFormatTime(row.len)}` : ''}${off ? ` (${ytFormatTime(Math.abs(end - r.start - row.len))} ${end - r.start > row.len ? 'longer' : 'shorter'})` : ''}`;
+    html += `<div class="fv-tl-song${i % 2 ? ' alt' : ''}${off ? ' off' : ''}${end >= 0 ? '' : ' open'}${fv.tlSel === i ? ' sel' : ''}" data-tl-song="${i}" style="left:${x(r.start)};width:${x(w)}" title="${escapeHtml(tip)}"><span>${escapeHtml(String(row.n))}${w * pps > 60 ? ' ' + escapeHtml(row.title) : ''}</span></div>`;
+    if (row.len) html += `<div class="fv-tl-exp${off ? ' off' : ''}" style="left:${x(r.start + row.len)}" title="Song ${escapeHtml(String(row.n))} ends here by your length (${ytFormatTime(row.len)})"></div>`;
+  });
+  fvTlHandles(secs).forEach(h => { html += `<button type="button" class="fv-tl-h${fv.tlKey === h.key ? ' sel' : ''}" data-tl-h="${h.key}" style="left:${x(h.t)}" aria-label="${fvTlHandleName(h.key)} at ${ytFormatTime(h.t)}" title="${fvTlHandleName(h.key)}: ${ytFormatTime(h.t)}. Drag it, or use the arrow keys (Shift: 5 s)"></button>`; });
+  html += '<div class="fv-tl-head" hidden></div>';
+  const hadFocus = document.activeElement && document.activeElement.closest && document.activeElement.closest('#fullVideoTimeline [data-tl-h]');
+  track.innerHTML = html;
+  if (hadFocus && fv.tlKey) { const h = track.querySelector(`[data-tl-h="${fv.tlKey}"]`); if (h) h.focus({ preventScroll: true }); }
+  document.querySelectorAll('#fullVideoList .fv-row[data-i]').forEach(n => n.classList.toggle('fv-sel', +n.dataset.i === fv.tlSel));
+  fvEl('fullVideoTlZoom').textContent = zoom + '×';
+  fvTlTick();
+}
+function fvTlHandleName(key) {
+  const [kind, si] = key.split(':'), i = +si, n = (k) => fv && fv.rows[k] ? fv.rows[k].n : k + 1;
+  return kind === 's' ? `Song ${n(i)} starts` : kind === 'e' ? `Song ${n(i)} ends` : `Song ${n(i)} ends, song ${n(i + 1)} starts`;
+}
+function fvTlTick() {                                               // the player's place on the strip
+  if (!fv) return; const box = fvEl('fullVideoTimeline'), head = box && box.querySelector('.fv-tl-head'); if (!head) return;
+  const id = youtubeVideoIdFromUrl(fvEl('fullVideoUrl').value.trim()), t = id ? fvCurrentTime(id) : null;
+  fv.tlNow = t; head.hidden = t === null || !fv.tlPps;
+  if (!head.hidden) head.style.left = (t * fv.tlPps).toFixed(1) + 'px';
+  fvEl('fullVideoTlNow').textContent = t === null ? 'Play the video here to see where it is' : 'Playing at ' + ytFormatTime(t);
+  fvEl('fullVideoTlMark').disabled = t === null || !(fv.tlSel >= 0);
+}
+function fvTlZoomBy(dir, atX) {                                     // zoom in or out, keeping the time under atX (or the middle) where it is
+  if (!fv) return; const scroll = fvEl('fullVideoTimeline').querySelector('.fv-tl-scroll');
+  const z = Math.max(0, Math.min(FV_TL_ZOOMS.length - 1, (fv.tlZoom || 0) + dir)); if (z === (fv.tlZoom || 0)) return;
+  const px = atX === undefined ? scroll.clientWidth / 2 : atX, t = (scroll.scrollLeft + px) / (fv.tlPps || 1);
+  fv.tlZoom = z; fvDrawTimeline(); scroll.scrollLeft = Math.max(0, t * fv.tlPps - px);
+}
+function fvTlTimeAt(e) {                                            // the time under the pointer
+  const r = fvEl('fullVideoTimeline').querySelector('.fv-tl-track').getBoundingClientRect();
+  return Math.max(0, Math.min(fv.tlSpan || 0, Math.round((e.clientX - r.left) / (fv.tlPps || 1))));
+}
+function fvTlPlayFrom(t) {                                          // the video from t: a jump when the player has it, else the player opens there
+  const v = fvValidate(); if (!v.id) { flashGlobalToast('Paste the full-release video’s link first.'); return; }
+  if (fvCurrentTime(v.id) !== null && !isBiliId(v.id) && ytPlayer && ytPlayer.seekTo) { try { ytPlayer.seekTo(t, true); ytPlayer.playVideo && ytPlayer.playVideo(); return; } catch (e) { /* open it instead */ } }
+  openYoutubePlayer(youtubeLinkWithSegment(v.url, t, 0), `${fv.item.artist} — ${fv.item.title}`, [], fv.item);
+}
+function fvTlPick(i, scrollList) {                                  // a song picked on the strip (or in the list)
+  if (!fv) return; fv.tlSel = i; fvDrawTimeline();
+  if (scrollList) { const n = document.querySelector(`#fullVideoList .fv-row[data-i="${i}"]`); if (n) n.scrollIntoView({ block: 'nearest' }); }
+}
+function fvTlNudge(key, d) {
+  if (!fv) return; fv.tlKey = key;
+  const before = fvTlSecs(), after = fvTlMove(before, key, d, fvFollowOn()), moved = after.some((r, k) => r.start !== before[k].start || r.end !== before[k].end);
+  if (moved) fvTlWrite(after); else fvDrawTimeline();
+}
+(function fvTlWire() {
+  const box = fvEl('fullVideoTimeline'); if (!box) return;
+  const scroll = box.querySelector('.fv-tl-scroll'); let drag = null;
+  scroll.addEventListener('pointerdown', (e) => {
+    if (!fv || e.button !== 0) return;
+    const h = e.target.closest('[data-tl-h]');
+    if (h) {
+      e.preventDefault(); h.focus({ preventScroll: true }); fv.tlKey = h.dataset.tlH;
+      const [kind, si] = fv.tlKey.split(':'); fv.tlSel = kind === 'b' ? +si + 1 : +si;
+      drag = { key: fv.tlKey, x: e.clientX, secs: fvTlSecs(), follow: fvFollowOn(), moved: false };
+      scroll.setPointerCapture(e.pointerId); box.classList.add('dragging'); fvDrawTimeline(); return;
+    }
+    const song = e.target.closest('[data-tl-song]');
+    if (song) { fvTlPick(+song.dataset.tlSong, true); return; }
+    fvTlPlayFrom(fvTlTimeAt(e));
+  });
+  scroll.addEventListener('pointermove', (e) => {
+    if (!drag || !fv) return;
+    const d = Math.round((e.clientX - drag.x) / (fv.tlPps || 1)); if (!d && !drag.moved) return; drag.moved = true;
+    fvTlWrite(fvTlMove(drag.secs, drag.key, d, drag.follow));
+    const t = (fvTlHandles(fvTlSecs()).find(h => h.key === drag.key) || {}).t;
+    if (t >= 0) fvEl('fullVideoTlNow').textContent = `${fvTlHandleName(drag.key)}: ${ytFormatTime(t)}`;
+  });
+  const end = () => { if (!drag) return; drag = null; box.classList.remove('dragging'); fvTlTick(); };
+  scroll.addEventListener('pointerup', end); scroll.addEventListener('pointercancel', end);
+  scroll.addEventListener('dblclick', (e) => { const song = e.target.closest('[data-tl-song]'); if (song) fvPlayPart(+song.dataset.tlSong); });
+  scroll.addEventListener('keydown', (e) => {
+    const h = e.target.closest && e.target.closest('[data-tl-h]'); if (!h || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+    e.preventDefault(); fvTlNudge(h.dataset.tlH, (e.key === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 5 : 1));
+  });
+  scroll.addEventListener('wheel', (e) => { if (!e.ctrlKey && !e.metaKey) return; e.preventDefault(); fvTlZoomBy(e.deltaY < 0 ? 1 : -1, e.clientX - scroll.getBoundingClientRect().left); }, { passive: false });
+  fvEl('fullVideoTlIn').addEventListener('click', () => fvTlZoomBy(1));
+  fvEl('fullVideoTlOut').addEventListener('click', () => fvTlZoomBy(-1));
+  fvEl('fullVideoTlFit').addEventListener('click', () => { if (fv) { fv.tlZoom = 0; fvDrawTimeline(); } });
+  fvEl('fullVideoTlMark').addEventListener('click', () => { if (fv && fv.tlSel >= 0) fvNow('start', fv.tlSel); });
+  fvEl('fullVideoList').addEventListener('focusin', (e) => { const row = e.target.closest && e.target.closest('.fv-row[data-i]'); if (row && fv && fv.tlSel !== +row.dataset.i) fvTlPick(+row.dataset.i, false); });
+  setInterval(() => { if (fv && !fvEl('fullVideoOverlay').hidden && !drag) fvTlTick(); }, 250);
+  window.addEventListener('resize', () => { if (fv && !fvEl('fullVideoOverlay').hidden) fvDrawTimeline(); });
+})();
 fvEl('fullVideoUrl').addEventListener('input', () => { fvValidate(); fvUrlChanged(); });
 fvEl('fullVideoLength').addEventListener('change', fvLengthChanged);
 fvEl('fullVideoOpenPlayer').addEventListener('click', () => { const u = fvEl('fullVideoUrl').value.trim(); if (!youtubeVideoIdFromUrl(u)) { flashGlobalToast('Paste the full-release video\u2019s link first.'); return; } openYoutubePlayer(youtubeLinkWithSegment(u, 0, 0), fv ? `${fv.item.artist} \u2014 ${fv.item.title}` : 'Full-release video', [], fv && fv.item); });
