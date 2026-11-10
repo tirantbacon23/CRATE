@@ -17,7 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.2
+  CURRENT_VERSION: 1.95.3
+
+  1.95.3 — 2026-11-10 — Discogs finds releases whose artist it writes another way. Its search wanted the artist and the title
+          exactly as you have them, so "Tatsu Yamashita — It's a Poppin' Time" found nothing (Discogs: "Tatsuro Yamashita", or
+          "山下達郎"), nor did a title with curly apostrophes. When the exact search finds nothing, Edit details' ⤓ Discogs and
+          Pull details now search by the title alone, then by both as plain words, and take a result only when its title is a
+          near-exact match and its artist is close (a few letters apart, or written in another script).
 
   1.95.2 — 2026-11-10 — Bilibili links from the English site (bilibili.com/en/video/…) work: Full-release video's Save stayed
           off for them, as if no link had been pasted, and the track editor refused them. The dialog now also says when the link

@@ -54,9 +54,9 @@ async function pdFromItunes(item) {
 async function pdFromDiscogs(item) {
   const token = loadDiscogsToken(); if (!token) return { err: 'Add a token in ⚙ → Discogs API…' };
   const head = { headers: { 'Accept': 'application/json', 'Authorization': `Discogs token=${token}` } };
-  const s = await fetch(`https://api.discogs.com/database/search?type=release&artist=${encodeURIComponent(item.artist)}&release_title=${encodeURIComponent(item.title)}&per_page=5`, head);
-  if (!s.ok) return { err: s.status === 429 ? 'Discogs says slow down: try again in a minute' : 'Discogs answered ' + s.status };
-  const hit = ((await s.json()).results || [])[0]; if (!hit) return { err: 'Not found' };
+  const found = await discogsFindRelease(item.artist, item.title, head.headers);          // (1.95.3) with the looser searches when the strict one finds nothing
+  if (found.error) return { err: found.error === 'no-match' ? 'Not found' : found.error === 'rate-limited' ? 'Discogs says slow down: try again in a minute' : found.error === 'unauthorized' ? 'Discogs rejected the token (⚙ → Discogs API…)' : found.error === 'network' ? 'Couldn\u2019t reach Discogs' : 'Discogs answered ' + found.error.replace('http-', '') };
+  const hit = found.hit;
   let tracks = [];
   try { const r = await fetch(`https://api.discogs.com/releases/${hit.id}`, head); if (r.ok) tracks = ((await r.json()).tracklist || []).filter(t => !t.type_ || t.type_ === 'track').map(t => ({ title: t.title, durationMs: pdMs(t.duration) })); } catch (e) { /* the rest still counts */ }
   return { date: hit.year ? String(hit.year) : '', label: (hit.label || [])[0] || '', genre: [...new Set([].concat(hit.genre || [], hit.style || []))].join(', '), cover: hit.cover_image && !/spacer\.gif/.test(hit.cover_image) ? hit.cover_image : '', tracks: pdTracks(tracks) };

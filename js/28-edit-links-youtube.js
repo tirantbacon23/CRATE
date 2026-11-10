@@ -1189,27 +1189,45 @@ function renderMatchCandidateList(container, candidates, selectedId, kind, targe
 // closer-to-RYM granularity this was added for. Returns either
 // { combined, genres, styles } or { error: '...' } for the caller to
 // turn into a human-readable status message.
+// Finding a release on Discogs (1.95.3). The strict search (this artist AND this title) finds nothing when Discogs writes the artist
+// another way ("Tatsu Yamashita" here, "Tatsuro Yamashita" or "山下達郎" there) or the title has curly quotes, so two looser searches
+// follow: by the title alone, then by both as plain words. What they bring back is checked, so a loose search never hands over
+// another artist's record: the title must be a near-exact match, and the artist close (or written in another script).
+const dgClean = (s) => String(s || '').replace(/[\u2018\u2019\u02bc\u0060\u00b4]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/\s*\[[^\]]*\]/g, ' ').replace(/\s+/g, ' ').trim();
+const dgArtist = (s) => dgClean(s).replace(/\s*\(\d+\)$/, '').replace(/\*$/, '');          // Discogs's "Name (2)" and "Name*"
+function discogsResultFit(r, artist, title) {                       // a search result -> { ok, score }: is it this release?
+  const full = String((r && r.title) || ''), m = /^(.+?)\s+-\s+(.+)$/.exec(full), ra = m ? m[1] : '', rt = m ? m[2] : full;
+  const ts = smTitleSim(title, rt);
+  const names = ra.split(/\s*(?:,|&|\/|\bfeat\.?|\band\b)\s*/i).map(dgArtist).filter(Boolean);
+  let as = smArtistMatch(artist, names.length ? names : [ra]);
+  if (as !== null && as < 1) { const k = smArtistKey(artist); as = Math.max(as, ...names.map(n => smSim(k, smArtistKey(n)))); }          // "tatsu yamashita" / "tatsuro yamashita": a few letters apart
+  const ok = as === null ? ts >= 0.95 : ts >= 0.85 && as >= 0.75;
+  return { ok, score: ts + (as === null ? 0.5 : as) };
+}
+async function discogsFindRelease(artist, title, headers) {        // -> { hit } (a search result) or { error: 'network' | 'unauthorized' | 'rate-limited' | 'http-NNN' | 'no-match' }
+  const a = dgArtist(artist), t = dgClean(title), enc = encodeURIComponent;
+  const tries = [`artist=${enc(a)}&release_title=${enc(t)}&per_page=5`, `release_title=${enc(t)}&per_page=50`, `q=${enc(a + ' ' + t)}&per_page=50`];
+  for (let i = 0; i < tries.length; i++) {
+    let res; try { res = await fetch(`https://api.discogs.com/database/search?type=release&${tries[i]}`, { headers }); } catch (e) { return { error: 'network' }; }
+    if (res.status === 401) return { error: 'unauthorized' };
+    if (res.status === 429) return { error: 'rate-limited' };
+    if (!res.ok) return { error: 'http-' + res.status };
+    const list = ((await res.json()).results || []);
+    if (i === 0 && list.length) return { hit: list[0] };           // both fields matched: Discogs's own first answer, as before
+    const best = list.map(r => Object.assign({ r }, discogsResultFit(r, a, t))).filter(x => x.ok).sort((x, y) => y.score - x.score)[0];
+    if (best) return { hit: best.r };
+  }
+  return { error: 'no-match' };
+}
+
 async function fetchDiscogsGenreStyle(artist, title) {
   const token = loadDiscogsToken();
   if (!token) return { error: 'no-token' };
 
   const headers = { 'Accept': 'application/json', 'Authorization': `Discogs token=${token}` };
-  const url = `https://api.discogs.com/database/search?type=release&artist=${encodeURIComponent(artist)}&release_title=${encodeURIComponent(title)}&per_page=5`;
-
-  let res;
-  try {
-    res = await fetch(url, { headers });
-  } catch (e) {
-    return { error: 'network' };
-  }
-
-  if (res.status === 401) return { error: 'unauthorized' };
-  if (res.status === 429) return { error: 'rate-limited' };
-  if (!res.ok) return { error: 'http-' + res.status };
-
-  const data = await res.json();
-  const hit = (data.results || [])[0];
-  if (!hit) return { error: 'no-match' };
+  const found = await discogsFindRelease(artist, title, headers);
+  if (found.error) return { error: found.error };
+  const hit = found.hit;
 
   const genres = hit.genre || [];
   const styles = hit.style || [];

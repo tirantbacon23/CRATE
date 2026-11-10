@@ -178,6 +178,18 @@ suite('Matching songs to Spotify and YouTube', () => {
   });
 });
 
+suite('Discogs', () => {
+  test('a looser search only accepts this release', () => {
+    const fit = (t) => app('discogsResultFit')({ title: t }, 'Tatsu Yamashita', 'It\u2019s a Poppin\u2019 Time').ok;
+    ok(fit("Tatsuro Yamashita - It's A Poppin' Time"));                  // the artist a few letters apart, curly vs straight apostrophes
+    ok(fit("山下達郎 - It's A Poppin' Time"));                              // the artist in another script: the title decides
+    ok(fit("Tatsuro Yamashita* - It's A Poppin' Time"));
+    ok(!fit("Tatsuro Yamashita - Big Wave"));
+    ok(!fit("Mariya Takeuchi - It's A Poppin' Time"));                   // another artist with the same title
+    ok(app('discogsResultFit')({ title: 'Oasis - Definitely Maybe' }, 'Oasis', 'Definitely Maybe').ok);
+  });
+});
+
 suite('Bilibili full-release videos', () => {
   test('a Bilibili link is a video, never a YouTube id', () => {
     const id = app('youtubeVideoIdFromUrl');
