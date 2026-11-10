@@ -346,9 +346,18 @@ function ytAssignTimestamps(titles, parsed) {                       // each song
 function ytFillEnds(starts, total) {                                // starts in song order (seconds, or NaN) -> each song's end: where the next song that starts later begins; the last one ends at the video's end when that is known
   return starts.map((s, i) => { if (!(s >= 0)) return NaN; for (let j = i + 1; j < starts.length; j++) if (starts[j] > s) return starts[j]; return total > s ? total : NaN; });
 }
-function ytTimesFromLengths(lengths, intro) {                      // song lengths in seconds (in order; NaN or 0 = not known) -> [{ start, end }] back to back after the intro; a song after one with no length can't be placed (null)
-  let at = Math.max(0, Math.round(Number(intro) || 0));
+function ytTimesFromLengths(lengths, intro, total) {               // song lengths in seconds (in order; NaN or 0 = not known) -> [{ start, end }] back to back after the intro; a song after one with no length can't be placed (null)
+  const from = Math.max(0, Math.round(Number(intro) || 0)), secs = lengths.map(l => Number(l) || 0), sum = secs.reduce((a, b) => a + b, 0), room = (Math.round(Number(total) || 0)) - from;
+  if (ytLengthsStretch(secs, room)) {                                // (1.95.5) the video's length known and a little longer or shorter than the songs: spread the difference over every song, so the last one ends where the video does
+    const r = room / sum; let at = 0;
+    return secs.map(l => { const s = from + Math.round(at * r); at += l; return { start: s, end: from + Math.round(at * r) }; });
+  }
+  let at = from;
   return lengths.map(len => { if (at === null || !(len > 0)) { at = null; return null; } const r = { start: at, end: at + Math.round(len) }; at = r.end; return r; });
+}
+function ytLengthsStretch(secs, room) {                             // whether songs of these lengths get stretched (or squeezed) to fill room seconds: every length known, and within 4% of it
+  const sum = secs.reduce((a, b) => a + (Number(b) || 0), 0);
+  return room > 0 && sum > 0 && secs.every(l => Number(l) > 0) && Math.abs(room - sum) > 1 && Math.abs(room - sum) <= sum * 0.04;
 }
 const ytTimestampLines = (desc) => String(desc || '').split(/\r?\n/).filter(l => /(?:\d{1,2}:)?\d{1,3}:\d{2}(?!\d)/.test(l)).join('\n').slice(0, 4000);          // only a description's lines with a time in them are kept
 function ytTimingFrom(titles, lengths, info) {                      // where each song is in a full-release video -> { times: [{ start, end } | null], how, placed, named, agree }: from the video's chapters, else the times in its
@@ -583,16 +592,47 @@ async function fvOpen(item, hintUrl) {
   const common = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0], shared = common && counts[common] >= 2 ? common : '';          // two songs on one video: that is the full-release video already
   const hint = youtubeVideoIdFromUrl(hintUrl) || (shared ? '' : youtubeVideoIdFromUrl(item.link));          // (the release's own link, when it is a YouTube video)
   const id = hint || shared, url = id ? videoPageUrl(id) : '';
-  fv = { item, rows: tracks.map(t => { const same = id && youtubeVideoIdFromUrl(t.youtubeLink) === id, g = same ? youtubeSegmentFromUrl(t.youtubeLink) : { start: 0, end: 0 }; return { n: t.trackNumber, title: t.trackName || '', start: same ? ytFormatTime(g.start) : '', end: g.end ? ytFormatTime(g.end) : '', len: Math.round((Number(t.trackTimeMillis) || 0) / 1000) }; }), intro: 0 };
+  fv = { item, rows: tracks.map(t => { const same = id && youtubeVideoIdFromUrl(t.youtubeLink) === id, g = same ? youtubeSegmentFromUrl(t.youtubeLink) : { start: 0, end: 0 }; return { n: t.trackNumber, title: t.trackName || '', start: same ? ytFormatTime(g.start) : '', end: g.end ? ytFormatTime(g.end) : '', len: Math.round((Number(t.trackTimeMillis) || 0) / 1000) }; }), intro: 0, total: 0, totalFor: '' };
   const firstStart = fv.rows.map(r => r.start.trim() ? ytParseTime(r.start) : NaN).find(s => s >= 0); if (firstStart > 0) fv.intro = firstStart;          // times saved before: the intro is where song 1 starts
   const autoFill = !!id && fv.rows.every(r => !r.start && !r.end) && fv.rows.every(r => r.len > 0);          // a video with no times yet, and every song's length known: placed back to back to begin with
   fvEl('fullVideoFound').hidden = true; fvEl('fullVideoFound').innerHTML = ''; fvEl('fullVideoSub').textContent = `${item.artist} \u2014 ${item.title}`; fvEl('fullVideoUrl').value = url; fvEl('fullVideoPasteBox').hidden = true; fvEl('fullVideoPasteText').value = ''; fvEl('fullVideoPasteMsg').textContent = '';
   fvEl('fullVideoIntro').value = ytFormatTime(fv.intro); fvEl('fullVideoIntro').classList.remove('bad'); fvEl('fullVideoFromLengths').disabled = !fv.rows.some(r => r.len > 0);
+  fvEl('fullVideoLength').value = ''; fvEl('fullVideoLength').classList.remove('bad'); fvSetTotal(id, fvPlayerLength(id));
   if (autoFill) fvFromLengths(true); else fvRender();
+  if (id && !fv.total) fvFetchLength(id);
   fvEl('fullVideoOverlay').hidden = false;
   (url ? document.querySelector('#fullVideoList [data-fv="start"]') : fvEl('fullVideoUrl')).focus();
 }
 function fvClose() { fvEl('fullVideoOverlay').hidden = true; fv = null; }
+// The video's length (1.95.5): song lengths from Discogs or Spotify rarely add up to the video exactly (a few seconds of silence between
+// songs, a slightly faster transfer), so "From song lengths" drifts further off with every song. Knowing the video's length, it spreads
+// the difference across the songs instead. Filled in when CRATE knows it (a video found by the search, the YouTube add-on, the player
+// playing it); a Bilibili video's length has to be typed.
+function fvPlayerLength(id) {                                      // the video's length in seconds when CRATE's player has it loaded, else 0
+  if (!id || !ytQueue[ytQueueIndex] || ytQueue[ytQueueIndex].videoId !== id || !ytPlayer || !ytPlayer.getDuration) return 0;
+  try { return isBiliId(id) ? 0 : Math.round(ytPlayer.getDuration() || 0); } catch (e) { return 0; }
+}
+function fvSetTotal(id, sec) {                                      // sets the Video length box (0 = not known)
+  if (!fv) return; fv.total = sec > 0 ? Math.round(sec) : 0; fv.totalFor = id || '';
+  fvEl('fullVideoLength').value = fv.total ? ytFormatTime(fv.total) : ''; fvEl('fullVideoLength').classList.remove('bad');
+}
+async function fvFetchLength(id) {                                  // a YouTube video's length through the add-on, when it is there
+  if (!id || isBiliId(id) || typeof ytUseAddon !== 'function' || !ytUseAddon()) return;
+  const me = fv; let info = null; try { info = await ytVideoInfo({ id }); } catch (e) { info = null; }
+  if (fv !== me || !fv || fv.total || fv.totalFor !== id || !info || !(info.durationMs > 0)) return;
+  fvSetTotal(id, info.durationMs / 1000);
+}
+function fvLengthChanged() {                                        // you typed the video's length
+  if (!fv) return; const inp = fvEl('fullVideoLength'), raw = inp.value.trim(), v = raw ? ytParseTime(raw) : 0;
+  inp.classList.toggle('bad', isNaN(v)); if (isNaN(v)) return;
+  fvSetTotal(youtubeVideoIdFromUrl(fvEl('fullVideoUrl').value.trim()), v);
+  const sum = fv.rows.reduce((a, r) => a + (r.len || 0), 0);
+  if (fv.total && sum) fvEl('fullVideoStatus').textContent = fvLinkNote() + `The video is ${Math.abs(fv.total - fv.intro - sum) <= 1 ? 'the same length as your songs' : ytFormatTime(Math.abs(fv.total - fv.intro - sum)) + (fv.total - fv.intro > sum ? ' longer' : ' shorter') + ' than your songs'}${fv.intro ? ' (after the intro)' : ''}. Click From song lengths to place them with it.`;
+}
+function fvUrlChanged() {                                           // another video: the length known for the last one no longer applies
+  if (!fv) return; const id = youtubeVideoIdFromUrl(fvEl('fullVideoUrl').value.trim());
+  if (id !== fv.totalFor) { fvSetTotal(id, fvPlayerLength(id)); if (id && !fv.total) fvFetchLength(id); }
+}
 function fvRender() {
   if (!fv) return;
   const field = (which, v, n) => `<span class="fv-time"><input type="text" data-fv="${which}" value="${escapeHtml(v)}" placeholder="${which === 'start' ? '0:00' : 'm:ss'}" aria-label="${which === 'start' ? 'Starts' : 'Ends'}, song ${n}" autocomplete="off"><button type="button" class="chip-btn" data-fv-now="${which}" title="Use the time the video is at now" aria-label="Use the video's time now">⏱</button></span>`;
@@ -611,7 +651,7 @@ function fvValidate() {                                             // reads wha
     sIn.classList.toggle('bad', sBad); eIn.classList.toggle('bad', eBad); if (sBad || eBad) bad++;
     const sv = s !== null && !isNaN(s) ? s : null, ev = e !== null && !isNaN(e) ? e : null; if (sv !== null || ev !== null) has++;
     if (sv !== null) { if (sv < prev) warn++; prev = Math.max(prev, sv); }
-    const longBy = sv !== null && ev !== null && r.len ? (ev - sv) - r.len : 0, isOff = Math.abs(longBy) > 3;          // the part is more than 3 s longer or shorter than the song's length
+    const longBy = sv !== null && ev !== null && r.len ? (ev - sv) - r.len : 0, isOff = Math.abs(longBy) > Math.max(3, r.len * 0.04 + 1);          // the part is more than 3 s (or 4%, which spreading a video's extra length can add) longer or shorter than the song's length
     node.classList.toggle('fv-off', isOff); node.querySelector('.fv-len').title = isOff ? `This part is ${ytFormatTime(Math.abs(longBy))} ${longBy > 0 ? 'longer' : 'shorter'} than the song` : ''; if (isOff) off++;
     rows.push({ n: r.n, start: sv || 0, end: ev || 0, has: sv !== null || ev !== null });
   });
@@ -673,10 +713,12 @@ function fvApplyPaste() {
 function fvLinkNote() { return fv && !youtubeVideoIdFromUrl(fvEl('fullVideoUrl').value.trim()) ? 'Save needs a YouTube or Bilibili video link above. ' : ''; }          // (1.95.2) a status that replaces fvValidate's still says why Save is off
 function fvFromLengths(quiet) {                                     // every song placed back to back from the lengths you have, after the intro
   if (!fv) return; if (!quiet) fvValidate();
-  const got = ytTimesFromLengths(fv.rows.map(r => r.len), fv.intro); let k = 0;
+  const lens = fv.rows.map(r => r.len), got = ytTimesFromLengths(lens, fv.intro, fv.total); let k = 0;
   fv.rows.forEach((r, i) => { const g = got[i]; if (!g) return; r.start = ytFormatTime(g.start); r.end = ytFormatTime(g.end); k++; });
   fvRender();
-  const miss = fv.rows.length - k; fvEl('fullVideoStatus').textContent = fvLinkNote() + `Placed ${k} of ${fv.rows.length} songs from their lengths, after an intro of ${ytFormatTime(fv.intro)}.` + (miss ? ` ${miss} after a song with no length ${miss === 1 ? 'needs its' : 'need their'} times set by hand.` : '') + ' Play a part to check it; change Intro if the first song starts later.';
+  const sum = lens.reduce((a, b) => a + (b || 0), 0), room = fv.total ? fv.total - fv.intro : 0, d = room - sum, stretched = ytLengthsStretch(lens, room);
+  const spread = stretched ? ` The video is ${ytFormatTime(Math.abs(d))} ${d > 0 ? 'longer' : 'shorter'} than your songs, so that is spread across them and the last song ends with the video.` : room && Math.abs(d) > 1 && k === fv.rows.length ? ` The video is ${ytFormatTime(Math.abs(d))} ${d > 0 ? 'longer' : 'shorter'} than your songs: too much to spread, so they are back to back${d > 0 ? ' (an intro? set Intro)' : ''}.` : '';
+  const miss = fv.rows.length - k; fvEl('fullVideoStatus').textContent = fvLinkNote() + `Placed ${k} of ${fv.rows.length} songs from their lengths, after an intro of ${ytFormatTime(fv.intro)}.` + (miss ? ` ${miss} after a song with no length ${miss === 1 ? 'needs its' : 'need their'} times set by hand.` : '') + spread + ' Play a part to check it; change Intro if the first song starts later.';
 }
 function fvSetIntro() {                                             // a new intro moves every time already there by the same amount
   if (!fv) return; const inp = fvEl('fullVideoIntro'), v = ytParseTime(inp.value.trim() || '0');
@@ -759,6 +801,7 @@ async function fvFindVideos() {
 async function fvUseFound(i) {
   const v = fv && fv.found && fv.found[i]; if (!v) return;
   fvEl('fullVideoUrl').value = 'https://www.youtube.com/watch?v=' + v.id; fvEl('fullVideoFound').hidden = true;
+  fvSetTotal(v.id, (v.durationMs || 0) / 1000 || fvPlayerLength(v.id));
   if (fv.rows.every(r => !r.start.trim() && !r.end.trim())) {          // nothing typed yet: the video's own chapters (or its description's times) first
     const me = fv; fvEl('fullVideoStatus').textContent = 'Reading the video’s chapters…';
     const info = await ytVideoInfo(v); if (fv !== me) return;
@@ -771,12 +814,13 @@ async function fvUseFound(i) {
     }
   }
   if (fv.rows.every(r => !r.start.trim() && !r.end.trim()) && fv.rows.some(r => r.len > 0)) fvFromLengths(true); else fvValidate();          // nothing typed yet: placed from the song lengths
-  if (v.diffMs > 5000 && v.durationMs) fvEl('fullVideoStatus').textContent += ` The video is ${ytFormatTime(v.diffMs / 1000)} longer than your songs: if it opens with an intro, set Intro.`;
+  if (v.diffMs > 5000 && v.durationMs && !ytLengthsStretch(fv.rows.map(r => r.len), fv.total - fv.intro)) fvEl('fullVideoStatus').textContent += ` The video is ${ytFormatTime(v.diffMs / 1000)} longer than your songs: if it opens with an intro, set Intro.`;
 }
 function fvEndsFromNext() {
   if (!fv) return; fvValidate();
   const id = youtubeVideoIdFromUrl(fvEl('fullVideoUrl').value.trim()); let total = 0;
   if (id && ytQueue[ytQueueIndex] && ytQueue[ytQueueIndex].videoId === id && ytPlayer && ytPlayer.getDuration) { try { total = Math.round(ytPlayer.getDuration() || 0); } catch (e) { total = 0; } }          // the last song ends where the video does, when the player knows
+  if (!total && fv.total && fv.totalFor === id) total = fv.total;          // (1.95.5) or the Video length box
   const ends = ytFillEnds(fv.rows.map(r => r.start.trim() ? ytParseTime(r.start) : NaN), total);
   fv.rows.forEach((r, i) => { if (r.start.trim() && !isNaN(ends[i])) r.end = ytFormatTime(ends[i]); });
   fvRender();
@@ -797,7 +841,8 @@ fvEl('fullVideoClose').addEventListener('click', fvClose); fvEl('fullVideoCancel
 fvEl('fullVideoOverlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) fvClose(); });
 fvEl('fullVideoOverlay').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); fvClose(); } });
 fvEl('fullVideoSave').addEventListener('click', fvSave);
-fvEl('fullVideoUrl').addEventListener('input', fvValidate);
+fvEl('fullVideoUrl').addEventListener('input', () => { fvValidate(); fvUrlChanged(); });
+fvEl('fullVideoLength').addEventListener('change', fvLengthChanged);
 fvEl('fullVideoOpenPlayer').addEventListener('click', () => { const u = fvEl('fullVideoUrl').value.trim(); if (!youtubeVideoIdFromUrl(u)) { flashGlobalToast('Paste the full-release video\u2019s link first.'); return; } openYoutubePlayer(youtubeLinkWithSegment(u, 0, 0), fv ? `${fv.item.artist} \u2014 ${fv.item.title}` : 'Full-release video', [], fv && fv.item); });
 fvEl('fullVideoSearch').addEventListener('click', () => { if (fv) window.open('https://www.youtube.com/results?search_query=' + encodeURIComponent(`${fv.item.artist} ${fv.item.title} full album`), '_blank', 'noopener'); });
 fvEl('fullVideoPasteBtn').addEventListener('click', () => { const b = fvEl('fullVideoPasteBox'); b.hidden = !b.hidden; if (!b.hidden) fvEl('fullVideoPasteText').focus(); });
@@ -1204,28 +1249,43 @@ function discogsResultFit(r, artist, title) {                       // a search 
   const ok = as === null ? ts >= 0.95 : ts >= 0.85 && as >= 0.75;
   return { ok, score: ts + (as === null ? 0.5 : as) };
 }
-async function discogsFindRelease(artist, title, headers) {        // -> { hit } (a search result) or { error: 'network' | 'unauthorized' | 'rate-limited' | 'http-NNN' | 'no-match' }
-  const a = dgArtist(artist), t = dgClean(title), enc = encodeURIComponent;
-  const tries = [`artist=${enc(a)}&release_title=${enc(t)}&per_page=5`, `release_title=${enc(t)}&per_page=50`, `q=${enc(a + ' ' + t)}&per_page=50`];
-  for (let i = 0; i < tries.length; i++) {
-    let res; try { res = await fetch(`https://api.discogs.com/database/search?type=release&${tries[i]}`, { headers }); } catch (e) { return { error: 'network' }; }
+// (1.95.4) A release is often on Discogs many times: the first pressing, reissues, other countries and formats, each with its own date,
+// label, catalogue number and tracklist. So every pressing found is kept (Pull details lets you choose among them), and the one whose
+// catalogue number is yours comes first. CRATE's own "CRT-007" numbers aren't catalogue numbers and are never searched for.
+function dgCatKey(c) { const s = String(c == null ? '' : c).trim(); return !s || /^CRT-\d+$/i.test(s) || /^none$/i.test(s) ? '' : s.toUpperCase().replace(/[\s\-\u2010-\u2015._\/]+/g, ''); }
+async function discogsReleaseChoices(artist, title, headers, catno) {          // -> { list: [search results, best first] } or { error } as below
+  const a = dgArtist(artist), t = dgClean(title), enc = encodeURIComponent, cat = dgCatKey(catno), out = [], seen = new Set();
+  const ask = async (qs) => {
+    let res; try { res = await fetch(`https://api.discogs.com/database/search?type=release&${qs}`, { headers }); } catch (e) { return { error: 'network' }; }
     if (res.status === 401) return { error: 'unauthorized' };
     if (res.status === 429) return { error: 'rate-limited' };
     if (!res.ok) return { error: 'http-' + res.status };
-    const list = ((await res.json()).results || []);
-    if (i === 0 && list.length) return { hit: list[0] };           // both fields matched: Discogs's own first answer, as before
-    const best = list.map(r => Object.assign({ r }, discogsResultFit(r, a, t))).filter(x => x.ok).sort((x, y) => y.score - x.score)[0];
-    if (best) return { hit: best.r };
+    return { list: ((await res.json()).results || []) };
+  };
+  const add = (list, keep) => list.forEach(r => { if (r && r.id && !seen.has(r.id) && keep(r)) { seen.add(r.id); out.push(r); } });
+  const fits = (r) => discogsResultFit(r, a, t).ok;
+  if (cat) { const r = await ask(`catno=${enc(String(catno).trim())}&per_page=25`); if (r.error) return r; add(r.list, fits); }          // your pressing, by its number (the artist may be written another way there)
+  const strict = await ask(`artist=${enc(a)}&release_title=${enc(t)}&per_page=50`); if (strict.error) return strict;
+  add(strict.list, () => true);                                     // both fields matched: every pressing, in Discogs's own order
+  if (!out.length) for (const qs of [`release_title=${enc(t)}&per_page=50`, `q=${enc(a + ' ' + t)}&per_page=50`]) {          // the artist written another way: looser, and checked
+    const r = await ask(qs); if (r.error) return r;
+    add(r.list.map(x => Object.assign({ x }, discogsResultFit(x, a, t))).filter(y => y.ok).sort((p, q) => q.score - p.score).map(y => y.x), () => true);
+    if (out.length) break;
   }
-  return { error: 'no-match' };
+  if (cat) out.sort((p, q) => (dgCatKey(q.catno) === cat) - (dgCatKey(p.catno) === cat));          // (a stable sort: the rest keep their order)
+  return out.length ? { list: out.slice(0, 40) } : { error: 'no-match' };
+}
+async function discogsFindRelease(artist, title, headers, catno) {  // -> { hit } (the best search result) or { error: 'network' | 'unauthorized' | 'rate-limited' | 'http-NNN' | 'no-match' }
+  const r = await discogsReleaseChoices(artist, title, headers, catno);
+  return r.error ? r : { hit: r.list[0] };
 }
 
-async function fetchDiscogsGenreStyle(artist, title) {
+async function fetchDiscogsGenreStyle(artist, title, catno) {          // catno: the release's catalogue number, when you have one: that pressing is used
   const token = loadDiscogsToken();
   if (!token) return { error: 'no-token' };
 
   const headers = { 'Accept': 'application/json', 'Authorization': `Discogs token=${token}` };
-  const found = await discogsFindRelease(artist, title, headers);
+  const found = await discogsFindRelease(artist, title, headers, catno);
   if (found.error) return { error: found.error };
   const hit = found.hit;
 

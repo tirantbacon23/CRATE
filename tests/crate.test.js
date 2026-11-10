@@ -188,6 +188,12 @@ suite('Discogs', () => {
     ok(!fit("Mariya Takeuchi - It's A Poppin' Time"));                   // another artist with the same title
     ok(app('discogsResultFit')({ title: 'Oasis - Definitely Maybe' }, 'Oasis', 'Definitely Maybe').ok);
   });
+  test('catalogue numbers: the same however written; CRATE\u2019s own are not one', () => {
+    const k = app('dgCatKey');
+    eq(k('RAL-8501'), k('ral 8501')); eq(k('RAL\u20108501'), 'RAL8501'); eq(k('CRT-007'), ''); eq(k('none'), ''); eq(k(''), '');
+    eq(app('pdDgDate')('1986-00-00'), '1986'); eq(app('pdDgDate')('1986-09-00'), '1986-09'); eq(app('pdDgDate')('1986-09-03'), '1986-09-03');
+    eq(app('pdDgChoiceText')({ id: 1, year: '1986', country: 'Japan', format: ['Vinyl', 'LP', 'Album'], label: ['Air Records (2)'], catno: 'RAL-8501' }), '1986 · Japan · Vinyl LP · Air Records RAL-8501');
+  });
 });
 
 suite('Bilibili full-release videos', () => {
@@ -618,6 +624,14 @@ suite('Full-release video: times from song lengths', () => {
     eq(f([180, 200, 95], 0), [{ start: 0, end: 180 }, { start: 180, end: 380 }, { start: 380, end: 475 }]);
     eq(f([180, 200], 12), [{ start: 12, end: 192 }, { start: 192, end: 392 }]);
     eq(f([180, 0, 95], 5), [{ start: 5, end: 185 }, null, null]);
+  });
+  test('a video a little longer than the songs: the difference is spread and the last song ends with the video', () => {
+    const f = app('ytTimesFromLengths');
+    const got = f([1700, 1700, 1700], 0, 5133);                      // 1:25:00 of songs in a 1:25:33 video
+    eq(got[0].start, 0); eq(got[2].end, 5133); eq(got[1].start, got[0].end); ok(got[1].start > 1700 && got[1].start < 1733);
+    eq(f([100, 100], 10, 214), [{ start: 10, end: 112 }, { start: 112, end: 214 }]);          // after an intro: the room is the video less the intro
+    eq(f([180, 200], 0, 900), [{ start: 0, end: 180 }, { start: 180, end: 380 }]);           // far longer (other songs, a second disc): back to back
+    eq(f([180, 0], 0, 181), [{ start: 0, end: 180 }, null]);                                // a length missing: back to back
   });
 });
 

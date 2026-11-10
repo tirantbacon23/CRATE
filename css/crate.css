@@ -4348,6 +4348,8 @@ html, body {
   .pd-hn { display: flex; justify-content: space-between; align-items: center; gap: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.06em; color: var(--text); }
   .pd-hs { font-size: 11px; color: var(--text-dim); margin-top: 2px; line-height: 1.3; }
   .pd-hs.pd-err { color: #E5734A; }
+  .pd-dc-pick { width: 100%; margin-top: 4px; box-sizing: border-box; font: 11px 'IBM Plex Mono', monospace; background: var(--bg-card); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; }
+  .pd-match { color: var(--accent); white-space: nowrap; }
   .pd-all { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--accent); background: none; border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; cursor: pointer; white-space: nowrap; }
   .pd-all:hover { border-color: var(--accent); }
   .pd-sec { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin: 12px 0 6px; }

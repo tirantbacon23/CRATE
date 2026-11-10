@@ -17,7 +17,25 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.3
+  CURRENT_VERSION: 1.95.5
+
+  1.95.5 — 2026-11-10 — Full-release videos: a Video length box. Song lengths from Discogs or Spotify rarely add up to the
+          video exactly (1:25:00 of songs in a 1:25:33 video: a little silence between songs, a slightly faster transfer), so
+          From song lengths drifted further off with every song, about half a minute by the last one.
+
+          With the video's length known, From song lengths spreads the difference (up to 4%) across the songs, after the intro,
+          and the last song ends where the video does; Ends from next start uses it for the last song too. It is filled in when
+          CRATE knows it (a video found by Find, the YouTube add-on, the player playing it); a Bilibili video's length is typed.
+
+  1.95.4 — 2026-11-10 — Discogs pressings: Pull details shows which Discogs release it used and lets you choose another. A release
+          is on Discogs once per pressing (the first one, reissues, other countries and formats), each with its own date, label,
+          catalogue number and tracklist, and Pull details used to take whichever Discogs listed first.
+
+          The pressing with your catalogue number now comes first (Edit details' ⤓ Discogs uses it too), and the Discogs column
+          names the pressing it shows ("1986 · Japan · Vinyl LP · Air Records RAL-8501") with a menu of the others. Catalogue no.
+          is a detail of its own in Pull details (from your crate, RYM, MusicBrainz or Discogs), and picking one moves Discogs to
+          the pressing with that number unless you chose a pressing yourself. A pressing's full date, label and cover come from
+          its own Discogs page, not the search's year. CRATE's own CRT-007 numbers are never searched for.
 
   1.95.3 — 2026-11-10 — Discogs finds releases whose artist it writes another way. Its search wanted the artist and the title
           exactly as you have them, so "Tatsu Yamashita — It's a Poppin' Time" found nothing (Discogs: "Tatsuro Yamashita", or

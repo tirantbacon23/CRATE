@@ -584,7 +584,7 @@ function bindEvents() {
     el.editGenreDiscogsStatus.hidden = false;
     el.editGenreDiscogsBtn.disabled = true;
     try {
-      const result = await fetchDiscogsGenreStyle(artist, title);
+      const result = await fetchDiscogsGenreStyle(artist, title, el.editCatalog.value);
       if (result.error === 'no-token') {
         el.editGenreDiscogsStatus.textContent = 'Add a Discogs personal access token first (⚙ → Discogs API…).';
       } else if (result.error === 'unauthorized') {
