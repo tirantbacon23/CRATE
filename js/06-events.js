@@ -1544,6 +1544,11 @@ function renderConfigSlots(mode) {
     const ac = auto.querySelector('input'); ac.checked = typeof vizAutoOn === 'function' ? vizAutoOn() : true;
     ac.addEventListener('change', () => { if (typeof vizSetAuto === 'function') vizSetAuto(ac.checked); });
     container.appendChild(auto);
+    const pa = document.createElement('label'); pa.className = 'arrange-row';          // (1.99.0)
+    pa.innerHTML = '<input type="checkbox" id="p2pAutoToggle"> When a song has no link and Spotify doesn\u2019t have it: find it on Soulseek, download it and play it (CRATE for P2P add-on; this device)';
+    const pc = pa.querySelector('input'); pc.checked = typeof p2pAutoOn === 'function' ? p2pAutoOn() : true;
+    pc.addEventListener('change', () => { if (typeof p2pSetAuto === 'function') p2pSetAuto(pc.checked); });
+    container.appendChild(pa);
   } else {
     addRows(mode, labels[mode]);
   }

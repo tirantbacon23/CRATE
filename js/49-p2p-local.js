@@ -84,9 +84,10 @@ async function p2pTidy() {                                          // "After pl
 }
 
 // ----- downloading -----
-async function p2pDownload(item, choice, play) {                     // inside a click (it may ask for the folder first)
+async function p2pDownload(item, choice, play, quiet) {              // inside a click (it may ask for the folder first); quiet: started by CRATE itself, so no asking
   if (!item || !choice) return;
-  if (p2pFolderSupported()) { await p2pDirCheck(); if (p2pDirPerm === 'prompt') await p2pDirAllow(); else if (p2pDirPerm === 'none') { flashGlobalToast('Choose slskd’s downloads folder, so CRATE can play and tidy what arrives.'); await p2pDirPick(); } }
+  if (quiet) await p2pDirCheck();
+  else if (p2pFolderSupported()) { await p2pDirCheck(); if (p2pDirPerm === 'prompt') await p2pDirAllow(); else if (p2pDirPerm === 'none') { flashGlobalToast('Choose slskd’s downloads folder, so CRATE can play and tidy what arrives.'); await p2pDirPick(); } }
   const tracks = choice.tracks || [], songs = [];
   (choice.songs || []).forEach((fi, k) => { const f = fi >= 0 && choice.files[fi]; if (f && f.path) songs.push({ k, tn: tracks[k] ? tracks[k].n : k + 1, name: tracks[k] ? tracks[k].t : f.name, path: f.path, size: f.size || 0, st: 'wait', pct: 0 }); });
   if (!songs.length) { flashGlobalToast('That folder has no songs from this release’s tracklist to download.'); return; }
@@ -97,7 +98,7 @@ async function p2pDownload(item, choice, play) {                     // inside a
   const failed = new Set(r.failed || []); songs.forEach(s => { if (failed.has(s.path)) { s.st = 'fail'; s.err = 'slskd couldn’t queue it'; } });
   p2pDl[key] = { key, artist: item.artist || '', title: item.title || '', user: choice.user, folder: choice.name, at: Date.now(), songs };
   p2pDlSave(); p2pRefreshUi(); p2pTick();
-  flashGlobalToast(play ? `Downloading ${item.title}: it starts playing as soon as song ${songs[0].tn} arrives.` : `Downloading ${item.title} (${songs.length} songs).`);
+  if (!quiet) flashGlobalToast(play ? `Downloading ${item.title}: it starts playing as soon as song ${songs[0].tn} arrives.` : `Downloading ${item.title} (${songs.length} songs).`);
   if (play) playAlbumReplacingQueue(item);
 }
 async function p2pCancel(key) {
@@ -145,6 +146,8 @@ setInterval(() => { if (!document.hidden || Object.values(p2pDl).some(r => r.son
 
 // ----- Processing (category P2P) -----
 function p2pJobs(run, need) {
+  p2pAutoFlight.forEach(f => run.push({ cat: 'p2p', icon: 'search', title: `Looking for ${f.title} on Soulseek`, sub: f.artist, pct: null, detail: 'A song of it has no link Spotify or YouTube can play: a sure match will be downloaded and played' }));
+  Object.entries(p2pAutoMissed).forEach(([k, m]) => { if (Date.now() - m.at > 6 * 3600000 || m.dismissed) return; need.push({ cat: 'p2p', icon: 'search', title: `${m.title}: no sure match on Soulseek`, detail: `${m.why}. Its songs without a link were skipped.`, acts: [{ label: 'Pick a folder', fn: () => { const it = p2pItemByKey(k); if (it) p2pOpen(it); }, opens: true, primary: true }, { label: 'Dismiss', fn: () => { m.dismissed = true; } }] }); });
   const recs = Object.values(p2pDl);
   recs.forEach(rec => {
     const n = rec.songs.length, active = rec.songs.filter(p2pActive), done = rec.songs.filter(s => s.st === 'done' || s.st === 'gone').length, failed = rec.songs.filter(s => s.st === 'fail');
@@ -234,5 +237,53 @@ function p2pLocalEnded() {
   setTimeout(p2pTidy, 500);                                          // (after the next song has started: the one that just ended can go)
 }
 
+// ----- (1.99.0) when nothing else can play a song: find the release on Soulseek, download it, and play the song as it arrives -----
+// Playing (the queue, or one song) reaches a song with no YouTube or SoundCloud link that Spotify doesn't have either. Instead of skipping
+// it, CRATE searches Soulseek for the release, and if a folder is a Sure match it chooses it, downloads it (the whole release, so the next
+// songs are ready too) and plays the song once it lands. No sure match: the song is skipped as before, and Processing offers to pick a folder.
+// Player Controls → Panel Settings… turns it off.
+const P2P_AUTO_KEY = 'crate_p2p_auto_v1', p2pAutoFlight = new Map(), p2pAutoMissed = {};
+function p2pAutoOn() { try { return localStorage.getItem(P2P_AUTO_KEY) !== '0'; } catch (e) { return true; } }
+function p2pSetAuto(on) { try { localStorage.setItem(P2P_AUTO_KEY, on ? '1' : '0'); } catch (e) { /* this visit only */ } }
+function p2pAutoGet(item) {                                         // -> Promise<boolean>: the release is now downloading (or already was)
+  const key = artKey(item);
+  if (p2pDl[key] && p2pDl[key].songs.some(s => s.st !== 'gone' && s.st !== 'fail')) return Promise.resolve(true);
+  if (p2pAutoFlight.has(key)) return p2pAutoFlight.get(key).pr;
+  const pr = (async () => {
+    const tracks = ((await Promise.resolve(getTracksFor(item)).catch(() => [])) || []).filter(t => t && t.trackName);
+    const qs = [p2pQueryFor(item), String(item.title || '').replace(/\s*[\(\[][^\)\]]*[\)\]]/g, ' ').replace(/[\/\\:;,.!?"“”'’`~*|<>]+/g, ' ').replace(/\s+/g, ' ').trim()];
+    let folders = [];
+    for (const q of [...new Set(qs)].filter(x => x.length >= 3)) { const r = await p2pSearchFolders(q); if (!r.ok) { p2pAutoMissed[key] = { at: Date.now(), why: p2pWhy(r), title: item.title }; return false; } folders = r.folders; if (folders.length) break; }
+    const best = p2pRank(folders, tracks, item, p2pPrefs()).find(f => !f.m.unavailable && f.m.verdict === 'sure');
+    if (!best) { p2pAutoMissed[key] = { at: Date.now(), why: folders.length ? `${folders.length} folder${folders.length === 1 ? '' : 's'} found, none a sure match` : 'nothing found', title: item.title }; return false; }
+    p2pChoose(item, best, tracks); await p2pDownload(item, p2pChoiceFor(item), false, true);
+    return !!p2pDl[key];
+  })();
+  p2pAutoFlight.set(key, { pr, title: item.title || '', artist: item.artist || '' }); jobsRefresh();
+  pr.finally(() => { p2pAutoFlight.delete(key); jobsRefresh(); });
+  return pr;
+}
+function p2pAutoTake(myId, index, item, track) {                     // called where playback would skip a song: true when CRATE looks for it on Soulseek instead
+  if (!p2pAutoOn() || !p2p.ready || !p2p.configured || !item || !track || !track.trackName) return false;
+  const miss = p2pAutoMissed[artKey(item)]; if (miss && Date.now() - miss.at < 15 * 60000) return false;          // looked a moment ago and found nothing sure
+  if (p2pQueueTake(myId, index, item, track)) return true;          // already downloaded, or on its way
+  stopOtherEngines('local'); p2pLocalStop(); setMasterPlayerEngine('local'); p2pMiniPlayerFor(item, track);
+  el.miniPlayerTimeCurrent.textContent = 'searching P2P\u2026'; setMiniPlayerPlayPauseIcon(true);
+  flashGlobalToast(`"${track.trackName}" isn\u2019t on Spotify or YouTube: looking for ${item.title} on Soulseek\u2026`);
+  p2pAutoGet(item).then(ok => {
+    if (myId !== crateQueueId || crateQueueIndex !== index) return;
+    if (ok && p2pQueueTake(myId, index, item, track)) return;
+    const m = p2pAutoMissed[artKey(item)];
+    flashGlobalToast(`Skipping "${track.trackName}" \u2014 not on Soulseek either${m ? ' (' + m.why + ')' : ''}.`);
+    mqAdd([item], 'skipped', track.trackName); playCrateQueueIndex(myId, index + 1);
+  });
+  return true;
+}
+function p2pPlayOneOrFalse(item, trackName, trackNum) {             // one song, started from its row or menu, that nothing else can play
+  const myId = ++crateQueueId;
+  crateQueueList = [{ item, track: Object.assign({ trackName, trackNumber: trackNum }, trackLinkOverridesFor(item, trackNum, trackName)) }]; crateQueueIndex = 0; renderCrateQueuePanel();
+  if (p2pAutoTake(myId, 0, item, crateQueueList[0].track)) return true;
+  crateQueueList = []; crateQueueIndex = -1; renderCrateQueuePanel(); return false;
+}
 function p2pRefreshUi() { if (typeof jobsRefresh === 'function') jobsRefresh(); if (p2p.cur && typeof p2pRender === 'function') p2pRender(); }
 p2pDirCheck().then(() => p2pTick());

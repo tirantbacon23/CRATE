@@ -250,7 +250,7 @@ async function playCrateQueueIndex(myId, index) {
   if (only === 'youtube' || only === 'soundcloud') {               // one source only, and not Spotify: its link, or the next song
     const link = only === 'youtube' ? track.youtubeLink : track.soundcloudLink;
     crateQueueExpectedSpotifyTrackId = null;
-    if (!link) { playSourceSkip(item, trackName, myId, index); return; }
+    if (!link) { if (typeof p2pAutoTake === 'function' && p2pAutoTake(myId, index, item, track)) return; playSourceSkip(item, trackName, myId, index); return; }          // (1.99.0) Soulseek before skipping
     if (only === 'youtube') playCrateTrackOnYoutube(myId, index, link, trackName, track.trackTimeMillis); else playCrateTrackOnSoundcloud(myId, index, link, trackName);
     return;
   }
@@ -286,6 +286,7 @@ async function playCrateQueueIndex(myId, index) {
   // play here and is skipped rather than guessed at.
   if (isManualAlbum(item)) {
     crateQueueExpectedSpotifyTrackId = null;
+    if (typeof p2pAutoTake === 'function' && p2pAutoTake(myId, index, item, track)) return;          // (1.99.0) Soulseek before skipping
     flashGlobalToast(releaseFullVideoId(item) ? `Skipping "${trackName}" \u2014 no time saved for it in the full-release video (\u22ef \u2192 Full-release video\u2026).` : `Skipping "${trackName}" \u2014 no link saved.`);
     mqAdd([item], 'skipped', trackName);          // queued for Match songs
     playCrateQueueIndex(myId, index + 1);
@@ -299,6 +300,7 @@ async function playCrateQueueIndex(myId, index) {
       crateQueueExpectedSpotifyTrackId = trackId;
       startCrateQueueSpotify(myId, index, `spotify:track:${trackId}`, intent, trackName);
     } else {
+      if (typeof p2pAutoTake === 'function' && p2pAutoTake(myId, index, item, track)) return;          // (1.99.0) Soulseek before skipping
       flashGlobalToast(`Skipping "${trackName}" \u2014 not found on Spotify.`);
       mqAdd([item], 'skipped', trackName);
       playCrateQueueIndex(myId, index + 1);

@@ -201,6 +201,17 @@ async function p2pSearch(text) {
   };
   setTimeout(tick, 1200);
 }
+async function p2pSearchFolders(q, maxMs) {                         // (1.99.0) a search without the dialog -> { ok, folders } | { ok: false, reason }
+  const reqId = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t0 = Date.now();
+  const r = await p2pCall('search', { reqId, q }); if (!r.ok) return r;
+  let folders = [];
+  while (Date.now() - t0 < (maxMs || 25000)) {
+    await new Promise(res => setTimeout(res, 1500));
+    const p = await p2pCall('poll', { reqId }); if (!p.ok) return p;
+    folders = p.folders || folders; if (p.done) return { ok: true, folders };
+  }
+  p2pCall('cancel', { reqId }); return { ok: true, folders };
+}
 async function p2pStop() {
   const c = p2p.cur; if (!c || !c.reqId || c.state !== 'searching') return;
   c.state = 'done'; p2pRender(); await p2pCall('cancel', { reqId: c.reqId });

@@ -17,7 +17,20 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.98.1
+  CURRENT_VERSION: 1.99.0
+
+  1.99.0 — 2026-11-11 — A song nothing else can play is found on Soulseek, downloaded and played by itself: no YouTube or SoundCloud link, and not on Spotify. Page only (CRATE for P2P 0.2.0).
+
+          WHERE CRATE USED TO SKIP a song (the queue, or one song played from its row or menu: a
+          release you added by hand with no link saved, a song Spotify doesn't have, or one with
+          no link from the only source you play from), it now searches Soulseek for the release.
+          A Sure match is chosen, downloaded (the whole release, so the next songs are ready) and
+          the song plays the moment it arrives, as Download and play does. Meanwhile the player
+          says "searching P2P…", then shows the download; Processing shows "Looking for … on
+          Soulseek". No sure match: the song is skipped as before, with why, and Processing offers
+          Pick a folder (Find on P2P). A release that just found nothing isn't searched again for
+          15 minutes. ⚙ → Panels configuration… → Player Controls → Panel Settings… → "When a song
+          has no link and Spotify doesn't have it: find it on Soulseek…" turns it off (this device).
 
   1.98.1 — 2026-11-11 — Fix: playing one song of a release downloaded from P2P (a click in its tracklist, or its menu's Play) now plays its file too, not Spotify or YouTube. Page only.
 

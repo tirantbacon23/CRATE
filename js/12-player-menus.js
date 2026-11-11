@@ -346,6 +346,7 @@ async function playTrackNow(item, trackName, trackNum) {
   // isManualAlbum() — rather than confidently landing on whatever unrelated
   // track Spotify's fuzzy search turns up.
   if (isManualAlbum(item)) {
+    if (typeof p2pPlayOneOrFalse === 'function' && p2pPlayOneOrFalse(item, trackName, trackNum)) return;          // (1.99.0) Soulseek
     flashGlobalToast('No link saved for this track — add one from Edit track properties.');
     return;
   }
@@ -358,6 +359,7 @@ async function playTrackNow(item, trackName, trackNum) {
     if (trackId) {
       showMiniPlayer(`spotify:track:${trackId}`, intent);
     } else {
+      if (typeof p2pPlayOneOrFalse === 'function' && p2pPlayOneOrFalse(item, trackName, trackNum)) return;          // (1.99.0) Soulseek
       flashGlobalToast('Couldn\u2019t find that track on Spotify' + (loadSpotifyCreds().clientId ? '' : ' — set up the Spotify API in \u2699 first'));
     }
   } catch (err) {
