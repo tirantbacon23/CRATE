@@ -1234,6 +1234,10 @@ function initGenreLinks() {
     openGenreContextMenu(a.dataset.genre, e.clientX, e.clientY);
   }, true);
 }
+el.trackInfoFields.addEventListener('click', (e) => {               // (1.95.31) the artist's name opens their artist page (a shared credit: its first artist), as the player's does
+  const a = e.target.closest('.track-info-artist-link'); if (!a) return;
+  e.preventDefault(); e.stopPropagation(); openArtistInfoTab(a.dataset.artist);
+}, true);
 function renderTrackInfoPanel() {
   if (!state.rightPanelShowTrackInfo) return;
   const hasTrack = !!nowPlayingItem || (activePlayerEngine === 'spotify' && currentSpotifyTrack);
@@ -1260,7 +1264,7 @@ function renderTrackInfoPanel() {
   el.trackInfoFields.innerHTML = fields.map(key => `
     <div class="track-info-field">
       <span class="track-info-field-label">${escapeHtml(FIELD_OPTIONS[key] || '')}:</span>
-      <span class="track-info-field-value">${key === 'genre' ? genreLinksHtml(miniPlayerFieldVal(key)) : escapeHtml(miniPlayerFieldVal(key))}</span>
+      <span class="track-info-field-value">${key === 'genre' ? genreLinksHtml(miniPlayerFieldVal(key)) : key === 'artist' && miniPlayerFieldVal(key) ? `<a href="#" class="track-info-artist-link" data-artist="${escapeHtml(miniPlayerFieldVal(key))}" title="Open ${escapeHtml(miniPlayerFieldVal(key))}’s artist page">${escapeHtml(miniPlayerFieldVal(key))}</a>` : escapeHtml(miniPlayerFieldVal(key))}</span>
     </div>
   `).join('');
 

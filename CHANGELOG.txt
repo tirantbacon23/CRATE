@@ -17,7 +17,17 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.30
+  CURRENT_VERSION: 1.95.31
+
+  1.95.31 — 2026-11-11 — Fix: in the floating player the volume slider ran over the button beside it, and the last buttons were cut off. Track Info's artist opens the artist page. Page only.
+
+          FLOATING PLAYER: a range input is about 130 px wide unless told otherwise, wider than
+          the volume's own box, so its knob sat on the next button (⧉ while a YouTube video
+          plays). It now keeps to its box everywhere. In the floating window the volume has a
+          line of its own and the buttons are spread on the line below, all inside the window
+          (devices and queue were cut off at its right edge).
+          TRACK INFO: click the artist's name to open their artist page (a shared credit opens
+          its first artist), as the player's artist name does.
 
   1.95.30 — 2026-11-11 — Processing has its own button in the header, with a progress bar. Page only.
 
