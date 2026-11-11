@@ -17,7 +17,24 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.20
+  CURRENT_VERSION: 1.95.21
+
+  1.95.21 — 2026-11-11 — The visualizer hears the music through the CRATE for YouTube add-on (1.5.0): no share prompt and no "Sharing this tab" bar. Add-on 1.5.0 also gets a video's chapters to CRATE at last. Page and YouTube add-on 1.5.0.
+
+          THE VISUALIZER: with the add-on 1.5.0 connected, Listen asks the add-on for this tab's
+          own sound (chrome.tabCapture) instead of the browser's share prompt. Chrome mutes a tab
+          while it is captured, so CRATE plays the sound back out itself; the player's volume
+          still works. If Chrome wants the add-on's toolbar button clicked on this tab first,
+          the visualizer says so: click CRATE for YouTube in the toolbar, then "Let CRATE hear
+          this tab", which starts it (and opens the visualizer). "Share instead" uses the old
+          prompt. With an older add-on, or none, nothing changes.
+          THE ADD-ON (CRATE for YouTube 1.5.0, a new zip): asks for the "tabCapture" permission.
+          Only your connected CRATE page may ask, only for its own tab, and the stream can be
+          used by that tab alone. Its toolbar button, on your CRATE page, shows "Let CRATE hear
+          this tab" (Diagnose stays for YouTube pages, now video pages too).
+          FIX: add-on 1.4.0 read a video's chapters and description, but the part that passes
+          answers to the CRATE page dropped them, so Match songs and Find timed full-release
+          videos from song lengths even with 1.4.0. 1.5.0 passes them on; nothing changed in CRATE.
 
   1.95.20 — 2026-11-11 — Lyrics (the lyrics button in the player): the playing song's words from
           LRCLIB (free, no key). Timed lyrics light the line being sung and keep it in view
