@@ -17,7 +17,18 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.105.0
+  CURRENT_VERSION: 1.106.0
+
+  1.106.0 — 2026-11-11 — Soulseek searches are paced so the server doesn't block your connection: the add-on allows at most one every 15 seconds and 30 an hour, and new releases are searched one every 2 minutes. Page and CRATE for P2P 0.2.1.
+
+          Soulseek's server refuses an internet address for a while when it logs in or searches too
+          often (slskd then shows "Disconnected from the Soulseek server: Remote connection closed"
+          straight after connecting, on every computer on that connection). CRATE searches by itself
+          (new releases, songs nothing else can play, Play from Soulseek), so:
+          THE ADD-ON (0.2.1) lets a search through at most every 15 seconds, and at most 30 an hour,
+          whatever CRATE asks. One over the limit waits: Find on P2P says "Searches are paced…" and
+          searches by itself when its turn comes; background searches wait their turn quietly.
+          NEW RELEASES are searched one every 2 minutes (was 20 seconds).
 
   1.105.0 — 2026-11-11 — Play from Soulseek first (a new "Play from" choice), each P2P song's download shown on its row, and Pick source by: Fastest. Page only (CRATE for P2P 0.2.0).
 

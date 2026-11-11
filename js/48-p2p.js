@@ -36,7 +36,8 @@ function p2pWhy(r) {
     auth: 'slskd refused the add-on’s API key. Check it in the add-on’s options.',
     denied: 'The add-on is connected to a different CRATE address. Connect this one in its options.',
     unknown: 'That search has gone (the browser was restarted, say). Search again.',
-    bad: 'That search text can’t be used: 2 to 200 characters.' })[r && r.reason] || `slskd answered with an error${r && r.status ? ' (' + r.status + ')' : ''}${r && r.detail ? ': ' + r.detail : ''}.`;
+    bad: 'That search text can’t be used: 2 to 200 characters.',
+    paced: `Searches are paced so Soulseek doesn’t block your connection: the next one can go in ${Math.ceil(((r && r.retryIn) || 15000) / 1000)} s.` })[r && r.reason] || `slskd answered with an error${r && r.status ? ' (' + r.status + ')' : ''}${r && r.detail ? ': ' + r.detail : ''}.`;
 }
 const p2pSize = (b) => b >= 1e9 ? (b / 1e9).toFixed(1) + ' GB' : b >= 1e6 ? Math.round(b / 1e6) + ' MB' : b ? Math.max(1, Math.round(b / 1e3)) + ' KB' : '';
 const p2pLen = (sec) => sec ? formatMs(sec * 1000) : '';
@@ -237,6 +238,7 @@ async function p2pSearch(text) {
   Object.assign(c, { reqId, q, state: 'searching', folders: [], ranked: [], responses: 0, files: 0, error: '', started: Date.now() }); c.tries++; p2pRender();
   const r = await p2pCall('search', { reqId, q });
   if (p2p.cur !== c || c.reqId !== reqId) return;
+  if (!r.ok && r.reason === 'paced') { c.state = 'error'; c.error = p2pWhy(r); p2pRender(); setTimeout(() => { if (p2p.cur === c && c.reqId === reqId) p2pSearch(q); }, Math.min(r.retryIn || 15000, 120000) + 500); return; }          // (1.106.0) it searches by itself when its turn comes
   if (!r.ok) { c.state = 'error'; c.error = p2pWhy(r); p2pRender(); return; }
   const tick = async () => {
     if (p2p.cur !== c || c.reqId !== reqId || c.state !== 'searching') return;
@@ -257,7 +259,9 @@ async function p2pSearch(text) {
 }
 async function p2pSearchFolders(q, maxMs) {                         // (1.99.0) a search without the dialog -> { ok, folders } | { ok: false, reason }
   const reqId = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t0 = Date.now();
-  const r = await p2pCall('search', { reqId, q }); if (!r.ok) return r;
+  let r = await p2pCall('search', { reqId, q });
+  for (let k = 0; !r.ok && r.reason === 'paced' && k < 3; k++) { await new Promise(res => setTimeout(res, Math.min(r.retryIn || 15000, 120000) + 500)); r = await p2pCall('search', { reqId, q }); }          // (1.106.0) paced by the add-on: wait our turn
+  if (!r.ok) return r;
   let folders = [];
   while (Date.now() - t0 < (maxMs || 25000)) {
     await new Promise(res => setTimeout(res, 1500));

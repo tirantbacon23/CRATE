@@ -200,7 +200,7 @@ setInterval(() => { if (!document.hidden || Object.values(p2pDl).some(r => r.son
 
 // ----- Processing (category P2P) -----
 function p2pJobs(run, need) {
-  if (p2pNewQ.length && p2pNewOn()) run.push({ cat: 'p2p', icon: 'search', title: 'Finding new releases on Soulseek', sub: `${p2pNewQ.length} waiting`, pct: null, detail: p2pNewState.now ? `Searching for ${p2pNewState.now}` : `${p2pNewQ.filter(e => e.tries).length ? 'some wait for their tracklist; ' : ''}one every 20 s, remembering the best folder for each (nothing is downloaded)`, acts: [{ icon: 'x', label: 'Stop', fn: () => { p2pNewQ.length = 0; p2pNewSave(); jobsRefresh(); } }] });
+  if (p2pNewQ.length && p2pNewOn()) run.push({ cat: 'p2p', icon: 'search', title: 'Finding new releases on Soulseek', sub: `${p2pNewQ.length} waiting`, pct: null, detail: p2pNewState.now ? `Searching for ${p2pNewState.now}` : `${p2pNewQ.filter(e => e.tries).length ? 'some wait for their tracklist; ' : ''}one every 2 minutes, remembering the best folder for each (nothing is downloaded)`, acts: [{ icon: 'x', label: 'Stop', fn: () => { p2pNewQ.length = 0; p2pNewSave(); jobsRefresh(); } }] });
   p2pAutoFlight.forEach(f => run.push({ cat: 'p2p', icon: 'search', title: `Looking for ${f.title} on Soulseek`, sub: f.artist, pct: null, detail: 'A song of it has no link Spotify or YouTube can play: a sure match will be downloaded and played' }));
   Object.entries(p2pAutoMissed).forEach(([k, m]) => { if (Date.now() - m.at > 6 * 3600000 || m.dismissed) return; need.push({ cat: 'p2p', icon: 'search', title: `${m.title}: no good match on Soulseek`, detail: m.isNew ? `Added to your crate: ${m.why}.` : `${m.why}. Its songs without a link were skipped.`, acts: [{ label: 'Pick a folder', fn: () => { const it = p2pItemByKey(k); if (it) p2pOpen(it); }, opens: true, primary: true }, { label: 'Dismiss', fn: () => { m.dismissed = true; } }] }); });
   const recs = Object.values(p2pDl);
@@ -397,7 +397,7 @@ function p2pPlayOneOrFalse(item, trackName, trackNum) {             // one song,
   crateQueueList = []; crateQueueIndex = -1; renderCrateQueuePanel(); return false;
 }
 // ----- (1.104.0) a release just added: found on Soulseek in the background, and its best folder remembered as its source -----
-// Nothing is downloaded: the first time it plays from P2P it starts at once, without a search. One search at a time, 20 s apart; a release
+// Nothing is downloaded: the first time it plays from P2P it starts at once, without a search. One search at a time, 2 minutes apart (1.106.0); a release
 // whose tracklist hasn't arrived yet (a new one waits for its RYM update) is tried again later, up to 3 times. A sure (else likely) match is
 // remembered; none: Processing lists it with Pick a folder. Processing's settings menu switches it off ("Find new releases on Soulseek").
 const P2P_NEW_KEY = 'crate_p2p_new_v1', P2P_NEWQ_KEY = 'crate_p2p_newq_v1';
@@ -435,7 +435,7 @@ async function p2pNewRun() {
     drop();
   } finally {
     p2pNewSave(); p2pNewState.running = false; p2pNewState.now = ''; jobsRefresh();
-    if (p2pNewQ.length) p2pNewSchedule(20000);                        // the next one, 20 s on
+    if (p2pNewQ.length) p2pNewSchedule(120000);                       // the next one, 2 minutes on (1.106.0: was 20 s), so Soulseek isn't searched too often
   }
 }
 setTimeout(() => { if (p2pNewQ.length) p2pNewSchedule(15000); }, 0);
