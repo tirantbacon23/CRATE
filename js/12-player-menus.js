@@ -307,8 +307,7 @@ async function playTrackNow(item, trackName, trackNum) {
   // (1.98.1) A song downloaded from P2P (or still arriving) plays from its file: through the queue, as one entry, where the Local player
   // picks it up (p2pQueueTake). If the file has gone meanwhile, that entry falls back to the usual sources there.
   if (typeof p2pSongFor === 'function') {
-    const s = p2pSongFor(item, { trackName, trackNumber: trackNum });
-    if (s && s.st !== 'gone' && s.st !== 'fail') {
+    if (p2pWouldTake(item, { trackName, trackNumber: trackNum })) {          // (1.100.0) here, on its way, or a release played from P2P
       const myId = crateQueueId;
       crateQueueList = [{ item, track: Object.assign({ trackName, trackNumber: trackNum }, trackLinkOverridesFor(item, trackNum, trackName)) }];
       renderCrateQueuePanel(); playCrateQueueIndex(myId, 0); return;

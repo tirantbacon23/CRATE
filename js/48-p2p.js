@@ -134,11 +134,11 @@ function p2pEnsureDom() {
     <form id="p2pForm" class="p2p-form"><input id="p2pQuery" type="search" autocomplete="off" spellcheck="false" aria-label="Search Soulseek for"><button type="submit" id="p2pGo" class="chip-btn p2p-go">Search</button><button type="button" id="p2pStop" class="chip-btn" hidden>Stop</button></form>
     <div class="p2p-opts"><label for="p2pFormat">Prefer</label><select id="p2pFormat" class="config-btn"><option value="lossless">Lossless (FLAC)</option><option value="mp3">MP3 320</option><option value="any">Either</option></select><span id="p2pTracksNote" class="p2p-tracks-note"></span></div>
     <p id="p2pStatus" class="p2p-status" role="status"></p>
-    <div id="p2pChosen" class="p2p-chosen" hidden><span id="p2pChosenText"></span><span class="p2p-chosen-acts"><button type="button" id="p2pDlPlay" class="chip-btn p2p-dl-play">Download and play</button><button type="button" id="p2pDlOnly" class="chip-btn">Download</button></span></div>
-    <div class="p2p-opts p2p-store"><label for="p2pKeep">After playing</label><select id="p2pKeep" class="config-btn"><option value="delete">Delete the file</option><option value="cap">Keep up to a size</option><option value="keep">Keep everything</option></select><span id="p2pCapWrap" hidden><input id="p2pCap" type="number" min="0.5" max="2000" step="0.5" class="p2p-cap" aria-label="Size limit in GB"> GB</span><span id="p2pFolderLine" class="p2p-folder-line"></span></div>
+    <div id="p2pChosen" class="p2p-chosen" hidden><span id="p2pChosenText"></span><span class="p2p-chosen-acts"><button type="button" id="p2pDlPlay" class="chip-btn p2p-dl-play">Download and play</button><button type="button" id="p2pDlOnly" class="chip-btn" title="Download every song now, to keep">Download all</button></span></div>
+    <div class="p2p-opts p2p-store"><label for="p2pKeep">After playing</label><select id="p2pKeep" class="config-btn"><option value="delete">Delete the file</option><option value="cap">Keep up to a size</option><option value="keep">Keep everything</option></select><label for="p2pAhead">Download ahead</label><select id="p2pAhead" class="config-btn"><option value="0">Only the song playing</option><option value="1">1 song</option><option value="2">2 songs</option><option value="3">3 songs</option></select><span id="p2pCapWrap" hidden><input id="p2pCap" type="number" min="0.5" max="2000" step="0.5" class="p2p-cap" aria-label="Size limit in GB"> GB</span><span id="p2pFolderLine" class="p2p-folder-line"></span></div>
     <i id="p2pBar" class="p2p-bar" hidden><b></b></i>
     <div id="p2pResults" class="p2p-results"></div>
-    <p class="p2p-foot">Choose a folder, then Download and play: each song plays from your disk as soon as it arrives. Results and downloads come from slskd, through the CRATE for P2P add-on.</p>
+    <p class="p2p-foot">Choose a folder, then Download and play: each song downloads just before it plays, and (by default) is deleted after. Results and downloads come from slskd, through the CRATE for P2P add-on.</p>
   </div>`;
   document.body.appendChild(ov);
   ov.addEventListener('mousedown', (e) => { if (e.target === ov) p2pClose(); });
@@ -148,6 +148,7 @@ function p2pEnsureDom() {
   document.getElementById('p2pStop').addEventListener('click', p2pStop);
   document.getElementById('p2pFormat').addEventListener('change', (e) => { p2pSetPrefs({ format: e.target.value }); p2pRerank(); });
   document.getElementById('p2pKeep').addEventListener('change', (e) => { p2pSetKeep({ mode: e.target.value }); p2pRender(); });          // (1.98.0)
+  document.getElementById('p2pAhead').addEventListener('change', (e) => { p2pSetKeep({ ahead: Number(e.target.value) }); });          // (1.100.0)
   document.getElementById('p2pCap').addEventListener('change', (e) => { p2pSetKeep({ capGb: Math.max(0.5, Number(e.target.value) || 2) }); });
   document.getElementById('p2pDlPlay').addEventListener('click', () => { const c = p2p.cur; if (c && c.item) { const ch = p2pChoiceFor(c.item); p2pDownload(c.item, ch, true); p2pClose(); } });
   document.getElementById('p2pDlOnly').addEventListener('click', () => { const c = p2p.cur; if (c && c.item) p2pDownload(c.item, p2pChoiceFor(c.item), false); });
@@ -155,7 +156,7 @@ function p2pEnsureDom() {
   document.getElementById('p2pResults').addEventListener('click', (e) => {
     const c = p2p.cur; if (!c) return;
     const ch = e.target.closest('[data-p2p-choose]');
-    if (ch) { const f = c.ranked[+ch.dataset.p2pChoose]; if (!f || !c.item) return; const was = p2pChoiceFor(c.item), same = was && was.user === f.user && was.dir === f.dir; p2pChoose(c.item, same ? null : f, c.tracks); flashGlobalToast(same ? 'Choice cleared.' : `Chosen: ${f.name}, from ${f.user}.`); p2pRender(); return; }
+    if (ch) { const f = c.ranked[+ch.dataset.p2pChoose]; if (!f || !c.item) return; const was = p2pChoiceFor(c.item), same = was && was.user === f.user && was.dir === f.dir; p2pChoose(c.item, same ? null : f, c.tracks); if (same && typeof p2pForget === 'function') p2pForget(artKey(c.item), true); flashGlobalToast(same ? 'Choice cleared: its downloads stopped and its files deleted.' : `Chosen: ${f.name}, from ${f.user}.`); p2pRender(); return; }
     const h = e.target.closest('[data-p2p-folder]'); if (!h) return; const row = h.closest('.p2p-folder'), k = row.dataset.key; row.classList.toggle('open'); h.setAttribute('aria-expanded', row.classList.contains('open'));
     if (row.classList.contains('open')) c.open.add(k); else c.open.delete(k);          // kept open as the list updates
   });
@@ -227,7 +228,7 @@ function p2pRender() {
   ce.hidden = !chosen; if (chosen) document.getElementById('p2pChosenText').textContent = `Chosen for this release: ${chosen.name} (${(chosen.ext || '').toUpperCase()}, ${chosen.count} songs), from ${chosen.user}.`;
   if (chosen) { const rec = typeof p2pDl !== 'undefined' && p2pDl[artKey(c.item)], busy = rec && rec.user === chosen.user && rec.songs.some(s => s.st === 'wait' || s.st === 'down'); document.getElementById('p2pDlOnly').hidden = !!busy; document.getElementById('p2pDlPlay').textContent = busy ? 'Play (downloading)' : 'Download and play'; }
   const keep = typeof p2pKeep === 'function' ? p2pKeep() : { mode: 'delete', capGb: 2 }, ks = document.getElementById('p2pKeep');
-  if (document.activeElement !== ks) ks.value = keep.mode; document.getElementById('p2pCapWrap').hidden = keep.mode !== 'cap'; const cap = document.getElementById('p2pCap'); if (document.activeElement !== cap) cap.value = keep.capGb;
+  if (document.activeElement !== ks) ks.value = keep.mode; const ah = document.getElementById('p2pAhead'); if (document.activeElement !== ah) ah.value = String(keep.ahead == null ? 1 : keep.ahead); document.getElementById('p2pCapWrap').hidden = keep.mode !== 'cap'; const cap = document.getElementById('p2pCap'); if (document.activeElement !== cap) cap.value = keep.capGb;
   const fl = document.getElementById('p2pFolderLine'), perm = typeof p2pDirPerm !== 'undefined' ? p2pDirPerm : 'none';
   const flHtml = !p2pFolderSupported() ? 'This browser can\u2019t open a folder for CRATE (Chrome or Edge can).' : perm === 'granted' ? `Downloads folder: <b>${escapeHtml(p2pDir ? p2pDir.name : '')}</b> <button type="button" class="link-btn" data-p2p-folder-pick>Change</button>` : perm === 'prompt' ? `Downloads folder: <b>${escapeHtml(p2pDir ? p2pDir.name : '')}</b> <button type="button" class="chip-btn" data-p2p-folder-allow>Allow access</button>` : '<button type="button" class="chip-btn" data-p2p-folder-pick>Choose slskd\u2019s downloads folder</button>';
   if (fl.dataset.html !== flHtml) { fl.dataset.html = flHtml; fl.innerHTML = flHtml; }

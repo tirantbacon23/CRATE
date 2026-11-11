@@ -17,7 +17,23 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.99.0
+  CURRENT_VERSION: 1.100.0
+
+  1.100.0 — 2026-11-11 — P2P plays like streaming: only the song playing and the next one are downloaded, songs are deleted once played or skipped, and a release's folder is remembered so it's never searched for twice. Page only (CRATE for P2P 0.2.0).
+
+          ROLLING DOWNLOADS: a release played from Soulseek (Download and play, or found because
+          nothing else could play it) fetches only the song playing and the next one ("Download
+          ahead" in Find on P2P: only the song playing, or 1 to 3 more). As each song starts, the
+          next is asked for, so it is usually there before the current one ends. Skip ahead or play
+          something else, and the songs no longer needed are cancelled after a few seconds.
+          ONE SONG (double-click, or its menu's Play) fetches just that song.
+          AFTER PLAYING → Delete the file now also deletes songs you skipped past, a few seconds
+          after they arrived, so the disk holds only the song playing and the one coming; they are
+          fetched again if you go back to them.
+          REMEMBERED: the folder chosen for a release (by you, or by CRATE's sure match) is kept, so
+          playing its songs again later downloads straight away, with no new search. Clearing the
+          choice in Find on P2P forgets it, stops its downloads and deletes its files.
+          "Download all" (was "Download") fetches the whole release at once, for keeping.
 
   1.99.0 — 2026-11-11 — A song nothing else can play is found on Soulseek, downloaded and played by itself: no YouTube or SoundCloud link, and not on Spotify. Page only (CRATE for P2P 0.2.0).
 
