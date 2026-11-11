@@ -4821,3 +4821,8 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
   .p2p-tr[data-st="done"] i b, .p2p-tr[data-st="play"] i b { background: #5fbf86; } .p2p-tr[data-st="gone"] { opacity: 0.55; } .p2p-tr[data-st="gone"] i b { background: var(--text-dim); }
   .p2p-tr[data-st="fail"] { color: #E5734A; } .p2p-tr[data-st="play"] span { color: #5fbf86; }
   .p2p-tr[data-st="wait"] i b { width: 30% !important; animation: processing-indef 1.4s ease-in-out infinite; background: var(--text-dim); }
+  /* (1.110.0) a downloaded song: the icon instead of a full bar */
+  .p2p-tr-ico { display: none; width: 14px; height: 14px; flex: 0 0 auto; color: #5fbf86; }
+  .p2p-tr[data-st="done"] .p2p-tr-ico, .p2p-tr[data-st="play"] .p2p-tr-ico { display: block; }
+  .p2p-tr[data-st="done"] i, .p2p-tr[data-st="play"] i { display: none; }
+  .p2p-tr[data-st="done"] span { color: #5fbf86; }

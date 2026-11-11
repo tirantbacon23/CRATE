@@ -17,7 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.109.0
+  CURRENT_VERSION: 1.110.0
+
+  1.110.0 — 2026-11-11 — A downloaded song has an icon: a green arrow into a tray, beside "downloaded" (or "playing") on its row. Page only.
+
+          On Up Next, the album page's tracklist and (new) the album quick peek, a song whose file is
+          on this computer shows the icon in place of the full bar, reading "downloaded", or
+          "playing" while it plays from the file. Hover it for what it means. Songs still on their
+          way keep their bar ("queue 3", 40%), and "not found" still flags a file CRATE can't see.
 
   1.109.0 — 2026-11-11 — Fix: a song slskd had finished could wait forever, marked "ready", when CRATE had been given a folder other than the one slskd saves into. Page only.
 

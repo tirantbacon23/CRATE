@@ -489,7 +489,7 @@ function p2pRowState(s) {                                            // -> [clas
   if (s.st === 'down') return ['down', `${Math.round(s.pct || 0)}%`, s.pct || 0];
   if (s.st === 'wait') return ['wait', s.place ? `queue ${s.place}` : 'waiting', 0];
   if (s.st === 'done' && !s.local && s.missingAt && Date.now() - s.missingAt > 6000) return ['fail', 'not found', 100];          // (1.109.0) slskd finished it, but it isn't in the folder CRATE was given
-  if (s.st === 'done') return ['done', s.local ? 'ready' : 'saving', 100];
+  if (s.st === 'done') return ['done', s.local ? 'downloaded' : 'saving', 100];
   if (s.st === 'fail') return ['fail', 'failed', 0];
   if (s.st === 'gone' && s.played) return ['gone', 'played', 100];
   return null;
@@ -497,9 +497,9 @@ function p2pRowState(s) {                                            // -> [clas
 function p2pRowBadge(row, s) {
   const st = p2pRowState(s); let b = row.querySelector(':scope > .p2p-tr');
   if (!st) { if (b) b.remove(); return; }
-  if (!b) { b = document.createElement('span'); b.className = 'p2p-tr'; b.innerHTML = '<i><b></b></i><span></span>'; row.appendChild(b); }
-  b.dataset.st = st[0]; b.firstChild.firstChild.style.width = Math.max(st[0] === 'wait' ? 0 : 4, Math.min(100, st[2])).toFixed(1) + '%'; b.lastChild.textContent = st[1];
-  b.title = `Soulseek (${s.name}): ${st[1] === 'ready' ? 'downloaded, ready to play' : st[1]}`;
+  if (!b) { b = document.createElement('span'); b.className = 'p2p-tr'; b.innerHTML = '<svg class="p2p-tr-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7M4.8 6.6 8 9.8l3.2-3.2M3 13.2h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><i><b></b></i><span></span>'; row.appendChild(b); }          // (1.110.0) the icon: a downloaded song
+  b.dataset.st = (st[0] === 'done' && !s.local) ? 'saving' : st[0]; b.querySelector('i b').style.width = Math.max(st[0] === 'wait' ? 0 : 4, Math.min(100, st[2])).toFixed(1) + '%'; b.lastChild.textContent = st[1];
+  b.title = `Soulseek (${s.name}): ${st[1] === 'downloaded' ? 'downloaded: the file is on this computer, ready to play' : st[1] === 'playing' ? 'playing from the file on this computer' : st[1]}`;
 }
 const p2pRowItems = new Map();
 function p2pPaintRows() {
@@ -511,6 +511,7 @@ function p2pPaintRows() {
     if (!it || !p2pDl[artKey(it)]) return;
     const t = (state.trackCache[artKey(it)] || [])[Number(m[2])]; if (t) p2pRowBadge(row, p2pSongFor(it, t));
   });
+  if (typeof quickPeekItem !== 'undefined' && quickPeekItem && p2pDl[artKey(quickPeekItem)] && el.albumQuickPeekTracks) el.albumQuickPeekTracks.querySelectorAll('.album-quick-peek-track[data-track-name]').forEach(row => p2pRowBadge(row, p2pSongFor(quickPeekItem, { trackName: row.dataset.trackName, trackNumber: row.dataset.trackNum })));          // (1.110.0) the quick peek too
 }
 setInterval(() => { if (!document.hidden) { if (p2pRowItems.size > 2000) p2pRowItems.clear(); p2pPaintRows(); } }, 700);
 function p2pRefreshUi() { if (typeof jobsRefresh === 'function') jobsRefresh(); if (p2p.cur && typeof p2pRender === 'function') p2pRender(); }
