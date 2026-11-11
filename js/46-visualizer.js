@@ -1,4 +1,4 @@
-// CRATE — the visualizer (1.95.19; the add-on's capture 1.95.21).
+// CRATE — the visualizer (1.95.19; the add-on's capture 1.95.21, played from the add-on 1.95.22).
 // One part of the page's script, split by feature. index.html loads these in order as plain (classic) scripts, so they share one global scope.
 //
 // The music plays inside other sites' players (YouTube, Spotify, Bilibili, SoundCloud), whose sound a page can't read. So the visualizer asks
@@ -6,13 +6,13 @@
 // and reads that through the Web Audio API: a real spectrum of what is playing, whichever player it is. The tab's picture is dropped at once;
 // only the sound is kept, and only on this device (nothing is recorded or sent anywhere). Sharing lasts until you press Stop listening, close
 // the tab, or stop it from the browser's own "sharing this tab" bar; closing the visualizer keeps it, so opening it again needs no prompt.
-// (1.95.21) With the CRATE for YouTube add-on 1.5.0 or later, the add-on captures the tab's sound instead (chrome.tabCapture): no prompt and no
-// sharing bar. Chrome mutes a captured tab, so then the sound is played back out from here. If Chrome wants the add-on's toolbar button clicked on
+// (1.95.21, 1.95.22) With the CRATE for YouTube add-on 1.5.1 or later, the add-on captures the tab's sound instead (chrome.tabCapture): no
+// prompt and no sharing bar. Chrome mutes a captured tab, so the add-on plays the sound out from a hidden page of its own and sends the levels here. If Chrome wants the add-on's toolbar button clicked on
 // this tab first, the visualizer says so (the button's "Let CRATE hear this tab" starts it), with "Share instead" for the old prompt.
 const VIZ_STYLE_KEY = 'crate_viz_style_v1', VIZ_STYLES = ['ring', 'bars', 'wave'], VIZ_STYLE_NAMES = { ring: 'Ring', bars: 'Bars', wave: 'Wave' };
 let viz = { stream: null, ctx: null, analyser: null, freq: null, wave: null, raf: 0, open: false, color: [232, 163, 61], art: '', bass: 0, peaks: null };
 const vizEl = (id) => document.getElementById(id);
-function vizSupported() { return !!(navigator.mediaDevices && (navigator.mediaDevices.getDisplayMedia || (vizAddonOk() && navigator.mediaDevices.getUserMedia)) && (window.AudioContext || window.webkitAudioContext)); }
+function vizSupported() { return vizAddonOk() || !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia && (window.AudioContext || window.webkitAudioContext)); }          // with the add-on 1.5.1, the add-on does the listening
 function vizStyle() { try { const s = localStorage.getItem(VIZ_STYLE_KEY); return VIZ_STYLES.includes(s) ? s : 'ring'; } catch (e) { return 'ring'; } }
 function vizSetStyle(s) { try { localStorage.setItem(VIZ_STYLE_KEY, s); } catch (e) { /* this visit only */ } vizPaintChrome(); }
 
@@ -32,44 +32,62 @@ function vizBassLevel(freq, sampleRate) {                           // 0..1: how
   for (let k = 1; k < top; k++) s += freq[k]; return s / ((top - 1) * 255);
 }
 
-// ----- listening: this tab's sound, through the CRATE for YouTube add-on (1.5.0 or later: no prompt, no "Sharing this tab" bar), else the browser's share prompt -----
+// ----- listening: this tab's sound, through the CRATE for YouTube add-on (1.5.1 or later: no prompt, no "Sharing this tab" bar), else the browser's share prompt -----
+// (1.95.22) Chrome mutes a tab while it is captured, and sound played from inside that tab stays muted too. So the add-on captures the tab in a
+// hidden page of its own (an offscreen document), plays the sound out from there, and hands CRATE only what it needs to draw: each frame, the
+// spectrum and a short stretch of the wave, asked for as the visualizer draws. Nothing is recorded or sent anywhere else.
 const vizVerAtLeast = (v, min) => { const a = String(v || '').split('.').map(Number), b = min.split('.').map(Number); for (let i = 0; i < 3; i++) { const d = (a[i] || 0) - (b[i] || 0); if (d) return d > 0; } return true; };
-const vizAddonOk = () => typeof ytAddon !== 'undefined' && ytAddon.ready && vizVerAtLeast(ytAddon.version, '1.5.0');
+const vizAddonOk = () => typeof ytAddon !== 'undefined' && ytAddon.ready && vizVerAtLeast(ytAddon.version, '1.5.1');
 const vizCanShare = () => !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
+const vizRate = () => viz.rate || (viz.ctx && viz.ctx.sampleRate) || 48000;
 let vizAddonWait = null;
-function vizAskAddon() {                                            // -> { ok, streamId } | { ok: false, reason }: 'invoke' (the toolbar button has to be clicked on this tab first), 'busy', 'noanswer'...
+function vizAskAddon() {                                            // -> { ok } | { ok: false, reason }: 'invoke' (the toolbar button has to be clicked on this tab first), 'busy', 'noanswer'...
   return new Promise((resolve) => {
     if (vizAddonWait) vizAddonWait({ ok: false, reason: 'replaced' });
-    const t = setTimeout(() => { vizAddonWait = null; resolve({ ok: false, reason: 'noanswer' }); }, 4000);
+    const t = setTimeout(() => { vizAddonWait = null; resolve({ ok: false, reason: 'noanswer' }); }, 6000);
     vizAddonWait = (r) => { clearTimeout(t); vizAddonWait = null; resolve(r); };
     ytAddonSay('yt-audio');
   });
 }
-window.addEventListener('message', (e) => {                         // the add-on's answer, or a stream sent from its toolbar button ("Let CRATE hear this tab")
+const vizBytes = (str, arr) => { const n = Math.min(str.length, arr.length); for (let i = 0; i < n; i++) arr[i] = str.charCodeAt(i) & 255; };
+window.addEventListener('message', (e) => {                         // the add-on: its answer, a start from its toolbar button ("Let CRATE hear this tab"), a frame, or the end
   if (e.source !== window || e.origin !== window.location.origin) return; const d = e.data;
-  if (!d || d.source !== 'crate-addon' || d.type !== 'yt-audio') return;
-  if (vizAddonWait && !d.fromPopup) { vizAddonWait(d); return; }
-  if (d.fromPopup && d.ok && d.streamId && !viz.stream) vizFromStreamId(d.streamId).then(ok => { if (ok && !viz.open) openVisualizer(); });
+  if (!d || d.source !== 'crate-addon') return;
+  if (d.type === 'yt-audio') {
+    if (vizAddonWait && !d.fromPopup) { vizAddonWait(d); return; }
+    if (d.fromPopup && d.ok && !viz.stream) { vizRemoteStart(); if (!viz.open) openVisualizer(); }
+  } else if (d.type === 'yt-viz-frame' && viz.remote) {
+    viz.pulling = false; if (d.r) viz.rate = d.r;
+    if (typeof d.f === 'string') { if (viz.rf.length !== d.f.length) viz.rf = new Uint8Array(d.f.length); vizBytes(d.f, viz.rf); }
+    if (typeof d.w === 'string') { if (viz.rw.length !== d.w.length) viz.rw = new Uint8Array(d.w.length); vizBytes(d.w, viz.rw); }
+  } else if (d.type === 'yt-audio-ended' && viz.remote) vizStop(true);
 });
-async function vizFromStreamId(id) {                                // the tab's sound, captured by the add-on. Chrome mutes a tab while it is captured, so CRATE plays it back out itself
-  let stream;
-  try { stream = await navigator.mediaDevices.getUserMedia({ audio: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: id } }, video: false }); }
-  catch (e) { vizSay('The add-on couldn’t hand over this tab’s sound: ' + ((e && e.message) || e)); return false; }
-  return vizAttach(stream, true);
+function vizRemoteStart() {                                         // drawing from the add-on's frames: an analyser-shaped stand-in, so the drawing code is the same either way
+  viz.remote = true; viz.viaAddon = true; viz.offerShare = false; viz.pulling = false;
+  viz.rf = new Uint8Array(2048); viz.rw = new Uint8Array(1024).fill(128);
+  viz.stream = { getTracks: () => [] };
+  viz.analyser = { getByteFrequencyData: (a) => a.set(viz.rf.subarray(0, a.length)), getByteTimeDomainData: (a) => a.set(viz.rw.subarray(0, a.length)) };
+  viz.freq = new Uint8Array(2048); viz.wave = new Uint8Array(1024);
+  vizSay(''); vizPaintChrome(); return true;
 }
-async function vizAttach(stream, playBack) {
+function vizPull() {                                                // asks the add-on for the next frame (one at a time)
+  if (!viz.remote) return; const now = performance.now();
+  if (viz.pulling && now - viz.pulledAt < 500) return;
+  viz.pulling = true; viz.pulledAt = now; ytAddonSay('yt-viz-pull');
+  if (viz.rf.length !== viz.freq.length) viz.freq = new Uint8Array(viz.rf.length);
+  if (viz.rw.length !== viz.wave.length) viz.wave = new Uint8Array(viz.rw.length);
+}
+async function vizAttach(stream) {                                  // shared through the browser's prompt
   const audio = stream.getAudioTracks();
   if (!audio.length) { stream.getTracks().forEach(t => t.stop()); vizSay('That was shared without its sound. Press Listen again, choose this tab, and turn on “Also share tab audio”.'); return false; }
   const AC = window.AudioContext || window.webkitAudioContext;
   viz.ctx = viz.ctx || new AC();
   try { await viz.ctx.resume(); } catch (e) { /* it starts on the next gesture */ }
-  if (playBack && viz.ctx.state !== 'running') { stream.getTracks().forEach(t => t.stop()); vizSay('Press Listen to start (the browser wants a click on this page first).'); return false; }          // else the tab would go silent
   const src = viz.ctx.createMediaStreamSource(new MediaStream(audio)), an = viz.ctx.createAnalyser();
   an.fftSize = 4096; an.smoothingTimeConstant = 0.78; an.minDecibels = -90; an.maxDecibels = -18;
-  src.connect(an);
-  if (playBack) src.connect(viz.ctx.destination);                    // the add-on's capture: the tab is muted meanwhile, so the sound goes out from here. (Shared through the prompt: never to the speakers, the tab already plays it)
-  viz.stream = stream; viz.src = src; viz.analyser = an; viz.freq = new Uint8Array(an.frequencyBinCount); viz.wave = new Uint8Array(an.fftSize); viz.viaAddon = !!playBack; viz.offerShare = false;
-  audio[0].addEventListener('ended', () => vizStop(true));           // stopped from the browser's own bar, or the capture ended
+  src.connect(an);                                                   // (never to the speakers: the tab already plays it)
+  viz.stream = stream; viz.src = src; viz.analyser = an; viz.freq = new Uint8Array(an.frequencyBinCount); viz.wave = new Uint8Array(an.fftSize); viz.viaAddon = false; viz.remote = false; viz.rate = 0; viz.offerShare = false;
+  audio[0].addEventListener('ended', () => vizStop(true));           // stopped from the browser's own bar
   vizSay(''); vizPaintChrome(); return true;
 }
 async function vizListen(opts) {
@@ -77,10 +95,10 @@ async function vizListen(opts) {
   if (!vizSupported()) { vizSay('This browser can’t share a tab’s sound. Chrome or Edge on a computer can.'); return false; }
   if (vizAddonOk() && !(opts && opts.share)) {
     const r = await vizAskAddon(); if (viz.stream) return true;          // (the toolbar button may have started it meanwhile)
-    if (r.ok && r.streamId) { if (await vizFromStreamId(r.streamId)) return true; }
-    else if (r.reason === 'invoke' || r.reason === 'busy') {
+    if (r.ok) return vizRemoteStart();
+    if (r.reason === 'invoke' || r.reason === 'busy') {
       viz.offerShare = vizCanShare(); vizPaintChrome();
-      vizSay(r.reason === 'busy' ? 'This tab’s sound is already being captured. Close what is capturing it, or press Share instead.' : 'Click the CRATE for YouTube button in the browser’s toolbar and press “Let CRATE hear this tab” (no sharing bar), or press Share instead.');
+      vizSay(r.reason === 'busy' ? 'This tab’s sound is already being captured by something else. Close that, or press Share instead.' : 'Chrome wants you to allow it once on this tab: click the CRATE for YouTube button in the toolbar and press “Let CRATE hear this tab”, or press Alt+Shift+V. Or press Share instead.');
       return false;
     }
     if (!vizCanShare()) return false;                                // any other answer: the share prompt, as before
@@ -95,13 +113,14 @@ async function vizListen(opts) {
     });
   } catch (e) { vizSay(e && e.name === 'NotAllowedError' ? 'Not shared. Press Listen and choose this tab, with “Also share tab audio” on.' : 'Couldn’t share the tab’s sound: ' + ((e && e.message) || e)); return false; }
   stream.getVideoTracks().forEach(t => t.stop());                    // only the sound is wanted
-  return vizAttach(stream, false);
+  return vizAttach(stream);
 }
 function vizStop(byBrowser) {
+  if (viz.remote) ytAddonSay('yt-audio-stop');                       // the add-on ends its capture: the tab plays as normal again
   if (viz.stream) viz.stream.getTracks().forEach(t => t.stop());
   try { if (viz.src) viz.src.disconnect(); } catch (e) { /* gone */ }
-  viz.stream = null; viz.src = null; viz.viaAddon = false; viz.analyser = null; viz.freq = null; viz.wave = null;
-  vizPaintChrome(); if (viz.open) vizSay(byBrowser ? 'Sharing stopped. Press Listen to start again.' : '');
+  viz.stream = null; viz.src = null; viz.viaAddon = false; viz.remote = false; viz.rate = 0; viz.analyser = null; viz.freq = null; viz.wave = null;
+  vizPaintChrome(); if (viz.open) vizSay(byBrowser ? 'Listening stopped. Press Listen to start again.' : '');
 }
 
 // ----- the overlay -----
@@ -171,7 +190,8 @@ function vizFrame(t) {
   x.clearRect(0, 0, W, H);
   const [r, g, b] = viz.color, col = (a) => `rgba(${r},${g},${b},${a})`;
   let bands = null, bass = 0;
-  if (viz.analyser) { viz.analyser.getByteFrequencyData(viz.freq); bands = vizBands(viz.freq, viz.ctx.sampleRate, 96); bass = vizBassLevel(viz.freq, viz.ctx.sampleRate); }
+  vizPull();
+  if (viz.analyser) { viz.analyser.getByteFrequencyData(viz.freq); bands = vizBands(viz.freq, vizRate(), 96); bass = vizBassLevel(viz.freq, vizRate()); }
   else { bands = new Array(96).fill(0).map((_, i) => 0.04 + 0.03 * Math.sin(t / 900 + i / 6)); }          // waiting: a slow idle shimmer
   viz.bass = viz.bass * 0.8 + bass * 0.2;
   const glow = x.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.6);          // the room, lit by the bass

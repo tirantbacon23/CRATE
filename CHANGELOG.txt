@@ -17,7 +17,18 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.21
+  CURRENT_VERSION: 1.95.22
+
+  1.95.22 — 2026-11-11 — Fix: the music went silent when the visualizer listened through the YouTube add-on. Page and YouTube add-on 1.5.1.
+
+          Chrome mutes a tab while it is captured, and 1.95.21 played the sound back from inside
+          that same tab, which stayed muted. Now the add-on (CRATE for YouTube 1.5.1, new
+          "offscreen" permission) captures the tab in a hidden page of its own and plays the
+          sound out from there; the visualizer asks that page for each frame it draws (the
+          spectrum and a short stretch of the wave). Stop listening ends the capture. The add-on
+          1.5.0 is no longer used for listening (the share prompt is, as before it). Chrome lets the add-on
+          capture a tab only after you click it on that tab: the toolbar button's "Let CRATE
+          hear this tab", or the add-on's new shortcut Alt+Shift+V.
 
   1.95.21 — 2026-11-11 — The visualizer hears the music through the CRATE for YouTube add-on (1.5.0): no share prompt and no "Sharing this tab" bar. Add-on 1.5.0 also gets a video's chapters to CRATE at last. Page and YouTube add-on 1.5.0.
 
