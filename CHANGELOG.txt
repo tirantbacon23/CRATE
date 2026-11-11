@@ -17,7 +17,9 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.98.0
+  CURRENT_VERSION: 1.98.1
+
+  1.98.1 — 2026-11-11 — Fix: playing one song of a release downloaded from P2P (a click in its tracklist, or its menu's Play) now plays its file too, not Spotify or YouTube. Page only.
 
   1.98.0 — 2026-11-11 — P2P, phase 2: Download and play. The chosen folder downloads through slskd, and each song plays from your disk the moment it arrives; by default it is deleted once played. A new Local player. Page and CRATE for P2P 0.2.0.
 
