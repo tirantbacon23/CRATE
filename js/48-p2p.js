@@ -43,12 +43,21 @@ const p2pLen = (sec) => sec ? formatMs(sec * 1000) : '';
 
 // ----- (1.97.0) matching a folder against the release -----
 const P2P_PREF_KEY = 'crate_p2p_prefs_v1', P2P_CHOICE_KEY = 'crate_p2p_choice_v1';
-function p2pPrefs() { try { return Object.assign({ format: 'lossless' }, JSON.parse(localStorage.getItem(P2P_PREF_KEY) || '{}')); } catch (e) { return { format: 'lossless' }; } }
+function p2pPrefs() { try { return Object.assign({ format: 'lossless', fFormat: 'any', fMatches: false, fFree: false, fHideLocked: true, sort: 'best' }, JSON.parse(localStorage.getItem(P2P_PREF_KEY) || '{}')); } catch (e) { return { format: 'lossless' }; } }
 function p2pSetPrefs(p) { try { localStorage.setItem(P2P_PREF_KEY, JSON.stringify(Object.assign(p2pPrefs(), p))); } catch (e) { /* this visit only */ } }
-function p2pQueryFor(item) {                                        // "Elliott Smith Either Or": the first artist, the title without "(Deluxe Edition)" or punctuation
+function p2pYearOf(item) {                                          // the release's year, from its release date ('' when unknown)
+  const d = item && item.releaseDate; if (!d) return '';
+  const m = /\b(1[89]\d\d|20\d\d)\b/.exec(String(d)); if (m) return m[1];
+  const t = new Date(d); return isNaN(t) ? '' : String(t.getUTCFullYear());
+}
+const p2pClean = (x) => String(x || '').replace(/\s*[\(\[][^\)\]]*[\)\]]/g, ' ').replace(/[\/\\:;,.!?"“”'’`~*|<>]+/g, ' ').replace(/\s+/g, ' ').trim();
+function p2pQueryFor(item, noYear) {                                // "Elliott Smith Either Or 1997": the first artist, the title without "(Deluxe Edition)" or punctuation, and (1.102.0) the year
   const artist = (typeof artistParts === 'function' ? artistParts(item.artist || '')[0] : '') || item.artist || '';
-  const title = String(item.title || '').replace(/\s*[\(\[][^\)\]]*[\)\]]/g, ' ');
-  return `${artist} ${title}`.replace(/[\/\\:;,.!?"“”'’`~*|<>]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const y = noYear ? '' : p2pYearOf(item);
+  return p2pClean(`${artist} ${String(item.title || '').replace(/\s*[\(\[][^\)\]]*[\)\]]/g, ' ')} ${y}`);
+}
+function p2pQueries(item) {                                          // tried in turn while a search finds nothing: with the year, without it, the title alone
+  return [...new Set([p2pQueryFor(item), p2pQueryFor(item, true), p2pClean(item.title)])].filter(q => q.length >= 3);
 }
 function p2pFileTitle(name, artist) {                               // "03 - Elliott Smith - Ballad of Big Nothing.flac" -> "Ballad of Big Nothing"
   let t = String(name || '').replace(/\.[A-Za-z0-9]{1,5}$/, '').replace(/_/g, ' ').trim();
@@ -99,6 +108,8 @@ function p2pScoreFolder(f, tracks, release, prefs) {                // -> { scor
   const cover = matched / of;
   score = cover * 60 + (avg === null ? 8 : avg <= 2 ? 20 : avg <= 4 ? 15 : avg <= 8 ? 6 : -10) + Math.min(10, titleSim * 10) + fp - odd.length * 25 - Math.max(0, extra.length - 3) * 2;
   const byName = map.filter(m => m.file >= 0 && m.sim >= 0.7).length;
+  const ry = p2pYearOf(release), ys = (String([f.name, f.parent].join(' ')).match(/\b(19[4-9]\d|20[0-4]\d)\b/g) || []);          // (1.102.0) the year a folder names
+  if (ry && ys.length) { if (ys.includes(ry)) { score += 4; notes.push(`Year ${ry}`); } else { score -= 3; notes.push(`Year ${ys[0]} (the release is ${ry}): a reissue?`); } }
   if (matched && byName < matched / 2) { score -= 4; notes.push('Files aren\u2019t named: matched by place and length'); }          // "Track 01.flac": likelier right than not, but less sure
   if (matched === of) notes.unshift(`All ${of} songs`); else notes.unshift(`${matched} of ${of} songs`);
   if (worst !== null) notes.push(worst <= 3 ? 'Lengths match' : `Lengths off by up to ${Math.round(worst)} s`);
@@ -109,6 +120,21 @@ function p2pScoreFolder(f, tracks, release, prefs) {                // -> { scor
   const vname = odd.length ? odd[0][0].toUpperCase() + odd[0].slice(1) : '';
   const label = { sure: 'Sure match', likely: 'Likely', partial: `Partial: ${matched} of ${of}`, version: `${vname} version`, other: 'Different release' }[verdict];
   return { score: Math.round(score), verdict, label, notes, map, extra, matched, of, unavailable: allLocked };
+}
+function p2pFiltered(list, prefs, text) {                           // (1.102.0) the filter controls: format, matches only, free slot only, locked hidden, a text filter; then the sort
+  const t = String(text || '').trim().toLowerCase();
+  let out = (list || []).filter(f => {
+    if (prefs.fFormat === 'lossless' && !f.lossless) return false;
+    if (prefs.fFormat === 'lossy' && f.lossless) return false;
+    if (prefs.fMatches && f.m && !['sure', 'likely', 'unchecked'].includes(f.m.verdict)) return false;
+    if (prefs.fFree && !f.freeSlot) return false;
+    if (prefs.fHideLocked && f.locked && f.locked >= f.count) return false;
+    if (t && ![f.name, f.parent, f.user].join(' ').toLowerCase().includes(t)) return false;
+    return true;
+  });
+  const by = { fast: (a, b) => (b.freeSlot - a.freeSlot) || (a.queue - b.queue) || (b.speed - a.speed), small: (a, b) => (a.totalSize || 0) - (b.totalSize || 0), songs: (a, b) => (b.count - a.count) }[prefs.sort];
+  if (by) out = out.slice().sort(by);
+  return out;
 }
 function p2pRank(folders, tracks, release, prefs) {                 // the folders with their match, best first: verdict, then score, then whether you could start now
   const order = { sure: 0, likely: 1, unchecked: 2, partial: 3, version: 4, other: 5 };
@@ -139,6 +165,7 @@ function p2pEnsureDom() {
     <div class="arrange-header"><h2 id="p2pTitle">Find on P2P</h2><button type="button" id="p2pClose" class="modal-x" aria-label="Close">✕</button></div>
     <form id="p2pForm" class="p2p-form"><input id="p2pQuery" type="search" autocomplete="off" spellcheck="false" aria-label="Search Soulseek for"><button type="submit" id="p2pGo" class="chip-btn p2p-go">Search</button><button type="button" id="p2pStop" class="chip-btn" hidden>Stop</button></form>
     <div class="p2p-opts"><label for="p2pFormat">Prefer</label><select id="p2pFormat" class="config-btn"><option value="lossless">Lossless (FLAC)</option><option value="mp3">MP3 320</option><option value="any">Either</option></select><span id="p2pTracksNote" class="p2p-tracks-note"></span></div>
+    <div class="p2p-opts p2p-filters" role="group" aria-label="Filters"><select id="p2pFFormat" class="config-btn" aria-label="Format"><option value="any">Any format</option><option value="lossless">Lossless only</option><option value="lossy">MP3 and other lossy only</option></select><label class="p2p-check"><input type="checkbox" id="p2pFMatches"> Matches only</label><label class="p2p-check"><input type="checkbox" id="p2pFFree"> Free slot only</label><label class="p2p-check"><input type="checkbox" id="p2pFLocked"> Hide locked</label><label for="p2pSort">Sort</label><select id="p2pSort" class="config-btn"><option value="best">Best match</option><option value="fast">Can start soonest</option><option value="small">Smallest</option><option value="songs">Most songs</option></select><input id="p2pFText" type="search" class="p2p-ftext" placeholder="Filter by folder or user" aria-label="Filter by folder or user" autocomplete="off"></div>
     <p id="p2pStatus" class="p2p-status" role="status"></p>
     <div id="p2pChosen" class="p2p-chosen" hidden><span id="p2pChosenText"></span><span class="p2p-chosen-acts"><button type="button" id="p2pForget" class="chip-btn" title="Forget this source: its downloads stop and its files are deleted">Forget</button><button type="button" id="p2pDlPlay" class="chip-btn p2p-dl-play">Download and play</button><button type="button" id="p2pDlOnly" class="chip-btn" title="Download every song now, to keep">Download all</button></span></div>
     <div class="p2p-opts p2p-store"><label for="p2pKeep">After playing</label><select id="p2pKeep" class="config-btn"><option value="delete">Delete the file</option><option value="cap">Keep up to a size</option><option value="keep">Keep everything</option></select><label for="p2pAhead">Download ahead</label><select id="p2pAhead" class="config-btn"><option value="0">Only the song playing</option><option value="1">1 song</option><option value="2">2 songs</option><option value="3">3 songs</option></select><span id="p2pCapWrap" hidden><input id="p2pCap" type="number" min="0.5" max="2000" step="0.5" class="p2p-cap" aria-label="Size limit in GB"> GB</span><span id="p2pFolderLine" class="p2p-folder-line"></span></div>
@@ -153,6 +180,13 @@ function p2pEnsureDom() {
   document.getElementById('p2pForm').addEventListener('submit', (e) => { e.preventDefault(); p2pSearch(document.getElementById('p2pQuery').value); });
   document.getElementById('p2pStop').addEventListener('click', p2pStop);
   document.getElementById('p2pFormat').addEventListener('change', (e) => { p2pSetPrefs({ format: e.target.value }); p2pRerank(); });
+  const fset = (k, v) => { p2pSetPrefs({ [k]: v }); p2pRender(); };          // (1.102.0) the filters
+  document.getElementById('p2pFFormat').addEventListener('change', (e) => fset('fFormat', e.target.value));
+  document.getElementById('p2pFMatches').addEventListener('change', (e) => fset('fMatches', e.target.checked));
+  document.getElementById('p2pFFree').addEventListener('change', (e) => fset('fFree', e.target.checked));
+  document.getElementById('p2pFLocked').addEventListener('change', (e) => fset('fHideLocked', e.target.checked));
+  document.getElementById('p2pSort').addEventListener('change', (e) => fset('sort', e.target.value));
+  document.getElementById('p2pFText').addEventListener('input', (e) => { if (p2p.cur) { p2p.cur.text = e.target.value; p2pRender(); } });
   document.getElementById('p2pKeep').addEventListener('change', (e) => { p2pSetKeep({ mode: e.target.value }); p2pRender(); });          // (1.98.0)
   document.getElementById('p2pAhead').addEventListener('change', (e) => { p2pSetKeep({ ahead: Number(e.target.value) }); });          // (1.100.0)
   document.getElementById('p2pCap').addEventListener('change', (e) => { p2pSetKeep({ capGb: Math.max(0.5, Number(e.target.value) || 2) }); });
@@ -163,7 +197,7 @@ function p2pEnsureDom() {
   document.getElementById('p2pResults').addEventListener('click', (e) => {
     const c = p2p.cur; if (!c) return;
     const ch = e.target.closest('[data-p2p-choose]');
-    if (ch) { const f = c.ranked[+ch.dataset.p2pChoose]; if (!f || !c.item) return; const was = p2pChoiceFor(c.item); if (was && was.user === f.user && was.dir === f.dir) return; p2pUseSource(c.item, f, c.tracks); c.autoPicked = false; flashGlobalToast(`Source for ${c.item.title}: ${f.name}, from ${f.user}.`); p2pRender(); return; }          // (1.101.0) Use this instead
+    if (ch) { const f = (c.shown || c.ranked)[+ch.dataset.p2pChoose]; if (!f || !c.item) return; const was = p2pChoiceFor(c.item); if (was && was.user === f.user && was.dir === f.dir) return; p2pUseSource(c.item, f, c.tracks); c.autoPicked = false; flashGlobalToast(`Source for ${c.item.title}: ${f.name}, from ${f.user}.`); p2pRender(); return; }          // (1.101.0) Use this instead
     const h = e.target.closest('[data-p2p-folder]'); if (!h) return; const row = h.closest('.p2p-folder'), k = row.dataset.key; row.classList.toggle('open'); h.setAttribute('aria-expanded', row.classList.contains('open'));
     if (row.classList.contains('open')) c.open.add(k); else c.open.delete(k);          // kept open as the list updates
   });
@@ -171,10 +205,10 @@ function p2pEnsureDom() {
 function p2pOpen(item) {                                            // item: a release (searches by itself, and checks against its tracklist), or nothing (free search)
   p2pEnsureDom();
   const ov = document.getElementById('p2pOverlay'), q = document.getElementById('p2pQuery');
-  p2p.cur = { item: item || null, reqId: '', state: 'idle', folders: [], ranked: [], responses: 0, files: 0, error: '', tracks: null, autoPending: !!item, tries: 0, open: new Set() };
+  p2p.cur = { item: item || null, reqId: '', state: 'idle', folders: [], ranked: [], responses: 0, files: 0, error: '', tracks: null, autoPending: !!item, tries: 0, open: new Set(), text: '', status2: '' };
   q.value = item ? p2pQueryFor(item) : '';
   document.getElementById('p2pTitle').textContent = item ? `${p2pHasSource(item) ? 'P2P source' : 'Find on P2P'}: ${item.title || ''}` : 'P2P search';
-  document.getElementById('p2pFormat').value = p2pPrefs().format;
+  const pf = p2pPrefs(); document.getElementById('p2pFormat').value = pf.format; document.getElementById('p2pFFormat').value = pf.fFormat; document.getElementById('p2pFMatches').checked = !!pf.fMatches; document.getElementById('p2pFFree').checked = !!pf.fFree; document.getElementById('p2pFLocked').checked = pf.fHideLocked !== false; document.getElementById('p2pSort').value = pf.sort; document.getElementById('p2pFText').value = '';
   ov.hidden = false; p2pRender(); q.focus(); q.select();
   if (item) {
     const c = p2p.cur;
@@ -187,12 +221,13 @@ function p2pClose() { const ov = document.getElementById('p2pOverlay'); if (!ov 
 function p2pRerank() { const c = p2p.cur; if (!c) return; c.ranked = c.item ? p2pRank(c.folders, c.tracks, c.item, p2pPrefs()) : c.folders.map(f => Object.assign({}, f, { m: null })); p2pAutoPick(c); p2pRender(); }
 function p2pAutoPick(c) {                                          // (1.101.0) once the search is done and the tracklist is in, the best folder becomes the source (unless the release has one)
   if (!c || !c.item || c.state !== 'done' || c.tracks === null || p2pChoiceFor(c.item)) return;
-  const best = p2pBestOf(c.ranked); if (best) { p2pUseSource(c.item, best, c.tracks); c.autoPicked = true; }
+  const best = p2pBestOf(p2pFiltered(c.ranked, Object.assign({}, p2pPrefs(), { sort: 'best' }), '')); if (best) { p2pUseSource(c.item, best, c.tracks); c.autoPicked = true; }          // what the filters show is what gets picked
 }
 async function p2pSearch(text) {
   const c = p2p.cur; if (!c) return;
   if (c.reqId && c.state === 'searching') await p2pStop();
   const reqId = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), q = String(text || '').trim();
+  if (!c.status2Keep) c.status2 = ''; c.status2Keep = false;
   Object.assign(c, { reqId, q, state: 'searching', folders: [], ranked: [], responses: 0, files: 0, error: '', started: Date.now() }); c.tries++; p2pRender();
   const r = await p2pCall('search', { reqId, q });
   if (p2p.cur !== c || c.reqId !== reqId) return;
@@ -207,9 +242,9 @@ async function p2pSearch(text) {
     p2pRerank();
     p2pAutoPick(c);
     if (!p.done) { setTimeout(tick, 1500); return; }
-    if (!c.folders.length && c.item && c.tries < 2) {                // nothing at all: once more, with just the release's title (an artist written another way)
-      const alt = String(c.item.title || '').replace(/\s*[\(\[][^\)\]]*[\)\]]/g, ' ').replace(/[\/\\:;,.!?"“”'’`~*|<>]+/g, ' ').replace(/\s+/g, ' ').trim();
-      if (alt.length >= 3 && alt.toLowerCase() !== q.toLowerCase()) { document.getElementById('p2pQuery').value = alt; p2pSearch(alt); }
+    if (!c.folders.length && c.item) {                               // nothing at all: the next way of asking (without the year, then the title alone)
+      const qs = p2pQueries(c.item), k = qs.findIndex(x => x.toLowerCase() === q.toLowerCase()), alt = k >= 0 ? qs[k + 1] : null;
+      if (alt) { document.getElementById('p2pQuery').value = alt; c.status2 = `Nothing for \u201c${q}\u201d, so this is \u201c${alt}\u201d.`; c.status2Keep = true; p2pSearch(alt); }
     }
   };
   setTimeout(tick, 1200);
@@ -244,14 +279,15 @@ function p2pRender() {
   const fl = document.getElementById('p2pFolderLine'), perm = typeof p2pDirPerm !== 'undefined' ? p2pDirPerm : 'none';
   const flHtml = !p2pFolderSupported() ? 'This browser can\u2019t open a folder for CRATE (Chrome or Edge can).' : perm === 'granted' ? `Downloads folder: <b>${escapeHtml(p2pDir ? p2pDir.name : '')}</b> <button type="button" class="link-btn" data-p2p-folder-pick>Change</button>` : perm === 'prompt' ? `Downloads folder: <b>${escapeHtml(p2pDir ? p2pDir.name : '')}</b> <button type="button" class="chip-btn" data-p2p-folder-allow>Allow access</button>` : '<button type="button" class="chip-btn" data-p2p-folder-pick>Choose slskd\u2019s downloads folder</button>';
   if (fl.dataset.html !== flHtml) { fl.dataset.html = flHtml; fl.innerHTML = flHtml; }
-  const list = c.ranked.length || !c.folders.length ? c.ranked : c.folders.map(f => Object.assign({}, f, { m: null })), n = list.length, sure = list.filter(f => f.m && f.m.verdict === 'sure').length;
+  const all = c.ranked.length || !c.folders.length ? c.ranked : c.folders.map(f => Object.assign({}, f, { m: null })), list = c.shown = p2pFiltered(all, p2pPrefs(), c.text), hidden = all.length - list.length, n = all.length, sure = all.filter(f => f.m && f.m.verdict === 'sure').length;
   st.className = 'p2p-status' + (c.state === 'error' ? ' bad' : '');
   st.textContent = c.state === 'error' ? c.error
     : !p2p.ready ? 'Waiting for the CRATE for P2P add-on… (not installed? Its options page says how to connect it to this CRATE.)'
     : !p2p.configured ? 'The add-on isn’t set up yet: open its options and enter slskd’s address and API key.'
     : c.state === 'idle' ? 'Searches Soulseek through your slskd. Takes about 15 seconds.'
     : c.state === 'searching' ? `Searching for “${c.q}”… ${c.responses} user${c.responses === 1 ? '' : 's'} answered so far.`
-    : n ? `${n} folder${n === 1 ? '' : 's'} with audio, from ${c.responses} user${c.responses === 1 ? '' : 's'}.` + (c.item ? (sure ? ` ${sure} sure match${sure === 1 ? '' : 'es'}, best first.` : ' No sure match: check the closest ones.') : ' Ones you could start on now are first.')
+    : n && !list.length ? `All ${n} folders are hidden by the filters: loosen them to see them.`
+    : n ? `${c.status2 ? c.status2 + ' ' : ''}${n} folder${n === 1 ? '' : 's'} with audio, from ${c.responses} user${c.responses === 1 ? '' : 's'}${hidden ? ` (${hidden} hidden by the filters)` : ''}.` + (c.item ? (sure ? ` ${sure} sure match${sure === 1 ? '' : 'es'}, best first.` : ' No sure match: check the closest ones.') : ' Ones you could start on now are first.')
     : 'Nothing found. Try fewer words (the artist and the release’s main title), or check that slskd is logged in to Soulseek.';
   res.innerHTML = list.map((f, i) => {
     const m = f.m, fmt = (f.ext || '?').toUpperCase() + (f.lossless ? (f.files[0] && f.files[0].bitDepth ? ` ${f.files[0].bitDepth}/${Math.round((f.files[0].sampleRate || 44100) / 100) / 10}` : '') : f.bitRate ? ` ${f.bitRate}` : '');

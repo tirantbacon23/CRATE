@@ -4807,3 +4807,6 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
   .p2p-folder-line { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; } .p2p-folder-line b { color: var(--text); font-weight: 600; }
   .p2p-folder-line .link-btn { background: none; border: none; color: var(--accent); cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
   @media (max-width: 640px) { .p2p-folder-line { margin-left: 0; } .p2p-chosen-acts { margin-left: 0; } }
+  /* (1.102.0) Find on P2P's filters */
+  .p2p-filters { padding-top: 6px; } .p2p-check { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; color: var(--text); font-size: 12.5px; }
+  .p2p-ftext { flex: 1 1 160px; min-width: 120px; background: var(--bg-card); border: 1px solid var(--line); border-radius: 6px; color: var(--text); padding: 5px 8px; font: inherit; font-size: 12.5px; }

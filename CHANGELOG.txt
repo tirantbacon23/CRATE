@@ -17,7 +17,20 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.101.0
+  CURRENT_VERSION: 1.102.0
+
+  1.102.0 — 2026-11-11 — Find on P2P searches with the release's year, and has filters: format, matches only, free slot only, hide locked, a sort, and a text filter. Page only.
+
+          THE YEAR: searches are "Artist Title Year" (from the release date). When that finds
+          nothing (many folders don't name a year), the search tries again without the year, then
+          with the title alone, and says so. A folder naming the release's year counts for it
+          ("Year 1997"); one naming another year is noted as a possible reissue. Songs found by
+          themselves (no link) search the same way.
+          FILTERS (under Prefer, kept on this device): Any format / Lossless only / MP3 and other
+          lossy only; Matches only (hides partial, live and different releases); Free slot only;
+          Hide locked (on); Sort: Best match, Can start soonest, Smallest, Most songs; and a box to
+          filter by folder or user name. The status line says how many the filters hide. The
+          source picked for you is the best of what the filters show.
 
   1.101.0 — 2026-11-11 — P2P picks the source for you: Find on P2P makes the best folder the release's source by itself, and "Change P2P source…" lets you pick another. Page only.
 

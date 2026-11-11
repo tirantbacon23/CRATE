@@ -313,9 +313,9 @@ function p2pAutoGet(item) {                                         // -> Promis
   if (p2pAutoFlight.has(key)) return p2pAutoFlight.get(key).pr;
   const pr = (async () => {
     const tracks = ((await Promise.resolve(getTracksFor(item)).catch(() => [])) || []).filter(t => t && t.trackName);
-    const qs = [p2pQueryFor(item), String(item.title || '').replace(/\s*[\(\[][^\)\]]*[\)\]]/g, ' ').replace(/[\/\\:;,.!?"“”'’`~*|<>]+/g, ' ').replace(/\s+/g, ' ').trim()];
+    const qs = p2pQueries(item);          // (1.102.0) with the year, then without it, then the title alone
     let folders = [];
-    for (const q of [...new Set(qs)].filter(x => x.length >= 3)) { const r = await p2pSearchFolders(q); if (!r.ok) { p2pAutoMissed[key] = { at: Date.now(), why: p2pWhy(r), title: item.title }; return false; } folders = r.folders; if (folders.length) break; }
+    for (const q of qs) { const r = await p2pSearchFolders(q); if (!r.ok) { p2pAutoMissed[key] = { at: Date.now(), why: p2pWhy(r), title: item.title }; return false; } folders = r.folders; if (folders.length) break; }
     const best = p2pBestOf(p2pRank(folders, tracks, item, p2pPrefs()));          // (1.101.0) a sure match, else a likely one
     if (!best) { p2pAutoMissed[key] = { at: Date.now(), why: folders.length ? `${folders.length} folder${folders.length === 1 ? '' : 's'} found, none a good match` : 'nothing found', title: item.title }; return false; }
     p2pChoose(item, best, tracks); const rec = p2pMakeRec(item, p2pChoiceFor(item)); if (rec) { rec.prefer = true; p2pDlSave(); }
