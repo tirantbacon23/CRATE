@@ -17,7 +17,18 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.22
+  CURRENT_VERSION: 1.95.23
+
+  1.95.23 — 2026-11-11 — A small visualizer under the cover in the right panel's Track Info. Page only.
+
+          A strip of bars as wide as the cover, in the cover's colour, moving with the music while
+          the visualizer listens (it is the same listening as the full-screen one: one start
+          serves both). Not listening: faint bars and "Listen"; a click starts listening (when
+          Chrome wants the add-on clicked first, or you choose Share instead, the full visualizer
+          opens to offer both). Listening: a click opens the full visualizer. ⚙ → Panels
+          configuration… → element options → "Track Info: visualizer under the cover" turns it
+          off, on this device. It draws only while it is in sight, and not while the full one is
+          open.
 
   1.95.22 — 2026-11-11 — Fix: the music went silent when the visualizer listened through the YouTube add-on. Page and YouTube add-on 1.5.1.
 

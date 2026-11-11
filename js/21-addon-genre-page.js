@@ -1240,6 +1240,7 @@ function renderTrackInfoPanel() {
   el.trackInfoEmpty.hidden = hasTrack;
   el.trackInfoTextWrap.hidden = !hasTrack;
   el.trackInfoArtWrap.hidden = !hasTrack;
+  if (typeof vizMiniSync === 'function') vizMiniSync();          // (1.95.23) the visualizer strip under the cover follows it
   if (!hasTrack) return;
 
   if (nowPlayingItem) {

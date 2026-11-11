@@ -145,8 +145,9 @@ function vizEnsureDom() {
   vizEl('vizClose').addEventListener('click', closeVisualizer);
   o.addEventListener('dblclick', (e) => { if (e.target.closest('.viz-bar')) return; if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); else o.requestFullscreen && o.requestFullscreen().catch(() => {}); });
 }
-function vizSay(t) { const m = vizEl('vizMsg'); if (!m) return; m.textContent = t || ''; m.hidden = !t; }
+function vizSay(t) { const mm = vizEl('trackInfoVizMsg'); if (mm) { mm.textContent = viz.stream ? '' : (t || ''); mm.hidden = !mm.textContent; } const m = vizEl('vizMsg'); if (!m) return; m.textContent = t || ''; m.hidden = !t; }          // (the strip under Track Info's cover shows it too, while not listening)
 function vizPaintChrome() {
+  vizMiniSync();
   if (!vizEl('vizOverlay')) return;
   vizEl('vizListen').hidden = !!viz.stream; vizEl('vizShare').hidden = !!viz.stream || !viz.offerShare; vizEl('vizStopBtn').hidden = !viz.stream; vizEl('vizStyle').textContent = VIZ_STYLE_NAMES[vizStyle()];
   const b = el.miniPlayerVizBtn; if (b) b.classList.toggle('active', !!viz.stream);
@@ -229,4 +230,64 @@ function vizFrame(t) {
   const b = el.miniPlayerVizBtn; if (!b) return;
   b.addEventListener('click', () => { if (viz.open) closeVisualizer(); else openVisualizer(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && viz.open && !document.fullscreenElement && closeVisualizer()) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+})();
+
+// ----- (1.95.23) a small visualizer under the cover in the right panel's Track Info -----
+// The same sound as the full-screen one (it listens once, for both): a strip of bars as wide as the cover, in the cover's colour. Not listening:
+// faint bars and "Listen" (a click starts listening). Listening: a click opens the full visualizer. ⚙ → Panels configuration… → element options
+// turns it off, on this device.
+const VIZ_MINI_KEY = 'crate_viz_mini_v1';
+function vizMiniOn() { try { return localStorage.getItem(VIZ_MINI_KEY) !== '0'; } catch (e) { return true; } }
+let vizMiniRaf = 0;
+function vizMiniEnsure() {
+  if (vizEl('trackInfoViz') || !el.trackInfoArtWrap) return !!vizEl('trackInfoViz');
+  const w = document.createElement('div'); w.id = 'trackInfoViz'; w.className = 'track-info-viz'; w.hidden = true;
+  w.innerHTML = '<canvas id="trackInfoVizCanvas" class="track-info-viz-canvas"></canvas><span class="track-info-viz-listen" id="trackInfoVizListen">Listen</span>';
+  w.setAttribute('role', 'button'); w.tabIndex = 0;
+  const m = document.createElement('p'); m.id = 'trackInfoVizMsg'; m.className = 'track-info-viz-msg'; m.hidden = true;
+  el.trackInfoArtWrap.insertAdjacentElement('afterend', w); w.insertAdjacentElement('afterend', m);
+  const go = async () => { if (viz.stream) { openVisualizer(); return; } if (!(await vizListen()) && viz.offerShare) openVisualizer(); };          // a choice to make (the toolbar button, or Share instead): the full one shows both
+  w.addEventListener('click', go); w.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+  return true;
+}
+function vizMiniSync() {                                            // shown with the cover; drawn while it is in sight
+  if (!vizMiniEnsure()) return;
+  const w = vizEl('trackInfoViz'), show = vizMiniOn() && !!state.rightPanelShowTrackInfo && !el.trackInfoArtWrap.hidden && vizSupported();
+  w.hidden = !show; vizEl('trackInfoVizMsg').hidden = !show || !vizEl('trackInfoVizMsg').textContent || !!viz.stream;
+  vizEl('trackInfoVizListen').hidden = !!viz.stream;
+  w.title = viz.stream ? 'Open the visualizer' : 'Listen: let the visualizer hear this tab';
+  if (show && !vizMiniRaf) vizMiniRaf = requestAnimationFrame(vizMiniFrame);
+}
+function vizMiniFrame(t) {
+  vizMiniRaf = 0;
+  const w = vizEl('trackInfoViz'); if (!w || w.hidden) return;
+  vizMiniRaf = requestAnimationFrame(vizMiniFrame);
+  if (document.hidden || viz.open) return;                           // the full one draws meanwhile
+  const c = vizEl('trackInfoVizCanvas'), dpr = Math.min(2, window.devicePixelRatio || 1), cw = Math.round(c.clientWidth * dpr), ch = Math.round(c.clientHeight * dpr);
+  if (!cw || !ch) return; if (c.width !== cw || c.height !== ch) { c.width = cw; c.height = ch; }
+  if (!viz.miniTintAt || t - viz.miniTintAt > 1000) { viz.miniTintAt = t; vizTint(vizNowPlaying().art); }
+  const n = 28; let bands;
+  if (viz.analyser && viz.freq) { vizPull(); viz.analyser.getByteFrequencyData(viz.freq); bands = vizBands(viz.freq, vizRate(), n); }
+  else bands = new Array(n).fill(0).map((_, i) => 0.10 + 0.06 * Math.sin(t / 700 + i / 3));          // waiting: a slow shimmer
+  viz.miniLevels = viz.miniLevels && viz.miniLevels.length === n ? viz.miniLevels : new Array(n).fill(0);
+  const x = c.getContext('2d'), [r, g, b] = viz.color, gap = 2 * dpr, bw = (cw - gap * (n - 1)) / n, live = !!viz.stream;
+  x.clearRect(0, 0, cw, ch);
+  for (let i = 0; i < n; i++) {
+    const v = Math.max(bands[i], viz.miniLevels[i] * 0.86); viz.miniLevels[i] = v;          // falls back gently, rises at once
+    const h = Math.max(2 * dpr, Math.min(1, v * v * 1.15) * ch), px = i * (bw + gap);
+    x.fillStyle = `rgba(${r},${g},${b},${live ? 0.45 + v * 0.55 : 0.28})`;
+    x.beginPath(); if (x.roundRect) x.roundRect(px, ch - h, bw, h, Math.min(bw / 2, 2 * dpr)); else x.rect(px, ch - h, bw, h); x.fill();
+  }
+}
+(function vizMiniWire() {                                           // the option in ⚙ → Panels configuration… → element options
+  const anchor = document.getElementById('trackInfoShowVideoToggle'); const row = anchor && anchor.closest('label');
+  if (row) {
+    const l = document.createElement('label'); l.className = 'arrange-row arrange-row-sub';
+    l.innerHTML = '<input type="checkbox" id="trackInfoVizToggle"> Track Info: visualizer under the cover (this device)';
+    row.insertAdjacentElement('afterend', l);
+    const cb = l.querySelector('input'); cb.checked = vizMiniOn();
+    cb.addEventListener('change', () => { try { localStorage.setItem(VIZ_MINI_KEY, cb.checked ? '1' : '0'); } catch (e) { /* this visit only */ } vizMiniSync(); });
+  }
+  vizMiniSync();
+  if (typeof ytAddon !== 'undefined') window.addEventListener('message', (e) => { if (e.source === window && e.data && e.data.source === 'crate-addon' && e.data.type === 'yt-ready') setTimeout(vizMiniSync, 0); });          // the add-on arriving can make listening possible
 })();
