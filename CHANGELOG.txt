@@ -17,7 +17,20 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.107.0
+  CURRENT_VERSION: 1.108.0
+
+  1.108.0 — 2026-11-11 — Find on P2P keeps each release's search results, so reopening it (or switching sharers) needn't search Soulseek again; a sharer's "too many megabytes" is treated as a short limit, not a refusal. Page only (CRATE for P2P 0.2.1).
+
+          SAVED RESULTS: every Soulseek search for a release (yours in Find on P2P, and CRATE's own:
+          new releases, songs nothing else can play) is kept on this device. Opening Find on P2P /
+          Change P2P source again, even after reloading CRATE, shows them at once ("Saved results
+          from 2 h ago"), for up to a day; Search fetches fresh ones whenever you like.
+          SWITCHING SHARERS (1.107.0) tries the saved results' other folders first, so it usually
+          needs no new search and the song starts sooner.
+          LIMITS: a sharer who answers "too many megabytes", "too many files" or "queue full" caps
+          how much one person may take from them; that sharer is passed over for an hour (marked
+          "Limit reached"), not a week like a real refusal. Lower Download ahead, or prefer MP3 320,
+          and it happens less.
 
   1.107.0 — 2026-11-11 — A sharer who refuses you ("Verification required", banned, not shared…) is remembered, and the release switches to the next-best sharer by itself, the song carrying on. Page only (CRATE for P2P 0.2.1).
 

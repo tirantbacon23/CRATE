@@ -221,7 +221,16 @@ function p2pOpen(item) {                                            // item: a r
     const c = p2p.cur;
     Promise.resolve(getTracksFor(item)).then(t => { if (p2p.cur !== c) return; c.tracks = (t || []).filter(x => x && x.trackName); p2pRerank(); }).catch(() => { if (p2p.cur === c) { c.tracks = []; p2pRerank(); } });
   }
-  if (!p2p.ready) p2pHello(); else if (item && p2p.configured) p2pAutoSearch();
+  if (item) {                                                          // (1.108.0) saved results from earlier: shown at once, no search
+    const c = p2p.cur;
+    p2pResGet(item).then(r => {
+      if (p2p.cur !== c || c.state !== 'idle') return;
+      if (r) { c.autoPending = false; Object.assign(c, { folders: r.folders, q: r.q, state: 'done', savedAt: r.at, responses: new Set(r.folders.map(f => f.user)).size }); document.getElementById('p2pQuery').value = r.q || document.getElementById('p2pQuery').value; p2pRerank(); return; }
+      if (!p2p.ready) p2pHello(); else if (p2p.configured) p2pAutoSearch();
+    });
+    return;
+  }
+  if (!p2p.ready) p2pHello();
 }
 function p2pAutoSearch() { const c = p2p.cur; if (!c || !c.autoPending) return; c.autoPending = false; p2pSearch(document.getElementById('p2pQuery').value); }
 function p2pClose() { const ov = document.getElementById('p2pOverlay'); if (!ov || ov.hidden) return; p2pStop(); ov.hidden = true; p2p.cur = null; }
@@ -246,7 +255,7 @@ async function p2pSearch(text) {
     if (p2p.cur !== c || c.reqId !== reqId || c.state !== 'searching') return;
     if (!p.ok) { c.state = 'error'; c.error = p2pWhy(p); p2pRender(); return; }
     Object.assign(c, { responses: p.responses, files: p.files, folders: p.folders || c.folders });
-    if (p.done) c.state = 'done';
+    if (p.done) { c.state = 'done'; c.savedAt = 0; if (c.item) p2pResSave(c.item, q, c.folders); }          // (1.108.0) kept for next time
     p2pRerank();
     p2pAutoPick(c);
     if (!p.done) { setTimeout(tick, 1500); return; }
@@ -257,7 +266,12 @@ async function p2pSearch(text) {
   };
   setTimeout(tick, 1200);
 }
-async function p2pSearchFolders(q, maxMs) {                         // (1.99.0) a search without the dialog -> { ok, folders } | { ok: false, reason }
+// ----- (1.108.0) a release's search results are kept on this device, so reopening Find on P2P (or switching sharers) needn't search again -----
+const P2P_RES_FRESH = 24 * 3600000;
+async function p2pResSave(item, q, folders) { if (!item || !folders || !folders.length || typeof p2pKvSet !== 'function') return; try { await p2pKvSet('res:' + artKey(item), { at: Date.now(), q, folders: folders.slice(0, 60) }); } catch (e) { /* not kept */ } }
+async function p2pResGet(item, maxAge) { if (!item || typeof p2pKvGet !== 'function') return null; try { const r = await p2pKvGet('res:' + artKey(item)); return r && Array.isArray(r.folders) && Date.now() - r.at < (maxAge || P2P_RES_FRESH) ? r : null; } catch (e) { return null; } }
+function p2pAgo(t) { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; }
+async function p2pSearchFolders(q, maxMs, item) {                   // (1.99.0) a search without the dialog -> { ok, folders } | { ok: false, reason }; item (1.108.0): keep its results
   const reqId = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t0 = Date.now();
   let r = await p2pCall('search', { reqId, q });
   for (let k = 0; !r.ok && r.reason === 'paced' && k < 3; k++) { await new Promise(res => setTimeout(res, Math.min(r.retryIn || 15000, 120000) + 500)); r = await p2pCall('search', { reqId, q }); }          // (1.106.0) paced by the add-on: wait our turn
@@ -266,9 +280,9 @@ async function p2pSearchFolders(q, maxMs) {                         // (1.99.0) 
   while (Date.now() - t0 < (maxMs || 25000)) {
     await new Promise(res => setTimeout(res, 1500));
     const p = await p2pCall('poll', { reqId }); if (!p.ok) return p;
-    folders = p.folders || folders; if (p.done) return { ok: true, folders };
+    folders = p.folders || folders; if (p.done) { p2pResSave(item, q, folders); return { ok: true, folders }; }
   }
-  p2pCall('cancel', { reqId }); return { ok: true, folders };
+  p2pCall('cancel', { reqId }); p2pResSave(item, q, folders); return { ok: true, folders };
 }
 async function p2pStop() {
   const c = p2p.cur; if (!c || !c.reqId || c.state !== 'searching') return;
@@ -297,6 +311,7 @@ function p2pRender() {
     : c.state === 'idle' ? 'Searches Soulseek through your slskd. Takes about 15 seconds.'
     : c.state === 'searching' ? `Searching for “${c.q}”… ${c.responses} user${c.responses === 1 ? '' : 's'} answered so far.`
     : n && !list.length ? `All ${n} folders are hidden by the filters: loosen them to see them.`
+    : n && c.savedAt ? `Saved results from ${p2pAgo(c.savedAt)} (Search for fresh ones): ${n} folder${n === 1 ? '' : 's'}${hidden ? `, ${hidden} hidden by the filters` : ''}.`
     : n ? `${c.status2 ? c.status2 + ' ' : ''}${n} folder${n === 1 ? '' : 's'} with audio, from ${c.responses} user${c.responses === 1 ? '' : 's'}${hidden ? ` (${hidden} hidden by the filters)` : ''}.` + (c.item ? (sure ? ` ${sure} sure match${sure === 1 ? '' : 'es'}, best first.` : ' No sure match: check the closest ones.') : ' Ones you could start on now are first.')
     : 'Nothing found. Try fewer words (the artist and the release’s main title), or check that slskd is logged in to Soulseek.';
   res.innerHTML = list.map((f, i) => {
@@ -311,7 +326,7 @@ function p2pRender() {
     return `<div class="p2p-folder${m ? ' v-' + m.verdict : ''}${isChosen ? ' chosen' : ''}${open ? ' open' : ''}" data-key="${escapeHtml(key)}">
       <button type="button" class="p2p-folder-head" data-p2p-folder="${i}" aria-expanded="${open}">
         <span class="p2p-name"><b>${escapeHtml(f.name)}</b>${parent ? `<small>${escapeHtml(parent)}</small>` : ''}</span>
-        <span class="p2p-meta"><span class="p2p-fmt${f.lossless ? ' lossless' : ''}">${escapeHtml(fmt)}</span><span>${f.count} song${f.count === 1 ? '' : 's'}</span><span>${p2pLen(f.totalSec)}</span><span>${p2pSize(f.totalSize)}</span>${avail}${f.locked ? '<span class="p2p-pill bad" title="This user only shares these with friends">Locked</span>' : ''}${typeof p2pRefuses === 'function' && p2pRefuses(f.user) ? `<span class="p2p-pill bad" title="${escapeHtml(p2pRefuses(f.user).why)}">Refused you</span>` : ''}</span>
+        <span class="p2p-meta"><span class="p2p-fmt${f.lossless ? ' lossless' : ''}">${escapeHtml(fmt)}</span><span>${f.count} song${f.count === 1 ? '' : 's'}</span><span>${p2pLen(f.totalSec)}</span><span>${p2pSize(f.totalSize)}</span>${avail}${f.locked ? '<span class="p2p-pill bad" title="This user only shares these with friends">Locked</span>' : ''}${typeof p2pRefuses === 'function' && p2pRefuses(f.user) ? `<span class="p2p-pill bad" title="${escapeHtml(p2pRefuses(f.user).why)}">${p2pRefuses(f.user).limit ? 'Limit reached' : 'Refused you'}</span>` : ''}</span>
         <span class="p2p-user">${escapeHtml(f.user)}${f.speed ? ` · ${p2pSize(f.speed)}/s` : ''}</span>
         ${m ? `<span class="p2p-verdict"><span class="p2p-v">${escapeHtml(m.label)}</span>${m.notes.map(x => `<span class="p2p-note">${escapeHtml(x)}</span>`).join('')}</span>` : ''}
       </button>

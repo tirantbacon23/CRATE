@@ -155,8 +155,9 @@ async function p2pDownload(item, choice, play, quiet) {              // inside a
 // release switches to the next-best folder from someone else by itself (a new, paced search), the song carrying on from there -----
 const P2P_REFUSE_KEY = 'crate_p2p_refused_v1', P2P_REFUSAL = /reject|verif|ban|denied|not shared|too many|blocked|forbidden|file not|queue full|unavailable/i;
 const p2pRefused = (() => { try { return JSON.parse(localStorage.getItem(P2P_REFUSE_KEY) || '{}') || {}; } catch (e) { return {}; } })();
-function p2pRefuses(user) { const r = user && p2pRefused[user]; return r && Date.now() - r.at < 7 * 86400000 ? r : null; }
-function p2pNoteRefusal(user, why) { p2pRefused[user] = { at: Date.now(), why: String(why || '').slice(0, 120) }; try { localStorage.setItem(P2P_REFUSE_KEY, JSON.stringify(p2pRefused)); } catch (e) { /* this visit */ } }
+const P2P_LIMIT = /too many (mega)?bytes|too many files|queue (is )?full|limit/i;          // a cap on how much one person may take, not a refusal: an hour
+function p2pRefuses(user) { const r = user && p2pRefused[user]; return r && Date.now() - r.at < (r.limit ? 3600000 : 7 * 86400000) ? r : null; }
+function p2pNoteRefusal(user, why) { p2pRefused[user] = { at: Date.now(), why: String(why || '').slice(0, 120), limit: P2P_LIMIT.test(String(why || '')) }; try { localStorage.setItem(P2P_REFUSE_KEY, JSON.stringify(p2pRefused)); } catch (e) { /* this visit */ } }
 const p2pSwitching = new Set();
 async function p2pSwitchSource(key) {                                // -> true when the release now has a source from someone else
   if (p2pSwitching.has(key)) return false;
@@ -164,12 +165,17 @@ async function p2pSwitchSource(key) {                                // -> true 
   p2pSwitching.add(key); jobsRefresh();
   try {
     const tracks = ((await Promise.resolve(getTracksFor(item)).catch(() => [])) || []).filter(t => t && t.trackName);
-    let folders = [];
-    for (const q of p2pQueries(item)) { const r = await p2pSearchFolders(q); if (!r.ok) return false; folders = r.folders.filter(f => !p2pRefuses(f.user)); if (folders.length) break; }
-    const best = p2pBestOf(p2pRank(folders, tracks, item, p2pPrefs()));
+    let folders = [], best = null;
+    const saved = await p2pResGet(item, 6 * 3600000);                 // (1.108.0) the last search's other folders first: no new search if one of them will do
+    if (saved) best = p2pBestOf(p2pRank(saved.folders.filter(f => !p2pRefuses(f.user)), tracks, item, p2pPrefs()));
+    if (!best) {
+      for (const q of p2pQueries(item)) { const r = await p2pSearchFolders(q, 0, item); if (!r.ok) return false; folders = r.folders.filter(f => !p2pRefuses(f.user)); if (folders.length) break; }
+      best = p2pBestOf(p2pRank(folders, tracks, item, p2pPrefs()));
+    }
     if (!best) { flashGlobalToast(`${old.user} refused ${item.title}, and no one else has a good copy right now.`); return false; }
     p2pChoose(item, best, tracks); p2pMakeRec(item, p2pChoiceFor(item));
-    flashGlobalToast(`${old.user} refused (${(p2pRefuses(old.user) || {}).why || 'refused'}): switched ${item.title} to ${best.user}.`);
+    const why = p2pRefuses(old.user) || {};
+    flashGlobalToast(why.limit ? `${old.user} limits how much one person can take (${why.why}): switched ${item.title} to ${best.user}.` : `${old.user} refused (${why.why || 'refused'}): switched ${item.title} to ${best.user}.`);
     if (typeof jobsDone === 'function') jobsDone('p2p', `Switched ${item.title} to ${best.name}, from ${best.user} (${old.user} refused)`, { k: key });
     p2pSyncWindow(); return true;
   } finally { p2pSwitching.delete(key); jobsRefresh(); }
@@ -391,7 +397,7 @@ function p2pAutoGet(item) {                                         // -> Promis
     const tracks = ((await Promise.resolve(getTracksFor(item)).catch(() => [])) || []).filter(t => t && t.trackName);
     const qs = p2pQueries(item);          // (1.102.0) with the year, then without it, then the title alone
     let folders = [];
-    for (const q of qs) { const r = await p2pSearchFolders(q); if (!r.ok) { p2pAutoMissed[key] = { at: Date.now(), why: p2pWhy(r), title: item.title }; return false; } folders = r.folders; if (folders.length) break; }
+    for (const q of qs) { const r = await p2pSearchFolders(q, 0, item); if (!r.ok) { p2pAutoMissed[key] = { at: Date.now(), why: p2pWhy(r), title: item.title }; return false; } folders = r.folders; if (folders.length) break; }
     const best = p2pBestOf(p2pRank(folders, tracks, item, p2pPrefs()));          // (1.101.0) a sure match, else a likely one
     if (!best) { p2pAutoMissed[key] = { at: Date.now(), why: folders.length ? `${folders.length} folder${folders.length === 1 ? '' : 's'} found, none a good match` : 'nothing found', title: item.title }; return false; }
     p2pChoose(item, best, tracks); const rec = p2pMakeRec(item, p2pChoiceFor(item)); if (rec) { rec.prefer = true; p2pDlSave(); }
@@ -457,7 +463,7 @@ async function p2pNewRun() {
     const tracks = ((await Promise.resolve(getTracksFor(item)).catch(() => [])) || []).filter(t => t && t.trackName);
     if (!tracks.length) { later(20 * 60000); return; }                // no tracklist yet (its RYM update brings one): later
     let folders = [], failed = null;
-    for (const q of p2pQueries(item)) { const r = await p2pSearchFolders(q); if (!r.ok) { failed = r; break; } folders = r.folders; if (folders.length) break; }
+    for (const q of p2pQueries(item)) { const r = await p2pSearchFolders(q, 0, item); if (!r.ok) { failed = r; break; } folders = r.folders; if (folders.length) break; }
     if (failed) { later(30 * 60000); return; }
     const best = p2pBestOf(p2pRank(folders, tracks, item, p2pPrefs()));
     if (best) { p2pChoose(item, best, tracks); p2pMakeRec(item, p2pChoiceFor(item)); if (typeof jobsDone === 'function') jobsDone('p2p', `Found ${item.title} on Soulseek: ${best.name} (${(best.ext || '').toUpperCase()}), from ${best.user}`, { k: artKey(item) }); }

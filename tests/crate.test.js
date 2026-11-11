@@ -1286,3 +1286,15 @@ suite('P2P: a file’s format and quality, from its first bytes (1.103.0)', () =
     eq([v.vbr, v.kbps], [true, 240]);
   });
 });
+
+suite('P2P: sharers who refuse, or limit you (1.107.0, 1.108.0)', () => {
+  test('"Too many megabytes" is a limit (an hour); "Verification required" a refusal (a week)', () => {
+    const note = app('p2pNoteRefusal'), r = app('p2pRefuses'), all = app('p2pRefused');
+    try {
+      note('__t_capped', 'Too many megabytes'); note('__t_bot', 'Verification required');
+      eq([r('__t_capped').limit, r('__t_bot').limit], [true, false]);
+      all.__t_capped.at = Date.now() - 2 * 3600000; all.__t_bot.at = Date.now() - 2 * 3600000;
+      eq([!!r('__t_capped'), !!r('__t_bot')], [false, true]);
+    } finally { delete all.__t_capped; delete all.__t_bot; }
+  });
+});
