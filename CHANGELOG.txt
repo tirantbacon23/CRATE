@@ -17,7 +17,18 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.25
+  CURRENT_VERSION: 1.95.26
+
+  1.95.26 — 2026-11-11 — CRATE listens to its tab on its own when it opens (YouTube add-on 1.5.1 or later), for the visualizer and the level meter. Page only.
+
+          As soon as the add-on answers, CRATE asks it for this tab's sound, with no click and
+          without opening the visualizer. Chrome lets an add-on start capturing a tab only after
+          you have clicked it (or pressed its shortcut, Alt+Shift+V) on that tab, once; after
+          that the capture goes on when CRATE is reloaded, and CRATE picks it up again at
+          startup. So it is one click per tab per browser session. When Chrome still wants that
+          click, nothing pops up: the meter shows "Listen". ⚙ → Panels configuration… → Player
+          Controls → Panel Settings… → "Listen to this tab when CRATE opens" turns it off (this
+          device).
 
   1.95.25 — 2026-11-11 — The player's release bar: hover it to see which song is where, click to play that song. Track Info's cover shows big on a click. Page only.
 

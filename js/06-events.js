@@ -1535,6 +1535,11 @@ function renderConfigSlots(mode) {
     const cb = row.querySelector('input'); cb.checked = state.releaseBarClick !== false;
     cb.addEventListener('change', () => { state.releaseBarClick = cb.checked; savePrefs(); updateReleaseProgress(); });
     container.appendChild(row);
+    const auto = document.createElement('label'); auto.className = 'arrange-row';          // (1.95.26)
+    auto.innerHTML = '<input type="checkbox" id="vizAutoToggle"> Listen to this tab when CRATE opens, for the visualizer and level meter (YouTube add-on 1.5.1 or later; this device)';
+    const ac = auto.querySelector('input'); ac.checked = typeof vizAutoOn === 'function' ? vizAutoOn() : true;
+    ac.addEventListener('change', () => { if (typeof vizSetAuto === 'function') vizSetAuto(ac.checked); });
+    container.appendChild(auto);
   } else {
     addRows(mode, labels[mode]);
   }

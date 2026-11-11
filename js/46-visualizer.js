@@ -94,6 +94,11 @@ async function vizAttach(stream) {                                  // shared th
 }
 async function vizListen(opts) {
   if (viz.stream) return true;
+  if (opts && opts.quiet) {                                          // (1.95.26) on its own, at startup: only through the add-on, and saying nothing if Chrome wants the click first
+    if (!vizAddonOk()) return false;
+    const r = await vizAskAddon(); if (viz.stream) return true;
+    return r.ok ? vizRemoteStart() : false;
+  }
   if (!vizSupported()) { vizSay('This browser can’t share a tab’s sound. Chrome or Edge on a computer can.'); return false; }
   if (vizAddonOk() && !(opts && opts.share)) {
     const r = await vizAskAddon(); if (viz.stream) return true;          // (the toolbar button may have started it meanwhile)
@@ -320,3 +325,18 @@ function vizMiniFrame(t) {
   vizMiniSync();
   if (typeof ytAddon !== 'undefined') window.addEventListener('message', (e) => { if (e.source === window && e.data && e.data.source === 'crate-addon' && e.data.type === 'yt-ready') setTimeout(vizMiniSync, 0); });          // the add-on arriving can make listening possible
 })();
+
+// ----- (1.95.26) listening when CRATE opens -----
+// With the YouTube add-on 1.5.1 or later, CRATE asks it for this tab's sound as soon as the add-on answers, without a click. Chrome lets an
+// add-on start capturing a tab only after you have clicked it (or pressed its shortcut) on that tab; once it is capturing, the capture
+// goes on when CRATE is reloaded, so CRATE picks it up again here. When Chrome still wants the click, nothing is shown but "Listen".
+// ⚙ → Panels configuration… → Player Controls → Panel Settings… turns it off, on this device.
+const VIZ_AUTO_KEY = 'crate_viz_auto_v1';
+function vizAutoOn() { try { return localStorage.getItem(VIZ_AUTO_KEY) !== '0'; } catch (e) { return true; } }
+function vizSetAuto(on) { try { localStorage.setItem(VIZ_AUTO_KEY, on ? '1' : '0'); } catch (e) { /* this visit only */ } if (on) { vizAutoTried = false; vizAutoListen(); } }
+let vizAutoTried = false;
+function vizAutoListen() {
+  if (vizAutoTried || viz.stream || !vizAutoOn() || !vizAddonOk()) return;
+  vizAutoTried = true; vizListen({ quiet: true });
+}
+window.addEventListener('message', (e) => { if (e.source === window && e.data && e.data.source === 'crate-addon' && e.data.type === 'yt-ready') setTimeout(vizAutoListen, 0); });
