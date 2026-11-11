@@ -903,7 +903,7 @@ function jobsRender() {
   body.innerHTML = sec('run', 'Running', c.run, 'Nothing is running.') + sec('need', 'Needs you', c.need, 'Nothing is waiting for you.') + sec('wait', 'Waiting \u00b7 drag to reorder', c.wait, 'Nothing is queued. A Rate Your Music update started while another is running waits here, and starts by itself.')
     + (done.length || f === 'all' ? `<section class="job-sec"><h3>Done today</h3>${done.length ? done.map(doneRow).join('') : '<p class="job-empty">Nothing yet today.</p>'}</section>` : '');
   const m = document.getElementById('jobsMenu'); m.hidden = !jobsState.menu;
-  if (jobsState.menu) { const p = smPrefs(); m.innerHTML = [['autoMatchNew', 'Match new releases by themselves', !!p.autoMatchNew], ['rymQueueMode', 'Apply safe Rate Your Music changes as they arrive; review the rest', !!state.rymQueueMode], ['lfEvery', 'Sync Last.fm every 6 hours while CRATE is open', jobsLfEvery()]].map(([k, l, v]) => `<label class="job-opt"><input type="checkbox" data-job-opt="${k}"${v ? ' checked' : ''}> <span>${l}</span></label>`).join('') + '<p class="job-empty">Queued Rate Your Music updates start 15 s apart, and read one page at a time with a pause between pages.</p>'; }
+  if (jobsState.menu) { const p = smPrefs(); m.innerHTML = [['autoMatchNew', 'Match new releases by themselves', !!p.autoMatchNew], ['rymQueueMode', 'Apply safe Rate Your Music changes as they arrive; review the rest', !!state.rymQueueMode], ['lfEvery', 'Sync Last.fm every 6 hours while CRATE is open', jobsLfEvery()], ['p2pNew', 'Find new releases on Soulseek, and remember a source for each (CRATE for P2P)', typeof p2pNewOn === 'function' ? p2pNewOn() : false]].map(([k, l, v]) => `<label class="job-opt"><input type="checkbox" data-job-opt="${k}"${v ? ' checked' : ''}> <span>${l}</span></label>`).join('') + '<p class="job-empty">Queued Rate Your Music updates start 15 s apart, and read one page at a time with a pause between pages.</p>'; }
   jobsBadge(c);
 }
 function initJobs() {
@@ -915,7 +915,7 @@ function initJobs() {
   document.getElementById('jobsMenuBtn').addEventListener('click', () => { jobsState.menu = !jobsState.menu; jobsRender(); });
   document.getElementById('jobsMenu').addEventListener('change', (e) => {
     const k = e.target.dataset.jobOpt, v = e.target.checked;
-    if (k === 'autoMatchNew') smPrefsSave({ autoMatchNew: v }); else if (k === 'rymQueueMode') { state.rymQueueMode = v; savePrefs(); const x = document.getElementById('rymQueueMode'); if (x) x.checked = v; } else if (k === 'lfEvery') { try { localStorage.setItem(JOBS_LF_ON_KEY, v ? '1' : '0'); } catch (er) { /* kept for this visit */ } }
+    if (k === 'autoMatchNew') smPrefsSave({ autoMatchNew: v }); else if (k === 'rymQueueMode') { state.rymQueueMode = v; savePrefs(); const x = document.getElementById('rymQueueMode'); if (x) x.checked = v; } else if (k === 'p2pNew') { if (typeof p2pSetNew === 'function') p2pSetNew(v); } else if (k === 'lfEvery') { try { localStorage.setItem(JOBS_LF_ON_KEY, v ? '1' : '0'); } catch (er) { /* kept for this visit */ } }
   });
   document.getElementById('jobsChips').addEventListener('click', (e) => { const b = e.target.closest('[data-job-filter]'); if (!b) return; jobsState.filter = b.dataset.jobFilter; jobsRender(); });
   const body = document.getElementById('jobsBody');

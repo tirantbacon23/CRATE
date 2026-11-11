@@ -17,7 +17,21 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.103.0
+  CURRENT_VERSION: 1.104.0
+
+  1.104.0 — 2026-11-11 — A release you add is found on Soulseek in the background, and its best folder remembered as its P2P source (nothing is downloaded). Page only (CRATE for P2P 0.2.0).
+
+          WHEN A RELEASE IS ADDED (the Add form, from RYM, an import): it joins a queue that searches
+          Soulseek one release at a time, 20 seconds apart, as Find on P2P does (with the year,
+          then without). The best folder, a sure match or else a likely one, becomes its source, so
+          the first time it plays from P2P it starts at once, with no search. A release whose
+          tracklist hasn't arrived yet (a new one waits for its RYM update) is tried again later,
+          up to 3 times. No good match: Processing lists it under Needs you, with Pick a folder.
+          Processing shows the queue ("Finding new releases on Soulseek", with Stop), and "Done
+          today" logs each one found. The queue is kept between visits, and waits while an import
+          is still adding or the add-on isn't there.
+          SWITCH: Processing → settings → "Find new releases on Soulseek, and remember a source for
+          each" (on, this device).
 
   1.103.0 — 2026-11-11 — Playing from a file: Track Info shows its format and quality above the cover, and the visualizer and level meter listen to it directly (no tab capture, no click). Page only.
 

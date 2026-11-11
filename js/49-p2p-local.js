@@ -200,8 +200,9 @@ setInterval(() => { if (!document.hidden || Object.values(p2pDl).some(r => r.son
 
 // ----- Processing (category P2P) -----
 function p2pJobs(run, need) {
+  if (p2pNewQ.length && p2pNewOn()) run.push({ cat: 'p2p', icon: 'search', title: 'Finding new releases on Soulseek', sub: `${p2pNewQ.length} waiting`, pct: null, detail: p2pNewState.now ? `Searching for ${p2pNewState.now}` : `${p2pNewQ.filter(e => e.tries).length ? 'some wait for their tracklist; ' : ''}one every 20 s, remembering the best folder for each (nothing is downloaded)`, acts: [{ icon: 'x', label: 'Stop', fn: () => { p2pNewQ.length = 0; p2pNewSave(); jobsRefresh(); } }] });
   p2pAutoFlight.forEach(f => run.push({ cat: 'p2p', icon: 'search', title: `Looking for ${f.title} on Soulseek`, sub: f.artist, pct: null, detail: 'A song of it has no link Spotify or YouTube can play: a sure match will be downloaded and played' }));
-  Object.entries(p2pAutoMissed).forEach(([k, m]) => { if (Date.now() - m.at > 6 * 3600000 || m.dismissed) return; need.push({ cat: 'p2p', icon: 'search', title: `${m.title}: no good match on Soulseek`, detail: `${m.why}. Its songs without a link were skipped.`, acts: [{ label: 'Pick a folder', fn: () => { const it = p2pItemByKey(k); if (it) p2pOpen(it); }, opens: true, primary: true }, { label: 'Dismiss', fn: () => { m.dismissed = true; } }] }); });
+  Object.entries(p2pAutoMissed).forEach(([k, m]) => { if (Date.now() - m.at > 6 * 3600000 || m.dismissed) return; need.push({ cat: 'p2p', icon: 'search', title: `${m.title}: no good match on Soulseek`, detail: m.isNew ? `Added to your crate: ${m.why}.` : `${m.why}. Its songs without a link were skipped.`, acts: [{ label: 'Pick a folder', fn: () => { const it = p2pItemByKey(k); if (it) p2pOpen(it); }, opens: true, primary: true }, { label: 'Dismiss', fn: () => { m.dismissed = true; } }] }); });
   const recs = Object.values(p2pDl);
   recs.forEach(rec => {
     const n = rec.songs.length, active = rec.songs.filter(p2pActive), done = rec.songs.filter(s => s.st === 'done' || s.st === 'gone').length, failed = rec.songs.filter(s => s.st === 'fail');
@@ -394,5 +395,48 @@ function p2pPlayOneOrFalse(item, trackName, trackNum) {             // one song,
   if (p2pAutoTake(myId, 0, item, crateQueueList[0].track)) return true;
   crateQueueList = []; crateQueueIndex = -1; renderCrateQueuePanel(); return false;
 }
+// ----- (1.104.0) a release just added: found on Soulseek in the background, and its best folder remembered as its source -----
+// Nothing is downloaded: the first time it plays from P2P it starts at once, without a search. One search at a time, 20 s apart; a release
+// whose tracklist hasn't arrived yet (a new one waits for its RYM update) is tried again later, up to 3 times. A sure (else likely) match is
+// remembered; none: Processing lists it with Pick a folder. Processing's settings menu switches it off ("Find new releases on Soulseek").
+const P2P_NEW_KEY = 'crate_p2p_new_v1', P2P_NEWQ_KEY = 'crate_p2p_newq_v1';
+const p2pNewQ = (() => { try { const l = JSON.parse(localStorage.getItem(P2P_NEWQ_KEY) || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; } })();
+const p2pNewState = { running: false, now: '', timer: 0 };
+function p2pNewOn() { try { return localStorage.getItem(P2P_NEW_KEY) !== '0'; } catch (e) { return true; } }
+function p2pSetNew(on) { try { localStorage.setItem(P2P_NEW_KEY, on ? '1' : '0'); } catch (e) { /* this visit */ } if (on) p2pNewSchedule(3000); }
+function p2pNewSave() { try { localStorage.setItem(P2P_NEWQ_KEY, JSON.stringify(p2pNewQ.slice(-500))); } catch (e) { /* this visit */ } }
+function p2pNewSchedule(ms) { clearTimeout(p2pNewState.timer); p2pNewState.timer = setTimeout(p2pNewRun, ms); }
+function p2pNewQueue(list) {                                          // (from the save step) releases just added
+  if (!p2pNewOn()) return;
+  (list || []).forEach(x => { if (!x || !x.artist || !x.title) return; const k = mqKey(String(x.artist), String(x.title)); if (!p2pNewQ.some(e => e.k === k)) p2pNewQ.push({ k, artist: String(x.artist), title: String(x.title), due: Date.now() + 8000, tries: 0 }); });
+  p2pNewSave(); p2pNewSchedule(8000); jobsRefresh();
+}
+async function p2pNewRun() {
+  if (p2pNewState.running || !p2pNewQ.length || !p2pNewOn()) return;
+  if (!p2p.ready || !p2p.configured || (typeof cxImp !== 'undefined' && cxImp && cxImp.running)) { p2pNewSchedule(60000); return; }          // the add-on isn't here, or an import is still adding: later
+  const now = Date.now(), e = p2pNewQ.find(x => x.due <= now);
+  if (!e) { p2pNewSchedule(Math.max(5000, Math.min(...p2pNewQ.map(x => x.due)) - now)); return; }
+  p2pNewState.running = true; p2pNewState.now = e.title; jobsRefresh();
+  try {
+    const item = (state.raw || []).find(r => mqKey(r.artist, r.title) === e.k);
+    const drop = () => { const i = p2pNewQ.indexOf(e); if (i >= 0) p2pNewQ.splice(i, 1); };
+    const later = (ms) => { e.tries++; e.due = Date.now() + ms; if (e.tries > 3) drop(); };
+    if (!item) { later(10 * 60000); return; }                         // not in the list yet
+    if (p2pHasSource(item)) { drop(); return; }                       // already has one
+    const tracks = ((await Promise.resolve(getTracksFor(item)).catch(() => [])) || []).filter(t => t && t.trackName);
+    if (!tracks.length) { later(20 * 60000); return; }                // no tracklist yet (its RYM update brings one): later
+    let folders = [], failed = null;
+    for (const q of p2pQueries(item)) { const r = await p2pSearchFolders(q); if (!r.ok) { failed = r; break; } folders = r.folders; if (folders.length) break; }
+    if (failed) { later(30 * 60000); return; }
+    const best = p2pBestOf(p2pRank(folders, tracks, item, p2pPrefs()));
+    if (best) { p2pChoose(item, best, tracks); p2pMakeRec(item, p2pChoiceFor(item)); if (typeof jobsDone === 'function') jobsDone('p2p', `Found ${item.title} on Soulseek: ${best.name} (${(best.ext || '').toUpperCase()}), from ${best.user}`, { k: artKey(item) }); }
+    else p2pAutoMissed[artKey(item)] = { at: Date.now(), why: folders.length ? `${folders.length} folder${folders.length === 1 ? '' : 's'} found, none a good match` : 'nothing found', title: item.title, isNew: true };
+    drop();
+  } finally {
+    p2pNewSave(); p2pNewState.running = false; p2pNewState.now = ''; jobsRefresh();
+    if (p2pNewQ.length) p2pNewSchedule(20000);                        // the next one, 20 s on
+  }
+}
+setTimeout(() => { if (p2pNewQ.length) p2pNewSchedule(15000); }, 0);
 function p2pRefreshUi() { if (typeof jobsRefresh === 'function') jobsRefresh(); if (p2p.cur && typeof p2pRender === 'function') p2pRender(); }
 p2pDirCheck().then(() => p2pTick());

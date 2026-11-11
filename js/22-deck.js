@@ -610,6 +610,7 @@ function postUpdate(payload, retried) {
       if (smPrefs().queueNew && payload.action === 'addAlbum' && payload.Artist && payload.Title) mqAdd([{ artist: String(payload.Artist), title: String(payload.Title) }], 'added');
       else if (smPrefs().queueNew && payload.action === 'addAlbums' && Array.isArray(payload.albums)) mqAdd(payload.albums.filter(x => x && x.Artist && x.Title).map(x => ({ artist: String(x.Artist), title: String(x.Title) })), 'added');
       if (smPrefs().autoMatchNew && (payload.action === 'addAlbum' || payload.action === 'addAlbums')) bmAutoQueue(payload.action === 'addAlbum' ? (payload.Artist && payload.Title ? [{ artist: String(payload.Artist), title: String(payload.Title) }] : []) : (Array.isArray(payload.albums) ? payload.albums : []).filter(x => x && x.Artist && x.Title).map(x => ({ artist: String(x.Artist), title: String(x.Title) })));          // and matched by themselves
+      if (typeof p2pNewQueue === 'function' && (payload.action === 'addAlbum' || payload.action === 'addAlbums')) p2pNewQueue(payload.action === 'addAlbum' ? [{ artist: payload.Artist, title: payload.Title }] : (Array.isArray(payload.albums) ? payload.albums : []).map(x => x && { artist: x.Artist, title: x.Title }));          // (1.104.0) and find it on Soulseek
     } catch (e) { /* the queue is a convenience */ }
     return data;
   });
