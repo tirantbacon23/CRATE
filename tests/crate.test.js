@@ -1250,6 +1250,12 @@ suite('P2P: matching a Soulseek folder to a release (1.97.0)', () => {
     eq(s(folder('Either Or', [f('01 Speed Trials.flac', 181), f('02 Alameda.flac', 223)]), tracks, rel, {}).label, 'Partial: 2 of 4');
     eq(s(folder('Either Or (Live at the Troubadour)', [f('01 Speed Trials.flac', 181), f('02 Alameda.flac', 223), f('03 Ballad of Big Nothing.flac', 168), f('04 Between the Bars.flac', 141)]), tracks, rel, {}).verdict === 'sure', false);
   });
+  test('the source picked for you: a sure match, else a likely one, never a partial or a locked one (1.101.0)', () => {
+    const b = app('p2pBestOf'), f = (user, verdict, unavailable) => ({ user, m: { verdict, unavailable: !!unavailable } });
+    eq(b([f('a', 'likely'), f('b', 'sure', true), f('c', 'sure')]).user, 'c');
+    eq(b([f('a', 'partial'), f('b', 'likely')]).user, 'b');
+    eq(b([f('a', 'partial'), f('b', 'version'), f('c', 'other')]), null);
+  });
   test('the best folder comes first, and an all-locked one last', () => {
     const all = [f('01 Speed Trials.flac', 181), f('02 Alameda.flac', 223), f('03 Ballad of Big Nothing.flac', 168), f('04 Between the Bars.flac', 141)];
     const r = app('p2pRank')([folder('Half', all.slice(0, 2)), folder('Locked', all, { locked: 4 }), folder('Whole', all)], tracks, rel, { format: 'lossless' });

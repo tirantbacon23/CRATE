@@ -17,7 +17,19 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.100.0
+  CURRENT_VERSION: 1.101.0
+
+  1.101.0 — 2026-11-11 — P2P picks the source for you: Find on P2P makes the best folder the release's source by itself, and "Change P2P source…" lets you pick another. Page only.
+
+          FIND ON P2P no longer waits for you to choose: when the search is done, the best folder (a
+          sure match, else a likely one) becomes the release's source, marked "Source (picked for
+          you)", so Download and play is ready at once. Any other folder has "Use this instead";
+          Forget drops the source (its downloads stop, its files go).
+          CHANGING IT: a release with a source shows "Change P2P source…" on its right-click menu
+          (was "Find on P2P…"); the window opens on the source you have, keeps it, and lists the
+          others. A release already playing from P2P carries on from the new source.
+          FOUND BY ITSELF (a song nothing else can play): a likely match is now used when there is
+          no sure one, instead of skipping the song.
 
   1.100.0 — 2026-11-11 — P2P plays like streaming: only the song playing and the next one are downloaded, songs are deleted once played or skipped, and a release's folder is remembered so it's never searched for twice. Page only (CRATE for P2P 0.2.0).
 

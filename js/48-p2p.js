@@ -115,7 +115,13 @@ function p2pRank(folders, tracks, release, prefs) {                 // the folde
   return folders.map(f => Object.assign({}, f, { m: p2pScoreFolder(f, tracks, release, prefs) }))
     .sort((a, b) => (a.m.unavailable - b.m.unavailable) || (order[a.m.verdict] - order[b.m.verdict]) || (b.m.score - a.m.score) || (b.freeSlot - a.freeSlot) || (a.queue - b.queue) || (b.speed - a.speed));
 }
+function p2pUseSource(item, f, tracks) {                            // (1.101.0) this folder becomes the release's source (remembered, and what P2P plays from)
+  p2pChoose(item, f, tracks);
+  if (typeof p2pMakeRec === 'function') p2pMakeRec(item, p2pChoiceFor(item));
+}
+function p2pBestOf(ranked) { return (ranked || []).find(f => f.m && !f.m.unavailable && f.m.verdict === 'sure') || (ranked || []).find(f => f.m && !f.m.unavailable && f.m.verdict === 'likely') || null; }          // the source CRATE picks by itself
 function p2pChoices() { try { return JSON.parse(localStorage.getItem(P2P_CHOICE_KEY) || '{}') || {}; } catch (e) { return {}; } }
+function p2pHasSource(item) { return !!(item && (p2pChoiceFor(item) || (typeof p2pDl !== 'undefined' && p2pDl[artKey(item)]))); }
 function p2pChoiceFor(item) { return item ? p2pChoices()[artKey(item)] || null : null; }
 function p2pChoose(item, f, tracks) {                                       // kept on this device: the folder to download in phase 2 (user, folder, and each song's file)
   const all = p2pChoices(), k = artKey(item);
@@ -134,11 +140,11 @@ function p2pEnsureDom() {
     <form id="p2pForm" class="p2p-form"><input id="p2pQuery" type="search" autocomplete="off" spellcheck="false" aria-label="Search Soulseek for"><button type="submit" id="p2pGo" class="chip-btn p2p-go">Search</button><button type="button" id="p2pStop" class="chip-btn" hidden>Stop</button></form>
     <div class="p2p-opts"><label for="p2pFormat">Prefer</label><select id="p2pFormat" class="config-btn"><option value="lossless">Lossless (FLAC)</option><option value="mp3">MP3 320</option><option value="any">Either</option></select><span id="p2pTracksNote" class="p2p-tracks-note"></span></div>
     <p id="p2pStatus" class="p2p-status" role="status"></p>
-    <div id="p2pChosen" class="p2p-chosen" hidden><span id="p2pChosenText"></span><span class="p2p-chosen-acts"><button type="button" id="p2pDlPlay" class="chip-btn p2p-dl-play">Download and play</button><button type="button" id="p2pDlOnly" class="chip-btn" title="Download every song now, to keep">Download all</button></span></div>
+    <div id="p2pChosen" class="p2p-chosen" hidden><span id="p2pChosenText"></span><span class="p2p-chosen-acts"><button type="button" id="p2pForget" class="chip-btn" title="Forget this source: its downloads stop and its files are deleted">Forget</button><button type="button" id="p2pDlPlay" class="chip-btn p2p-dl-play">Download and play</button><button type="button" id="p2pDlOnly" class="chip-btn" title="Download every song now, to keep">Download all</button></span></div>
     <div class="p2p-opts p2p-store"><label for="p2pKeep">After playing</label><select id="p2pKeep" class="config-btn"><option value="delete">Delete the file</option><option value="cap">Keep up to a size</option><option value="keep">Keep everything</option></select><label for="p2pAhead">Download ahead</label><select id="p2pAhead" class="config-btn"><option value="0">Only the song playing</option><option value="1">1 song</option><option value="2">2 songs</option><option value="3">3 songs</option></select><span id="p2pCapWrap" hidden><input id="p2pCap" type="number" min="0.5" max="2000" step="0.5" class="p2p-cap" aria-label="Size limit in GB"> GB</span><span id="p2pFolderLine" class="p2p-folder-line"></span></div>
     <i id="p2pBar" class="p2p-bar" hidden><b></b></i>
     <div id="p2pResults" class="p2p-results"></div>
-    <p class="p2p-foot">Choose a folder, then Download and play: each song downloads just before it plays, and (by default) is deleted after. Results and downloads come from slskd, through the CRATE for P2P add-on.</p>
+    <p class="p2p-foot">The best folder is picked as the source for you; Use this instead changes it. Download and play: each song downloads just before it plays, and (by default) is deleted after. Results and downloads come from slskd, through the CRATE for P2P add-on.</p>
   </div>`;
   document.body.appendChild(ov);
   ov.addEventListener('mousedown', (e) => { if (e.target === ov) p2pClose(); });
@@ -151,12 +157,13 @@ function p2pEnsureDom() {
   document.getElementById('p2pAhead').addEventListener('change', (e) => { p2pSetKeep({ ahead: Number(e.target.value) }); });          // (1.100.0)
   document.getElementById('p2pCap').addEventListener('change', (e) => { p2pSetKeep({ capGb: Math.max(0.5, Number(e.target.value) || 2) }); });
   document.getElementById('p2pDlPlay').addEventListener('click', () => { const c = p2p.cur; if (c && c.item) { const ch = p2pChoiceFor(c.item); p2pDownload(c.item, ch, true); p2pClose(); } });
+  document.getElementById('p2pForget').addEventListener('click', () => { const c = p2p.cur; if (!c || !c.item) return; p2pChoose(c.item, null); if (typeof p2pForget === 'function') p2pForget(artKey(c.item), true); flashGlobalToast(`Forgot the source for ${c.item.title}.`); p2pRender(); });
   document.getElementById('p2pDlOnly').addEventListener('click', () => { const c = p2p.cur; if (c && c.item) p2pDownload(c.item, p2pChoiceFor(c.item), false); });
   document.getElementById('p2pFolderLine').addEventListener('click', (e) => { if (e.target.closest('[data-p2p-folder-pick]')) p2pDirPick(); else if (e.target.closest('[data-p2p-folder-allow]')) p2pDirAllow(); });
   document.getElementById('p2pResults').addEventListener('click', (e) => {
     const c = p2p.cur; if (!c) return;
     const ch = e.target.closest('[data-p2p-choose]');
-    if (ch) { const f = c.ranked[+ch.dataset.p2pChoose]; if (!f || !c.item) return; const was = p2pChoiceFor(c.item), same = was && was.user === f.user && was.dir === f.dir; p2pChoose(c.item, same ? null : f, c.tracks); if (same && typeof p2pForget === 'function') p2pForget(artKey(c.item), true); flashGlobalToast(same ? 'Choice cleared: its downloads stopped and its files deleted.' : `Chosen: ${f.name}, from ${f.user}.`); p2pRender(); return; }
+    if (ch) { const f = c.ranked[+ch.dataset.p2pChoose]; if (!f || !c.item) return; const was = p2pChoiceFor(c.item); if (was && was.user === f.user && was.dir === f.dir) return; p2pUseSource(c.item, f, c.tracks); c.autoPicked = false; flashGlobalToast(`Source for ${c.item.title}: ${f.name}, from ${f.user}.`); p2pRender(); return; }          // (1.101.0) Use this instead
     const h = e.target.closest('[data-p2p-folder]'); if (!h) return; const row = h.closest('.p2p-folder'), k = row.dataset.key; row.classList.toggle('open'); h.setAttribute('aria-expanded', row.classList.contains('open'));
     if (row.classList.contains('open')) c.open.add(k); else c.open.delete(k);          // kept open as the list updates
   });
@@ -166,7 +173,7 @@ function p2pOpen(item) {                                            // item: a r
   const ov = document.getElementById('p2pOverlay'), q = document.getElementById('p2pQuery');
   p2p.cur = { item: item || null, reqId: '', state: 'idle', folders: [], ranked: [], responses: 0, files: 0, error: '', tracks: null, autoPending: !!item, tries: 0, open: new Set() };
   q.value = item ? p2pQueryFor(item) : '';
-  document.getElementById('p2pTitle').textContent = item ? `Find on P2P: ${item.title || ''}` : 'P2P search';
+  document.getElementById('p2pTitle').textContent = item ? `${p2pHasSource(item) ? 'P2P source' : 'Find on P2P'}: ${item.title || ''}` : 'P2P search';
   document.getElementById('p2pFormat').value = p2pPrefs().format;
   ov.hidden = false; p2pRender(); q.focus(); q.select();
   if (item) {
@@ -177,7 +184,11 @@ function p2pOpen(item) {                                            // item: a r
 }
 function p2pAutoSearch() { const c = p2p.cur; if (!c || !c.autoPending) return; c.autoPending = false; p2pSearch(document.getElementById('p2pQuery').value); }
 function p2pClose() { const ov = document.getElementById('p2pOverlay'); if (!ov || ov.hidden) return; p2pStop(); ov.hidden = true; p2p.cur = null; }
-function p2pRerank() { const c = p2p.cur; if (!c) return; c.ranked = c.item ? p2pRank(c.folders, c.tracks, c.item, p2pPrefs()) : c.folders.map(f => Object.assign({}, f, { m: null })); p2pRender(); }
+function p2pRerank() { const c = p2p.cur; if (!c) return; c.ranked = c.item ? p2pRank(c.folders, c.tracks, c.item, p2pPrefs()) : c.folders.map(f => Object.assign({}, f, { m: null })); p2pAutoPick(c); p2pRender(); }
+function p2pAutoPick(c) {                                          // (1.101.0) once the search is done and the tracklist is in, the best folder becomes the source (unless the release has one)
+  if (!c || !c.item || c.state !== 'done' || c.tracks === null || p2pChoiceFor(c.item)) return;
+  const best = p2pBestOf(c.ranked); if (best) { p2pUseSource(c.item, best, c.tracks); c.autoPicked = true; }
+}
 async function p2pSearch(text) {
   const c = p2p.cur; if (!c) return;
   if (c.reqId && c.state === 'searching') await p2pStop();
@@ -194,6 +205,7 @@ async function p2pSearch(text) {
     Object.assign(c, { responses: p.responses, files: p.files, folders: p.folders || c.folders });
     if (p.done) c.state = 'done';
     p2pRerank();
+    p2pAutoPick(c);
     if (!p.done) { setTimeout(tick, 1500); return; }
     if (!c.folders.length && c.item && c.tries < 2) {                // nothing at all: once more, with just the release's title (an artist written another way)
       const alt = String(c.item.title || '').replace(/\s*[\(\[][^\)\]]*[\)\]]/g, ' ').replace(/[\/\\:;,.!?"“”'’`~*|<>]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -225,7 +237,7 @@ function p2pRender() {
   if (c.state === 'searching') bar.firstChild.style.width = Math.min(100, (Date.now() - c.started) / 150).toFixed(1) + '%';          // a search runs about 15 seconds
   document.getElementById('p2pTracksNote').textContent = !c.item ? 'Search for a release (right-click it → Find on P2P…) to check folders against its songs.' : c.tracks === null ? 'Loading the tracklist…' : c.tracks.length ? `Checked against its ${c.tracks.length} songs.` : 'No tracklist for this release: folders are judged by name only.';
   const chosen = p2pChoiceFor(c.item), ce = document.getElementById('p2pChosen');
-  ce.hidden = !chosen; if (chosen) document.getElementById('p2pChosenText').textContent = `Chosen for this release: ${chosen.name} (${(chosen.ext || '').toUpperCase()}, ${chosen.count} songs), from ${chosen.user}.`;
+  ce.hidden = !chosen; if (chosen) document.getElementById('p2pChosenText').textContent = `Source${c.autoPicked ? ' (picked for you)' : ''}: ${chosen.name} (${(chosen.ext || '').toUpperCase()}, ${chosen.count} songs), from ${chosen.user}.`;
   if (chosen) { const rec = typeof p2pDl !== 'undefined' && p2pDl[artKey(c.item)], busy = rec && rec.user === chosen.user && rec.songs.some(s => s.st === 'wait' || s.st === 'down'); document.getElementById('p2pDlOnly').hidden = !!busy; document.getElementById('p2pDlPlay').textContent = busy ? 'Play (downloading)' : 'Download and play'; }
   const keep = typeof p2pKeep === 'function' ? p2pKeep() : { mode: 'delete', capGb: 2 }, ks = document.getElementById('p2pKeep');
   if (document.activeElement !== ks) ks.value = keep.mode; const ah = document.getElementById('p2pAhead'); if (document.activeElement !== ah) ah.value = String(keep.ahead == null ? 1 : keep.ahead); document.getElementById('p2pCapWrap').hidden = keep.mode !== 'cap'; const cap = document.getElementById('p2pCap'); if (document.activeElement !== cap) cap.value = keep.capGb;
@@ -257,7 +269,7 @@ function p2pRender() {
         <span class="p2p-user">${escapeHtml(f.user)}${f.speed ? ` · ${p2pSize(f.speed)}/s` : ''}</span>
         ${m ? `<span class="p2p-verdict"><span class="p2p-v">${escapeHtml(m.label)}</span>${m.notes.map(x => `<span class="p2p-note">${escapeHtml(x)}</span>`).join('')}</span>` : ''}
       </button>
-      ${c.item && m && !m.unavailable ? `<button type="button" class="chip-btn p2p-choose" data-p2p-choose="${i}">${isChosen ? 'Chosen ✓' : 'Choose'}</button>` : ''}
+      ${c.item && m && !m.unavailable ? `<button type="button" class="chip-btn p2p-choose" data-p2p-choose="${i}">${isChosen ? 'Source ✓' : 'Use this instead'}</button>` : ''}
       <div class="p2p-detail">${detail}</div>
     </div>`;
   }).join('');

@@ -94,11 +94,12 @@ const p2pIdle = (s) => s.st === 'idle' || s.st === 'gone';
 function p2pMakeRec(item, choice) {                                  // the release's remembered folder: every song it has, nothing requested yet
   const key = artKey(item), old = p2pDl[key];
   if (old && old.user === choice.user && old.dir === choice.dir) return old;
+  const wasPreferred = !!(old && old.prefer);
   if (old) p2pForget(key, true);
   const tracks = choice.tracks || [], songs = [];
   (choice.songs || []).forEach((fi, k) => { const f = fi >= 0 && choice.files[fi]; if (f && f.path) songs.push({ k, tn: tracks[k] ? tracks[k].n : k + 1, name: tracks[k] ? tracks[k].t : f.name, path: f.path, size: f.size || 0, st: 'idle', pct: 0 }); });
   if (!songs.length) return null;
-  const rec = p2pDl[key] = { key, artist: item.artist || '', title: item.title || '', user: choice.user, dir: choice.dir, folder: choice.name, at: Date.now(), songs, prefer: false, keepAll: false };
+  const rec = p2pDl[key] = { key, artist: item.artist || '', title: item.title || '', user: choice.user, dir: choice.dir, folder: choice.name, at: Date.now(), songs, prefer: wasPreferred, keepAll: false };          // a release played from P2P keeps playing from it with its new source
   p2pDlSave(); return rec;
 }
 async function p2pRequest(rec, songs) {                              // ask slskd for these songs (idle, gone, or failed ones being retried)
@@ -200,7 +201,7 @@ setInterval(() => { if (!document.hidden || Object.values(p2pDl).some(r => r.son
 // ----- Processing (category P2P) -----
 function p2pJobs(run, need) {
   p2pAutoFlight.forEach(f => run.push({ cat: 'p2p', icon: 'search', title: `Looking for ${f.title} on Soulseek`, sub: f.artist, pct: null, detail: 'A song of it has no link Spotify or YouTube can play: a sure match will be downloaded and played' }));
-  Object.entries(p2pAutoMissed).forEach(([k, m]) => { if (Date.now() - m.at > 6 * 3600000 || m.dismissed) return; need.push({ cat: 'p2p', icon: 'search', title: `${m.title}: no sure match on Soulseek`, detail: `${m.why}. Its songs without a link were skipped.`, acts: [{ label: 'Pick a folder', fn: () => { const it = p2pItemByKey(k); if (it) p2pOpen(it); }, opens: true, primary: true }, { label: 'Dismiss', fn: () => { m.dismissed = true; } }] }); });
+  Object.entries(p2pAutoMissed).forEach(([k, m]) => { if (Date.now() - m.at > 6 * 3600000 || m.dismissed) return; need.push({ cat: 'p2p', icon: 'search', title: `${m.title}: no good match on Soulseek`, detail: `${m.why}. Its songs without a link were skipped.`, acts: [{ label: 'Pick a folder', fn: () => { const it = p2pItemByKey(k); if (it) p2pOpen(it); }, opens: true, primary: true }, { label: 'Dismiss', fn: () => { m.dismissed = true; } }] }); });
   const recs = Object.values(p2pDl);
   recs.forEach(rec => {
     const n = rec.songs.length, active = rec.songs.filter(p2pActive), done = rec.songs.filter(s => s.st === 'done' || s.st === 'gone').length, failed = rec.songs.filter(s => s.st === 'fail');
@@ -315,8 +316,8 @@ function p2pAutoGet(item) {                                         // -> Promis
     const qs = [p2pQueryFor(item), String(item.title || '').replace(/\s*[\(\[][^\)\]]*[\)\]]/g, ' ').replace(/[\/\\:;,.!?"“”'’`~*|<>]+/g, ' ').replace(/\s+/g, ' ').trim()];
     let folders = [];
     for (const q of [...new Set(qs)].filter(x => x.length >= 3)) { const r = await p2pSearchFolders(q); if (!r.ok) { p2pAutoMissed[key] = { at: Date.now(), why: p2pWhy(r), title: item.title }; return false; } folders = r.folders; if (folders.length) break; }
-    const best = p2pRank(folders, tracks, item, p2pPrefs()).find(f => !f.m.unavailable && f.m.verdict === 'sure');
-    if (!best) { p2pAutoMissed[key] = { at: Date.now(), why: folders.length ? `${folders.length} folder${folders.length === 1 ? '' : 's'} found, none a sure match` : 'nothing found', title: item.title }; return false; }
+    const best = p2pBestOf(p2pRank(folders, tracks, item, p2pPrefs()));          // (1.101.0) a sure match, else a likely one
+    if (!best) { p2pAutoMissed[key] = { at: Date.now(), why: folders.length ? `${folders.length} folder${folders.length === 1 ? '' : 's'} found, none a good match` : 'nothing found', title: item.title }; return false; }
     p2pChoose(item, best, tracks); const rec = p2pMakeRec(item, p2pChoiceFor(item)); if (rec) { rec.prefer = true; p2pDlSave(); }
     return !!rec;
   })();
