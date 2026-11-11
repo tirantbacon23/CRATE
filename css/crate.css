@@ -815,7 +815,7 @@ html, body {
      art-on-top layout this started with. */
   .track-info-body {
     display: flex; flex-direction: column; gap: 10px;
-    padding: 12px; overflow-y: auto; flex: 1 1 auto; min-height: 0;
+    padding: 12px; overflow: hidden; flex: 1 1 auto; min-height: 0;          /* (1.95.29) no scrolling: the cover shrinks to fit instead (below) */
   }
   .track-info-text-wrap { display: flex; flex-direction: column; gap: 5px; flex: 0 0 auto; }
   .track-info-title { margin: 0; font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -835,7 +835,7 @@ html, body {
      eating vertical space) — together this is what lets the panel fit
      without needing its own scroll for the common case (a few fields +
      rating + art) rather than relying on track-info-body's overflow-y. */
-  .track-info-art-wrap { width: 100%; max-width: 150px; aspect-ratio: 1; flex: 0 0 auto; align-self: center; position: relative; }
+  .track-info-art-wrap { height: 150px; width: auto; max-width: 100%; aspect-ratio: 1; flex: 0 1 150px; min-height: 48px; align-self: center; position: relative; }          /* (1.95.29) at most 150 px, smaller when the panel is short, so Track Info never has to scroll */
   /* An embedded video reads far better at its native widescreen shape than
      squeezed into the square art slot — switched via this modifier class
      (see applyTrackInfoPlayerMode) only while a video is actually showing. */

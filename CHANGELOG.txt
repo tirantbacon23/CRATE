@@ -17,7 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.28
+  CURRENT_VERSION: 1.95.29
+
+  1.95.29 — 2026-11-11 — Track Info no longer scrolls: its cover shrinks to fit the panel instead. Page only.
+
+          The cover is 150 px when there is room and smaller (down to 48 px, still square) when
+          the right panel is short, so the title, fields, rating, cover and level meter all fit
+          without a scroll bar. In a panel too short even for that, what doesn't fit is left out
+          rather than scrolled to.
 
   1.95.28 — 2026-11-11 — The level meter in Track Info stays in sight: it sits at the bottom of the section, below the part that scrolls. Page only.
 
