@@ -1944,9 +1944,12 @@ function releaseBarSongAt(ratio) {                                  // -> the so
 function releaseBarRatio(e) { const bar = document.querySelector('#miniPlayerRelease .mini-player-release-bar'), r = bar.getBoundingClientRect(); return { ratio: Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), bar, r }; }
 function releaseBarTip(e) {
   let tip = document.getElementById('miniPlayerReleaseTip');
-  if (!e || !releaseBarOn() || !releaseBarLast) { if (tip) tip.hidden = true; return; }
-  const { ratio, r } = releaseBarRatio(e), k = releaseBarSongAt(ratio), t = k >= 0 && releaseBarLast.list[k];
-  if (!t) { if (tip) tip.hidden = true; return; }
+  const hl = document.getElementById('miniPlayerReleaseHover'), hide = () => { if (tip) tip.hidden = true; if (hl) hl.hidden = true; };
+  if (!e || !releaseBarOn() || !releaseBarLast) { hide(); return; }
+  const { ratio, bar, r } = releaseBarRatio(e), k = releaseBarSongAt(ratio), t = k >= 0 && releaseBarLast.list[k];
+  if (!t) { hide(); return; }
+  let h = hl; if (!h) { h = document.createElement('div'); h.id = 'miniPlayerReleaseHover'; h.className = 'mini-player-release-hover'; bar.appendChild(h); }          // (1.95.27) only that song's part of the bar lights
+  const sp = releaseBarLast.spans[k]; h.style.left = (sp.a * 100).toFixed(3) + '%'; h.style.width = ((sp.b - sp.a) * 100).toFixed(3) + '%'; h.hidden = false;
   if (!tip) { tip = document.createElement('div'); tip.id = 'miniPlayerReleaseTip'; tip.className = 'mini-player-release-tip'; document.body.appendChild(tip); }
   const len = Number(t.trackTimeMillis) > 0 ? ' \u00b7 ' + formatMs(Number(t.trackTimeMillis)) : '';
   tip.textContent = `${k + 1}. ${t.trackName || ''}${len}${k === releaseBarLast.index ? ' (playing)' : ''}`; tip.hidden = false;

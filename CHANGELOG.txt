@@ -17,7 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.26
+  CURRENT_VERSION: 1.95.27
+
+  1.95.27 — 2026-11-11 — Release bar: hovering lights only the song under the pointer, not the whole bar, and the bar is easier to point at. Page only.
+
+          The song's own segment lights up while the label shows its name. The bar answers the
+          pointer a little above and below its thin line (20 px tall instead of 6), with the line
+          and the player the same size as before.
 
   1.95.26 — 2026-11-11 — CRATE listens to its tab on its own when it opens (YouTube add-on 1.5.1 or later), for the visualizer and the level meter. Page only.
 
