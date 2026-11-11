@@ -17,7 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.23
+  CURRENT_VERSION: 1.95.24
+
+  1.95.24 — 2026-11-11 — The visualizer under the Track Info cover is a stereo level meter: L and R in segments from −60 to 0 dB, with a peak marker. Page and YouTube add-on 1.5.2.
+
+          As wide as the panel: L above, the dB scale between, R below. Segments light in the
+          cover's colour, amber above −18 dB and red above −6; each row rises at once, falls about
+          26 dB a second, and a peak marker holds for 1.5 seconds. Its levels are each channel's
+          peak: the YouTube add-on 1.5.2 measures them in its hidden page (with 1.5.1 both rows
+          show the mixed level); shared through the browser's prompt, CRATE splits the channels
+          itself. Clicks and the option to turn it off are as in 1.95.23.
 
   1.95.23 — 2026-11-11 — A small visualizer under the cover in the right panel's Track Info. Page only.
 

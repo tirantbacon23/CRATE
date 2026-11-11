@@ -60,6 +60,7 @@ window.addEventListener('message', (e) => {                         // the add-o
     viz.pulling = false; if (d.r) viz.rate = d.r;
     if (typeof d.f === 'string') { if (viz.rf.length !== d.f.length) viz.rf = new Uint8Array(d.f.length); vizBytes(d.f, viz.rf); }
     if (typeof d.w === 'string') { if (viz.rw.length !== d.w.length) viz.rw = new Uint8Array(d.w.length); vizBytes(d.w, viz.rw); }
+    viz.rl = typeof d.l === 'number' ? d.l : null; viz.rr = typeof d.rr === 'number' ? d.rr : viz.rl;          // (add-on 1.5.2) each channel's peak, for the level meter
   } else if (d.type === 'yt-audio-ended' && viz.remote) vizStop(true);
 });
 function vizRemoteStart() {                                         // drawing from the add-on's frames: an analyser-shaped stand-in, so the drawing code is the same either way
@@ -86,6 +87,7 @@ async function vizAttach(stream) {                                  // shared th
   const src = viz.ctx.createMediaStreamSource(new MediaStream(audio)), an = viz.ctx.createAnalyser();
   an.fftSize = 4096; an.smoothingTimeConstant = 0.78; an.minDecibels = -90; an.maxDecibels = -18;
   src.connect(an);                                                   // (never to the speakers: the tab already plays it)
+  try { const sp = viz.ctx.createChannelSplitter(2), aL = viz.ctx.createAnalyser(), aR = viz.ctx.createAnalyser(); aL.fftSize = aR.fftSize = 1024; src.connect(sp); sp.connect(aL, 0); sp.connect(aR, 1); viz.anL = aL; viz.anR = aR; viz.bufL = new Float32Array(1024); viz.bufR = new Float32Array(1024); } catch (e) { viz.anL = viz.anR = null; }          // (1.95.24) each channel, for the level meter
   viz.stream = stream; viz.src = src; viz.analyser = an; viz.freq = new Uint8Array(an.frequencyBinCount); viz.wave = new Uint8Array(an.fftSize); viz.viaAddon = false; viz.remote = false; viz.rate = 0; viz.offerShare = false;
   audio[0].addEventListener('ended', () => vizStop(true));           // stopped from the browser's own bar
   vizSay(''); vizPaintChrome(); return true;
@@ -119,7 +121,7 @@ function vizStop(byBrowser) {
   if (viz.remote) ytAddonSay('yt-audio-stop');                       // the add-on ends its capture: the tab plays as normal again
   if (viz.stream) viz.stream.getTracks().forEach(t => t.stop());
   try { if (viz.src) viz.src.disconnect(); } catch (e) { /* gone */ }
-  viz.stream = null; viz.src = null; viz.viaAddon = false; viz.remote = false; viz.rate = 0; viz.analyser = null; viz.freq = null; viz.wave = null;
+  viz.stream = null; viz.src = null; viz.anL = viz.anR = null; viz.rl = viz.rr = null; viz.viaAddon = false; viz.remote = false; viz.rate = 0; viz.analyser = null; viz.freq = null; viz.wave = null;
   vizPaintChrome(); if (viz.open) vizSay(byBrowser ? 'Listening stopped. Press Listen to start again.' : '');
 }
 
@@ -233,8 +235,8 @@ function vizFrame(t) {
 })();
 
 // ----- (1.95.23) a small visualizer under the cover in the right panel's Track Info -----
-// The same sound as the full-screen one (it listens once, for both): a strip of bars as wide as the cover, in the cover's colour. Not listening:
-// faint bars and "Listen" (a click starts listening). Listening: a click opens the full visualizer. ⚙ → Panels configuration… → element options
+// The same sound as the full-screen one (it listens once, for both): (1.95.24) a stereo level meter under the cover. Not listening:
+// an unlit meter and "Listen" (a click starts listening). Listening: a click opens the full visualizer. ⚙ → Panels configuration… → element options
 // turns it off, on this device.
 const VIZ_MINI_KEY = 'crate_viz_mini_v1';
 function vizMiniOn() { try { return localStorage.getItem(VIZ_MINI_KEY) !== '0'; } catch (e) { return true; } }
@@ -258,6 +260,21 @@ function vizMiniSync() {                                            // shown wit
   w.title = viz.stream ? 'Open the visualizer' : 'Listen: let the visualizer hear this tab';
   if (show && !vizMiniRaf) vizMiniRaf = requestAnimationFrame(vizMiniFrame);
 }
+// (1.95.24) A stereo level meter, the way a mixing desk draws one: L above, R below, −60 to 0 dB in segments, with a peak marker that holds
+// for a moment. Its levels are the peaks of each channel (the add-on 1.5.2 sends them; with 1.5.1 both rows show the mix; shared through the
+// browser's prompt, CRATE splits the channels itself).
+const VIZ_DB_MIN = -60;
+function vizChannelPeaks() {                                        // -> [left, right], 0..1 (the highest sample since the last frame)
+  if (viz.remote) {
+    if (viz.rl != null) return [viz.rl, viz.rr];
+    let m = 0; for (let i = 0; i < viz.rw.length; i++) { const d = Math.abs(viz.rw[i] - 128) / 128; if (d > m) m = d; } return [m, m];
+  }
+  if (!viz.anL) return [0, 0];
+  const pk = (an, buf) => { an.getFloatTimeDomainData(buf); let m = 0; for (let i = 0; i < buf.length; i++) { const v = Math.abs(buf[i]); if (v > m) m = v; } return m; };
+  const l = pk(viz.anL, viz.bufL), r = pk(viz.anR, viz.bufR);
+  return [l, r || l];                                                // a mono source has nothing on the right: show it on both
+}
+const vizToDb = (v) => v > 0 ? Math.max(VIZ_DB_MIN, Math.min(0, 20 * Math.log10(v))) : VIZ_DB_MIN;
 function vizMiniFrame(t) {
   vizMiniRaf = 0;
   const w = vizEl('trackInfoViz'); if (!w || w.hidden) return;
@@ -266,17 +283,29 @@ function vizMiniFrame(t) {
   const c = vizEl('trackInfoVizCanvas'), dpr = Math.min(2, window.devicePixelRatio || 1), cw = Math.round(c.clientWidth * dpr), ch = Math.round(c.clientHeight * dpr);
   if (!cw || !ch) return; if (c.width !== cw || c.height !== ch) { c.width = cw; c.height = ch; }
   if (!viz.miniTintAt || t - viz.miniTintAt > 1000) { viz.miniTintAt = t; vizTint(vizNowPlaying().art); }
-  const n = 28; let bands;
-  if (viz.analyser && viz.freq) { vizPull(); viz.analyser.getByteFrequencyData(viz.freq); bands = vizBands(viz.freq, vizRate(), n); }
-  else bands = new Array(n).fill(0).map((_, i) => 0.10 + 0.06 * Math.sin(t / 700 + i / 3));          // waiting: a slow shimmer
-  viz.miniLevels = viz.miniLevels && viz.miniLevels.length === n ? viz.miniLevels : new Array(n).fill(0);
-  const x = c.getContext('2d'), [r, g, b] = viz.color, gap = 2 * dpr, bw = (cw - gap * (n - 1)) / n, live = !!viz.stream;
+  const live = !!(viz.stream && viz.analyser), dt = Math.min(0.1, Math.max(0, (t - (viz.mLast || t)) / 1000)); viz.mLast = t;
+  if (live) vizPull();
+  const pk = live ? vizChannelPeaks() : [0, 0];
+  viz.mLev = viz.mLev || [VIZ_DB_MIN, VIZ_DB_MIN]; viz.mHold = viz.mHold || [VIZ_DB_MIN, VIZ_DB_MIN]; viz.mHoldAt = viz.mHoldAt || [0, 0];
+  for (let k = 0; k < 2; k++) {
+    const db = vizToDb(pk[k]);
+    viz.mLev[k] = db >= viz.mLev[k] ? db : Math.max(db, viz.mLev[k] - 26 * dt);          // rises at once, falls about 26 dB a second
+    if (viz.mLev[k] >= viz.mHold[k] || t - viz.mHoldAt[k] > 1500) { if (viz.mLev[k] >= viz.mHold[k]) viz.mHoldAt[k] = t; viz.mHold[k] = viz.mLev[k] >= viz.mHold[k] ? viz.mLev[k] : Math.max(viz.mLev[k], viz.mHold[k] - 20 * dt); }          // the peak marker holds 1.5 s, then drifts down
+  }
+  const x = c.getContext('2d'), css = getComputedStyle(document.documentElement), dim = (css.getPropertyValue('--text-dim') || '#8a8f98').trim();
+  const [cr, cg, cb] = viz.color, P = (v) => v * dpr, gut = P(12), right = cw - P(2), span = right - gut, segs = 60, sw = span / segs, rowH = P(7), topY = P(1), botY = ch - P(1) - rowH, midY = (topY + rowH + botY) / 2;
+  const segCol = (db, on) => !on ? 'rgba(255,255,255,0.07)' : db > -6 ? 'rgb(229,115,74)' : db > -18 ? 'rgb(232,163,61)' : `rgb(${cr},${cg},${cb})`;
   x.clearRect(0, 0, cw, ch);
-  for (let i = 0; i < n; i++) {
-    const v = Math.max(bands[i], viz.miniLevels[i] * 0.86); viz.miniLevels[i] = v;          // falls back gently, rises at once
-    const h = Math.max(2 * dpr, Math.min(1, v * v * 1.15) * ch), px = i * (bw + gap);
-    x.fillStyle = `rgba(${r},${g},${b},${live ? 0.45 + v * 0.55 : 0.28})`;
-    x.beginPath(); if (x.roundRect) x.roundRect(px, ch - h, bw, h, Math.min(bw / 2, 2 * dpr)); else x.rect(px, ch - h, bw, h); x.fill();
+  x.font = `${P(8)}px 'IBM Plex Mono', monospace`; x.textBaseline = 'middle'; x.fillStyle = dim;
+  x.textAlign = 'left'; x.fillText('L', 0, topY + rowH / 2); x.fillText('R', 0, botY + rowH / 2);
+  [0, 1].forEach(k => {
+    const y = k ? botY : topY, lit = live ? Math.round((viz.mLev[k] - VIZ_DB_MIN) / -VIZ_DB_MIN * segs) : 0, hold = live ? Math.round((viz.mHold[k] - VIZ_DB_MIN) / -VIZ_DB_MIN * segs) - 1 : -1;
+    for (let i = 0; i < segs; i++) { const db = VIZ_DB_MIN + (i + 1) * (-VIZ_DB_MIN / segs); x.fillStyle = segCol(db, i < lit || (i === hold && hold > 0)); x.fillRect(gut + i * sw, y, Math.max(1, sw - Math.max(1, P(0.8))), rowH); }
+  });
+  for (let db = VIZ_DB_MIN; db <= 0; db += 10) {                     // the scale between the rows
+    const px = gut + (db - VIZ_DB_MIN) / -VIZ_DB_MIN * span, last = db === 0;
+    x.fillStyle = dim; x.fillRect(Math.min(px, right - P(1)), topY + rowH + P(1), P(1), P(2.5)); x.fillRect(Math.min(px, right - P(1)), botY - P(3.5), P(1), P(2.5));          // ticks at the rows' edges, the numbers between them
+    x.textAlign = last ? 'right' : db === VIZ_DB_MIN ? 'left' : 'center'; x.fillText(last ? '0dB' : String(db), last ? right : px, midY);
   }
 }
 (function vizMiniWire() {                                           // the option in ⚙ → Panels configuration… → element options
