@@ -1226,3 +1226,33 @@ suite('Search: track titles', () => {
     } finally { S.raw = was; delete S.trackCache[key(b)]; app('ssIndex = null'); }
   });
 });
+
+suite('P2P: matching a Soulseek folder to a release (1.97.0)', () => {
+  test('a file name is the song: track numbers, the extension and a leading artist go', () => {
+    const t = app('p2pFileTitle');
+    eq([t('01 Speed Trials.flac', 'Elliott Smith'), t('03 - Elliott Smith - Ballad of Big Nothing.mp3', 'Elliott Smith'), t('Elliott Smith - 04 - Between the Bars.flac', 'Elliott Smith'), t('1-07 Rose Parade.m4a', 'Elliott Smith'), t('A2. Alameda.flac', 'Elliott Smith'), t('2:45 AM.flac', 'Elliott Smith')],
+      ['Speed Trials', 'Ballad of Big Nothing', 'Between the Bars', 'Rose Parade', 'Alameda', '2:45 AM']);
+  });
+  const tracks = [['Speed Trials', 181], ['Alameda', 223], ['Ballad of Big Nothing', 168], ['Between the Bars', 141]].map(([n, s], i) => ({ trackName: n, trackTimeMillis: s * 1000, trackNumber: i + 1 }));
+  const rel = { artist: 'Elliott Smith', title: 'Either / Or' };
+  const folder = (name, files, extra) => Object.assign({ user: 'u', dir: 'x\\' + name, name, parent: 'Elliott Smith', files, count: files.length, ext: 'flac', lossless: true, bitRate: 0, locked: 0, freeSlot: true, queue: 0, speed: 1 }, extra || {});
+  const f = (n, s) => ({ name: n, lengthSec: s, size: 1 });
+  test('every song, the right lengths and the release named: a sure match', () => {
+    const m = app('p2pScoreFolder')(folder('Either Or (1997) [FLAC]', [f('01 Speed Trials.flac', 181), f('02 Alameda.flac', 224), f('03 Ballad of Big Nothing.flac', 168), f('04 Between the Bars.flac', 141)]), tracks, rel, { format: 'lossless' });
+    eq([m.verdict, m.matched, m.map.map(x => x.file)], ['sure', 4, [0, 1, 2, 3]]);
+  });
+  test('files named "Track 01" are placed by position and length', () => {
+    const m = app('p2pScoreFolder')(folder('Either Or', [f('Track 01.flac', 181), f('Track 02.flac', 223), f('Track 03.flac', 169), f('Track 04.flac', 140)]), tracks, rel, {});
+    eq([m.matched, m.map.map(x => x.file)], [4, [0, 1, 2, 3]]);
+  });
+  test('half the songs is partial; a live folder is never sure', () => {
+    const s = app('p2pScoreFolder');
+    eq(s(folder('Either Or', [f('01 Speed Trials.flac', 181), f('02 Alameda.flac', 223)]), tracks, rel, {}).label, 'Partial: 2 of 4');
+    eq(s(folder('Either Or (Live at the Troubadour)', [f('01 Speed Trials.flac', 181), f('02 Alameda.flac', 223), f('03 Ballad of Big Nothing.flac', 168), f('04 Between the Bars.flac', 141)]), tracks, rel, {}).verdict === 'sure', false);
+  });
+  test('the best folder comes first, and an all-locked one last', () => {
+    const all = [f('01 Speed Trials.flac', 181), f('02 Alameda.flac', 223), f('03 Ballad of Big Nothing.flac', 168), f('04 Between the Bars.flac', 141)];
+    const r = app('p2pRank')([folder('Half', all.slice(0, 2)), folder('Locked', all, { locked: 4 }), folder('Whole', all)], tracks, rel, { format: 'lossless' });
+    eq(r.map(x => x.name), ['Whole', 'Half', 'Locked']);
+  });
+});
