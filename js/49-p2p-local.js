@@ -33,8 +33,12 @@ async function p2pDirCheck() {                                     // -> 'grante
 }
 async function p2pDirPick() {                                       // inside a click
   if (!p2pFolderSupported()) { flashGlobalToast('This browser can’t open a folder for CRATE. Chrome or Edge on a computer can.'); return false; }
-  try { const d = await window.showDirectoryPicker({ id: 'crate-slskd-downloads', mode: 'readwrite' }); p2pDir = d; await p2pKvSet('dlDir', d); }
-  catch (e) { return false; }                                       // cancelled
+  let d;
+  try { d = await window.showDirectoryPicker({ id: 'crate-slskd-downloads', mode: 'readwrite' }); } catch (e) { return false; }          // cancelled
+  try { const sub = await d.getDirectoryHandle('downloads'); d = sub; flashGlobalToast('Using its downloads folder, where slskd saves songs.'); } catch (e) { /* this is the folder itself */ }          // (1.109.0) slskd's own folder chosen: its downloads inside
+  if (/^(data|incomplete|logs|slskd)$/i.test(d.name)) flashGlobalToast(`That's slskd's "${d.name}" folder, not where it saves songs: choose %localappdata%\\slskd\\downloads (unless slskd.yml sets another).`);
+  p2pDir = d; await p2pKvSet('dlDir', d);
+  Object.values(p2pDl).forEach(rec => rec.songs.forEach(s => { s.missingAt = 0; }));
   await p2pDirCheck(); p2pRefreshUi(); p2pTick(); return p2pDirPerm === 'granted';
 }
 async function p2pDirAllow() {                                      // inside a click: Chrome asks again once in a while ("Allow on every visit" stops that)
@@ -216,7 +220,7 @@ async function p2pTick() {                                          // every 2 s
           else if (/Completed/i.test(t.state)) { s.st = 'fail'; s.err = (t.error || t.state.replace(/^Completed,\s*/, '')).slice(0, 160); if (P2P_REFUSAL.test(s.err + ' ' + t.state)) { p2pNoteRefusal(rec.user, s.err); if (rec.prefer || rec.keepAll) p2pSwitchSource(rec.key); } }          // (1.107.0) refused: someone else
           else s.st = /InProgress|Initializing/i.test(t.state) ? 'down' : 'wait';
         }
-        if (s.st === 'done' && !s.local) { const loc = await p2pLocate(s.path, s.size); if (loc) s.local = loc; }
+        if (s.st === 'done' && !s.local) { const loc = await p2pLocate(s.path, s.size); if (loc) { s.local = loc; s.missingAt = 0; } else if (!s.missingAt) s.missingAt = Date.now(); }          // (1.109.0) not in the chosen folder: noted
       }
       for (const rec of recs.filter(x => x.user === user)) if (rec.keepAll && !rec.logged && rec.songs.every(s => !p2pActive(s))) {          // (a whole release fetched for keeping)
         rec.logged = true; const ok = rec.songs.filter(s => s.st === 'done' || s.st === 'gone').length;
@@ -246,6 +250,8 @@ function p2pJobs(run, need) {
     if (failed.length && !rec.dismissed) need.push({ cat: 'p2p', icon: 'warn', tone: 'warn', title: `${failed.length} song${failed.length === 1 ? '' : 's'} of ${rec.title} didn’t download`, detail: `${failed.slice(0, 3).map(s => s.name).join(', ')}${failed.length > 3 ? '…' : ''} · ${failed[0].err || 'the transfer failed'}`,
       acts: [{ label: 'Retry', fn: () => p2pRetry(rec.key), primary: true }, { label: 'Find another folder', fn: () => { const it = p2pItemByKey(rec.key); if (it) p2pOpen(it); }, opens: true }, { label: 'Dismiss', fn: () => { rec.dismissed = true; p2pDlSave(); p2pTidy(); } }] });
   });
+  if (p2pDirPerm === 'granted' && recs.some(rec => rec.songs.some(s => s.st === 'done' && !s.local && s.missingAt && Date.now() - s.missingAt > 6000)))          // (1.109.0)
+    need.push({ cat: 'p2p', icon: 'warn', tone: 'warn', title: 'Downloaded songs aren\u2019t in the folder CRATE was given', detail: `slskd finished them, but they aren\u2019t in \u201c${p2pDir ? p2pDir.name : ''}\u201d. Choose slskd\u2019s downloads folder: %localappdata%\\slskd\\downloads, unless slskd.yml sets another.`, acts: [{ label: 'Choose folder', fn: () => { p2pDirPick(); }, primary: true }] });
   if (p2pDirPerm !== 'granted' && recs.some(rec => rec.songs.some(s => s.st === 'done' && !s.local) || rec.songs.some(p2pActive)))
     need.push({ cat: 'p2p', icon: 'warn', tone: 'warn', title: p2pDir ? 'Allow CRATE to open slskd’s downloads folder again' : 'Choose slskd’s downloads folder',
       detail: 'So CRATE can play what arrives, and delete it after playing. Chrome asks again once in a while; "Allow on every visit" stops that.', acts: [{ label: p2pDir ? 'Allow' : 'Choose folder', fn: () => { p2pDir ? p2pDirAllow() : p2pDirPick(); }, primary: true }] });
@@ -285,7 +291,7 @@ function p2pQueueTake(myId, index, item, track) {                   // called by
 function p2pShowWaiting(item, track, s) {                           // the player shows the song, with how far its download has got
   if (activePlayerEngine !== 'local' || (p2pLocalCur && p2pLocalCur.s !== s)) { stopOtherEngines('local'); p2pLocalStop(); setMasterPlayerEngine('local'); }
   p2pMiniPlayerFor(item, track);
-  const t = s.st === 'down' ? `↓ ${Math.round(s.pct || 0)}%` : s.place ? `queue ${s.place}` : '↓ waiting';
+  const t = s.st === 'done' && !s.local && s.missingAt && Date.now() - s.missingAt > 6000 ? 'downloaded, but not in the chosen folder' : s.st === 'down' ? `↓ ${Math.round(s.pct || 0)}%` : s.place ? `queue ${s.place}` : '↓ waiting';
   if (el.miniPlayerTimeCurrent.textContent !== t) el.miniPlayerTimeCurrent.textContent = t;
   setMiniPlayerPlayPauseIcon(true);
 }
@@ -482,7 +488,8 @@ function p2pRowState(s) {                                            // -> [clas
   if (p2pLocalCur && p2pLocalCur.s === s) return ['play', 'playing', 100];
   if (s.st === 'down') return ['down', `${Math.round(s.pct || 0)}%`, s.pct || 0];
   if (s.st === 'wait') return ['wait', s.place ? `queue ${s.place}` : 'waiting', 0];
-  if (s.st === 'done') return ['done', 'ready', 100];
+  if (s.st === 'done' && !s.local && s.missingAt && Date.now() - s.missingAt > 6000) return ['fail', 'not found', 100];          // (1.109.0) slskd finished it, but it isn't in the folder CRATE was given
+  if (s.st === 'done') return ['done', s.local ? 'ready' : 'saving', 100];
   if (s.st === 'fail') return ['fail', 'failed', 0];
   if (s.st === 'gone' && s.played) return ['gone', 'played', 100];
   return null;

@@ -17,7 +17,18 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.108.0
+  CURRENT_VERSION: 1.109.0
+
+  1.109.0 — 2026-11-11 — Fix: a song slskd had finished could wait forever, marked "ready", when CRATE had been given a folder other than the one slskd saves into. Page only.
+
+          slskd saves songs into %localappdata%\slskd\downloads (unless slskd.yml sets another
+          folder). Given any other folder, CRATE never found the finished files: the player kept
+          "waiting" and the song's row said "ready". Now:
+          CHOOSING slskd's own folder (%localappdata%\slskd) uses its downloads folder inside by
+          itself; choosing "data", "incomplete" or "logs" says which folder to choose instead.
+          A FINISHED SONG NOT IN THE FOLDER is said to be: its row reads "not found", the player
+          "downloaded, but not in the chosen folder", and Processing asks for slskd's downloads
+          folder, with Choose folder. Once the right folder is chosen it plays straight away.
 
   1.108.0 — 2026-11-11 — Find on P2P keeps each release's search results, so reopening it (or switching sharers) needn't search Soulseek again; a sharer's "too many megabytes" is treated as a short limit, not a refusal. Page only (CRATE for P2P 0.2.1).
 
