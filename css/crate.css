@@ -4761,3 +4761,27 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
 .lyrics-plain { white-space: pre-wrap; font-size: 16px; line-height: 1.55; color: var(--text); }
 .lyrics-empty { color: var(--text-dim); font-size: 14px; padding: 20px 0; text-align: center; }
 .mini-player-lyrics-btn.active { color: var(--accent); }
+
+  /* ---- (1.96.0) P2P search (js/48-p2p.js) ---- */
+  .p2p-modal { max-width: 760px; display: flex; flex-direction: column; }
+  .p2p-form { display: flex; gap: 8px; padding: 14px 20px 0; }
+  .p2p-form input { flex: 1; min-width: 0; background: var(--bg-card); border: 1px solid var(--line); border-radius: 6px; color: var(--text); padding: 8px 10px; font: inherit; font-size: 14px; }
+  .p2p-go { flex: 0 0 auto; }
+  .p2p-status { margin: 10px 20px 0; font-size: 13px; color: var(--text-dim); } .p2p-status.bad { color: #E5734A; }
+  .p2p-bar { position: relative; display: block; height: 3px; margin: 8px 20px 0; border-radius: 2px; background: var(--line); overflow: hidden; } .p2p-bar[hidden] { display: none; }
+  .p2p-bar b { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--accent); transition: width 0.5s linear; }
+  .p2p-results { display: flex; flex-direction: column; padding: 10px 12px; gap: 2px; overflow-y: auto; min-height: 0; }
+  .p2p-folder { border-radius: 6px; } .p2p-folder:hover, .p2p-folder.open { background: var(--bg-card); }
+  .p2p-folder-head { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 8px 8px; }
+  .p2p-folder-head:focus-visible { outline: 2px solid var(--accent); border-radius: 6px; }
+  .p2p-name { min-width: 0; display: flex; flex-direction: column; } .p2p-name b { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .p2p-name small { font-size: 11.5px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .p2p-meta { display: flex; align-items: center; gap: 8px; font: 11px 'IBM Plex Mono', monospace; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .p2p-user { grid-column: 1 / -1; font: 11px 'IBM Plex Mono', monospace; color: var(--text-dim); opacity: 0.8; }
+  .p2p-fmt { color: var(--text); } .p2p-fmt.lossless { color: var(--accent); }
+  .p2p-pill { padding: 1px 6px; border-radius: 99px; border: 1px solid var(--line); } .p2p-pill.ok { color: #5fbf86; border-color: color-mix(in srgb, #5fbf86 45%, transparent); } .p2p-pill.bad { color: #E5734A; }
+  .p2p-files { display: none; margin: 0 8px 8px 30px; padding: 0; font-size: 12px; color: var(--text-dim); }
+  .p2p-folder.open .p2p-files { display: block; }
+  .p2p-files li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; padding: 2px 0; } .p2p-files li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+  .p2p-files li span:not(:first-child) { font: 11px 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+  .p2p-foot { margin: 0; padding: 10px 20px 14px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--text-dim); }
+  @media (max-width: 640px) { .p2p-folder-head { grid-template-columns: minmax(0, 1fr); } .p2p-meta { flex-wrap: wrap; white-space: normal; } }

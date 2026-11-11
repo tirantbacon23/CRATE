@@ -17,7 +17,22 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.31
+  CURRENT_VERSION: 1.96.0
+
+  1.96.0 — 2026-11-11 — P2P, phase 0: search Soulseek for a release, through the new CRATE for P2P add-on and your own slskd. Search only: nothing is downloaded yet. Page and new add-on (CRATE for P2P 0.1.0).
+
+          WHERE: right-click a release → "Find on P2P…" (searches "Artist Title"), or ⚙ → "P2P
+          search…" for any text. A search takes about 15 seconds, with a bar and a count of the
+          users who have answered.
+          WHAT IT SHOWS: one row per folder that holds audio (one folder, one candidate release):
+          its name and parent folder, format (FLAC 16/44.1, MP3 320…), songs, total length, size,
+          who has it and their speed, and whether you could start now (Free slot) or would wait
+          (Queue N). Click a row for its files. Folders you could start on now come first;
+          friends-only ("Locked") folders come last.
+          HOW: the add-on keeps slskd's address and API key (this page never sees the key) and
+          answers only your connected CRATE. Its options page connects CRATE and tests slskd:
+          reachable, key accepted, logged in to Soulseek. New file js/48-p2p.js. Next: phase 1,
+          matching folders against your tracklist.
 
   1.95.31 — 2026-11-11 — Fix: in the floating player the volume slider ran over the button beside it, and the last buttons were cut off. Track Info's artist opens the artist page. Page only.
 
