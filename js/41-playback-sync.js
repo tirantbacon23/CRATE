@@ -73,6 +73,7 @@ function pbSeekMs(ms) {
   ms = Math.max(0, Math.round(ms));
   try {
     if (activePlayerEngine === 'youtube') { if (ytPlayer && ytPlayer.seekTo) ytSeekInSegment(ms / 1000); }
+    else if (activePlayerEngine === 'local') { p2pLocalSeek(ms); }
     else if (activePlayerEngine === 'soundcloud') { if (scWidget && scWidget.seekTo) { scWidget.seekTo(ms); scPosition = ms; } }
     else if (spotifyPlayer && spotifyLastState) { spotifyPlayer.seek(ms).catch(() => {}); spotifyLastState = Object.assign({}, spotifyLastState, { position: ms }); spotifyLastStateAt = Date.now(); }
   } catch (e) { /* the player isn't ready: it starts from the top */ }

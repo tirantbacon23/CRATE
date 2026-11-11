@@ -244,6 +244,8 @@ async function playCrateQueueIndex(myId, index) {
   await pauseForQueueSwitch();
   if (myId !== crateQueueId || crateQueueIndex !== index || !isPlayIntentCurrent(intent)) return;
 
+  if (typeof p2pQueueTake === 'function' && p2pQueueTake(myId, index, item, track)) { crateQueueExpectedSpotifyTrackId = null; return; }          // (1.98.0) downloaded from P2P (or arriving): plays from the file, before any other source
+
   const only = playSource();
   if (only === 'youtube' || only === 'soundcloud') {               // one source only, and not Spotify: its link, or the next song
     const link = only === 'youtube' ? track.youtubeLink : track.soundcloudLink;
@@ -313,6 +315,7 @@ async function pauseForQueueSwitch() {
   try {
     if (activePlayerEngine === 'youtube') { if (ytPlayer && ytPlayer.pauseVideo && !ytIsPaused) ytPlayer.pauseVideo(); }
     else if (activePlayerEngine === 'soundcloud') { if (scWidget && !scIsPaused) scWidget.pause(); }
+    else if (activePlayerEngine === 'local') { if (p2pAudio && !p2pAudio.paused) p2pAudio.pause(); }
     else if (spotifyPlayer && spotifyLastState && !spotifyLastState.paused) await withHardTimeout(spotifyPlayer.pause(), 1500, null); // finished before the next play request goes out, so it can't pause that one
   } catch (e) { /* nothing to pause */ }
 }

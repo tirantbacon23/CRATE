@@ -140,6 +140,7 @@ function lySeek(sec) {                                              // the song 
   const ms = Math.max(0, Math.round(sec * 1000));
   try {
     if (activePlayerEngine === 'youtube') { if (ytPlayer && ytPlayer.seekTo) ytSeekInSegment(ms / 1000); }
+    else if (activePlayerEngine === 'local') { p2pLocalSeek(ms); }
     else if (activePlayerEngine === 'soundcloud') { if (scWidget && scWidget.seekTo) { scWidget.seekTo(ms); scPosition = ms; } }
     else if (spotifyPlayer && spotifyLastState) { spotifyPlayer.seek(ms).catch(() => {}); spotifyLastState = { ...spotifyLastState, position: ms }; spotifyLastStateAt = Date.now(); }
   } catch (e) { /* not ready */ }

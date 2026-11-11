@@ -17,7 +17,26 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.97.0
+  CURRENT_VERSION: 1.98.0
+
+  1.98.0 — 2026-11-11 — P2P, phase 2: Download and play. The chosen folder downloads through slskd, and each song plays from your disk the moment it arrives; by default it is deleted once played. A new Local player. Page and CRATE for P2P 0.2.0.
+
+          DOWNLOAD AND PLAY (Find on P2P, once a folder is chosen): slskd downloads the songs in
+          tracklist order and the release starts at once. A song that hasn't arrived yet is waited
+          for, its progress in the player's time ("↓ 40%", or its place in the sharer's queue); it
+          plays as soon as slskd has saved it. "Download" alone fetches without playing.
+          AFTER PLAYING (Find on P2P): Delete the file (the default: a played song is deleted once
+          the next has started, and unplayed ones after a day), Keep up to a size (oldest played
+          first), or Keep everything. A release with downloaded songs plays them from disk whenever
+          it is played, before Spotify or YouTube.
+          THE FOLDER: CRATE reads slskd's downloads folder itself, with Chrome's folder access:
+          choose it once in Find on P2P ("Allow on every visit" stops Chrome asking again). No other
+          program is needed.
+          PROCESSING (new category P2P): each download with its progress and speed, or its place
+          in the sharer's queue, and Stop; songs that failed, with Retry or Find another folder; and
+          the folder, when it needs allowing again. "Done today" logs each finished release.
+          THE LOCAL PLAYER plays, pauses, seeks, sets its own volume and moves through the queue like
+          the others. New file js/49-p2p-local.js.
 
   1.97.0 — 2026-11-11 — P2P, phase 1: Find on P2P checks each folder against the release's tracklist, gives it a verdict, puts the best first, and lets you Choose one. Page and CRATE for P2P 0.1.2.
 

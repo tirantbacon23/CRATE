@@ -692,7 +692,7 @@ function renderRymInbox() {
 // order you drag them into; the match queue; the syncs and when they next run), and what finished today. Each job keeps its own dialog: this panel reads
 // their state, pauses or stops them, and opens them. Collapsed, it is the strip at the bottom (jobsStrip).
 const JOBS_DONE_KEY = 'crate_jobs_done_v1', JOBS_RYM_GAP = 15000, JOBS_LF_EVERY = 6 * 3600000, JOBS_LF_AT_KEY = 'crate_lastfm_bgsync_at', JOBS_LF_ON_KEY = 'crate_lastfm_every6h';          // (15 s between queued updates: the add-on's own pace between pages)
-const JOBS_CATS = [['all', 'All'], ['need', 'Needs you'], ['rym', 'RYM'], ['fill', 'Pull details'], ['match', 'Match songs'], ['loc', 'Recorded at'], ['add', 'Adding'], ['sync', 'Syncs']];
+const JOBS_CATS = [['all', 'All'], ['need', 'Needs you'], ['rym', 'RYM'], ['fill', 'Pull details'], ['match', 'Match songs'], ['loc', 'Recorded at'], ['add', 'Adding'], ['sync', 'Syncs'], ['p2p', 'P2P']];
 const JOBS_ICON = {
   sync: '<path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20v-4h-4"/>',
   warn: '<path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4"/><path d="M12 17h.01"/>',
@@ -844,6 +844,7 @@ function jobsCollect() {
   if (typeof locJobs === 'function') locJobs(run, need, wait);    // where releases were recorded (40-recorded-at.js)
   afJobs(run, need, wait);                                         // filling blanks from other sources (34-fill-blanks.js)
   const day0 = new Date(); day0.setHours(0, 0, 0, 0);
+  if (typeof p2pJobs === 'function') { try { p2pJobs(run, need, wait); } catch (e) { /* P2P not ready yet */ } }          // (1.98.0) downloads from P2P
   const done = jobsDoneLoad().filter(e => e.t >= day0.getTime()).reverse();
   return { run, need, wait, done };
 }
@@ -892,7 +893,7 @@ function jobsRender() {
   const sec = (key, title, list, empty) => { const l = list.filter(j => keep(j, key)); if (!l.length && f !== 'all') return ''; return `<section class="job-sec job-sec-${key}"><h3>${title}</h3>${l.length ? l.map(row).join('') : `<p class="job-empty">${empty}</p>`}</section>`; };
   const all = c.run.concat(c.need, c.wait), count = (k) => k === 'all' ? all.length : k === 'need' ? c.need.length : all.filter(j => j.cat === k).length + (k === 'fill' ? c.done.filter(e => e.kind === 'fill').length : 0);
   const tm = (t) => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  const cat = (k) => ({ rym: 'rym', fill: 'fill', match: 'match', loc: 'loc', import: 'add', scan: 'sync', lastfm: 'sync' })[k] || 'other';
+  const cat = (k) => ({ rym: 'rym', fill: 'fill', match: 'match', loc: 'loc', import: 'add', scan: 'sync', lastfm: 'sync', p2p: 'p2p' })[k] || 'other';
   const done = c.done.filter(e => f === 'all' || cat(e.kind) === f), lastRym = c.done.find(e => e.kind === 'rym'), lastMatch = c.done.find(e => e.kind === 'match');
   const doneRow = (e) => `<div class="job-row job-done-row">${jobsIco('check')}<div class="job-main"><div class="job-t">${escapeHtml(e.text)}</div><div class="job-d">${tm(e.t)}</div></div><div class="job-acts">${e.kind === 'fill' ? btn(afDoneAct(e)) : ''}${btn(e === lastRym && state.rymQueueMode && rymQ.entries.length && !rymFetchState.active ? { label: 'Details', fn: rymQOpen, opens: true } : e === lastMatch && bm && bm.started && !bm.running ? { label: 'Details', fn: bmShow, opens: true } : null)}</div></div>`;
   document.getElementById('jobsSum').textContent = `${jobsSummary(c)} \u00b7 paced so RYM and Spotify stay happy`;

@@ -934,6 +934,7 @@ function nowPlayingLink() {
   if (activePlayerEngine === 'youtube') { const q = ytQueue[ytQueueIndex]; if (!q || !q.videoId) return ''; const s = Math.round(Number(q.start) || 0); return `https://www.youtube.com/watch?v=${q.videoId}${s > 0 ? '&t=' + s + 's' : ''}`; }
   if (activePlayerEngine === 'spotify') { const t = currentSpotifyTrack, id = t && (t.id || String(t.uri || '').split(':').pop()); return id ? `https://open.spotify.com/track/${id}` : ''; }
   if (activePlayerEngine === 'soundcloud') { const q = scQueue[scQueueIndex]; return (q && q.url) || ''; }
+  if (activePlayerEngine === 'local') return '';          // (1.98.0) a file on this computer: no link to share
   return '';
 }
 async function copyNowPlayingLink() {

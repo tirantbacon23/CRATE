@@ -890,6 +890,8 @@ function bindEvents() {
     } else if (activePlayerEngine === 'soundcloud') {
       if (!scWidget) return;
       if (scIsPaused) scWidget.play(); else scWidget.pause();
+    } else if (activePlayerEngine === 'local') {          // (1.98.0) the Local player (js/49-p2p-local.js)
+      p2pLocalToggle();
     } else if (spotifyPlayer) {
       spotifyPlayer.togglePlay();
     }
@@ -912,6 +914,8 @@ function bindEvents() {
       scLastKnownVolume = val || scLastKnownVolume;
       if (scWidget && scWidget.setVolume) scWidget.setVolume(val);
       saveScPlayerPrefs({ volume: val });
+    } else if (activePlayerEngine === 'local') {
+      p2pLocalSetVolume(val);          // (1.98.0) the Local player (js/49-p2p-local.js)
     } else {
       if (spotifyPlayer) spotifyPlayer.setVolume(val / 100).catch(() => {});
       saveSpotifyPlayerPrefs({ volume: val });

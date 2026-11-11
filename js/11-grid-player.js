@@ -1511,7 +1511,7 @@ let spotifyLastStateAt = 0;
 // resume or track change from Spotify always arrives with paused:false, so
 // this only ever swallows the pause we caused ourselves.
 function isStaleSpotifyPauseWhileYoutubePlaying(paused) {
-  return (activePlayerEngine === 'youtube' || activePlayerEngine === 'soundcloud') && paused;
+  return (activePlayerEngine === 'youtube' || activePlayerEngine === 'soundcloud' || activePlayerEngine === 'local') && paused;
 }
 
 // Shared by onSpotifyPlayerStateChanged (the real-time SDK listener) and
@@ -1625,12 +1625,13 @@ function stopOtherEngines(keep) {
   if (keep !== 'spotify' && spotifyPlayer) spotifyPlayer.pause().catch(() => {});
   if (keep !== 'youtube' && (ytPlayer || activePlayerEngine === 'youtube')) closeYoutubePlayer();
   if (keep !== 'soundcloud' && (scWidget || activePlayerEngine === 'soundcloud')) closeSoundcloudPlayer();
+  if (keep !== 'local' && typeof p2pLocalStop === 'function' && (p2pLocalCur || activePlayerEngine === 'local')) p2pLocalStop();          // (1.98.0) the Local player (js/49-p2p-local.js)
 }
 
 function setMasterPlayerEngine(engine) {
   activePlayerEngine = engine;
   const isYoutube = engine === 'youtube';
-  const isSoundcloud = engine === 'soundcloud';
+  const isSoundcloud = engine === 'soundcloud', isLocal = engine === 'local';          // (1.98.0) the Local player (js/49-p2p-local.js)
   // SoundCloud is audio-only — unlike YouTube it never swaps miniPlayerArt
   // out for a video face, it just keeps showing the track's own art (see
   // playScQueueIndex), so miniPlayerArt only hides for YouTube.
@@ -1641,10 +1642,10 @@ function setMasterPlayerEngine(engine) {
   // the sidebar's "Up Next" panel (renderCrateQueuePanel) already covers
   // upcoming tracks for all three engines, so these just hide rather than
   // trying to show something in their place.
-  el.miniPlayerQueueBtn.hidden = isYoutube || isSoundcloud;
-  el.miniPlayerDeviceBtn.hidden = isYoutube || isSoundcloud;
-  if (isYoutube || isSoundcloud) { el.queuePanel.hidden = true; el.devicePanel.hidden = true; }
-  el.miniPlayerVolume.value = isYoutube ? ytLastKnownVolume : (isSoundcloud ? scLastKnownVolume : (loadSpotifyPlayerPrefs().volume ?? 50));
+  el.miniPlayerQueueBtn.hidden = isYoutube || isSoundcloud || isLocal;
+  el.miniPlayerDeviceBtn.hidden = isYoutube || isSoundcloud || isLocal;
+  if (isYoutube || isSoundcloud || isLocal) { el.queuePanel.hidden = true; el.devicePanel.hidden = true; }
+  el.miniPlayerVolume.value = isYoutube ? ytLastKnownVolume : (isSoundcloud ? scLastKnownVolume : isLocal ? p2pLocalVol() : (loadSpotifyPlayerPrefs().volume ?? 50));
 }
 
 // Shared Prev/Next handler for the master player's transport buttons.
@@ -1662,6 +1663,8 @@ function masterPlayerStepTrack(direction) {
     playYtQueueIndex(ytQueueIndex + direction);
   } else if (activePlayerEngine === 'soundcloud') {
     playScQueueIndex(scQueueIndex + direction);
+  } else if (activePlayerEngine === 'local') {
+    /* the Local player only plays from the crate queue, handled above */
   } else if (spotifyPlayer) {
     // Going straight through the SDK rather than our own crate queue — the
     // resulting track isn't known yet, so clear the stale link rather than
@@ -1801,6 +1804,7 @@ function parseLengthToMs(str) {
 // YouTube IFrame API's getCurrentTime()/getDuration() are pollable directly
 // (in seconds — scaled to ms here to share formatMs with the Spotify side).
 function getEstimatedPosition() {
+  if (activePlayerEngine === 'local') return p2pLocalPos();          // (1.98.0) the Local player (js/49-p2p-local.js)
   if (activePlayerEngine === 'youtube') {
     if (!ytPlayer || !ytPlayer.getCurrentTime) return 0;
     try { return Math.max(0, (ytPlayer.getCurrentTime() || 0) - (ytSeg.start || 0)) * 1000; } catch (e) { return 0; }          // (within the part, for a track in a full-release video)
@@ -1820,6 +1824,7 @@ function getEstimatedPosition() {
 function ytSegDurationMs() { const total = ytDuration || 0; if (!ytSeg.start && !ytSeg.end) return total * 1000; return Math.max(0, (ytSeg.end || total) - (ytSeg.start || 0)) * 1000; }          // a part of a video is as long as the part
 function ytSeekInSegment(sec) { ytPlayer.seekTo((ytSeg.start || 0) + sec, true); }
 function getCurrentDurationMs() {
+  if (activePlayerEngine === 'local') return p2pLocalDur();          // (1.98.0) the Local player (js/49-p2p-local.js)
   if (activePlayerEngine === 'youtube') {
     if (ytPlayer && ytPlayer.getDuration) { try { ytDuration = ytPlayer.getDuration() || ytDuration; } catch (e) {} }
     return ytSegDurationMs();
@@ -1838,6 +1843,7 @@ function updateProgressUI() {
   if (progressDragging || el.miniPlayer.hidden) return;
   if (activePlayerEngine === 'youtube') { if (!ytPlayer || !ytPlayer.getCurrentTime) return; }
   else if (activePlayerEngine === 'soundcloud') { if (!scWidget) return; }
+  else if (activePlayerEngine === 'local') { if (!p2pLocalCur) return; }          // (waiting for a song to arrive: the time shows its download instead)
   else if (!spotifyLastState) return;
   if (activePlayerEngine === 'youtube' && ytSeg.end && !ytSeg.fired && Date.now() - ytSeg.loadedAt > 1500) {          // the player is meant to stop at the end of the part by itself; if it hasn't, move on
     try { if ((ytPlayer.getCurrentTime() || 0) >= ytSeg.end + 0.3) { onYtPlayerStateChange({ data: YTS.ENDED }); return; } } catch (e) { /* not ready */ }
@@ -1904,6 +1910,7 @@ function releaseProgressTracksFor(item) {                          // the releas
 function currentPlayingTrackName() {
   if (activePlayerEngine === 'youtube') return (ytQueue[ytQueueIndex] && ytQueue[ytQueueIndex].trackName) || '';
   if (activePlayerEngine === 'soundcloud') return (scQueue[scQueueIndex] && scQueue[scQueueIndex].trackName) || '';
+  if (activePlayerEngine === 'local') return (p2pLocalCur && p2pLocalCur.trackName) || '';
   return (currentSpotifyTrack && currentSpotifyTrack.name) || '';
 }
 function updateReleaseProgress() {
@@ -2009,6 +2016,8 @@ function initSeekDrag() {
       if (ytPlayer && ytPlayer.seekTo) {
         try { ytSeekInSegment(previewRatio * (getCurrentDurationMs() / 1000)); } catch (e) { /* not ready */ }
       }
+    } else if (activePlayerEngine === 'local') {
+      p2pLocalSeek(previewRatio * getCurrentDurationMs());
     } else if (activePlayerEngine === 'soundcloud') {
       if (scWidget && scWidget.seekTo) {
         const seekMs = Math.round(previewRatio * getCurrentDurationMs());
@@ -2024,7 +2033,7 @@ function initSeekDrag() {
     }
   }
   function onDown(e) {
-    if (activePlayerEngine === 'youtube' ? !ytPlayer : activePlayerEngine === 'soundcloud' ? !scWidget : !spotifyLastState) return;
+    if (activePlayerEngine === 'youtube' ? !ytPlayer : activePlayerEngine === 'soundcloud' ? !scWidget : activePlayerEngine === 'local' ? !p2pLocalCur : !spotifyLastState) return;
     progressDragging = true;
     updatePreview(e);
     document.addEventListener('mousemove', onMove);
@@ -2046,6 +2055,8 @@ function initSeekDrag() {
       if (!ytPlayer || !ytPlayer.seekTo) return;
       const posMs = Math.max(0, Math.min(duration, getEstimatedPosition() + delta));
       try { ytSeekInSegment(posMs / 1000); updateProgressUI(); } catch (err) { /* not ready */ }
+    } else if (activePlayerEngine === 'local') {
+      p2pLocalSeek(Math.max(0, Math.min(duration, getEstimatedPosition() + delta))); updateProgressUI();
     } else if (activePlayerEngine === 'soundcloud') {
       if (!scWidget || !scWidget.seekTo) return;
       const posMs = Math.max(0, Math.min(duration, getEstimatedPosition() + delta));
@@ -2089,6 +2100,8 @@ function initTrackInfoSeek() {
     const seekMs = Math.round(ratio * getCurrentDurationMs());
     if (activePlayerEngine === 'youtube') {
       if (ytPlayer && ytPlayer.seekTo) { try { ytSeekInSegment(seekMs / 1000); } catch (e) { /* not ready */ } }
+    } else if (activePlayerEngine === 'local') {
+      p2pLocalSeek(seekMs);
     } else if (activePlayerEngine === 'soundcloud') {
       if (scWidget && scWidget.seekTo) { try { scWidget.seekTo(seekMs); scPosition = seekMs; } catch (e) { /* not ready */ } }
     } else if (spotifyPlayer && spotifyLastState) {
@@ -2115,7 +2128,7 @@ function initTrackInfoSeek() {
     await commitSeek(trackInfoSeekRatioFromEvent(e));
   }
   function onDown(e) {
-    if (activePlayerEngine === 'youtube' ? !ytPlayer : activePlayerEngine === 'soundcloud' ? !scWidget : !spotifyLastState) return;
+    if (activePlayerEngine === 'youtube' ? !ytPlayer : activePlayerEngine === 'soundcloud' ? !scWidget : activePlayerEngine === 'local' ? !p2pLocalCur : !spotifyLastState) return;
     trackInfoSeekDragging = true;
     paint(trackInfoSeekRatioFromEvent(e));
     document.addEventListener('mousemove', onMove);
