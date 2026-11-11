@@ -1072,7 +1072,7 @@ async function playAlbumsReplacingQueue(items) {
   // first, since playback starts after only the first release has loaded.
   const order = releases.map((_, k) => k);
   if (state.shuffle) shuffleTail(order, -1);
-  crateQueuePending = { id: myId, releases, order, next: 0, skipped: 0, loading: null };
+  crateQueuePending = { id: myId, releases, order, next: 0, skipped: 0, loading: null, rest: {}, pool: state.shuffle ? new Set(order) : null };          // pool (1.113.0): shuffle draws a song at a time from any of them
   renderCrateQueuePanel();
   flashGlobalToast(`Playing ${releases.length} releases…`);
 
@@ -1090,45 +1090,92 @@ async function playAlbumsReplacingQueue(items) {
 // Loads releases from crateQueuePending until at least `want` tracks wait
 // after the current one, or none are left. One load at a time: a second call
 // while one runs waits for it, then checks again.
+// (1.113.0) With Shuffle on, a big queue is no longer every song of a few releases mixed together (an hour of the same 4 or 5 albums):
+// each next song is a random song of a random release anywhere in what's playing, avoiding an artist heard in the last few songs while
+// anyone else is left. Releases are taken a song at a time (p.rest holds a release's songs not queued yet), so shuffle can be turned off or on
+// mid-way: the songs not played yet go back to their releases, and the queue refills the new way.
+const QUEUE_SHUFFLE_AHEAD = 12, QUEUE_ARTIST_GAP = 4;
+function normArtist(name) { return String(name || '').normalize('NFKC').toLowerCase().replace(/^the\s+/, '').replace(/\s+/g, ' ').trim(); }          // for telling artists apart
+async function crateQueueRestOf(p, rel) {                            // a release's songs not queued yet, loaded the first time they're needed
+  if (p.rest[rel]) return p.rest[rel];
+  const item = p.releases[rel];
+  const tracks = await withHardTimeout(getTracksFor(item), 20000, []).catch(() => []);
+  p.rest[rel] = (tracks || []).map((t, ti) => ({ item, track: t, origSeq: rel * 10000 + ti }));
+  return p.rest[rel];
+}
 async function crateQueueTopUp(myId, want) {
   const p = crateQueuePending;
   if (!p || p.id !== myId || myId !== crateQueueId) return;
   if (p.loading) { await p.loading; return crateQueueTopUp(myId, want); }
+  p.rest = p.rest || {};
+  const shuffling = state.shuffle && !!p.pool, target = shuffling ? Math.min(want, QUEUE_SHUFFLE_AHEAD) : want;
   const ahead = () => crateQueueList.length - (crateQueueIndex + 1);
-  if (p.next >= p.order.length || ahead() >= want) return;
+  if (crateQueuePendingCount() === 0 || ahead() >= target) return;
   p.loading = (async () => {
     try {
-      while (myId === crateQueueId && p.next < p.order.length && ahead() < want) {
-        const size = crateQueueList.length ? 3 : 1; // the first one alone so playback starts as soon as possible
-        const chunk = p.order.slice(p.next, p.next + size);
-        p.next += size;
-        const results = await Promise.all(chunk.map(rel => {
-          const item = p.releases[rel];
-          return withHardTimeout(getTracksFor(item), 20000, []).then(tracks => ({ item, rel, tracks }), () => ({ item, rel, tracks: [] }));
-        }));
-        if (myId !== crateQueueId) return;
-        results.forEach(({ item, rel, tracks }) => {
-          if (!tracks || !tracks.length) { p.skipped++; return; }
-          const entries = tracks.map((t, ti) => ({ item, track: t, origSeq: rel * 10000 + ti }));
-          if (crateQueueIndex < 0) crateQueueList.push(...entries); // before playback starts everything just accumulates (it gets shuffled as a whole when it starts)
-          else crateQueueAppend(entries);
-        });
+      if (shuffling) {
+        const pool = p.pool;                                           // (Shuffle switched off mid-way replaces it: this run stops)
+        while (myId === crateQueueId && p.pool === pool && pool.size && ahead() < target) {
+          const recent = new Set(crateQueueList.slice(-QUEUE_ARTIST_GAP).map(e => normArtist(e.item && e.item.artist)));
+          const all = [...p.pool], picks = [];
+          for (let tries = 0; picks.length < 3 && tries < 24 && picks.length < all.length; tries++) {          // three releases at a time, their tracklists loaded together
+            const rel = all[Math.floor(Math.random() * all.length)], a = normArtist(p.releases[rel] && p.releases[rel].artist);
+            if (picks.includes(rel) || (tries < 18 && (recent.has(a) || picks.some(r => normArtist(p.releases[r].artist) === a)))) continue;
+            picks.push(rel);
+          }
+          const rests = await Promise.all(picks.map(rel => crateQueueRestOf(p, rel)));
+          if (myId !== crateQueueId || p.pool !== pool) return;
+          picks.forEach((rel, k) => {
+            const rest = rests[k];
+            if (!rest.length) { if (!p.restSeen || !p.restSeen.has(rel)) p.skipped++; p.pool.delete(rel); return; }
+            (p.restSeen = p.restSeen || new Set()).add(rel);
+            const e = rest.splice(Math.floor(Math.random() * rest.length), 1)[0];
+            if (!rest.length) p.pool.delete(rel);
+            crateQueueList.push(e);
+          });
+        }
+      } else {
+        while (myId === crateQueueId && !p.pool && p.next < p.order.length && ahead() < target) {
+          const size = crateQueueList.length ? 3 : 1; // the first one alone so playback starts as soon as possible
+          const chunk = p.order.slice(p.next, p.next + size);
+          p.next += size;
+          const rests = await Promise.all(chunk.map(rel => crateQueueRestOf(p, rel)));
+          if (myId !== crateQueueId) return;
+          chunk.forEach((rel, k) => {
+            const entries = rests[k].splice(0).sort((a, b) => a.origSeq - b.origSeq);
+            if (!entries.length) { if (!p.restSeen || !p.restSeen.has(rel)) p.skipped++; return; }
+            if (crateQueueIndex < 0) crateQueueList.push(...entries); // before playback starts everything just accumulates
+            else crateQueueAppend(entries);
+          });
+        }
       }
     } finally { p.loading = null; }
   })();
   await p.loading;
   if (myId !== crateQueueId) return;
-  if (p.next >= p.order.length && crateQueuePending === p) {
+  if (crateQueuePendingCount() === 0 && crateQueuePending === p) {
     crateQueuePending = null;
     if (p.skipped && crateQueueList.length) flashGlobalToast(`${p.skipped} of the ${p.releases.length} releases had no tracklist and were skipped.`);
   }
   if (crateQueueIndex >= 0) renderCrateQueuePanel();
 }
-
+// Shuffle switched on or off while a big queue plays: the songs lined up but not played go back to their releases, and the rest of the
+// queue is drawn the new way (a random song at a time, or album order).
+function crateQueueReshape(on) {
+  const p = crateQueuePending; if (!p || p.id !== crateQueueId) return false;
+  p.rest = p.rest || {};
+  const tail = crateQueueList.splice(crateQueueIndex + 1);
+  tail.forEach(e => { const rel = Math.floor((e.origSeq || 0) / 10000); (p.rest[rel] = p.rest[rel] || []).push(e); });
+  const left = new Set(p.pool ? p.pool : p.order.slice(p.next));
+  Object.keys(p.rest).forEach(r => { if (p.rest[r].length) left.add(Number(r)); });
+  if (on) { p.pool = left; }
+  else { p.order = [...left].sort((a, b) => a - b); p.next = 0; p.pool = null; }
+  return true;
+}
 // How many releases of the current queue are still waiting to be loaded into it.
 function crateQueuePendingCount() {
   const p = crateQueuePending;
-  return p && p.id === crateQueueId ? p.order.length - p.next : 0;
+  return p && p.id === crateQueueId ? (p.pool ? p.pool.size : p.order.length - p.next) : 0;
 }
 
 // Every action that can start Spotify playback (album Play Now, a track's

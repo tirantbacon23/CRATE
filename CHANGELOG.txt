@@ -17,7 +17,18 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.112.0
+  CURRENT_VERSION: 1.113.0
+
+  1.113.0 — 2026-11-11 — Shuffle is really random across what's playing: each next song is a random song of a random release, and the same artist doesn't come round again within a few songs. Page only.
+
+          BEFORE: playing many releases (All Albums, an artist, a genre…) with Shuffle on loaded
+          every song of a few releases at a time (about 60 songs ahead) and shuffled only those, so
+          the next hour came from the same 4 or 5 albums and their artists.
+          NOW: each next song is drawn from any release still in what's playing, one song at a
+          time, avoiding an artist heard in the last 4 songs while anyone else is left (and a
+          playlist or other short queue is spread the same way when shuffled). 12 songs are lined up
+          ahead. Turning Shuffle on mid-way reshuffles at once: the songs lined up go back into the
+          pool. Turning it off goes back to album order, carrying on with the releases not finished.
 
   1.112.0 — 2026-11-11 — Download first: right-click a song (a tracklist, or an upcoming song in Up Next) to fetch it from Soulseek ahead of the others. Page only (CRATE for P2P 0.2.1).
 

@@ -47,6 +47,14 @@ function shuffleTail(list, index) {
 
 // Shuffle off: the not-yet-played tracks go back to their original relative
 // order. Anything already played (before the current one) stays as it was.
+// (1.113.0) After a shuffle: no artist twice in a row (or within a few songs) while another can take the place.
+function spreadArtists(list, index) {
+  const a = (e) => normArtist((e && e.item && e.item.artist) || (e && e.artist) || '');
+  for (let i = index + 2; i < list.length; i++) {
+    const near = new Set(list.slice(Math.max(index + 1, i - 3), i).map(a)); if (!near.has(a(list[i]))) continue;
+    for (let j = i + 1; j < list.length; j++) if (!near.has(a(list[j]))) { const t = list[i]; list[i] = list[j]; list[j] = t; break; }
+  }
+}
 function restoreTailOrder(list, index) {
   const start = index + 1;
   const tail = list.slice(start).sort((a, b) => origSeqOf(a) - origSeqOf(b));
@@ -96,11 +104,8 @@ function applyShuffleToCrateQueue(on) {
   if (!isPlayingCrateQueue()) return false;
   if (on) { ensureOrigSeq(crateQueueList); shuffleTail(crateQueueList, crateQueueIndex); }
   else restoreTailOrder(crateQueueList, crateQueueIndex);
-  if (crateQueuePendingCount()) {      // the releases of a big "play everything" not loaded yet follow suit
-    const p = crateQueuePending, rest = p.order.slice(p.next);
-    if (on) shuffleTail(rest, -1); else rest.sort((a, b) => a - b);
-    p.order = p.order.slice(0, p.next).concat(rest);
-  }
+  if (crateQueuePending && crateQueuePending.id === crateQueueId && typeof crateQueueReshape === 'function' && crateQueueReshape(on)) { crateQueueTopUp(crateQueueId, on ? QUEUE_SHUFFLE_AHEAD : QUEUE_LOAD_AHEAD); }          // (1.113.0) a big queue: refilled the new way
+  else if (on) spreadArtists(crateQueueList, crateQueueIndex);
   renderCrateQueuePanel();
   return true;
 }
