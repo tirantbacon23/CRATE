@@ -235,9 +235,14 @@ setInterval(() => { if (!document.hidden || Object.values(p2pDl).some(r => r.son
 // ----- Processing (category P2P) -----
 function p2pJobs(run, need) {
   p2pSwitching.forEach(k => { const r = p2pDl[k]; run.push({ cat: 'p2p', icon: 'search', title: `Finding another sharer for ${r ? r.title : 'a release'}`, sub: r ? `${r.user} refused` : '', pct: null, detail: r && p2pRefuses(r.user) ? p2pRefuses(r.user).why : '' }); });
-  if (p2pNewQ.length && p2pNewOn()) run.push({ cat: 'p2p', icon: 'search', title: 'Finding new releases on Soulseek', sub: `${p2pNewQ.length} waiting`, pct: null, detail: p2pNewState.now ? `Searching for ${p2pNewState.now}` : `${p2pNewQ.filter(e => e.tries).length ? 'some wait for their tracklist; ' : ''}one every 2 minutes, remembering the best folder for each (nothing is downloaded)`, acts: [{ icon: 'x', label: 'Stop', fn: () => { p2pNewQ.length = 0; p2pNewSave(); jobsRefresh(); } }] });
+  if (p2pNewQ.length && p2pNewOn()) {
+    const what = (e) => `${e.title}: ${e.st === 'list' ? 'waiting for it to reach the list' : e.st === 'tracks' ? 'waiting for its tracklist' : e.st === 'search' ? 'searching' : e.st === 'error' ? (e.why || 'the search failed') + ', trying again later' : e.due > Date.now() + 1500 ? `next in ${e.due - Date.now() < 60000 ? Math.round((e.due - Date.now()) / 1000) + ' s' : Math.round((e.due - Date.now()) / 60000) + ' min'}` : 'next'}`;
+    run.push({ cat: 'p2p', icon: 'search', title: 'Finding new releases on Soulseek', sub: `${p2pNewQ.length} waiting`, pct: null,
+      detail: (p2pNewState.why ? `Paused: ${p2pNewState.why}. ` : '') + (p2pNewState.now ? `Searching for ${p2pNewState.now} · ` : '') + p2pNewQ.slice(0, 3).map(what).join(' · ') + (p2pNewQ.length > 3 ? ` · and ${p2pNewQ.length - 3} more` : '') + ' · nothing is downloaded',
+      acts: [{ label: 'Search now', fn: p2pNewNow }, { icon: 'x', label: 'Stop', fn: () => { p2pNewQ.length = 0; p2pNewSave(); jobsRefresh(); } }] });
+  }
   p2pAutoFlight.forEach(f => run.push({ cat: 'p2p', icon: 'search', title: `Looking for ${f.title} on Soulseek`, sub: f.artist, pct: null, detail: 'A song of it has no link Spotify or YouTube can play: a sure match will be downloaded and played' }));
-  Object.entries(p2pAutoMissed).forEach(([k, m]) => { if (Date.now() - m.at > 6 * 3600000 || m.dismissed) return; need.push({ cat: 'p2p', icon: 'search', title: `${m.title}: no good match on Soulseek`, detail: m.isNew ? `Added to your crate: ${m.why}.` : `${m.why}. Its songs without a link were skipped.`, acts: [{ label: 'Pick a folder', fn: () => { const it = p2pItemByKey(k); if (it) p2pOpen(it); }, opens: true, primary: true }, { label: 'Dismiss', fn: () => { m.dismissed = true; } }] }); });
+  Object.entries(p2pAutoMissed).forEach(([k, m]) => { if (Date.now() - m.at > 6 * 3600000 || m.dismissed) return; need.push({ cat: 'p2p', icon: 'search', title: `${m.title}: no good match on Soulseek`, detail: m.isNew ? `Added to your crate: ${m.why}.` : `${m.why}. Its songs without a link were skipped.`, acts: [{ label: m.isNew ? 'Find on P2P' : 'Pick a folder', fn: () => { const it = p2pItemByKey(k); if (it) p2pOpen(it); }, opens: true, primary: true }, { label: 'Dismiss', fn: () => { m.dismissed = true; } }] }); });
   const recs = Object.values(p2pDl);
   recs.forEach(rec => {
     const n = rec.songs.length, active = rec.songs.filter(p2pActive), done = rec.songs.filter(s => s.st === 'done' || s.st === 'gone').length, failed = rec.songs.filter(s => s.st === 'fail');
@@ -454,32 +459,38 @@ function p2pNewQueue(list) {                                          // (from t
   (list || []).forEach(x => { if (!x || !x.artist || !x.title) return; const k = mqKey(String(x.artist), String(x.title)); if (!p2pNewQ.some(e => e.k === k)) p2pNewQ.push({ k, artist: String(x.artist), title: String(x.title), due: Date.now() + 8000, tries: 0 }); });
   p2pNewSave(); p2pNewSchedule(8000); jobsRefresh();
 }
-async function p2pNewRun() {
+async function p2pNewRun() {                                          // (1.111.0) quick checks while a release reaches the list or gets its tracklist; a Soulseek search only when it's ready
   if (p2pNewState.running || !p2pNewQ.length || !p2pNewOn()) return;
-  if (!p2p.ready || !p2p.configured || (typeof cxImp !== 'undefined' && cxImp && cxImp.running)) { p2pNewSchedule(60000); return; }          // the add-on isn't here, or an import is still adding: later
+  if (!p2p.ready || !p2p.configured || (typeof cxImp !== 'undefined' && cxImp && cxImp.running)) { p2pNewState.why = !p2p.ready ? 'the CRATE for P2P add-on isn’t answering' : !p2p.configured ? 'the add-on isn’t set up' : 'an import is still adding'; jobsRefresh(); p2pNewSchedule(30000); return; }
+  p2pNewState.why = '';
   const now = Date.now(), e = p2pNewQ.find(x => x.due <= now);
-  if (!e) { p2pNewSchedule(Math.max(5000, Math.min(...p2pNewQ.map(x => x.due)) - now)); return; }
-  p2pNewState.running = true; p2pNewState.now = e.title; jobsRefresh();
+  if (!e) { p2pNewSchedule(Math.max(3000, Math.min(...p2pNewQ.map(x => x.due)) - now)); return; }
+  p2pNewState.running = true; let searched = false;
+  const drop = () => { const i = p2pNewQ.indexOf(e); if (i >= 0) p2pNewQ.splice(i, 1); };
   try {
     const item = (state.raw || []).find(r => mqKey(r.artist, r.title) === e.k);
-    const drop = () => { const i = p2pNewQ.indexOf(e); if (i >= 0) p2pNewQ.splice(i, 1); };
-    const later = (ms) => { e.tries++; e.due = Date.now() + ms; if (e.tries > 3) drop(); };
-    if (!item) { later(10 * 60000); return; }                         // not in the list yet
-    if (p2pHasSource(item)) { drop(); return; }                       // already has one
+    if (!item) { e.waits = (e.waits || 0) + 1; e.st = 'list'; e.due = Date.now() + Math.min(15000 * Math.pow(2, e.waits - 1), 180000); if (e.waits > 12) drop(); return; }          // not in the list yet: 15 s, 30 s, 1 min… for about 20 minutes
+    if (p2pHasSource(item)) { drop(); return; }
     const tracks = ((await Promise.resolve(getTracksFor(item)).catch(() => [])) || []).filter(t => t && t.trackName);
-    if (!tracks.length) { later(20 * 60000); return; }                // no tracklist yet (its RYM update brings one): later
+    if (!tracks.length) {                                              // no tracklist yet (a new release often waits for its RYM update)
+      e.tw = (e.tw || 0) + 1; e.st = 'tracks'; e.due = Date.now() + 180000;
+      if (e.tw > 10) { p2pAutoMissed[artKey(item)] = { at: Date.now(), why: 'it has no tracklist yet, so its songs couldn’t be checked', title: item.title, isNew: true }; drop(); }
+      return;
+    }
+    e.st = 'search'; p2pNewState.now = e.title; jobsRefresh(); searched = true;
     let folders = [], failed = null;
     for (const q of p2pQueries(item)) { const r = await p2pSearchFolders(q, 0, item); if (!r.ok) { failed = r; break; } folders = r.folders; if (folders.length) break; }
-    if (failed) { later(30 * 60000); return; }
+    if (failed) { e.st = 'error'; e.why = p2pWhy(failed); e.due = Date.now() + 10 * 60000; e.errs = (e.errs || 0) + 1; if (e.errs > 3) drop(); return; }
     const best = p2pBestOf(p2pRank(folders, tracks, item, p2pPrefs()));
     if (best) { p2pChoose(item, best, tracks); p2pMakeRec(item, p2pChoiceFor(item)); if (typeof jobsDone === 'function') jobsDone('p2p', `Found ${item.title} on Soulseek: ${best.name} (${(best.ext || '').toUpperCase()}), from ${best.user}`, { k: artKey(item) }); }
     else p2pAutoMissed[artKey(item)] = { at: Date.now(), why: folders.length ? `${folders.length} folder${folders.length === 1 ? '' : 's'} found, none a good match` : 'nothing found', title: item.title, isNew: true };
     drop();
   } finally {
     p2pNewSave(); p2pNewState.running = false; p2pNewState.now = ''; jobsRefresh();
-    if (p2pNewQ.length) p2pNewSchedule(120000);                       // the next one, 2 minutes on (1.106.0: was 20 s), so Soulseek isn't searched too often
+    if (p2pNewQ.length) p2pNewSchedule(searched ? 120000 : 1000);     // after a real search, 2 minutes; after a quick check, on to the next
   }
 }
+function p2pNewNow() { p2pNewQ.forEach(e => { e.due = 0; }); p2pNewSave(); p2pNewSchedule(100); }          // Processing's "Search now" (the add-on still paces searches)
 setTimeout(() => { if (p2pNewQ.length) p2pNewSchedule(15000); }, 0);
 // ----- (1.105.0) each song's download, shown on its row: Up Next and the album page -----
 // A bar and a word beside every song of a release played from P2P: its place in the sharer's queue, how far it has got, ready, playing, played.

@@ -17,7 +17,20 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.110.0
+  CURRENT_VERSION: 1.111.0
+
+  1.111.0 — 2026-11-11 — Fix: a release you add is now really looked up on Soulseek, within a minute or so, instead of waiting 10 to 20 minutes (or never). Page only.
+
+          The lookup started 8 seconds after saving, but a new release often hasn't reached the list
+          by then, and CRATE waited 10 minutes before checking again (20 for one with no tracklist
+          yet), giving up silently after three tries. Now it checks again after 15 s, 30 s, 1 min…
+          (for about 20 minutes) until the release is there, and every 3 minutes for a tracklist
+          (for about half an hour). These checks don't search Soulseek; only real searches count
+          against the limit. Processing shows each release waiting and why ("waiting for it to
+          reach the list", "waiting for its tracklist", "searching", or when it's next), with Search
+          now; one that never gets a tracklist goes to Needs you, with Find on P2P. The step that
+          queues a new release also runs on its own, so a problem in Match songs' queueing can't
+          stop it.
 
   1.110.0 — 2026-11-11 — A downloaded song has an icon: a green arrow into a tray, beside "downloaded" (or "playing") on its row. Page only.
 
