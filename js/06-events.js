@@ -1422,6 +1422,8 @@ function openElementConfig(elementKey) {
     renderConfigSlots('trackInfo');
   } else if (elementKey === 'nowPlayingBar') {
     renderConfigSlots('miniPlayer');
+  } else if (elementKey === 'playerControls') {
+    renderConfigSlots('playerControls');
   } else {
     return; // genreDesc/chart/playerControls have no separate field-slot config — genreDesc is a single free-text box, chart is just its own genre dropdown, playerControls has nothing to configure beyond its Top/Bottom position (set by dragging it, not a modal)
   }
@@ -1437,7 +1439,7 @@ function renderConfigSlots(mode) {
   // placement, close gaps) only mean anything for the card-based views —
   // hide them entirely for the queue/mini-player field pickers, which are
   // just a plain list of text slots with nothing to do with artwork.
-  if (el.mainConfigArtworkOptions) el.mainConfigArtworkOptions.hidden = (mode === 'queue' || mode === 'queueTrackDetail' || mode === 'queueReleaseTracks' || mode === 'miniPlayer' || mode === 'lastfmHistory' || mode === 'trackInfo');
+  if (el.mainConfigArtworkOptions) el.mainConfigArtworkOptions.hidden = (mode === 'queue' || mode === 'queueTrackDetail' || mode === 'queueReleaseTracks' || mode === 'miniPlayer' || mode === 'lastfmHistory' || mode === 'trackInfo' || mode === 'playerControls');
 
   const labels = {
     grid: ['Slot 1 (Top)', 'Slot 2', 'Slot 3', 'Slot 4', 'Slot 5 (Bottom)'],
@@ -1526,11 +1528,18 @@ function renderConfigSlots(mode) {
     addRows('queueReleaseInfo', labels.queueReleaseInfo);
     addSubheading('Track fields');
     addRows('queueTrackInfoNested', labels.queueTrackInfoNested);
+  } else if (mode === 'playerControls') {
+    // (1.95.25) no field slots: switches for the player itself
+    const row = document.createElement('label'); row.className = 'arrange-row';
+    row.innerHTML = '<input type="checkbox" id="releaseBarClickToggle"> Release bar: hover to see which song is where, click to play it';
+    const cb = row.querySelector('input'); cb.checked = state.releaseBarClick !== false;
+    cb.addEventListener('change', () => { state.releaseBarClick = cb.checked; savePrefs(); updateReleaseProgress(); });
+    container.appendChild(row);
   } else {
     addRows(mode, labels[mode]);
   }
 
-  const titles = { grid: 'Albums Grid', tracks: 'Tracks View', covers: 'Album Covers', queue: 'Queue (Track with Thumbnail)', queueTrackDetail: 'Queue (Track Detail)', queueReleaseTracks: 'Queue (Release and Tracks)', miniPlayer: 'Now Playing Bar', lastfmHistory: 'Last.fm History', trackInfo: 'Track Info' };
+  const titles = { grid: 'Albums Grid', tracks: 'Tracks View', covers: 'Album Covers', queue: 'Queue (Track with Thumbnail)', queueTrackDetail: 'Queue (Track Detail)', queueReleaseTracks: 'Queue (Release and Tracks)', miniPlayer: 'Now Playing Bar', playerControls: 'Player Controls', lastfmHistory: 'Last.fm History', trackInfo: 'Track Info' };
   document.getElementById('configModalTitle').textContent = `Configure ${titles[mode]}`;
   const hint = document.querySelector('#mainConfigModal .arrange-hint');
   if (hint) {
@@ -1546,6 +1555,8 @@ function renderConfigSlots(mode) {
       ? 'Printed under the track title, in the bottom player and in Now Playing Bar if it\u2019s placed in Main instead. Lines 1 and 2 hold one field each; the third line holds two, side by side (e.g. Year \u00b7 Descriptor). Leave a line Empty to hide it.'
       : (mode === 'lastfmHistory')
       ? 'Line 1 and 2 read as title/subtitle; Line 3 sits right-aligned (e.g. Date, Play Count).'
+      : (mode === 'playerControls')
+      ? 'The bar under the song\u2019s scrubber shows the whole release while one of its songs plays.'
       : (mode === 'trackInfo')
       ? 'Shown under the cover art (or player controls) for whatever\u2019s currently playing, one field per line.'
       : 'Define the fields and order (Slot 1 = Top).';

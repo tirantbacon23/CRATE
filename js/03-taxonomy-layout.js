@@ -50,7 +50,7 @@ const LAYOUT_ELEMENTS = {
 // button. The others (Genre Description, Release Chart, Player Controls) have
 // nothing to configure beyond where they sit, and used to get the button
 // anyway: clicking it closed the whole Panels dialog and opened nothing.
-const LAYOUT_ELEMENTS_WITH_SETTINGS = new Set(['musicView', 'queue', 'lastfmHistory', 'trackInfo', 'nowPlayingBar']);
+const LAYOUT_ELEMENTS_WITH_SETTINGS = new Set(['musicView', 'queue', 'lastfmHistory', 'trackInfo', 'nowPlayingBar', 'playerControls']);          // playerControls (1.95.25): the release bar's click and hover
 const LAYOUT_PANEL_LABELS = { main: 'Main Panel', right: 'Right Panel', top: 'Top', bottom: 'Bottom' };
 
 

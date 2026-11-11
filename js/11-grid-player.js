@@ -1880,7 +1880,8 @@ function releaseProgress(tracks, name, posMs) {                    // -> { index
   const known = lens.every(l => l > 0), total = known ? lens.reduce((a, b) => a + b, 0) : null;
   const elapsed = before.every(l => l > 0) ? before.reduce((a, b) => a + b, 0) + Math.max(0, Math.min(Number(posMs) || 0, lens[i] || Infinity)) : null;
   let at = 0; const cuts = known ? lens.slice(0, -1).map(l => (at += l) / total) : [];
-  return { index: i, count: list.length, elapsedMs: elapsed, totalMs: total, cuts };
+  let a0 = 0; const spans = list.map((t, k) => { if (!known) return { a: k / list.length, b: (k + 1) / list.length }; const a = a0 / total; a0 += lens[k]; return { a, b: a0 / total }; });          // (1.95.25) where each song sits on the bar, for a click or a hover
+  return { index: i, count: list.length, elapsedMs: elapsed, totalMs: total, cuts, spans, list };
 }
 function releaseProgressInVideo(tracks, videoId, sec) {             // a full-release video played whole: the songs' saved times in it say which one this is
   const parts = (tracks || []).filter(t => t && t.trackNumber).map(t => { const l = t.youtubeLink || ''; if (youtubeVideoIdFromUrl(l) !== videoId) return null; const g = youtubeSegmentFromUrl(l); return { start: g.start || 0, end: g.end || 0 }; });
@@ -1888,7 +1889,8 @@ function releaseProgressInVideo(tracks, videoId, sec) {             // a full-re
   const first = Math.min(...got.map(p => p.start)), last = Math.max(...got.map(p => p.end || p.start)), total = last - first; if (!(total > 0)) return null;
   let index = -1; parts.forEach((p, k) => { if (p && p.start <= sec && (index < 0 || p.start >= parts[index].start)) index = k; });
   const cuts = got.map(p => p.start).filter(s => s > first).sort((a, b) => a - b).map(s => (s - first) / total);
-  return { index: Math.max(0, index), count: parts.length, elapsedMs: Math.max(0, Math.min(sec, last) - first) * 1000, totalMs: total * 1000, cuts };
+  const starts = got.map(p => p.start).sort((a, b) => a - b), spans = parts.map(p => { if (!p) return null; const nx = starts.find(s => s > p.start); return { a: (p.start - first) / total, b: ((nx != null ? nx : (p.end || last)) - first) / total, start: p.start }; });          // (1.95.25) each song's place in the video
+  return { index: Math.max(0, index), count: parts.length, elapsedMs: Math.max(0, Math.min(sec, last) - first) * 1000, totalMs: total * 1000, cuts, spans, list: (tracks || []).filter(t => t && t.trackNumber), videoId };
 }
 let releaseProgressTracks = { key: '', at: 0, tracks: null };
 function releaseProgressTracksFor(item) {                          // the release's tracklist with your saved links, kept for 10 s (fetched in the background when not cached yet)
@@ -1917,16 +1919,57 @@ function updateReleaseProgress() {
       }
     }
   } catch (e) { p = null; }
-  row.hidden = !p; if (!p) return;
+  row.hidden = !p; releaseBarLast = p ? Object.assign({ item: nowPlayingItem }, p) : null; if (!p) { releaseBarTip(null); return; }
+  row.classList.toggle('clickable', releaseBarOn());
   const f = (ms) => formatMs(ms), pct = p.totalMs && p.elapsedMs !== null ? Math.min(100, p.elapsedMs / p.totalMs * 100) : (p.index / p.count) * 100;
   document.getElementById('miniPlayerReleaseSong').textContent = `${p.index + 1}/${p.count}`;
   document.getElementById('miniPlayerReleaseFill').style.width = pct + '%';
   document.getElementById('miniPlayerReleaseTime').textContent = p.elapsedMs === null ? '' : p.totalMs ? `${f(p.elapsedMs)} / ${f(p.totalMs)}` : f(p.elapsedMs);
   const ticks = document.getElementById('miniPlayerReleaseTicks'), cuts = p.cuts.length ? p.cuts : Array.from({ length: p.count - 1 }, (_, k) => (k + 1) / p.count), sig = cuts.map(c => c.toFixed(4)).join();
   if (ticks.dataset.sig !== sig) { ticks.dataset.sig = sig; ticks.innerHTML = cuts.map(c => `<i style="left:${(c * 100).toFixed(2)}%"></i>`).join(''); }
-  row.title = `Song ${p.index + 1} of ${p.count} in ${nowPlayingItem.title}` + (p.elapsedMs !== null && p.totalMs ? ` · ${f(p.elapsedMs)} in, ${f(Math.max(0, p.totalMs - p.elapsedMs))} to go (${Math.round(pct)}%)` : '');
+  const relTitle = `Song ${p.index + 1} of ${p.count} in ${nowPlayingItem.title}` + (p.elapsedMs !== null && p.totalMs ? ` · ${f(p.elapsedMs)} in, ${f(Math.max(0, p.totalMs - p.elapsedMs))} to go (${Math.round(pct)}%)` : '');
+  row.title = releaseBarOn() ? '' : relTitle; document.getElementById('miniPlayerReleaseTime').title = releaseBarOn() ? relTitle : '';          // (1.95.25) with the bar's own hover label, the summary moves to the time
 }
 setInterval(updateReleaseProgress, 1000);
+
+// ----- (1.95.25) the release bar: hover it to see which song is where, click to play that song -----
+// ⚙ → Panels configuration… → Player Controls → Panel Settings… turns it off (state.releaseBarClick).
+let releaseBarLast = null;
+function releaseBarOn() { return state.releaseBarClick !== false; }
+function releaseBarSongAt(ratio) {                                  // -> the song's index in the tracklist, or -1
+  const p = releaseBarLast; if (!p || !p.spans) return -1;
+  let k = p.spans.findIndex(sp => sp && ratio >= sp.a && ratio < sp.b); if (k < 0 && ratio >= 1) k = p.spans.map(sp => !!sp).lastIndexOf(true);
+  return k;
+}
+function releaseBarRatio(e) { const bar = document.querySelector('#miniPlayerRelease .mini-player-release-bar'), r = bar.getBoundingClientRect(); return { ratio: Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), bar, r }; }
+function releaseBarTip(e) {
+  let tip = document.getElementById('miniPlayerReleaseTip');
+  if (!e || !releaseBarOn() || !releaseBarLast) { if (tip) tip.hidden = true; return; }
+  const { ratio, r } = releaseBarRatio(e), k = releaseBarSongAt(ratio), t = k >= 0 && releaseBarLast.list[k];
+  if (!t) { if (tip) tip.hidden = true; return; }
+  if (!tip) { tip = document.createElement('div'); tip.id = 'miniPlayerReleaseTip'; tip.className = 'mini-player-release-tip'; document.body.appendChild(tip); }
+  const len = Number(t.trackTimeMillis) > 0 ? ' \u00b7 ' + formatMs(Number(t.trackTimeMillis)) : '';
+  tip.textContent = `${k + 1}. ${t.trackName || ''}${len}${k === releaseBarLast.index ? ' (playing)' : ''}`; tip.hidden = false;
+  const w = tip.offsetWidth, x = Math.max(6, Math.min(window.innerWidth - w - 6, e.clientX - w / 2)), up = el.miniPlayer.classList.contains('docked-top') ? r.bottom + 8 : r.top - tip.offsetHeight - 8;
+  tip.style.left = x + 'px'; tip.style.top = Math.max(4, up) + 'px';
+}
+async function releaseBarPlay(k) {
+  const p = releaseBarLast; if (!p || k < 0) return; const item = p.item, t = p.list[k]; if (!item || !t) return;
+  const key = artKey(item), same = (e) => e && e.item && artKey(e.item) === key && e.track && String(e.track.trackNumber) === String(t.trackNumber) && (e.track.trackName || '') === (t.trackName || '');
+  const qi = crateQueueList.findIndex(same);
+  if (qi >= 0 && (isPlayingCrateQueue() || ytPlayingForCrateQueue || scPlayingForCrateQueue)) { playCrateQueueIndex(crateQueueId, qi); return; }          // already queued (the release is playing as an album): jump to it, the rest follows
+  const sp = p.spans && p.spans[k];
+  if (p.videoId && sp && sp.start != null && activePlayerEngine === 'youtube' && ytPlayer && ytPlayer.seekTo && !(ytQueue[ytQueueIndex] && ytQueue[ytQueueIndex].end)) { ytPlayer.seekTo(sp.start, true); return; }          // a full-release video played whole: to that song in it
+  const tracks = await getTracksFor(item); if (!tracks || !tracks.length) return;          // else: the release from that song on, as Play does
+  const start = tracks.findIndex(x => String(x.trackNumber) === String(t.trackNumber) && (x.trackName || '') === (t.trackName || ''));
+  const myId = ++crateQueueId; crateQueueList = tracks.map(x => ({ item, track: x })); crateQueueIndex = -1; renderCrateQueuePanel();
+  playCrateQueueIndex(myId, Math.max(0, start));
+}
+(function releaseBarWire() {
+  const bar = document.querySelector('#miniPlayerRelease .mini-player-release-bar'); if (!bar) return;
+  bar.addEventListener('mousemove', releaseBarTip); bar.addEventListener('mouseleave', () => releaseBarTip(null));
+  bar.addEventListener('click', (e) => { if (!releaseBarOn()) return; releaseBarTip(null); releaseBarPlay(releaseBarSongAt(releaseBarRatio(e).ratio)); });
+})();
 
 function seekRatioFromEvent(e) {
   const rect = el.miniPlayerSeekTrack.getBoundingClientRect();

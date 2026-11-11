@@ -17,7 +17,20 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.24
+  CURRENT_VERSION: 1.95.25
+
+  1.95.25 — 2026-11-11 — The player's release bar: hover it to see which song is where, click to play that song. Track Info's cover shows big on a click. Page only.
+
+          RELEASE BAR (under the song's scrubber): hovering shows the song under the pointer
+          ("6. Song name · 4:12", "(playing)" for the current one). A click plays it: when the
+          release is in Up Next (played as an album), the queue jumps to that song and the rest
+          follows; a full-release video played whole seeks to the song's start; otherwise the
+          release is queued from that song on, as Play does. ⚙ → Panels configuration… → Player
+          Controls now has a Panel Settings… button, with "Release bar: hover to see which song is
+          where, click to play it" (on unless you turn it off; saved with your other settings).
+          Off, the bar is as before, with its summary tooltip; on, that summary is on the time.
+          TRACK INFO: a click on the cover shows it as large as the screen allows, as the album
+          page's cover does (1.95.16). A click or Esc closes it.
 
   1.95.24 — 2026-11-11 — The visualizer under the Track Info cover is a stereo level meter: L and R in segments from −60 to 0 dB, with a peak marker. Page and YouTube add-on 1.5.2.
 

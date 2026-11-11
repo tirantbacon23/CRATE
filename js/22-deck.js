@@ -753,7 +753,7 @@ function renderDuplicateRowBanner(dupeGroups) {
 // (1.95.16) The album page's cover, big: a click on it shows it as large as the screen allows (iTunes artwork at a bigger size when that is
 // where it came from). A click anywhere, or Esc, closes it and leaves the album page as it was.
 function coverZoomHiRes(src) { return /mzstatic\.com/.test(src) ? src.replace(/\/\d{2,4}x\d{2,4}(bb|cc)?(\.\w+)$/, '/1200x1200bb$2') : src; }
-function openCoverZoom(src) {
+function openCoverZoom(src, alt) {
   if (!src) return;
   let box = document.getElementById('coverZoom');
   if (!box) {
@@ -761,7 +761,7 @@ function openCoverZoom(src) {
     box.innerHTML = '<img alt="">'; document.body.appendChild(box);
     box.addEventListener('click', closeCoverZoom);
   }
-  const img = box.querySelector('img'); img.src = src; img.alt = activeItem ? `${activeItem.artist} — ${activeItem.title}` : 'Cover';
+  const img = box.querySelector('img'); img.src = src; img.alt = alt || (activeItem ? `${activeItem.artist} — ${activeItem.title}` : 'Cover');
   const hi = coverZoomHiRes(src);
   if (hi !== src) { const pre = new Image(); pre.onload = () => { if (img.src === src) img.src = hi; }; pre.src = hi; }
   box.hidden = false;
@@ -769,4 +769,6 @@ function openCoverZoom(src) {
 function closeCoverZoom() { const box = document.getElementById('coverZoom'); if (!box || box.hidden) return false; box.hidden = true; return true; }
 el.deckImg.addEventListener('click', () => openCoverZoom(el.deckImg.currentSrc || el.deckImg.src));
 el.deckImg.title = 'Show the cover big';
+el.trackInfoArt.addEventListener('click', () => { const src = el.trackInfoArt.currentSrc || el.trackInfoArt.src; if (!src || /^data:image\/svg/.test(src)) return; openCoverZoom(src, nowPlayingItem ? `${nowPlayingItem.artist} — ${nowPlayingItem.title}` : 'Cover'); });          // (1.95.25) Track Info's cover too
+el.trackInfoArt.title = 'Show the cover big';
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && closeCoverZoom()) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);          // (before the album page's own Esc, which would close it)

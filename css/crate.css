@@ -840,7 +840,7 @@ html, body {
      squeezed into the square art slot — switched via this modifier class
      (see applyTrackInfoPlayerMode) only while a video is actually showing. */
   .track-info-art-wrap.showing-video { max-width: 100%; aspect-ratio: 16 / 9; }
-  .track-info-art { width: 100%; height: 100%; border-radius: 8px; object-fit: cover; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+  .track-info-art { width: 100%; height: 100%; border-radius: 8px; object-fit: cover; box-shadow: 0 8px 24px rgba(0,0,0,0.4); cursor: zoom-in; }
   .track-info-art.art { width: 100%; height: 100%; } /* the .art cascade conflict hit a few times already this session — pinned explicitly rather than trusting .art's own rule to win */
   .track-info-player-controls {
     width: 100%; height: 100%; border-radius: 8px; background: var(--bg-elevated);
@@ -1800,6 +1800,10 @@ html, body {
   .mini-player-release .mini-player-time { font-size: 10px; opacity: 0.85; } .mini-player-release-time { min-width: 32px; white-space: nowrap; }
   .mini-player-release-bar { position: relative; flex: 1; height: 6px; border-radius: 2px; background: var(--line); overflow: hidden; }
   .mini-player-release-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: var(--text-dim); opacity: 0.7; }
+  .mini-player-release.clickable .mini-player-release-bar { cursor: pointer; }          /* (1.95.25) click a song to play it */
+  .mini-player-release.clickable .mini-player-release-bar:hover { background: color-mix(in srgb, var(--line) 70%, var(--text-dim)); }
+  .mini-player-release-tip { position: fixed; z-index: 650; pointer-events: none; max-width: 320px; padding: 4px 8px; border-radius: 4px; background: var(--bg-elevated); border: 1px solid var(--line); box-shadow: 0 6px 18px rgba(0,0,0,0.4); font-size: 11.5px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mini-player-release-tip[hidden] { display: none; }
   #miniPlayerReleaseTicks i { position: absolute; top: 0; bottom: 0; width: 1px; margin-left: -0.5px; background: var(--bg-elevated, #161B22); }
   .mini-player-time {
     font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--text-dim);

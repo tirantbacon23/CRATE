@@ -111,6 +111,7 @@ function loadPrefs() {
     if (['off', 'both', 'only'].includes(p.genreChartMb)) state.genreChartMb = p.genreChartMb;
     if (typeof p.trackInfoShowPlayer === 'boolean') state.trackInfoShowPlayer = p.trackInfoShowPlayer;
     if (typeof p.trackInfoShowVideo === 'boolean') state.trackInfoShowVideo = p.trackInfoShowVideo;
+    if (typeof p.releaseBarClick === 'boolean') state.releaseBarClick = p.releaseBarClick;
     if (typeof p.releaseSearchGridView === 'boolean') state.releaseSearchGridView = p.releaseSearchGridView;
     if (p.lastfmHistoryLayout === 'chronological' || p.lastfmHistoryLayout === 'byDay') state.lastfmHistoryLayout = p.lastfmHistoryLayout;
     if (p.lastfmHistoryViewMode === 'list' || p.lastfmHistoryViewMode === 'grid') state.lastfmHistoryViewMode = p.lastfmHistoryViewMode;
@@ -153,6 +154,7 @@ function savePrefs() {
       genreChartMb: state.genreChartMb,
       trackInfoShowPlayer: state.trackInfoShowPlayer,
       trackInfoShowVideo: state.trackInfoShowVideo,
+      releaseBarClick: state.releaseBarClick,
       releaseSearchGridView: state.releaseSearchGridView,
       lastfmHistoryLayout: state.lastfmHistoryLayout,
       lastfmHistoryViewMode: state.lastfmHistoryViewMode,
