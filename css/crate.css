@@ -459,6 +459,16 @@ html, body {
     background: var(--bg-elevated); border: 1px solid var(--line); color: var(--text); border-radius: 6px;
     width: 36px; height: 36px; font-size: 16px; cursor: pointer;
   }
+  /* (1.95.30) Processing in the header: widens to show the overall percent while something runs, a bar along its foot, a badge for what needs you */
+  .processing-btn { position: relative; width: auto; min-width: 36px; padding: 0 9px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; overflow: visible; }
+  .processing-btn-ico { display: inline-flex; color: var(--text-dim); } .processing-btn-ico .job-ico { width: 17px; height: 17px; }
+  .processing-btn.running .processing-btn-ico { color: var(--accent); }
+  .processing-btn-pct { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text); min-width: 26px; text-align: left; } .processing-btn-pct[hidden] { display: none; }
+  .processing-btn-bar { position: absolute; left: 5px; right: 5px; bottom: 4px; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; } .processing-btn-bar[hidden] { display: none; }
+  .processing-btn-bar b { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--accent); border-radius: 2px; transition: width 0.6s ease; }
+  .processing-btn-bar.indef b { width: 35% !important; animation: processing-indef 1.4s ease-in-out infinite; }
+  @keyframes processing-indef { 0% { left: -35%; } 100% { left: 100%; } }
+  .processing-btn-badge { position: absolute; top: -6px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #E5734A; color: #fff; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; } .processing-btn-badge[hidden] { display: none; }
   .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
   .icon-btn.active { background: var(--accent); color: #12161C; border-color: var(--accent); }
   .icon-btn:focus-visible, #searchInput:focus-visible {

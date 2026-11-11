@@ -17,7 +17,15 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.29
+  CURRENT_VERSION: 1.95.30
+
+  1.95.30 — 2026-11-11 — Processing has its own button in the header, with a progress bar. Page only.
+
+          The button (the stacked-layers icon, by the search box) opens Processing, as ⚙ →
+          Processing… still does. While something runs it shows the overall percent (the average
+          of the running jobs that have one) with a bar along its foot, or a sliding bar for a job
+          with no percent; a red count shows what needs you. Hover it for each job's name and
+          percent. On a phone it sits in the top bar too.
 
   1.95.29 — 2026-11-11 — Track Info no longer scrolls: its cover shrinks to fit the panel instead. Page only.
 

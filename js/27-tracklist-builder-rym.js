@@ -856,10 +856,23 @@ function jobsSummary(c) {
   return parts.length ? parts.join(' \u00b7 ') : 'Nothing running';
 }
 function jobsBadge(c) { const b = document.getElementById('activityBadge'); if (!b) return; const n = c.run.length + c.need.length; b.textContent = String(n); b.hidden = !n; }
+function jobsBtnRender(c) {                                         // (1.95.30) the header's Processing button: overall progress of what is running, and how many need you
+  const b = document.getElementById('processingBtn'); if (!b) return;
+  const ico = document.getElementById('processingBtnIco'); if (!ico.firstChild) ico.innerHTML = jobsIco('layers');
+  const withPct = c.run.filter(j => typeof j.pct === 'number'), pct = withPct.length ? withPct.reduce((a, j) => a + Math.max(0, Math.min(100, j.pct)), 0) / withPct.length : null;
+  const running = c.run.length > 0, bar = document.getElementById('processingBtnBar'), pt = document.getElementById('processingBtnPct'), badge = document.getElementById('processingBtnBadge');
+  b.classList.toggle('running', running);
+  bar.hidden = !running; bar.classList.toggle('indef', running && pct == null); bar.firstChild.style.width = pct == null ? '' : Math.max(3, pct).toFixed(1) + '%';
+  pt.hidden = !running || pct == null; pt.textContent = pct == null ? '' : Math.floor(pct) + '%';
+  badge.hidden = !c.need.length; badge.textContent = String(c.need.length);
+  const bits = c.run.map(j => j.title + (typeof j.pct === 'number' ? ` ${Math.floor(j.pct)}%` : ''));
+  b.title = 'Processing' + (bits.length ? ': ' + bits.join(' \u00b7 ') : '') + (c.need.length ? ` \u00b7 ${c.need.length} need${c.need.length === 1 ? 's' : ''} you` : '') + (bits.length || c.need.length ? '' : ': nothing running');
+}
 function jobsStripRender() {                                       // collapsed: one strip at the bottom for all of it (the separate RYM and Match songs strips step aside)
   const st = document.getElementById('jobsStrip'); if (!st) return; let c;
   try { c = jobsCollect(); } catch (e) { return; }                  // (while the page is still starting, some jobs aren't there yet)
   jobsBadge(c);
+  jobsBtnRender(c);
   const ov = document.getElementById('jobsOverlay'), on = !!(c.run.length || c.need.length) && !!(ov && ov.hidden);
   st.hidden = !on; document.body.classList.toggle('jobs-strip-on', on || !!(ov && !ov.hidden)); if (!on) return;          // (the old strips also step aside while the panel is open)
   const bits = c.run.map(j => j.cat === 'rym' ? `RYM ${j.detail.split(' \u00b7 ')[0]}` : j.cat === 'match' ? `Matching ${Math.round(j.pct || 0)}%` : j.cat === 'add' ? 'Adding releases' : j.cat === 'loc' ? `Recorded at ${j.detail.split(' \u00b7 ')[0]}` : j.title);
@@ -920,6 +933,7 @@ function initJobs() {
   });
   body.addEventListener('dragend', () => { jobsState.dragging = null; jobsRender(); });
   const strip = document.getElementById('jobsStrip'); if (strip) strip.addEventListener('click', jobsOpen);
+  const pb = document.getElementById('processingBtn'); if (pb) pb.addEventListener('click', jobsOpen);
   const m = document.getElementById('menuActivity'); if (m) m.addEventListener('click', () => { const lm = document.getElementById('layoutMenu'); if (lm) lm.hidden = true; jobsOpen(); });
   setInterval(() => { if (!document.hidden) jobsStripRender(); }, 1000);
   setInterval(() => {                                               // the syncs, while CRATE stays open: Last.fm every 6 hours (unless switched off), the new-release check when it is due
