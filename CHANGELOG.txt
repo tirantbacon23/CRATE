@@ -17,7 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.95.27
+  CURRENT_VERSION: 1.95.28
+
+  1.95.28 — 2026-11-11 — The level meter in Track Info stays in sight: it sits at the bottom of the section, below the part that scrolls. Page only.
+
+          It was the last thing in Track Info's scrolling area, so in a short right panel (Up Next
+          above it, say) you had to scroll down to see it. Now the title, fields and cover scroll
+          above it and the meter stays put.
 
   1.95.27 — 2026-11-11 — Release bar: hovering lights only the song under the pointer, not the whole bar, and the bar is easier to point at. Page only.
 

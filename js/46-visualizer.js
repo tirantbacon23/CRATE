@@ -252,7 +252,7 @@ function vizMiniEnsure() {
   w.innerHTML = '<canvas id="trackInfoVizCanvas" class="track-info-viz-canvas"></canvas><span class="track-info-viz-listen" id="trackInfoVizListen">Listen</span>';
   w.setAttribute('role', 'button'); w.tabIndex = 0;
   const m = document.createElement('p'); m.id = 'trackInfoVizMsg'; m.className = 'track-info-viz-msg'; m.hidden = true;
-  el.trackInfoArtWrap.insertAdjacentElement('afterend', w); w.insertAdjacentElement('afterend', m);
+  el.trackInfoBody.insertAdjacentElement('afterend', w); w.insertAdjacentElement('afterend', m);          // (1.95.28) below Track Info's scrolling part, so it is always in sight
   const go = async () => { if (viz.stream) { openVisualizer(); return; } if (!(await vizListen()) && viz.offerShare) openVisualizer(); };          // a choice to make (the toolbar button, or Share instead): the full one shows both
   w.addEventListener('click', go); w.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
   return true;
