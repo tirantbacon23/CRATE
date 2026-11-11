@@ -304,6 +304,11 @@ async function playTrackNow(item, trackName, trackNum) {
   crateQueueIndex = -1;
   renderCrateQueuePanel();
 
+  if (playSource() === 'p2p') {                                      // (1.105.0) Play from Soulseek: through the queue, as one entry, which looks there first
+    const myId = crateQueueId;
+    crateQueueList = [{ item, track: Object.assign({ trackName, trackNumber: trackNum }, trackLinkOverridesFor(item, trackNum, trackName)) }];
+    renderCrateQueuePanel(); playCrateQueueIndex(myId, 0); return;
+  }
   // (1.98.1) A song downloaded from P2P (or still arriving) plays from its file: through the queue, as one entry, where the Local player
   // picks it up (p2pQueueTake). If the file has gone meanwhile, that entry falls back to the usual sources there.
   if (typeof p2pSongFor === 'function') {

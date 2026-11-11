@@ -195,7 +195,7 @@ function crateQueueAfterEnd(i) { return state.loop === 'song' ? i : i + 1; }    
 // 'spotify' (its YouTube and SoundCloud links are passed over), 'youtube' or 'soundcloud' (a song without that link is skipped, and goes to
 // the Match songs queue). Kept in this browser. Set from the player's source button or ⚙ → Play from… (44-play-source.js).
 const PLAY_SOURCE_KEY = 'crate_play_source_v1';
-const PLAY_SOURCE_NAMES = { '': 'Any source', spotify: 'Spotify', youtube: 'YouTube', soundcloud: 'SoundCloud' };
+const PLAY_SOURCE_NAMES = { '': 'Any source', spotify: 'Spotify', youtube: 'YouTube', soundcloud: 'SoundCloud', p2p: 'Soulseek (P2P)' };          // p2p (1.105.0): every song from Soulseek first
 function playSource() { try { const v = localStorage.getItem(PLAY_SOURCE_KEY) || ''; return PLAY_SOURCE_NAMES[v] && v ? v : ''; } catch (e) { return ''; } }
 function playSourceSkip(item, trackName, myId, index) {          // a song the chosen source can't play: on to the next
   flashGlobalToast(`Skipping \u201c${trackName}\u201d \u2014 no ${PLAY_SOURCE_NAMES[playSource()]} link (playing from ${PLAY_SOURCE_NAMES[playSource()]} only).`);
@@ -244,9 +244,10 @@ async function playCrateQueueIndex(myId, index) {
   await pauseForQueueSwitch();
   if (myId !== crateQueueId || crateQueueIndex !== index || !isPlayIntentCurrent(intent)) return;
 
-  if (typeof p2pQueueTake === 'function' && p2pQueueTake(myId, index, item, track)) { crateQueueExpectedSpotifyTrackId = null; return; }          // (1.98.0) downloaded from P2P (or arriving): plays from the file, before any other source
+  if (typeof p2pQueueTake === 'function' && !track.__noP2P && p2pQueueTake(myId, index, item, track)) { crateQueueExpectedSpotifyTrackId = null; return; }
+  if (playSource() === 'p2p' && !track.__noP2P && typeof p2pAutoTake === 'function' && p2pAutoTake(myId, index, item, track, { force: true, onMiss: () => { track.__noP2P = true; playCrateQueueIndex(myId, index); } })) { crateQueueExpectedSpotifyTrackId = null; return; }          // (1.105.0) Play from Soulseek: found there first; not there, the other sources          // (1.98.0) downloaded from P2P (or arriving): plays from the file, before any other source
 
-  const only = playSource();
+  const only = playSource() === 'p2p' ? '' : playSource();          // (Soulseek didn't have it: any other source)
   if (only === 'youtube' || only === 'soundcloud') {               // one source only, and not Spotify: its link, or the next song
     const link = only === 'youtube' ? track.youtubeLink : track.soundcloudLink;
     crateQueueExpectedSpotifyTrackId = null;

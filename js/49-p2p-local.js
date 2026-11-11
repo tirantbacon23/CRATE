@@ -372,18 +372,19 @@ function p2pAutoGet(item) {                                         // -> Promis
   pr.finally(() => { p2pAutoFlight.delete(key); jobsRefresh(); });
   return pr;
 }
-function p2pAutoTake(myId, index, item, track) {                     // called where playback would skip a song: true when CRATE looks for it on Soulseek instead
-  if (!p2pAutoOn() || !p2p.ready || !p2p.configured || !item || !track || !track.trackName) return false;
+function p2pAutoTake(myId, index, item, track, opts) {               // called where playback would skip a song (or, Play from Soulseek, before anything): true when CRATE looks for it there
+  if ((!p2pAutoOn() && !(opts && opts.force)) || !p2p.ready || !p2p.configured || !item || !track || !track.trackName) return false;
   const miss = p2pAutoMissed[artKey(item)]; if (miss && Date.now() - miss.at < 15 * 60000) return false;          // looked a moment ago and found nothing sure
   const rec0 = p2pDl[artKey(item)]; if (rec0) { rec0.prefer = true; p2pDlSave(); }
   if (p2pQueueTake(myId, index, item, track)) return true;          // its folder is remembered: fetched (or here) without searching
   stopOtherEngines('local'); p2pLocalStop(); setMasterPlayerEngine('local'); p2pMiniPlayerFor(item, track);
   el.miniPlayerTimeCurrent.textContent = 'searching P2P\u2026'; setMiniPlayerPlayPauseIcon(true);
-  flashGlobalToast(`"${track.trackName}" isn\u2019t on Spotify or YouTube: looking for ${item.title} on Soulseek\u2026`);
+  flashGlobalToast(opts && opts.force ? `Looking for ${item.title} on Soulseek\u2026` : `"${track.trackName}" isn\u2019t on Spotify or YouTube: looking for ${item.title} on Soulseek\u2026`);
   p2pAutoGet(item).then(ok => {
     if (myId !== crateQueueId || crateQueueIndex !== index) return;
     if (ok && p2pQueueTake(myId, index, item, track)) return;
     const m = p2pAutoMissed[artKey(item)];
+    if (opts && opts.onMiss) { flashGlobalToast(`"${track.trackName}" isn\u2019t on Soulseek${m ? ' (' + m.why + ')' : ''}: playing it from your other sources.`); opts.onMiss(); return; }
     flashGlobalToast(`Skipping "${track.trackName}" \u2014 not on Soulseek either${m ? ' (' + m.why + ')' : ''}.`);
     mqAdd([item], 'skipped', track.trackName); playCrateQueueIndex(myId, index + 1);
   });
@@ -438,5 +439,36 @@ async function p2pNewRun() {
   }
 }
 setTimeout(() => { if (p2pNewQ.length) p2pNewSchedule(15000); }, 0);
+// ----- (1.105.0) each song's download, shown on its row: Up Next and the album page -----
+// A bar and a word beside every song of a release played from P2P: its place in the sharer's queue, how far it has got, ready, playing, played.
+function p2pRowState(s) {                                            // -> [class, text, pct] or null (nothing to show)
+  if (!s) return null;
+  if (p2pLocalCur && p2pLocalCur.s === s) return ['play', 'playing', 100];
+  if (s.st === 'down') return ['down', `${Math.round(s.pct || 0)}%`, s.pct || 0];
+  if (s.st === 'wait') return ['wait', s.place ? `queue ${s.place}` : 'waiting', 0];
+  if (s.st === 'done') return ['done', 'ready', 100];
+  if (s.st === 'fail') return ['fail', 'failed', 0];
+  if (s.st === 'gone' && s.played) return ['gone', 'played', 100];
+  return null;
+}
+function p2pRowBadge(row, s) {
+  const st = p2pRowState(s); let b = row.querySelector(':scope > .p2p-tr');
+  if (!st) { if (b) b.remove(); return; }
+  if (!b) { b = document.createElement('span'); b.className = 'p2p-tr'; b.innerHTML = '<i><b></b></i><span></span>'; row.appendChild(b); }
+  b.dataset.st = st[0]; b.firstChild.firstChild.style.width = Math.max(st[0] === 'wait' ? 0 : 4, Math.min(100, st[2])).toFixed(1) + '%'; b.lastChild.textContent = st[1];
+  b.title = `Soulseek (${s.name}): ${st[1] === 'ready' ? 'downloaded, ready to play' : st[1]}`;
+}
+const p2pRowItems = new Map();
+function p2pPaintRows() {
+  const recs = Object.keys(p2pDl); if (!recs.length) return;
+  document.querySelectorAll('#crateQueuePanelBody [data-queue-index]').forEach(row => { const e = crateQueueList[Number(row.dataset.queueIndex)]; if (e && e.item && p2pDl[artKey(e.item)]) p2pRowBadge(row, p2pSongFor(e.item, e.track)); });
+  document.querySelectorAll('.track-row[data-track-key]').forEach(row => {
+    const m = /^(.*)::@(\d+)$/.exec(row.dataset.trackKey || ''); if (!m) return;
+    let it = p2pRowItems.get(m[1]); if (it === undefined) { it = (state.raw || []).find(r => String(r.row) === m[1]) || null; p2pRowItems.set(m[1], it); }
+    if (!it || !p2pDl[artKey(it)]) return;
+    const t = (state.trackCache[artKey(it)] || [])[Number(m[2])]; if (t) p2pRowBadge(row, p2pSongFor(it, t));
+  });
+}
+setInterval(() => { if (!document.hidden) { if (p2pRowItems.size > 2000) p2pRowItems.clear(); p2pPaintRows(); } }, 700);
 function p2pRefreshUi() { if (typeof jobsRefresh === 'function') jobsRefresh(); if (p2p.cur && typeof p2pRender === 'function') p2pRender(); }
 p2pDirCheck().then(() => p2pTick());

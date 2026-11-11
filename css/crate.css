@@ -4814,3 +4814,10 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
   .track-info-quality { margin: 0; align-self: center; text-align: center; font: 11px/1.4 'IBM Plex Mono', monospace; color: var(--text-dim); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
   .track-info-quality[hidden] { display: none; }
   .tiq-tag { display: inline-block; margin-right: 6px; padding: 0 5px; border: 1px solid var(--line); border-radius: 3px; font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+  /* (1.105.0) each P2P song's download, on its row in Up Next and the album page */
+  .p2p-tr { display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; flex: 0 0 auto; font: 10px 'IBM Plex Mono', monospace; color: var(--text-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .p2p-tr i { position: relative; display: block; width: 42px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  .p2p-tr i b { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); transition: width 0.6s ease; }
+  .p2p-tr[data-st="done"] i b, .p2p-tr[data-st="play"] i b { background: #5fbf86; } .p2p-tr[data-st="gone"] { opacity: 0.55; } .p2p-tr[data-st="gone"] i b { background: var(--text-dim); }
+  .p2p-tr[data-st="fail"] { color: #E5734A; } .p2p-tr[data-st="play"] span { color: #5fbf86; }
+  .p2p-tr[data-st="wait"] i b { width: 30% !important; animation: processing-indef 1.4s ease-in-out infinite; background: var(--text-dim); }

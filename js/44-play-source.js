@@ -12,7 +12,8 @@ function playSourceMenu(anchor) {
     + opt('', 'Any source', 'A song’s own link (Spotify, YouTube or SoundCloud), else a Spotify search')
     + opt('spotify', 'Spotify only', 'YouTube and SoundCloud links are passed over')
     + opt('youtube', 'YouTube only', 'Songs without a YouTube link are skipped (and go to Match songs)')
-    + opt('soundcloud', 'SoundCloud only', 'Songs without a SoundCloud link are skipped (and go to Match songs)');
+    + opt('soundcloud', 'SoundCloud only', 'Songs without a SoundCloud link are skipped (and go to Match songs)')
+    + opt('p2p', 'Soulseek (P2P) first', 'Every song from Soulseek, through the CRATE for P2P add-on; one it can\u2019t find plays from your other sources');
   document.body.appendChild(menu);
   if (anchor) { const r = anchor.getBoundingClientRect(); positionFloatingMenu(menu, r.left, r.top - 8); } else positionFloatingMenu(menu, innerWidth / 2 - 150, 120);
   menu.addEventListener('click', (e) => {
@@ -20,16 +21,16 @@ function playSourceMenu(anchor) {
     const b = e.target.closest('[data-ps]'); if (!b) return;
     try { localStorage.setItem(PLAY_SOURCE_KEY, b.dataset.ps); } catch (er) { /* this visit only */ }
     closeNowPlayingAddMenu(); playSourcePaint();
-    flashGlobalToast(b.dataset.ps ? `Playing from ${PLAY_SOURCE_NAMES[b.dataset.ps]} only, from the next song.` : 'Playing from any source, from the next song.');
+    flashGlobalToast(b.dataset.ps === 'p2p' ? 'Playing from Soulseek first, from the next song.' : b.dataset.ps ? `Playing from ${PLAY_SOURCE_NAMES[b.dataset.ps]} only, from the next song.` : 'Playing from any source, from the next song.');
   });
   nowPlayingAddMenuEl = menu; setTimeout(() => document.addEventListener('click', closeNowPlayingAddMenuOnOutsideClick), 0);
 }
 function playSourcePaint() {
   const b = document.getElementById('miniPlayerSourceBtn'); if (!b) return;
-  const v = playSource(), short = { '': '', spotify: 'Spotify only', youtube: 'YT only', soundcloud: 'SC only' }[v];
+  const v = playSource(), short = { '': '', spotify: 'Spotify only', youtube: 'YT only', soundcloud: 'SC only', p2p: 'P2P' }[v];
   b.textContent = short || '≡';
   b.classList.toggle('ps-on', !!v);
-  b.title = v ? `Playing from ${PLAY_SOURCE_NAMES[v]} only (click to change)` : 'Play from: any source (click to choose one)';
+  b.title = v === 'p2p' ? 'Playing from Soulseek first (click to change)' : v ? `Playing from ${PLAY_SOURCE_NAMES[v]} only (click to change)` : 'Play from: any source (click to choose one)';
   b.setAttribute('aria-label', b.title);
 }
 (function wirePlaySource() {

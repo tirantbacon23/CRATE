@@ -1256,6 +1256,11 @@ suite('P2P: matching a Soulseek folder to a release (1.97.0)', () => {
     eq(b([f('a', 'partial'), f('b', 'likely')]).user, 'b');
     eq(b([f('a', 'partial'), f('b', 'version'), f('c', 'other')]), null);
   });
+  test('Pick source by: Fastest takes the sure match that can start soonest (1.105.0)', () => {
+    const b = app('p2pBestOf'), f = (user, verdict, freeSlot, queue, speed) => ({ user, freeSlot, queue, speed, m: { verdict, unavailable: false } });
+    const list = [f('flacq', 'sure', false, 5, 9e6), f('mp3free', 'sure', true, 0, 1e6), f('likelyfast', 'likely', true, 0, 9e6)];
+    eq([b(list, { pickBy: 'quality' }).user, b(list, { pickBy: 'speed' }).user], ['flacq', 'mp3free']);
+  });
   test('the best folder comes first, and an all-locked one last', () => {
     const all = [f('01 Speed Trials.flac', 181), f('02 Alameda.flac', 223), f('03 Ballad of Big Nothing.flac', 168), f('04 Between the Bars.flac', 141)];
     const r = app('p2pRank')([folder('Half', all.slice(0, 2)), folder('Locked', all, { locked: 4 }), folder('Whole', all)], tracks, rel, { format: 'lossless' });

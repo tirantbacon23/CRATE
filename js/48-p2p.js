@@ -43,7 +43,7 @@ const p2pLen = (sec) => sec ? formatMs(sec * 1000) : '';
 
 // ----- (1.97.0) matching a folder against the release -----
 const P2P_PREF_KEY = 'crate_p2p_prefs_v1', P2P_CHOICE_KEY = 'crate_p2p_choice_v1';
-function p2pPrefs() { try { return Object.assign({ format: 'lossless', fFormat: 'any', fMatches: false, fFree: false, fHideLocked: true, sort: 'best' }, JSON.parse(localStorage.getItem(P2P_PREF_KEY) || '{}')); } catch (e) { return { format: 'lossless' }; } }
+function p2pPrefs() { try { return Object.assign({ format: 'lossless', pickBy: 'quality', fFormat: 'any', fMatches: false, fFree: false, fHideLocked: true, sort: 'best' }, JSON.parse(localStorage.getItem(P2P_PREF_KEY) || '{}')); } catch (e) { return { format: 'lossless' }; } }
 function p2pSetPrefs(p) { try { localStorage.setItem(P2P_PREF_KEY, JSON.stringify(Object.assign(p2pPrefs(), p))); } catch (e) { /* this visit only */ } }
 function p2pYearOf(item) {                                          // the release's year, from its release date ('' when unknown)
   const d = item && item.releaseDate; if (!d) return '';
@@ -145,7 +145,12 @@ function p2pUseSource(item, f, tracks) {                            // (1.101.0)
   p2pChoose(item, f, tracks);
   if (typeof p2pMakeRec === 'function') p2pMakeRec(item, p2pChoiceFor(item));
 }
-function p2pBestOf(ranked) { return (ranked || []).find(f => f.m && !f.m.unavailable && f.m.verdict === 'sure') || (ranked || []).find(f => f.m && !f.m.unavailable && f.m.verdict === 'likely') || null; }          // the source CRATE picks by itself
+function p2pBestOf(ranked, prefs) {                                  // the source CRATE picks by itself: among sure matches (else likely ones), the best, or (1.105.0, Pick source by: Fastest) the one that can start soonest
+  const ok = (v) => (ranked || []).filter(f => f.m && !f.m.unavailable && f.m.verdict === v), tier = ok('sure').length ? ok('sure') : ok('likely');
+  if (!tier.length) return null;
+  if ((prefs || p2pPrefs()).pickBy === 'speed') return tier.slice().sort((a, b) => (b.freeSlot - a.freeSlot) || (a.queue - b.queue) || (b.speed - a.speed))[0];
+  return tier[0];
+}
 function p2pChoices() { try { return JSON.parse(localStorage.getItem(P2P_CHOICE_KEY) || '{}') || {}; } catch (e) { return {}; } }
 function p2pHasSource(item) { return !!(item && (p2pChoiceFor(item) || (typeof p2pDl !== 'undefined' && p2pDl[artKey(item)]))); }
 function p2pChoiceFor(item) { return item ? p2pChoices()[artKey(item)] || null : null; }
@@ -164,7 +169,7 @@ function p2pEnsureDom() {
   ov.innerHTML = `<div class="arrange-modal p2p-modal" role="dialog" aria-modal="true" aria-labelledby="p2pTitle">
     <div class="arrange-header"><h2 id="p2pTitle">Find on P2P</h2><button type="button" id="p2pClose" class="modal-x" aria-label="Close">✕</button></div>
     <form id="p2pForm" class="p2p-form"><input id="p2pQuery" type="search" autocomplete="off" spellcheck="false" aria-label="Search Soulseek for"><button type="submit" id="p2pGo" class="chip-btn p2p-go">Search</button><button type="button" id="p2pStop" class="chip-btn" hidden>Stop</button></form>
-    <div class="p2p-opts"><label for="p2pFormat">Prefer</label><select id="p2pFormat" class="config-btn"><option value="lossless">Lossless (FLAC)</option><option value="mp3">MP3 320</option><option value="any">Either</option></select><span id="p2pTracksNote" class="p2p-tracks-note"></span></div>
+    <div class="p2p-opts"><label for="p2pFormat">Prefer</label><select id="p2pFormat" class="config-btn"><option value="lossless">Lossless (FLAC)</option><option value="mp3">MP3 320</option><option value="any">Either</option></select><label for="p2pPickBy">Pick source by</label><select id="p2pPickBy" class="config-btn"><option value="quality">Best quality</option><option value="speed">Fastest (starts soonest)</option></select><span id="p2pTracksNote" class="p2p-tracks-note"></span></div>
     <div class="p2p-opts p2p-filters" role="group" aria-label="Filters"><select id="p2pFFormat" class="config-btn" aria-label="Format"><option value="any">Any format</option><option value="lossless">Lossless only</option><option value="lossy">MP3 and other lossy only</option></select><label class="p2p-check"><input type="checkbox" id="p2pFMatches"> Matches only</label><label class="p2p-check"><input type="checkbox" id="p2pFFree"> Free slot only</label><label class="p2p-check"><input type="checkbox" id="p2pFLocked"> Hide locked</label><label for="p2pSort">Sort</label><select id="p2pSort" class="config-btn"><option value="best">Best match</option><option value="fast">Can start soonest</option><option value="small">Smallest</option><option value="songs">Most songs</option></select><input id="p2pFText" type="search" class="p2p-ftext" placeholder="Filter by folder or user" aria-label="Filter by folder or user" autocomplete="off"></div>
     <p id="p2pStatus" class="p2p-status" role="status"></p>
     <div id="p2pChosen" class="p2p-chosen" hidden><span id="p2pChosenText"></span><span class="p2p-chosen-acts"><button type="button" id="p2pForget" class="chip-btn" title="Forget this source: its downloads stop and its files are deleted">Forget</button><button type="button" id="p2pDlPlay" class="chip-btn p2p-dl-play">Download and play</button><button type="button" id="p2pDlOnly" class="chip-btn" title="Download every song now, to keep">Download all</button></span></div>
@@ -181,6 +186,7 @@ function p2pEnsureDom() {
   document.getElementById('p2pStop').addEventListener('click', p2pStop);
   document.getElementById('p2pFormat').addEventListener('change', (e) => { p2pSetPrefs({ format: e.target.value }); p2pRerank(); });
   const fset = (k, v) => { p2pSetPrefs({ [k]: v }); p2pRender(); };          // (1.102.0) the filters
+  document.getElementById('p2pPickBy').addEventListener('change', (e) => { p2pSetPrefs({ pickBy: e.target.value }); });          // (1.105.0) for the next pick
   document.getElementById('p2pFFormat').addEventListener('change', (e) => fset('fFormat', e.target.value));
   document.getElementById('p2pFMatches').addEventListener('change', (e) => fset('fMatches', e.target.checked));
   document.getElementById('p2pFFree').addEventListener('change', (e) => fset('fFree', e.target.checked));
@@ -208,7 +214,7 @@ function p2pOpen(item) {                                            // item: a r
   p2p.cur = { item: item || null, reqId: '', state: 'idle', folders: [], ranked: [], responses: 0, files: 0, error: '', tracks: null, autoPending: !!item, tries: 0, open: new Set(), text: '', status2: '' };
   q.value = item ? p2pQueryFor(item) : '';
   document.getElementById('p2pTitle').textContent = item ? `${p2pHasSource(item) ? 'P2P source' : 'Find on P2P'}: ${item.title || ''}` : 'P2P search';
-  const pf = p2pPrefs(); document.getElementById('p2pFormat').value = pf.format; document.getElementById('p2pFFormat').value = pf.fFormat; document.getElementById('p2pFMatches').checked = !!pf.fMatches; document.getElementById('p2pFFree').checked = !!pf.fFree; document.getElementById('p2pFLocked').checked = pf.fHideLocked !== false; document.getElementById('p2pSort').value = pf.sort; document.getElementById('p2pFText').value = '';
+  const pf = p2pPrefs(); document.getElementById('p2pFormat').value = pf.format; document.getElementById('p2pPickBy').value = pf.pickBy || 'quality'; document.getElementById('p2pFFormat').value = pf.fFormat; document.getElementById('p2pFMatches').checked = !!pf.fMatches; document.getElementById('p2pFFree').checked = !!pf.fFree; document.getElementById('p2pFLocked').checked = pf.fHideLocked !== false; document.getElementById('p2pSort').value = pf.sort; document.getElementById('p2pFText').value = '';
   ov.hidden = false; p2pRender(); q.focus(); q.select();
   if (item) {
     const c = p2p.cur;
