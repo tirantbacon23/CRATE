@@ -96,6 +96,7 @@ function openTrackActionsMenu({ item, trackName, trackNum, spotifyTrack, x, y, q
     <button type="button" data-player-action="queuePlayNow">Play now</button>
     <button type="button" data-player-action="queuePlayNext" ${qIdx === crateQueueIndex + 1 ? 'disabled title="Already next"' : ''}>Play next</button>
     <button type="button" data-player-action="queueRemove">Remove from queue</button>
+    ${queueEntry.item && typeof p2p !== 'undefined' && p2p.ready ? '<button type="button" data-player-action="p2pFirst">Download first (Soulseek)</button>' : ''}
     <div class="menu-divider"></div>` : ''}
     <button type="button" class="menu-parent-btn" data-player-action="playlist" ${item ? '' : needsCrate}>Add to playlist <span class="submenu-caret">\u25b8</span></button>
     ${queueEntry ? '' : `<button type="button" data-player-action="queue" ${item ? '' : needsCrate}>Add to queue</button>`}
@@ -133,6 +134,7 @@ function openTrackActionsMenu({ item, trackName, trackNum, spotifyTrack, x, y, q
     closeNowPlayingAddMenu();
 
     if (action === 'queue') queueTracksNow(trackPlaylistItems);
+    else if (action === 'p2pFirst') { if (queueEntry && queueEntry.item) p2pDownloadFirst(queueEntry.item, queueEntry.track.trackName, queueEntry.track.trackNumber); }          // (1.112.0)
     else if (action === 'queuePlayNow') { const i = crateQueueList.indexOf(queueEntry); if (i > crateQueueIndex) playCrateQueueIndex(crateQueueId, i); }
     else if (action === 'queuePlayNext') crateQueuePlayNext(queueEntry);
     else if (action === 'queueRemove') crateQueueRemove(queueEntry);
@@ -231,6 +233,7 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
     <button type="button" data-track-menu-action="entry">Add to entry</button>
     <div class="menu-divider"></div>
     ${!isMultiSelect ? '<button type="button" data-track-menu-action="editProps">Edit track properties\u2026</button>' : ''}
+    ${!isMultiSelect && typeof p2p !== 'undefined' && p2p.ready ? '<button type="button" data-track-menu-action="p2pFirst" title="Fetch this song from Soulseek ahead of the others">Download first (Soulseek)</button>' : ''}
     ${showMatchTools ? '<button type="button" data-track-menu-action="confirmMatch">\u2713 Confirm Spotify match</button>' : ''}
     ${showMatchTools ? '<button type="button" data-track-menu-action="nextMatch">\u21bb Try next Spotify match</button>' : ''}
     ${trackRymLink ? '<button type="button" data-track-menu-action="rym">View on RateYourMusic \u2197</button>' : ''}
@@ -267,6 +270,7 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
     else if (action === 'queue') queueTracksNow(trackPlaylistItems);
     else if (action === 'entry') addTracksToEntry(trackPlaylistItems);
     else if (action === 'editProps') openTrackPropertiesModal(item, trackNum, trackName);
+    else if (action === 'p2pFirst') p2pDownloadFirst(item, trackName, trackNum);          // (1.112.0)
     else if (action === 'confirmMatch') confirmSpotifyMatch(item, trackName, trackNum);
     else if (action === 'nextMatch') tryNextSpotifyMatch(item, trackName, trackNum);
     else if (action === 'rym') window.open(trackRymLink, '_blank', 'noopener,noreferrer');

@@ -17,7 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.111.0
+  CURRENT_VERSION: 1.112.0
+
+  1.112.0 — 2026-11-11 — Download first: right-click a song (a tracklist, or an upcoming song in Up Next) to fetch it from Soulseek ahead of the others. Page only (CRATE for P2P 0.2.1).
+
+          The song is asked for at once, wherever it is in the release, and its row reads "first".
+          slskd fetches one sharer's songs in the order they were asked for, so songs still waiting
+          on that sharer (not ones already downloading) step back, and are asked for again as soon
+          as it has started. A release with no P2P source yet gets one first (that doesn't make it
+          play from P2P). A song downloaded this way is kept until it has been played, even with
+          "Delete the file" on.
 
   1.111.0 — 2026-11-11 — Fix: a release you add is now really looked up on Soulseek, within a minute or so, instead of waiting 10 to 20 minutes (or never). Page only.
 
