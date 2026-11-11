@@ -254,6 +254,49 @@ function p2pShowWaiting(item, track, s) {                           // the playe
   setMiniPlayerPlayPauseIcon(true);
 }
 
+// ----- (1.103.0) what the file is: read from its first bytes (format, sample rate, bit depth, channels, encoding), shown in Track Info -----
+function p2pParseAudioHeader(b, size, durSec) {                     // b: the file's first bytes (Uint8Array) -> { format, rate, bits, channels, mode, kbps, vbr } (what could be read)
+  const out = {}, str = (o, n) => String.fromCharCode(...b.subarray(o, o + n)), u32le = (o) => (b[o] | b[o + 1] << 8 | b[o + 2] << 16 | b[o + 3] << 24) >>> 0, u16le = (o) => b[o] | b[o + 1] << 8;
+  if (b.length >= 26 && str(0, 4) === 'fLaC') {                     // FLAC: STREAMINFO, the first metadata block
+    const o = 18; out.format = 'FLAC'; out.rate = (b[o] << 12) | (b[o + 1] << 4) | (b[o + 2] >> 4); out.channels = ((b[o + 2] >> 1) & 7) + 1; out.bits = (((b[o + 2] & 1) << 4) | (b[o + 3] >> 4)) + 1;
+    const samples = (b[o + 3] & 15) * 4294967296 + ((b[o + 4] << 24 | b[o + 5] << 16 | b[o + 6] << 8 | b[o + 7]) >>> 0); if (!durSec && samples && out.rate) durSec = samples / out.rate;
+  } else if (b.length >= 12 && str(0, 4) === 'RIFF' && str(8, 4) === 'WAVE') {          // WAV: the fmt chunk
+    for (let o = 12; o + 8 < b.length;) { const id = str(o, 4), len = u32le(o + 4); if (id === 'fmt ') { out.format = u16le(o + 8) === 3 ? 'WAV (float)' : 'WAV'; out.channels = u16le(o + 10); out.rate = u32le(o + 12); out.bits = u16le(o + 22); break; } o += 8 + len + (len & 1); }
+  } else if (b.length >= 4 && str(0, 4) === 'OggS') {               // Ogg: Vorbis or Opus, from the first packet
+    const v = b.findIndex((x, i) => x === 1 && str(i + 1, 6) === 'vorbis'), op = (() => { for (let i = 0; i < Math.min(b.length - 8, 400); i++) if (str(i, 8) === 'OpusHead') return i; return -1; })();
+    if (v >= 0) { out.format = 'Ogg Vorbis'; out.channels = b[v + 11]; out.rate = u32le(v + 12); }
+    else if (op >= 0) { out.format = 'Opus'; out.channels = b[op + 9]; out.rate = 48000; }
+  } else {                                                           // MP3: past an ID3 tag, the first frame's header
+    let o = 0; if (b.length > 10 && str(0, 3) === 'ID3') o = 10 + ((b[6] & 127) << 21 | (b[7] & 127) << 14 | (b[8] & 127) << 7 | (b[9] & 127));
+    for (; o + 4 < b.length; o++) if (b[o] === 255 && (b[o + 1] & 0xE0) === 0xE0 && ((b[o + 1] >> 1) & 3) === 1 && ((b[o + 2] >> 4) & 15) !== 15 && ((b[o + 2] >> 2) & 3) !== 3) break;          // a Layer III frame
+    if (o + 4 < b.length) {
+      const ver = (b[o + 1] >> 3) & 3, mpeg1 = ver === 3, bi = (b[o + 2] >> 4) & 15, si = (b[o + 2] >> 2) & 3, mode = (b[o + 3] >> 6) & 3;
+      const rates = mpeg1 ? [44100, 48000, 32000] : ver === 2 ? [22050, 24000, 16000] : [11025, 12000, 8000], kb = mpeg1 ? [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320] : [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160];
+      out.format = 'MP3'; out.rate = rates[si]; out.channels = mode === 3 ? 1 : 2; out.mode = ['Stereo', 'Joint stereo', 'Dual channel', 'Mono'][mode];
+      const side = mpeg1 ? (mode === 3 ? 17 : 32) : (mode === 3 ? 9 : 17), tag = str(o + 4 + side, 4);
+      if (tag === 'Xing' || tag === 'VBRI') out.vbr = true; else if (tag !== 'Info' && kb[bi]) out.kbps = kb[bi];
+    }
+  }
+  if (!out.kbps && size && durSec) out.kbps = Math.round(size * 8 / durSec / 1000);          // lossless or VBR: the average
+  if (out.channels && !out.mode) out.mode = out.channels === 1 ? 'Mono' : out.channels === 2 ? 'Stereo' : `${out.channels} channels`;
+  return out;
+}
+function p2pQualityText(info, ext) {                                  // "FLAC · 16-bit / 44.1 kHz · Stereo · 905 kbps"
+  if (!info) return '';
+  const fmt = info.format || String(ext || '').toUpperCase(), khz = info.rate ? `${(info.rate / 1000).toFixed(info.rate % 1000 ? 1 : 0)} kHz` : '';
+  return [fmt, info.bits && khz ? `${info.bits}-bit / ${khz}` : khz, info.mode, info.kbps ? `${info.vbr ? 'VBR ~' : ''}${info.kbps} kbps` : info.vbr ? 'VBR' : ''].filter(Boolean).join(' · ');
+}
+async function p2pFileInfo(file, durSec) {
+  try { const b = new Uint8Array(await file.slice(0, 256 * 1024).arrayBuffer()); return p2pParseAudioHeader(b, file.size, durSec); } catch (e) { return null; }
+}
+function p2pQualityPaint() {                                         // the line above Track Info's cover, while a file plays
+  if (!el.trackInfoArtWrap) return;
+  let q = document.getElementById('trackInfoQuality');
+  if (!q) { q = document.createElement('p'); q.id = 'trackInfoQuality'; q.className = 'track-info-quality'; el.trackInfoArtWrap.insertAdjacentElement('beforebegin', q); }
+  const cur = activePlayerEngine === 'local' && p2pLocalCur, text = cur && cur.info ? p2pQualityText(cur.info, cur.ext) : '';
+  q.hidden = !text; if (text) { q.innerHTML = `<span class="tiq-tag">File</span>${escapeHtml(text)}`; q.title = `Playing from a file on this computer${cur.rec ? `, from ${cur.rec.user} on Soulseek` : ''}`; }
+}
+
 // ----- the Local player -----
 let p2pAudio = null, p2pLocalCur = null, p2pLocalPaused = true;
 function p2pLocalVol() { try { const v = JSON.parse(localStorage.getItem(P2P_LOCAL_VOL_KEY) || '{}').volume; return Number.isFinite(v) ? v : 70; } catch (e) { return 70; } }
@@ -278,12 +321,15 @@ function p2pLocalPlay(file, item, track, rec, s) {
   const a = p2pAudioEl();
   if (p2pLocalCur && p2pLocalCur.url) URL.revokeObjectURL(p2pLocalCur.url);
   const url = URL.createObjectURL(file);
-  p2pLocalCur = { item, track, rec, s, url, trackName: track.trackName || '' };
+  p2pLocalCur = { item, track, rec, s, url, trackName: track.trackName || '', ext: (/\.([A-Za-z0-9]{1,5})$/.exec(file.name || (s && s.path) || '') || [])[1] || '' };
   p2pMiniPlayerFor(item, track);
+  const me = p2pLocalCur; p2pQualityPaint();
+  p2pFileInfo(file, 0).then(info => { if (p2pLocalCur !== me) return; me.info = info; p2pQualityPaint(); });          // (1.103.0) the file's format and quality
+  a.addEventListener('loadedmetadata', () => { if (p2pLocalCur !== me || !me.info || !isFinite(a.duration)) return; if (!me.info.kbps || me.info.vbr || /FLAC|WAV|Opus|Vorbis/.test(me.info.format || '')) { me.info.kbps = Math.round(file.size * 8 / a.duration / 1000); p2pQualityPaint(); } }, { once: true });
   a.src = url; a.volume = Math.max(0, Math.min(1, p2pLocalVol() / 100));
-  a.play().catch(() => { setMiniPlayerPlayPauseIcon(true); flashGlobalToast('Press Play to start.'); });
+  a.play().then(() => { if (typeof vizLocalStarted === 'function') vizLocalStarted(); }).catch(() => { setMiniPlayerPlayPauseIcon(true); flashGlobalToast('Press Play to start.'); });          // (1.103.0) the meter listens to the file directly
 }
-function p2pLocalStop() { if (p2pAudio) { try { p2pAudio.pause(); } catch (e) { /* none */ } } if (p2pLocalCur && p2pLocalCur.url) URL.revokeObjectURL(p2pLocalCur.url); p2pLocalCur = null; }
+function p2pLocalStop() { if (p2pAudio) { try { p2pAudio.pause(); } catch (e) { /* none */ } } if (p2pLocalCur && p2pLocalCur.url) URL.revokeObjectURL(p2pLocalCur.url); p2pLocalCur = null; p2pQualityPaint(); }
 function p2pLocalToggle() { if (!p2pAudio || !p2pLocalCur) return; if (p2pAudio.paused) p2pAudio.play().catch(() => {}); else p2pAudio.pause(); }
 function p2pLocalSeek(ms) { if (p2pAudio && p2pLocalCur) { try { p2pAudio.currentTime = Math.max(0, ms / 1000); } catch (e) { /* not ready */ } } }
 const p2pLocalPos = () => p2pAudio && p2pLocalCur ? (p2pAudio.currentTime || 0) * 1000 : 0;

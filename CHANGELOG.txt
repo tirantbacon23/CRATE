@@ -17,7 +17,18 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.102.0
+  CURRENT_VERSION: 1.103.0
+
+  1.103.0 — 2026-11-11 — Playing from a file: Track Info shows its format and quality above the cover, and the visualizer and level meter listen to it directly (no tab capture, no click). Page only.
+
+          QUALITY: while the Local player plays a file, Track Info shows a line above the cover,
+          e.g. "FILE · FLAC · 16-bit / 44.1 kHz · Stereo · 905 kbps" or "MP3 · 44.1 kHz · Joint
+          stereo · 320 kbps". It is read from the file itself: FLAC, MP3 (joint stereo, VBR), WAV,
+          Ogg Vorbis and Opus; for other formats, the format and the average bitrate.
+          LISTENING: a file playing is heard by the visualizer and the meter straight from the
+          player, so they work without the add-on's capture or its click. When Spotify, YouTube or
+          another player takes over, listening goes back to the add-on's capture as before.
+          (This completes phase 3 of P2P: the Local player, files first, and the visualizer direct.)
 
   1.102.0 — 2026-11-11 — Find on P2P searches with the release's year, and has filters: format, matches only, free slot only, hide locked, a sort, and a text filter. Page only.
 

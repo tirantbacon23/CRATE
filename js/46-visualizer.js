@@ -92,8 +92,36 @@ async function vizAttach(stream) {                                  // shared th
   audio[0].addEventListener('ended', () => vizStop(true));           // stopped from the browser's own bar
   vizSay(''); vizPaintChrome(); return true;
 }
+// ----- (1.103.0) a file playing in the Local player is listened to directly: no tab capture, no click -----
+// The <audio> element is routed through CRATE's own audio graph once (from then on it always plays through it), with an analyser and each
+// channel's level beside it. Only while the Local player is the one playing; when another player takes over, listening goes back to the
+// add-on's capture (or the prompt) as before.
+const vizDirectOk = () => activePlayerEngine === 'local' && typeof p2pAudio !== 'undefined' && !!p2pAudio;
+async function vizDirectStart() {
+  if (!vizDirectOk()) return false;
+  const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
+  viz.ctx = viz.ctx || new AC();
+  try { await viz.ctx.resume(); } catch (e) { /* not allowed yet */ }
+  if (!viz.mediaSrc) {
+    if (viz.ctx.state !== 'running') return false;                    // routing the player into a silent graph would mute it: not until the page may play sound
+    const src = viz.ctx.createMediaElementSource(p2pAudio), an = viz.ctx.createAnalyser(), sp = viz.ctx.createChannelSplitter(2), aL = viz.ctx.createAnalyser(), aR = viz.ctx.createAnalyser();
+    an.fftSize = 4096; an.smoothingTimeConstant = 0.78; an.minDecibels = -90; an.maxDecibels = -18; aL.fftSize = aR.fftSize = 1024;
+    src.connect(viz.ctx.destination); src.connect(an); src.connect(sp); sp.connect(aL, 0); sp.connect(aR, 1);
+    viz.mediaSrc = src; viz.dAn = an; viz.dL = aL; viz.dR = aR;
+  }
+  viz.stream = { getTracks: () => [] }; viz.direct = true; viz.remote = false; viz.viaAddon = false; viz.offerShare = false; viz.rate = 0;
+  viz.analyser = viz.dAn; viz.anL = viz.dL; viz.anR = viz.dR; viz.bufL = new Float32Array(1024); viz.bufR = new Float32Array(1024);
+  viz.freq = new Uint8Array(viz.dAn.frequencyBinCount); viz.wave = new Uint8Array(viz.dAn.fftSize);
+  vizSay(''); vizPaintChrome(); return true;
+}
+function vizLocalStarted() { if (!viz.stream) vizDirectStart(); }          // (from js/49-p2p-local.js) a file started: meter and visualizer listen to it
+function vizDirectCheck() {                                          // another player took over from the Local one: listen to it the usual way
+  if (!viz.direct || activePlayerEngine === 'local') return;
+  vizStop(false); vizAutoTried = false; vizAutoListen();
+}
 async function vizListen(opts) {
   if (viz.stream) return true;
+  if (vizDirectOk() && await vizDirectStart()) return true;           // a file: straight from the player
   if (opts && opts.quiet) {                                          // (1.95.26) on its own, at startup: only through the add-on, and saying nothing if Chrome wants the click first
     if (!vizAddonOk()) return false;
     const r = await vizAskAddon(); if (viz.stream) return true;
@@ -123,6 +151,7 @@ async function vizListen(opts) {
   return vizAttach(stream);
 }
 function vizStop(byBrowser) {
+  if (viz.direct) { viz.direct = false; viz.stream = null; viz.analyser = null; viz.anL = viz.anR = null; viz.freq = null; viz.wave = null; vizPaintChrome(); return; }          // (the player stays routed through the graph, so it keeps playing)
   if (viz.remote) ytAddonSay('yt-audio-stop');                       // the add-on ends its capture: the tab plays as normal again
   if (viz.stream) viz.stream.getTracks().forEach(t => t.stop());
   try { if (viz.src) viz.src.disconnect(); } catch (e) { /* gone */ }
@@ -191,6 +220,7 @@ window.addEventListener('resize', () => { if (viz.open) vizResize(); });
 // ----- drawing -----
 function vizFrame(t) {
   if (!viz.open) return;
+  vizDirectCheck();
   viz.raf = requestAnimationFrame(vizFrame);
   if (!viz.lastInfo || t - viz.lastInfo > 1000) { viz.lastInfo = t; vizRefreshInfo(); }
   if (!viz.lastLy || t - viz.lastLy > 200) { viz.lastLy = t; const line = typeof lyricsCurrentLine === 'function' ? lyricsCurrentLine() : '', e = vizEl('vizLyric'); if (e && e.textContent !== line) e.textContent = line; }          // (1.95.20) the line being sung, when the lyrics panel has them
@@ -284,6 +314,7 @@ function vizMiniFrame(t) {
   vizMiniRaf = 0;
   const w = vizEl('trackInfoViz'); if (!w || w.hidden) return;
   vizMiniRaf = requestAnimationFrame(vizMiniFrame);
+  vizDirectCheck();
   if (document.hidden || viz.open) return;                           // the full one draws meanwhile
   const c = vizEl('trackInfoVizCanvas'), dpr = Math.min(2, window.devicePixelRatio || 1), cw = Math.round(c.clientWidth * dpr), ch = Math.round(c.clientHeight * dpr);
   if (!cw || !ch) return; if (c.width !== cw || c.height !== ch) { c.width = cw; c.height = ch; }

@@ -1262,3 +1262,22 @@ suite('P2P: matching a Soulseek folder to a release (1.97.0)', () => {
     eq(r.map(x => x.name), ['Whole', 'Half', 'Locked']);
   });
 });
+
+suite('P2P: a file’s format and quality, from its first bytes (1.103.0)', () => {
+  test('FLAC: STREAMINFO gives 16-bit / 44.1 kHz stereo, and the average bitrate', () => {
+    const b = new Uint8Array(64); b.set([0x66, 0x4C, 0x61, 0x43], 0); b.set([0, 0, 0, 34], 4);
+    // sample rate 44100 (20 bits) | channels-1 = 1 (3 bits) | bits-1 = 15 (5 bits) | samples (36 bits) = 44100 * 200
+    const sr = 44100, ch = 1, bps = 15, n = 44100 * 200;
+    b[18] = sr >> 12; b[19] = (sr >> 4) & 255; b[20] = ((sr & 15) << 4) | (ch << 1) | (bps >> 4); b[21] = ((bps & 15) << 4) | Math.floor(n / 4294967296);
+    b[22] = (n >>> 24) & 255; b[23] = (n >>> 16) & 255; b[24] = (n >>> 8) & 255; b[25] = n & 255;
+    const i = app('p2pParseAudioHeader')(b, 25000000, 0);
+    eq([i.format, i.rate, i.bits, i.channels, i.mode, i.kbps], ['FLAC', 44100, 16, 2, 'Stereo', 1000]);
+    eq(app('p2pQualityText')(i), 'FLAC · 16-bit / 44.1 kHz · Stereo · 1000 kbps');
+  });
+  test('MP3: past an ID3 tag, a 320 kbps joint-stereo frame; a Xing frame is VBR', () => {
+    const mk = (xing) => { const b = new Uint8Array(200); b.set([0x49, 0x44, 0x33, 3, 0, 0, 0, 0, 0, 20], 0); const o = 30; b.set([0xFF, 0xFB, 0xE0, 0x40], o); if (xing) b.set([0x58, 0x69, 0x6E, 0x67], o + 36); return b; };
+    const c = app('p2pParseAudioHeader')(mk(false), 8000000, 200), v = app('p2pParseAudioHeader')(mk(true), 6000000, 200);
+    eq([c.format, c.rate, c.mode, c.kbps, !!c.vbr], ['MP3', 44100, 'Joint stereo', 320, false]);
+    eq([v.vbr, v.kbps], [true, 240]);
+  });
+});

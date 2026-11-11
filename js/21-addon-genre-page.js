@@ -1272,6 +1272,7 @@ function renderTrackInfoPanel() {
 
   applyCachedArt();
   applyTrackInfoPlayerMode();
+  if (typeof p2pQualityPaint === 'function') p2pQualityPaint();          // (1.103.0) a file's format and quality, above the cover
 }
 
 // Picks what shows in the Track Info art slot — cover art, playback
