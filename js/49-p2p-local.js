@@ -15,7 +15,8 @@ const p2pDl = (() => { try { const o = JSON.parse(localStorage.getItem(P2P_DL_KE
 function p2pDlSave() { try { localStorage.setItem(P2P_DL_KEY, JSON.stringify(p2pDl)); } catch (e) { /* storage full or blocked: kept for this visit */ } }
 function p2pKeep() { try { return Object.assign({ mode: 'delete', capGb: 2, ahead: 1 }, JSON.parse(localStorage.getItem(P2P_KEEP_KEY) || '{}')); } catch (e) { return { mode: 'delete', capGb: 2, ahead: 1 }; } }
 function p2pSetKeep(p) { try { localStorage.setItem(P2P_KEEP_KEY, JSON.stringify(Object.assign(p2pKeep(), p))); } catch (e) { /* this visit only */ } p2pTidy(); }
-const p2pItemByKey = (k) => (state.raw || []).find(r => artKey(r) === k) || null;
+const p2pItemRefs = new Map();                                       // the releases P2P has been asked about this visit, by key
+const p2pItemByKey = (k) => p2pItemRefs.get(k) || (state.raw || []).find(r => artKey(r) === k) || null;
 const p2pActive = (s) => s.st === 'wait' || s.st === 'down';
 
 // ----- slskd's downloads folder, through Chrome's folder access (kept in IndexedDB, asked again only when Chrome forgets) -----
@@ -92,7 +93,7 @@ async function p2pTidy() {                                          // "After pl
 // the whole release, for keeping. A release you chose to play from P2P ("prefer") plays from it every time, fetching songs again as needed.
 const p2pIdle = (s) => s.st === 'idle' || s.st === 'gone';
 function p2pMakeRec(item, choice) {                                  // the release's remembered folder: every song it has, nothing requested yet
-  const key = artKey(item), old = p2pDl[key];
+  const key = artKey(item), old = p2pDl[key]; p2pItemRefs.set(key, item);
   if (old && old.user === choice.user && old.dir === choice.dir) return old;
   const wasPreferred = !!(old && old.prefer);
   if (old) p2pForget(key, true);
@@ -150,6 +151,29 @@ async function p2pDownload(item, choice, play, quiet) {              // inside a
   if (!quiet) flashGlobalToast(`Playing ${item.title} from Soulseek: each song downloads just before it plays.`);
   playAlbumReplacingQueue(item);
 }
+// ----- (1.107.0) a sharer who refuses you ("Verification required", banned, not shared…): remembered a week, never picked again, and the
+// release switches to the next-best folder from someone else by itself (a new, paced search), the song carrying on from there -----
+const P2P_REFUSE_KEY = 'crate_p2p_refused_v1', P2P_REFUSAL = /reject|verif|ban|denied|not shared|too many|blocked|forbidden|file not|queue full|unavailable/i;
+const p2pRefused = (() => { try { return JSON.parse(localStorage.getItem(P2P_REFUSE_KEY) || '{}') || {}; } catch (e) { return {}; } })();
+function p2pRefuses(user) { const r = user && p2pRefused[user]; return r && Date.now() - r.at < 7 * 86400000 ? r : null; }
+function p2pNoteRefusal(user, why) { p2pRefused[user] = { at: Date.now(), why: String(why || '').slice(0, 120) }; try { localStorage.setItem(P2P_REFUSE_KEY, JSON.stringify(p2pRefused)); } catch (e) { /* this visit */ } }
+const p2pSwitching = new Set();
+async function p2pSwitchSource(key) {                                // -> true when the release now has a source from someone else
+  if (p2pSwitching.has(key)) return false;
+  const item = p2pItemByKey(key), old = p2pDl[key]; if (!item || !old) return false;
+  p2pSwitching.add(key); jobsRefresh();
+  try {
+    const tracks = ((await Promise.resolve(getTracksFor(item)).catch(() => [])) || []).filter(t => t && t.trackName);
+    let folders = [];
+    for (const q of p2pQueries(item)) { const r = await p2pSearchFolders(q); if (!r.ok) return false; folders = r.folders.filter(f => !p2pRefuses(f.user)); if (folders.length) break; }
+    const best = p2pBestOf(p2pRank(folders, tracks, item, p2pPrefs()));
+    if (!best) { flashGlobalToast(`${old.user} refused ${item.title}, and no one else has a good copy right now.`); return false; }
+    p2pChoose(item, best, tracks); p2pMakeRec(item, p2pChoiceFor(item));
+    flashGlobalToast(`${old.user} refused (${(p2pRefuses(old.user) || {}).why || 'refused'}): switched ${item.title} to ${best.user}.`);
+    if (typeof jobsDone === 'function') jobsDone('p2p', `Switched ${item.title} to ${best.name}, from ${best.user} (${old.user} refused)`, { k: key });
+    p2pSyncWindow(); return true;
+  } finally { p2pSwitching.delete(key); jobsRefresh(); }
+}
 async function p2pForget(key, quiet) {                               // the folder for this release is forgotten: downloads stop, files go
   const rec = p2pDl[key]; if (!rec) return;
   for (const so of rec.songs) { if (p2pActive(so) && so.id) await p2pCall('dlremove', { user: rec.user, id: so.id }); if (so.local && !(p2pLocalCur && p2pLocalCur.s === so)) await p2pDelete(rec, so); }
@@ -183,7 +207,7 @@ async function p2pTick() {                                          // every 2 s
         if (t && p2pActive(s)) {
           s.id = t.id; s.pct = t.pct; s.speed = t.speed; s.place = t.place;
           if (/Succeeded/i.test(t.state)) { s.st = 'done'; s.doneAt = Date.now(); s.pct = 100; }
-          else if (/Completed/i.test(t.state)) { s.st = 'fail'; s.err = (t.error || t.state.replace(/^Completed,\s*/, '')).slice(0, 160); }
+          else if (/Completed/i.test(t.state)) { s.st = 'fail'; s.err = (t.error || t.state.replace(/^Completed,\s*/, '')).slice(0, 160); if (P2P_REFUSAL.test(s.err + ' ' + t.state)) { p2pNoteRefusal(rec.user, s.err); if (rec.prefer || rec.keepAll) p2pSwitchSource(rec.key); } }          // (1.107.0) refused: someone else
           else s.st = /InProgress|Initializing/i.test(t.state) ? 'down' : 'wait';
         }
         if (s.st === 'done' && !s.local) { const loc = await p2pLocate(s.path, s.size); if (loc) s.local = loc; }
@@ -200,6 +224,7 @@ setInterval(() => { if (!document.hidden || Object.values(p2pDl).some(r => r.son
 
 // ----- Processing (category P2P) -----
 function p2pJobs(run, need) {
+  p2pSwitching.forEach(k => { const r = p2pDl[k]; run.push({ cat: 'p2p', icon: 'search', title: `Finding another sharer for ${r ? r.title : 'a release'}`, sub: r ? `${r.user} refused` : '', pct: null, detail: r && p2pRefuses(r.user) ? p2pRefuses(r.user).why : '' }); });
   if (p2pNewQ.length && p2pNewOn()) run.push({ cat: 'p2p', icon: 'search', title: 'Finding new releases on Soulseek', sub: `${p2pNewQ.length} waiting`, pct: null, detail: p2pNewState.now ? `Searching for ${p2pNewState.now}` : `${p2pNewQ.filter(e => e.tries).length ? 'some wait for their tracklist; ' : ''}one every 2 minutes, remembering the best folder for each (nothing is downloaded)`, acts: [{ icon: 'x', label: 'Stop', fn: () => { p2pNewQ.length = 0; p2pNewSave(); jobsRefresh(); } }] });
   p2pAutoFlight.forEach(f => run.push({ cat: 'p2p', icon: 'search', title: `Looking for ${f.title} on Soulseek`, sub: f.artist, pct: null, detail: 'A song of it has no link Spotify or YouTube can play: a sure match will be downloaded and played' }));
   Object.entries(p2pAutoMissed).forEach(([k, m]) => { if (Date.now() - m.at > 6 * 3600000 || m.dismissed) return; need.push({ cat: 'p2p', icon: 'search', title: `${m.title}: no good match on Soulseek`, detail: m.isNew ? `Added to your crate: ${m.why}.` : `${m.why}. Its songs without a link were skipped.`, acts: [{ label: 'Pick a folder', fn: () => { const it = p2pItemByKey(k); if (it) p2pOpen(it); }, opens: true, primary: true }, { label: 'Dismiss', fn: () => { m.dismissed = true; } }] }); });
@@ -231,14 +256,18 @@ function p2pWouldTake(item, track) {                                // the same 
   return !!(s && s.st !== 'fail' && !(p2pIdle(s) && !rec.prefer) && !(s.st === 'done' && !s.local && p2pDirPerm !== 'granted'));
 }
 function p2pQueueTake(myId, index, item, track) {                   // called by playCrateQueueIndex: true when this song is ours to play (now, or once it lands)
-  const rec = item && p2pDl[artKey(item)], s = p2pSongFor(item, track);
+  const rec = item && p2pDl[artKey(item)], rec0 = rec, s = p2pSongFor(item, track); if (item) p2pItemRefs.set(artKey(item), item);
   if (!s || s.st === 'fail') return false;                           // not in the folder, or it failed: the usual sources play it
   if (p2pIdle(s) && !rec.prefer) return false;                        // a release not played from P2P: its own links
   if (s.st === 'done' && !s.local && p2pDirPerm !== 'granted') return false;          // here, but CRATE can't open the folder: play it another way
   let told = false;
   p2pSyncWindow();                                                    // this song, and the next ones, on their way
+  let s0 = s;
   const go = async () => {
     if (myId !== crateQueueId || crateQueueIndex !== index) return;
+    const key = artKey(item), now = p2pSongFor(item, track); if (now && now !== s0) s0 = now;          // (1.107.0) the release switched source: its song there
+    const s = s0, rec = p2pDl[key] || rec0;
+    if (s.st === 'fail' && p2pSwitching.has(key)) { p2pShowWaiting(item, track, s); el.miniPlayerTimeCurrent.textContent = 'finding another sharer\u2026'; setTimeout(go, 800); return; }
     if (s.st === 'done' && s.local) { const f = await p2pLocalFile(s); if (myId !== crateQueueId || crateQueueIndex !== index) return; if (f) { p2pLocalPlay(f, item, track, rec, s); p2pSyncWindow(); return; } s.local = null; s.st = 'idle'; p2pSyncWindow(); }
     if (s.st === 'fail') { flashGlobalToast(`"${track.trackName}" didn’t download: playing on.`); playCrateQueueIndex(myId, index + 1); return; }
     if (p2pIdle(s)) p2pSyncWindow();
@@ -376,6 +405,7 @@ function p2pAutoTake(myId, index, item, track, opts) {               // called w
   if ((!p2pAutoOn() && !(opts && opts.force)) || !p2p.ready || !p2p.configured || !item || !track || !track.trackName) return false;
   const miss = p2pAutoMissed[artKey(item)]; if (miss && Date.now() - miss.at < 15 * 60000) return false;          // looked a moment ago and found nothing sure
   const rec0 = p2pDl[artKey(item)]; if (rec0) { rec0.prefer = true; p2pDlSave(); }
+  if (p2pSwitching.has(artKey(item))) { const s = p2pSongFor(item, track); if (s) { s.st = 'idle'; } }          // (1.107.0) switching sharers: this song comes from the new one
   if (p2pQueueTake(myId, index, item, track)) return true;          // its folder is remembered: fetched (or here) without searching
   stopOtherEngines('local'); p2pLocalStop(); setMasterPlayerEngine('local'); p2pMiniPlayerFor(item, track);
   el.miniPlayerTimeCurrent.textContent = 'searching P2P\u2026'; setMiniPlayerPlayPauseIcon(true);

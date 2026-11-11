@@ -17,7 +17,17 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.106.0
+  CURRENT_VERSION: 1.107.0
+
+  1.107.0 — 2026-11-11 — A sharer who refuses you ("Verification required", banned, not shared…) is remembered, and the release switches to the next-best sharer by itself, the song carrying on. Page only (CRATE for P2P 0.2.1).
+
+          Some Soulseek users (often bots) refuse anyone they haven't verified, which usually means
+          anyone who shares nothing. When a download comes back refused, CRATE now remembers that
+          sharer for a week, searches again (within the search limit) for the best folder from
+          someone else, and makes it the release's source; the song that was waiting plays from the
+          new sharer instead of being skipped. The player says "finding another sharer…" meanwhile,
+          and Processing shows it. Sharers who refused you are marked "Refused you" in Find on P2P
+          and never picked by themselves. Sharing a folder of your own in slskd makes refusals rarer.
 
   1.106.0 — 2026-11-11 — Soulseek searches are paced so the server doesn't block your connection: the add-on allows at most one every 15 seconds and 30 an hour, and new releases are searched one every 2 minutes. Page and CRATE for P2P 0.2.1.
 

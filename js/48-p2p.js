@@ -147,7 +147,7 @@ function p2pUseSource(item, f, tracks) {                            // (1.101.0)
   if (typeof p2pMakeRec === 'function') p2pMakeRec(item, p2pChoiceFor(item));
 }
 function p2pBestOf(ranked, prefs) {                                  // the source CRATE picks by itself: among sure matches (else likely ones), the best, or (1.105.0, Pick source by: Fastest) the one that can start soonest
-  const ok = (v) => (ranked || []).filter(f => f.m && !f.m.unavailable && f.m.verdict === v), tier = ok('sure').length ? ok('sure') : ok('likely');
+  const ok = (v) => (ranked || []).filter(f => f.m && !f.m.unavailable && f.m.verdict === v && !(typeof p2pRefuses === 'function' && p2pRefuses(f.user))),          /* (1.107.0) not someone who refused you */ tier = ok('sure').length ? ok('sure') : ok('likely');
   if (!tier.length) return null;
   if ((prefs || p2pPrefs()).pickBy === 'speed') return tier.slice().sort((a, b) => (b.freeSlot - a.freeSlot) || (a.queue - b.queue) || (b.speed - a.speed))[0];
   return tier[0];
@@ -311,7 +311,7 @@ function p2pRender() {
     return `<div class="p2p-folder${m ? ' v-' + m.verdict : ''}${isChosen ? ' chosen' : ''}${open ? ' open' : ''}" data-key="${escapeHtml(key)}">
       <button type="button" class="p2p-folder-head" data-p2p-folder="${i}" aria-expanded="${open}">
         <span class="p2p-name"><b>${escapeHtml(f.name)}</b>${parent ? `<small>${escapeHtml(parent)}</small>` : ''}</span>
-        <span class="p2p-meta"><span class="p2p-fmt${f.lossless ? ' lossless' : ''}">${escapeHtml(fmt)}</span><span>${f.count} song${f.count === 1 ? '' : 's'}</span><span>${p2pLen(f.totalSec)}</span><span>${p2pSize(f.totalSize)}</span>${avail}${f.locked ? '<span class="p2p-pill bad" title="This user only shares these with friends">Locked</span>' : ''}</span>
+        <span class="p2p-meta"><span class="p2p-fmt${f.lossless ? ' lossless' : ''}">${escapeHtml(fmt)}</span><span>${f.count} song${f.count === 1 ? '' : 's'}</span><span>${p2pLen(f.totalSec)}</span><span>${p2pSize(f.totalSize)}</span>${avail}${f.locked ? '<span class="p2p-pill bad" title="This user only shares these with friends">Locked</span>' : ''}${typeof p2pRefuses === 'function' && p2pRefuses(f.user) ? `<span class="p2p-pill bad" title="${escapeHtml(p2pRefuses(f.user).why)}">Refused you</span>` : ''}</span>
         <span class="p2p-user">${escapeHtml(f.user)}${f.speed ? ` · ${p2pSize(f.speed)}/s` : ''}</span>
         ${m ? `<span class="p2p-verdict"><span class="p2p-v">${escapeHtml(m.label)}</span>${m.notes.map(x => `<span class="p2p-note">${escapeHtml(x)}</span>`).join('')}</span>` : ''}
       </button>
