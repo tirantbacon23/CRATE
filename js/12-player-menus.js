@@ -800,6 +800,7 @@ function openAlbumCardContextMenu(item, x, y) {
     <button type="button" data-card-action="fullVideo">Full-release video…</button>
     <button type="button" data-card-action="editTracks">Edit tracks…</button>
     ${selItems.length > 1 ? '' : '<button type="button" data-card-action="pullDetails">Pull details\u2026</button>'}
+    <button type="button" data-card-action="dlRelease">${selItems.length > 1 ? `Download ${selItems.length} selected from Soulseek` : 'Download from Soulseek'}</button>
     ${selItems.length > 1 ? '' : `<button type="button" data-card-action="p2pFind">${typeof p2pHasSource === 'function' && p2pHasSource(item) ? 'Change P2P source\u2026' : 'Find on P2P\u2026'}</button>`}
     ${(() => { const its = selItems.length > 1 ? selItems : [item], hid = its.every(x => x.friendsHidden); return `<button type="button" data-card-action="${hid ? 'friendsShow' : 'friendsHide'}" title="${hid ? 'Friends can see it again' : 'Friends won\u2019t see it in your crate, diary or activity'}">${hid ? 'Show to friends' : 'Hide from friends'}${its.length > 1 ? ` (${its.length})` : ''}</button>`; })()}
     ${selItems.length > 1 || !(typeof soc !== 'undefined' && soc.me) ? '' : '<button type="button" data-card-action="recommend">Recommend to a friend\u2026</button>'}
@@ -849,7 +850,8 @@ function openAlbumCardContextMenu(item, x, y) {
     else if (action === 'fullVideo') fvOpen(item);
     else if (action === 'editTracks') tgOpen(item);
     else if (action === 'pullDetails') pdOpen(item);
-    else if (action === 'p2pFind') p2pOpen(item);          // (1.96.0) search Soulseek through the CRATE for P2P add-on
+    else if (action === 'p2pFind') p2pOpen(item);
+    else if (action === 'dlRelease') { if (typeof dlRelease === 'function') (async () => { for (const it of (selItems.length > 1 ? selItems : [item])) await dlRelease(it); })(); }          // (1.130.0)          // (1.96.0) search Soulseek through the CRATE for P2P add-on
     else if (action === 'recommend') { if (typeof socRecommendOpen === 'function') socRecommendOpen(item); }
     else if (action === 'friendsHide' || action === 'friendsShow') { if (typeof socSetHidden === 'function') socSetHidden(selItems.length > 1 ? selItems : [item], action === 'friendsHide'); }
     else if (action === 'recordedAt') locFind(selItems.length > 1 ? selItems : [item]);

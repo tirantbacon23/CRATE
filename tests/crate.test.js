@@ -1427,3 +1427,17 @@ suite('Descriptors for songs (1.129.0)', () => {
   });
 });
 
+suite('Downloads view (1.130.0)', () => {
+  test('releases are sorted into Active, Done and Didn\'t work, and songs show where they are up to', () => {
+    const dl = app('p2pDl'), key = '__dlv test', s = (o) => Object.assign({ k: 0, tn: 1, name: 'A', path: 'x\\a.flac', size: 1, pct: 0, asked: true }, o);
+    try {
+      dl[key] = { key, artist: 'X', title: 'Y', user: 'u', songs: [s({ st: 'down', pct: 40 })], keepAll: false };
+      eq(app('dlvKind')(dl[key]), 'active');
+      dl[key].songs = [s({ st: 'done', local: { dir: 'd', file: 'f' } })]; eq(app('dlvKind')(dl[key]), 'done');
+      dl[key].songs = [s({ st: 'fail', err: 'refused' })]; eq(app('dlvKind')(dl[key]), 'fail');
+      ok(/didn.t work: refused/.test(app('dlvSongLine')(dl[key], dl[key].songs[0])));
+      ok(/3rd in queue/.test(app('dlvSongLine')(dl[key], s({ st: 'wait', place: 3 }))));
+    } finally { delete dl[key]; }
+  });
+});
+

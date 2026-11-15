@@ -17,7 +17,37 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.129.0
+  CURRENT_VERSION: 1.130.0
+
+  1.130.0 — 2026-11-15 — Download from Soulseek with one click (a release, a song, or the song playing), and a Downloads view in the right-hand column or a floating window. Page only (uses the CRATE for P2P add-on and slskd, as before).
+
+          THE BUTTON: "↓ Download" in a release's window (it then says
+          "Downloading 3 of 11", "Downloaded" or "2 didn't download: retry")
+          and "Download from Soulseek" on a release's right-click menu (one or
+          several selected); a small ↓ on each song row (on hover) for that
+          song alone; and ↓ beside the song playing in the player, when it
+          isn't already playing from a file. CRATE finds the best source (or
+          uses the one you picked in Find on P2P). Once a song is on its way,
+          the row's progress badge takes over from its ↓.
+          KEPT OR DELETED as your download setting says (After playing: delete
+          the file, keep up to a size, keep everything). A song or release you
+          asked for is kept until you've played it (or for a day) even when
+          the setting is "delete": before, a song downloaded on its own could
+          be deleted a few seconds after it arrived, unplayed.
+          DOWNLOADS: a tab at the top of the right-hand column ("Up next |
+          Downloads", with a count of what's downloading) takes the column
+          over while it's open, so the covers stay where they are; ⧉ floats it
+          as a window you can drag and resize, and ⇥ puts it back. At the top:
+          whether slskd is connected, the total speed, how many songs are
+          downloading, waiting and on disk, and the folder (or a button to
+          choose or allow it). Each release: cover, who it's from, format and
+          size, an overall bar, and each song's bar with its speed, its place
+          in the sharer's queue, "on your disk", or why it didn't work. Active
+          / Done / Didn't work. A release's ⋯: Retry, Stop downloading,
+          Download every song, Change source…, Open in my crate, Clear from
+          this list, Forget. At the foot: After playing, Download ahead, and
+          "Open when I download" (on: Downloads opens by itself the first time
+          you download something). Also ⚙ → Tools → Downloads.
 
   1.129.0 — 2026-11-15 — Descriptors for songs: the same descriptors as releases, on single songs, shown as chips under the song's name, with search (desc:, liked:). Fix: the heart no longer breaks the rows of the Album and tracks view. Page only.
 

@@ -80,7 +80,7 @@ async function p2pTidy() {                                          // "After pl
   const all = []; Object.values(p2pDl).forEach(rec => rec.songs.forEach(s => { if (s.st === 'done' && s.local && s !== cur) all.push([rec, s]); }));
   if (keep.mode === 'delete') {                                      // played ones go; so do ones skipped past (outside the window, a few seconds after they arrived), which can be fetched again; a release fetched whole keeps its unplayed songs a day
     const want = p2pWanted();
-    for (const [rec, s] of all) if (s.played || (!rec.keepAll && !s.pinned && !want.has(s) && Date.now() - (s.doneAt || 0) > 8000) || Date.now() - (s.doneAt || 0) > 24 * 3600000) await p2pDelete(rec, s);          // (a song you asked to download first is kept until it's played)
+    for (const [rec, s] of all) if (s.played || (!rec.keepAll && !s.pinned && !s.asked && !want.has(s) && Date.now() - (s.doneAt || 0) > 8000) || Date.now() - (s.doneAt || 0) > 24 * 3600000) await p2pDelete(rec, s);          // (a song you asked to download first is kept until it's played)
   }
   else if (keep.mode === 'cap') {
     let total = all.reduce((a, [, s]) => a + (s.size || 0), 0); const cap = Math.max(0.1, Number(keep.capGb) || 2) * 1e9;
