@@ -1,8 +1,8 @@
 /**
  * CRATE — Friends (Social.gs)
  *
- * A second file in the same Apps Script project as CRATE.gs. Apps Script shares every function between a project's files, so
- * this one uses CRATE.gs's helpers (_getUserSpreadsheet, _readSheet, _json) and CRATE.gs sends it every request whose action
+ * A second file in the same Apps Script project as apps-script-backend.gs. Apps Script shares every function between a project's files, so
+ * this one uses apps-script-backend.gs's helpers (_getUserSpreadsheet, _readSheet, _json) and apps-script-backend.gs sends it every request whose action
  * starts with "social" (one line near the top of doPost; see the setup notes in CHANGELOG.txt, 1.114.0).
  *
  * WHAT IT KEEPS, AND WHERE
@@ -15,7 +15,7 @@
  *  - A friend's crate and diary are read straight from THEIR spreadsheet when asked, and only when the two are friends and that
  *    friend shares it. Nothing is copied.
  *
- * Only people ALLOWED_EMAILS lets in can use any of this (CRATE.gs checks before a request gets here).
+ * Only people ALLOWED_EMAILS lets in can use any of this (apps-script-backend.gs checks before a request gets here).
  */
 
 const SOC_ONLINE_MS = 150 * 1000;          // seen in the last 2½ minutes: online

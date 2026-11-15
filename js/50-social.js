@@ -7,16 +7,16 @@
 //
 // THE HEARTBEAT (socBeat): while you're signed in, CRATE tells the backend about once a minute that you're here and what you're playing (the
 // song, the release, its cover, playing or paused, and where it plays from), and at once when the song changes or you pause. The same request
-// brings back your friends: who's playing, who's online, when the others were last seen. Every 25 s while the Friends window is open.
+// brings back your friends: who's playing, who's online, when the others were last seen. Every 25 s while the Friends panel is open.
 // "What I'm playing" off sends no song; "Appear offline" sends nothing at all and friends see you as offline.
 //
 // PHASE 1 of the friends sketch (https://claude.ai/artifact/2U7nNXahFHiHRG1vSP5ZvM). The backend already answers socialFriend (a friend's
 // crate, ratings and diary, read from their own sheet); the screens for those come next.
 
 const SOC_BEAT_MS = 60000, SOC_BEAT_OPEN_MS = 25000, SOC_PREFS_KEY = 'crate_social_v1';
-const soc = { me: null, friends: [], incoming: [], outgoing: [], at: 0, err: '', unsupported: false, busy: false, timer: 0, lastKey: '', lastBeat: 0, note: '' };
+const soc = { setDrawn: false, me: null, friends: [], incoming: [], outgoing: [], at: 0, err: '', unsupported: false, busy: false, timer: 0, lastKey: '', lastBeat: 0, note: '' };
 
-function socOpenNow() { const ov = document.getElementById('friendsOverlay'); return !!(ov && !ov.hidden); }
+function socOpenNow() { const pn = document.getElementById('friendsPanel'); return !!(pn && !pn.hidden); }
 function socMyName() { const p = typeof decodeJwtPayload === 'function' ? decodeJwtPayload(getStoredIdToken() || '') : null; return (p && (p.given_name || p.name)) || ''; }
 
 async function socCall(action, extra) {
@@ -108,33 +108,43 @@ function socFriendRow(f) {
     + `<button type="button" class="chip-btn soc-more" data-soc-remove="${escapeHtml(f.id)}" data-soc-name="${escapeHtml(f.name)}" title="Remove ${escapeHtml(f.name)} from your friends">Remove</button></span></div>`;
 }
 
+// The panel has two parts: the list (redrawn with every heartbeat) and, behind the ⚙ button, Add a friend and What friends can see (drawn
+// only when it opens or a setting changes, so a code you're typing isn't wiped by the next heartbeat).
 function socRender() {
-  const body = document.getElementById('friendsBody'), sub = document.getElementById('friendsSub'); if (!body) return;
+  const list = document.getElementById('friendsList'), sub = document.getElementById('friendsSub'); if (!list) return;
+  const hdr = document.getElementById('friendsMinInfo');
   if (soc.unsupported) {
-    sub.textContent = 'Not set up yet';
-    body.innerHTML = `<div class="soc-empty"><b>Your backend doesn't have friends yet.</b><p>Add <code>Social.gs</code> to the CRATE Apps Script project, add one line to <code>CRATE.gs</code>, and redeploy. The steps are in the changelog under 1.114.0.</p><button type="button" class="chip-btn" data-soc-retry>Try again</button></div>`;
-    return;
+    sub.textContent = 'Not set up yet'; if (hdr) hdr.textContent = '';
+    list.innerHTML = `<div class="soc-empty"><b>Your backend doesn't have friends yet.</b><p>Replace <code>apps-script-backend.gs</code> in your Apps Script project with the new one (it has the friends part), then redeploy: Deploy → Manage deployments → ✎ → New version. The steps are in the changelog under 1.114.1.</p><button type="button" class="chip-btn" data-soc-retry>Try again</button></div>`;
+    socSetRender(); return;
   }
-  if (!soc.me) { sub.textContent = soc.err ? '' : 'Loading…'; body.innerHTML = soc.err ? `<div class="soc-empty"><b>Couldn't load friends.</b><p>${escapeHtml(soc.err)}</p><button type="button" class="chip-btn" data-soc-retry>Try again</button></div>` : '<div class="soc-empty">Loading…</div>'; return; }
-  const by = (s) => soc.friends.filter(f => f.status === s);
+  if (!soc.me) { sub.textContent = soc.err ? '' : 'Loading…'; list.innerHTML = soc.err ? `<div class="soc-empty"><b>Couldn't load friends.</b><p>${escapeHtml(soc.err)}</p><button type="button" class="chip-btn" data-soc-retry>Try again</button></div>` : '<div class="soc-empty">Loading…</div>'; socSetRender(); return; }
+  const by = (st) => soc.friends.filter(f => f.status === st);
   const playing = by('playing'), online = by('online'), offline = by('offline').sort((a, b) => (b.seen || 0) - (a.seen || 0));
-  sub.textContent = soc.friends.length ? `${soc.friends.length} friend${soc.friends.length === 1 ? '' : 's'} · ${playing.length + online.length} online` : 'No friends yet';
-  const grp = (title, list) => list.length ? `<div class="soc-grp">${title} · ${list.length}</div>` + list.map(socFriendRow).join('') : '';
-  const me = soc.me, sh = me.share || {};
-  const sw = (k, label, help, on) => `<label class="soc-tg"><span>${label}${help ? `<small>${help}</small>` : ''}</span><input type="checkbox" data-soc-share="${k}" ${on ? 'checked' : ''}></label>`;
-  body.innerHTML = ''
+  sub.textContent = soc.friends.length ? `${playing.length + online.length} of ${soc.friends.length} online` : 'No friends yet';
+  if (hdr) hdr.textContent = playing.length ? `${playing.length} listening` : '';
+  const grp = (title, l) => l.length ? `<div class="soc-grp">${title} · ${l.length}</div>` + l.map(socFriendRow).join('') : '';
+  list.innerHTML = ''
     + (soc.note ? `<div class="soc-note" role="status">${escapeHtml(soc.note)}</div>` : '')
     + (soc.err ? `<div class="soc-note soc-warn" role="status">${escapeHtml(soc.err)}</div>` : '')
     + (soc.incoming.length ? `<div class="soc-grp">Requests · ${soc.incoming.length}</div>` + soc.incoming.map(p => `<div class="soc-row">${socAvatar(p)}<div class="soc-who"><div class="soc-name">${escapeHtml(p.name)}</div><span class="soc-sub">wants to be friends</span></div><span class="soc-acts"><button type="button" class="chip-btn soc-acc" data-soc-accept="${escapeHtml(p.id)}">Accept</button><button type="button" class="chip-btn" data-soc-ignore="${escapeHtml(p.id)}">Ignore</button></span></div>`).join('') : '')
     + (soc.friends.length ? grp('Listening now', playing) + grp('Online', online) + grp('Offline', offline)
-      : `<div class="soc-empty"><b>No friends yet.</b><p>Send a friend your code below, or enter theirs. Friends see each other's online status and what's playing; crates, diaries and ratings come in the next update.</p></div>`)
-    + (soc.outgoing.length ? `<div class="soc-grp">Sent · ${soc.outgoing.length}</div>` + soc.outgoing.map(p => `<div class="soc-row">${socAvatar(p)}<div class="soc-who"><div class="soc-name">${escapeHtml(p.name)}</div><span class="soc-sub">hasn't answered yet</span></div><button type="button" class="chip-btn" data-soc-remove="${escapeHtml(p.id)}">Take back</button></div>`).join('') : '')
-    + `<div class="soc-sec"><div class="soc-sec-h">Add a friend</div>
+      : `<div class="soc-empty"><b>No friends yet.</b><p>Send a friend your code, or enter theirs, under <b>⚙ Add a friend</b>.</p><button type="button" class="chip-btn soc-acc" data-soc-settings>Add a friend</button></div>`)
+    + (soc.outgoing.length ? `<div class="soc-grp">Sent · ${soc.outgoing.length}</div>` + soc.outgoing.map(p => `<div class="soc-row">${socAvatar(p)}<div class="soc-who"><div class="soc-name">${escapeHtml(p.name)}</div><span class="soc-sub">hasn't answered yet</span></div><span class="soc-acts"><button type="button" class="chip-btn" data-soc-remove="${escapeHtml(p.id)}">Take back</button></span></div>`).join('') : '');
+  if (!soc.setDrawn) socSetRender();
+}
+function socSetRender() {
+  const box = document.getElementById('friendsSettings'), on = !!socPos().settings; if (!box) return;
+  box.hidden = !on; document.getElementById('friendsSetBtn').setAttribute('aria-pressed', on ? 'true' : 'false');
+  if (!on || !soc.me) { box.innerHTML = ''; soc.setDrawn = false; return; }
+  const me = soc.me, sh = me.share || {};
+  const sw = (k, label, help, v) => `<label class="soc-tg"><span>${label}${help ? `<small>${help}</small>` : ''}</span><input type="checkbox" data-soc-share="${k}" ${v ? 'checked' : ''}></label>`;
+  box.innerHTML = `<div class="soc-sec"><div class="soc-sec-h">Add a friend</div>
         <div class="soc-code-row"><span class="soc-code" id="socMyCode">${escapeHtml(me.code)}</span><button type="button" class="chip-btn" data-soc-copy>Copy</button><button type="button" class="chip-btn" data-soc-newcode title="Make a new code. The old one stops working.">New code</button></div>
         <p class="soc-hint">Your friend code. Send it to a friend, or enter theirs:</p>
-        <form class="soc-add" id="socAddForm"><input id="socAddCode" type="text" placeholder="CRT-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Friend's code"><button type="submit" class="chip-btn soc-acc">Send request</button></form>
-      </div>`
-    + `<div class="soc-sec"><div class="soc-sec-h">What friends can see</div>
+        <form class="soc-add" id="socAddForm"><input id="socAddCode" type="text" placeholder="CRT-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Friend's code"><button type="submit" class="chip-btn soc-acc">Send</button></form>
+      </div>
+      <div class="soc-sec"><div class="soc-sec-h">What friends can see</div>
         <label class="soc-tg"><span>Your name</span><input id="socName" type="text" value="${escapeHtml(me.name || '')}" maxlength="40" aria-label="Your name, as friends see it"></label>
         ${sw('playing', 'What I\'m playing', '', sh.playing)}
         ${sw('crate', 'My crate', 'Releases, covers, genres', sh.crate)}
@@ -142,6 +152,7 @@ function socRender() {
         ${sw('diary', 'My diary', 'Reviews included', sh.diary)}
         <label class="soc-tg"><span>Appear offline<small>You still see your friends</small></span><input type="checkbox" data-soc-off ${me.off ? 'checked' : ''}></label>
       </div>`;
+  soc.setDrawn = true;
 }
 
 // The header button: a people icon, a green count of friends playing now, a dot for requests waiting.
@@ -152,28 +163,81 @@ function socBtnRender() {
   if (cnt) { cnt.hidden = !n; cnt.textContent = String(n); }
   if (req) req.hidden = !soc.incoming.length;
   b.classList.toggle('soc-live', n > 0);
+  b.setAttribute('aria-pressed', socOpenNow() ? 'true' : 'false');
   b.title = 'Friends' + (soc.friends.length ? ` · ${n} listening, ${on} online` : '') + (soc.incoming.length ? ` · ${soc.incoming.length} request${soc.incoming.length === 1 ? '' : 's'}` : '');
 }
 
-function socOpen() { const ov = document.getElementById('friendsOverlay'); if (!ov) return; ov.hidden = false; soc.note = ''; socRender(); socBeat(); socSchedule(); }
-function socClose() { const ov = document.getElementById('friendsOverlay'); if (ov) ov.hidden = true; soc.note = ''; socSchedule(); }
+// THE PANEL: it floats over CRATE without blocking it. Drag it by its header, resize it from its corner, fold it down to the header (–).
+// Where it is, its size, whether it's folded and whether it's open are kept in this browser, so it comes back where you left it.
+function socPos() { try { return JSON.parse(localStorage.getItem(SOC_PREFS_KEY) || '{}') || {}; } catch (e) { return {}; } }
+function socPosSave(patch) { const v = Object.assign(socPos(), patch); try { localStorage.setItem(SOC_PREFS_KEY, JSON.stringify(v)); } catch (e) { /* this visit only */ } return v; }
+function socPhone() { return window.innerWidth < 640; }
+function socPlace() {
+  const pn = document.getElementById('friendsPanel'); if (!pn || pn.hidden) return;
+  const v = socPos();
+  pn.classList.toggle('soc-min', !!v.min);
+  if (socPhone()) { pn.style.left = pn.style.top = pn.style.width = pn.style.height = ''; return; }          // a sheet along the bottom (CSS)
+  if (v.w) pn.style.width = Math.max(280, Math.min(v.w, innerWidth - 16)) + 'px';
+  pn.style.height = v.min ? '' : (v.h ? Math.max(220, Math.min(v.h, innerHeight - 16)) + 'px' : '');
+  const r = pn.getBoundingClientRect();
+  const x = v.x == null ? innerWidth - r.width - 24 : v.x, y = v.y == null ? 110 : v.y;
+  pn.style.left = Math.max(8, Math.min(x, innerWidth - r.width - 8)) + 'px';
+  pn.style.top = Math.max(8, Math.min(y, innerHeight - 48)) + 'px';
+  socFit(pn);
+}
+function socFit(pn) { if (!socPhone()) pn.style.maxHeight = Math.max(120, innerHeight - parseFloat(pn.style.top || 110) - 8) + 'px'; else pn.style.maxHeight = ''; }      // never past the bottom of the screen
+function socDragInit(pn) {
+  const head = document.getElementById('friendsHead');
+  head.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || e.target.closest('button') || socPhone()) return;
+    const r = pn.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
+    head.setPointerCapture(e.pointerId); pn.classList.add('soc-dragging'); e.preventDefault();
+    const move = (ev) => {
+      pn.style.left = Math.max(8, Math.min(ev.clientX - dx, innerWidth - r.width - 8)) + 'px';
+      pn.style.top = Math.max(8, Math.min(ev.clientY - dy, innerHeight - 48)) + 'px'; socFit(pn);
+    };
+    const up = () => {
+      head.removeEventListener('pointermove', move); head.removeEventListener('pointerup', up); head.removeEventListener('pointercancel', up);
+      pn.classList.remove('soc-dragging'); socPosSave({ x: parseFloat(pn.style.left), y: parseFloat(pn.style.top) });
+    };
+    head.addEventListener('pointermove', move); head.addEventListener('pointerup', up); head.addEventListener('pointercancel', up);
+  });
+  head.addEventListener('dblclick', (e) => { if (!e.target.closest('button')) socMinToggle(); });
+  // its size, after you drag the corner (CSS resize)
+  if (window.ResizeObserver) {
+    let t = 0;
+    new ResizeObserver(() => {
+      if (pn.hidden || socPhone() || pn.classList.contains('soc-min')) return;
+      clearTimeout(t); t = setTimeout(() => { const r = pn.getBoundingClientRect(); if (r.width && r.height) socPosSave({ w: Math.round(r.width), h: pn.style.height || pn.dataset.sized ? Math.round(r.height) : undefined }); }, 300);
+    }).observe(pn);
+    pn.addEventListener('pointerdown', (e) => { const r = pn.getBoundingClientRect(); if (e.clientX > r.right - 18 && e.clientY > r.bottom - 18) pn.dataset.sized = '1'; });
+  }
+  window.addEventListener('resize', socPlace);
+}
+function socMinToggle() { socPosSave({ min: !socPos().min }); socPlace(); }
+
+function socOpen() { const pn = document.getElementById('friendsPanel'); if (!pn) return; pn.hidden = false; socPosSave({ open: true }); soc.note = ''; socPlace(); socRender(); socBtnRender(); socBeat(); socSchedule(); }
+function socClose() { const pn = document.getElementById('friendsPanel'); if (pn) pn.hidden = true; socPosSave({ open: false }); soc.note = ''; socBtnRender(); socSchedule(); }
+function socToggle() { if (socOpenNow()) { if (socPos().min) socMinToggle(); else socClose(); } else socOpen(); }
 
 async function socDo(action, extra, okNote) {
-  try { const d = await socCall(action, extra); soc.note = d.note || okNote || ''; socTake(d); }
+  try { const d = await socCall(action, extra); soc.note = d.note || okNote || ''; socTake(d); if (/socialSettings|socialNewCode/.test(action)) socSetRender(); }
   catch (e) { soc.note = ''; soc.err = e.message || String(e); socRender(); }
 }
 
 function initSocial() {
-  const ov = document.getElementById('friendsOverlay'), btn = document.getElementById('friendsBtn'); if (!ov || !btn) return;
-  btn.addEventListener('click', socOpen);
+  const pn = document.getElementById('friendsPanel'), btn = document.getElementById('friendsBtn'); if (!pn || !btn) return;
+  btn.addEventListener('click', socToggle);
   document.getElementById('friendsClose').addEventListener('click', socClose);
-  ov.addEventListener('mousedown', (e) => { if (e.target === ov) socClose(); });
-  ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') socClose(); });
-  const body = document.getElementById('friendsBody');
-  body.addEventListener('click', (e) => {
-    const b = e.target.closest('button'); if (!b) return;
+  document.getElementById('friendsMin').addEventListener('click', socMinToggle);
+  document.getElementById('friendsSetBtn').addEventListener('click', () => { const on = !socPos().settings; socPosSave({ settings: on, min: false }); socPlace(); socSetRender(); if (on) { const x = document.getElementById('friendsSettings'); x.scrollIntoView({ block: 'nearest' }); } });
+  pn.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !e.target.matches('input')) socClose(); });
+  socDragInit(pn);
+  pn.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b || !pn.querySelector('.friends-body').contains(b)) return;
     soc.err = '';
     if (b.hasAttribute('data-soc-retry')) { soc.unsupported = false; soc.lastBeat = 0; socBeat(); }
+    else if (b.hasAttribute('data-soc-settings')) { socPosSave({ settings: true }); socSetRender(); document.getElementById('friendsSettings').scrollIntoView({ block: 'nearest' }); }
     else if (b.dataset.socAccept) socDo('socialAnswer', { id: b.dataset.socAccept, accept: true });
     else if (b.dataset.socIgnore) socDo('socialAnswer', { id: b.dataset.socIgnore, accept: false });
     else if (b.dataset.socRemove) {
@@ -186,14 +250,14 @@ function initSocial() {
       const done = () => { b.textContent = 'Copied'; setTimeout(() => { if (b.isConnected) b.textContent = 'Copy'; }, 1500); };
       try { navigator.clipboard.writeText(code).then(done, () => { const r = document.createRange(); r.selectNodeContents(document.getElementById('socMyCode')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }); } catch (er) { /* select it by hand */ }
     }
-    else if (b.dataset.socOpen) { const it = pbItemOf(b.dataset.socOpen); if (it) { socClose(); openDeck(it); } }
+    else if (b.dataset.socOpen) { const it = pbItemOf(b.dataset.socOpen); if (it) openDeck(it); }          // the panel stays where it is
   });
-  body.addEventListener('submit', (e) => {
+  pn.addEventListener('submit', (e) => {
     if (e.target.id !== 'socAddForm') return; e.preventDefault();
     const v = document.getElementById('socAddCode').value.trim(); if (!v) return;
-    socDo('socialAdd', { code: v });
+    socDo('socialAdd', { code: v }).then(() => { if (!soc.err) { const x = document.getElementById('socAddCode'); if (x) x.value = ''; } });
   });
-  body.addEventListener('change', (e) => {
+  pn.addEventListener('change', (e) => {
     const t = e.target;
     if (t.dataset.socShare) socDo('socialSettings', { share: { [t.dataset.socShare]: t.checked } });
     else if (t.hasAttribute('data-soc-off')) socDo('socialSettings', { off: t.checked }, t.checked ? 'Friends now see you as offline.' : 'Friends can see you again.');
@@ -201,6 +265,7 @@ function initSocial() {
   });
   setInterval(socWatch, 4000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - soc.lastBeat > 20000) socBeat(); });
+  if (socPos().open && !(typeof CRATE_POPOUT_WINDOW !== 'undefined' && CRATE_POPOUT_WINDOW)) socOpen();          // open last time: open again, where it was
   setTimeout(() => { socBeat(); socSchedule(); }, 4000);              // after the crate has started loading
 }
 initSocial();

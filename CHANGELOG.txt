@@ -17,9 +17,40 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.114.0
+  CURRENT_VERSION: 1.114.1
 
-  1.114.0 — 2026-11-15 — Friends, part 1: add friends by a friend code and see who's online and what they're playing. Page and Apps Script backend (add Social.gs and one line to CRATE.gs, then redeploy).
+  1.114.1 — 2026-11-15 — The Friends list floats over CRATE instead of taking over the middle of the screen: drag it anywhere, resize it, fold it down to its header. Page only.
+
+          THE FRIENDS PANEL: the Friends button opens a panel that sits over
+          CRATE without blocking it, so you can keep browsing and playing with
+          it open. Drag it by its header; resize it from its bottom-right
+          corner; – (or a double-click on the header) folds it down to the
+          header alone, which still says how many friends are listening. It
+          comes back where you left it, at the size you left it, and open if
+          you left it open. The Friends button closes it again.
+          ADD A FRIEND and WHAT FRIENDS CAN SEE moved behind the
+          person-with-a-plus button in the panel's header, so the panel is
+          just the list until you need them. A code you're typing there is no
+          longer cleared when the list refreshes.
+          "In your crate" opens the release and leaves the panel where it is.
+          On a phone the panel is a sheet along the bottom of the screen.
+          THE BACKEND, NOW ONE FILE: apps-script-backend.gs itself now has the
+          friends part at its bottom, and the line in doPost that sends it
+          the friends actions. To set it up (or instead of 1.114.0's steps):
+          1. Open the CRATE Apps Script project, click into
+             apps-script-backend.gs, select everything (Ctrl+A) and paste in
+             the new apps-script-backend.gs over it. (It isn't in this repo,
+             since it lists your email address; backend/Social.gs is the
+             friends part on its own.)
+          2. If you made a separate Social file for 1.114.0, delete it:
+             the same code twice stops the script from running.
+          3. Check your friend's email is on ALLOWED_EMAILS at the top.
+          4. Deploy → Manage deployments → the pencil on your deployment →
+             Version: New version → Deploy. The /exec address stays the same.
+          FIXED: the setup steps for 1.114.0 named the backend file CRATE.gs;
+          it is apps-script-backend.gs.
+
+  1.114.0 — 2026-11-15 — Friends, part 1: add friends by a friend code and see who's online and what they're playing. Page and Apps Script backend (add Social.gs and one line to apps-script-backend.gs, then redeploy).
 
           THE FRIENDS BUTTON (top bar, the two people): opens the Friends
           window. The icon turns green, with a count, when friends are playing
@@ -52,15 +83,15 @@
           minutes.
 
           SETTING UP THE BACKEND (once):
-          1. Open the CRATE Apps Script project (the one with CRATE.gs).
+          1. Open the CRATE Apps Script project (the one with apps-script-backend.gs).
           2. Files: + → Script, name it Social, and paste in all of
              backend/Social.gs from this repo.
-          3. In CRATE.gs, in doPost, find the line
+          3. In apps-script-backend.gs, in doPost, find the line
                const action = payload.action;
              and put this line right under it:
                if (typeof action === 'string' && action.indexOf('social') === 0) return _social(email, action, payload);
           4. Your friend must be on the ALLOWED_EMAILS list at the top of
-             CRATE.gs (or the list empty), as for using CRATE at all.
+             apps-script-backend.gs (or the list empty), as for using CRATE at all.
           5. Deploy → Manage deployments → the pencil on your deployment →
              Version: New version → Deploy. The /exec address stays the same.
           Until then the Friends window says the backend isn't set up yet, and
