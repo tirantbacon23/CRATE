@@ -16,6 +16,7 @@ function switchTab(tab) {
   el.tabAlbums.classList.toggle('active', tab === 'albums');
   renderArtistInfoTabButtons(); // dynamic tabs — .active depends on state.activeTab, so re-render rather than toggle a fixed button
   renderGenreTabButtons();
+  if (typeof renderFriendTabButtons === 'function') renderFriendTabButtons();          // (1.116.0) friends' pages
   el.tabDiary.classList.toggle('active', tab === 'diary');
   el.tabScrobbles.classList.toggle('active', tab === 'scrobbles');
   el.tabStats.classList.toggle('active', tab === 'stats');
@@ -24,6 +25,7 @@ function switchTab(tab) {
   el.panels.style.display = (tab === 'albums' || tab === 'artistInfo' || tab === 'genreInfo') ? 'flex' : 'none';   // #panels hosts both tabs: the Music browser, or the Artist Information tab's list + page
   el.artistInfoWrap.hidden = tab !== 'artistInfo';
   el.genreInfoWrap.hidden = tab !== 'genreInfo';
+  { const fw = document.getElementById('friendInfoWrap'); if (fw) fw.hidden = tab !== 'friendInfo'; }
   el.diaryWrap.hidden = tab !== 'diary';
   el.scrobblesWrap.hidden = tab !== 'scrobbles';
   el.statsWrap.hidden = tab !== 'stats';
@@ -36,6 +38,7 @@ function switchTab(tab) {
   else if (tab === 'scrobbles') renderScrobbles();
   else if (tab === 'stats') renderStats();
   else if (tab === 'artist') renderArtistTab();
+  else if (tab === 'friendInfo' && typeof renderFriendPage === 'function') renderFriendPage();
   recordTabHistory();
 }
 

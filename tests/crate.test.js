@@ -1233,6 +1233,18 @@ suite('P2P: matching a Soulseek folder to a release (1.97.0)', () => {
     eq([t('01 Speed Trials.flac', 'Elliott Smith'), t('03 - Elliott Smith - Ballad of Big Nothing.mp3', 'Elliott Smith'), t('Elliott Smith - 04 - Between the Bars.flac', 'Elliott Smith'), t('1-07 Rose Parade.m4a', 'Elliott Smith'), t('A2. Alameda.flac', 'Elliott Smith'), t('2:45 AM.flac', 'Elliott Smith')],
       ['Speed Trials', 'Ballad of Big Nothing', 'Between the Bars', 'Rose Parade', 'Alameda', '2:45 AM']);
   });
+  test('(1.116.0) "Artist - Album - 01 - Song" and "Album - Song" are read as the song, with the number after the dash', () => {
+    const t = app('p2pFileTitle'), n = app('p2pNumOf');
+    eq([t('The Replacements - Let It Be - 01 - I Will Dare.mp3', 'The Replacements', 'Let It Be'), t('The Replacements - Let It Be - 10 - Sixteen Blue.mp3', 'The Replacements'), t('Let It Be - Androgynous.flac', 'The Replacements', 'Let It Be'), t('05 - Androgynous.flac', 'The Replacements', 'Let It Be'), t('Love - Forever Changes - 03 - Andmoreagain.flac', 'Love', 'Forever Changes')],
+      ['I Will Dare', 'Sixteen Blue', 'Androgynous', 'Androgynous', 'Andmoreagain']);
+    eq([n('The Replacements - Let It Be - 07 - Unsatisfied.mp3'), n('03 Song.flac'), n('Song Name.flac')], [7, 3, 0]);
+  });
+  test('(1.116.0) a folder named that way matches by name even when the lengths are a few seconds off', () => {
+    const tr = [['I Will Dare', 191], ['Favorite Thing', 137], ['We\'re Comin\' Out', 140], ['Androgynous', 194]].map(([nm, s], i) => ({ trackName: nm, trackTimeMillis: s * 1000, trackNumber: i + 1 }));
+    const files = [['01 - I Will Dare', 197], ['02 - Favorite Thing', 140], ['03 - We\'re Comin\' Out', 141], ['04 - Androgynous', 190]].map(([nm, s]) => ({ name: 'The Replacements - Let It Be - ' + nm + '.mp3', lengthSec: s, size: 1 }));
+    const m = app('p2pScoreFolder')({ user: 'u', dir: 'x', name: 'Let It Be (1984)', parent: 'The Replacements', files, count: 4, ext: 'mp3', lossless: false, bitRate: 320, locked: 0, freeSlot: true, queue: 0, speed: 1 }, tr, { artist: 'The Replacements', title: 'Let It Be' }, {});
+    eq([m.matched, m.map.map(x => x.file), m.notes.some(x => /aren.t named/.test(x))], [4, [0, 1, 2, 3], false]);
+  });
   const tracks = [['Speed Trials', 181], ['Alameda', 223], ['Ballad of Big Nothing', 168], ['Between the Bars', 141]].map(([n, s], i) => ({ trackName: n, trackTimeMillis: s * 1000, trackNumber: i + 1 }));
   const rel = { artist: 'Elliott Smith', title: 'Either / Or' };
   const folder = (name, files, extra) => Object.assign({ user: 'u', dir: 'x\\' + name, name, parent: 'Elliott Smith', files, count: files.length, ext: 'flac', lossless: true, bitRate: 0, locked: 0, freeSlot: true, queue: 0, speed: 1 }, extra || {});

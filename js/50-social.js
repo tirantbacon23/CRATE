@@ -35,6 +35,7 @@ function socTake(d) {
   soc.me = d.me; soc.friends = d.friends || []; soc.incoming = d.incoming || []; soc.outgoing = d.outgoing || []; soc.at = Date.now(); soc.err = '';
   if (d.note) soc.note = d.note;
   socBtnRender(); if (socOpenNow()) socRender();
+  if (typeof renderFriendTabButtons === 'function' && (state.friendTabs || []).length) { renderFriendTabButtons(); if (state.activeTab === 'friendInfo' && !document.querySelector('#friendInfoWrap :focus')) renderFriendPage(); }
 }
 
 // What I'm playing, as friends will see it (null when nothing is in the player).
@@ -103,7 +104,7 @@ function socFriendRow(f) {
     line = `<span class="soc-sub">${f.seen ? 'Last seen ' + socAgo(f.seen) : 'Offline'}${last && last.album ? ' · ' + escapeHtml(last.album) : ''}</span>`;
   }
   const src = f.status === 'playing' && np && SOC_SRC[np.src] ? `<span class="soc-src">${SOC_SRC[np.src]}</span>` : '';
-  return `<div class="soc-row" data-soc-id="${escapeHtml(f.id)}">${socAvatar(f)}<div class="soc-who"><div class="soc-name">${escapeHtml(f.name)}${src}</div>${line}</div><span class="soc-acts">`
+  return `<div class="soc-row" data-soc-id="${escapeHtml(f.id)}"><button type="button" class="soc-page-btn" data-soc-page="${escapeHtml(f.id)}" title="Open ${escapeHtml(f.name)}'s crate and diary" aria-label="Open ${escapeHtml(f.name)}'s page">${socAvatar(f)}</button><div class="soc-who"><div class="soc-name"><button type="button" class="soc-name-btn" data-soc-page="${escapeHtml(f.id)}" title="Open ${escapeHtml(f.name)}'s crate and diary">${escapeHtml(f.name)}</button>${src}</div>${line}</div><span class="soc-acts">`
     + (mine ? `<button type="button" class="chip-btn soc-open" data-soc-open="${escapeHtml(pbId(mine))}" title="Open ${escapeHtml(mine.title)} in your crate">In your crate</button>` : '')
     + `<button type="button" class="chip-btn soc-more" data-soc-remove="${escapeHtml(f.id)}" data-soc-name="${escapeHtml(f.name)}" title="Remove ${escapeHtml(f.name)} from your friends">Remove</button></span></div>`;
 }
@@ -250,6 +251,7 @@ function initSocial() {
       const done = () => { b.textContent = 'Copied'; setTimeout(() => { if (b.isConnected) b.textContent = 'Copy'; }, 1500); };
       try { navigator.clipboard.writeText(code).then(done, () => { const r = document.createRange(); r.selectNodeContents(document.getElementById('socMyCode')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }); } catch (er) { /* select it by hand */ }
     }
+    else if (b.dataset.socPage) { if (typeof openFriendTab === 'function') openFriendTab(b.dataset.socPage); }
     else if (b.dataset.socOpen) { const it = pbItemOf(b.dataset.socOpen); if (it) openDeck(it); }          // the panel stays where it is
   });
   pn.addEventListener('submit', (e) => {

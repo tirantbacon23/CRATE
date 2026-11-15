@@ -60,19 +60,27 @@ function p2pQueryFor(item, noYear) {                                // "Elliott 
 function p2pQueries(item) {                                          // tried in turn while a search finds nothing: with the year, without it, the title alone
   return [...new Set([p2pQueryFor(item), p2pQueryFor(item, true), p2pClean(item.title)])].filter(q => q.length >= 3);
 }
-function p2pFileTitle(name, artist) {                               // "03 - Elliott Smith - Ballad of Big Nothing.flac" -> "Ballad of Big Nothing"
+function p2pFileTitle(name, artist, album) {                        // "03 - Elliott Smith - Ballad of Big Nothing.flac" -> "Ballad of Big Nothing"
   let t = String(name || '').replace(/\.[A-Za-z0-9]{1,5}$/, '').replace(/_/g, ' ').trim();
   t = t.replace(/^\s*(?:\d{1,2}[-.](?=\d))?(?:[A-Za-z]?\d{1,3})(?:\s*[-.)\]]\s*|\s+)(?=\S)/, '');          // "01 ", "01 - ", "01. ", "1-01 ", "A1 ", "(01) "
   t = smStripArtistPrefix(t, artist);                                // "Elliott Smith - Song"
+  if (album) {                                                       // (1.116.0) "Let It Be - Song": the album's name in front of the song
+    const m = /^(.+?)\s+[-\u2013\u2014]\s+(.+)$/.exec(t);
+    if (m && smTitleSim(m[1], album) >= 0.85) t = m[2];
+  }
   t = t.replace(/^\s*\d{1,3}\s*[-.]\s+(?=\S)/, '');                   // "Artist - 03 - Song": the number after the artist
+  // (1.116.0) "Artist - Album - 01 - Song" (or anything else in front of " - 01 - "): the song is what follows the number
+  const n = /^(.+?)\s+[-\u2013\u2014]\s+\d{1,3}\s*[-.)\u2013\u2014]\s*(\S.*)$/.exec(t);
+  if (n) t = n[2];
   return t.trim() || String(name || '');
 }
 function p2pNumOf(name) {                                           // the track number a file name starts with: "03 ...", "1-03 ...", "A3 ...", "Track 03", "Trk3", "Piste 03"
-  const s = String(name || ''), m = /^\s*(?:\d{1,2}[-.](?=\d))?[A-Za-z]?(\d{1,3})\b/.exec(s) || /^\s*(?:track|trk|tr|song|piste|titel|pista)\s*[-_.#]*\s*(\d{1,3})\b/i.exec(s);
+  const s = String(name || ''), m = /^\s*(?:\d{1,2}[-.](?=\d))?[A-Za-z]?(\d{1,3})\b/.exec(s) || /^\s*(?:track|trk|tr|song|piste|titel|pista)\s*[-_.#]*\s*(\d{1,3})\b/i.exec(s)
+    || /\s[-\u2013\u2014]\s+(\d{1,3})\s*[-.)\u2013\u2014]\s/.exec(s);          // (1.116.0) or after a dash: "Artist - Album - 01 - Song"
   return m ? +m[1] : 0;
 }
-function p2pMatchFiles(tracks, files, artist) {                     // -> per track: { file (index or -1), sim, dSec (null: a length unknown) }
-  const T = tracks.map(t => ({ name: t.trackName || '', ms: Number(t.trackTimeMillis) || 0 })), F = files.map(f => ({ title: p2pFileTitle(f.name, artist), sec: Number(f.lengthSec) || 0, num: p2pNumOf(f.name) }));
+function p2pMatchFiles(tracks, files, artist, album) {                     // -> per track: { file (index or -1), sim, dSec (null: a length unknown) }
+  const T = tracks.map(t => ({ name: t.trackName || '', ms: Number(t.trackTimeMillis) || 0 })), F = files.map(f => ({ title: p2pFileTitle(f.name, artist, album), sec: Number(f.lengthSec) || 0, num: p2pNumOf(f.name) }));
   const pairs = [];
   T.forEach((t, i) => F.forEach((f, j) => {
     const sim = t.name ? smTitleSim(t.name, f.title) : 0, d = t.ms && f.sec ? Math.abs(t.ms / 1000 - f.sec) : null;
@@ -103,7 +111,7 @@ function p2pScoreFolder(f, tracks, release, prefs) {                // -> { scor
     score = Math.round(titleSim * 70 + fp - odd.length * 25);
     return { score, verdict: 'unchecked', label: titleSim >= 0.85 ? 'Name matches' : 'Not checked', notes: notes.concat(['No tracklist to check against']), map: [], extra: f.files.map((_, j) => j), matched: 0, of: 0, unavailable: allLocked };
   }
-  const map = p2pMatchFiles(tracks, f.files || [], artist), matched = map.filter(m => m.file >= 0).length, of = tracks.length;
+  const map = p2pMatchFiles(tracks, f.files || [], artist, release && release.title), matched = map.filter(m => m.file >= 0).length, of = tracks.length;
   const used = new Set(map.map(m => m.file).filter(j => j >= 0)), extra = (f.files || []).map((_, j) => j).filter(j => !used.has(j));
   const ds = map.filter(m => m.file >= 0 && m.dSec !== null).map(m => m.dSec), worst = ds.length ? Math.max(...ds) : null, avg = ds.length ? ds.reduce((a, b) => a + b, 0) / ds.length : null;
   const cover = matched / of;

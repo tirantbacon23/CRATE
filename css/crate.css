@@ -4893,3 +4893,64 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
   .soc-tg input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent); }
   .soc-tg input[type="text"] { width: 180px; max-width: 50vw; font-size: 13px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg-card); color: var(--text); }
   #friendsSettings { border-top: 1px solid var(--line); margin-top: 4px; } #friendsSettings[hidden] { display: none; }
+
+  /* (1.116.0) A friend's page (js/51-friend-page.js): their tab, the page, their crate as covers, their diary */
+  .friend-tab-btn { display: inline-flex; align-items: center; gap: 7px; max-width: 200px; }
+  .friend-tab-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .friend-tab-dot { width: 8px; height: 8px; border-radius: 50%; background: #5A6270; flex: none; } .friend-tab-dot.soc-playing { background: #6FC48A; } .friend-tab-dot.soc-online { background: var(--accent); }
+  .friend-tab-close { flex: 0 0 auto; width: 16px; height: 16px; line-height: 15px; text-align: center; border-radius: 50%; font-size: 14px; opacity: 0.6; } .friend-tab-close:hover { opacity: 1; background: rgba(255,255,255,0.12); }
+  @media (min-width: 901px) { .tab-bar .friend-tab-btn { padding-right: 10px; } }
+  .friend-wrap { width: 100%; max-width: 1180px; margin: 0 auto; min-height: 0; }
+  .friend-wrap[hidden] { display: none; }
+  .fp-scroll { padding: 18px 0 40px; }
+  .fp-head { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .fp-av { width: 64px; height: 64px; font-size: 22px; } .fp-av::after { width: 15px; height: 15px; border-width: 3px; }
+  .fp-who { flex: 1; min-width: 180px; display: grid; gap: 4px; }
+  .fp-name { margin: 0; font-family: 'Bebas Neue', Impact, sans-serif; font-weight: 400; font-size: 38px; line-height: 1; letter-spacing: .03em; }
+  .fp-status { font: 400 12.5px 'IBM Plex Mono', monospace; color: var(--text-dim); display: flex; align-items: center; gap: 7px; flex-wrap: wrap; } .fp-status b { color: var(--text); font-weight: 500; }
+  .fp-stats { display: flex; gap: 26px; flex-wrap: wrap; padding: 16px 0; border-bottom: 1px solid var(--line); margin-top: 14px; border-top: 1px solid var(--line); }
+  .fp-stat { display: grid; gap: 2px; } .fp-stat b { font: 400 26px/1 'Bebas Neue', Impact, sans-serif; letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+  .fp-stat span { font: 500 10px 'IBM Plex Mono', monospace; letter-spacing: .12em; text-transform: uppercase; color: var(--text-dim); }
+  .fp-views { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+  .fp-view { font: 500 12px 'IBM Plex Mono', monospace; letter-spacing: .08em; text-transform: uppercase; padding: 11px 12px; color: var(--text-dim); background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
+  .fp-view span { opacity: .7; } .fp-view[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+  .fp-view:focus-visible, .fp-tile:focus-visible, .soc-page-btn:focus-visible, .soc-name-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .fp-tools { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .fp-chip.active { background: var(--accent); border-color: var(--accent); color: #12161C; }
+  .fp-search { flex: 1 1 180px; min-width: 0; max-width: 300px; margin-left: auto; font-size: 13px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg-card); color: var(--text); }
+  .fp-sort { font-size: 13px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg-card); color: var(--text); }
+  .fp-count { font: 500 11px 'IBM Plex Mono', monospace; color: var(--text-dim); margin-bottom: 10px; }
+  .fp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px; }
+  .fp-tile { display: grid; gap: 4px; min-width: 0; text-align: left; background: none; border: 0; padding: 0; color: var(--text); cursor: pointer; font: inherit; }
+  .fp-cv-wrap { position: relative; display: block; aspect-ratio: 1; border-radius: 4px; overflow: hidden; background: var(--bg-card); }
+  .fp-cv { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .2s; } .fp-tile:hover .fp-cv { transform: scale(1.03); }
+  .fp-noimg { background: linear-gradient(135deg, var(--bg-card), var(--line)); display: block; }
+  .fp-rt { position: absolute; left: 6px; bottom: 6px; font: 500 11px 'IBM Plex Mono', monospace; background: rgba(10,12,16,.82); color: #EDE7DC; padding: 2px 6px; border-radius: 3px; }
+  .fp-mine { position: absolute; right: 6px; top: 6px; font: 500 9.5px 'IBM Plex Mono', monospace; letter-spacing: .06em; background: var(--accent); color: #12161C; padding: 2px 5px; border-radius: 3px; }
+  .fp-t { font-size: 13px; font-weight: 600; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fp-a { font-size: 12px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fp-more { display: flex; justify-content: center; padding: 20px 0; }
+  .fp-menu { position: fixed; z-index: 70; min-width: 220px; max-width: 300px; background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 12px 30px rgba(0,0,0,.45); padding: 4px; display: grid; }
+  .fp-menu-h { padding: 8px 10px; display: grid; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 4px; } .fp-menu-h b { font-size: 13px; } .fp-menu-h span { font-size: 12px; color: var(--text-dim); }
+  .fp-menu button, .fp-menu a { text-align: left; padding: 8px 10px; border-radius: 5px; background: none; border: 0; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; text-decoration: none; }
+  .fp-menu button:hover, .fp-menu a:hover, .fp-menu button:focus-visible, .fp-menu a:focus-visible { background: var(--bg-card); outline: none; }
+  .fp-diary { display: grid; max-width: 820px; }
+  .fp-month { font: 500 10.5px 'IBM Plex Mono', monospace; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); padding: 18px 0 6px; border-bottom: 1px solid var(--line); }
+  .fp-entry { display: grid; grid-template-columns: 44px 56px minmax(0, 1fr); gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); align-items: start; }
+  .fp-day { text-align: center; font: 500 10.5px 'IBM Plex Mono', monospace; color: var(--text-dim); text-transform: uppercase; } .fp-day b { display: block; font: 400 26px/1 'Bebas Neue', Impact, sans-serif; color: var(--text); letter-spacing: .03em; }
+  .fp-dcv { width: 56px; height: 56px; border-radius: 3px; object-fit: cover; }
+  .fp-etext { display: grid; gap: 4px; min-width: 0; }
+  .fp-etitle { font-size: 14px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; } .fp-etitle span { color: var(--text-dim); font-size: 13px; }
+  .fp-tag { font: 500 10px 'IBM Plex Mono', monospace; border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; }
+  .fp-open-mine { font-size: 11px; padding: 1px 8px; }
+  .fp-erate { color: var(--accent); font-size: 13px; }
+  .fp-ehead { font-weight: 600; font-size: 13.5px; }
+  .fp-ebody { font-size: 13.5px; line-height: 1.55; color: var(--text); overflow-wrap: anywhere; }
+  .soc-page-btn { background: none; border: 0; padding: 0; cursor: pointer; border-radius: 50%; }
+  .soc-name-btn { background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .soc-name-btn:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+  @media (max-width: 900px) {
+    .friend-wrap { padding: 0 14px; } .fp-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px; } .fp-name { font-size: 30px; } .fp-stats { gap: 18px; }
+    .fp-search { max-width: none; margin-left: 0; flex-basis: 100%; } .fp-entry { grid-template-columns: 34px 46px minmax(0, 1fr); gap: 10px; } .fp-dcv { width: 46px; height: 46px; }
+    .friend-tab-dot { display: none; }
+  }

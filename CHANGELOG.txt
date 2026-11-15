@@ -17,7 +17,42 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.115.0
+  CURRENT_VERSION: 1.116.0
+
+  1.116.0 — 2026-11-15 — Friends, part 2: open a friend's crate and diary in a tab of their own. Fix: Find on P2P reads song names from files named "Artist - Album - 01 - Song". Page only (uses the backend from 1.114.0 or later).
+
+          A FRIEND'S PAGE: click a friend's name or picture in the Friends
+          panel. Their page opens as a tab at the top, next to Artist and your
+          genre tabs, so your own crate is one click away; open several friends
+          at once, close each with its ×, and back / forward know about them.
+          At the top: whether they're playing something (and what), and their
+          numbers: releases, how many they've rated and their average rating,
+          diary entries this year, how many of their releases are in your crate
+          too, and what share of their crate that is.
+          CRATE: their releases as covers, with their rating, and IN MINE on
+          the ones you have too. All / Not in my crate / In both / 4½★ and up,
+          a search, and sorting by their rating, recently added, artist or
+          year. Click a cover for: Open in my crate (when you have it), Add to
+          my crate (when you don't: it's added with its artist, title, year,
+          genres, label, cover and links), Open in Spotify, Open on Rate Your
+          Music. Shows 120 at a time, with Show more.
+          DIARY: their entries, newest first, by month: the day, the cover, the
+          release, Full listen, their stars, their title and what they wrote.
+          "In your crate" opens the release when you have it.
+          WHAT YOU SEE IS WHAT THEY SHARE: their crate, ratings and diary each
+          appear only if they've switched them on (What friends can see, in
+          their Friends panel); a page says so when something isn't shared.
+          Reviews on releases are never shared. ⟳ Refresh loads it again; it's
+          kept for this visit otherwise.
+
+          FIXED, FIND ON P2P: files named "The Replacements - Let It Be - 01 -
+          I Will Dare.mp3" were read as the song "Let It Be - 01 - I Will
+          Dare", so they didn't match the tracklist by name; CRATE fell back
+          to position and length, and a pressing whose lengths are a few
+          seconds off (most of them) matched only a few songs and was called a
+          different release. The song is now what follows " - 01 - ", the
+          number is read from there too, and an album name in front of a song
+          ("Let It Be - Androgynous") is dropped.
 
   1.115.0 — 2026-11-15 — Safer, faster saves: an edit always lands on the release you meant, saves take turns, a big Rate Your Music batch takes seconds, and your crate is backed up every night. Page and Apps Script backend (paste the new apps-script-backend.gs and redeploy; run installNightlyBackup once).
 

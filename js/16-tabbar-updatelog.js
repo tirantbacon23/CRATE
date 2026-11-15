@@ -16,13 +16,13 @@ let tabHistoryNavigating = false;
 let tabQuickOpenEl = null;
 
 function tabHistoryEntry() {
-  return { tab: state.activeTab, artist: state.activeTab === 'artistInfo' ? state.activeArtistInfoTab : null, genre: state.activeTab === 'genreInfo' ? state.activeGenreTab : null };
+  return { tab: state.activeTab, artist: state.activeTab === 'artistInfo' ? state.activeArtistInfoTab : null, genre: state.activeTab === 'genreInfo' ? state.activeGenreTab : null, friend: state.activeTab === 'friendInfo' ? state.activeFriendTab : null };
 }
-function tabHistoryEntryValid(e) { return (e.tab !== 'artistInfo' || state.artistInfoTabs.includes(e.artist)) && (e.tab !== 'genreInfo' || state.genreTabs.includes(e.genre)); }
+function tabHistoryEntryValid(e) { return (e.tab !== 'artistInfo' || state.artistInfoTabs.includes(e.artist)) && (e.tab !== 'genreInfo' || state.genreTabs.includes(e.genre)) && (e.tab !== 'friendInfo' || (state.friendTabs || []).includes(e.friend)); }
 function recordTabHistory() {
   if (tabHistoryNavigating || state.tabHistoryIndex < 0) return;   // index < 0: not seeded yet (still starting up)
   const e = tabHistoryEntry(), h = state.tabHistory, last = h[state.tabHistoryIndex];
-  if (last && last.tab === e.tab && last.artist === e.artist && last.genre === e.genre) { updateTabHistoryButtons(); return; }
+  if (last && last.tab === e.tab && last.artist === e.artist && last.genre === e.genre && last.friend === e.friend) { updateTabHistoryButtons(); return; }
   h.splice(state.tabHistoryIndex + 1);                // going somewhere new discards "forward", as a browser does
   h.push(e);
   if (h.length > 60) h.shift();
@@ -50,6 +50,7 @@ function navigateTabHistory(delta) {
   try {
     if (e.tab === 'artistInfo') { state.activeArtistInfoTab = e.artist; renderArtistInfoTabButtons(); }
     if (e.tab === 'genreInfo') { state.activeGenreTab = e.genre; renderGenreTabButtons(); }
+    if (e.tab === 'friendInfo') { state.activeFriendTab = e.friend; renderFriendTabButtons(); }
     switchTab(e.tab);
   } finally { tabHistoryNavigating = false; }
   updateTabHistoryButtons();
