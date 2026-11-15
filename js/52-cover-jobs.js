@@ -1,0 +1,66 @@
+// CRATE — what's being worked on, shown on the covers themselves.
+// One part of the page's script, split by feature (see 01-core.js).
+//
+// While Processing runs an Update from Rate Your Music or Match songs, each release's cover in the Music panel (grid and covers views)
+// says so: "Updating" or "Matching" with a moving bar along its foot while it's being worked on (Matching also shows how far, as it goes
+// through Spotify and YouTube), and a quieter "Queued" while it waits its turn (a later RYM run, the match queue, or later in this run).
+// Nothing is drawn when nothing runs. Checked once a second while something runs, every few seconds otherwise; a cover drawn again (a
+// scroll, a filter) gets its label back on the next check.
+
+const CJ_TICK = 1000, CJ_IDLE = 3000;
+let cjTimer = 0, cjShown = new Map();             // row -> the key of what its label shows, so an unchanged label isn't redrawn
+
+// row (as text) -> { kind: 'rym' | 'match', phase: 'work' | 'wait', pct (0–100, or null) }
+function cjStates() {
+  const out = new Map(), put = (row, s) => { row = String(row); const had = out.get(row); if (!had || (had.phase === 'wait' && s.phase === 'work')) out.set(row, s); };
+  try {                                                                                     // Update from Rate Your Music
+    const q = state.rymQueueMode && rymQ.run && /starting|loading|gap/.test(rymQ.run.state || '') ? rymQ.run : null;
+    if (q) rymQ.runEntries.forEach(e => { if (e.state === 'reading') put(e.row, { kind: 'rym', phase: 'work', pct: null }); else if (e.state === 'queued' || e.state === 'waiting') put(e.row, { kind: 'rym', phase: 'wait', pct: null }); });
+    else if (rymFetchState.active && (jobsState.runRows || []).length) {
+      const r = jobsState.rymLast || {}, i = r.i != null ? r.i : (r.done || 0);
+      jobsState.runRows.forEach((row, k) => { if (k === i) put(row, { kind: 'rym', phase: 'work', pct: null }); else if (k > i) put(row, { kind: 'rym', phase: 'wait', pct: null }); });
+    }
+    (jobsState.waiting || []).forEach(w => (w.rows || []).forEach(row => put(row, { kind: 'rym', phase: 'wait', pct: null })));
+  } catch (e) { /* the RYM part isn't there */ }
+  try {                                                                                     // Match songs
+    if (typeof bm !== 'undefined' && bm && bm.started && bm.running) {
+      const ks = bmKinds();
+      bm.rels.forEach(r => {
+        if (!r.include || !r.st) return;
+        const sts = ks.map(k => r.st[k]), left = sts.filter(s => s === 'wait' || s === 'work').length;
+        if (!left) return;
+        const pct = ks.length ? (ks.length - left) / ks.length * 100 : 0;
+        put(r.row, { kind: 'match', phase: sts.includes('work') && !bm.paused ? 'work' : 'wait', pct: sts.includes('work') ? pct : null });
+      });
+    }
+    if (!(typeof bm !== 'undefined' && bm && bm.started && bm.scope === 'queue') && typeof mqItems === 'function') mqItems().forEach(it => put(it.row, { kind: 'match', phase: 'wait', pct: null }));
+  } catch (e) { /* the matcher isn't there */ }
+  return out;
+}
+
+function cjLabel(s) {
+  if (s.kind === 'rym') return s.phase === 'work' ? 'Updating' : 'Queued · RYM';
+  return s.phase === 'work' ? 'Matching' : 'Queued · match';
+}
+function cjPaint() {
+  const states = cjStates(), grid = document.getElementById('gridWrap');
+  if (grid) {
+    // labels to take off: rows that no longer have one, or whose card was drawn again without it
+    grid.querySelectorAll('.cj-badge').forEach(b => { const card = b.closest('[data-album-row]'); if (!card || !states.has(card.dataset.albumRow)) { b.remove(); if (card) { card.classList.remove('cj-work', 'cj-wait'); card.title = (card.title || '').replace(/ — (Updating|Matching|Queued).*$/, ''); } } });
+    states.forEach((s, row) => {
+      const card = grid.querySelector(`.card[data-album-row="${CSS.escape(row)}"]`); if (!card) return;
+      const wrap = card.querySelector('.art-wrap') || card; let b = wrap.querySelector(':scope > .cj-badge');
+      const key = [s.kind, s.phase, s.pct == null ? '' : Math.round(s.pct)].join('|');
+      if (b && b.dataset.k === key) return;
+      if (!b) { b = document.createElement('div'); b.className = 'cj-badge'; b.setAttribute('aria-hidden', 'true'); wrap.appendChild(b); }
+      b.dataset.k = key; b.className = `cj-badge cj-${s.kind} cj-${s.phase}`;
+      card.classList.toggle('cj-work', s.phase === 'work'); card.classList.toggle('cj-wait', s.phase === 'wait');
+      card.title = (card.title || '').replace(/ — (Updating|Matching|Queued).*$/, '') + ` — ${cjLabel(s)}`;
+      b.innerHTML = `<span class="cj-pill">${s.phase === 'work' ? '<i class="cj-spin"></i>' : ''}${cjLabel(s)}</span>`
+        + (s.phase === 'work' ? `<span class="cj-bar${s.pct == null ? ' cj-indef' : ''}"><b style="width:${s.pct == null ? 35 : Math.max(6, s.pct)}%"></b></span>` : '');
+    });
+  }
+  cjShown = states;
+  clearTimeout(cjTimer); cjTimer = setTimeout(cjPaint, states.size ? CJ_TICK : CJ_IDLE);
+}
+setTimeout(cjPaint, 2000);

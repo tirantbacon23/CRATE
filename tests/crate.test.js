@@ -1349,3 +1349,15 @@ suite('Friends: covers only from known image services (1.117.0)', () => {
   });
 });
 
+suite('Covers show what is being worked on (1.118.0)', () => {
+  test('the release being read from RYM is "work", later ones and queued runs "wait", the finished one nothing', () => {
+    const raw = app('state').raw, rows = raw.slice(0, 4).map(x => String(x.row)), js = app('jobsState'), rf = app('rymFetchState');
+    const keep = { active: rf.active, runRows: js.runRows, rymLast: js.rymLast, waiting: js.waiting };
+    try {
+      rf.active = true; js.runRows = rows.slice(0, 3); js.rymLast = { i: 1 }; js.waiting = [{ rows: [rows[3]] }];
+      const st = app('cjStates')();
+      eq([st.get(rows[0]), (st.get(rows[1]) || {}).phase, (st.get(rows[2]) || {}).phase, (st.get(rows[3]) || {}).phase], [undefined, 'work', 'wait', 'wait']);
+    } finally { rf.active = keep.active; js.runRows = keep.runRows; js.rymLast = keep.rymLast; js.waiting = keep.waiting; }
+  });
+});
+

@@ -4973,3 +4973,21 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
   .soc-feed-cv { width: 40px; height: 40px; border-radius: 3px; object-fit: cover; flex: none; }
   .soc-tg-static { cursor: default; }
   .friends-btn-req.soc-req-feed { background: #6FC48A; }
+
+  /* (1.118.0) On a cover: being updated from RYM or matched now, or waiting its turn (js/52-cover-jobs.js) */
+  .art-wrap { position: relative; }
+  .cj-badge { position: absolute; inset: 0; pointer-events: none; z-index: 6; border-radius: inherit; }
+  .card.cj-work .art-wrap::after { content: ""; position: absolute; inset: 0; background: rgba(10,12,16,.38); pointer-events: none; z-index: 2; border-radius: inherit; }
+  .cj-pill { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 7px; max-width: calc(100% - 16px); font: 500 11px/1 'IBM Plex Mono', monospace; letter-spacing: .08em; text-transform: uppercase;
+    padding: 7px 10px; border-radius: 999px; background: rgba(10,12,16,.86); color: #EDE7DC; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+  .cj-work .cj-pill { color: #12161C; background: var(--accent); }
+  .cj-wait .cj-pill { opacity: .82; }
+  .cj-spin { width: 9px; height: 9px; border-radius: 50%; border: 2px solid rgba(18,22,28,.35); border-top-color: #12161C; animation: cj-spin .8s linear infinite; flex: none; }
+  @keyframes cj-spin { to { transform: rotate(360deg); } }
+  .cj-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 5px; background: rgba(10,12,16,.55); overflow: hidden; }
+  .cj-bar b { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); transition: width .6s ease; }
+  .cj-bar.cj-indef b { animation: cj-indef 1.4s ease-in-out infinite; }
+  @keyframes cj-indef { 0% { left: -35%; } 100% { left: 100%; } }
+  .cj-match.cj-work .cj-pill { background: #6FC48A; }
+  .cj-match .cj-bar b { background: #6FC48A; }
+  @media (prefers-reduced-motion: reduce) { .cj-spin, .cj-bar.cj-indef b { animation: none; } }

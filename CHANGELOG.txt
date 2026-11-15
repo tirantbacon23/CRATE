@@ -17,7 +17,22 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.117.0
+  CURRENT_VERSION: 1.118.0
+
+  1.118.0 — 2026-11-15 — The covers show what's being worked on: "Updating" while a release is read from Rate Your Music, "Matching" while its songs are matched, and "Queued" while it waits its turn. Page only.
+
+          ON THE COVER (Music panel, grid and covers views): while Processing
+          runs an Update from Rate Your Music or Match songs, the release it's
+          on right now is dimmed with a label in the middle of its cover,
+          Updating (amber) or Matching (green), and a bar along its foot. For
+          Matching the bar fills as it goes through Spotify and then YouTube;
+          for Updating it moves while the page is read. Releases waiting their
+          turn (later in the same run, a later RYM run, or the match queue)
+          show a quieter Queued · RYM or Queued · match. The labels go as each
+          release is done, and hovering a cover says the same.
+          It's checked once a second while something runs and every few
+          seconds otherwise, so a cover drawn again (scrolling, a filter) gets
+          its label back within a second.
 
   1.117.0 — 2026-11-15 — Friends, part 3: an Activity feed of friends' diary entries and new releases, Hide from friends for single releases, friends' covers only from known image services, and a refused sign-in no longer tells the caller why. Page and Apps Script backend (paste the new apps-script-backend.gs and redeploy).
 
