@@ -17,7 +17,15 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.130.0
+  CURRENT_VERSION: 1.130.1
+
+  1.130.1 — 2026-11-15 — Fix: in the player (docked or floating) and in Track info, the ♥ and ↓ sit on the song's line instead of each taking a line of its own. Page only.
+
+          The player's title is in a column (song, artist, release), so the
+          heart and the download button each became a row of their own under
+          the song's name, pushing everything down. They now share one line
+          with the song's name (which is shortened with … when it's long); in
+          Track info the song's descriptors stay on the line below.
 
   1.130.0 — 2026-11-15 — Download from Soulseek with one click (a release, a song, or the song playing), and a Downloads view in the right-hand column or a floating window. Page only (uses the CRATE for P2P add-on and slskd, as before).
 

@@ -5201,3 +5201,8 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
   .dlv-chk input { accent-color: var(--accent); }
   @media (prefers-reduced-motion: reduce) { .dlv-bar i { transition: none; } }
   .dlv-dock .dlv-st { max-width: 120px; } .dlv-dock .dlv-song { grid-template-columns: minmax(45%, 1fr) auto; }
+  /* (1.130.1) the song's name and its ♥ / ↓ on one line, in the player and in Track info */
+  .lk-title-row { display: flex; align-items: center; gap: 2px; min-width: 0; }
+  .lk-title-row > .mini-player-title, .lk-title-row > .track-info-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; margin: 0; }
+  .lk-title-row > .lk-heart, .lk-title-row > .dl-btn { flex: none; width: 22px; height: 22px; margin-left: 2px; }
+  .lk-title-row > .lk-heart svg, .lk-title-row > .dl-btn svg { width: 13px; height: 13px; }

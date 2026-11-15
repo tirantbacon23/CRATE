@@ -69,6 +69,7 @@ function dlPaint() {
   });
   // the player: the song playing, when it isn't from a file already
   const host = document.getElementById('miniPlayerTitle'); if (!host) return;
+  if (typeof likeTitleRow === 'function' && likeNow && likeNow()) likeTitleRow(host);
   let pb = host.parentElement.querySelector(':scope > .dl-btn.dl-player');
   const now = typeof likeNow === 'function' ? likeNow() : null, local = typeof activePlayerEngine !== 'undefined' && activePlayerEngine === 'local';
   if (!now || local) { if (pb) pb.hidden = true; return; }

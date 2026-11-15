@@ -41,13 +41,14 @@ function sdPaint(all) {
   });
   // Track info: the song playing
   const host = document.getElementById('trackInfoTitle'); if (!host) return;
-  const now = likeNow(); let c = host.parentElement.querySelector(':scope > .sd-chips.sd-info');
+  const now = likeNow(), box = host.parentElement.classList.contains('lk-title-row') ? host.parentElement.parentElement : host.parentElement;
+  let c = box.querySelector(':scope > .sd-chips.sd-info');
   if (!now) { if (c) c.remove(); return; }
   const sig = sdGet(now.item, now.num).join(',') + '|' + now.item.row + ':' + now.num;
   if (c && c.dataset.sdInfo === sig) return;
   const html = sdChipsHtml(now.item, now.num, now.name, 'sd-info');
-  if (c) c.outerHTML = html; else { const after = host.parentElement.querySelector(':scope > .lk-heart.lk-info') || host; after.insertAdjacentHTML('afterend', html); }
-  c = host.parentElement.querySelector(':scope > .sd-chips.sd-info'); if (c) c.dataset.sdInfo = sig;
+  if (c) c.outerHTML = html; else { const after = host.parentElement.classList.contains('lk-title-row') ? host.parentElement : host; after.insertAdjacentHTML('afterend', html); }
+  c = box.querySelector(':scope > .sd-chips.sd-info'); if (c) c.dataset.sdInfo = sig;
 }
 
 // ----- the editor -----

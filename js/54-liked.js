@@ -52,6 +52,14 @@ function likeNow() {
   return num ? { item, num: Number(num), name } : null;
 }
 
+// (1.130.1) The player's and Track info's title sit in a column (title, artist, album…): the buttons beside the song's name go in one row
+// with the title, or each became a line of its own. The title keeps its own element, so the player still writes its text into it.
+function likeTitleRow(host) {
+  if (host.parentElement && host.parentElement.classList.contains('lk-title-row')) return host.parentElement;
+  const row = document.createElement(host.tagName === 'P' ? 'div' : 'span'); row.className = 'lk-title-row';
+  host.parentElement.insertBefore(row, host); row.appendChild(host); return row;
+}
+
 // ----- the hearts on screen -----
 function likeRowSong(row) {
   const key = row.dataset.trackKey || '';
@@ -78,6 +86,7 @@ function likePaint(all) {
   const now = likeNow();
   [['miniPlayerTitle', 'lk-player'], ['trackInfoTitle', 'lk-info']].forEach(([id, cls]) => {
     const host = document.getElementById(id); if (!host) return;
+    if (now) likeTitleRow(host);
     let b = host.parentElement.querySelector(':scope > .lk-heart.' + cls);
     if (!now) { if (b) b.hidden = true; return; }
     if (!b) { host.insertAdjacentHTML('afterend', likeBtnHtml(now.item, now.num, now.name, cls)); b = host.parentElement.querySelector(':scope > .lk-heart.' + cls); }
