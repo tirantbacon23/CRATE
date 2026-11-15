@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.133.0
+  CURRENT_VERSION: 1.133.1
 
+  1.133.1 — 2026-11-15 — Fix: Stop downloading only stopped it for a moment, then it started again. It left the songs marked
+          "download first" and the release marked as playing from Soulseek, so the next check asked for them again. Stopping now
+          clears both; the release's songs play from your other sources until you download or play it from P2P again. Page only.
   1.133.0 — 2026-11-15 — Liked songs gets the Music view's browser column: Artists, Genres, Decades or Descriptors (the songs'
           own), each with how many liked songs it has, and a box to find one. Pick one to see only its songs, in the list or
           as covers; "All liked songs" goes back. Page only.

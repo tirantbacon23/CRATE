@@ -197,8 +197,11 @@ async function p2pForget(key, quiet) {                               // the fold
 }
 async function p2pCancel(key) {
   const rec = p2pDl[key]; if (!rec) return;
-  rec.keepAll = false;
-  for (const s of rec.songs) if (p2pActive(s)) { if (s.id) await p2pCall('dlremove', { user: rec.user, id: s.id }); s.st = 'idle'; s.id = ''; s.pct = 0; }
+  // (1.133.1) Stopped means stopped: also let go of what made CRATE want these songs ("Download first" songs, and the release playing from
+  // Soulseek), or the next check (every 2 s) asked for them all again a moment later. Its songs play from your other sources from now on;
+  // Download or Play from P2P starts it again.
+  rec.keepAll = false; rec.prefer = false;
+  for (const s of rec.songs) { s.pri = 0; s.asked = false; if (s.st === 'wait' || p2pActive(s)) { if (s.id) await p2pCall('dlremove', { user: rec.user, id: s.id }); s.st = 'idle'; s.id = ''; s.pct = 0; s.unwanted = 0; } }
   p2pDlSave(); p2pTidy(); jobsRefresh(); flashGlobalToast(`Stopped downloading ${rec.title}.`);
 }
 async function p2pRetry(key) {
