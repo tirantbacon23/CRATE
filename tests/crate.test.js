@@ -1311,3 +1311,21 @@ suite('Friends', () => {
   });
 });
 
+suite('Saves name the release by its permanent id', () => {
+  test('an edit, a rating, a delete and a diary entry carry the AlbumId of the release at that row', () => {
+    const w = app('postWithAlbumIds'), it = app('state').raw.find(x => x.albumId);
+    eq(w({ action: 'editAlbum', row: it.row, Genre: 'x' }).albumId, it.albumId);
+    eq(w({ row: it.row, rating: 4 }).albumId, it.albumId);
+    eq(w({ action: 'deleteAlbum', row: it.row }).albumId, it.albumId);
+    eq(w({ action: 'logListen', row: it.row }).albumId, it.albumId);
+    eq(w({ action: 'editAlbum', row: it.row, albumId: 'given' }).albumId, 'given', 'an id already given is kept');
+  });
+  test('RYM batches get one per item; other saves and unknown rows are left alone', () => {
+    const w = app('postWithAlbumIds'), raw = app('state').raw.filter(x => x.albumId), a = raw[0], b = raw[1];
+    const out = w({ action: 'setRymRatings', items: [{ row: a.row, rymRating: 3 }, { row: b.row, rymRating: 4 }, { row: 999999, rymRating: 1 }] });
+    eq(out.items.map(i => i.albumId), [a.albumId, b.albumId, undefined]);
+    const pl = { action: 'addPlaylistItems', playlistId: 'p', items: [{ row: a.row }] }; eq(w(pl), pl, 'playlist adds already carry their own ids');
+    const dl = { action: 'deleteListen', row: a.row }; eq(w(dl), dl, 'a diary delete names the diary row, not a release');
+  });
+});
+

@@ -576,7 +576,29 @@ async function saveReview() {
   }
 }
 
+// (1.115.0) THE RELEASE'S PERMANENT ID GOES WITH EVERY SAVE THAT NAMES A ROW. The backend finds the release by it, because a row number can
+// point at a different release once a row above it is deleted (on another device, in another window, by a merge). Added here, once, for
+// every edit, rating, review, track list, delete, diary entry and RYM batch, so no caller has to remember. A backend that has moved the
+// release says so (moved / missed) and the crate is reloaded quietly so every row number is right again; one that no longer has it says
+// notFound, writes nothing, and the crate is reloaded too.
+const POST_ID_ACTIONS = { editAlbum: 1, deleteAlbum: 1, setRymRatings: 1, setRymRanks: 1, setRymBold: 1, logListen: 1 };
+function postWithAlbumIds(payload) {
+  if (!payload || typeof payload !== 'object' || !(payload.action ? POST_ID_ACTIONS[payload.action] : payload.row != null)) return payload;
+  let byRow = null;
+  const idOf = (r) => {
+    const n = parseInt(r, 10); if (!n) return '';
+    if (!byRow) { byRow = new Map(); (state.raw || []).forEach(x => { if (x && x.albumId && !byRow.has(x.row)) byRow.set(x.row, x.albumId); }); }
+    return byRow.get(n) || '';
+  };
+  const out = Object.assign({}, payload);
+  if (out.row != null && !out.albumId) { const id = idOf(out.row); if (id) out.albumId = id; }
+  if (Array.isArray(out.items) && /^setRym/.test(out.action || '')) out.items = out.items.map(it => { if (!it || it.albumId || it.row == null) return it; const id = idOf(it.row); return id ? Object.assign({}, it, { albumId: id }) : it; });
+  return out;
+}
+function postRowsChanged() { if (typeof scheduleCatalogSync === 'function') scheduleCatalogSync(1500); }
+
 function postUpdate(payload, retried) {
+  if (!retried) payload = postWithAlbumIds(payload);
   const idToken = getStoredIdToken();
   if (!idToken) { handleAuthError(); return Promise.reject(new Error('unauthorized')); }
   const exp = tokenExpMs(idToken);
@@ -605,6 +627,7 @@ function postUpdate(payload, retried) {
     // gets a chance to fire instead of silently declaring victory — same
     // fix in spirit as fetchCatalog's own data.error check (1.29.23),
     // just on the write side instead of the read side.
+    if (data && (data.moved || data.notFound || data.missed > 0)) postRowsChanged();          // (1.115.0) rows have shifted under this page
     if (data && data.error) { throw new Error(data.error); }
     try {                                         // a release just added: into the match queue (Match songs → Preferences can switch this off)
       if (smPrefs().queueNew && payload.action === 'addAlbum' && payload.Artist && payload.Title) mqAdd([{ artist: String(payload.Artist), title: String(payload.Title) }], 'added');

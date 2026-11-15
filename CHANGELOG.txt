@@ -17,7 +17,48 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.114.1
+  CURRENT_VERSION: 1.115.0
+
+  1.115.0 — 2026-11-15 — Safer, faster saves: an edit always lands on the release you meant, saves take turns, a big Rate Your Music batch takes seconds, and your crate is backed up every night. Page and Apps Script backend (paste the new apps-script-backend.gs and redeploy; run installNightlyBackup once).
+
+          THE RIGHT RELEASE, ALWAYS: edits, ratings, reviews, track lists,
+          deletes, diary entries and Rate Your Music batches used to find a
+          release by its row number in the sheet. Once a row above it was
+          deleted (on another device, in another window, by a merge), that
+          number pointed at the next release down, and a save could overwrite
+          or delete the wrong one. Every save now also sends the release's
+          permanent id (AlbumId); the backend finds the release by it, wherever
+          it is now. If it has moved, the save goes to the right place and
+          CRATE reloads the crate quietly; if it was deleted elsewhere, nothing
+          is written and the save says so. Deleting a release that is already
+          gone does nothing. (Releases without an AlbumId still go by row: run
+          backfillAlbumIds once in the Apps Script editor if you never have.)
+          SAVES TAKE TURNS: two saves at once (an import and an edit, two
+          devices, an add-on, a background job) could both write the same new
+          row, and one was lost. The backend now runs saves one at a time.
+          FASTER: the backend checks columns with one read and writes a row in
+          one go. Measured on a test sheet: a 10-field edit went from 37 calls
+          to the spreadsheet to 3, and a Rate Your Music batch of 200 from 603
+          to 8. Adding or editing a release no longer re-formats the whole
+          ReleaseDate and Recorded columns each time, only the cells it writes.
+          NIGHTLY BACKUPS: every spreadsheet the backend looks after (yours and
+          each friend's) is copied each night at about 4 am into "CRATE
+          Backups" in your Google Drive, keeping the last 14 days per person.
+          Also: diary entries now store the release's AlbumId, and adding a
+          column to a sheet that is already full to its last column makes room
+          first instead of failing.
+
+          SETTING UP THE BACKEND:
+          1. In the Apps Script editor, open apps-script-backend.gs, select
+             everything (Ctrl+A) and paste the new one over it.
+          2. Deploy → Manage deployments → the pencil → Version: New version →
+             Deploy.
+          3. Backups: choose installNightlyBackup in the function list next to
+             Run/Debug, click Run, and allow Google Drive access when asked. It
+             makes the first backup at once. To stop them: Triggers (the alarm
+             clock on the left) → delete backupAllSpreadsheets.
+          The page works with the old backend too (it ignores the ids), so the
+          order doesn't matter.
 
   1.114.1 — 2026-11-15 — The Friends list floats over CRATE instead of taking over the middle of the screen: drag it anywhere, resize it, fold it down to its header. Page only.
 
