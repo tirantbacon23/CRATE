@@ -17,7 +17,26 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.130.2
+  CURRENT_VERSION: 1.130.3
+
+  1.130.3 — 2026-11-15 — Track info's cover at its full size again; ↓ Download beside each song in Up Next; Liked songs gets its own button in the far-left strip. Page only.
+
+          TRACK INFO'S COVER: Track info and Up Next used to split the
+          right-hand column in half, so on a window under about 1,000 px tall
+          the cover was squeezed under 100 px (95 px on a 1920 × 911 window,
+          even before liked songs). Track info now takes the room it needs, so
+          the cover is shown at its full 150 px, and Up Next the rest (it
+          scrolls, and always keeps room for a few songs; on a very small window
+          the cover still gives way). The ♥ beside the song's name is no
+          taller than the name, so it takes no room.
+          UP NEXT: each song has a ↓ right after its name (on hover) to
+          download it from Soulseek; once it's on its way, the song's download
+          bar takes its place.
+          LIKED SONGS: a ♥ Liked songs button in the far-left strip, right
+          under Playlist Explorer (lit while its tab is open), instead of a row
+          in the Playlists list.
+          Also: a stray screenshot (cj.png) that a test had saved into CRATE's
+          folder, and that went up with 1.118.0, is gone.
 
   1.130.2 — 2026-11-15 — Fix: Track info's cover had shrunk to a sliver behind the level meter. Song descriptors no longer show in Track info, and Downloads opens from Up Next's header instead of a row of its own. Page only.
 

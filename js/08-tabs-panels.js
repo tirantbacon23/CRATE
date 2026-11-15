@@ -26,7 +26,7 @@ function switchTab(tab) {
   el.artistInfoWrap.hidden = tab !== 'artistInfo';
   el.genreInfoWrap.hidden = tab !== 'genreInfo';
   { const fw = document.getElementById('friendInfoWrap'); if (fw) fw.hidden = tab !== 'friendInfo'; }
-  { const lw = document.getElementById('likedWrap'), lt = document.getElementById('tabLiked'); if (lw) lw.hidden = tab !== 'liked'; if (lt) lt.classList.toggle('active', tab === 'liked'); }          // (1.128.0)
+  { const lw = document.getElementById('likedWrap'), lt = document.getElementById('tabLiked'); if (lw) lw.hidden = tab !== 'liked'; if (lt) lt.classList.toggle('active', tab === 'liked'); const ln = document.getElementById('navLikedBtn'); if (ln) ln.classList.toggle('active', tab === 'liked'); }          // (1.128.0)
   el.diaryWrap.hidden = tab !== 'diary';
   el.scrobblesWrap.hidden = tab !== 'scrobbles';
   el.statsWrap.hidden = tab !== 'stats';

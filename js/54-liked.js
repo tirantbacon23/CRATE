@@ -157,7 +157,10 @@ function likedSidebarRow() {
 
 function initLiked() {
   // the Playlists list gets its Liked songs row each time it's drawn
-  if (typeof renderPlaylistSidebar === 'function') { const orig = renderPlaylistSidebar; renderPlaylistSidebar = function () { const r = orig.apply(this, arguments); try { likedSidebarRow(); } catch (e) { /* the list still works */ } return r; }; }
+  // (1.130.3) Liked songs has its own button in the far-left strip, under Playlists (no longer a row in the Playlists list)
+  const nav = document.getElementById('navLikedBtn'); if (nav) nav.addEventListener('click', openLikedTab);
+  const navPlace = () => { const n = document.getElementById('navLikedBtn'), pl = document.getElementById('navPlaylistsBtn'); if (n && pl && pl.nextElementSibling !== n) pl.after(n); };          // (CRATE moves the playlists list in under that button when it starts: Liked songs stays right under the button, above the list)
+  navPlace(); setInterval(navPlace, 2000);
   document.addEventListener('click', (e) => {
     const b = e.target.closest('.lk-heart'); if (!b) return;
     e.preventDefault(); e.stopPropagation();
@@ -190,6 +193,6 @@ function initLiked() {
   // new rows on screen get their hearts as they appear; the player's follows the song
   let t = 0; new MutationObserver(() => { clearTimeout(t); t = setTimeout(() => likePaint(false), 120); }).observe(document.body, { childList: true, subtree: true });
   setInterval(() => { if (!document.hidden) likePaint(false); }, 1500);
-  setTimeout(() => { likePaint(true); likedSidebarRow(); }, 3000);
+  setTimeout(() => { likePaint(true); }, 3000);
 }
 initLiked();

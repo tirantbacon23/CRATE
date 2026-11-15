@@ -67,6 +67,17 @@ function dlPaint() {
     const html = `<button type="button" class="dl-btn" data-dl-row="${escapeHtml(String(s.item.row))}" data-dl-num="${s.num}" data-dl-name="${escapeHtml(s.name)}" title="Download from Soulseek" aria-label="Download ${escapeHtml(s.name)} from Soulseek">${DL_SVG}</button>`;
     if (at.classList.contains('lk-heart')) at.insertAdjacentHTML('afterend', html); else at.insertAdjacentHTML('beforeend', html);
   });
+  // (1.130.3) Up Next's songs: a ↓ right after the song's name (where its download bar appears once it's on its way)
+  document.querySelectorAll('#crateQueuePanelBody [data-queue-index]').forEach(row => {
+    const e = crateQueueList[Number(row.dataset.queueIndex)]; if (!e || !e.item || !e.track) return;
+    const rec = p2pDl[artKey(e.item)], so = rec ? p2pSongFor(e.item, e.track) : null;
+    const busy = !!(so && (p2pActive(so) || (so.st === 'done' && so.local))) || !!row.querySelector(':scope > .p2p-tr');
+    let b = row.querySelector('.dl-btn');
+    if (busy) { if (b) b.remove(); return; }
+    if (b) return;
+    const title = row.querySelector('.queue-track-title'); if (!title) return;
+    title.insertAdjacentHTML('beforeend', `<button type="button" class="dl-btn dl-q" data-dl-row="${escapeHtml(String(e.item.row))}" data-dl-num="${escapeHtml(String(e.track.trackNumber || ''))}" data-dl-name="${escapeHtml(e.track.trackName || '')}" title="Download from Soulseek" aria-label="Download ${escapeHtml(e.track.trackName || '')} from Soulseek">${DL_SVG}</button>`);
+  });
   // the player: the song playing, when it isn't from a file already
   const host = document.getElementById('miniPlayerTitle'); if (!host) return;
   if (typeof likeTitleRow === 'function' && likeNow && likeNow()) likeTitleRow(host);
