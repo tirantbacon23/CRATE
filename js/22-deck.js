@@ -610,6 +610,7 @@ function postUpdate(payload, retried) {
     body: JSON.stringify(Object.assign({}, payload, { idToken }))
   }).finally(catalogWriteEnd).then(r => r.json()).then(data => {
     if (isAuthError(data)) {                                        // refused: renew the token quietly and send the same change again, once
+      if (data.reason === 'not_allowed') { handleAuthError(authRefusedMessage(data)); throw new Error('unauthorized'); }          // (1.121.0) renewing won't help
       if (!retried) return authRenew().then(ok => { if (ok) return postUpdate(payload, true); handleAuthError(); throw new Error('unauthorized'); });
       handleAuthError(); throw new Error('unauthorized');
     }

@@ -17,7 +17,24 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.120.0
+  CURRENT_VERSION: 1.121.0
+
+  1.121.0 — 2026-11-15 — Signing in with an account that isn't allowed says so, by name, with what to do, instead of "Your session expired". Page and Apps Script backend (paste the new apps-script-backend.gs and redeploy).
+
+          BEFORE: a Google account that isn't on ALLOWED_EMAILS (a friend, or
+          a second account to test Friends with) was refused by the backend,
+          and CRATE, which couldn't tell that from a sign-in running out,
+          said "Your session expired". It also tried to renew the sign-in
+          first, which can't help.
+          NOW: the backend adds one word of why to a refusal: not_allowed or
+          expired (never the address, nor Google's reply: those still go only
+          to the script's log). CRATE then says, for example: "tester@gmail.com
+          isn't allowed into this CRATE yet. Whoever runs it needs to add it
+          to ALLOWED_EMAILS in the Apps Script and deploy a new version." and
+          doesn't try to renew.
+          REMEMBER: after adding an address to ALLOWED_EMAILS, deploy a new
+          version (Deploy → Manage deployments → ✎ → Version: New version →
+          Deploy); saving the script alone doesn't change what CRATE talks to.
 
   1.120.0 — 2026-11-15 — No more "Your session expired": after one Google sign-in, CRATE keeps its own session for 14 days, renewed as you use it. Fix: a friend's page scrolls. Page and Apps Script backend (paste the new apps-script-backend.gs and redeploy).
 

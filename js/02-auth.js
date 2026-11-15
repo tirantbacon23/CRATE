@@ -49,6 +49,15 @@ function isAuthError(data) {
 
 // Called whenever the server tells us the token was missing/invalid/expired —
 // on first load, mid-session, wherever. Drops back to the sign-in screen.
+// (1.121.0) What to tell someone the backend refused: an account that isn't on the allowlist is told so, by name, with what to do;
+// anything else is an ended sign-in, as before.
+function authRefusedMessage(data) {
+  if (data && data.reason === 'not_allowed') {
+    const p = decodeJwtPayload(getStoredIdToken() || '') || {}, who = p.email || p.e || 'This Google account';
+    return `${who} isn\u2019t allowed into this CRATE yet. Whoever runs it needs to add it to ALLOWED_EMAILS in the Apps Script and deploy a new version (Deploy \u2192 Manage deployments \u2192 \u270e \u2192 New version). Or sign in with another account.`;
+  }
+  return '';
+}
 function handleAuthError(message) {
   clearStoredIdToken();
   appEntered = false;

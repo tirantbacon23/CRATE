@@ -365,6 +365,7 @@ async function fetchCatalogOnce(opts) {
     const data = await res.json();
     if (quiet && (opts.staleTries || 0) < 3 && (writing || catalogWrites.inFlight || catalogWrites.started !== writeGen)) { await catalogWritesSettled(); return { stale: true }; }          // read while the sheet was being written: done again
     if (isAuthError(data)) {                                        // the token ran out: renew it quietly and load again, once
+      if (data.reason === 'not_allowed') { handleAuthError(authRefusedMessage(data)); return; }          // (1.121.0) renewing won't help
       if (!opts.retried && await authRenew()) { authRetry = true; return; }
       handleAuthError(); return;
     }
