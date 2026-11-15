@@ -17,7 +17,38 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.125.0
+  CURRENT_VERSION: 1.126.0
+
+  1.126.0 — 2026-11-15 — Songs are matched as soon as a release is added (a switch in ⚙ → Settings), the ⚙ menu is tidied into sections with a search box, and the "Queued" labels on covers no longer float between covers. Page only.
+
+          MATCH SONGS STRAIGHT AWAY (⚙ → Settings → Matching songs, on unless
+          you switch it off): any release that arrives, added by hand, from the
+          RYM add-on, an import, a friend or a recommendation, has its songs
+          matched to Spotify and YouTube in the background at once, without
+          opening Match songs. Switching it on, and each start of CRATE, also
+          matches what's waiting in the match queue. It was there before, as
+          Match songs' "Match new releases by themselves", but it gave up after
+          about ten minutes of waiting (behind an import, an open Match songs,
+          a Rate Your Music update), leaving releases in the queue for Start;
+          it now keeps waiting for up to six hours. A release whose songs all
+          have links already leaves the queue instead of sitting in it. When
+          nothing can match (no Spotify set up, no YouTube add-on), Processing
+          says so and offers Spotify API….
+          The other two matching switches sit with it: "…and while I fill in
+          the Add form" (Spotify links filled in on the Add release form, as
+          before) and "…the Add form also on YouTube".
+          THE ⚙ MENU: one long list became five sections that open one at a
+          time: Tools, Tidy up your crate, Settings, Connections, Import and
+          export. The section you had open last opens again. A search box at
+          the top finds any item in any section; Enter runs the first match.
+          Settings holds Panels configuration, Friends settings, the matching
+          switches, Playback (Play from…, Playback on your devices…) and the
+          display and sharing switches. Every item does what it did before.
+          FIXED, LABELS ON COVERS: a release far down the grid, whose cover
+          hadn't been drawn yet, got its label anyway, which floated loose
+          over the grid (between two covers). Only drawn covers are labelled
+          now. "Queued" is a smaller tag at the foot of the cover; Updating
+          and Matching stay in the middle.
 
   1.125.0 — 2026-11-15 — A tidier Friends panel: the list is just Friends and Activity; Add a friend and Settings are pages of their own, and each friend has a ⋯ menu. Page only.
 

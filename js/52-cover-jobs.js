@@ -51,10 +51,13 @@ function cjPaint() {
   const states = cjStates(), grid = document.getElementById('gridWrap');
   if (grid) {
     // labels to take off: rows that no longer have one, or whose card was drawn again without it
-    grid.querySelectorAll('.cj-badge').forEach(b => { const card = b.closest('[data-album-row]'); if (!card || !states.has(card.dataset.albumRow)) { b.remove(); if (card) cjClear(card); } });
+    grid.querySelectorAll('.cj-badge').forEach(b => { const card = b.closest('[data-album-row]'); if (!card || !states.has(card.dataset.albumRow) || card.classList.contains('card-shell') || !b.parentElement.classList.contains('art-wrap')) { b.remove(); if (card) cjClear(card); } });
     states.forEach((s, row) => {
-      const card = grid.querySelector(`.card[data-album-row="${CSS.escape(row)}"]`); if (!card) return;
-      const wrap = card.querySelector('.art-wrap') || card; let b = wrap.querySelector(':scope > .cj-badge');
+      // (1.126.0) only a cover that's drawn: an off-screen placeholder (card-shell) has no artwork to sit on, so its label floated loose
+      // over the grid. It gets its label once it's drawn, on the next check.
+      const card = grid.querySelector(`.card[data-album-row="${CSS.escape(row)}"]:not(.card-shell)`); if (!card) return;
+      const wrap = card.querySelector('.art-wrap'); if (!wrap) return;
+      let b = wrap.querySelector(':scope > .cj-badge');
       const key = [s.kind, s.phase, s.pct == null ? '' : Math.round(s.pct)].join('|');
       if (b && b.dataset.k === key) return;
       if (!b) { b = document.createElement('div'); b.className = 'cj-badge'; b.setAttribute('aria-hidden', 'true'); wrap.appendChild(b); }

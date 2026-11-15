@@ -701,14 +701,16 @@ function bmKickLanes() {                                            // releases 
 // ----- new releases are matched by themselves (Match songs → Preferences → "Match new releases by themselves") -----
 // A release just added (the Add form, Rate Your Music, an import) goes into a Match songs run in the background, in "save confident matches as they come" mode:
 // what is confident is saved, and the rest waits in the run for you (Processing → Needs you). Spotify only if it is set up; YouTube only through the add-on (the API route costs quota).
-const bmAuto = { pending: [], timer: 0, tries: 0 };
+const bmAuto = { pending: [], timer: 0, tries: 0, since: 0, noSvc: false };
+const BM_AUTO_PATIENCE = 6 * 3600e3;          // (1.126.0) keeps waiting (an import, an open Match songs, RYM) this long, instead of giving up after ~10 minutes
 function bmAutoQueue(list) {
+  if (!bmAuto.pending.length) bmAuto.since = Date.now();
   (list || []).forEach(x => { const k = mqKey(x.artist, x.title); if (!bmAuto.pending.some(e => e.k === k)) bmAuto.pending.push({ k }); });
   bmAuto.tries = 0; clearTimeout(bmAuto.timer); bmAuto.timer = setTimeout(bmAutoRun, 5000);          // (a few seconds: an import adds one after another, and a new release reaches the list after its save)
 }
 function bmAutoRun() {
   bmAuto.timer = 0; if (!bmAuto.pending.length) return;
-  const later = (ms) => { if (++bmAuto.tries <= 40) bmAuto.timer = setTimeout(bmAutoRun, ms); else bmAuto.pending = []; };          // (given up after a while: they are still in the match queue)
+  const later = (ms) => { ++bmAuto.tries; if (Date.now() - (bmAuto.since || Date.now()) < BM_AUTO_PATIENCE) bmAuto.timer = setTimeout(bmAutoRun, ms); else bmAuto.pending = []; };          // (given up only after hours: they are still in the match queue)
   if ((typeof cxImp !== 'undefined' && cxImp && cxImp.running) || (bm && !bm.started)) { later(15000); return; }          // an import still adding, or Match songs open at its start: afterwards
   const byKey = new Map(); state.raw.forEach(r => { const k = mqKey(r.artist, r.title); if (!byKey.has(k)) byKey.set(k, r); });
   const all = bmAuto.pending.map(e => byKey.get(e.k)).filter(Boolean);
@@ -716,7 +718,9 @@ function bmAutoRun() {
   const held = new Set(all.filter(it => rymAddHolding(it) || afPending(it)).map(it => mqKey(it.artist, it.title))), found = all.filter(it => !held.has(mqKey(it.artist, it.title)));          // (still to be updated from Rate Your Music, or its blanks filled: matched after that)
   bmAuto.pending = bmAuto.pending.filter(e => !byKey.has(e.k) || held.has(e.k));
   const svc = { spotify: !!(loadSpotifyCreds() || {}).clientId, youtube: ytUseAddon() }, kinds = ['spotify', 'youtube'].filter(k => svc[k]);
-  if (!kinds.length) { bmAuto.pending = []; return; }          // nothing to match with: they wait in the match queue as before
+  bmAuto.noSvc = !kinds.length; if (typeof jobsRefresh === 'function') jobsRefresh();
+  if (!kinds.length) { bmAuto.pending = []; return; }          // nothing to match with: they wait in the match queue, and Processing says why
+  const done = found.filter(it => bmFullyLinked(it, kinds)); if (done.length) mqRemove(done);          // (1.126.0) every song already linked: nothing to wait for (it stayed "Queued · match" before)
   const items = found.filter(it => !bmFullyLinked(it, kinds) && !(bm && bm.rels.some(r => r.item === it)));
   if (items.length) {
     mqRemove(items);                                                // in a run now, not waiting in the queue

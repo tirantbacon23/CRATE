@@ -830,6 +830,7 @@ function jobsCollect() {
     wait.push({ cat: 'rym', icon: 'sync', drag: i, title: 'Update from Rate Your Music', sub: jobsPl(w.rows.length, 'release'), detail: names + (w.rows.length > 2 ? '\u2026' : ''), right,
       acts: [i === 0 && !rymFetchState.active ? { icon: 'play', label: 'Start now', fn: () => { jobsState.held = false; w.paused = false; jobsStartNextRym(); } } : null, { icon: 'x', label: 'Remove', fn: () => { const k = jobsState.waiting.indexOf(w); if (k >= 0) jobsState.waiting.splice(k, 1); if (!jobsState.waiting.length) { clearTimeout(jobsState.nextTimer); jobsState.nextAt = 0; } } }] });
   });
+  if (bmAuto.noSvc && smPrefs().autoMatchNew && mqAll().length) need.push({ cat: 'match', icon: 'warn', tone: 'warn', title: 'Songs can\u2019t be matched yet', detail: `${jobsPl(mqAll().length, 'release')} waiting: connect Spotify (\u2699 \u2192 Connections \u2192 Spotify API) or install the CRATE for YouTube add-on.`, acts: [{ label: 'Spotify API\u2026', fn: () => { const b = document.getElementById('menuSpotifyApi'); if (b) b.click(); } }] });          // (1.126.0)
   const mq = mqAll().length;
   if (mq && !(bm && bm.started && bm.scope === 'queue')) wait.push({ cat: 'match', icon: 'note', title: 'Match songs', sub: `${jobsPl(mq, 'release')} in the match queue`, right: 'when you start it', acts: [{ icon: 'play', label: 'Start', fn: () => bmOpen({ queue: true }), opens: true }] });
   const lf = loadLastfmCreds();

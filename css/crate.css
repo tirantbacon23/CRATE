@@ -5081,3 +5081,19 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
   .soc-sent-link:hover { color: var(--text); border-color: var(--accent); }
   .soc-code-sm { font-size: 14px; padding: 6px 9px; }
   #friendsList[hidden] { display: none; }
+  /* (1.126.0) "Queued" is a quiet tag at the foot of the cover, not a big pill in the middle; Updating / Matching stay in the middle */
+  .cj-wait .cj-pill { top: auto; bottom: 34px; transform: translateX(-50%); font-size: 9.5px; padding: 4px 8px; opacity: .9; background: rgba(10,12,16,.78); }
+
+  /* (1.126.0) The ⚙ menu in sections, with a search box */
+  #layoutMenu { min-width: 300px; max-height: min(80vh, 760px); overflow-y: auto; }
+  .menu-find-wrap { padding: 6px 8px 8px; position: sticky; top: 0; background: inherit; z-index: 1; }
+  .menu-find { width: 100%; font-size: 13px; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg-card); color: var(--text); }
+  .menu-acc { border-top: 1px solid var(--line); }
+  .menu-acc[hidden] { display: none; }
+  .menu-acc-h { display: flex !important; align-items: center; justify-content: space-between; width: 100%; font: 500 11px 'IBM Plex Mono', monospace !important; letter-spacing: .12em; text-transform: uppercase; color: var(--text-dim) !important; padding: 10px 12px !important; }
+  .menu-acc-h i { font-style: normal; font-size: 10px; transition: transform .15s; }
+  .menu-acc.open .menu-acc-h { color: var(--accent) !important; } .menu-acc.open .menu-acc-h i { transform: rotate(90deg); }
+  .menu-acc-body { padding-bottom: 6px; } .menu-acc-body[hidden] { display: none; }
+  .menu-acc-body > [hidden] { display: none !important; }
+  .menu-sub-title { font: 500 10px 'IBM Plex Mono', monospace; letter-spacing: .12em; text-transform: uppercase; color: var(--text-dim); padding: 8px 12px 2px; opacity: .8; }
+  @media (prefers-reduced-motion: reduce) { .menu-acc-h i { transition: none; } }
