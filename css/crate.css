@@ -5230,3 +5230,30 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
   }
   /* (1.130.4) a little less padding around the page on desktop: more room for the panels */
   @media (min-width: 901px) { #app { padding-top: 14px; padding-left: 28px; padding-right: 28px; } }
+
+  /* (1.131.0) One header row on desktop: CRATE, ← →, the tabs, then the search and buttons. CRATE's side is as wide as the left columns
+     (set by js/57-header.js as --hdr-brand-w), so the tabs start right above the music. The tab strip that ran along the top of the window
+     is gone: the tabs live in this row, underlined in gold when chosen. Phones keep their own header (the tabs stay the bottom bar). */
+  @media (min-width: 901px) {
+    #app { padding-top: 0; }
+    :root { --tab-bar-h: -23px; } /* (the panels now start 51px higher than when --tab-bar-h was 28px) */
+    body.mp-docked-top { --tab-bar-h: -23px; }
+    .topbar { flex-wrap: nowrap; align-items: stretch; gap: 0; height: 52px; padding: 0; margin: 0 0 12px; }
+    .brand { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; min-width: 0; overflow: hidden; white-space: nowrap; padding-right: 12px; box-sizing: border-box; }
+    .topbar.hdr-aligned .brand { flex: 0 1 var(--hdr-brand-w); min-width: 120px; }          /* (gives way on a narrower window rather than push the buttons off) */
+    .topbar.hdr-narrow .brand .tagline { display: none; }
+    .brand h1 { font-size: 32px; letter-spacing: 1.5px; }
+    .brand .tagline { margin: 0; font-size: 11px; align-self: center; padding-top: 4px; }
+    .topbar .tab-bar { margin: 0; height: auto; padding: 0; background: none; border: 0; flex: 0 1 auto; min-width: 0; align-items: stretch; }
+    .topbar .tab-bar .tab-bar-btn { height: auto; }
+    .topbar .tab-bar .nav-tab { height: 100%; padding: 0 14px; font-size: 11.5px; letter-spacing: 1px; }
+    .topbar .tab-bar .nav-tab.active { background: none; box-shadow: inset 0 -2px 0 var(--accent); }
+    .topbar .tab-bar .nav-tab:hover { background: none; }
+    .topbar .tab-bar .tab-bar-popout { position: static; top: auto; }
+    .topbar .tab-bar { flex: 0 0 auto; }
+    .topbar .controls { margin-left: auto; padding-left: 16px; flex-wrap: nowrap; flex: 0 1 auto; min-width: 0; gap: 6px; }
+    .topbar .search-wrap { flex: 0 1 260px; min-width: 130px; margin-right: 4px; }
+    .topbar #searchInput { width: 100%; }
+    .topbar .controls .icon-btn { width: 34px; height: 34px; }
+    .topbar #searchInput { height: 34px; box-sizing: border-box; }
+  }

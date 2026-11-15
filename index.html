@@ -119,7 +119,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <!-- CRATE's own styles, in the head so the page is never drawn without them (from 1.78.0 to 1.90.5 this sat at the very end
      of <body>, so a phone showed the bare, unstyled markup for a moment on every load). After Leaflet's, so ours win. -->
-<link rel="stylesheet" href="css/crate.css?v=1.130.4">
+<link rel="stylesheet" href="css/crate.css?v=1.131.0">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
@@ -139,35 +139,11 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
 </div>
 
 <div id="app" hidden>
-  <!-- Tab bar — the strip at the very top of the window (MusicBee-style): back /
-       forward, the tabs, "+". Desktop: its own full-width bar above the header. Phone:
+  <!-- Tab bar (inside the header below, since 1.131.0): back / forward, the tabs, "+".
+       Desktop: one row with CRATE and the search, lined up with the panels. Phone:
        display: contents, so the .nav-tabs inside stays the fixed bottom bar it always was.
        Artist tabs open after the fixed ones, just before the "+", as in MusicBee. See
        initTabBar() / recordTabHistory() / openArtistQuickOpen(). -->
-  <div id="tabBar" class="tab-bar">
-    <div class="tab-bar-history">
-      <button type="button" id="tabBackBtn" class="tab-bar-btn" title="Back" aria-label="Back" disabled>&#8592;</button>
-      <button type="button" id="tabForwardBtn" class="tab-bar-btn" title="Forward" aria-label="Forward" disabled>&#8594;</button>
-    </div>
-    <nav class="nav-tabs" aria-label="View">
-      <button id="tabAlbums" class="nav-tab active">MUSIC</button>
-      <button id="tabDiary" class="nav-tab">DIARY</button>
-      <button id="tabScrobbles" class="nav-tab">SCROBBLES</button>
-      <button id="tabStats" class="nav-tab">STATS</button>
-      <button id="tabArtist" class="nav-tab">ARTIST</button>
-      <button type="button" id="tabLiked" class="nav-tab lk-tab" hidden><span class="lk-tab-ico" aria-hidden="true">♥</span> LIKED <span class="lk-tab-close" title="Close" aria-label="Close Liked songs">×</span></button>
-      <!-- Genuine browser-style tabs (Firefox/Chrome, per the reference)
-           rather than one fixed, reused tab — clicking a DIFFERENT artist
-           opens its OWN new tab here, each independently closeable, same
-           as MusicBee's own several simultaneous "Music Explorer" tabs.
-           Empty (nothing rendered) until the first artist's ever been
-           clicked. See renderArtistInfoTabButtons()/openArtistInfoTab(). -->
-      <div id="artistInfoTabsContainer" class="artist-info-tabs-container"></div>
-      <div id="genreTabsContainer" class="artist-info-tabs-container"></div>
-      <div id="friendTabsContainer" class="artist-info-tabs-container"></div>
-    </nav>
-    <button type="button" id="tabAddBtn" class="tab-bar-btn tab-bar-add" title="Open an artist in a new tab" aria-label="Open an artist in a new tab">+</button>
-  </div>
   <header class="topbar">
     <!-- Mobile-only: opens the Music/Playlists nav + browse-tree panels as
          an off-canvas drawer (see .mobile-nav-open on #panels below) since
@@ -177,6 +153,31 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
     <div class="brand">
       <h1>CRATE</h1>
       <p class="tagline">a listening log</p>
+    </div>
+    <!-- (1.131.0) The tabs now sit inside the header row, between CRATE and the search (one row on desktop). -->
+    <div id="tabBar" class="tab-bar">
+      <div class="tab-bar-history">
+        <button type="button" id="tabBackBtn" class="tab-bar-btn" title="Back" aria-label="Back" disabled>&#8592;</button>
+        <button type="button" id="tabForwardBtn" class="tab-bar-btn" title="Forward" aria-label="Forward" disabled>&#8594;</button>
+      </div>
+      <nav class="nav-tabs" aria-label="View">
+        <button id="tabAlbums" class="nav-tab active">MUSIC</button>
+        <button id="tabDiary" class="nav-tab">DIARY</button>
+        <button id="tabScrobbles" class="nav-tab">SCROBBLES</button>
+        <button id="tabStats" class="nav-tab">STATS</button>
+        <button id="tabArtist" class="nav-tab">ARTIST</button>
+        <button type="button" id="tabLiked" class="nav-tab lk-tab" hidden><span class="lk-tab-ico" aria-hidden="true">♥</span> LIKED <span class="lk-tab-close" title="Close" aria-label="Close Liked songs">×</span></button>
+        <!-- Genuine browser-style tabs (Firefox/Chrome, per the reference)
+             rather than one fixed, reused tab — clicking a DIFFERENT artist
+             opens its OWN new tab here, each independently closeable, same
+             as MusicBee's own several simultaneous "Music Explorer" tabs.
+             Empty (nothing rendered) until the first artist's ever been
+             clicked. See renderArtistInfoTabButtons()/openArtistInfoTab(). -->
+        <div id="artistInfoTabsContainer" class="artist-info-tabs-container"></div>
+        <div id="genreTabsContainer" class="artist-info-tabs-container"></div>
+        <div id="friendTabsContainer" class="artist-info-tabs-container"></div>
+      </nav>
+      <button type="button" id="tabAddBtn" class="tab-bar-btn tab-bar-add" title="Open an artist in a new tab" aria-label="Open an artist in a new tab">+</button>
     </div>
 
 
@@ -2287,63 +2288,64 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
   </div>
 </div>
 
-<script src="js/01-core.js?v=1.130.4"></script>
-<script src="js/02-auth.js?v=1.130.4"></script>
-<script src="js/03-taxonomy-layout.js?v=1.130.4"></script>
-<script src="js/04-obsidian-export.js?v=1.130.4"></script>
-<script src="js/05-init-genres.js?v=1.130.4"></script>
-<script src="js/06-events.js?v=1.130.4"></script>
-<script src="js/07-prefs-fetch.js?v=1.130.4"></script>
-<script src="js/08-tabs-panels.js?v=1.130.4"></script>
-<script src="js/09-descriptors-mood-merge.js?v=1.130.4"></script>
-<script src="js/10-filters-search.js?v=1.130.4"></script>
-<script src="js/11-grid-player.js?v=1.130.4"></script>
-<script src="js/12-player-menus.js?v=1.130.4"></script>
-<script src="js/13-diary-scrobbles-stats.js?v=1.130.4"></script>
-<script src="js/14-artist-playlists.js?v=1.130.4"></script>
-<script src="js/15-shuffle-artist-info.js?v=1.130.4"></script>
-<script src="js/16-tabbar-updatelog.js?v=1.130.4"></script>
-<script src="js/17-match-songs.js?v=1.130.4"></script>
-<script src="js/18-exchange.js?v=1.130.4"></script>
-<script src="js/19-sound.js?v=1.130.4"></script>
-<script src="js/20-export-import.js?v=1.130.4"></script>
-<script src="js/21-addon-genre-page.js?v=1.130.4"></script>
-<script src="js/22-deck.js?v=1.130.4"></script>
-<script src="js/23-timeline-map.js?v=1.130.4"></script>
-<script src="js/24-diary-log.js?v=1.130.4"></script>
-<script src="js/25-tracklist-add.js?v=1.130.4"></script>
-<script src="js/26-layout-dnd.js?v=1.130.4"></script>
-<script src="js/27-tracklist-builder-rym.js?v=1.130.4"></script>
-<script src="js/28-edit-links-youtube.js?v=1.130.4"></script>
-<script src="js/29-lastfm-scrobbling.js?v=1.130.4"></script>
-<script src="js/30-new-releases.js?v=1.130.4"></script>
-<script src="js/31-lastfm-import.js?v=1.130.4"></script>
-<script src="js/32-utils.js?v=1.130.4"></script>
-<script src="js/33-pull-details.js?v=1.130.4"></script>
-<script src="js/34-fill-blanks.js?v=1.130.4"></script>
-<script src="js/35-catalogue-stats.js?v=1.130.4"></script>
-<script src="js/36-galaxy.js?v=1.130.4"></script>
-<script src="js/37-taste.js?v=1.130.4"></script>
-<script src="js/38-ask.js?v=1.130.4"></script>
-<script src="js/39-phone-playback.js?v=1.130.4"></script>
-<script src="js/40-recorded-at.js?v=1.130.4"></script>
-<script src="js/41-playback-sync.js?v=1.130.4"></script>
-<script src="js/42-floating-video.js?v=1.130.4"></script>
-<script src="js/43-map-kin.js?v=1.130.4"></script>
-<script src="js/44-play-source.js?v=1.130.4"></script>
-<script src="js/45-direct-link.js?v=1.130.4"></script>
-<script src="js/46-visualizer.js?v=1.130.4"></script>
-<script src="js/47-lyrics.js?v=1.130.4"></script>
-<script src="js/48-p2p.js?v=1.130.4"></script>
-<script src="js/49-p2p-local.js?v=1.130.4"></script>
-<script src="js/50-social.js?v=1.130.4"></script>
-<script src="js/51-friend-page.js?v=1.130.4"></script>
-<script src="js/52-cover-jobs.js?v=1.130.4"></script>
-<script src="js/53-settings-menu.js?v=1.130.4"></script>
-<script src="js/54-liked.js?v=1.130.4"></script>
-<script src="js/55-song-desc.js?v=1.130.4"></script>
-<script src="js/56-downloads.js?v=1.130.4"></script>
-<script src="js/99-boot.js?v=1.130.4"></script>
+<script src="js/01-core.js?v=1.131.0"></script>
+<script src="js/02-auth.js?v=1.131.0"></script>
+<script src="js/03-taxonomy-layout.js?v=1.131.0"></script>
+<script src="js/04-obsidian-export.js?v=1.131.0"></script>
+<script src="js/05-init-genres.js?v=1.131.0"></script>
+<script src="js/06-events.js?v=1.131.0"></script>
+<script src="js/07-prefs-fetch.js?v=1.131.0"></script>
+<script src="js/08-tabs-panels.js?v=1.131.0"></script>
+<script src="js/09-descriptors-mood-merge.js?v=1.131.0"></script>
+<script src="js/10-filters-search.js?v=1.131.0"></script>
+<script src="js/11-grid-player.js?v=1.131.0"></script>
+<script src="js/12-player-menus.js?v=1.131.0"></script>
+<script src="js/13-diary-scrobbles-stats.js?v=1.131.0"></script>
+<script src="js/14-artist-playlists.js?v=1.131.0"></script>
+<script src="js/15-shuffle-artist-info.js?v=1.131.0"></script>
+<script src="js/16-tabbar-updatelog.js?v=1.131.0"></script>
+<script src="js/17-match-songs.js?v=1.131.0"></script>
+<script src="js/18-exchange.js?v=1.131.0"></script>
+<script src="js/19-sound.js?v=1.131.0"></script>
+<script src="js/20-export-import.js?v=1.131.0"></script>
+<script src="js/21-addon-genre-page.js?v=1.131.0"></script>
+<script src="js/22-deck.js?v=1.131.0"></script>
+<script src="js/23-timeline-map.js?v=1.131.0"></script>
+<script src="js/24-diary-log.js?v=1.131.0"></script>
+<script src="js/25-tracklist-add.js?v=1.131.0"></script>
+<script src="js/26-layout-dnd.js?v=1.131.0"></script>
+<script src="js/27-tracklist-builder-rym.js?v=1.131.0"></script>
+<script src="js/28-edit-links-youtube.js?v=1.131.0"></script>
+<script src="js/29-lastfm-scrobbling.js?v=1.131.0"></script>
+<script src="js/30-new-releases.js?v=1.131.0"></script>
+<script src="js/31-lastfm-import.js?v=1.131.0"></script>
+<script src="js/32-utils.js?v=1.131.0"></script>
+<script src="js/33-pull-details.js?v=1.131.0"></script>
+<script src="js/34-fill-blanks.js?v=1.131.0"></script>
+<script src="js/35-catalogue-stats.js?v=1.131.0"></script>
+<script src="js/36-galaxy.js?v=1.131.0"></script>
+<script src="js/37-taste.js?v=1.131.0"></script>
+<script src="js/38-ask.js?v=1.131.0"></script>
+<script src="js/39-phone-playback.js?v=1.131.0"></script>
+<script src="js/40-recorded-at.js?v=1.131.0"></script>
+<script src="js/41-playback-sync.js?v=1.131.0"></script>
+<script src="js/42-floating-video.js?v=1.131.0"></script>
+<script src="js/43-map-kin.js?v=1.131.0"></script>
+<script src="js/44-play-source.js?v=1.131.0"></script>
+<script src="js/45-direct-link.js?v=1.131.0"></script>
+<script src="js/46-visualizer.js?v=1.131.0"></script>
+<script src="js/47-lyrics.js?v=1.131.0"></script>
+<script src="js/48-p2p.js?v=1.131.0"></script>
+<script src="js/49-p2p-local.js?v=1.131.0"></script>
+<script src="js/50-social.js?v=1.131.0"></script>
+<script src="js/51-friend-page.js?v=1.131.0"></script>
+<script src="js/52-cover-jobs.js?v=1.131.0"></script>
+<script src="js/53-settings-menu.js?v=1.131.0"></script>
+<script src="js/54-liked.js?v=1.131.0"></script>
+<script src="js/55-song-desc.js?v=1.131.0"></script>
+<script src="js/56-downloads.js?v=1.131.0"></script>
+<script src="js/57-header.js?v=1.131.0"></script>
+<script src="js/99-boot.js?v=1.131.0"></script>
 
 </body>
 </html>

@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.130.4
+  CURRENT_VERSION: 1.131.0
 
+  1.131.0 — 2026-11-15 — One header row on desktop: CRATE, back/forward, the tabs, then the search and buttons. CRATE's side is as
+          wide as the left columns (it follows them as they're dragged), so the tabs start right above the music; the selected tab
+          has a gold underline. The tab strip along the top of the window is gone, and the panels start 51 px higher. Phones keep
+          their own header. New js/57-header.js. Page only.
   1.130.4 — 2026-11-15 — A compact header: "a listening log" on CRATE's line, the search and buttons centred beside it (no empty space above them), and less padding around the page. The panels gain 41 px of height. Page only.
 
           The header was CRATE with its tagline underneath (63 px tall) and
