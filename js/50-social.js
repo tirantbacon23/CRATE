@@ -117,13 +117,19 @@ function socFriendRow(f) {
   const src = f.status === 'playing' && np && SOC_SRC[np.src] ? `<span class="soc-src">${SOC_SRC[np.src]}</span>` : '';
   return `<div class="soc-row" data-soc-id="${escapeHtml(f.id)}"><button type="button" class="soc-page-btn" data-soc-page="${escapeHtml(f.id)}" title="Open ${escapeHtml(f.name)}'s crate and diary" aria-label="Open ${escapeHtml(f.name)}'s page">${socAvatar(f)}</button><div class="soc-who"><div class="soc-name"><button type="button" class="soc-name-btn" data-soc-page="${escapeHtml(f.id)}" title="Open ${escapeHtml(f.name)}'s crate and diary">${escapeHtml(f.name)}</button>${src}</div>${line}</div><span class="soc-acts">`
     + (mine ? `<button type="button" class="chip-btn soc-open" data-soc-open="${escapeHtml(pbId(mine))}" title="Open ${escapeHtml(mine.title)} in your crate">In your crate</button>` : '')
-    + `<button type="button" class="chip-btn soc-more" data-soc-remove="${escapeHtml(f.id)}" data-soc-name="${escapeHtml(f.name)}" title="Remove ${escapeHtml(f.name)} from your friends">Remove</button></span></div>`;
+    + `<button type="button" class="soc-dots" data-soc-menu="${escapeHtml(f.id)}" title="More for ${escapeHtml(f.name)}" aria-label="More for ${escapeHtml(f.name)}" aria-haspopup="menu">\u22ef</button></span></div>`;
 }
 
-// The panel has two parts: the list (redrawn with every heartbeat) and, behind the ⚙ button, Add a friend and What friends can see (drawn
-// only when it opens or a setting changes, so a code you're typing isn't wiped by the next heartbeat).
+// (1.125.0) The panel shows one page at a time: the list (Friends / Activity, redrawn with every heartbeat), Add a friend (the person-
+// with-a-plus button) or Settings (⚙). Add a friend and Settings are drawn only when they open or a setting changes, so a code or name
+// you're typing isn't wiped by the next heartbeat; each has "← Friends" back to the list.
+function socPane() { const v = socPos().pane; return v === 'add' || v === 'settings' ? v : 'list'; }
 function socRender() {
   const list = document.getElementById('friendsList'), sub = document.getElementById('friendsSub'); if (!list) return;
+  const pane = socPane(), box = document.getElementById('friendsSettings');
+  list.hidden = pane !== 'list'; if (box) box.hidden = pane === 'list';
+  ['friendsAddBtn', 'friendsSetBtn'].forEach(id => { const b = document.getElementById(id); if (b) b.setAttribute('aria-pressed', (id === 'friendsAddBtn' ? pane === 'add' : pane === 'settings') ? 'true' : 'false'); });
+  if (pane !== 'list') { if (!soc.setDrawn) socSetRender(); const n = document.getElementById('socPaneNote'); if (n) { n.textContent = soc.err || soc.note || ''; n.hidden = !(soc.err || soc.note); n.classList.toggle('soc-warn', !!soc.err); } }
   const hdr = document.getElementById('friendsMinInfo');
   if (soc.unsupported) {
     sub.textContent = 'Not set up yet'; if (hdr) hdr.textContent = '';
@@ -144,31 +150,71 @@ function socRender() {
     + (soc.err ? `<div class="soc-note soc-warn" role="status">${escapeHtml(soc.err)}</div>` : '')
     + (soc.incoming.length ? `<div class="soc-grp">Requests · ${soc.incoming.length}</div>` + soc.incoming.map(p => `<div class="soc-row">${socAvatar(p)}<div class="soc-who"><div class="soc-name">${escapeHtml(p.name)}</div><span class="soc-sub">wants to be friends</span></div><span class="soc-acts"><button type="button" class="chip-btn soc-acc" data-soc-accept="${escapeHtml(p.id)}">Accept</button><button type="button" class="chip-btn" data-soc-ignore="${escapeHtml(p.id)}">Ignore</button></span></div>`).join('') : '')
     + (soc.friends.length ? grp('Listening now', playing) + grp('Online', online) + grp('Offline', offline)
-      : `<div class="soc-empty"><b>No friends yet.</b><p>Send a friend your code, or enter theirs, under <b>⚙ Add a friend</b>.</p><button type="button" class="chip-btn soc-acc" data-soc-settings>Add a friend</button></div>`)
-    + (soc.outgoing.length ? `<div class="soc-grp">Sent · ${soc.outgoing.length}</div>` + soc.outgoing.map(p => `<div class="soc-row">${socAvatar(p)}<div class="soc-who"><div class="soc-name">${escapeHtml(p.name)}</div><span class="soc-sub">hasn't answered yet</span></div><span class="soc-acts"><button type="button" class="chip-btn" data-soc-remove="${escapeHtml(p.id)}">Take back</button></span></div>`).join('') : '');
+      : `<div class="soc-empty"><b>No friends yet.</b><p>Send a friend your code, or enter theirs.</p><button type="button" class="chip-btn soc-acc" data-soc-pane="add">Add a friend</button></div>`)
+    + (soc.outgoing.length ? `<button type="button" class="soc-sent-link" data-soc-pane="add">${soc.outgoing.length} request${soc.outgoing.length === 1 ? '' : 's'} sent, waiting for an answer</button>` : '');
   if (!soc.setDrawn) socSetRender();
 }
 function socSetRender() {
-  const box = document.getElementById('friendsSettings'), on = !!socPos().settings; if (!box) return;
-  box.hidden = !on; document.getElementById('friendsSetBtn').setAttribute('aria-pressed', on ? 'true' : 'false');
-  if (!on || !soc.me) { box.innerHTML = ''; soc.setDrawn = false; return; }
+  const box = document.getElementById('friendsSettings'), pane = socPane(); if (!box) return;
+  if (pane === 'list' || !soc.me) { box.innerHTML = pane === 'list' ? '' : '<div class="soc-empty">Loading…</div>'; soc.setDrawn = false; return; }
   const me = soc.me, sh = me.share || {};
-  const sw = (k, label, help, v) => `<label class="soc-tg"><span>${label}${help ? `<small>${help}</small>` : ''}</span><input type="checkbox" data-soc-share="${k}" ${v ? 'checked' : ''}></label>`;
-  box.innerHTML = `<div class="soc-sec"><div class="soc-sec-h">Add a friend</div>
-        <div class="soc-code-row"><span class="soc-code" id="socMyCode">${escapeHtml(me.code)}</span><button type="button" class="chip-btn" data-soc-copy>Copy</button><button type="button" class="chip-btn" data-soc-newcode title="Make a new code. The old one stops working.">New code</button></div>
-        <p class="soc-hint">Your friend code. Send it to a friend, or enter theirs:</p>
-        <form class="soc-add" id="socAddForm"><input id="socAddCode" type="text" placeholder="CRT-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Friend's code"><button type="submit" class="chip-btn soc-acc">Send</button></form>
+  const head = (t) => `<div class="soc-pane-h"><button type="button" class="soc-back" data-soc-pane="list">← Friends</button><b>${t}</b></div><div class="soc-note" id="socPaneNote" role="status" hidden></div>`;
+  if (pane === 'add') {
+    box.innerHTML = head('Add a friend') + `<div class="soc-sec">
+        <p class="soc-hint">Send a friend your code:</p>
+        <div class="soc-code-row"><span class="soc-code" id="socMyCode">${escapeHtml(me.code)}</span><button type="button" class="chip-btn" data-soc-copy>Copy</button></div>
+        <p class="soc-hint">Or enter theirs:</p>
+        <form class="soc-add" id="socAddForm"><input id="socAddCode" type="text" placeholder="CRT-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Friend's code"><button type="submit" class="chip-btn soc-acc">Send request</button></form>
+        <p class="soc-hint">They accept in their own Friends panel. If you both enter each other's code, you're friends at once.</p>
+      </div>`
+      + (soc.outgoing.length ? `<div class="soc-grp">Sent · ${soc.outgoing.length}</div>` + soc.outgoing.map(p => `<div class="soc-row">${socAvatar(p)}<div class="soc-who"><div class="soc-name">${escapeHtml(p.name)}</div><span class="soc-sub">hasn't answered yet</span></div><span class="soc-acts"><button type="button" class="chip-btn" data-soc-remove="${escapeHtml(p.id)}">Take back</button></span></div>`).join('') : '');
+  } else {
+    const sw = (k, label, help, v) => `<label class="soc-tg"><span>${label}${help ? `<small>${help}</small>` : ''}</span><input type="checkbox" data-soc-share="${k}" ${v ? 'checked' : ''}></label>`;
+    const hidden = (state.raw || []).filter(x => x.friendsHidden).length, custom = Object.keys(me.perFriend || {}).length;
+    box.innerHTML = head('Friends settings') + `<div class="soc-sec"><div class="soc-sec-h">You</div>
+        <label class="soc-tg"><span>Your name<small>How friends see you</small></span><input id="socName" type="text" value="${escapeHtml(me.name || '')}" maxlength="40" aria-label="Your name, as friends see it"></label>
+        <label class="soc-tg"><span>Appear offline<small>Friends see you as offline and nothing you play. You still see them.</small></span><input type="checkbox" data-soc-off ${me.off ? 'checked' : ''}></label>
       </div>
       <div class="soc-sec"><div class="soc-sec-h">What friends can see</div>
-        <label class="soc-tg"><span>Your name</span><input id="socName" type="text" value="${escapeHtml(me.name || '')}" maxlength="40" aria-label="Your name, as friends see it"></label>
-        ${sw('playing', 'What I\'m playing', '', sh.playing)}
+        ${sw('playing', 'What I’m playing', '', sh.playing)}
         ${sw('crate', 'My crate', 'Releases, covers, genres', sh.crate)}
         ${sw('ratings', 'My ratings', '', sh.ratings)}
         ${sw('diary', 'My diary', 'Reviews included', sh.diary)}
-        <label class="soc-tg"><span>Appear offline<small>You still see your friends</small></span><input type="checkbox" data-soc-off ${me.off ? 'checked' : ''}></label>
-        <div class="soc-tg soc-tg-static"><span>Hidden from friends<small>Right-click a release → Hide from friends</small></span><span class="soc-sub">${(() => { const n = (state.raw || []).filter(x => x.friendsHidden).length; return n ? n + ' release' + (n === 1 ? '' : 's') : 'none'; })()}</span></div>
+        <div class="soc-tg soc-tg-static"><span>For one friend<small>Open their page → What they see</small></span><span class="soc-sub">${custom ? custom + ' changed' : 'none changed'}</span></div>
+        <div class="soc-tg soc-tg-static"><span>Hidden releases<small>Right-click a release → Hide from friends</small></span><span class="soc-sub">${hidden ? hidden + ' release' + (hidden === 1 ? '' : 's') : 'none'}</span></div>
+      </div>
+      <div class="soc-sec"><div class="soc-sec-h">Your friend code</div>
+        <div class="soc-code-row"><span class="soc-code soc-code-sm">${escapeHtml(me.code)}</span><button type="button" class="chip-btn" data-soc-newcode title="Make a new code. The old one stops working; friends you already have stay friends.">New code</button></div>
+        <p class="soc-hint">A new code stops the old one working (say, if it was shared further than you meant). Friends you have stay friends.</p>
       </div>`;
+  }
   soc.setDrawn = true;
+  const n = document.getElementById('socPaneNote'); if (n) { n.textContent = soc.err || soc.note || ''; n.hidden = !(soc.err || soc.note); n.classList.toggle('soc-warn', !!soc.err); }
+}
+function socGoPane(pane) { socPosSave({ pane, min: false }); soc.setDrawn = false; soc.note = ''; soc.err = ''; socPlace(); socRender(); if (pane === 'list') socSetRender(); const f = document.querySelector(pane === 'add' ? '#socAddCode' : pane === 'settings' ? '#socName' : '#friendsList .soc-seg button'); if (f && pane !== 'list') f.focus(); }
+
+// (1.125.0) A friend's ⋯ menu in the list: their page, what they see, remove (asks once more).
+function socRowMenuClose() { const m = document.getElementById('socRowMenu'); if (m) m.remove(); document.removeEventListener('mousedown', socRowMenuOutside, true); }
+function socRowMenuOutside(e) { if (!e.target.closest('#socRowMenu')) socRowMenuClose(); }
+function socRowMenuOpen(btn, id) {
+  socRowMenuClose();
+  const f = (soc.friends || []).find(x => x.id === id); if (!f) return;
+  const m = document.createElement('div'); m.id = 'socRowMenu'; m.className = 'fp-menu'; m.setAttribute('role', 'menu');
+  m.innerHTML = `<div class="fp-menu-h"><b>${escapeHtml(f.name)}</b></div><button type="button" role="menuitem" data-srm="page">Open their page</button><button type="button" role="menuitem" data-srm="sees">What they see…</button><button type="button" role="menuitem" class="soc-danger-item" data-srm="remove">Remove from friends</button>`;
+  document.body.appendChild(m);
+  const r = btn.getBoundingClientRect(); m.style.left = Math.max(8, Math.min(r.right - m.offsetWidth, innerWidth - m.offsetWidth - 8)) + 'px'; m.style.top = (r.bottom + m.offsetHeight + 8 < innerHeight ? r.bottom + 4 : Math.max(8, r.top - m.offsetHeight - 4)) + 'px';
+  m.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-srm]'); if (!b) return;
+    if (b.dataset.srm === 'page') { socRowMenuClose(); if (typeof openFriendTab === 'function') openFriendTab(id); }
+    else if (b.dataset.srm === 'sees') { socRowMenuClose(); if (typeof openFriendTab === 'function') { openFriendTab(id); setTimeout(() => { const s = document.querySelector('#friendInfoWrap [data-fp="sees"]'); if (s && typeof fpSeesOpen === 'function') fpSeesOpen(s, id); }, 50); } }
+    else if (b.dataset.srm === 'remove') {
+      if (b.dataset.confirm !== '1') { b.dataset.confirm = '1'; b.textContent = `Remove ${f.name}? Click again`; return; }
+      socRowMenuClose(); socDo('socialRemove', { id }, `${f.name} is no longer a friend.`.replace(/\.\.$/, '.'));
+    }
+  });
+  m.addEventListener('keydown', (e) => { if (e.key === 'Escape') { socRowMenuClose(); btn.focus(); } });
+  setTimeout(() => document.addEventListener('mousedown', socRowMenuOutside, true), 0);
+  const first = m.querySelector('button'); if (first) first.focus();
 }
 
 // The header button: a people icon, a green count of friends playing now, a dot for requests waiting.
@@ -316,7 +362,7 @@ async function socSetHidden(items, hide) {
   }
   const msg = done === list.length ? (hide ? `Hidden from friends: ${done === 1 ? list[0].title : done + ' releases'}.` : `Friends can see ${done === 1 ? list[0].title : done + ' releases'} again.`) : `Saved ${done} of ${list.length}. Try the rest again.`;
   if (typeof flashGlobalToast === 'function') flashGlobalToast(msg);
-  if (socOpenNow() && socPos().settings) socSetRender();
+  if (socOpenNow() && socPane() === 'settings') { soc.setDrawn = false; socSetRender(); }
 }
 
 // THE PANEL: it floats over CRATE without blocking it. Drag it by its header, resize it from its corner, fold it down to the header (–).
@@ -373,7 +419,7 @@ function socClose() { const pn = document.getElementById('friendsPanel'); if (pn
 function socToggle() { if (socOpenNow()) { if (socPos().min) socMinToggle(); else socClose(); } else socOpen(); }
 
 async function socDo(action, extra, okNote) {
-  try { const d = await socCall(action, extra); soc.note = d.note || okNote || ''; socTake(d); if (/socialSettings|socialNewCode/.test(action)) socSetRender(); }
+  try { const d = await socCall(action, extra); soc.note = d.note || okNote || ''; socTake(d); if (/socialSettings|socialNewCode|socialRemove|socialAdd/.test(action) && socPane() !== 'list') { soc.setDrawn = false; socSetRender(); } }
   catch (e) { soc.note = ''; soc.err = e.message || String(e); socRender(); }
 }
 
@@ -382,14 +428,17 @@ function initSocial() {
   btn.addEventListener('click', socToggle);
   document.getElementById('friendsClose').addEventListener('click', socClose);
   document.getElementById('friendsMin').addEventListener('click', socMinToggle);
-  document.getElementById('friendsSetBtn').addEventListener('click', () => { const on = !socPos().settings; socPosSave({ settings: on, min: false }); socPlace(); socSetRender(); if (on) { const x = document.getElementById('friendsSettings'); x.scrollIntoView({ block: 'nearest' }); } });
+  document.getElementById('friendsAddBtn').addEventListener('click', () => socGoPane(socPane() === 'add' ? 'list' : 'add'));
+  document.getElementById('friendsSetBtn').addEventListener('click', () => socGoPane(socPane() === 'settings' ? 'list' : 'settings'));
+  { const mb = document.getElementById('menuFriendsSettings'); if (mb) mb.addEventListener('click', () => { const lm = document.getElementById('layoutMenu'); if (lm) lm.hidden = true; if (!socOpenNow()) socOpen(); socGoPane('settings'); }); }
   pn.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !e.target.matches('input')) socClose(); });
   socDragInit(pn);
   pn.addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b || !pn.querySelector('.friends-body').contains(b)) return;
     soc.err = '';
     if (b.hasAttribute('data-soc-retry')) { soc.unsupported = false; soc.lastBeat = 0; socBeat(); }
-    else if (b.hasAttribute('data-soc-settings')) { socPosSave({ settings: true }); socSetRender(); document.getElementById('friendsSettings').scrollIntoView({ block: 'nearest' }); }
+    else if (b.dataset.socPane) socGoPane(b.dataset.socPane);
+    else if (b.dataset.socMenu) socRowMenuOpen(b, b.dataset.socMenu);
     else if (b.dataset.socAccept) socDo('socialAnswer', { id: b.dataset.socAccept, accept: true });
     else if (b.dataset.socIgnore) socDo('socialAnswer', { id: b.dataset.socIgnore, accept: false });
     else if (b.dataset.socRemove) {

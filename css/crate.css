@@ -4877,8 +4877,6 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
   .soc-acts { display: flex; gap: 6px; align-items: center; } .soc-acts:empty { display: none; }
   .soc-acc { background: var(--accent); border-color: var(--accent); color: #12161C; }
   .soc-danger { border-color: #D97A6C; color: #D97A6C; }
-  .soc-more { display: none; } .soc-row:hover .soc-more, .soc-row:focus-within .soc-more, .soc-more.soc-danger { display: inline-flex; }
-  @media (hover: none) { .soc-more { display: inline-flex; } }
   .soc-empty { padding: 18px 14px; display: grid; gap: 8px; color: var(--text-dim); font-size: 13.5px; } .soc-empty b { color: var(--text); } .soc-empty p { margin: 0; } .soc-empty .chip-btn { justify-self: start; }
   .soc-note { margin: 10px 14px 4px; padding: 8px 12px; border-radius: 6px; background: var(--bg-card); border: 1px solid var(--line); font-size: 13px; }
   .soc-warn { border-color: #D97A6C; color: #E8A79C; }
@@ -5070,3 +5068,16 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
   .list-view .cj-tag.cj-work { background: var(--accent); color: #12161C; border-color: var(--accent); }
   .list-view .cj-tag.cj-match.cj-work { background: #6FC48A; border-color: #6FC48A; }
   .list-view .cj-bar { height: 3px; }
+
+  /* (1.125.0) Friends panel pages: Add a friend and Settings, the ⋯ menu on a friend */
+  .soc-pane-h { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg-elevated); z-index: 1; }
+  .soc-pane-h b { font: 500 11px 'IBM Plex Mono', monospace; letter-spacing: .12em; text-transform: uppercase; color: var(--text); }
+  .soc-back { background: none; border: 1px solid var(--line); border-radius: 6px; color: var(--text-dim); font: 500 11.5px 'IBM Plex Mono', monospace; padding: 4px 8px; cursor: pointer; }
+  .soc-back:hover, .soc-back:focus-visible { color: var(--text); border-color: var(--accent); outline: none; }
+  .soc-dots { width: 28px; height: 28px; border-radius: 6px; border: 1px solid transparent; background: none; color: var(--text-dim); font-size: 16px; line-height: 1; cursor: pointer; }
+  .soc-dots:hover, .soc-dots:focus-visible { color: var(--text); border-color: var(--line); background: var(--bg-card); outline: none; }
+  .soc-danger-item { color: #E8A79C !important; }
+  .soc-sent-link { display: block; width: calc(100% - 28px); margin: 10px 14px; padding: 8px 10px; text-align: left; background: var(--bg-card); border: 1px dashed var(--line); border-radius: 6px; color: var(--text-dim); font: inherit; font-size: 12.5px; cursor: pointer; }
+  .soc-sent-link:hover { color: var(--text); border-color: var(--accent); }
+  .soc-code-sm { font-size: 14px; padding: 6px 9px; }
+  #friendsList[hidden] { display: none; }

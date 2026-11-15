@@ -17,7 +17,22 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.124.1
+  CURRENT_VERSION: 1.125.0
+
+  1.125.0 — 2026-11-15 — A tidier Friends panel: the list is just Friends and Activity; Add a friend and Settings are pages of their own, and each friend has a ⋯ menu. Page only.
+
+          THE LIST: Friends / Activity and nothing else. Each friend's Remove
+          button (which appeared on hover) is now a ⋯ menu: Open their page,
+          What they see…, Remove from friends (it asks once more). Requests
+          you've sent are one line ("1 request sent…") that opens Add a friend.
+          ADD A FRIEND (the person-with-a-plus button): your code with Copy,
+          the box for theirs, and the requests you've sent (Take back).
+          SETTINGS (⚙, new in the panel's header, and "Friends settings…" in
+          CRATE's own ⚙ menu): your name and Appear offline; what friends can
+          see, with how many friends you've changed it for and how many
+          releases are hidden; your friend code and New code.
+          Both pages have "← Friends" back to the list, and what you type there
+          isn't cleared when the list refreshes.
 
   1.124.1 — 2026-11-15 — Fixes to the "Updating / Matching / Queued" labels on covers. Page only.
 
