@@ -251,6 +251,7 @@ const SEARCH_FIELD_ALIASES = {
   region: 'region', location: 'location',
   track: 'track', song: 'track',
   descriptor: 'descriptor', descriptors: 'descriptor',
+  desc: 'songdesc', songdesc: 'songdesc', liked: 'liked',          // (1.129.0) a song's own descriptors; liked songs
   scene: 'scene', movement: 'movement', movements: 'movement', scenes: 'scene',
   rym: 'rym',
   updated: 'updated'
@@ -364,6 +365,12 @@ function combinedSearchText(r) {
 // (artist:, year:, rating:...) and negated terms already gated which
 // releases got here, so they're ignored at this level.
 function filterTracksBySearch(item, tracks) {
+  // (1.129.0) desc: and liked: narrow a release's songs to those that have them (and never fall back to all of them)
+  const songOnly = getSearchTerms().filter(t => !t.negate && t.value && t.field && ['songdesc', 'liked'].includes(SEARCH_FIELD_ALIASES[t.field.toLowerCase()]));
+  if (songOnly.length) {
+    tracks = tracks.filter(t => { const e = (item.trackData || {})[t.trackNumber] || {}; return songOnly.every(term => SEARCH_FIELD_ALIASES[term.field.toLowerCase()] === 'liked' ? (!!e.liked) !== /^(no|false|0)$/i.test(term.value) : (Array.isArray(e.desc) && e.desc.some(d => d.includes(descKey(term.value))))); });
+    if (!tracks.length) return tracks;
+  }
   const terms = getSearchTerms().filter(t =>
     !t.negate && t.value && (!t.field || SEARCH_FIELD_ALIASES[t.field.toLowerCase()] === 'track'));
   if (!terms.length) return tracks;
@@ -410,6 +417,8 @@ function searchTokenMatches(r, token) {
   if (canonicalField === 'track') {
     return trackTitlesFor(r).some(t => t.toLowerCase().includes(value.toLowerCase()));
   }
+  if (canonicalField === 'songdesc') { const v = descKey(value); return Object.values(r.trackData || {}).some(e => e && Array.isArray(e.desc) && e.desc.some(d => d.includes(v))); }          // (1.129.0)
+  if (canonicalField === 'liked') { const no = /^(no|false|0)$/i.test(String(value)); const any = Object.values(r.trackData || {}).some(e => e && e.liked); return no ? !any : any; }
   if (canonicalField === 'artist') { const v = value.toLowerCase(); return [r.artist, artistCanon(r.artist)].some(n => String(n || '').toLowerCase().includes(v)); }          // an alias's releases answer to its artist's name
   return String(r[canonicalField] || '').toLowerCase().includes(value.toLowerCase());
 }

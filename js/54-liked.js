@@ -72,7 +72,7 @@ function likePaint(all) {
     const html = likeBtnHtml(s.item, s.num, s.name, 'lk-row');
     if (row.classList.contains('track-row-wrap')) { const at = row.querySelector('.track-interactive'); if (at) at.insertAdjacentHTML('afterbegin', html); }
     else if (row.classList.contains('main-track-row')) { const at = row.querySelector('.mt-title'); if (at) at.insertAdjacentHTML('afterbegin', html); }
-    else { const t = row.querySelector(':scope > .track-time'); if (t) t.insertAdjacentHTML('beforebegin', html); else row.insertAdjacentHTML('beforeend', html); }
+    else { const at = row.querySelector('.track-name'); if (at) at.insertAdjacentHTML('beforeend', html); }          // (1.129.0) inside the name: these rows are a fixed grid, and an extra cell wrapped the song's length onto a line of its own
   });
   // the player and Track info: the song playing
   const now = likeNow();

@@ -1414,3 +1414,16 @@ suite('Liked songs (1.128.0)', () => {
   });
 });
 
+suite('Descriptors for songs (1.129.0)', () => {
+  test('read from the song data, and desc: / liked: narrow a release to its matching songs', () => {
+    const it = app('state').raw[0], keep = JSON.stringify(it.trackData || {}), input = app('el').searchInput, q0 = input.value;
+    try {
+      it.trackData = { 1: { desc: ['melancholic', 'sparse'] }, 2: { liked: '2026-11-15T10:00:00Z' } };
+      eq(app('sdGet')(it, 1), ['melancholic', 'sparse']); eq(app('sdGet')(it, 2), []);
+      const tracks = [{ trackNumber: 1, trackName: 'One' }, { trackNumber: 2, trackName: 'Two' }, { trackNumber: 3, trackName: 'Three' }];
+      app('state').query = input.value = 'desc:sparse'; eq(app('filterTracksBySearch')(it, tracks).map(t => t.trackName), ['One']);
+      app('state').query = input.value = 'liked:yes'; eq(app('filterTracksBySearch')(it, tracks).map(t => t.trackName), ['Two']);
+    } finally { it.trackData = JSON.parse(keep); input.value = q0; app('state').query = q0.trim().toLowerCase(); }
+  });
+});
+

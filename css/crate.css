@@ -5125,3 +5125,33 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
   .lkp-when { font: 400 11.5px 'IBM Plex Mono', monospace; color: var(--text-dim); white-space: nowrap; }
   @media (max-width: 900px) { #likedWrap .fp-scroll { padding-left: 14px; padding-right: 14px; } .lkp-when { display: none; } .lkp-row { grid-template-columns: 40px minmax(0, 1fr) auto; } }
   .fp-liked-tag { font-size: 11px; padding: 2px 8px; white-space: nowrap; }
+
+  /* (1.129.0) Descriptors for songs (js/55-song-desc.js): chips under a song's name, and the editor */
+  .sd-chips { display: inline-flex; flex-wrap: wrap; gap: 3px; align-items: center; margin: 2px 0 0; cursor: pointer; border-radius: 4px; max-width: 100%; vertical-align: middle; }
+  .track-row-wrap .sd-chips { display: flex; width: 100%; margin-top: 3px; }
+  .track-row-wrap .sd-chips.sd-empty { display: inline-flex; width: auto; margin: 0 0 0 8px; }          /* none yet: "+ describe" on the same line, on hover, so the row isn't taller */
+  .sd-chips:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .sd-chip { font: 500 10px/1.5 'IBM Plex Mono', monospace; padding: 0 6px; border-radius: 999px; background: var(--bg-card); border: 1px solid var(--line); color: var(--text-dim); white-space: nowrap; }
+  .sd-cat-mood { border-color: #6b5aa8; } .sd-cat-texture { border-color: #3f7d8c; } .sd-cat-tempo { border-color: #8a6d2a; } .sd-cat-theme { border-color: #7a4a5a; }
+  .sd-cat-vocals { border-color: #4f7a46; } .sd-cat-instr { border-color: #5a6b8a; } .sd-cat-style { border-color: #8a5a3a; } .sd-cat-setting { border-color: #3a7a6a; } .sd-cat-form { border-color: #6a6a3a; }
+  .sd-more { color: var(--text); }
+  .sd-add { font: 500 10px 'IBM Plex Mono', monospace; color: var(--text-dim); opacity: 0; transition: opacity .12s; }
+  .sd-empty { min-height: 0; }
+  .track-row:hover .sd-empty .sd-add, .track-row-wrap:hover .sd-empty .sd-add, .main-track-row:hover .sd-empty .sd-add, .sd-chips:focus-visible .sd-add, .sd-info .sd-add { opacity: 1; }
+  @media (hover: none) { .sd-empty { display: none; } }
+  .sd-compact { margin-left: 6px; display: inline-flex; flex-wrap: nowrap; overflow: hidden; } .sd-compact .sd-chip:nth-child(n+3) { display: none; }
+  .sd-info { display: flex; margin: 4px 0 6px; }
+  .sd-ed { position: fixed; z-index: 76; width: min(380px, calc(100vw - 16px)); background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 16px 44px rgba(0,0,0,.5); padding: 12px; display: grid; gap: 10px; }
+  .sd-ed-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; } .sd-ed-h b { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sd-ed-box { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 6px 8px; border: 1px solid var(--accent); border-radius: 8px; background: var(--bg-card); }
+  .sd-ed-box .sd-chip { color: var(--text); font-size: 11px; display: inline-flex; align-items: center; gap: 2px; padding-right: 2px; }
+  .sd-ed-chips { display: contents; }
+  .sd-x { border: 0; background: none; color: var(--text-dim); cursor: pointer; font-size: 13px; line-height: 1; padding: 0 3px; border-radius: 50%; } .sd-x:hover, .sd-x:focus-visible { color: var(--text); background: rgba(255,255,255,.1); outline: none; }
+  .sd-ed-box input { flex: 1; min-width: 120px; border: 0; background: none; color: var(--text); font: inherit; font-size: 13px; outline: none; padding: 3px 2px; }
+  .sd-ed-sugg { display: grid; gap: 8px; max-height: 240px; overflow-y: auto; }
+  .sd-sugg-row { display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 8px; align-items: start; }
+  .sd-sugg-row > span { font: 500 10px 'IBM Plex Mono', monospace; letter-spacing: .1em; text-transform: uppercase; color: var(--text-dim); padding-top: 3px; }
+  .sd-sugg { display: flex; flex-wrap: wrap; gap: 4px; } .sd-sugg .sd-chip { cursor: pointer; font-size: 11px; color: var(--text); } .sd-sugg .sd-chip:hover, .sd-sugg .sd-chip:focus-visible { border-color: var(--accent); outline: none; }
+  .sd-hint { margin: 0; font-size: 12px; color: var(--text-dim); }
+  .sd-ed-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; } .sd-ed-foot .sd-hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .track-row .track-name .lk-heart { margin-left: 6px; width: 20px; height: 20px; }

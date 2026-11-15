@@ -17,7 +17,29 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.128.0
+  CURRENT_VERSION: 1.129.0
+
+  1.129.0 — 2026-11-15 — Descriptors for songs: the same descriptors as releases, on single songs, shown as chips under the song's name, with search (desc:, liked:). Fix: the heart no longer breaks the rows of the Album and tracks view. Page only.
+
+          ON A SONG: small chips under its name in a release's tracklist
+          (the first three, then "+2"), coloured by category: mood, texture,
+          tempo, theme… In the browser's song lists and the Tracks view they
+          sit beside the name. Under the song playing in Track info too. A
+          song starts with none: hover a song and click "+ describe".
+          THE EDITOR (click a song's chips): type to find a descriptor, with
+          suggestions from the same categories releases use, from the
+          release's own descriptors (never added for you), and from those
+          you've used on songs before. Enter or a click adds one; × or
+          Backspace takes one off; anything that isn't a known descriptor is
+          kept as your own. Saved as you go.
+          SAVED with the song in its release (like a like or a song rating): no
+          backend change; never copied from a friend's release.
+          SEARCH: desc:melancholic finds the releases with a song that has it,
+          and narrows their song lists to those songs; liked:yes does the same
+          for liked songs (liked:no for releases with none).
+          FIXED (1.128.0): in the Album and tracks view each song's heart was an
+          extra cell in a row with room for three, which pushed the song's
+          length onto a line of its own. The heart sits inside the name now.
 
   1.128.0 — 2026-11-15 — Liked songs: a heart on every song and in the player, a Liked songs page with Play and Shuffle, and friends can see them when you let them. Also: your 59 "Other (yours)" descriptors have categories. Page and Apps Script backend (paste the new apps-script-backend.gs and redeploy, for sharing liked songs).
 
