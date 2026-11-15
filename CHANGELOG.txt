@@ -17,7 +17,54 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.113.0
+  CURRENT_VERSION: 1.114.0
+
+  1.114.0 — 2026-11-15 — Friends, part 1: add friends by a friend code and see who's online and what they're playing. Page and Apps Script backend (add Social.gs and one line to CRATE.gs, then redeploy).
+
+          THE FRIENDS BUTTON (top bar, the two people): opens the Friends
+          window. The icon turns green, with a count, when friends are playing
+          something; an amber dot means a friend request is waiting.
+          THE FRIENDS WINDOW: friends in three groups. Listening now (the
+          song, the artist and release, its cover, and where it's playing
+          from), Online (CRATE open, paused), Offline (when they were last
+          seen and the last release they played). When a friend is playing a
+          release that's also in your crate, "In your crate" opens it.
+          Requests waiting for you (Accept / Ignore) and requests you sent
+          (Take back) are listed too. Hover a friend for Remove; it asks once
+          more before removing.
+          ADDING A FRIEND: your friend code (CRT-7K4Q-MB2X) is at the foot of
+          the window, with Copy and New code (the old code stops working).
+          Enter a friend's code and Send request; they accept in their own
+          Friends window. If you both enter each other's code, you're friends
+          at once. Friends never see each other's email address.
+          WHAT FRIENDS CAN SEE: your name (taken from your Google account at
+          first; change it here), What I'm playing, My crate, My ratings, My diary,
+          and Appear offline (friends see you as offline and nothing you play;
+          you still see them). Crates, ratings and diaries go out only when the
+          two of you are friends, and only what you switch on; the screens for
+          them come in part 2.
+          HOW IT WORKS: about once a minute (every 25 s with the window open,
+          and at once when the song changes or you pause) CRATE tells the
+          backend you're here and what's playing, and gets your friends back
+          in the same answer. The backend keeps friends and switches in its
+          Script Properties and what's playing in its cache for 10 minutes;
+          nothing goes in anyone's sheet. Online means seen in the last 2½
+          minutes.
+
+          SETTING UP THE BACKEND (once):
+          1. Open the CRATE Apps Script project (the one with CRATE.gs).
+          2. Files: + → Script, name it Social, and paste in all of
+             backend/Social.gs from this repo.
+          3. In CRATE.gs, in doPost, find the line
+               const action = payload.action;
+             and put this line right under it:
+               if (typeof action === 'string' && action.indexOf('social') === 0) return _social(email, action, payload);
+          4. Your friend must be on the ALLOWED_EMAILS list at the top of
+             CRATE.gs (or the list empty), as for using CRATE at all.
+          5. Deploy → Manage deployments → the pencil on your deployment →
+             Version: New version → Deploy. The /exec address stays the same.
+          Until then the Friends window says the backend isn't set up yet, and
+          the rest of CRATE works as before.
 
   1.113.0 — 2026-11-11 — Shuffle is really random across what's playing: each next song is a random song of a random release, and the same artist doesn't come round again within a few songs. Page only.
 

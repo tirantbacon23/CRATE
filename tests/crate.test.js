@@ -1298,3 +1298,16 @@ suite('P2P: sharers who refuse, or limit you (1.107.0, 1.108.0)', () => {
     } finally { delete all.__t_capped; delete all.__t_bot; }
   });
 });
+
+suite('Friends', () => {
+  test('how long ago, and initials for the round badge', () => {
+    const ago = app('socAgo'), ini = app('socInitials'), now = Date.now();
+    eq([ago(0), ago(now - 30e3), ago(now - 5 * 60e3), ago(now - 3 * 3600e3), ago(now - 30 * 3600e3), ago(now - 5 * 86400e3)], ['', 'just now', '5 min ago', '3 h ago', 'yesterday', '5 days ago']);
+    eq([ini('Sam K.'), ini('rina'), ini('Mary Jane Watson'), ini('')], ['SK', 'RI', 'MW', '?']);
+  });
+  test('a friend playing a release in my crate is matched to it, whatever the case and accents', () => {
+    const it = app('state').raw[0], m = app('socMine');
+    eq(m(it.artist.toUpperCase(), it.title.toUpperCase()), it); eq(m('No One', 'Nothing At All 123'), null); eq(m('', it.title), null);
+  });
+});
+
