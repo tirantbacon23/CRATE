@@ -5106,7 +5106,7 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
   .lk-heart:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .lk-heart[hidden] { display: none; }
   .lk-row { opacity: 0; transition: opacity .12s; } .lk-row[aria-pressed="true"] { opacity: 1; }
-  .track-row:hover .lk-row, .main-track-row:hover .lk-row, .track-row-wrap:hover .lk-row, .lkp-row .lk-row, .lk-row:focus-visible, .track-row.selected .lk-row, .main-track-row.selected .lk-row { opacity: 1; }
+  .track-row:hover .lk-row, .main-track-row:hover .lk-row, .track-row-wrap:hover .lk-row, .lkp-row .lk-row, .lkp-tr .lk-row, .lk-row:focus-visible, .track-row.selected .lk-row, .main-track-row.selected .lk-row { opacity: 1; }
   @media (hover: none) { .lk-row { opacity: 1; } }
   .main-track-row .mt-title .lk-heart { width: 20px; height: 20px; margin-right: 4px; }
   .lk-player, .lk-info { margin-left: 6px; }
@@ -5260,3 +5260,45 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
     .topbar .controls .icon-btn { width: 34px; height: 34px; }
     .topbar #searchInput { height: 34px; box-sizing: border-box; }
   }
+
+  /* (1.132.0) Liked songs, in the panels: the far-left strip and Up Next stay beside it, like the other views. A sortable song list
+     (click a heading; again to reverse), or covers (each release you've liked songs from, its liked songs underneath). */
+  #panels.liked-mode > #leftPanel, #panels.liked-mode > #resizerLeft, #panels.liked-mode > #mainPanel { display: none !important; }
+  #likedWrap.liked-wrap { flex: 1 1 0; min-width: 0; min-height: 0; overflow-y: auto; display: block; }
+  #likedWrap.liked-wrap[hidden] { display: none !important; }
+  .lkp-page { padding: 4px 18px 24px; }
+  .lkp-head { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 6px 0 16px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+  .lkp-art { width: 64px; height: 64px; border-radius: 6px; background: #2A1B1E; color: var(--heart); display: grid; place-items: center; flex: none; } .lkp-art svg { width: 28px; height: 28px; }
+  .lkp-who { display: grid; gap: 4px; min-width: 0; }
+  .lkp-title { font-family: 'Bebas Neue', sans-serif; font-size: 34px; letter-spacing: 1px; font-weight: 400; margin: 0; line-height: 1; color: var(--text); }
+  .lkp-meta { font: 400 12px 'IBM Plex Mono', monospace; color: var(--text-dim); }
+  .lkp-tools { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .lkp-search { height: 32px; width: 220px; box-sizing: border-box; background: var(--bg-elevated); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 0 10px; font: 13px Inter, sans-serif; outline: none; } .lkp-search:focus { border-color: var(--accent); }
+  .lkp-views { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .lkp-vbtn { width: 34px; height: 30px; border: 0; background: var(--bg-elevated); color: var(--text-dim); font-size: 15px; cursor: pointer; } .lkp-vbtn.on { background: var(--accent); color: var(--bg); } .lkp-vbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .lkp-tbl { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
+  .lkp-tbl th { text-align: left; font: 500 10.5px 'IBM Plex Mono', monospace; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim); padding: 10px 8px 8px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg); z-index: 1; }
+  .lkp-sort { background: none; border: 0; padding: 0; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; cursor: pointer; } .lkp-sort:hover, .lkp-sort.on { color: var(--text); }
+  .lkp-tbl td { padding: 0 8px; height: 46px; border-bottom: 1px solid var(--bg-elevated); color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lkp-n { width: 36px; font: 12px 'IBM Plex Mono', monospace; color: var(--text-dim); text-align: right; }
+  .lkp-c-ar { width: 16%; } .lkp-c-rel { width: 18%; } .lkp-c-desc { width: 15%; font: 11.5px 'IBM Plex Mono', monospace; } .lkp-c-rt { width: 100px; } .lkp-tbl td.lkp-c-rt { color: var(--accent); letter-spacing: 1px; text-overflow: clip; } .lkp-c-when { width: 96px; font: 11.5px 'IBM Plex Mono', monospace; } .lkp-c-tm { width: 56px; text-align: right; font: 12px 'IBM Plex Mono', monospace; }
+  .lkp-tbl th.lkp-c-tm { text-align: right; }
+  .lkp-tr { cursor: pointer; } .lkp-tr:hover td { background: var(--bg-card); } .lkp-tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .lkp-tt { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .lkp-cv { width: 32px; height: 32px; border-radius: 2px; object-fit: cover; flex: none; display: block; }
+  .lkp-t { display: grid; min-width: 0; } .lkp-t > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .lkp-t b { font-weight: 600; color: var(--text); } .lkp-sub { display: none; color: var(--text-dim); font-size: 12px; }
+  .lkp-tr.playing .lkp-t b { color: var(--accent); }
+  .lkp-link { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; } .lkp-link:hover { color: var(--accent); text-decoration: underline; }
+  .lkp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 22px 18px; padding-top: 14px; }
+  .lkp-card { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .lkp-card-cv { position: relative; padding: 0; border: 0; background: none; cursor: pointer; aspect-ratio: 1; margin-bottom: 6px; border-radius: 3px; overflow: hidden; }
+  .lkp-card-img { width: 100%; height: 100%; object-fit: cover; display: block; } .lkp-card-cv .fp-noimg { width: 100%; height: 100%; display: block; }
+  .lkp-card-cv:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .lkp-badge { position: absolute; top: 8px; left: 8px; background: rgba(18,22,28,.85); color: var(--text); font: 500 11px 'IBM Plex Mono', monospace; padding: 3px 7px; border-radius: 3px; } .lkp-badge b { color: var(--heart); font-weight: 500; }
+  .lkp-card-nm { font-weight: 600; font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lkp-card-ar { font-size: 12px; color: var(--text-dim); margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lkp-card-song, .lkp-card-more { display: flex; align-items: center; gap: 7px; background: none; border: 0; padding: 3px 0; text-align: left; font: 12.5px Inter, sans-serif; color: var(--text-dim); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lkp-card-song:hover, .lkp-card-more:hover { color: var(--text); } .lkp-card-song.playing { color: var(--accent); } .lkp-card-more { padding-left: 18px; }
+  @media (max-width: 1400px) { .lkp-c-desc { display: none; } }
+  @media (max-width: 1100px) { .lkp-c-ar, .lkp-c-when { display: none; } .lkp-sub { display: block; } .lkp-tbl td { height: 52px; } }
+  @media (max-width: 900px) { .lkp-page { padding: 4px 12px 24px; } .lkp-c-rel, .lkp-c-rt { display: none; } .lkp-tools { margin-left: 0; width: 100%; } .lkp-search { flex: 1; width: auto; } }

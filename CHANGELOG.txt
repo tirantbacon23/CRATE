@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.131.1
+  CURRENT_VERSION: 1.132.0
 
+  1.132.0 — 2026-11-15 — Liked songs, redone: it opens in the music's place, with the far-left strip and Up Next beside it (no
+          playlists listed beside it). A song list with Title, Artist, Release, Descriptors, Rating, Liked and Time; click a
+          heading to sort by it, again to reverse. A button switches to covers: each release you've liked songs from, with a ♥
+          count and its liked songs underneath (click a cover to open the release). Find, Shuffle and Play all at the top. Liked
+          songs is pinned at the top of the Playlist Explorer again. Page only.
   1.131.1 — 2026-11-15 — Fix: with the player docked at the top, it covered the new header. The page now starts right under the
           player however tall it is (it's about 105 px with both progress lines, not the 85 px assumed). Page only.
   1.131.0 — 2026-11-15 — One header row on desktop: CRATE, back/forward, the tabs, then the search and buttons. CRATE's side is as

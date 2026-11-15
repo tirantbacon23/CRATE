@@ -22,7 +22,7 @@ function switchTab(tab) {
   el.tabStats.classList.toggle('active', tab === 'stats');
   el.tabArtist.classList.toggle('active', tab === 'artist');
   if (typeof catStatsSoon === 'function') catStatsSoon();
-  el.panels.style.display = (tab === 'albums' || tab === 'artistInfo' || tab === 'genreInfo') ? 'flex' : 'none';   // #panels hosts both tabs: the Music browser, or the Artist Information tab's list + page
+  el.panels.style.display = (tab === 'albums' || tab === 'artistInfo' || tab === 'genreInfo' || tab === 'liked') ? 'flex' : 'none';   // #panels hosts both tabs: the Music browser, or the Artist Information tab's list + page
   el.artistInfoWrap.hidden = tab !== 'artistInfo';
   el.genreInfoWrap.hidden = tab !== 'genreInfo';
   { const fw = document.getElementById('friendInfoWrap'); if (fw) fw.hidden = tab !== 'friendInfo'; }
@@ -118,7 +118,7 @@ function updateGroupByMenuUI() {
 function applyLeftNavCompact() { applyLeftNavWidth(); }
 function applyLeftNavWidth() {                                   // beside the playlists the strip is wide (they are listed in it); the icons-only mode only applies to Music
   if (!el.leftNavPanel) return;
-  const pl = state.leftNavView === 'playlists';
+  const pl = state.leftNavView === 'playlists' && state.activeTab !== 'liked';          // (1.132.0) beside Liked songs the strip is its plain self (no playlists listed in it)
   el.leftNavPanel.classList.toggle('leftnav-compact', !!state.leftNavCompact && !pl);
   el.leftNavPanel.classList.toggle('leftnav-playlists', pl);
   el.leftNavPanel.style.flexBasis = pl ? ((state.panelWidths.leftNavPl || 250) + 'px') : (state.leftNavCompact ? '52px' : (state.panelWidths.leftNav + 'px'));

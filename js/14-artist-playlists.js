@@ -407,14 +407,15 @@ function exitPlaylistView() {
 // highlight only applies on the Music tab (neither is "current" on the artist page).
 function syncLeftPanelViews() {
   const onArtistPage = state.activeTab === 'artistInfo', onGenrePage = state.activeTab === 'genreInfo', onSidePage = onArtistPage || onGenrePage;
-  if (el.panels) { el.panels.classList.toggle('artist-info-mode', onArtistPage); el.panels.classList.toggle('genre-info-mode', onGenrePage); }
+  const onLiked = state.activeTab === 'liked';          // (1.132.0) Liked songs takes the music's place in the panels
+  if (el.panels) { el.panels.classList.toggle('artist-info-mode', onArtistPage); el.panels.classList.toggle('genre-info-mode', onGenrePage); el.panels.classList.toggle('liked-mode', onLiked); }
   if (el.artistBrowserView) el.artistBrowserView.hidden = !onArtistPage;
   if (el.genreBrowserView) el.genreBrowserView.hidden = !onGenrePage;
   if (el.musicBrowserView) el.musicBrowserView.hidden = onSidePage;          // the Albums / Artists / Genres browser stays beside a playlist too (listing what is in it)
-  if (el.playlistsBrowserView) el.playlistsBrowserView.hidden = onSidePage || state.leftNavView !== 'playlists';
+  if (el.playlistsBrowserView) el.playlistsBrowserView.hidden = onSidePage || onLiked || state.leftNavView !== 'playlists';
   [[el.navMusicBtn, 'music'], [el.navPlaylistsBtn, 'playlists']].forEach(([btn, view]) => {
     if (!btn) return;
-    const on = !onSidePage && state.leftNavView === view;
+    const on = !onSidePage && !onLiked && state.leftNavView === view;
     btn.classList.toggle('active', on);
     btn.setAttribute('aria-current', on ? 'page' : 'false');
   });
