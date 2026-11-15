@@ -18,7 +18,7 @@ let tabQuickOpenEl = null;
 function tabHistoryEntry() {
   return { tab: state.activeTab, artist: state.activeTab === 'artistInfo' ? state.activeArtistInfoTab : null, genre: state.activeTab === 'genreInfo' ? state.activeGenreTab : null, friend: state.activeTab === 'friendInfo' ? state.activeFriendTab : null };
 }
-function tabHistoryEntryValid(e) { return (e.tab !== 'artistInfo' || state.artistInfoTabs.includes(e.artist)) && (e.tab !== 'genreInfo' || state.genreTabs.includes(e.genre)) && (e.tab !== 'friendInfo' || (state.friendTabs || []).includes(e.friend)); }
+function tabHistoryEntryValid(e) { return (e.tab !== 'artistInfo' || state.artistInfoTabs.includes(e.artist)) && (e.tab !== 'genreInfo' || state.genreTabs.includes(e.genre)) && (e.tab !== 'friendInfo' || (state.friendTabs || []).includes(e.friend)) && (e.tab !== 'liked' || !(document.getElementById('tabLiked') || {}).hidden); }
 function recordTabHistory() {
   if (tabHistoryNavigating || state.tabHistoryIndex < 0) return;   // index < 0: not seeded yet (still starting up)
   const e = tabHistoryEntry(), h = state.tabHistory, last = h[state.tabHistoryIndex];

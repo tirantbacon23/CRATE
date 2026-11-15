@@ -55,7 +55,7 @@ function _socCleanName(s) { return String(s || '').replace(/[\u0000-\u001f<>]/g,
 function _socShare(s) {
   s = s && typeof s === 'object' ? s : {};
   const on = (v) => v !== false && v !== 0 && v !== '0';
-  return { crate: on(s.crate), ratings: on(s.ratings), diary: on(s.diary), playing: on(s.playing) };
+  return { crate: on(s.crate), ratings: on(s.ratings), diary: on(s.diary), playing: on(s.playing), liked: s.liked === true || s.liked === 1 };          // (1.128.0) liked songs: off until switched on
 }
 // A person's record, made the first time they use friends (a new id and code).
 function _socEnsure(email, name) {
@@ -76,7 +76,7 @@ function _socEnsure(email, name) {
 // (perFriend: { id: { crate: false, … } }; only "off" is stored).
 function _socShareFor(f, viewerId) {
   const base = _socShare(f && f.share), off = (f && f.perFriend && f.perFriend[viewerId]) || {};
-  return { crate: base.crate && off.crate !== false, ratings: base.ratings && off.ratings !== false, diary: base.diary && off.diary !== false, playing: base.playing && off.playing !== false };
+  return { crate: base.crate && off.crate !== false, ratings: base.ratings && off.ratings !== false, diary: base.diary && off.diary !== false, playing: base.playing && off.playing !== false, liked: base.liked && off.liked !== false };
 }
 function _socWithLock(fn) {
   const lock = LockService.getScriptLock();
@@ -101,7 +101,7 @@ function _socView(fid, cache, now, viewerId) {
   const f = _socGet(femail); if (!f) return null;
   const fsh = _socShareFor(f, viewerId);
   const v = { id: fid, name: f.name || 'Friend', status: 'offline', np: null, seen: 0, last: null,
-              share: { crate: !!fsh.crate, ratings: !!fsh.ratings, diary: !!fsh.diary } };
+              share: { crate: !!fsh.crate, ratings: !!fsh.ratings, diary: !!fsh.diary, liked: !!fsh.liked } };
   if (f.off) return v;                                                  // "Appear offline": nothing about them at all
   let live = null; try { live = JSON.parse(cache.get('soc:' + fid) || 'null'); } catch (e) { live = null; }
   if (live && now - live.at < SOC_ONLINE_MS) {
@@ -135,7 +135,7 @@ function _socFriendData(email, u, fid, what) {
   const femail = _socEmailOf(fid), f = femail && _socGet(femail);
   if (!f || (f.friends || []).indexOf(u.id) === -1) return { ok: false, social: true, error: 'Not friends' };
   const fsh = _socShareFor(f, u.id);
-  const ss = _getUserSpreadsheet(femail), out = { ok: true, social: true, id: fid, name: f.name, share: { crate: !!fsh.crate, ratings: !!fsh.ratings, diary: !!fsh.diary } };
+  const ss = _getUserSpreadsheet(femail), out = { ok: true, social: true, id: fid, name: f.name, share: { crate: !!fsh.crate, ratings: !!fsh.ratings, diary: !!fsh.diary, liked: !!fsh.liked } };
   const hidden = {};
   const want = (k) => !what || what === 'all' || what === k;
   if (fsh.crate && (want('crate') || want('diary'))) {
@@ -149,6 +149,15 @@ function _socFriendData(email, u, fid, what) {
       crate.push(o);
     });
     if (want('crate')) out.crate = crate;
+  }
+  if (fsh.liked && (want('liked') || !what || what === 'all')) {          // (1.128.0) their liked songs, from each release's TrackData (never a hidden release)
+    const log = ss.getSheetByName(SHEET_NAME), rows = log ? _readSheet(log) : [], liked = [];
+    rows.forEach(r => {
+      if (_socHidden(r) || !r.TrackData) return;
+      let td; try { td = JSON.parse(String(r.TrackData)); } catch (e) { return; }
+      Object.keys(td || {}).forEach(n => { const e = td[n]; if (e && e.liked) liked.push({ Artist: r.Artist, Title: r.Title, Num: Number(n), Name: String(e.likedName || e.name || ('Track ' + n)).slice(0, 300), At: e.liked, Cover: /^https:\/\//.test(String(r.Cover || '')) ? r.Cover : '' }); });
+    });
+    out.liked = liked.slice(0, 2000);
   }
   if (fsh.diary && want('diary')) {
     const d = ss.getSheetByName('Diary'), rows = d ? _readSheet(d) : [];
@@ -202,7 +211,7 @@ function _socFeed(email, u, fresh) {
 // Left out: what's theirs alone. In TrackData (per song), their rating, note and "listened" are taken off; links, other titles,
 // lengths, credits, genres and RYM figures stay.
 const SOC_RELEASE_SKIP = { AlbumId: 1, DateAdded: 1, Rating: 1, Review: 1, FriendsHidden: 1, Catalog: 1, RymUpdated: 1, RymUpdateLog: 1, _row: 1 };
-const SOC_TRACK_PERSONAL = ['rating', 'note', 'listened'];
+const SOC_TRACK_PERSONAL = ['rating', 'note', 'listened', 'liked', 'likedName', 'desc'];          // (1.128.0) a like and your song descriptors are yours too
 function _socRelease(email, u, fid, albumId, artist, title) {
   if ((u.friends || []).indexOf(fid) === -1) return { ok: false, social: true, error: 'Not friends' };
   const femail = _socEmailOf(fid), f = femail && _socGet(femail);
@@ -368,7 +377,7 @@ function _social(email, action, payload) {
         if (payload.off !== undefined) u.off = !!payload.off;
         if (payload.forFriend && typeof payload.forFriend === 'object' && (u.friends || []).indexOf(String(payload.forFriend.id)) !== -1) {          // (1.122.0) what one friend sees
           const fid = String(payload.forFriend.id), pf = Object.assign({}, (u.perFriend || {})[fid]), sh = payload.forFriend.share || {};
-          ['crate', 'ratings', 'diary', 'playing'].forEach(k => { if (sh[k] === false) pf[k] = false; else if (sh[k] === true) delete pf[k]; });
+          ['crate', 'ratings', 'diary', 'playing', 'liked'].forEach(k => { if (sh[k] === false) pf[k] = false; else if (sh[k] === true) delete pf[k]; });
           u.perFriend = Object.assign({}, u.perFriend); if (Object.keys(pf).length) u.perFriend[fid] = pf; else delete u.perFriend[fid];
           try { CacheService.getScriptCache().remove('socfeed:' + fid); } catch (e) { /* it runs out in 5 minutes anyway */ }
         }

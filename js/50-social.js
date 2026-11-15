@@ -180,6 +180,7 @@ function socSetRender() {
         ${sw('crate', 'My crate', 'Releases, covers, genres', sh.crate)}
         ${sw('ratings', 'My ratings', '', sh.ratings)}
         ${sw('diary', 'My diary', 'Reviews included', sh.diary)}
+        ${sw('liked', 'My liked songs', 'Off unless you switch it on', sh.liked)}
         <div class="soc-tg soc-tg-static"><span>For one friend<small>Open their page → What they see</small></span><span class="soc-sub">${custom ? custom + ' changed' : 'none changed'}</span></div>
         <div class="soc-tg soc-tg-static"><span>Hidden releases<small>Right-click a release → Hide from friends</small></span><span class="soc-sub">${hidden ? hidden + ' release' + (hidden === 1 ? '' : 's') : 'none'}</span></div>
       </div>

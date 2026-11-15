@@ -1403,3 +1403,14 @@ suite("Friends: browsing a friend's crate (1.124.0)", () => {
   });
 });
 
+suite('Liked songs (1.128.0)', () => {
+  test('a like is read from the song data, listed, and kept by the empty-entry tidy-up', () => {
+    const it = app('state').raw[0], keep = JSON.stringify(it.trackData || {});
+    try {
+      it.trackData = { 3: { liked: '2026-11-15T10:00:00Z', likedName: 'Third Song' }, 5: { rating: 4 } };
+      eq([app('likeIsOn')(it, 3), app('likeIsOn')(it, 5), app('likeTrackName')(it, 3)], [true, false, 'Third Song']);
+      eq(app('likedAll')().filter(x => x.item === it).map(x => [x.num, x.name]), [[3, 'Third Song']]);
+    } finally { it.trackData = JSON.parse(keep); }
+  });
+});
+

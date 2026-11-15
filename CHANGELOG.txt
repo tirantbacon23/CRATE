@@ -17,7 +17,37 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.127.0
+  CURRENT_VERSION: 1.128.0
+
+  1.128.0 — 2026-11-15 — Liked songs: a heart on every song and in the player, a Liked songs page with Play and Shuffle, and friends can see them when you let them. Also: your 59 "Other (yours)" descriptors have categories. Page and Apps Script backend (paste the new apps-script-backend.gs and redeploy, for sharing liked songs).
+
+          THE HEART: next to the song in the player and in Track info, and on
+          every song row (a release's tracklist, the Tracks view, a release's
+          songs in the browser; it shows on hover, and stays once liked).
+          Click it, or press L to like or unlike the song playing.
+          LIKED SONGS: "♥ Liked songs" at the top of Playlists, and ⚙ → Tools
+          → Liked songs, opens a tab: every liked song, newest first, with
+          Play and Shuffle; sort by when you liked it, artist, release or song;
+          search; filter by genre or decade. A click on a song plays the list
+          from there; its heart unlikes it.
+          SAVED WITH THE SONG: a like is kept in the release's per-song data
+          (with its links and your song rating), so it needs no backend change
+          and stays with the release when it's edited or merged.
+          FRIENDS: Friends settings → "My liked songs" (off until you switch it
+          on, and it can be turned off for one friend in What they see). A
+          friend's page then has a ♥ Liked tab: their liked songs, newest
+          first; a click plays one when the release is in your crate too, or
+          offers to add the release. Copying a friend's release never brings
+          their likes (or their song descriptors) with it.
+          DESCRIPTORS: the 59 under Other (yours) in your crate now have
+          categories, among them english, german, greek, hebrew, spanish,
+          yiddish (Lyrics & theme: language); stream of consciousness, lyrical
+          dissonance, callback, pastiche (how it's written); about music, fame
+          (art & fame); opioids, cannabis, hallucinogens, sobriety;
+          anticolonialism, environmentalism, nationalism, lgbtq; compassionate
+          and gratitude (Mood: kindness & warmth); dark humor, cozy, regret,
+          nostalgia, desolate; wild west, grassland, beach; pitched-down vocals,
+          vocal group, whispering; jamming.
 
   1.127.0 — 2026-11-15 — Rate Your Music's newer descriptors have categories: none of RYM's own list falls under "Other (yours)" any more, and a new category, Form & composition, holds the ones about how music is put together. Page only.
 

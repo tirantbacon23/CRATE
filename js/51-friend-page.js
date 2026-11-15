@@ -72,6 +72,7 @@ async function fpLoad(id) {
       cover: /^https:\/\//.test(String(x.Cover || '')) ? String(x.Cover) : '', link: String(x.Link || ''), rymLink: String(x.RymLink || ''),
       rating: Number(x.Rating) || 0, rymRating: Number(x.RymRating) || 0, added: x.DateAdded ? Date.parse(x.DateAdded) || 0 : 0
     })).filter(x => x.artist || x.title);
+    d.liked = Array.isArray(r.liked) ? r.liked.map(x => ({ artist: String(x.Artist || '').trim(), title: String(x.Title || '').trim(), num: Number(x.Num) || 0, name: String(x.Name || ''), at: Date.parse(x.At) || 0, cover: String(x.Cover || '') })).sort((a, b) => b.at - a.at) : null;          // (1.128.0)
     d.diary = (r.diary || []).map(e => ({
       date: e.Date ? String(e.Date) : '', ts: e.Timestamp ? Date.parse(e.Timestamp) || 0 : 0, artist: String(e.Artist || '').trim(), title: String(e.Title || '').trim(),
       rating: Number(e.Rating) || 0, entryTitle: String(e.EntryTitle || ''), text: String(e.Description || ''), full: e.Full === true || e.Full === 'TRUE' || e.Full === 1 || e.Full === '1'
@@ -132,12 +133,14 @@ function renderFriendPage() {
       <button type="button" role="tab" class="fp-view" data-fp="view" data-v="crate" aria-selected="${ui.view === 'crate'}">Crate${d.crate ? ` <span>${crate.length}</span>` : ''}</button>
       <button type="button" role="tab" class="fp-view" data-fp="view" data-v="diary" aria-selected="${ui.view === 'diary'}">Diary${d.diary ? ` <span>${d.diary.length}</span>` : ''}</button>
       <button type="button" role="tab" class="fp-view" data-fp="view" data-v="ratings" aria-selected="${ui.view === 'ratings'}">Ratings</button>
+      ${d.liked || (sh && sh.liked) ? `<button type="button" role="tab" class="fp-view" data-fp="view" data-v="liked" aria-selected="${ui.view === 'liked'}">♥ Liked${d.liked ? ` <span>${d.liked.length}</span>` : ''}</button>` : ''}
     </div>`;
   let body = '';
   if (d.err) body = `<div class="soc-empty"><b>Couldn't load ${escapeHtml(name)}'s page.</b><p>${escapeHtml(d.err)}</p><button type="button" class="chip-btn" data-fp="reload">Try again</button></div>`;
   else if (!d.at) body = '<div class="soc-empty">Loading…</div>';
   else if (ui.view === 'crate') body = sh.crate === false && !crate.length ? `<div class="soc-empty"><b>${escapeHtml(name)} doesn't share their crate.</b><p>They can switch on "My crate" under What friends can see in their Friends panel.</p></div>` : fpCrateHtml(id);
   else if (ui.view === 'ratings') body = fpRatingsHtml(id);
+  else if (ui.view === 'liked') body = fpLikedHtml(id);
   else body = !d.diary ? `<div class="soc-empty"><b>${escapeHtml(name)} doesn't share their diary.</b><p>They can switch on "My diary" under What friends can see in their Friends panel.</p></div>` : fpDiaryHtml(id);
   const keep = wrap.dataset.fid === id + ':' + ui.view ? wrap.scrollTop : 0;          // (1.120.0) the page itself scrolls
   const focusQ = document.activeElement && ['fpSearch', 'fpSideQ'].includes(document.activeElement.id) ? document.activeElement.id : '';
@@ -275,6 +278,18 @@ function fpMenuOpen(tile, x) {
   const first = m.querySelector('button, a'); if (first) first.focus();
 }
 
+// ----- (1.128.0) THEIR LIKED SONGS (when they share them): newest first. A click plays the song when the release is in your crate too,
+// or offers to add the release when it isn't.
+function fpLikedHtml(id) {
+  const d = fpData[id], name = escapeHtml(fpName(id));
+  if (!d.liked) return `<div class="soc-empty"><b>${name} doesn't share their liked songs.</b><p>They can switch on "My liked songs" in their Friends settings.</p></div>`;
+  if (!d.liked.length) return `<div class="soc-empty">${name} hasn't liked any songs yet.</div>`;
+  const mine = fpMineMap();
+  fpLikedHtml.list = d.liked;
+  return `<div class="lkp-list fp-liked">${d.liked.map((x, i) => { const have = mine.get(fpKey(x.artist, x.title));
+    return `<div class="lkp-row" data-fp="liked" data-i="${i}" tabindex="0" role="button" title="${have ? 'Play it' : 'Not in your crate: add the release'}">${fpCover(x, 'lkp-cv')}<span class="lkp-t"><b>${escapeHtml(x.name)}</b><span>${escapeHtml(x.artist)} · ${escapeHtml(x.title)}</span></span><span class="lkp-when">${socAgo(x.at)}</span><span class="chip-btn fp-liked-tag">${have ? (typeof likeIsOn === 'function' && likeIsOn(have, x.num) ? '♥ yours too' : '▶ Play') : '+ Add'}</span></div>`; }).join('')}</div>`;
+}
+
 // ----- (1.122.0) RATINGS: how your taste and theirs compare -----
 // Taste match comes from the releases you've both rated: 100% when every rating is the same, 50% when they're a star apart on average,
 // 0% at two stars or more. The chart shows how each of you spreads your ratings (as a share of everything each has rated, so a big
@@ -331,7 +346,7 @@ function fpSeesOpen(btn, id) {
   const row = (k, label) => { const all = !!base[k], on = all && off[k] !== false;
     return `<label class="fp-sees-row${all ? '' : ' fp-sees-off'}"><input type="checkbox" data-fps="${k}" ${on ? 'checked' : ''} ${all ? '' : 'disabled'}><span>${label}${all ? '' : '<small>Off for everyone (Friends panel settings)</small>'}</span></label>`; };
   const m = document.createElement('div'); m.id = 'fpMenu'; m.className = 'fp-menu fp-sees'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-label', `What ${fpName(id)} sees`);
-  m.innerHTML = `<div class="fp-menu-h"><b>What ${name} sees</b><span>Applies to ${name} only. Your switches for everyone are in the Friends panel.</span></div>${row('playing', 'What I’m playing')}${row('crate', 'My crate')}${row('ratings', 'My ratings')}${row('diary', 'My diary')}`;
+  m.innerHTML = `<div class="fp-menu-h"><b>What ${name} sees</b><span>Applies to ${name} only. Your switches for everyone are in the Friends panel.</span></div>${row('playing', 'What I’m playing')}${row('crate', 'My crate')}${row('ratings', 'My ratings')}${row('diary', 'My diary')}${row('liked', 'My liked songs')}`;
   document.body.appendChild(m);
   const r = btn.getBoundingClientRect();
   m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + 'px'; m.style.top = (r.bottom + 4) + 'px';
@@ -355,7 +370,7 @@ async function fpFillFrom(fid, x, mine) {
   if (c.TrackData) {
     let theirs = {}; try { theirs = JSON.parse(String(c.TrackData)) || {}; } catch (e) { theirs = {}; }
     const merged = JSON.parse(JSON.stringify(mine.trackData || {})); let added = 0;
-    Object.keys(theirs).forEach(num => { const t = theirs[num] || {}; Object.keys(t).forEach(k => { if (['rating', 'note', 'listened'].includes(k)) return; if (!merged[num]) merged[num] = {}; if (merged[num][k] === undefined || merged[num][k] === '' || merged[num][k] === null) { merged[num][k] = t[k]; added++; } }); });
+    Object.keys(theirs).forEach(num => { const t = theirs[num] || {}; Object.keys(t).forEach(k => { if (['rating', 'note', 'listened', 'liked', 'likedName', 'desc'].includes(k)) return; if (!merged[num]) merged[num] = {}; if (merged[num][k] === undefined || merged[num][k] === '' || merged[num][k] === null) { merged[num][k] = t[k]; added++; } }); });
     if (added) { await postUpdate({ row: mine.row, trackData: JSON.stringify(merged) }); mine.trackData = merged; n += added; }
   }
   if (n && typeof scheduleCatalogSync === 'function') scheduleCatalogSync(300);
@@ -382,6 +397,9 @@ function initFriendPage() {
     else if (k === 'sees') fpSeesOpen(b, id);
     else if (k === 'pick') { ui.pick = b.dataset.v === '' ? null : b.dataset.v; ui.shown = FP_PAGE; renderFriendPage(); }
     else if (k === 'caret') { if (ui.collapsed.has(b.dataset.v)) ui.collapsed.delete(b.dataset.v); else ui.collapsed.add(b.dataset.v); renderFriendPage(); }
+    else if (k === 'liked') { const x = (fpLikedHtml.list || [])[+b.dataset.i]; if (!x) return; const have = fpMineMap().get(fpKey(x.artist, x.title));
+      if (have) playTracksNow([{ row: have.row, trackNum: x.num, trackName: x.name }]);
+      else { const c = (fpData[id].crate || []).find(r => fpKey(r.artist, r.title) === fpKey(x.artist, x.title)) || { artist: x.artist, title: x.title, cover: x.cover, albumId: '' }; fpMenuOpen(b, c); } }
     else if (k === 'rtile') { const x = (fpRatingsHtml.recs || [])[+b.dataset.i]; if (x) fpMenuOpen(b, x); }
     else if (k === 'tile') { const L = fpCrateHtml.last; const x = L && L.id === id && L.list[+b.dataset.i]; if (x) fpMenuOpen(b, x); }
   });

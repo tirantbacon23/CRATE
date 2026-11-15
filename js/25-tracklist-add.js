@@ -198,7 +198,7 @@ async function toggleTrackListened(item, trackNum) {
   if (!item.trackData[trackNum]) item.trackData[trackNum] = {};
   if (nowListened) item.trackData[trackNum].listened = true;
   else delete item.trackData[trackNum].listened;
-  if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink && !item.trackData[trackNum].name && !item.trackData[trackNum].lengthMs && !item.trackData[trackNum].album && !item.trackData[trackNum].rymLink && !item.trackData[trackNum].rymRating && !item.trackData[trackNum].date && !item.trackData[trackNum].artist && !item.trackData[trackNum].albumArtist && !item.trackData[trackNum].soundcloudLink && !item.trackData[trackNum].credits) {
+  if (!item.trackData[trackNum].liked && !(item.trackData[trackNum].desc || []).length && !item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink && !item.trackData[trackNum].name && !item.trackData[trackNum].lengthMs && !item.trackData[trackNum].album && !item.trackData[trackNum].rymLink && !item.trackData[trackNum].rymRating && !item.trackData[trackNum].date && !item.trackData[trackNum].artist && !item.trackData[trackNum].albumArtist && !item.trackData[trackNum].soundcloudLink && !item.trackData[trackNum].credits) {
     delete item.trackData[trackNum];
   }
 
@@ -220,7 +220,7 @@ async function toggleTrackListened(item, trackNum) {
     if (!item.trackData[trackNum]) item.trackData[trackNum] = {};
     if (wasListened) item.trackData[trackNum].listened = true;
     else delete item.trackData[trackNum].listened;
-    if (!item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink && !item.trackData[trackNum].name && !item.trackData[trackNum].lengthMs && !item.trackData[trackNum].album && !item.trackData[trackNum].rymLink && !item.trackData[trackNum].rymRating && !item.trackData[trackNum].date && !item.trackData[trackNum].artist && !item.trackData[trackNum].albumArtist && !item.trackData[trackNum].soundcloudLink && !item.trackData[trackNum].credits) {
+    if (!item.trackData[trackNum].liked && !(item.trackData[trackNum].desc || []).length && !item.trackData[trackNum].rating && !item.trackData[trackNum].note && !item.trackData[trackNum].listened && !item.trackData[trackNum].genre && !item.trackData[trackNum].youtubeLink && !item.trackData[trackNum].spotifyLink && !item.trackData[trackNum].name && !item.trackData[trackNum].lengthMs && !item.trackData[trackNum].album && !item.trackData[trackNum].rymLink && !item.trackData[trackNum].rymRating && !item.trackData[trackNum].date && !item.trackData[trackNum].artist && !item.trackData[trackNum].albumArtist && !item.trackData[trackNum].soundcloudLink && !item.trackData[trackNum].credits) {
       delete item.trackData[trackNum];
     }
     if (activeItem === item) renderTracklistBody(item, currentTracklistTracks);
@@ -261,7 +261,7 @@ async function clearTrackSelection(item) {
     const tNum = t.trackNumber || 0;
     if (item.trackData[tNum]) {
       delete item.trackData[tNum].listened;
-      if (!item.trackData[tNum].rating && !item.trackData[tNum].note && !item.trackData[tNum].genre && !item.trackData[tNum].youtubeLink && !item.trackData[tNum].spotifyLink && !item.trackData[tNum].name && !item.trackData[tNum].lengthMs && !item.trackData[tNum].album && !item.trackData[tNum].rymLink && !item.trackData[tNum].date && !item.trackData[tNum].artist && !item.trackData[tNum].albumArtist && !item.trackData[tNum].soundcloudLink && !item.trackData[tNum].credits) delete item.trackData[tNum];
+      if (!item.trackData[tNum].liked && !(item.trackData[tNum].desc || []).length && !item.trackData[tNum].rating && !item.trackData[tNum].note && !item.trackData[tNum].genre && !item.trackData[tNum].youtubeLink && !item.trackData[tNum].spotifyLink && !item.trackData[tNum].name && !item.trackData[tNum].lengthMs && !item.trackData[tNum].album && !item.trackData[tNum].rymLink && !item.trackData[tNum].date && !item.trackData[tNum].artist && !item.trackData[tNum].albumArtist && !item.trackData[tNum].soundcloudLink && !item.trackData[tNum].credits) delete item.trackData[tNum];
     }
   }
   if (activeItem === item) renderTracklistBody(item, currentTracklistTracks);

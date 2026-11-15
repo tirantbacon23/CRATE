@@ -6,41 +6,45 @@
 // that isn't in it lands under "Other (yours)" and is suggested and counted all the same.
 const DESC_TAX = [
   { id: 'mood', label: 'Mood & emotion', groups: [
-    ['sadness', ['melancholic', 'sad', 'bittersweet', 'depressive', 'gloomy', 'somber', 'sombre'], ['sorrowful', 'mournful', 'blue', 'doleful', 'woeful', 'downcast', 'dejected', 'glum', 'miserable', 'heartbroken']],
-    ['longing & nostalgia', ['nostalgic', 'longing', 'yearning', 'sentimental'], ['wistful', 'homesick', 'pining', 'reminiscent', 'yearn', 'sentiment']],
+    ['sadness', ['melancholic', 'sad', 'bittersweet', 'depressive', 'gloomy', 'somber', 'sombre', 'regret'], ['sorrowful', 'mournful', 'blue', 'doleful', 'woeful', 'downcast', 'dejected', 'glum', 'miserable', 'heartbroken', 'remorse', 'regretful']],
+    ['longing & nostalgia', ['nostalgic', 'longing', 'yearning', 'sentimental', 'nostalgia'], ['wistful', 'homesick', 'pining', 'reminiscent', 'yearn', 'sentiment']],
     ['solitude', ['lonely', 'alienating', 'introspective'], ['isolated', 'solitary', 'withdrawn', 'reflective', 'pensive', 'contemplative', 'solitude']],
     ['anger', ['angry', 'aggressive', 'rebellious', 'defiant'], ['furious', 'hostile', 'enraged', 'belligerent', 'wrathful', 'fierce', 'rage', 'bitter', 'militant']],
-    ['fear & dread', ['anxious', 'paranoid', 'tense', 'suspenseful', 'ominous', 'menacing', 'eerie', 'haunting', 'disturbing'], ['scary', 'frightening', 'creepy', 'sinister', 'uneasy', 'nervous', 'foreboding', 'spooky', 'unsettling', 'fear', 'terrifying', 'dread']],
-    ['darkness', ['dark', 'bleak', 'brooding', 'apocalyptic', 'cold', 'funereal'], ['grim', 'desolate', 'black', 'sombre', 'bleakness', 'doom', 'dismal']],
+    ['fear & dread', ['anxious', 'paranoid', 'tense', 'suspenseful', 'ominous', 'menacing', 'eerie', 'haunting', 'disturbing', 'paranoia', 'insecure'], ['scary', 'frightening', 'creepy', 'sinister', 'uneasy', 'nervous', 'foreboding', 'spooky', 'unsettling', 'fear', 'terrifying', 'dread', 'insecurity']],
+    ['darkness', ['dark', 'bleak', 'brooding', 'apocalyptic', 'cold', 'funereal', 'desolate', 'infernal'], ['grim', 'desolate', 'black', 'sombre', 'bleakness', 'doom', 'dismal', 'hellish']],
     ['joy', ['joyful', 'happy', 'euphoric', 'ecstatic', 'carefree', 'uplifting', 'optimistic', 'hopeful', 'triumphant'], ['joyous', 'cheerful', 'elated', 'jubilant', 'glad', 'sunny', 'upbeat', 'merry', 'blissful', 'joy', 'delighted', 'positive']],
-    ['humour & play', ['playful', 'humorous', 'whimsical', 'quirky', 'sarcastic'], ['funny', 'witty', 'silly', 'comic', 'jokey', 'tongue-in-cheek', 'zany', 'goofy', 'humour', 'comedic', 'cheeky']],
-    ['calm', ['serene', 'peaceful', 'calm', 'relaxing', 'soothing', 'mellow'], ['tranquil', 'placid', 'restful', 'gentle', 'chilled', 'still', 'peace', 'easygoing']],
+    ['humour & play', ['playful', 'humorous', 'whimsical', 'quirky', 'sarcastic', 'dark humor', 'dark humour'], ['funny', 'witty', 'silly', 'comic', 'jokey', 'tongue-in-cheek', 'zany', 'goofy', 'humour', 'comedic', 'cheeky', 'black humour', 'gallows humour']],
+    ['calm', ['serene', 'peaceful', 'calm', 'relaxing', 'soothing', 'mellow', 'cozy', 'cosy'], ['tranquil', 'placid', 'restful', 'gentle', 'chilled', 'still', 'peace', 'easygoing']],
     ['passion & desire', ['romantic', 'passionate', 'sensual', 'sexual', 'erotic'], ['amorous', 'steamy', 'seductive', 'lustful', 'tender', 'intimate', 'loving', 'desire', 'sultry', 'lust']],
-    ['intensity & drama', ['intense', 'epic', 'anthemic', 'energetic', 'cathartic', 'confident', 'manic'], ['powerful', 'dramatic', 'grand', 'stirring', 'forceful', 'vigorous', 'soaring', 'bombastic', 'fiery', 'cathartic release', 'frenzied', 'unhinged']],
+    ['intensity & drama', ['intense', 'epic', 'anthemic', 'energetic', 'cathartic', 'confident', 'manic', 'serious'], ['powerful', 'dramatic', 'grand', 'stirring', 'forceful', 'vigorous', 'soaring', 'bombastic', 'fiery', 'cathartic release', 'frenzied', 'unhinged', 'earnest', 'solemn']],
     ['mystery', ['mysterious'], ['enigmatic', 'puzzling', 'otherworldly', 'magical', 'secretive', 'mystery', 'unknowable']],
     ['bitterness & contempt', ['hateful', 'misanthropic', 'nihilistic', 'pessimistic', 'self-hatred', 'sardonic', 'cynical'], ['spiteful', 'contemptuous', 'resentful', 'loathing', 'hatred', 'scornful', 'jaded']],
-    ['weariness & detachment', ['apathetic', 'lethargic', 'detached', 'numb'], ['indifferent', 'weary', 'tired', 'bored', 'listless', 'drained', 'disaffected']]
+    ['weariness & detachment', ['apathetic', 'lethargic', 'detached', 'numb'], ['indifferent', 'weary', 'tired', 'bored', 'listless', 'drained', 'disaffected']],
+    ['kindness & warmth', ['compassionate', 'gratitude', 'tender', 'heartwarming'], ['grateful', 'kind', 'caring', 'empathetic', 'thankful', 'warm-hearted']]
   ] },
   { id: 'theme', label: 'Lyrics & theme', groups: [
-    ['love & relationships', ['love', 'heartbreak', 'relationships', 'friendship', 'family', 'breakup', 'romance'], ['romance', 'affection', 'breakup', 'marriage', 'devotion', 'divorce', 'kinship', 'parents']],
+    ['love & relationships', ['love', 'heartbreak', 'relationships', 'friendship', 'family', 'breakup', 'romance', 'betrayal', 'divorce', 'domestic'], ['romance', 'affection', 'breakup', 'marriage', 'devotion', 'divorce', 'kinship', 'parents', 'infidelity', 'cheating', 'home life']],
     ['loss & death', ['loss', 'death', 'grief', 'suicide', 'funeral'], ['mourning', 'bereavement', 'funeral', 'mortality', 'dying', 'afterlife', 'passing']],
-    ['politics & society', ['politics', 'protest', 'anti-war', 'war', 'social commentary', 'conscious', 'feminism', 'identity', 'poverty', 'crime', 'violence', 'political', 'lgbt', 'queer', 'racism', 'activism'], ['political', 'activism', 'injustice', 'revolution', 'inequality', 'resistance', 'justice', 'society', 'racism', 'class', 'gender', 'poor']],
+    ['politics & society', ['politics', 'protest', 'anti-war', 'war', 'social commentary', 'conscious', 'feminism', 'identity', 'poverty', 'crime', 'violence', 'political', 'lgbt', 'queer', 'racism', 'activism', 'homicide', 'anticolonialism', 'environmentalism', 'conservatism', 'nationalism', 'patriotic', 'gay', 'lgbtq'], ['political', 'activism', 'injustice', 'revolution', 'inequality', 'resistance', 'justice', 'society', 'racism', 'class', 'gender', 'poor', 'murder', 'colonialism', 'ecology', 'climate', 'patriotism', 'nationalist']],
     ['faith & the unseen', ['religious', 'spirituality', 'occult', 'mythology', 'spiritual', 'christian', 'satanic', 'pagan', 'anti-religious', 'islamic', 'jewish', 'buddhist', 'hindu', 'religion', 'witchcraft'], ['religion', 'god', 'prayer', 'faith', 'mystic', 'magic', 'witchcraft', 'folklore', 'spiritual', 'church', 'gospel lyrics', 'legend', 'christianity', 'satanism', 'paganism', 'atheism', 'heathen']],
-    ['the mind', ['existential', 'philosophical', 'depression', 'mental illness', 'addiction', 'alienation', 'self-reflection', 'self-hatred', 'anxiety', 'introspection'], ['anxiety', 'therapy', 'psychology', 'despair', 'introspection', 'meaning of life', 'madness', 'insanity']],
-    ['vice & indulgence', ['sex', 'drugs', 'alcohol', 'partying', 'party', 'hedonistic', 'hedonism'], ['hedonism', 'booze', 'intoxication', 'nightlife', 'debauchery', 'drinking', 'getting high', 'celebration']],
-    ['place & journey', ['nature', 'urban', 'city life', 'travel', 'road trip', 'space', 'city'], ['wilderness', 'countryside', 'street', 'highway', 'wanderlust', 'cosmos', 'journey', 'city', 'environment', 'wandering']],
-    ['youth & time', ['youth', 'coming of age', 'history', 'work', 'money'], ['adolescence', 'growing up', 'school', 'past', 'labor', 'wealth', 'teenage', 'childhood', 'jobs']],
+    ['the mind', ['existential', 'philosophical', 'depression', 'mental illness', 'addiction', 'alienation', 'self-reflection', 'self-hatred', 'anxiety', 'introspection', 'mental health', 'failure'], ['anxiety', 'therapy', 'psychology', 'despair', 'introspection', 'meaning of life', 'madness', 'insanity', 'self-doubt', 'burnout']],
+    ['vice & indulgence', ['sex', 'drugs', 'alcohol', 'partying', 'party', 'hedonistic', 'hedonism', 'opioids', 'cannabis', 'hallucinogens', 'antidrug', 'sobriety', 'leisure'], ['hedonism', 'booze', 'intoxication', 'nightlife', 'debauchery', 'drinking', 'getting high', 'celebration', 'heroin', 'weed', 'marijuana', 'lsd', 'psychedelics', 'sober', 'anti-drug', 'free time']],
+    ['place & journey', ['nature', 'urban', 'city life', 'travel', 'road trip', 'space', 'city', 'animals', 'vehicles', 'suburban', 'escapism'], ['wilderness', 'countryside', 'street', 'highway', 'wanderlust', 'cosmos', 'journey', 'city', 'environment', 'wandering', 'cars', 'trains', 'suburbs', 'escape']],
+    ['youth & time', ['youth', 'coming of age', 'history', 'work', 'money', 'ageing', 'aging'], ['adolescence', 'growing up', 'school', 'past', 'labor', 'wealth', 'teenage', 'childhood', 'jobs', 'getting old', 'old age']],
     ['imagination & story', ['surreal', 'fantasy', 'sci-fi', 'storytelling', 'poetic', 'literature', 'satirical', 'absurdist', 'cryptic', 'dystopian', 'conspiracy', 'science fiction', 'cyberpunk', 'abstract', 'allegorical', 'fairy tale'], ['dream', 'fable', 'fiction', 'parable', 'allegory', 'narrative', 'future', 'satire', 'abstract', 'weird lyrics', 'tale', 'sf', 'steampunk fiction']],
-    ['swagger & excess', ['boastful', 'vulgar', 'crude', 'explicit', 'confrontational'], ['braggadocious', 'bragging', 'flexing', 'lewd', 'profane', 'obscene', 'raunchy', 'brash']]
+    ['swagger & excess', ['boastful', 'vulgar', 'crude', 'explicit', 'confrontational', 'provocative'], ['braggadocious', 'bragging', 'flexing', 'lewd', 'profane', 'obscene', 'raunchy', 'brash']],
+    ['art & fame', ['about music', 'fame', 'art', 'celebrity'], ['music industry', 'stardom', 'show business', 'artists']],
+    ['how it\'s written', ['stream of consciousness', 'lyrical dissonance', 'callback', 'pastiche', 'wordplay', 'allusion'], ['references', 'homage', 'puns', 'free association', 'self-referential']],
+    ['language', ['english', 'german', 'greek', 'hebrew', 'spanish', 'yiddish', 'french', 'italian', 'portuguese', 'japanese', 'korean', 'russian', 'latin', 'arabic', 'language', 'languages', 'multilingual'], ['lyrics in english', 'foreign language', 'bilingual']]
   ] },
   { id: 'vocals', label: 'Vocals', groups: [
     ['voice type', ['male vocals', 'female vocals', 'mixed vocals', 'androgynous vocals', 'instrumental'], ['baritone', 'soprano', 'alto', 'tenor', 'vocalist', 'singer', 'no vocals', 'wordless', 'bass voice', 'vocal']],
-    ['soft & high', ['falsetto', 'breathy', 'whispered', 'crooning'], ['soft voice', 'hushed', 'delicate', 'airy voice', 'tender voice', 'whisper']],
+    ['soft & high', ['falsetto', 'breathy', 'whispered', 'crooning', 'whispering'], ['soft voice', 'hushed', 'delicate', 'airy voice', 'tender voice', 'whisper']],
     ['harsh & loud', ['screaming', 'growling', 'raspy', 'shouting', 'nasal'], ['shrieking', 'gravelly', 'guttural', 'hoarse', 'yelling', 'screamo', 'rough voice', 'scream']],
     ['spoken & rhythmic', ['spoken word', 'rapping', 'chanting', 'deadpan', 'monotone'], ['rap', 'mc', 'recitation', 'talking', 'flow', 'poetry reading', 'chant']],
-    ['group & trained', ['choir', 'vocal harmonies', 'operatic', 'a cappella', 'throat singing', 'yodeling'], ['chorus', 'gospel choir', 'harmony', 'choral', 'barbershop', 'harmonies', 'opera']],
+    ['group & trained', ['choir', 'vocal harmonies', 'operatic', 'a cappella', 'throat singing', 'yodeling', 'vocal group'], ['chorus', 'gospel choir', 'harmony', 'choral', 'barbershop', 'harmonies', 'opera']],
     ['expressive', ['soulful', 'melodic vocals'], ['emotive', 'bluesy', 'powerful voice', 'smooth voice', 'soul', 'expressive']],
-    ['processed', ['auto-tune', 'vocoder'], ['robotic voice', 'vocoded', 'pitch-corrected', 'synthetic voice', 'autotune', 'talkbox']]
+    ['processed', ['auto-tune', 'vocoder', 'pitched-down vocals', 'pitched-up vocals'], ['robotic voice', 'vocoded', 'pitch-corrected', 'synthetic voice', 'autotune', 'talkbox', 'chipmunk vocals', 'slowed vocals']]
   ] },
   { id: 'tempo', label: 'Tempo & rhythm', groups: [
     ['slow', ['slow', 'plodding', 'slow burn', 'relaxed', 'laid-back'], ['sluggish', 'languid', 'unhurried', 'leisurely', 'crawling', 'dragging', 'lethargic', 'slow tempo', 'downtempo']],
@@ -74,14 +78,14 @@ const DESC_TAX = [
   { id: 'form', label: 'Form & composition', groups: [
     ['song form', ['ballad', 'concept album', 'song cycle', 'suite', 'medley', 'mashup', 'interlude', 'rock opera'], ['ballads', 'megamix', 'mix', 'segue', 'through-composed', 'opera']],
     ['harmony & tonality', ['dissonant', 'atonal', 'microtonal', 'polyphonic', 'modal', 'chromatic'], ['discordant', 'clashing', 'twelve-tone', 'serial', 'counterpoint', 'contrapuntal', 'microtones']],
-    ['playing', ['improvisation', 'ensemble', 'solo', 'jam'], ['improvised', 'jamming', 'free improvisation', 'big band', 'combo', 'group playing', 'unaccompanied']]
+    ['playing', ['improvisation', 'ensemble', 'solo', 'jam', 'jamming'], ['improvised', 'jamming', 'free improvisation', 'big band', 'combo', 'group playing', 'unaccompanied']]
   ] },
   { id: 'setting', label: 'Setting & atmosphere', groups: [
     ['seasons & weather', ['summer', 'autumn', 'winter', 'spring', 'rainy', 'seasonal', 'rain', 'snow', 'stormy'], ['sunny', 'snowy', 'stormy', 'foggy', 'holiday', 'christmas', 'fall', 'rain', 'snow']],
-    ['day & night', ['night', 'dawn', 'sunset', 'nocturnal', 'midnight'], ['midnight', 'twilight', 'morning', 'evening', 'dusk', 'sunrise', 'late night', 'daybreak']],
-    ['landscape', ['tropical', 'rural', 'desert', 'oceanic', 'pastoral', 'aquatic', 'forest', 'mountain', 'ocean'], ['beach', 'countryside', 'jungle', 'farm', 'sea', 'island', 'mountain', 'forest', 'ocean', 'seaside', 'underwater', 'woodland', 'woods']],
+    ['day & night', ['night', 'dawn', 'sunset', 'nocturnal', 'midnight', 'daytime', 'evening'], ['midnight', 'twilight', 'morning', 'evening', 'dusk', 'sunrise', 'late night', 'daybreak']],
+    ['landscape', ['tropical', 'rural', 'desert', 'oceanic', 'pastoral', 'aquatic', 'forest', 'mountain', 'ocean', 'beach', 'grassland'], ['beach', 'countryside', 'jungle', 'farm', 'sea', 'island', 'mountain', 'forest', 'ocean', 'seaside', 'underwater', 'woodland', 'woods', 'prairie', 'plains', 'meadow']],
     ['sky & beyond', ['cosmic', 'celestial', 'futuristic', 'space age'], ['stars', 'galaxy', 'space age', 'heavenly bodies', 'astral', 'future']],
-    ['era & world', ['industrial', 'retro', 'vintage', 'medieval', 'gothic'], ['factory', 'old-fashioned', 'renaissance', 'victorian', 'ancient', 'steampunk', 'dated', 'period']],
+    ['era & world', ['industrial', 'retro', 'vintage', 'medieval', 'gothic', 'wild west'], ['factory', 'old-fashioned', 'renaissance', 'victorian', 'ancient', 'steampunk', 'dated', 'period', 'western', 'frontier', 'cowboy']],
     ['ritual & ceremony', ['ritualistic', 'martial', 'ceremonial', 'liturgical'], ['ritual', 'solemn', 'processional', 'military', 'militaristic', 'tribalistic', 'rite']]
   ] }
 ];
