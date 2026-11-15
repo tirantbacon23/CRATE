@@ -17,8 +17,10 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.131.0
+  CURRENT_VERSION: 1.131.1
 
+  1.131.1 — 2026-11-15 — Fix: with the player docked at the top, it covered the new header. The page now starts right under the
+          player however tall it is (it's about 105 px with both progress lines, not the 85 px assumed). Page only.
   1.131.0 — 2026-11-15 — One header row on desktop: CRATE, back/forward, the tabs, then the search and buttons. CRATE's side is as
           wide as the left columns (it follows them as they're dragged), so the tabs start right above the music; the selected tab
           has a gold underline. The tab strip along the top of the window is gone, and the panels start 51 px higher. Phones keep

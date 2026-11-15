@@ -24,14 +24,22 @@ function hdrAlign() {
   top.style.setProperty('--hdr-brand-w', w + 'px'); top.classList.add('hdr-aligned');
   top.classList.remove('hdr-narrow'); top.classList.toggle('hdr-narrow', brand.getBoundingClientRect().width < 230);          // (as laid out: it may have given way)
 }
+// A player docked at the top: how tall it really is, so the page (header first) starts right under it.
+function hdrPlayerTop() {
+  const mp = document.getElementById('miniPlayer'), b = document.body;
+  if (mp && b.classList.contains('mp-docked-top') && !mp.hidden) { const h = Math.ceil(mp.getBoundingClientRect().bottom); if (h > 0) b.style.setProperty('--mp-top-h', h + 'px'); }
+  else b.style.removeProperty('--mp-top-h');
+}
 function initHeader() {
-  let t = 0; const later = () => { cancelAnimationFrame(t); t = requestAnimationFrame(hdrAlign); };
+  let t = 0; const later = () => { cancelAnimationFrame(t); t = requestAnimationFrame(() => { hdrPlayerTop(); hdrAlign(); }); };
   window.addEventListener('resize', later);
   if (typeof ResizeObserver === 'function') {
     const ro = new ResizeObserver(later);
     ['leftPanel', 'leftNavPanel', 'panels'].forEach(id => { const e = document.getElementById(id); if (e) ro.observe(e); });
     const h = document.querySelector('.tab-bar-history'); if (h) ro.observe(h);
+    const mp = document.getElementById('miniPlayer'); if (mp) ro.observe(mp);
   }
-  setTimeout(hdrAlign, 0); setTimeout(hdrAlign, 1500);
+  new MutationObserver(later).observe(document.body, { attributes: true, attributeFilter: ['class'] });          // (docked at the top, or not)
+  setTimeout(later, 0); setTimeout(later, 1500);
 }
 initHeader();
