@@ -135,11 +135,11 @@ function renderFriendPage() {
   else if (!d.at) body = '<div class="soc-empty">Loading…</div>';
   else if (ui.view === 'crate') body = sh.crate === false && !crate.length ? `<div class="soc-empty"><b>${escapeHtml(name)} doesn't share their crate.</b><p>They can switch on "My crate" under What friends can see in their Friends panel.</p></div>` : fpCrateHtml(id);
   else body = !d.diary ? `<div class="soc-empty"><b>${escapeHtml(name)} doesn't share their diary.</b><p>They can switch on "My diary" under What friends can see in their Friends panel.</p></div>` : fpDiaryHtml(id);
-  const scroller = wrap.querySelector('.fp-scroll'), keep = scroller && wrap.dataset.fid === id + ':' + ui.view ? scroller.scrollTop : 0;
+  const keep = wrap.dataset.fid === id + ':' + ui.view ? wrap.scrollTop : 0;          // (1.120.0) the page itself scrolls
   const focusQ = document.activeElement && document.activeElement.id === 'fpSearch';
   wrap.dataset.fid = id + ':' + ui.view;
   wrap.innerHTML = `<div class="fp-scroll">${head}<div class="fp-body">${body}</div></div>`;
-  if (keep) wrap.querySelector('.fp-scroll').scrollTop = keep;
+  wrap.scrollTop = keep;
   if (focusQ) { const s = document.getElementById('fpSearch'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }
 }
 function fpCrateHtml(id) {

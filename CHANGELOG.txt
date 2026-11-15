@@ -17,7 +17,35 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.119.0
+  CURRENT_VERSION: 1.120.0
+
+  1.120.0 — 2026-11-15 — No more "Your session expired": after one Google sign-in, CRATE keeps its own session for 14 days, renewed as you use it. Fix: a friend's page scrolls. Page and Apps Script backend (paste the new apps-script-backend.gs and redeploy).
+
+          WHY IT HAPPENED: Google's sign-in lasts one hour. CRATE renewed it
+          quietly with Google's automatic sign-in, which Chrome often blocks
+          (for hours after its prompt was dismissed once, and in some browser
+          settings always), so an hour in, the next save or refresh was
+          refused and the sign-in screen came back. Friends and the other
+          background features ask the backend every minute, so it showed up
+          more often.
+          NOW: right after a Google sign-in, the backend gives CRATE a session
+          of its own, signed with a secret only your Apps Script knows. It
+          lasts 14 days and CRATE renews it about once a day while it's open,
+          and each time it starts, through the backend, without Google. You
+          stay signed in as long as you open CRATE at least every two weeks;
+          after that you sign in with Google once, as before.
+          STILL SAFE: the backend checks the session's signature and date on
+          every request, and ALLOWED_EMAILS too, so taking someone off the
+          list locks them out at once. Two functions in the Apps Script editor
+          end sessions: signOutEverywhere("someone@gmail.com") for one person
+          (every device signs in with Google again), resetAllSessions() for
+          everyone.
+          A backend from before this version doesn't know sessions; CRATE then
+          carries on with Google's hourly sign-in as before.
+
+          FIXED: a friend's page didn't scroll, so most of a big crate (and
+          Show more) couldn't be reached. It scrolls on its own now, as the
+          Diary does, and keeps its place when it's redrawn.
 
   1.119.0 — 2026-11-15 — A release added from a friend's crate brings everything: its tracklist, the song links (YouTube, Spotify, SoundCloud), its RYM rating and history, and the rest. For releases you both have, "Fill in missing details" copies what yours lacks. Page and Apps Script backend (paste the new apps-script-backend.gs and redeploy).
 

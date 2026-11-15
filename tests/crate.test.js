@@ -1361,3 +1361,12 @@ suite('Covers show what is being worked on (1.118.0)', () => {
   });
 });
 
+suite('Staying signed in with a CRATE session (1.120.0)', () => {
+  test('a session is told from a Google token, and its date and age are read', () => {
+    const b64 = (o) => btoa(JSON.stringify(o)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_'), now = Math.floor(Date.now() / 1000);
+    const t = 'cs1.' + b64({ e: 'a@b.c', iat: now - 3600, exp: now + 14 * 86400 }) + '.sig';
+    eq([app('isCrateSession')(t), app('isCrateSession')('eyJhbGciOi.x.y'), app('isTokenLikelyValid')(t), Math.round(app('sessionAgeMs')(t) / 60000)], [true, false, true, 60]);
+    eq(Math.round((app('tokenExpMs')(t) - Date.now()) / 864e5), 14);
+  });
+});
+

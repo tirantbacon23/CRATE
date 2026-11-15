@@ -4900,9 +4900,9 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
   .friend-tab-dot { width: 8px; height: 8px; border-radius: 50%; background: #5A6270; flex: none; } .friend-tab-dot.soc-playing { background: #6FC48A; } .friend-tab-dot.soc-online { background: var(--accent); }
   .friend-tab-close { flex: 0 0 auto; width: 16px; height: 16px; line-height: 15px; text-align: center; border-radius: 50%; font-size: 14px; opacity: 0.6; } .friend-tab-close:hover { opacity: 1; background: rgba(255,255,255,0.12); }
   @media (min-width: 901px) { .tab-bar .friend-tab-btn { padding-right: 10px; } }
-  .friend-wrap { width: 100%; max-width: 1180px; margin: 0 auto; min-height: 0; }
+  #friendInfoWrap { flex: 1; min-height: 0; overflow-y: auto; width: 100%; }          /* (1.120.0) its own scrolling area, like the Diary */
   .friend-wrap[hidden] { display: none; }
-  .fp-scroll { padding: 18px 0 40px; }
+  .fp-scroll { padding: 18px 0 40px; max-width: 1180px; margin: 0 auto; }
   .fp-head { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
   .fp-av { width: 64px; height: 64px; font-size: 22px; } .fp-av::after { width: 15px; height: 15px; border-width: 3px; }
   .fp-who { flex: 1; min-width: 180px; display: grid; gap: 4px; }
@@ -4950,7 +4950,7 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
   .soc-name-btn { background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .soc-name-btn:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
   @media (max-width: 900px) {
-    .friend-wrap { padding: 0 14px; } .fp-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px; } .fp-name { font-size: 30px; } .fp-stats { gap: 18px; }
+    .fp-scroll { padding-left: 14px; padding-right: 14px; } .fp-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px; } .fp-name { font-size: 30px; } .fp-stats { gap: 18px; }
     .fp-search { max-width: none; margin-left: 0; flex-basis: 100%; } .fp-entry { grid-template-columns: 34px 46px minmax(0, 1fr); gap: 10px; } .fp-dcv { width: 46px; height: 46px; }
     .friend-tab-dot { display: none; }
   }

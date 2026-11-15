@@ -65,8 +65,29 @@ function handleAuthError(message) {
 // because you closed its prompt recently).
 let authRenewing = null, authRenewDone = null, authRenewTimer = 0, authGsiReady = false;
 function tokenExpMs(token) { const p = decodeJwtPayload(token || ''); return p && p.exp ? p.exp * 1000 : 0; }
+// (1.120.0) STAYING SIGNED IN FOR REAL: after one Google sign-in, the backend gives CRATE its own session ("cs1.…"), kept where the
+// Google token was, so every request carries it without any other change. It lasts 14 days and is renewed about once a day while CRATE
+// is open (and at each start), so you stay signed in as long as you use CRATE at least every two weeks. Google's hourly token, whose
+// quiet renewal Chrome often blocks, is then never needed again. A backend from before 1.120.0 doesn't know sessions: the Google
+// token and its renewal carry on as before.
+const isCrateSession = (t) => /^cs1\./.test(String(t || ''));
+async function sessionFetch(token) {                               // -> true when a session was stored
+  if (!token || !CONFIG.SCRIPT_URL) return false;
+  try {
+    const r = await fetch(CONFIG.SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'session', idToken: token }) });
+    const d = await r.json();
+    if (d && isCrateSession(d.session)) { setStoredIdToken(d.session); scheduleAuthRenew(); return true; }
+  } catch (e) { /* offline, or an older backend: the token in hand is kept */ }
+  return false;
+}
+function sessionAgeMs(t) { const p = decodeJwtPayload(t || ''); return p && p.iat ? Date.now() - p.iat * 1000 : 0; }
 function authRenew() {                                              // -> Promise<boolean>: a new token was stored
   if (authRenewing) return authRenewing;
+  const cur = getStoredIdToken();
+  if (isCrateSession(cur) && tokenExpMs(cur) > Date.now()) {         // (1.120.0) a session renews itself through the backend
+    authRenewing = sessionFetch(cur).finally(() => { authRenewing = null; });
+    return authRenewing;
+  }
   authRenewing = new Promise(resolve => {
     const g = window.google && window.google.accounts && window.google.accounts.id;
     if (!g || !CONFIG.GOOGLE_CLIENT_ID || CONFIG.GOOGLE_CLIENT_ID.indexOf('PASTE_YOUR') === 0) { resolve(false); return; }
@@ -83,7 +104,8 @@ function authRenew() {                                              // -> Promis
 }
 function scheduleAuthRenew() {                                      // the next quiet renewal: five minutes before the token runs out
   clearTimeout(authRenewTimer);
-  const exp = tokenExpMs(getStoredIdToken()); if (!exp) return;
+  const tok = getStoredIdToken(), exp = tokenExpMs(tok); if (!exp) return;
+  if (isCrateSession(tok)) { authRenewTimer = setTimeout(() => { authRenew().then(ok => { if (!ok) authRenewTimer = setTimeout(scheduleAuthRenew, 30 * 60000); }); }, Math.max(10000, Math.min(exp - Date.now() - 5 * 60000, 24 * 3600e3 - sessionAgeMs(tok)))); return; }          // (1.120.0) about once a day
   authRenewTimer = setTimeout(() => { authRenew().then(ok => { if (!ok) authRenewTimer = setTimeout(scheduleAuthRenew, 60000); }); }, Math.min(2147483000, Math.max(10000, exp - Date.now() - 5 * 60000)));          // (a timer longer than ~24.8 days fires at once)
 }
 
@@ -126,6 +148,7 @@ function handleGoogleCredential(response) {
   setStoredIdToken(response.credential);
   if (authRenewDone) authRenewDone(true);                           // a quiet renewal (see authRenew): the app is already open
   scheduleAuthRenew();
+  if (appEntered) sessionFetch(response.credential);                // (1.120.0) a renewal: swapped for a CRATE session (a first sign-in is swapped in enterApp)
   enterApp();
 }
 
@@ -133,6 +156,7 @@ function enterApp() {
   if (appEntered) return;
   appEntered = true;
   scheduleAuthRenew();
+  { const t = getStoredIdToken(); if (t && (!isCrateSession(t) || sessionAgeMs(t) > 20 * 3600e3)) sessionFetch(t); }          // (1.120.0) a Google token becomes a session; a day-old session is renewed
   el.authGate.hidden = true;
   el.app.hidden = false;
   init();
