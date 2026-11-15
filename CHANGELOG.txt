@@ -17,7 +17,31 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.121.0
+  CURRENT_VERSION: 1.122.0
+
+  1.122.0 — 2026-11-15 — Friends, part 4: a Ratings tab on a friend's page (taste match, how you each rate, where you disagree, what you both love, their favourites you don't have), and choosing what each friend sees. Page and Apps Script backend (paste the new apps-script-backend.gs and redeploy).
+
+          RATINGS (the third tab on a friend's page, when they share ratings):
+          TASTE MATCH from the releases you've both rated: 100% when every
+          rating is the same, 50% when you're a star apart on average, 0% at
+          two stars or more apart; with how far apart you are on average, how
+          many you've both rated, how many are within half a star, and each
+          of your average ratings. (It needs five in common.)
+          HOW YOU EACH RATE: a chart of the share of each person's ratings at
+          every half star, side by side (shares, so a big crate and a small one
+          compare fairly). Hover or tab to a step for the figures.
+          WHERE YOU DISAGREE MOST: the releases you're a star or more apart
+          on, furthest first, with both ratings and the difference.
+          YOU BOTH LOVE: what you've both given 4½ stars or more.
+          THEIR FAVOURITES YOU DON'T HAVE: their 4½-star-and-up releases that
+          aren't in your crate; a click offers Add to my crate.
+          WHAT THIS FRIEND SEES (the button at the top of a friend's page):
+          switch What I'm playing, My crate, My ratings or My diary off for
+          that friend alone, on top of your switches for everyone in the
+          Friends panel. A switch that's off for everyone can't be turned on
+          for one friend. The backend applies it everywhere that friend looks:
+          your status, your crate, your diary, Activity and Add to my crate.
+          Removing a friend forgets their switches.
 
   1.121.0 — 2026-11-15 — Signing in with an account that isn't allowed says so, by name, with what to do, instead of "Your session expired". Page and Apps Script backend (paste the new apps-script-backend.gs and redeploy).
 

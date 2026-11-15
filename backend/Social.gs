@@ -18,6 +18,8 @@
  *    first, from the same sheets and with the same rules; kept 5 minutes per person in the cache so the panel can ask often.
  *  - (1.119.0) One release in full (socialRelease), for "Add to my crate": its tracklist, song links and RYM figures too, but never
  *    what's theirs alone (their rating, review, catalog number, when they added it, their song ratings, notes and listens).
+ *  - (1.122.0) Each person can turn crate, ratings, diary or what they're playing off for one friend in particular (perFriend), on top
+ *    of their switches for everyone; everything above follows it.
  *  - A release marked "Hide from friends" (its FriendsHidden column) never goes out: not in the crate, the diary or the feed.
  *
  * Only people ALLOWED_EMAILS lets in can use any of this (apps-script-backend.gs checks before a request gets here).
@@ -68,6 +70,12 @@ function _socEnsure(email, name) {
   _socPut(email, u);
   return u;
 }
+// (1.122.0) What a friend shares with ONE person: their switches for everyone, less any they've turned off for that person alone
+// (perFriend: { id: { crate: false, … } }; only "off" is stored).
+function _socShareFor(f, viewerId) {
+  const base = _socShare(f && f.share), off = (f && f.perFriend && f.perFriend[viewerId]) || {};
+  return { crate: base.crate && off.crate !== false, ratings: base.ratings && off.ratings !== false, diary: base.diary && off.diary !== false, playing: base.playing && off.playing !== false };
+}
 function _socWithLock(fn) {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(10000)) throw new Error('Busy, try again');
@@ -86,21 +94,22 @@ function _socNp(np) {
 }
 
 // How a friend looks in my list: name, whether they're online, what they're playing (if they share it), when they were last seen.
-function _socView(fid, cache, now) {
+function _socView(fid, cache, now, viewerId) {
   const femail = _socEmailOf(fid); if (!femail) return null;
   const f = _socGet(femail); if (!f) return null;
+  const fsh = _socShareFor(f, viewerId);
   const v = { id: fid, name: f.name || 'Friend', status: 'offline', np: null, seen: 0, last: null,
-              share: { crate: !!f.share.crate, ratings: !!f.share.ratings, diary: !!f.share.diary } };
+              share: { crate: !!fsh.crate, ratings: !!fsh.ratings, diary: !!fsh.diary } };
   if (f.off) return v;                                                  // "Appear offline": nothing about them at all
   let live = null; try { live = JSON.parse(cache.get('soc:' + fid) || 'null'); } catch (e) { live = null; }
   if (live && now - live.at < SOC_ONLINE_MS) {
-    v.status = live.np && live.np.playing && f.share.playing ? 'playing' : 'online';
-    if (f.share.playing && live.np) v.np = live.np;
+    v.status = live.np && live.np.playing && fsh.playing ? 'playing' : 'online';
+    if (fsh.playing && live.np) v.np = live.np;
     v.seen = live.at;
   } else {
     v.seen = Math.max(f.seen || 0, live ? live.at : 0);
   }
-  if (f.share.playing) v.last = (live && live.np) || f.last || null;
+  if (fsh.playing) v.last = (live && live.np) || f.last || null;
   return v;
 }
 
@@ -109,8 +118,8 @@ function _socState(email, u) {
   const people = (ids) => (ids || []).map(id => { const e = _socEmailOf(id), x = e && _socGet(e); return x ? { id: id, name: x.name || 'Someone' } : null; }).filter(Boolean);
   return {
     ok: true, social: true, now: now,
-    me: { id: u.id, code: u.code, name: u.name, share: u.share, off: !!u.off },
-    friends: (u.friends || []).map(id => _socView(id, cache, now)).filter(Boolean),
+    me: { id: u.id, code: u.code, name: u.name, share: u.share, off: !!u.off, perFriend: u.perFriend || {} },
+    friends: (u.friends || []).map(id => _socView(id, cache, now, u.id)).filter(Boolean),
     incoming: people(u.inc),
     outgoing: people(u.out)
   };
@@ -123,26 +132,27 @@ function _socFriendData(email, u, fid, what) {
   if ((u.friends || []).indexOf(fid) === -1) return { ok: false, social: true, error: 'Not friends' };
   const femail = _socEmailOf(fid), f = femail && _socGet(femail);
   if (!f || (f.friends || []).indexOf(u.id) === -1) return { ok: false, social: true, error: 'Not friends' };
-  const ss = _getUserSpreadsheet(femail), out = { ok: true, social: true, id: fid, name: f.name, share: { crate: !!f.share.crate, ratings: !!f.share.ratings, diary: !!f.share.diary } };
+  const fsh = _socShareFor(f, u.id);
+  const ss = _getUserSpreadsheet(femail), out = { ok: true, social: true, id: fid, name: f.name, share: { crate: !!fsh.crate, ratings: !!fsh.ratings, diary: !!fsh.diary } };
   const hidden = {};
   const want = (k) => !what || what === 'all' || what === k;
-  if (f.share.crate && (want('crate') || want('diary'))) {
+  if (fsh.crate && (want('crate') || want('diary'))) {
     const log = ss.getSheetByName(SHEET_NAME), rows = log ? _readSheet(log) : [];
     const crate = [];
     rows.forEach(r => {
       if (_socHidden(r)) { hidden[String(r.Artist).trim() + '\u0001' + String(r.Title).trim()] = true; return; }
       if (!want('crate')) return;
       const o = {}; SOC_CRATE_COLS.forEach(c => { if (r[c] !== '' && r[c] != null) o[c] = r[c]; });
-      if (f.share.ratings && r.Rating !== '' && r.Rating != null) o.Rating = r.Rating;
+      if (fsh.ratings && r.Rating !== '' && r.Rating != null) o.Rating = r.Rating;
       crate.push(o);
     });
     if (want('crate')) out.crate = crate;
   }
-  if (f.share.diary && want('diary')) {
+  if (fsh.diary && want('diary')) {
     const d = ss.getSheetByName('Diary'), rows = d ? _readSheet(d) : [];
     out.diary = rows.filter(r => !hidden[String(r.Artist).trim() + '\u0001' + String(r.Title).trim()]).map(r => {
       const o = { Date: r.Date, Artist: r.Artist, Title: r.Title, EntryTitle: r.EntryTitle, Description: r.Description, Full: r.Full, Timestamp: r.Timestamp };
-      if (f.share.ratings) o.Rating = r.Rating;
+      if (fsh.ratings) o.Rating = r.Rating;
       return o;
     });
   }
@@ -159,22 +169,23 @@ function _socFeed(email, u, fresh) {
   const s = (v, n) => String(v == null ? '' : v).slice(0, n), https = (v) => /^https:\/\//.test(String(v || '')) ? s(v, 600) : '';
   (u.friends || []).forEach(fid => {
     const femail = _socEmailOf(fid), f = femail && _socGet(femail);
-    if (!f || (f.friends || []).indexOf(u.id) === -1 || (!f.share.crate && !f.share.diary)) return;
+    const fsh = _socShareFor(f, u.id);
+    if (!f || (f.friends || []).indexOf(u.id) === -1 || (!fsh.crate && !fsh.diary)) return;
     let ss; try { ss = _getUserSpreadsheet(femail); } catch (e) { return; }
     const log = ss.getSheetByName(SHEET_NAME), rows = log ? _readSheet(log) : [], hidden = {}, covers = {};
     rows.forEach(r => { if (_socHidden(r)) hidden[k(r)] = true; else if (r.Cover) covers[k(r)] = https(r.Cover); });
-    if (f.share.crate) rows.forEach(r => {
+    if (fsh.crate) rows.forEach(r => {
       if (_socHidden(r)) return;
       const at = Date.parse(r.DateAdded) || 0; if (at < since) return;
-      items.push({ fid: fid, kind: 'added', at: at, artist: s(r.Artist, 200), title: s(r.Title, 200), year: s(r.ReleaseDate, 4), cover: https(r.Cover), rating: f.share.ratings ? Number(r.Rating) || 0 : 0 });
+      items.push({ fid: fid, kind: 'added', at: at, artist: s(r.Artist, 200), title: s(r.Title, 200), year: s(r.ReleaseDate, 4), cover: https(r.Cover), rating: fsh.ratings ? Number(r.Rating) || 0 : 0 });
     });
-    if (f.share.diary) {
+    if (fsh.diary) {
       const d = ss.getSheetByName('Diary');
       (d ? _readSheet(d) : []).forEach(e => {
         if (hidden[k(e)]) return;
         const at = Date.parse(e.Timestamp) || Date.parse(e.Date) || 0; if (at < since) return;
         items.push({ fid: fid, kind: 'diary', at: at, date: s(e.Date, 10), artist: s(e.Artist, 200), title: s(e.Title, 200), cover: covers[k(e)] || '',
-                     rating: f.share.ratings ? Number(e.Rating) || 0 : 0, entryTitle: s(e.EntryTitle, 200), text: s(e.Description, 280),
+                     rating: fsh.ratings ? Number(e.Rating) || 0 : 0, entryTitle: s(e.EntryTitle, 200), text: s(e.Description, 280),
                      full: e.Full === true || e.Full === 'TRUE' || e.Full === 1 || e.Full === '1' });
       });
     }
@@ -194,7 +205,8 @@ function _socRelease(email, u, fid, albumId, artist, title) {
   if ((u.friends || []).indexOf(fid) === -1) return { ok: false, social: true, error: 'Not friends' };
   const femail = _socEmailOf(fid), f = femail && _socGet(femail);
   if (!f || (f.friends || []).indexOf(u.id) === -1) return { ok: false, social: true, error: 'Not friends' };
-  if (!f.share.crate) return { ok: false, social: true, error: 'They don\'t share their crate.' };
+  const fsh = _socShareFor(f, u.id);
+  if (!fsh.crate) return { ok: false, social: true, error: 'They don\'t share their crate.' };
   const log = _getUserSpreadsheet(femail).getSheetByName(SHEET_NAME), rows = log ? _readSheet(log) : [];
   const id = String(albumId || '').trim(), a = String(artist || '').trim(), t = String(title || '').trim();
   const r = (id && rows.find(x => String(x.AlbumId).trim() === id)) || rows.find(x => String(x.Artist).trim() === a && String(x.Title).trim() === t);
@@ -266,6 +278,7 @@ function _social(email, action, payload) {
       return _json(_socWithLock(() => {
         const u = _socEnsure(email), fid = String(payload.id || ''), femail = _socEmailOf(fid);
         u.friends = _socDrop(u.friends, fid); u.out = _socDrop(u.out, fid); u.inc = _socDrop(u.inc, fid);
+        if (u.perFriend && u.perFriend[fid]) { u.perFriend = Object.assign({}, u.perFriend); delete u.perFriend[fid]; }
         if (femail) { const f = _socGet(femail); if (f) { f.friends = _socDrop(f.friends, u.id); f.inc = _socDrop(f.inc, u.id); f.out = _socDrop(f.out, u.id); _socPut(femail, f); } }
         _socPut(email, u);
         return _socState(email, u);
@@ -278,6 +291,12 @@ function _social(email, action, payload) {
         if (payload.name !== undefined) { const n = _socCleanName(payload.name); if (n) u.name = n; }
         if (payload.share !== undefined) u.share = _socShare(Object.assign({}, u.share, payload.share));
         if (payload.off !== undefined) u.off = !!payload.off;
+        if (payload.forFriend && typeof payload.forFriend === 'object' && (u.friends || []).indexOf(String(payload.forFriend.id)) !== -1) {          // (1.122.0) what one friend sees
+          const fid = String(payload.forFriend.id), pf = Object.assign({}, (u.perFriend || {})[fid]), sh = payload.forFriend.share || {};
+          ['crate', 'ratings', 'diary', 'playing'].forEach(k => { if (sh[k] === false) pf[k] = false; else if (sh[k] === true) delete pf[k]; });
+          u.perFriend = Object.assign({}, u.perFriend); if (Object.keys(pf).length) u.perFriend[fid] = pf; else delete u.perFriend[fid];
+          try { CacheService.getScriptCache().remove('socfeed:' + fid); } catch (e) { /* it runs out in 5 minutes anyway */ }
+        }
         if (u.off || !u.share.playing) CacheService.getScriptCache().put('soc:' + u.id, JSON.stringify({ at: u.off ? 0 : Date.now(), np: null }), SOC_CACHE_S);
         _socPut(email, u);
         return _socState(email, u);

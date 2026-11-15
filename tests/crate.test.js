@@ -1370,3 +1370,19 @@ suite('Staying signed in with a CRATE session (1.120.0)', () => {
   });
 });
 
+suite('Friends: comparing ratings (1.122.0)', () => {
+  test('taste match, distance, disagreements, shared loves and favourites you lack', () => {
+    const raw = app('state').raw.slice(0, 3), data = app('fpData'), keep = raw.map(x => x.rating);
+    try {
+      raw[0].rating = 4.5; raw[1].rating = 2; raw[2].rating = 5;
+      data.__t = { at: 1, share: { ratings: true }, crate: [
+        { artist: raw[0].artist, title: raw[0].title, rating: 4.5 }, { artist: raw[1].artist, title: raw[1].title, rating: 4 }, { artist: raw[2].artist, title: raw[2].title, rating: 5 },
+        { artist: 'Nobody', title: 'Not Mine', rating: 5, rymRating: 3 }, { artist: 'Nobody', title: 'Meh', rating: 3 } ] };
+      const r = app('fpRatingsData')('__t');
+      eq([r.both.length, Math.round(r.mad * 100) / 100, r.match, Math.round(r.near * 100)], [3, 0.67, 67, 67]);
+      eq([r.apart.map(p => p.x.title), r.loved.length, r.recs.map(x => x.title)], [[raw[1].title], 2, ['Not Mine']]);
+      eq(r.histThem.reduce((a, h) => a + h.n, 0), 5);
+    } finally { raw.forEach((x, i) => { x.rating = keep[i]; }); delete data.__t; }
+  });
+});
+
