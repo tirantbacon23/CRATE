@@ -2,7 +2,7 @@
 // One part of the page's script, split by feature (see 01-core.js).
 //
 // SHOWN: small chips under a song's name in a release's tracklist, the browser's songs and the Tracks view (the first three, then "+2"),
-// and under the song playing in Track info, coloured by category (mood, texture, tempo…). A song starts with none; "+" adds some.
+// coloured by category (mood, texture, tempo…). A song starts with none; "+" adds some.
 // EDITING: a click on a song's chips (or its "+") opens the editor: type to find one, with suggestions from the same categories releases
 // use, from the release's own descriptors, and from those you've used on songs before. Enter or a click adds one; × or Backspace takes
 // one off. Saved as you go.
@@ -39,16 +39,9 @@ function sdPaint(all) {
     const at = row.querySelector('.track-name, .trk-title, .mt-title'); if (!at) return;
     at.insertAdjacentHTML(row.classList.contains('track-row-wrap') ? 'afterend' : 'beforeend', html);          // (in the browser and the Tracks view: inside the name, so the row's columns stay as they are)
   });
-  // Track info: the song playing
-  const host = document.getElementById('trackInfoTitle'); if (!host) return;
-  const now = likeNow(), box = host.parentElement.classList.contains('lk-title-row') ? host.parentElement.parentElement : host.parentElement;
-  let c = box.querySelector(':scope > .sd-chips.sd-info');
-  if (!now) { if (c) c.remove(); return; }
-  const sig = sdGet(now.item, now.num).join(',') + '|' + now.item.row + ':' + now.num;
-  if (c && c.dataset.sdInfo === sig) return;
-  const html = sdChipsHtml(now.item, now.num, now.name, 'sd-info');
-  if (c) c.outerHTML = html; else { const after = host.parentElement.classList.contains('lk-title-row') ? host.parentElement : host; after.insertAdjacentHTML('afterend', html); }
-  c = box.querySelector(':scope > .sd-chips.sd-info'); if (c) c.dataset.sdInfo = sig;
+  // (1.130.2) Not in Track info: it fits the cover into what room is left, and even one line of chips squeezed the cover down to a sliver.
+  // A song's descriptors show in every tracklist instead. (Any left from an earlier version are taken away.)
+  document.querySelectorAll('.sd-chips.sd-info').forEach(c => c.remove());
 }
 
 // ----- the editor -----

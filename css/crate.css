@@ -5206,3 +5206,8 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
   .lk-title-row > .mini-player-title, .lk-title-row > .track-info-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; margin: 0; }
   .lk-title-row > .lk-heart, .lk-title-row > .dl-btn { flex: none; width: 22px; height: 22px; margin-left: 2px; }
   .lk-title-row > .lk-heart svg, .lk-title-row > .dl-btn svg { width: 13px; height: 13px; }
+  /* (1.130.2) Track info: a song's descriptors on one line at most, so the cover keeps its room */
+  .sd-info { flex-wrap: nowrap; overflow: hidden; flex: none; margin: 2px 0 4px; }
+  /* (1.130.2) Downloads opens from Up Next's header bar, not a row of its own */
+  .dlv-open-btn { margin-left: auto; margin-right: 6px; display: inline-flex; align-items: center; gap: 5px; }
+  .dlv-dock .panel-bar { display: flex; align-items: center; gap: 6px; } .dlv-dock .panel-bar .panel-label { margin-right: auto; }

@@ -17,7 +17,21 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.130.1
+  CURRENT_VERSION: 1.130.2
+
+  1.130.2 — 2026-11-15 — Fix: Track info's cover had shrunk to a sliver behind the level meter. Song descriptors no longer show in Track info, and Downloads opens from Up Next's header instead of a row of its own. Page only.
+
+          WHY: Track info fits the cover into whatever room is left. 1.129.0
+          added a line for the song's descriptors ("+ describe") and 1.130.0 a
+          row for "Up next | Downloads" at the top of the column, and together
+          they squeezed the cover down to its smallest (48 px), half hidden.
+          NOW: a song's descriptors show in every tracklist but not in Track
+          info; the ♥ stays (it shares the song's line). Downloads opens with
+          "↓ Downloads" in Up Next's own header bar (with its count), and the
+          Downloads view has its own header: "Up next" goes back, ⧉ floats it.
+          Measured on a 900 px tall window with Up next and Track info both
+          showing: the cover is back from 48 px to 85 px, more than before
+          1.129.0.
 
   1.130.1 — 2026-11-15 — Fix: in the player (docked or floating) and in Track info, the ♥ and ↓ sit on the song's line instead of each taking a line of its own. Page only.
 

@@ -7,7 +7,7 @@
 // badge takes over from the ↓.
 // KEPT OR DELETED as the download setting says ("After playing": delete it once played, keep up to a size, or keep everything): a song or
 // release you ask for is kept until it's played (or a day), then follows that setting.
-// THE DOWNLOADS VIEW: a Downloads tab at the top of the right-hand column ("Up next | Downloads") takes the column over while it's open,
+// THE DOWNLOADS VIEW: "↓ Downloads" in Up Next's header bar takes the right-hand column over while it's open ("Up next" goes back),
 // or ⧉ floats it as a window you can drag and resize. At the top, whether the add-on and slskd are ready, the total speed and how many
 // are downloading, waiting and done; then each release (cover, who it's from, the format, an overall bar) with each song's bar, speed or
 // place in the sharer's queue. Filters: Active, Done, Didn't work. Each release's ⋯: Retry, Stop, Change source, Open in my crate, Forget.
@@ -147,7 +147,6 @@ function dlvRender() {
   const tabN = document.getElementById('dlvTabCount'); if (tabN) { tabN.hidden = !n; tabN.textContent = String(n); }
   const rp = document.getElementById('rightPanel'), dockOn = pr.tab === 'downloads' && pr.mode === 'dock';
   if (rp) rp.classList.toggle('dlv-on', dockOn);
-  document.querySelectorAll('#dlvTabs [data-dlv-tab]').forEach(b => b.setAttribute('aria-selected', String((b.dataset.dlvTab === 'downloads') === (pr.tab === 'downloads' && pr.mode === 'dock'))));
   const fl = document.getElementById('dlvFloat'); if (fl) fl.hidden = !(pr.mode === 'float' && pr.open);
   const target = dockOn ? document.getElementById('dlvDockBody') : (pr.mode === 'float' && pr.open ? document.getElementById('dlvFloatBody') : null);
   if (!target) return;
@@ -232,12 +231,14 @@ function dlvDragInit(pn) {
 
 function initDownloads() {
   // the right-hand column: "Up next | Downloads" at its top, and the Downloads list (it takes the column over while it's open)
-  const rp = document.getElementById('rightPanel');
-  if (rp && !document.getElementById('dlvTabs')) {
-    rp.insertAdjacentHTML('afterbegin', `<div id="dlvTabs" class="dlv-tabs" role="tablist" aria-label="Right-hand column"><button type="button" role="tab" data-dlv-tab="queue" aria-selected="true">Up next</button><button type="button" role="tab" data-dlv-tab="downloads" aria-selected="false">Downloads <span id="dlvTabCount" class="soc-unread" hidden></span></button><button type="button" class="friends-hbtn dlv-pop" data-dlv-pop title="Float Downloads as a window" aria-label="Float Downloads as a window">⧉</button></div>
-      <div id="dlvDock" class="right-panel-section dlv-dock"><div id="dlvDockBody" class="dlv-body"></div></div>`);
-    rp.querySelector('#dlvTabs').addEventListener('click', (e) => {
-      const t = e.target.closest('[data-dlv-tab]'); if (t) { if (t.dataset.dlvTab === 'downloads') dlvOpen('dock'); else { dlvSave({ tab: 'queue' }); dlvRender(); } return; }
+  // (1.130.2) No row of its own (it took height from the column, and Track info's cover is the first to shrink): a "↓ Downloads" button in
+  // Up Next's own header opens it, and the Downloads view has a header of its own with "Up next" to go back and ⧉ to float it.
+  const rp = document.getElementById('rightPanel'), qbar = document.querySelector('#rightPanelQueueSection .panel-bar');
+  if (rp && !document.getElementById('dlvDock')) {
+    if (qbar) { const clr = document.getElementById('crateQueueClearBtn'); const html = `<button type="button" class="chip-btn dlv-open-btn" data-dlv-tab="downloads" title="Downloads from Soulseek">↓ Downloads <span id="dlvTabCount" class="soc-unread" hidden></span></button>`; if (clr) clr.insertAdjacentHTML('beforebegin', html); else qbar.insertAdjacentHTML('beforeend', html); }
+    rp.insertAdjacentHTML('afterbegin', `<div id="dlvDock" class="right-panel-section dlv-dock"><div class="panel-bar"><span class="panel-label">Downloads</span><button type="button" class="chip-btn" data-dlv-tab="queue">Up next</button><button type="button" class="friends-hbtn dlv-pop" data-dlv-pop title="Float Downloads as a window" aria-label="Float Downloads as a window">⧉</button></div><div id="dlvDockBody" class="dlv-body"></div></div>`);
+    rp.addEventListener('click', (e) => {
+      const t = e.target.closest('[data-dlv-tab]'); if (t && rp.contains(t)) { if (t.dataset.dlvTab === 'downloads') dlvOpen('dock'); else { dlvSave({ tab: 'queue' }); dlvRender(); } return; }
       if (e.target.closest('[data-dlv-pop]')) { dlvSave({ tab: 'queue' }); dlvOpen('float'); }
     });
     dlvWire(document.getElementById('dlvDockBody'));
