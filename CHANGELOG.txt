@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.132.0
+  CURRENT_VERSION: 1.133.0
 
+  1.133.0 — 2026-11-15 — Liked songs gets the Music view's browser column: Artists, Genres, Decades or Descriptors (the songs'
+          own), each with how many liked songs it has, and a box to find one. Pick one to see only its songs, in the list or
+          as covers; "All liked songs" goes back. Page only.
+  1.132.1 — 2026-11-15 — Liked songs: the Time column filled in. It only read tracklists already loaded; it now loads the ones
+          it needs (once each) and shows each song's length, typed-in tracklists included. Page only.
   1.132.0 — 2026-11-15 — Liked songs, redone: it opens in the music's place, with the far-left strip and Up Next beside it (no
           playlists listed beside it). A song list with Title, Artist, Release, Descriptors, Rating, Liked and Time; click a
           heading to sort by it, again to reverse. A button switches to covers: each release you've liked songs from, with a ♥
