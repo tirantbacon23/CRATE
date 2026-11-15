@@ -5220,3 +5220,13 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
   .lk-nav-ico { color: var(--heart); }
   .queue-track-title .dl-q { width: 18px; height: 18px; margin-left: 4px; vertical-align: -3px; }
   .queue-nested-track-row:hover .dl-q, .queue-row:hover .dl-q, .queue-table-row:hover .dl-q { opacity: 1; }
+
+  /* (1.130.4) A compact header on desktop: "a listening log" on CRATE's line, the search and buttons centred beside it (no gap above
+     them), and less space below it, so the panels get that height back. Phones keep their own header (see the max-width: 900px rules). */
+  @media (min-width: 901px) {
+    .topbar { align-items: center; padding-bottom: 14px; margin-bottom: 14px; }
+    .brand { display: flex; align-items: baseline; gap: 14px; }
+    .brand .tagline { margin: 0; }
+  }
+  /* (1.130.4) a little less padding around the page on desktop: more room for the panels */
+  @media (min-width: 901px) { #app { padding-top: 14px; padding-left: 28px; padding-right: 28px; } }

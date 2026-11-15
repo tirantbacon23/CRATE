@@ -17,7 +17,18 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.130.3
+  CURRENT_VERSION: 1.130.4
+
+  1.130.4 — 2026-11-15 — A compact header: "a listening log" on CRATE's line, the search and buttons centred beside it (no empty space above them), and less padding around the page. The panels gain 41 px of height. Page only.
+
+          The header was CRATE with its tagline underneath (63 px tall) and
+          the search and buttons lined up with its foot, which left an empty
+          band above them; then 20 px of padding and 20 px of margin below it,
+          and 24 px above it. Now, on a computer: the tagline sits beside CRATE,
+          the controls are centred on the same line, and the spacing is
+          trimmed (14 px above and below; 28 px instead of 40 px at the sides).
+          On a 1920 × 911 window the panels start at 115 px from the top
+          instead of 156 px. Phones keep their own header.
 
   1.130.3 — 2026-11-15 — Track info's cover at its full size again; ↓ Download beside each song in Up Next; Liked songs gets its own button in the far-left strip. Page only.
 
