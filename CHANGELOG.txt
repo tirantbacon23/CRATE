@@ -17,7 +17,30 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.126.0
+  CURRENT_VERSION: 1.127.0
+
+  1.127.0 — 2026-11-15 — Rate Your Music's newer descriptors have categories: none of RYM's own list falls under "Other (yours)" any more, and a new category, Form & composition, holds the ones about how music is put together. Page only.
+
+          NEW IN THEIR CATEGORIES: hateful, misanthropic, nihilistic,
+          pessimistic, self-hatred and sardonic (Mood: bitterness & contempt);
+          apathetic and lethargic (Mood: weariness & detachment); manic, sombre,
+          funereal; boastful, vulgar and crude (Lyrics: swagger & excess);
+          party and hedonistic; Christian, Satanic, pagan, anti-religious,
+          Islamic and other faiths; LGBT; suicide; science fiction, cyberpunk,
+          abstract; chaotic; ritualistic and martial (Setting: ritual &
+          ceremony); aquatic, forest, seasonal, rain; uncommon time
+          signatures.
+          NOW COUNTED: some descriptors were in the list only as words that
+          "mean" one (political, spiritual, breakup, complex, meditative…), so
+          they landed in Other (yours). They're descriptors of their categories
+          now.
+          FORM & COMPOSITION (new): song form (ballad, concept album, song
+          cycle, suite, medley, mashup, interlude, rock opera), harmony &
+          tonality (dissonant, atonal, microtonal, polyphonic, modal,
+          chromatic) and playing (improvisation, ensemble, solo, jam).
+          Checked against Rate Your Music's descriptor list: every one now has
+          a category. Descriptors of your own that aren't RYM's still go under
+          Other (yours).
 
   1.126.0 — 2026-11-15 — Songs are matched as soon as a release is added (a switch in ⚙ → Settings), the ⚙ menu is tidied into sections with a search box, and the "Queued" labels on covers no longer float between covers. Page only.
 
