@@ -14,6 +14,9 @@
  *  - What each person is playing, in the script's cache for 10 minutes (soc:<id>), sent by their CRATE about once a minute.
  *  - A friend's crate and diary are read straight from THEIR spreadsheet when asked, and only when the two are friends and that
  *    friend shares it. Nothing is copied.
+ *  - (1.117.0) The activity feed (socialFeed): friends' diary entries and the releases they added in the last 45 days, newest
+ *    first, from the same sheets and with the same rules; kept 5 minutes per person in the cache so the panel can ask often.
+ *  - A release marked "Hide from friends" (its FriendsHidden column) never goes out: not in the crate, the diary or the feed.
  *
  * Only people ALLOWED_EMAILS lets in can use any of this (apps-script-backend.gs checks before a request gets here).
  */
@@ -112,6 +115,7 @@ function _socState(email, u) {
 }
 
 // A friend's crate and diary, read from their own spreadsheet. Only the columns below go out, and only what they share.
+function _socHidden(r) { const v = r && r.FriendsHidden; return v === true || v === 1 || String(v).toLowerCase() === 'true' || String(v) === '1'; }
 const SOC_CRATE_COLS = ['AlbumId', 'Artist', 'Title', 'Type', 'ReleaseDate', 'Genre', 'SecondaryGenre', 'Region', 'Label', 'Descriptor', 'Cover', 'Link', 'RymLink', 'RymRating', 'RymVotes', 'DateAdded'];
 function _socFriendData(email, u, fid, what) {
   if ((u.friends || []).indexOf(fid) === -1) return { ok: false, social: true, error: 'Not friends' };
@@ -124,7 +128,7 @@ function _socFriendData(email, u, fid, what) {
     const log = ss.getSheetByName(SHEET_NAME), rows = log ? _readSheet(log) : [];
     const crate = [];
     rows.forEach(r => {
-      if (r.FriendsHidden === true || String(r.FriendsHidden).toLowerCase() === 'true' || String(r.FriendsHidden) === '1') { hidden[String(r.Artist).trim() + '\u0001' + String(r.Title).trim()] = true; return; }
+      if (_socHidden(r)) { hidden[String(r.Artist).trim() + '\u0001' + String(r.Title).trim()] = true; return; }
       if (!want('crate')) return;
       const o = {}; SOC_CRATE_COLS.forEach(c => { if (r[c] !== '' && r[c] != null) o[c] = r[c]; });
       if (f.share.ratings && r.Rating !== '' && r.Rating != null) o.Rating = r.Rating;
@@ -140,6 +144,42 @@ function _socFriendData(email, u, fid, what) {
       return o;
     });
   }
+  return out;
+}
+
+// The activity feed: what each friend logged in their diary and added to their crate lately, newest first. Only what they share,
+// never a release they hide. Friend names aren't in it (the page has them, by id). Kept 5 minutes per person.
+const SOC_FEED_DAYS = 45, SOC_FEED_MAX = 150, SOC_FEED_CACHE_S = 300;
+function _socFeed(email, u, fresh) {
+  const cache = CacheService.getScriptCache(), key = 'socfeed:' + u.id;
+  if (!fresh) { try { const hit = cache.get(key); if (hit) return JSON.parse(hit); } catch (e) { /* build it */ } }
+  const since = Date.now() - SOC_FEED_DAYS * 864e5, items = [], k = (r) => String(r.Artist).trim() + '\u0001' + String(r.Title).trim();
+  const s = (v, n) => String(v == null ? '' : v).slice(0, n), https = (v) => /^https:\/\//.test(String(v || '')) ? s(v, 600) : '';
+  (u.friends || []).forEach(fid => {
+    const femail = _socEmailOf(fid), f = femail && _socGet(femail);
+    if (!f || (f.friends || []).indexOf(u.id) === -1 || (!f.share.crate && !f.share.diary)) return;
+    let ss; try { ss = _getUserSpreadsheet(femail); } catch (e) { return; }
+    const log = ss.getSheetByName(SHEET_NAME), rows = log ? _readSheet(log) : [], hidden = {}, covers = {};
+    rows.forEach(r => { if (_socHidden(r)) hidden[k(r)] = true; else if (r.Cover) covers[k(r)] = https(r.Cover); });
+    if (f.share.crate) rows.forEach(r => {
+      if (_socHidden(r)) return;
+      const at = Date.parse(r.DateAdded) || 0; if (at < since) return;
+      items.push({ fid: fid, kind: 'added', at: at, artist: s(r.Artist, 200), title: s(r.Title, 200), year: s(r.ReleaseDate, 4), cover: https(r.Cover), rating: f.share.ratings ? Number(r.Rating) || 0 : 0 });
+    });
+    if (f.share.diary) {
+      const d = ss.getSheetByName('Diary');
+      (d ? _readSheet(d) : []).forEach(e => {
+        if (hidden[k(e)]) return;
+        const at = Date.parse(e.Timestamp) || Date.parse(e.Date) || 0; if (at < since) return;
+        items.push({ fid: fid, kind: 'diary', at: at, date: s(e.Date, 10), artist: s(e.Artist, 200), title: s(e.Title, 200), cover: covers[k(e)] || '',
+                     rating: f.share.ratings ? Number(e.Rating) || 0 : 0, entryTitle: s(e.EntryTitle, 200), text: s(e.Description, 280),
+                     full: e.Full === true || e.Full === 'TRUE' || e.Full === 1 || e.Full === '1' });
+      });
+    }
+  });
+  items.sort((a, b) => b.at - a.at);
+  const out = { ok: true, social: true, items: items.slice(0, SOC_FEED_MAX), at: Date.now() };
+  try { cache.put(key, JSON.stringify(out), SOC_FEED_CACHE_S); } catch (e) { /* too big to keep: built again next time */ }
   return out;
 }
 
@@ -224,6 +264,11 @@ function _social(email, action, payload) {
         _socPut(email, u);
         return _socState(email, u);
       }));
+    }
+
+    if (action === 'socialFeed') {
+      const u = _socEnsure(email);
+      return _json(_socFeed(email, u, !!payload.fresh));
     }
 
     if (action === 'socialFriend') {

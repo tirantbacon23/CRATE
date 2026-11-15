@@ -62,7 +62,7 @@ async function socBeat() {
 }
 function socSchedule() {
   clearTimeout(soc.timer);
-  soc.timer = setTimeout(() => { socBeat().finally(socSchedule); }, socOpenNow() ? SOC_BEAT_OPEN_MS : SOC_BEAT_MS);
+  soc.timer = setTimeout(() => { socBeat().then(() => socFeedLoad()).finally(socSchedule); }, socOpenNow() ? SOC_BEAT_OPEN_MS : SOC_BEAT_MS);
 }
 // A new song, a pause or a play is told at once (at most every 8 s), without waiting for the next beat.
 function socWatch() {
@@ -88,6 +88,16 @@ function socMine(artist, album) {
   const a = pbFold(artist), t = pbFold(album);
   return (state.raw || []).find(x => pbFold(x.title) === t && pbFold(x.artist) === a) || null;
 }
+// (1.117.0) A cover a friend's data points at is shown only from the image services CRATE itself gets covers from. Any other address
+// could be a friend's own server, which would learn when you looked and from where. Otherwise your own copy of that cover is used, if any.
+const SOC_IMG_HOSTS = ['mzstatic.com', 'scdn.co', 'spotifycdn.com', 'coverartarchive.org', 'archive.org', 'ytimg.com', 'ggpht.com', 'googleusercontent.com', 'bcbits.com', 'snmc.io', 'sndcdn.com', 'discogs.com', 'fastly.net', 'last.fm', 'lst.fm', 'wikimedia.org', 'dzcdn.net', 'deezer.com', 'tidal.com', 'apple.com'];
+function socSafeCover(url) {
+  try { const u = new URL(String(url || '')); if (u.protocol !== 'https:') return ''; const h = u.hostname.toLowerCase(); return SOC_IMG_HOSTS.some(d => h === d || h.endsWith('.' + d)) ? u.href : ''; } catch (e) { return ''; }
+}
+function socCoverFor(url, artist, title) {
+  const safe = socSafeCover(url); if (safe) return safe;
+  const mine = socMine(artist, title); return mine ? socSafeCover((state.artCache[artKey(mine)] && state.artCache[artKey(mine)].art) || mine.cover) || ((state.artCache[artKey(mine)] && state.artCache[artKey(mine)].art) || mine.cover || '') : '';
+}
 const SOC_SRC = { spotify: 'Spotify', youtube: 'YouTube', soundcloud: 'SoundCloud', local: 'Soulseek' };
 
 function socFriendRow(f) {
@@ -96,7 +106,7 @@ function socFriendRow(f) {
   if (f.status === 'playing' && np) {
     mine = socMine(np.artist, np.album);
     line = `<div class="soc-np"><span class="soc-eq" aria-hidden="true"><i></i><i></i><i></i></span>`
-      + (np.cover ? `<img class="soc-cv" src="${escapeHtml(np.cover)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'soc-cv soc-cv-none'}))">` : '<span class="soc-cv soc-cv-none"></span>')
+      + (socCoverFor(np.cover, np.artist, np.album) ? `<img class="soc-cv" src="${escapeHtml(socCoverFor(np.cover, np.artist, np.album))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'soc-cv soc-cv-none'}))">` : '<span class="soc-cv soc-cv-none"></span>')
       + `<span class="soc-np-t"><b>${escapeHtml(np.t || np.album)}</b><span>${escapeHtml(np.artist)}${np.album ? ' · ' + escapeHtml(np.album) : ''}</span></span></div>`;
   } else if (f.status === 'online') {
     line = `<span class="soc-sub">CRATE open${np && np.t ? ' · paused on ' + escapeHtml(np.t) : ''}</span>`;
@@ -125,7 +135,10 @@ function socRender() {
   sub.textContent = soc.friends.length ? `${playing.length + online.length} of ${soc.friends.length} online` : 'No friends yet';
   if (hdr) hdr.textContent = playing.length ? `${playing.length} listening` : '';
   const grp = (title, l) => l.length ? `<div class="soc-grp">${title} · ${l.length}</div>` + l.map(socFriendRow).join('') : '';
-  list.innerHTML = ''
+  const unread = socFeedUnread(), view = socPos().view === 'activity' ? 'activity' : 'friends';
+  const seg = `<div class="soc-seg" role="tablist" aria-label="Friends or activity"><button type="button" role="tab" data-soc-view="friends" aria-selected="${view === 'friends'}">Friends</button><button type="button" role="tab" data-soc-view="activity" aria-selected="${view === 'activity'}">Activity${unread ? ` <span class="soc-unread">${unread}</span>` : ''}</button></div>`;
+  if (view === 'activity') { list.innerHTML = seg + socFeedHtml(); socFeedMarkSeen(); if (!soc.setDrawn) socSetRender(); return; }
+  list.innerHTML = seg
     + (soc.note ? `<div class="soc-note" role="status">${escapeHtml(soc.note)}</div>` : '')
     + (soc.err ? `<div class="soc-note soc-warn" role="status">${escapeHtml(soc.err)}</div>` : '')
     + (soc.incoming.length ? `<div class="soc-grp">Requests · ${soc.incoming.length}</div>` + soc.incoming.map(p => `<div class="soc-row">${socAvatar(p)}<div class="soc-who"><div class="soc-name">${escapeHtml(p.name)}</div><span class="soc-sub">wants to be friends</span></div><span class="soc-acts"><button type="button" class="chip-btn soc-acc" data-soc-accept="${escapeHtml(p.id)}">Accept</button><button type="button" class="chip-btn" data-soc-ignore="${escapeHtml(p.id)}">Ignore</button></span></div>`).join('') : '')
@@ -152,6 +165,7 @@ function socSetRender() {
         ${sw('ratings', 'My ratings', '', sh.ratings)}
         ${sw('diary', 'My diary', 'Reviews included', sh.diary)}
         <label class="soc-tg"><span>Appear offline<small>You still see your friends</small></span><input type="checkbox" data-soc-off ${me.off ? 'checked' : ''}></label>
+        <div class="soc-tg soc-tg-static"><span>Hidden from friends<small>Right-click a release → Hide from friends</small></span><span class="soc-sub">${(() => { const n = (state.raw || []).filter(x => x.friendsHidden).length; return n ? n + ' release' + (n === 1 ? '' : 's') : 'none'; })()}</span></div>
       </div>`;
   soc.setDrawn = true;
 }
@@ -162,10 +176,72 @@ function socBtnRender() {
   const n = soc.friends.filter(f => f.status === 'playing').length, on = soc.friends.filter(f => f.status !== 'offline').length;
   const cnt = document.getElementById('friendsBtnCount'), req = document.getElementById('friendsBtnReq');
   if (cnt) { cnt.hidden = !n; cnt.textContent = String(n); }
-  if (req) req.hidden = !soc.incoming.length;
+  if (req) { req.hidden = !soc.incoming.length && !socFeedUnread(); req.classList.toggle('soc-req-feed', !soc.incoming.length); }
   b.classList.toggle('soc-live', n > 0);
   b.setAttribute('aria-pressed', socOpenNow() ? 'true' : 'false');
-  b.title = 'Friends' + (soc.friends.length ? ` · ${n} listening, ${on} online` : '') + (soc.incoming.length ? ` · ${soc.incoming.length} request${soc.incoming.length === 1 ? '' : 's'}` : '');
+  b.title = 'Friends' + (soc.friends.length ? ` · ${n} listening, ${on} online` : '') + (soc.incoming.length ? ` · ${soc.incoming.length} request${soc.incoming.length === 1 ? '' : 's'}` : '') + (socFeedUnread() ? ` · ${socFeedUnread()} new in Activity` : '');
+}
+
+// ---- (1.117.0) ACTIVITY: what friends logged in their diaries and added to their crates lately (the backend's socialFeed, kept there
+// 5 minutes). Asked for when the panel opens, then every 5 minutes while it's open and every 15 otherwise. "New" is anything since
+// you last looked at Activity (kept in this browser). Several releases one friend added the same day are one line.
+const SOC_FEED_OPEN_MS = 5 * 60000, SOC_FEED_MS = 15 * 60000;
+function socFeedSeenAt() { return Number(socPos().feedSeen) || 0; }
+function socFeedUnread() { const seen = socFeedSeenAt(); return soc.feed && seen ? soc.feed.items.filter(i => i.at > seen).length : 0; }
+function socFeedMarkSeen() { if (soc.feed && soc.feed.items.length) { const top = soc.feed.items[0].at; if (top > socFeedSeenAt()) { socPosSave({ feedSeen: top }); socBtnRender(); } } }
+async function socFeedLoad(force) {
+  if (soc.feedBusy || soc.unsupported || !soc.me || !(soc.friends || []).length) return;
+  if (!force && soc.feed && Date.now() - soc.feed.got < (socOpenNow() ? SOC_FEED_OPEN_MS : SOC_FEED_MS)) return;
+  soc.feedBusy = true;
+  try {
+    const d = await socCall('socialFeed', force ? { fresh: true } : {});
+    soc.feed = { items: Array.isArray(d.items) ? d.items : [], got: Date.now() };
+    if (!socFeedSeenAt() && soc.feed.items.length) socPosSave({ feedSeen: soc.feed.items[0].at });          // the first time: nothing counts as new
+    socBtnRender(); if (socOpenNow() && socPos().view === 'activity') socRender();
+  } catch (e) { soc.feedErr = e.message || String(e); }
+  finally { soc.feedBusy = false; }
+}
+function socFeedGroups() {
+  const out = [];
+  (soc.feed ? soc.feed.items : []).forEach(it => {
+    const last = out[out.length - 1], day = new Date(it.at).toDateString();
+    if (it.kind === 'added' && last && last.kind === 'added' && last.fid === it.fid && last.day === day) { last.more.push(it); return; }
+    out.push(Object.assign({ day, more: [] }, it));
+  });
+  return out;
+}
+function socFeedHtml() {
+  if (!soc.feed) { socFeedLoad(); return '<div class="soc-empty">Loading…</div>'; }
+  const groups = socFeedGroups(), seen = Number(socPos().feedSeenShown) || socFeedSeenAt();
+  if (!groups.length) return `<div class="soc-empty"><b>Nothing new lately.</b><p>Friends' diary entries and the releases they add show up here (the last 45 days), if they share their diary and crate.</p></div>`;
+  return groups.map(g => {
+    const f = (soc.friends || []).find(x => x.id === g.fid) || { id: g.fid, name: 'A friend' }, name = escapeHtml(f.name);
+    const cover = socCoverFor(g.cover, g.artist, g.title), mine = socMine(g.artist, g.title);
+    const rel = `<b>${escapeHtml(g.title)}</b> <span class="soc-feed-by">${escapeHtml(g.artist)}</span>`;
+    let what;
+    if (g.kind === 'diary') what = `<span class="soc-feed-who">${name}</span> logged ${rel}${g.rating ? ` <span class="soc-feed-stars">${starString(g.rating)}</span>` : ''}${g.text ? `<span class="soc-feed-q">“${escapeHtml(g.text.length > 140 ? g.text.slice(0, 140) + '…' : g.text)}”</span>` : ''}`;
+    else if (g.more.length) what = `<span class="soc-feed-who">${name}</span> added ${g.more.length + 1} releases, including ${rel} and <b>${escapeHtml(g.more[0].title)}</b>`;
+    else what = `<span class="soc-feed-who">${name}</span> added ${rel}${g.rating ? ` <span class="soc-feed-stars">${starString(g.rating)}</span>` : ''}`;
+    return `<button type="button" class="soc-feed-row${g.at > seen ? ' soc-feed-new' : ''}" data-soc-feed="${escapeHtml(g.fid)}" data-soc-feed-kind="${g.kind}" title="Open ${name}'s ${g.kind === 'diary' ? 'diary' : 'crate'}">
+        ${socAvatar(Object.assign({}, f, { status: '' }), 'soc-feed-av')}
+        <span class="soc-feed-t">${what}<span class="soc-feed-when">${socAgo(g.at)}${mine ? ' · in your crate' : ''}</span></span>
+        ${cover ? `<img class="soc-feed-cv" src="${escapeHtml(cover)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">` : '<span class="soc-feed-cv soc-cv-none"></span>'}
+      </button>`;
+  }).join('');
+}
+
+// ---- (1.117.0) HIDE FROM FRIENDS: right-click a release (or several) → Hide from friends. It's saved on the release (a FriendsHidden
+// column) and the backend leaves it out of everything friends see: your crate, your diary entries for it, and the activity feed.
+async function socSetHidden(items, hide) {
+  const list = (items || []).filter(x => x && !!x.friendsHidden !== !!hide); if (!list.length) return;
+  let done = 0;
+  for (const it of list) {
+    try { await postUpdate({ action: 'editAlbum', row: it.row, FriendsHidden: hide ? true : '' }); it.friendsHidden = !!hide; done++; }
+    catch (e) { console.warn('Hide from friends', e); }
+  }
+  const msg = done === list.length ? (hide ? `Hidden from friends: ${done === 1 ? list[0].title : done + ' releases'}.` : `Friends can see ${done === 1 ? list[0].title : done + ' releases'} again.`) : `Saved ${done} of ${list.length}. Try the rest again.`;
+  if (typeof flashGlobalToast === 'function') flashGlobalToast(msg);
+  if (socOpenNow() && socPos().settings) socSetRender();
 }
 
 // THE PANEL: it floats over CRATE without blocking it. Drag it by its header, resize it from its corner, fold it down to the header (–).
@@ -217,7 +293,7 @@ function socDragInit(pn) {
 }
 function socMinToggle() { socPosSave({ min: !socPos().min }); socPlace(); }
 
-function socOpen() { const pn = document.getElementById('friendsPanel'); if (!pn) return; pn.hidden = false; socPosSave({ open: true }); soc.note = ''; socPlace(); socRender(); socBtnRender(); socBeat(); socSchedule(); }
+function socOpen() { const pn = document.getElementById('friendsPanel'); if (!pn) return; pn.hidden = false; socPosSave({ open: true, feedSeenShown: socFeedSeenAt() }); soc.note = ''; socPlace(); socRender(); socBtnRender(); socBeat().then(() => socFeedLoad()); socSchedule(); }
 function socClose() { const pn = document.getElementById('friendsPanel'); if (pn) pn.hidden = true; socPosSave({ open: false }); soc.note = ''; socBtnRender(); socSchedule(); }
 function socToggle() { if (socOpenNow()) { if (socPos().min) socMinToggle(); else socClose(); } else socOpen(); }
 
@@ -251,6 +327,8 @@ function initSocial() {
       const done = () => { b.textContent = 'Copied'; setTimeout(() => { if (b.isConnected) b.textContent = 'Copy'; }, 1500); };
       try { navigator.clipboard.writeText(code).then(done, () => { const r = document.createRange(); r.selectNodeContents(document.getElementById('socMyCode')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }); } catch (er) { /* select it by hand */ }
     }
+    else if (b.dataset.socView) { socPosSave({ view: b.dataset.socView }); if (b.dataset.socView === 'activity') { socPosSave({ feedSeenShown: socFeedSeenAt() }); socFeedLoad(); } socRender(); }
+    else if (b.dataset.socFeed) { if (typeof openFriendTab === 'function') openFriendTab(b.dataset.socFeed, b.dataset.socFeedKind === 'diary' ? 'diary' : 'crate'); }
     else if (b.dataset.socPage) { if (typeof openFriendTab === 'function') openFriendTab(b.dataset.socPage); }
     else if (b.dataset.socOpen) { const it = pbItemOf(b.dataset.socOpen); if (it) openDeck(it); }          // the panel stays where it is
   });

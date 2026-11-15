@@ -801,6 +801,7 @@ function openAlbumCardContextMenu(item, x, y) {
     <button type="button" data-card-action="editTracks">Edit tracks…</button>
     ${selItems.length > 1 ? '' : '<button type="button" data-card-action="pullDetails">Pull details\u2026</button>'}
     ${selItems.length > 1 ? '' : `<button type="button" data-card-action="p2pFind">${typeof p2pHasSource === 'function' && p2pHasSource(item) ? 'Change P2P source\u2026' : 'Find on P2P\u2026'}</button>`}
+    ${(() => { const its = selItems.length > 1 ? selItems : [item], hid = its.every(x => x.friendsHidden); return `<button type="button" data-card-action="${hid ? 'friendsShow' : 'friendsHide'}" title="${hid ? 'Friends can see it again' : 'Friends won\u2019t see it in your crate, diary or activity'}">${hid ? 'Show to friends' : 'Hide from friends'}${its.length > 1 ? ` (${its.length})` : ''}</button>`; })()}
     <button type="button" data-card-action="recordedAt">${selItems.length > 1 ? `Find where ${selItems.length} selected were recorded` : 'Find where it was recorded'}</button>
     ${state.activePlaylistId ? '<div class="menu-divider"></div><button type="button" class="remove-menu-btn" data-card-action="removeFromPlaylist">Remove from playlist</button>' : ''}
     <div class="menu-divider"></div>
@@ -848,6 +849,7 @@ function openAlbumCardContextMenu(item, x, y) {
     else if (action === 'editTracks') tgOpen(item);
     else if (action === 'pullDetails') pdOpen(item);
     else if (action === 'p2pFind') p2pOpen(item);          // (1.96.0) search Soulseek through the CRATE for P2P add-on
+    else if (action === 'friendsHide' || action === 'friendsShow') { if (typeof socSetHidden === 'function') socSetHidden(selItems.length > 1 ? selItems : [item], action === 'friendsHide'); }
     else if (action === 'recordedAt') locFind(selItems.length > 1 ? selItems : [item]);
     else if (action === 'removeFromPlaylist') removeAlbumFromActivePlaylist(item);
     else if (action === 'delete') deleteAlbumsFromContextMenu(selItems);

@@ -1341,3 +1341,11 @@ suite('Saves name the release by its permanent id', () => {
   });
 });
 
+suite('Friends: covers only from known image services (1.117.0)', () => {
+  test('a cover a friend points at loads only from an image service CRATE itself uses', () => {
+    const c = app('socSafeCover');
+    eq([c('https://i.scdn.co/image/ab67'), c('https://is3-ssl.mzstatic.com/image/x.jpg'), c('https://coverartarchive.org/release/x/front'), c('https://f4.bcbits.com/img/a1.jpg'), c('https://e.snmc.io/i/600/s/x.jpg')].every(Boolean), true);
+    eq([c('https://evil.example/pixel.png'), c('http://i.scdn.co/x'), c('https://i.scdn.co.evil.example/x'), c('javascript:alert(1)'), c('')], ['', '', '', '', '']);
+  });
+});
+

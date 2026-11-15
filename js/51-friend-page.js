@@ -86,8 +86,8 @@ async function fpLoad(id) {
 // ----- the page -----
 function fpCover(x, cls) {
   const mine = fpMineMap().get(fpKey(x.artist, x.title));
-  const art = x.cover || (mine && ((state.artCache[artKey(mine)] && state.artCache[artKey(mine)].art) || mine.cover)) || '';
-  return art ? `<img class="${cls}" src="${escapeHtml(art)}" alt="" loading="lazy" onerror="this.classList.add('fp-noimg');this.removeAttribute('src')">` : `<span class="${cls} fp-noimg"></span>`;
+  const art = socSafeCover(x.cover) || (mine && ((state.artCache[artKey(mine)] && state.artCache[artKey(mine)].art) || mine.cover)) || '';          // (1.117.0) only from known image services
+  return art ? `<img class="${cls}" src="${escapeHtml(art)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.classList.add('fp-noimg');this.removeAttribute('src')">` : `<span class="${cls} fp-noimg"></span>`;
 }
 function fpFiltered(id) {
   const d = fpData[id], ui = fpUiOf(id), mine = fpMineMap(), q = pbFold(ui.q);

@@ -17,7 +17,44 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.116.0
+  CURRENT_VERSION: 1.117.0
+
+  1.117.0 — 2026-11-15 — Friends, part 3: an Activity feed of friends' diary entries and new releases, Hide from friends for single releases, friends' covers only from known image services, and a refused sign-in no longer tells the caller why. Page and Apps Script backend (paste the new apps-script-backend.gs and redeploy).
+
+          ACTIVITY: the Friends panel has two views, Friends and Activity.
+          Activity lists what friends logged in their diaries (with their
+          stars and the start of what they wrote) and the releases they added
+          to their crates, over the last 45 days, newest first. Several
+          releases one friend added on the same day are one line ("added 5
+          releases, including…"). A click opens that friend's diary or crate.
+          NEW: anything since you last looked at Activity has an amber edge
+          and is counted on the Activity switch; the Friends button gets a
+          green dot when there's something new (amber still means a friend
+          request). It's checked when the panel opens, then every 5 minutes
+          with it open and every 15 minutes otherwise; the backend keeps each
+          person's feed for 5 minutes, so asking often costs little.
+          HIDE FROM FRIENDS: right-click a release (or several selected) →
+          Hide from friends. Friends then don't see it in your crate, don't see
+          your diary entries for it, and it never shows in their Activity. The
+          same menu says Show to friends on a hidden release. The Friends
+          panel's settings say how many releases are hidden.
+          COVERS: a cover in a friend's crate, diary, activity or what
+          they're playing is loaded only from the image services CRATE itself
+          gets covers from (Spotify, iTunes, Cover Art Archive, YouTube,
+          Bandcamp, Rate Your Music, Discogs, Last.fm, SoundCloud, Deezer,
+          Wikimedia…). Any other address could be a server of theirs that
+          learns when you looked and from where; such a cover is replaced by
+          your own copy of it when you have the release, and left blank
+          otherwise. Covers also go without a referrer.
+          SIGN-IN: when the backend refuses a sign-in, it now answers only
+          "unauthorized". The reason (Google's reply, the refused address) goes
+          to the script's log (Executions, in the Apps Script editor) for you,
+          instead of to whoever asked.
+
+          BACKEND: paste the new apps-script-backend.gs over the old one, then
+          Deploy → Manage deployments → the pencil → New version → Deploy.
+          Until then Activity says it couldn't load, and Hide from friends
+          isn't kept (the old backend has nowhere to save it).
 
   1.116.0 — 2026-11-15 — Friends, part 2: open a friend's crate and diary in a tab of their own. Fix: Find on P2P reads song names from files named "Artist - Album - 01 - Song". Page only (uses the backend from 1.114.0 or later).
 
