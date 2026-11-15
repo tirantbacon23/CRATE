@@ -34,6 +34,7 @@ function socTake(d) {
   if (!d || !d.me) return;
   soc.me = d.me; soc.friends = d.friends || []; soc.incoming = d.incoming || []; soc.outgoing = d.outgoing || []; soc.at = Date.now(); soc.err = '';
   if (d.note) soc.note = d.note;
+  if (d.recStamp && d.recStamp !== soc.recStamp) { soc.recStamp = d.recStamp; socRecsLoad(); }          // (1.123.0) a recommendation came or changed
   socBtnRender(); if (socOpenNow()) socRender();
   if (typeof renderFriendTabButtons === 'function' && (state.friendTabs || []).length) { renderFriendTabButtons(); if (state.activeTab === 'friendInfo' && !document.querySelector('#friendInfoWrap :focus')) renderFriendPage(); }
 }
@@ -137,7 +138,7 @@ function socRender() {
   const grp = (title, l) => l.length ? `<div class="soc-grp">${title} · ${l.length}</div>` + l.map(socFriendRow).join('') : '';
   const unread = socFeedUnread(), view = socPos().view === 'activity' ? 'activity' : 'friends';
   const seg = `<div class="soc-seg" role="tablist" aria-label="Friends or activity"><button type="button" role="tab" data-soc-view="friends" aria-selected="${view === 'friends'}">Friends</button><button type="button" role="tab" data-soc-view="activity" aria-selected="${view === 'activity'}">Activity${unread ? ` <span class="soc-unread">${unread}</span>` : ''}</button></div>`;
-  if (view === 'activity') { list.innerHTML = seg + socFeedHtml(); socFeedMarkSeen(); if (!soc.setDrawn) socSetRender(); return; }
+  if (view === 'activity') { list.innerHTML = seg + socRecsHtml() + socFeedHtml(); socFeedMarkSeen(); socRecsMarkSeen(); if (!soc.setDrawn) socSetRender(); return; }
   list.innerHTML = seg
     + (soc.note ? `<div class="soc-note" role="status">${escapeHtml(soc.note)}</div>` : '')
     + (soc.err ? `<div class="soc-note soc-warn" role="status">${escapeHtml(soc.err)}</div>` : '')
@@ -187,7 +188,7 @@ function socBtnRender() {
 // you last looked at Activity (kept in this browser). Several releases one friend added the same day are one line.
 const SOC_FEED_OPEN_MS = 5 * 60000, SOC_FEED_MS = 15 * 60000;
 function socFeedSeenAt() { return Number(socPos().feedSeen) || 0; }
-function socFeedUnread() { const seen = socFeedSeenAt(); return soc.feed && seen ? soc.feed.items.filter(i => i.at > seen).length : 0; }
+function socFeedUnread() { const seen = socFeedSeenAt(); return (soc.feed && seen ? soc.feed.items.filter(i => i.at > seen).length : 0) + (soc.recs || []).filter(r => r.status === 'new').length; }
 function socFeedMarkSeen() { if (soc.feed && soc.feed.items.length) { const top = soc.feed.items[0].at; if (top > socFeedSeenAt()) { socPosSave({ feedSeen: top }); socBtnRender(); } } }
 async function socFeedLoad(force) {
   if (soc.feedBusy || soc.unsupported || !soc.me || !(soc.friends || []).length) return;
@@ -228,6 +229,80 @@ function socFeedHtml() {
         ${cover ? `<img class="soc-feed-cv" src="${escapeHtml(cover)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">` : '<span class="soc-feed-cv soc-cv-none"></span>'}
       </button>`;
   }).join('');
+}
+
+// ---- (1.123.0) RECOMMENDATIONS. Right-click a release → Recommend to a friend…: choose friends, add a note, Send. Theirs arrive at the top
+// of Activity ("Sam recommends…"), counted as new until you've looked; Add to my crate copies the release in full (tracklist, song links,
+// RYM figures), and the sender then sees that you added it. Dismiss takes one away. The backend keeps them in a FriendRecs tab in each
+// person's own sheet; the heartbeat says when there's something new, so they're only read then.
+async function socRecsLoad() {
+  try { const d = await socCall('socialRecs'); soc.recs = d.recs || []; socBtnRender(); if (socOpenNow() && socPos().view === 'activity') socRender(); }
+  catch (e) { /* next time the stamp moves */ }
+}
+function socRecsMarkSeen() {
+  if (!(soc.recs || []).some(r => r.status === 'new') || soc.recSeenBusy) return;
+  soc.recSeenBusy = true;
+  socCall('socialRecSet', { ids: 'allNew', status: 'seen' }).then(d => { soc.recs = d.recs || soc.recs; soc.recStamp = d.recStamp || soc.recStamp; socBtnRender(); }).catch(() => {}).finally(() => { soc.recSeenBusy = false; });
+}
+function socRecsHtml() {
+  const recs = soc.recs || []; if (!recs.length) return '';
+  const fr = (id, name) => (soc.friends || []).find(x => x.id === id) || { id, name: name || 'A friend' };
+  const cards = recs.filter(r => r.kind === 'rec' && r.status !== 'added').map(r => {
+    const f = fr(r.fromId, r.fromName), mine = socMine(r.artist, r.title), cover = socCoverFor(r.cover, r.artist, r.title);
+    return `<div class="soc-rec${r.status === 'new' ? ' soc-feed-new' : ''}" data-rec="${escapeHtml(r.id)}">
+        ${cover ? `<img class="soc-rec-cv" src="${escapeHtml(cover)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">` : '<span class="soc-rec-cv soc-cv-none"></span>'}
+        <div class="soc-rec-t"><span class="soc-rec-who">${escapeHtml(f.name)} recommends</span><b>${escapeHtml(r.title)}</b><span class="soc-feed-by">${escapeHtml(r.artist)}${r.year ? ' · ' + escapeHtml(r.year) : ''}</span>
+          ${r.note ? `<span class="soc-feed-q">“${escapeHtml(r.note)}”</span>` : ''}<span class="soc-feed-when">${socAgo(r.at)}</span>
+          <span class="soc-rec-acts">${mine ? `<button type="button" class="chip-btn" data-rec-open="${escapeHtml(pbId(mine))}" data-rec-id="${escapeHtml(r.id)}">In your crate: open</button>` : `<button type="button" class="chip-btn soc-acc" data-rec-add="${escapeHtml(r.id)}">Add to my crate</button>`}<button type="button" class="chip-btn" data-rec-dismiss="${escapeHtml(r.id)}">Dismiss</button></span></div></div>`;
+  }).join('');
+  const added = recs.filter(r => r.kind === 'added').slice(0, 10).map(r => { const f = fr(r.fromId, r.fromName);
+    return `<div class="soc-feed-row soc-rec-added${r.status === 'new' ? ' soc-feed-new' : ''}">${socAvatar(Object.assign({}, f, { status: '' }), 'soc-feed-av')}<span class="soc-feed-t"><span class="soc-feed-who">${escapeHtml(f.name)}</span> added <b>${escapeHtml(r.title)}</b> <span class="soc-feed-by">${escapeHtml(r.artist)}</span>, which you recommended<span class="soc-feed-when">${socAgo(r.at)}</span></span><button type="button" class="soc-rec-x" data-rec-dismiss="${escapeHtml(r.id)}" title="Clear" aria-label="Clear">×</button></div>`; }).join('');
+  return (cards ? `<div class="soc-grp">Recommended to you</div>${cards}` : '') + added + (cards || added ? '<div class="soc-grp">Lately</div>' : '');
+}
+async function socRecAct(id, status) {
+  try { const d = await socCall('socialRecSet', { ids: [id], status }); soc.recs = d.recs || soc.recs; soc.recStamp = d.recStamp || soc.recStamp; socBtnRender(); socRender(); }
+  catch (e) { soc.err = e.message || String(e); socRender(); }
+}
+async function socRecAdd(id, btn) {
+  btn.disabled = true; btn.textContent = 'Adding…';
+  try {
+    const r = await socCall('socialRecRelease', { id }), cols = Object.assign({ Type: 'Album' }, r.release || {});
+    await postUpdate(Object.assign({}, cols, { action: 'addAlbum' }));
+    if (typeof scheduleCatalogSync === 'function') scheduleCatalogSync(300);
+    if (typeof flashGlobalToast === 'function') flashGlobalToast(`Added ${cols.Title || 'it'} to your crate${r.partial ? ' (basic details: the sender no longer has it)' : ''}.`);
+    await socRecAct(id, 'added');
+  } catch (e) { btn.disabled = false; btn.textContent = 'Couldn’t add it: try again'; }
+}
+// The Recommend window: which friends, a note, Send.
+function socRecommendClose() { const m = document.getElementById('socRecDlg'); if (m) m.remove(); document.removeEventListener('mousedown', socRecommendOutside, true); }
+function socRecommendOutside(e) { if (!e.target.closest('#socRecDlg')) socRecommendClose(); }
+function socRecommendOpen(item) {
+  socRecommendClose();
+  const friends = (soc.friends || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+  const m = document.createElement('div'); m.id = 'socRecDlg'; m.className = 'soc-rec-dlg'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-labelledby', 'socRecDlgT');
+  m.innerHTML = `<div class="soc-rec-dlg-h"><h3 id="socRecDlgT">Recommend</h3><button type="button" class="friends-hbtn" data-rd="close" aria-label="Close">×</button></div>
+    <div class="soc-rec-dlg-rel"><b>${escapeHtml(item.title)}</b><span>${escapeHtml(item.artist)}</span></div>
+    ${friends.length ? `<div class="soc-rec-dlg-to" role="group" aria-label="Friends">${friends.map(f => `<label class="soc-rec-dlg-f">${socAvatar(Object.assign({}, f, { status: f.status }), 'soc-feed-av')}<span>${escapeHtml(f.name)}</span><input type="checkbox" value="${escapeHtml(f.id)}" ${friends.length === 1 ? 'checked' : ''}></label>`).join('')}</div>
+      <textarea id="socRecNote" maxlength="280" rows="3" placeholder="Why they should hear it (optional)"></textarea>
+      <div class="soc-rec-dlg-foot"><span id="socRecMsg" class="soc-sub" role="status"></span><button type="button" class="chip-btn soc-acc" data-rd="send">Send</button></div>`
+    : `<p class="soc-hint">Add a friend first (Friends panel → the person-with-a-plus button).</p>`}`;
+  document.body.appendChild(m);
+  m.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-rd]'); if (!b) return;
+    if (b.dataset.rd === 'close') return socRecommendClose();
+    const to = [...m.querySelectorAll('.soc-rec-dlg-to input:checked')].map(x => x.value), msg = m.querySelector('#socRecMsg');
+    if (!to.length) { msg.textContent = 'Choose a friend.'; return; }
+    b.disabled = true; msg.textContent = 'Sending…';
+    try {
+      const d = await socCall('socialRecommend', { to, albumId: item.albumId || '', artist: item.artist, title: item.title, note: m.querySelector('#socRecNote').value });
+      const names = to.map(id => (friends.find(f => f.id === id) || {}).name).filter(Boolean);
+      if (typeof flashGlobalToast === 'function') flashGlobalToast(`Recommended ${item.title} to ${names.length > 2 ? names.length + ' friends' : names.join(' and ')}.`.replace(/\.\.$/, '.'));
+      socRecommendClose();
+    } catch (er) { b.disabled = false; msg.textContent = er.message || 'Couldn’t send it. Try again.'; }
+  });
+  m.addEventListener('keydown', (e) => { if (e.key === 'Escape') socRecommendClose(); });
+  setTimeout(() => document.addEventListener('mousedown', socRecommendOutside, true), 0);
+  const first = m.querySelector('input[type="checkbox"]:not(:checked)') || m.querySelector('#socRecNote'); if (first) first.focus();
 }
 
 // ---- (1.117.0) HIDE FROM FRIENDS: right-click a release (or several) → Hide from friends. It's saved on the release (a FriendsHidden
@@ -328,6 +403,9 @@ function initSocial() {
       try { navigator.clipboard.writeText(code).then(done, () => { const r = document.createRange(); r.selectNodeContents(document.getElementById('socMyCode')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }); } catch (er) { /* select it by hand */ }
     }
     else if (b.dataset.socView) { socPosSave({ view: b.dataset.socView }); if (b.dataset.socView === 'activity') { socPosSave({ feedSeenShown: socFeedSeenAt() }); socFeedLoad(); } socRender(); }
+    else if (b.dataset.recAdd) socRecAdd(b.dataset.recAdd, b);
+    else if (b.dataset.recDismiss) socRecAct(b.dataset.recDismiss, 'dismissed');
+    else if (b.dataset.recOpen) { const it = pbItemOf(b.dataset.recOpen); if (it) openDeck(it); }
     else if (b.dataset.socFeed) { if (typeof openFriendTab === 'function') openFriendTab(b.dataset.socFeed, b.dataset.socFeedKind === 'diary' ? 'diary' : 'crate'); }
     else if (b.dataset.socPage) { if (typeof openFriendTab === 'function') openFriendTab(b.dataset.socPage); }
     else if (b.dataset.socOpen) { const it = pbItemOf(b.dataset.socOpen); if (it) openDeck(it); }          // the panel stays where it is

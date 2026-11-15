@@ -17,7 +17,28 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.122.0
+  CURRENT_VERSION: 1.123.0
+
+  1.123.0 — 2026-11-15 — Recommend a release to friends: right-click → Recommend to a friend…, pick friends, add a note. It arrives at the top of their Activity, ready to add in one click; you hear when they do. Page and Apps Script backend (paste the new apps-script-backend.gs and redeploy).
+
+          SENDING: right-click a release in your crate → Recommend to a
+          friend…. Tick one or more friends, write why they should hear it if
+          you like (up to 280 characters), Send.
+          RECEIVING: recommendations sit at the top of the Friends panel's
+          Activity under Recommended to you: who, the release, their note. Add
+          to my crate copies it in full (tracklist, song links, RYM figures,
+          never the sender's own ratings or notes), or "In your crate: open"
+          when you already have it; Dismiss takes it away. New ones count on
+          the Activity switch and the Friends button until you've looked.
+          WHEN THEY ADD IT: you get a line in your Activity: "Sam added Spirit
+          of Eden, which you recommended" (× clears it).
+          A release you recommend is sent even if you hide it from friends:
+          recommending it is choosing to share it.
+
+          BACKEND: recommendations are kept in a FriendRecs tab in each
+          recipient's own spreadsheet; a small stamp tells their CRATE when
+          there's something new, so the tab is read only then. Paste the new
+          apps-script-backend.gs over the old one and redeploy.
 
   1.122.0 — 2026-11-15 — Friends, part 4: a Ratings tab on a friend's page (taste match, how you each rate, where you disagree, what you both love, their favourites you don't have), and choosing what each friend sees. Page and Apps Script backend (paste the new apps-script-backend.gs and redeploy).
 

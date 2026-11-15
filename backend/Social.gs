@@ -20,6 +20,8 @@
  *    what's theirs alone (their rating, review, catalog number, when they added it, their song ratings, notes and listens).
  *  - (1.122.0) Each person can turn crate, ratings, diary or what they're playing off for one friend in particular (perFriend), on top
  *    of their switches for everyone; everything above follows it.
+ *  - (1.123.0) Recommendations: a release sent to friends lands in a FriendRecs tab in each one's own spreadsheet; when they add it, the
+ *    sender hears so. A recommended release is copied in full even if the sender hides it from friends (they chose to send it).
  *  - A release marked "Hide from friends" (its FriendsHidden column) never goes out: not in the crate, the diary or the feed.
  *
  * Only people ALLOWED_EMAILS lets in can use any of this (apps-script-backend.gs checks before a request gets here).
@@ -117,7 +119,7 @@ function _socState(email, u) {
   const cache = CacheService.getScriptCache(), now = Date.now();
   const people = (ids) => (ids || []).map(id => { const e = _socEmailOf(id), x = e && _socGet(e); return x ? { id: id, name: x.name || 'Someone' } : null; }).filter(Boolean);
   return {
-    ok: true, social: true, now: now,
+    ok: true, social: true, now: now, recStamp: Number(_socProps().getProperty('SOC_RECSTAMP_' + email) || 0),
     me: { id: u.id, code: u.code, name: u.name, share: u.share, off: !!u.off, perFriend: u.perFriend || {} },
     friends: (u.friends || []).map(id => _socView(id, cache, now, u.id)).filter(Boolean),
     incoming: people(u.inc),
@@ -207,10 +209,20 @@ function _socRelease(email, u, fid, albumId, artist, title) {
   if (!f || (f.friends || []).indexOf(u.id) === -1) return { ok: false, social: true, error: 'Not friends' };
   const fsh = _socShareFor(f, u.id);
   if (!fsh.crate) return { ok: false, social: true, error: 'They don\'t share their crate.' };
-  const log = _getUserSpreadsheet(femail).getSheetByName(SHEET_NAME), rows = log ? _readSheet(log) : [];
+  const out = _socCopyOf(femail, albumId, artist, title, false);
+  if (!out) return { ok: false, social: true, error: 'That release is no longer in their crate.' };
+  return { ok: true, social: true, release: out };
+}
+// A release from someone's Log, ready to copy: found by AlbumId (or artist and title), without what's theirs alone. null if it's not
+// there (or hidden from friends, unless allowHidden: a release they recommended themselves).
+function _socFindRow(rows, albumId, artist, title) {
   const id = String(albumId || '').trim(), a = String(artist || '').trim(), t = String(title || '').trim();
-  const r = (id && rows.find(x => String(x.AlbumId).trim() === id)) || rows.find(x => String(x.Artist).trim() === a && String(x.Title).trim() === t);
-  if (!r || _socHidden(r)) return { ok: false, social: true, error: 'That release is no longer in their crate.' };
+  return (id && rows.find(x => String(x.AlbumId).trim() === id)) || rows.find(x => String(x.Artist).trim() === a && String(x.Title).trim() === t) || null;
+}
+function _socCopyOf(ownerEmail, albumId, artist, title, allowHidden) {
+  const log = _getUserSpreadsheet(ownerEmail).getSheetByName(SHEET_NAME), rows = log ? _readSheet(log) : [];
+  const r = _socFindRow(rows, albumId, artist, title);
+  if (!r || (!allowHidden && _socHidden(r))) return null;
   const out = {};
   Object.keys(r).forEach(k => { if (!SOC_RELEASE_SKIP[k] && r[k] !== '' && r[k] != null) out[k] = r[k]; });
   if (out.TrackData) {
@@ -220,7 +232,70 @@ function _socRelease(email, u, fid, albumId, artist, title) {
       if (Object.keys(clean).length) out.TrackData = JSON.stringify(clean); else delete out.TrackData;
     } catch (e) { delete out.TrackData; }
   }
-  return { ok: true, social: true, release: out };
+  return out;
+}
+
+// ---- (1.123.0) RECOMMENDATIONS: "you should hear this". A recommendation goes into a FriendRecs tab in the RECIPIENT's own spreadsheet
+// (so there's no size limit and it's theirs), and a small stamp in the Script Properties (SOC_RECSTAMP_<email>) tells their CRATE
+// something changed, so it reads the tab only then. When they add one to their crate, the sender gets an "added" line in theirs.
+const SOC_REC_COLS = ['Id', 'At', 'Kind', 'FromId', 'FromName', 'Artist', 'Title', 'Year', 'Cover', 'Note', 'SenderAlbumId', 'Status'];
+const SOC_REC_MAX_TO = 20, SOC_REC_KEEP = 80;
+function _socRecSheet(email) {
+  const ss = _getUserSpreadsheet(email); let sh = ss.getSheetByName('FriendRecs');
+  if (!sh) { sh = ss.insertSheet('FriendRecs'); sh.getRange(1, 1, 1, SOC_REC_COLS.length).setValues([SOC_REC_COLS]); }
+  return sh;
+}
+function _socRecStamp(email) { _socProps().setProperty('SOC_RECSTAMP_' + email, String(Date.now())); }
+function _socRecAppend(email, rec) {
+  const sh = _socRecSheet(email), hm = _ensureColumns(sh, SOC_REC_COLS);
+  _writeNewRows(sh, hm, [hm.headers.map(h => rec[h] !== undefined ? rec[h] : '')], ['Year', 'Title', 'Artist', 'Note']);
+  _socRecStamp(email);
+}
+function _socRecRows(email) { const sh = _socRecSheet(email); return { sh: sh, rows: _readSheet(sh) }; }
+function _socRecommend(email, u, payload) {
+  const to = (Array.isArray(payload.to) ? payload.to : []).map(String).filter((x, i, a) => a.indexOf(x) === i && (u.friends || []).indexOf(x) !== -1).slice(0, SOC_REC_MAX_TO);
+  if (!to.length) return { ok: false, social: true, error: 'Choose a friend to recommend it to.' };
+  const log = _getUserSpreadsheet(email).getSheetByName(SHEET_NAME), r = _socFindRow(log ? _readSheet(log) : [], payload.albumId, payload.artist, payload.title);
+  if (!r) return { ok: false, social: true, error: 'That release isn\'t in your crate any more.' };
+  const s = (v, n) => String(v == null ? '' : v).slice(0, n), cover = /^https:\/\//.test(String(r.Cover || '')) ? s(r.Cover, 600) : '';
+  const note = String(payload.note || '').replace(/[\u0000-\u0008\u000b-\u001f]/g, '').trim().slice(0, 280);
+  let sent = 0;
+  to.forEach(fid => {
+    const femail = _socEmailOf(fid), f = femail && _socGet(femail);
+    if (!f || (f.friends || []).indexOf(u.id) === -1) return;
+    _socRecAppend(femail, { Id: Utilities.getUuid().replace(/-/g, '').slice(0, 16), At: new Date(), Kind: 'rec', FromId: u.id, FromName: u.name, Artist: s(r.Artist, 200), Title: s(r.Title, 200), Year: s(r.ReleaseDate, 4), Cover: cover, Note: note, SenderAlbumId: s(r.AlbumId, 64), Status: 'new' });
+    sent++;
+  });
+  return sent ? { ok: true, social: true, sent: sent } : { ok: false, social: true, error: 'Couldn\'t send it: are you still friends?' };
+}
+function _socRecList(email) {
+  const rows = _socRecRows(email).rows.filter(x => x.Status !== 'dismissed').slice(-SOC_REC_KEEP).reverse();
+  return rows.map(x => ({ id: String(x.Id), at: Date.parse(x.At) || 0, kind: String(x.Kind || 'rec'), fromId: String(x.FromId || ''), fromName: String(x.FromName || ''), artist: String(x.Artist || ''), title: String(x.Title || ''),
+                          year: String(x.Year || ''), cover: String(x.Cover || ''), note: String(x.Note || ''), status: String(x.Status || 'new') }));
+}
+// Mark some (ids) or all new ones seen; or one added / dismissed. Added tells the sender.
+function _socRecSet(email, u, ids, status) {
+  const ok = { seen: 1, added: 1, dismissed: 1 }; if (!ok[status]) return { ok: false, social: true, error: 'Unknown status' };
+  const { sh, rows } = _socRecRows(email), hm = _headerMap(sh), col = hm.map.Status; let n = 0;
+  rows.forEach(x => {
+    const hit = ids === 'allNew' ? x.Status === 'new' : ids.indexOf(String(x.Id)) !== -1; if (!hit) return;
+    if (status === 'seen' && x.Status !== 'new') return;
+    sh.getRange(x._row, col).setValue(status); n++;
+    if (status === 'added' && x.Kind === 'rec') {
+      const semail = _socEmailOf(String(x.FromId)), sf = semail && _socGet(semail);
+      if (sf && (sf.friends || []).indexOf(u.id) !== -1) _socRecAppend(semail, { Id: Utilities.getUuid().replace(/-/g, '').slice(0, 16), At: new Date(), Kind: 'added', FromId: u.id, FromName: u.name, Artist: x.Artist, Title: x.Title, Year: x.Year, Cover: x.Cover, Note: '', SenderAlbumId: '', Status: 'new' });
+    }
+  });
+  if (n) _socRecStamp(email);
+  return { ok: true, social: true, changed: n, recs: _socRecList(email), recStamp: Number(_socProps().getProperty('SOC_RECSTAMP_' + email) || 0) };
+}
+// A recommended release in full, for Add to my crate: from the sender's sheet, even if they hide it from friends (they chose to send it).
+function _socRecRelease(email, u, id) {
+  const x = _socRecRows(email).rows.find(r => String(r.Id) === String(id) && r.Kind === 'rec');
+  if (!x) return { ok: false, social: true, error: 'That recommendation is gone.' };
+  const semail = _socEmailOf(String(x.FromId)), sf = semail && _socGet(semail);
+  const full = sf && (sf.friends || []).indexOf(u.id) !== -1 ? _socCopyOf(semail, x.SenderAlbumId, x.Artist, x.Title, true) : null;
+  return { ok: true, social: true, release: full || { Artist: x.Artist, Title: x.Title, ReleaseDate: x.Year, Cover: x.Cover }, partial: !full };
 }
 
 // Every "social…" action comes here from doPost.
@@ -317,6 +392,11 @@ function _social(email, action, payload) {
       const u = _socEnsure(email);
       return _json(_socFeed(email, u, !!payload.fresh));
     }
+
+    if (action === 'socialRecommend') return _json(_socRecommend(email, _socEnsure(email), payload));
+    if (action === 'socialRecs') return _json({ ok: true, social: true, recs: _socRecList(email), recStamp: Number(_socProps().getProperty('SOC_RECSTAMP_' + email) || 0) });
+    if (action === 'socialRecSet') return _json(_socWithLock(() => _socRecSet(email, _socEnsure(email), payload.ids === 'allNew' ? 'allNew' : (Array.isArray(payload.ids) ? payload.ids.map(String) : []), String(payload.status || ''))));
+    if (action === 'socialRecRelease') return _json(_socRecRelease(email, _socEnsure(email), payload.id));
 
     if (action === 'socialRelease') {
       const u = _socEnsure(email);
