@@ -42,11 +42,16 @@ function cjLabel(s) {
   if (s.kind === 'rym') return s.phase === 'work' ? 'Updating' : 'Queued · RYM';
   return s.phase === 'work' ? 'Matching' : 'Queued · match';
 }
+function cjClear(card) {
+  card.classList.remove('cj-work', 'cj-wait');
+  const t = card.querySelector(':scope > .cj-tag'); if (t) t.remove();
+  if (card.dataset.cjTitle !== undefined) { if (card.dataset.cjTitle) card.title = card.dataset.cjTitle; else card.removeAttribute('title'); delete card.dataset.cjTitle; }
+}
 function cjPaint() {
   const states = cjStates(), grid = document.getElementById('gridWrap');
   if (grid) {
     // labels to take off: rows that no longer have one, or whose card was drawn again without it
-    grid.querySelectorAll('.cj-badge').forEach(b => { const card = b.closest('[data-album-row]'); if (!card || !states.has(card.dataset.albumRow)) { b.remove(); if (card) { card.classList.remove('cj-work', 'cj-wait'); card.title = (card.title || '').replace(/ — (Updating|Matching|Queued).*$/, ''); } } });
+    grid.querySelectorAll('.cj-badge').forEach(b => { const card = b.closest('[data-album-row]'); if (!card || !states.has(card.dataset.albumRow)) { b.remove(); if (card) cjClear(card); } });
     states.forEach((s, row) => {
       const card = grid.querySelector(`.card[data-album-row="${CSS.escape(row)}"]`); if (!card) return;
       const wrap = card.querySelector('.art-wrap') || card; let b = wrap.querySelector(':scope > .cj-badge');
@@ -55,7 +60,13 @@ function cjPaint() {
       if (!b) { b = document.createElement('div'); b.className = 'cj-badge'; b.setAttribute('aria-hidden', 'true'); wrap.appendChild(b); }
       b.dataset.k = key; b.className = `cj-badge cj-${s.kind} cj-${s.phase}`;
       card.classList.toggle('cj-work', s.phase === 'work'); card.classList.toggle('cj-wait', s.phase === 'wait');
-      card.title = (card.title || '').replace(/ — (Updating|Matching|Queued).*$/, '') + ` — ${cjLabel(s)}`;
+      // (1.124.1) the cover's own hover text is kept and given back afterwards; the label goes after it (never a bare " — Updating")
+      if (card.dataset.cjTitle === undefined) card.dataset.cjTitle = card.getAttribute('title') || '';
+      card.title = (card.dataset.cjTitle ? card.dataset.cjTitle + ' \u2014 ' : '') + cjLabel(s);
+      // (1.124.1) in list view the cover is 48 px: the label goes at the end of the row instead (the cover keeps its bar)
+      let tag = card.querySelector(':scope > .cj-tag');
+      if (!tag) { tag = document.createElement('span'); tag.className = 'cj-tag'; tag.setAttribute('aria-hidden', 'true'); card.appendChild(tag); }
+      tag.className = `cj-tag cj-${s.kind} cj-${s.phase}`; tag.textContent = cjLabel(s) + (s.phase === 'work' && s.pct != null ? ` ${Math.round(s.pct)}%` : '');
       b.innerHTML = `<span class="cj-pill">${s.phase === 'work' ? '<i class="cj-spin"></i>' : ''}${cjLabel(s)}</span>`
         + (s.phase === 'work' ? `<span class="cj-bar${s.pct == null ? ' cj-indef' : ''}"><b style="width:${s.pct == null ? 35 : Math.max(6, s.pct)}%"></b></span>` : '');
     });

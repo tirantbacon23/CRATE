@@ -17,7 +17,18 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.124.0
+  CURRENT_VERSION: 1.124.1
+
+  1.124.1 — 2026-11-15 — Fixes to the "Updating / Matching / Queued" labels on covers. Page only.
+
+          LIST VIEW: the label was drawn over the 48 px cover, far too big for
+          it. In list view it now sits at the end of the row ("UPDATING",
+          "MATCHING 50%", "QUEUED · RYM"), and the small cover keeps only its
+          progress bar.
+          HOVER TEXT: a labelled cover's hover text read " — Updating", with a
+          stray dash. It's now just the label (after the cover's own hover
+          text, when it has one), and the cover's own text comes back when the
+          job is done.
 
   1.124.0 — 2026-11-15 — A friend's crate has a browser beside it, as in your Music tab: their releases by artist, genre (in your genre tree), label, year, decade, type or region. Page only.
 
