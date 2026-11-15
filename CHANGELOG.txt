@@ -17,7 +17,36 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.118.0
+  CURRENT_VERSION: 1.119.0
+
+  1.119.0 — 2026-11-15 — A release added from a friend's crate brings everything: its tracklist, the song links (YouTube, Spotify, SoundCloud), its RYM rating and history, and the rest. For releases you both have, "Fill in missing details" copies what yours lacks. Page and Apps Script backend (paste the new apps-script-backend.gs and redeploy).
+
+          BEFORE: Add to my crate copied only what a friend's page shows
+          (artist, title, year, genres, label, cover, links), so the release
+          arrived without its tracklist, its song links or its Rate Your Music
+          figures, and Match songs or RYM had to find them all again.
+          NOW: CRATE asks the backend for that one release in full and copies
+          it: the tracklist, every song's links and other details (other
+          titles, lengths, credits, genres, RYM figures), the RYM rating,
+          votes, history, rank and descriptors, recorded date, location,
+          scene, movement and the rest.
+          NEVER COPIED: what's theirs alone: their rating and review of the
+          release, their catalog number, when they added it, when they last
+          updated it from RYM, and, song by song, their ratings, notes and
+          what they've listened to.
+          FILL IN MISSING DETAILS (the menu on a release marked IN MINE): for a
+          release you both have, including ones you added before this
+          version, copies from their copy only what yours is missing: empty
+          fields, their tracklist if you never set one, their RYM rating if
+          yours has none, and song links and details yours doesn't have.
+          Nothing you already have is changed.
+          With a backend from before this version, Add to my crate still adds
+          the basic details and says so, and Fill in can't run.
+
+          BACKEND: a new socialRelease (one release in full, as above), and
+          addAlbum keeps the extra columns such a copy brings (track data, RYM
+          history, rank, bold) even on a sheet that has never had them. Paste
+          the new apps-script-backend.gs over the old one and redeploy.
 
   1.118.0 — 2026-11-15 — The covers show what's being worked on: "Updating" while a release is read from Rate Your Music, "Matching" while its songs are matched, and "Queued" while it waits its turn. Page only.
 

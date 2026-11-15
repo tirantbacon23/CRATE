@@ -190,7 +190,7 @@ function fpMenuOpen(tile, x) {
   const have = fpMineMap().get(fpKey(x.artist, x.title)), r = tile.getBoundingClientRect();
   const m = document.createElement('div'); m.id = 'fpMenu'; m.className = 'fp-menu'; m.setAttribute('role', 'menu');
   m.innerHTML = `<div class="fp-menu-h"><b>${escapeHtml(x.title)}</b><span>${escapeHtml(x.artist)}${x.year ? ' · ' + escapeHtml(x.year) : ''}${x.genre ? ' · ' + escapeHtml(x.genre) : ''}</span></div>`
-    + (have ? `<button type="button" role="menuitem" data-fpm="open">Open in my crate</button>` : `<button type="button" role="menuitem" data-fpm="add">Add to my crate</button>`)
+    + (have ? `<button type="button" role="menuitem" data-fpm="open">Open in my crate</button><button type="button" role="menuitem" data-fpm="fill" title="Copies what yours is missing (tracklist, song links, RYM rating, genres, links…). Never changes what you already have.">Fill in missing details from ${escapeHtml(fpName(state.activeFriendTab))}</button>` : `<button type="button" role="menuitem" data-fpm="add">Add to my crate</button>`)
     + (/^https:\/\/open\.spotify\.com\//.test(x.link) ? `<a role="menuitem" href="${escapeHtml(x.link)}" target="_blank" rel="noopener">Open in Spotify</a>` : '')
     + (/^https:\/\/(www\.)?rateyourmusic\.com\//.test(x.rymLink) ? `<a role="menuitem" href="${escapeHtml(x.rymLink)}" target="_blank" rel="noopener">Open on Rate Your Music</a>` : '');
   document.body.appendChild(m);
@@ -200,11 +200,23 @@ function fpMenuOpen(tile, x) {
   m.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-fpm]'); if (!b) { if (e.target.closest('a')) fpMenuClose(); return; }
     if (b.dataset.fpm === 'open') { fpMenuClose(); openDeck(have); }
+    else if (b.dataset.fpm === 'fill') {
+      b.disabled = true; b.textContent = 'Filling in…';
+      try { const n = await fpFillFrom(state.activeFriendTab, x, have); b.textContent = n ? `Filled in ${n} detail${n === 1 ? '' : 's'}` : 'Nothing was missing'; setTimeout(fpMenuClose, 1800); }
+      catch (er) { b.disabled = false; b.textContent = er && er.message && !/fetch/i.test(er.message) ? er.message : 'Couldn\u2019t fill it in: try again'; }
+    }
     else if (b.dataset.fpm === 'add') {
       b.disabled = true; b.textContent = 'Adding…';
       try {
-        await postUpdate({ action: 'addAlbum', Artist: x.artist, Title: x.title, Type: x.type || 'Album', ReleaseDate: x.releaseDate, Genre: x.genre, SecondaryGenre: x.genre2, Label: x.label, Region: x.region, Cover: x.cover, Link: x.link, RymLink: x.rymLink });
-        b.textContent = 'Added to your crate'; if (typeof scheduleCatalogSync === 'function') scheduleCatalogSync(300);
+        // (1.119.0) everything worth copying, from the backend: the tracklist, the song links, the RYM figures and the rest (never their
+        // rating, review or song notes). A backend from before 1.119.0 can't: then the details shown on their page, as before.
+        let cols = null, partial = false;
+        try { const r = await socCall('socialRelease', { id: state.activeFriendTab, albumId: x.albumId, artist: x.artist, title: x.title }); cols = r.release || null; }
+        catch (er) { if (/no longer in their crate|don.t share/i.test(er.message || '')) throw er; partial = true; }
+        if (!cols) cols = { Artist: x.artist, Title: x.title, Type: x.type || 'Album', ReleaseDate: x.releaseDate, Genre: x.genre, SecondaryGenre: x.genre2, Label: x.label, Region: x.region, Cover: x.cover, Link: x.link, RymLink: x.rymLink, RymRating: x.rymRating || '' };
+        if (!cols.Type) cols.Type = 'Album';
+        await postUpdate(Object.assign({}, cols, { action: 'addAlbum' }));
+        b.textContent = partial ? 'Added (basic details only: update the backend for tracklists and links)' : 'Added to your crate'; if (typeof scheduleCatalogSync === 'function') scheduleCatalogSync(300);
         setTimeout(fpMenuClose, 1200);
       } catch (er) { b.disabled = false; b.textContent = 'Couldn’t add it: try again'; }
     }
@@ -212,6 +224,27 @@ function fpMenuOpen(tile, x) {
   m.addEventListener('keydown', (e) => { if (e.key === 'Escape') { fpMenuClose(); tile.focus(); } });
   setTimeout(() => document.addEventListener('mousedown', fpMenuOutside, true), 0);
   const first = m.querySelector('button, a'); if (first) first.focus();
+}
+
+// (1.119.0) "Fill in missing details": a release you both have gets from the friend's copy only what yours lacks. Release fields that are
+// empty on yours; their tracklist if you never set one; their RYM figures if yours has none; and, song by song, links, other titles,
+// lengths, credits, genres and RYM figures yours doesn't have. Nothing you already have is changed, and nothing of theirs alone comes.
+const FP_FILL_COLS = [['Type', 'type'], ['ReleaseDate', 'releaseDate'], ['Recorded', 'recordedDate'], ['Genre', 'genre'], ['SecondaryGenre', 'genre2'], ['Label', 'label'], ['Region', 'region'], ['Location', 'location'], ['Descriptor', 'descriptor'], ['RymDescriptors', 'rymDescriptors'], ['Scene', 'scene'], ['Movement', 'movement'], ['Link', 'link'], ['RymLink', 'rymLink'], ['Cover', 'cover']];
+async function fpFillFrom(fid, x, mine) {
+  const r = await socCall('socialRelease', { id: fid, albumId: x.albumId, artist: x.artist, title: x.title }), c = r.release || {};
+  const patch = {}; let n = 0;
+  FP_FILL_COLS.forEach(([col, f]) => { const v = c[col]; if (v !== undefined && v !== '' && v !== null && !(mine[f] && String(mine[f]).trim() && !(f === 'type' && mine[f] === 'Unknown'))) { patch[col] = v; n++; } });
+  if (c.RymRating && !mine.rymRating) { patch.RymRating = c.RymRating; if (c.RymVotes) patch.RymVotes = c.RymVotes; patch.RymSrc = c.RymSrc === 'a' ? 'a' : 'm'; n++; }
+  if (c.ManualTracks && !mine.hasManualTracklist) { patch.ManualTracks = c.ManualTracks; n++; }
+  if (Object.keys(patch).length) await postUpdate(Object.assign({ action: 'editAlbum', row: mine.row }, patch));
+  if (c.TrackData) {
+    let theirs = {}; try { theirs = JSON.parse(String(c.TrackData)) || {}; } catch (e) { theirs = {}; }
+    const merged = JSON.parse(JSON.stringify(mine.trackData || {})); let added = 0;
+    Object.keys(theirs).forEach(num => { const t = theirs[num] || {}; Object.keys(t).forEach(k => { if (['rating', 'note', 'listened'].includes(k)) return; if (!merged[num]) merged[num] = {}; if (merged[num][k] === undefined || merged[num][k] === '' || merged[num][k] === null) { merged[num][k] = t[k]; added++; } }); });
+    if (added) { await postUpdate({ row: mine.row, trackData: JSON.stringify(merged) }); mine.trackData = merged; n += added; }
+  }
+  if (n && typeof scheduleCatalogSync === 'function') scheduleCatalogSync(300);
+  return n;
 }
 
 function initFriendPage() {

@@ -16,6 +16,8 @@
  *    friend shares it. Nothing is copied.
  *  - (1.117.0) The activity feed (socialFeed): friends' diary entries and the releases they added in the last 45 days, newest
  *    first, from the same sheets and with the same rules; kept 5 minutes per person in the cache so the panel can ask often.
+ *  - (1.119.0) One release in full (socialRelease), for "Add to my crate": its tracklist, song links and RYM figures too, but never
+ *    what's theirs alone (their rating, review, catalog number, when they added it, their song ratings, notes and listens).
  *  - A release marked "Hide from friends" (its FriendsHidden column) never goes out: not in the crate, the diary or the feed.
  *
  * Only people ALLOWED_EMAILS lets in can use any of this (apps-script-backend.gs checks before a request gets here).
@@ -183,6 +185,32 @@ function _socFeed(email, u, fresh) {
   return out;
 }
 
+// One of a friend's releases with everything worth copying into your own crate. Found by its AlbumId (or artist and title).
+// Left out: what's theirs alone. In TrackData (per song), their rating, note and "listened" are taken off; links, other titles,
+// lengths, credits, genres and RYM figures stay.
+const SOC_RELEASE_SKIP = { AlbumId: 1, DateAdded: 1, Rating: 1, Review: 1, FriendsHidden: 1, Catalog: 1, RymUpdated: 1, RymUpdateLog: 1, _row: 1 };
+const SOC_TRACK_PERSONAL = ['rating', 'note', 'listened'];
+function _socRelease(email, u, fid, albumId, artist, title) {
+  if ((u.friends || []).indexOf(fid) === -1) return { ok: false, social: true, error: 'Not friends' };
+  const femail = _socEmailOf(fid), f = femail && _socGet(femail);
+  if (!f || (f.friends || []).indexOf(u.id) === -1) return { ok: false, social: true, error: 'Not friends' };
+  if (!f.share.crate) return { ok: false, social: true, error: 'They don\'t share their crate.' };
+  const log = _getUserSpreadsheet(femail).getSheetByName(SHEET_NAME), rows = log ? _readSheet(log) : [];
+  const id = String(albumId || '').trim(), a = String(artist || '').trim(), t = String(title || '').trim();
+  const r = (id && rows.find(x => String(x.AlbumId).trim() === id)) || rows.find(x => String(x.Artist).trim() === a && String(x.Title).trim() === t);
+  if (!r || _socHidden(r)) return { ok: false, social: true, error: 'That release is no longer in their crate.' };
+  const out = {};
+  Object.keys(r).forEach(k => { if (!SOC_RELEASE_SKIP[k] && r[k] !== '' && r[k] != null) out[k] = r[k]; });
+  if (out.TrackData) {
+    try {
+      const td = JSON.parse(String(out.TrackData)), clean = {};
+      Object.keys(td || {}).forEach(n => { const e = Object.assign({}, td[n]); SOC_TRACK_PERSONAL.forEach(x => delete e[x]); if (Object.keys(e).length) clean[n] = e; });
+      if (Object.keys(clean).length) out.TrackData = JSON.stringify(clean); else delete out.TrackData;
+    } catch (e) { delete out.TrackData; }
+  }
+  return { ok: true, social: true, release: out };
+}
+
 // Every "social…" action comes here from doPost.
 function _social(email, action, payload) {
   try {
@@ -269,6 +297,11 @@ function _social(email, action, payload) {
     if (action === 'socialFeed') {
       const u = _socEnsure(email);
       return _json(_socFeed(email, u, !!payload.fresh));
+    }
+
+    if (action === 'socialRelease') {
+      const u = _socEnsure(email);
+      return _json(_socRelease(email, u, String(payload.id || ''), payload.albumId, payload.artist, payload.title));
     }
 
     if (action === 'socialFriend') {
