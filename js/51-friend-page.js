@@ -18,7 +18,7 @@ const fpData = {};                                    // id -> { at, loading, er
 const fpUi = {};                                      // id -> { view, filter, sort, q, shown, dshown }
 const FP_PAGE = 120, FP_DPAGE = 60;
 
-function fpUiOf(id) { return fpUi[id] || (fpUi[id] = { view: 'crate', filter: 'all', sort: 'rating', q: '', shown: FP_PAGE, dshown: FP_DPAGE }); }
+function fpUiOf(id) { return fpUi[id] || (fpUi[id] = { view: 'crate', filter: 'all', sort: 'rating', q: '', shown: FP_PAGE, dshown: FP_DPAGE, by: 'artist', pick: null, sideQ: '', collapsed: new Set() }); }
 function fpFriend(id) { return (soc.friends || []).find(f => f.id === id) || null; }
 function fpName(id) { const f = fpFriend(id), d = fpData[id]; return (f && f.name) || (d && d.name) || 'Friend'; }
 const fpKey = (artist, title) => pbFold(artist) + '\u0001' + pbFold(title);
@@ -97,6 +97,7 @@ function fpFiltered(id) {
     if (ui.filter === 'both' && !have) return false;
     if (ui.filter === 'top' && !(x.rating >= 4.5)) return false;
     if (q && !pbFold([x.artist, x.title, x.genre, x.genre2, x.label, x.year].join(' ')).includes(q)) return false;
+    if (ui.pick != null && !fpPickMatch(x, ui.by, ui.pick)) return false;          // (1.124.0) what's picked in the browser
     return true;
   });
   const by = { rating: (a, b) => b.rating - a.rating || b.added - a.added, added: (a, b) => b.added - a.added, artist: (a, b) => a.artist.localeCompare(b.artist) || a.year.localeCompare(b.year), year: (a, b) => b.year.localeCompare(a.year) || a.artist.localeCompare(b.artist) }[ui.sort] || null;
@@ -139,16 +140,61 @@ function renderFriendPage() {
   else if (ui.view === 'ratings') body = fpRatingsHtml(id);
   else body = !d.diary ? `<div class="soc-empty"><b>${escapeHtml(name)} doesn't share their diary.</b><p>They can switch on "My diary" under What friends can see in their Friends panel.</p></div>` : fpDiaryHtml(id);
   const keep = wrap.dataset.fid === id + ':' + ui.view ? wrap.scrollTop : 0;          // (1.120.0) the page itself scrolls
-  const focusQ = document.activeElement && document.activeElement.id === 'fpSearch';
+  const focusQ = document.activeElement && ['fpSearch', 'fpSideQ'].includes(document.activeElement.id) ? document.activeElement.id : '';
+  const sideList = wrap.querySelector('.fp-side-list'), sideTop = sideList ? sideList.scrollTop : 0;
   wrap.dataset.fid = id + ':' + ui.view;
   wrap.innerHTML = `<div class="fp-scroll">${head}<div class="fp-body">${body}</div></div>`;
   wrap.scrollTop = keep;
-  if (focusQ) { const s = document.getElementById('fpSearch'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }
+  if (focusQ) { const s = document.getElementById(focusQ); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }
+  { const sl = wrap.querySelector('.fp-side-list'); if (sl && sideTop) sl.scrollTop = sideTop; }
+}
+// ----- (1.124.0) THE BROWSER, as in your own Music tab: their crate by artist, genre (in your genre tree, counts rolled up into each
+// parent), label, year, decade, type or region. A click shows only those releases; All releases clears it. It works with the filters,
+// the search and the sorting beside it.
+const FP_BY = [['artist', 'Artists'], ['genre', 'Genres'], ['label', 'Labels'], ['year', 'Years'], ['decade', 'Decades'], ['type', 'Types'], ['region', 'Regions']];
+const fpDecade = (x) => /^\d{4}/.test(x.year) ? x.year.slice(0, 3) + '0s' : '';
+function fpPickMatch(x, by, v) {
+  if (by === 'artist') return x.artist === v;
+  if (by === 'genre') return genreTagsForRole(x, 'any').some(g => genreMatchesFilter(state.genreTaxonomy || {}, g, v));
+  if (by === 'label') return (x.label || 'Unknown') === v;
+  if (by === 'year') return (x.year || 'Unknown') === v;
+  if (by === 'decade') return (fpDecade(x) || 'Unknown') === v;
+  if (by === 'type') return (x.type || 'Unknown') === v;
+  if (by === 'region') return (x.region || 'Unknown') === v;
+  return true;
+}
+function fpSideRows(id) {
+  const ui = fpUiOf(id), crate = fpData[id].crate || [];
+  if (ui.by === 'genre') {
+    let rows = []; try { rows = buildGenreTree(crate, state.genreTaxonomy || {}); } catch (e) { rows = []; }
+    rows.forEach((r, i) => { r.hasKids = !!(rows[i + 1] && rows[i + 1].depth > r.depth); });
+    return rows.map(r => ({ v: r.key, label: r.label, count: Math.round(r.count), depth: r.depth, hasKids: r.hasKids }));
+  }
+  const key = { artist: x => x.artist, label: x => x.label || 'Unknown', year: x => x.year || 'Unknown', decade: x => fpDecade(x) || 'Unknown', type: x => x.type || 'Unknown', region: x => x.region || 'Unknown' }[ui.by] || (x => x.artist);
+  const c = new Map(); crate.forEach(x => { const k = key(x); if (k) c.set(k, (c.get(k) || 0) + 1); });
+  const rows = [...c].map(([v, n]) => ({ v, label: v, count: n, depth: 0 }));
+  const unk = (a, b) => (a.v === 'Unknown') - (b.v === 'Unknown');
+  if (ui.by === 'year' || ui.by === 'decade') rows.sort((a, b) => unk(a, b) || b.v.localeCompare(a.v)); else rows.sort((a, b) => unk(a, b) || a.v.localeCompare(b.v, undefined, { sensitivity: 'base' }));
+  return rows;
+}
+function fpSideHtml(id) {
+  const ui = fpUiOf(id), all = (fpData[id].crate || []).length, q = pbFold(ui.sideQ);
+  let rows = fpSideRows(id);
+  if (q) rows = rows.filter(r => pbFold(r.label).includes(q)).map(r => Object.assign({}, r, { depth: 0, hasKids: false }));
+  else if (ui.by === 'genre' && ui.collapsed.size) { const out = []; let hideBelow = Infinity; rows.forEach(r => { if (r.depth > hideBelow) return; hideBelow = Infinity; out.push(r); if (r.hasKids && ui.collapsed.has(r.v)) hideBelow = r.depth; }); rows = out; }
+  const item = (r) => `<div class="fp-side-row${ui.pick === r.v ? ' active' : ''}" style="--d:${r.depth}">${r.hasKids ? `<button type="button" class="fp-side-caret" data-fp="caret" data-v="${escapeHtml(r.v)}" aria-label="${ui.collapsed.has(r.v) ? 'Open' : 'Close'} ${escapeHtml(r.label)}" aria-expanded="${!ui.collapsed.has(r.v)}">${ui.collapsed.has(r.v) ? '▸' : '▾'}</button>` : '<span class="fp-side-caret"></span>'}<button type="button" class="fp-side-btn" data-fp="pick" data-v="${escapeHtml(r.v)}" aria-pressed="${ui.pick === r.v}"><span>${escapeHtml(r.label)}</span><em>${r.count.toLocaleString()}</em></button></div>`;
+  return `<div class="fp-side-h"><select id="fpBy" class="fp-sort" aria-label="Browse their crate by">${FP_BY.map(([v, t]) => `<option value="${v}"${ui.by === v ? ' selected' : ''}>${t}</option>`).join('')}</select>
+      <input id="fpSideQ" class="fp-search fp-side-q" type="search" placeholder="Find" value="${escapeHtml(ui.sideQ)}" aria-label="Find in the list" autocomplete="off"></div>
+    <div class="fp-side-list" role="list"><div class="fp-side-row${ui.pick == null ? ' active' : ''}" style="--d:0"><span class="fp-side-caret"></span><button type="button" class="fp-side-btn" data-fp="pick" data-v="" aria-pressed="${ui.pick == null}"><span>All releases</span><em>${all.toLocaleString()}</em></button></div>${rows.length ? rows.map(item).join('') : '<p class="fp-note">Nothing matches.</p>'}</div>`;
 }
 function fpCrateHtml(id) {
+  return `<div class="fp-browse"><aside class="fp-side" aria-label="Browse their crate">${fpSideHtml(id)}</aside><div class="fp-main">${fpCrateMainHtml(id)}</div></div>`;
+}
+function fpCrateMainHtml(id) {
   const ui = fpUiOf(id), list = fpFiltered(id), mine = fpMineMap(), sh = (fpData[id].share || {});
   const chip = (v, t) => `<button type="button" class="chip-btn fp-chip${ui.filter === v ? ' active' : ''}" data-fp="filter" data-v="${v}" aria-pressed="${ui.filter === v}">${t}</button>`;
   const tools = `<div class="fp-tools">${chip('all', 'All')}${chip('notMine', 'Not in my crate')}${chip('both', 'In both')}${sh.ratings ? chip('top', '4½★ and up') : ''}
+      ${ui.pick != null ? `<button type="button" class="chip-btn fp-chip active fp-picked" data-fp="pick" data-v="" title="Show all releases again">${escapeHtml((FP_BY.find(b => b[0] === ui.by) || [])[1] || '').replace(/s$/, '')}: ${escapeHtml(ui.pick)} ×</button>` : ''}
       <input id="fpSearch" class="fp-search" type="search" placeholder="Search their crate" value="${escapeHtml(ui.q)}" aria-label="Search their crate" autocomplete="off">
       <select id="fpSort" class="fp-sort" aria-label="Sort">${[['rating', 'Their rating'], ['added', 'Recently added'], ['artist', 'Artist'], ['year', 'Year']].filter(o => o[0] !== 'rating' || sh.ratings).map(o => `<option value="${o[0]}"${ui.sort === o[0] ? ' selected' : ''}>${o[1]}</option>`).join('')}</select></div>`;
   if (!list.length) return tools + '<div class="soc-empty">Nothing matches.</div>';
@@ -334,6 +380,8 @@ function initFriendPage() {
     else if (k === 'dmore') { ui.dshown += FP_DPAGE * 2; renderFriendPage(); }
     else if (k === 'openmine') { const it = pbItemOf(b.dataset.id); if (it) openDeck(it); }
     else if (k === 'sees') fpSeesOpen(b, id);
+    else if (k === 'pick') { ui.pick = b.dataset.v === '' ? null : b.dataset.v; ui.shown = FP_PAGE; renderFriendPage(); }
+    else if (k === 'caret') { if (ui.collapsed.has(b.dataset.v)) ui.collapsed.delete(b.dataset.v); else ui.collapsed.add(b.dataset.v); renderFriendPage(); }
     else if (k === 'rtile') { const x = (fpRatingsHtml.recs || [])[+b.dataset.i]; if (x) fpMenuOpen(b, x); }
     else if (k === 'tile') { const L = fpCrateHtml.last; const x = L && L.id === id && L.list[+b.dataset.i]; if (x) fpMenuOpen(b, x); }
   });
@@ -343,6 +391,9 @@ function initFriendPage() {
   wrap.addEventListener('focusin', (e) => tipAt(e.target.closest('.fp-hcol')));
   wrap.addEventListener('focusout', () => tipAt(null));
   let qT = 0;
+  let sqT = 0;
+  wrap.addEventListener('input', (e) => { if (e.target.id !== 'fpSideQ') return; const ui = fpUiOf(state.activeFriendTab); clearTimeout(sqT); sqT = setTimeout(() => { ui.sideQ = e.target.value; renderFriendPage(); }, 150); });
+  wrap.addEventListener('change', (e) => { if (e.target.id !== 'fpBy') return; const ui = fpUiOf(state.activeFriendTab); ui.by = e.target.value; ui.pick = null; ui.sideQ = ''; ui.shown = FP_PAGE; renderFriendPage(); });
   wrap.addEventListener('input', (e) => { if (e.target.id !== 'fpSearch') return; const ui = fpUiOf(state.activeFriendTab); clearTimeout(qT); qT = setTimeout(() => { ui.q = e.target.value; ui.shown = FP_PAGE; renderFriendPage(); }, 200); });
   wrap.addEventListener('change', (e) => { if (e.target.id !== 'fpSort') return; const ui = fpUiOf(state.activeFriendTab); ui.sort = e.target.value; ui.shown = FP_PAGE; renderFriendPage(); });
 }

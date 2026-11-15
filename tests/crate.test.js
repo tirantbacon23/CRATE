@@ -1386,3 +1386,20 @@ suite('Friends: comparing ratings (1.122.0)', () => {
   });
 });
 
+suite("Friends: browsing a friend's crate (1.124.0)", () => {
+  test('lists by artist, label and decade with counts, and a pick filters the crate', () => {
+    const data = app('fpData'), ui = app('fpUiOf')('__b');
+    try {
+      data.__b = { at: 1, share: { crate: true }, crate: [
+        { artist: 'Talk Talk', title: 'Spirit of Eden', year: '1988', label: 'Parlophone', genre: 'Art Rock', genre2: '', type: 'Album', rating: 5, added: 1 },
+        { artist: 'Talk Talk', title: 'Laughing Stock', year: '1991', label: 'Verve', genre: 'Art Rock', genre2: '', type: 'Album', rating: 4.5, added: 2 },
+        { artist: 'Slint', title: 'Spiderland', year: '1991', label: '', genre: 'Post-Rock', genre2: '', type: 'Album', rating: 4, added: 3 } ] };
+      ui.by = 'artist'; eq(app('fpSideRows')('__b').map(r => [r.v, r.count]), [['Slint', 1], ['Talk Talk', 2]]);
+      ui.by = 'label'; eq(app('fpSideRows')('__b').map(r => r.v), ['Parlophone', 'Verve', 'Unknown']);
+      ui.by = 'decade'; eq(app('fpSideRows')('__b').map(r => [r.v, r.count]), [['1990s', 2], ['1980s', 1]]);
+      ui.pick = '1990s'; eq(app('fpFiltered')('__b').map(x => x.title).sort(), ['Laughing Stock', 'Spiderland']);
+      ui.by = 'artist'; ui.pick = 'Talk Talk'; eq(app('fpFiltered')('__b').length, 2);
+    } finally { delete data.__b; }
+  });
+});
+

@@ -17,7 +17,21 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.123.0
+  CURRENT_VERSION: 1.124.0
+
+  1.124.0 — 2026-11-15 — A friend's crate has a browser beside it, as in your Music tab: their releases by artist, genre (in your genre tree), label, year, decade, type or region. Page only.
+
+          THE BROWSER (left of a friend's covers): choose Artists, Genres,
+          Labels, Years, Decades, Types or Regions, and the list shows theirs
+          with a count each; Find narrows the list. A click shows only those
+          releases ("Artist: Talk Talk ×" appears by the filters; it or All
+          releases shows everything again). It works together with All / Not
+          in my crate / In both / 4½★, the search and the sorting.
+          GENRES are laid out in your own genre tree, each parent counting
+          what's under it, and picking one includes its sub-genres, as in your
+          Music tab; ▾ / ▸ fold a branch.
+          It stays in place while you scroll their covers. On a phone it sits
+          above them.
 
   1.123.0 — 2026-11-15 — Recommend a release to friends: right-click → Recommend to a friend…, pick friends, add a note. It arrives at the top of their Activity, ready to add in one click; you hear when they do. Page and Apps Script backend (paste the new apps-script-backend.gs and redeploy).
 
