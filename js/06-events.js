@@ -886,7 +886,10 @@ function bindEvents() {
     if (isPlayingCrateQueue() && crateQueueStalledIndex === crateQueueIndex) { playCrateQueueIndex(crateQueueId, crateQueueIndex); return; }
     if (activePlayerEngine === 'youtube') {
       if (!ytPlayer) return;
-      if (ytIsPaused) ytPlayer.playVideo(); else ytPlayer.pauseVideo();
+      // (1.135.7) Asks the player whether it's playing, rather than trusting ytIsPaused: that follows YouTube's own reports, and on a
+      // phone YouTube often doesn't report a start it was held back from (or one it made by itself), so the flag said "paused" while the
+      // music played and Pause sent "play", which did nothing. Buffering counts as playing.
+      if (ytLivePlaying()) { ytPlayer.pauseVideo(); setYtPlayPauseUI(true); } else { ytPlayer.playVideo(); setYtPlayPauseUI(false); }
     } else if (activePlayerEngine === 'soundcloud') {
       if (!scWidget) return;
       if (scIsPaused) scWidget.play(); else scWidget.pause();

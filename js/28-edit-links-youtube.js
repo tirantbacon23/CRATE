@@ -537,6 +537,13 @@ const biliShim = {
   mute() {}, unMute() {}, isMuted: () => false
 };
 
+// (1.135.7) Whether YouTube is playing right now, asked of the player itself (buffering counts). ytIsPaused follows YouTube's reports, which on a
+// phone can miss a start, so the play/pause button and the lock screen ask this instead, and the button's icon is put right once a second.
+function ytLivePlaying() {
+  try { const st = ytPlayer && ytPlayer.getPlayerState ? ytPlayer.getPlayerState() : null; return typeof st === 'number' ? (st === YTS.PLAYING || st === YTS.BUFFERING) : !ytIsPaused; }
+  catch (e) { return !ytIsPaused; }
+}
+setInterval(() => { if (activePlayerEngine !== 'youtube' || !ytPlayer) return; const p = ytLivePlaying(); if (p === ytIsPaused) setYtPlayPauseUI(!p); }, 1000);
 function setYtPlayPauseUI(paused) {
   ytIsPaused = paused;
   if (activePlayerEngine !== 'youtube') return; // stale event from a video no longer on screen — Spotify owns the shared button now

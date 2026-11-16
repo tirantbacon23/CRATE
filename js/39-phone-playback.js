@@ -199,8 +199,8 @@ function phoneTapToStartDone() {
   };
   new MutationObserver(paint).observe(el.miniPlayer, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['src', 'title', 'hidden'] });
   const on = (action, fn) => { try { ms.setActionHandler(action, fn); } catch (e) { /* this action isn't supported here */ } };
-  on('play', () => { if (el.miniPlayerPlayPause.title === 'Play') el.miniPlayerPlayPause.click(); });
-  on('pause', () => { if (el.miniPlayerPlayPause.title === 'Pause') el.miniPlayerPlayPause.click(); });
+  on('play', () => { if (!playerPlayingNow()) el.miniPlayerPlayPause.click(); });          // (1.135.7) asked of the player, not read off the button's icon
+  on('pause', () => { if (playerPlayingNow()) el.miniPlayerPlayPause.click(); });
   on('previoustrack', () => masterPlayerStepTrack(-1));
   on('nexttrack', () => masterPlayerStepTrack(1));
   paint();
@@ -209,10 +209,12 @@ function phoneTapToStartDone() {
 // ---- In the CRATE iPhone app (ios/): the lock screen is the app's ----
 // The app shows what's playing on the lock screen from what this reports, and passes the lock screen's buttons back to
 // window.crateRemote. In a browser there is no window.webkit.messageHandlers.crate, and nothing is sent.
+// (1.135.7) Whether something is playing: YouTube asked directly (ytLivePlaying), the others from the button as before.
+function playerPlayingNow() { if (activePlayerEngine === 'youtube' && typeof ytLivePlaying === 'function' && ytPlayer) return ytLivePlaying(); return el.miniPlayerPlayPause.title === 'Pause'; }
 window.crateRemote = function (action) {
   const pp = el.miniPlayerPlayPause; if (!pp) return;
-  if (action === 'play') { if (pp.title === 'Play') pp.click(); }
-  else if (action === 'pause') { if (pp.title === 'Pause') pp.click(); }
+  if (action === 'play') { if (!playerPlayingNow()) pp.click(); }
+  else if (action === 'pause') { if (playerPlayingNow()) pp.click(); }
   else if (action === 'toggle') pp.click();
   else if (action === 'next') masterPlayerStepTrack(1);
   else if (action === 'previous') masterPlayerStepTrack(-1);

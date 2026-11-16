@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.6
+  CURRENT_VERSION: 1.135.7
 
+  1.135.7 — 2026-11-16 — Fix: Pause didn't work on a phone for songs playing from YouTube. The button decided between pause and play
+          from a flag that follows YouTube's own reports, and on a phone YouTube often doesn't report a start (one it was held
+          back from, or made by itself), so the flag said "paused" while the music played and Pause sent "play". The button,
+          the lock screen's play and pause, and the iPhone app's now ask the player itself whether it's playing
+          (ytLivePlaying, playerPlayingNow), and the button's icon is put right once a second if it ever disagrees.
   1.135.6 — 2026-11-16 — Fix: on a phone, the cover popup (tap a cover in the covers view) was 380 px wide, so on a wider phone it
           left a strip of half-covers beside it, and it ran down over the Processing strip and the player at the bottom of the
           screen. It now takes the whole width on a phone and stops above anything fixed along the bottom.
