@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.7
+  CURRENT_VERSION: 1.135.8
 
+  1.135.8 — 2026-11-16 — Match songs → Preferences → "On YouTube, look first for": A full-release video (as before: when a release
+          has no YouTube playlist, a full-release video found with confidence is used and the songs aren't searched one by one)
+          or Each song's own video (each song is searched for first, and a full-release video only for the songs that found
+          nothing, its parts behind any song's own). For matching by hand and in the background alike.
   1.135.7 — 2026-11-16 — Fix: Pause didn't work on a phone for songs playing from YouTube. The button decided between pause and play
           from a flag that follows YouTube's own reports, and on a phone YouTube often doesn't report a start (one it was held
           back from, or made by itself), so the flag said "paused" while the music played and Pause sent "play". The button,

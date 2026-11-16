@@ -238,7 +238,7 @@ function smIsoDuration(iso) {           // YouTube's "PT1H2M3S" -> milliseconds
 // applies to every match worked out after it.
 const smNet = { spotify: 0, spotify429: 0, youtube: 0, ytApi: 0 };          // requests made since the page opened, for the matcher's analytics (counted where they are made)
 const SM_PREFS_KEY = 'crate_match_prefs_v1';
-const SM_PREFS_DEFAULT = { confident: 85, lenTol: 'normal', edition: 'any', versionPenalty: true, topicBonus: true, channels: {}, rejected: [], remindCheck: true, queueNew: true, autoMatchNew: true, lastCheck: 0 };
+const SM_PREFS_DEFAULT = { confident: 85, lenTol: 'normal', edition: 'any', versionPenalty: true, topicBonus: true, channels: {}, rejected: [], remindCheck: true, queueNew: true, autoMatchNew: true, ytOrder: 'full', lastCheck: 0 };          // (1.135.8) ytOrder: 'full' a full-release video before songs one by one, 'songs' the other way round
 let smPrefsCache = null;
 function smPrefs() {
   if (smPrefsCache) return smPrefsCache;
@@ -777,7 +777,7 @@ function bmFullVideoCands(songs, v, confident) {                     // -> byIdx
   return out;
 }
 const BM_FULLVIDEO_MIN_SONGS = 3;
-async function bmFindFullVideo(rel) {                                // -> true when a video was found and offered
+async function bmFindFullVideo(rel, behind) {                        // -> true when a video was found and offered. behind: songs' own videos found first stay ahead of its parts
   const songs = rel.songs || [], total = bmSongsTotalMs(songs); if (!total || songs.length < BM_FULLVIDEO_MIN_SONGS) return false;          // a single or a two-song release: its "full video" is the A-side's own, so the song-by-song search is the one for it
   const ranked = (await ytFindFullVideos(rel.item, total)).filter(x => !(x.durationMs > 0) || x.durationMs >= total * 0.6);          // (1.95.14) a video far shorter than the release is one song of it, never the whole
   if (!ranked.length) { if (rel.youtube) rel.youtube.fullNone = true; return false; }
@@ -785,7 +785,7 @@ async function bmFindFullVideo(rel) {                                // -> true 
   const top = ranked.slice(0, 2).filter(x => ytFullVideoConfident(x, total)), v = top.find(x => x.timing && x.timing.agree) || top[0] || ranked[0];          // a sure video timed by its chapters before one placed from lengths
   const confident = ytFullVideoConfident(v, total), cands = bmFullVideoCands(songs, v, confident);
   if (!rel.youtube || rel.youtube.status !== 'done') { rel.youtube = { status: 'done', byIdx: {} }; rel.st.youtube = 'done'; }
-  Object.entries(cands).forEach(([idx, list]) => { const had = (rel.youtube.byIdx[idx] || []).filter(c => c.source !== 'fullvideo'); rel.youtube.byIdx[idx] = confident || !had.length ? list.concat(had) : had.concat(list); });
+  Object.entries(cands).forEach(([idx, list]) => { const had = (rel.youtube.byIdx[idx] || []).filter(c => c.source !== 'fullvideo'); rel.youtube.byIdx[idx] = (confident && !behind) || !had.length ? list.concat(had) : had.concat(list); });
   const keep = (x) => ({ id: x.id, title: x.title, channel: x.channel || '', durationMs: x.durationMs || 0, diffMs: x.diffMs || 0, score: x.score, titleFit: x.titleFit, timing: x.timing, description: x.description });
   rel.youtube.fullVideo = Object.assign(keep(v), { confident, others: ranked.filter(x => x !== v).map(keep) });
   delete rel.youtube.fullNone; bmFilterRejected(rel.youtube, 'youtube'); bmSetPicks(rel, 'youtube'); bmRedraw();
@@ -952,8 +952,17 @@ async function bmRunLane(kind) {
         if (r.status === 'done') {
           bmSetPicks(rel, kind);
           let fullVid = false;
-          if (kind === 'youtube' && r.none && (ytUseAddon() || bmYtSongsOn(b)) && b.songsMode !== 'check' && rel.songs.some(s => !smHas(s, 'youtube'))) { try { fullVid = await bmFindFullVideo(rel) && rel.youtube.fullVideo.confident; } catch (e) { /* the song-by-song search below still runs */ } }
-          if (kind === 'youtube' && !fullVid && bmYtSongsOn(b) && b.songsMode !== 'check') { try { await bmSearchRest(rel); } catch (e) { rel.err.youtube = ytAddonErrText(e); if (/daily|quota|too many requests/i.test(String(e && e.message))) throw e; } bmSetPicks(rel, 'youtube'); }
+          const songsFirst = smPrefs().ytOrder === 'songs';          // (1.135.8) ⚙ Preferences → "On YouTube, look first for"
+          const wantFull = () => kind === 'youtube' && r.none && (ytUseAddon() || bmYtSongsOn(b)) && b.songsMode !== 'check' && rel.songs.some(s => !smHas(s, 'youtube'));
+          const songByS = async () => { try { await bmSearchRest(rel); } catch (e) { rel.err.youtube = ytAddonErrText(e); if (/daily|quota|too many requests/i.test(String(e && e.message))) throw e; } bmSetPicks(rel, 'youtube'); };
+          if (songsFirst) {
+            // each song's own video first; a full-release video only for songs that found none, its parts behind any song's own
+            if (kind === 'youtube' && bmYtSongsOn(b) && b.songsMode !== 'check') await songByS();
+            if (wantFull() && rel.songs.some(s => !smHas(s, 'youtube') && !((rel.youtube && rel.youtube.byIdx[s.idx]) || []).length)) { try { await bmFindFullVideo(rel, true); } catch (e) { /* the songs' own stay */ } }
+          } else {
+            if (wantFull()) { try { fullVid = await bmFindFullVideo(rel) && rel.youtube.fullVideo.confident; } catch (e) { /* the song-by-song search below still runs */ } }
+            if (kind === 'youtube' && !fullVid && bmYtSongsOn(b) && b.songsMode !== 'check') await songByS();
+          }
           if (b.mode === 'auto') bmApplyRel(rel, kind);
         }
       } catch (e) {
@@ -1525,6 +1534,7 @@ function bmPrefsHtml() {
   return `<div class="bm-body bm-start" data-scroll="prefs"><div class="bm-grid2"><section><div class="bm-label">Scoring</div><div class="bm-opts">
       <div class="bm-opt"><span class="bm-opt-t">Confident from<small>A match this good is ticked for you. Lower ticks more; higher asks you about more.</small></span><input type="range" min="60" max="98" step="1" value="${p.confident}" data-bm="pref" data-k="confident" aria-label="Confident from"><b class="bm-m" data-thresh-out>${p.confident}</b></div>
       <div class="bm-opt"><span class="bm-opt-t">Length tolerance<small>How far a recording’s length may be from yours before it counts against it.</small></span>${sel('lenTol', p.lenTol, [['strict', 'Strict'], ['normal', 'Normal'], ['loose', 'Loose']])}</div>
+      <div class="bm-opt"><span class="bm-opt-t">On YouTube, look first for<small>When a release has no YouTube playlist. The other is still tried for whatever the first doesn’t find.</small></span>${sel('ytOrder', p.ytOrder, [['full', 'A full-release video'], ['songs', 'Each song’s own video']])}</div>
       <div class="bm-opt"><span class="bm-opt-t">Edition<small>Between equally good editions of an album.</small></span>${sel('edition', p.edition, [['any', 'No preference'], ['original', 'Prefer the original'], ['remaster', 'Prefer remastered or deluxe']])}</div>
       ${chk('versionPenalty', 'Mark down live, remix, cover, sped-up and similar versions', 'unless your song’s own title says it is one')}${chk('topicBonus', 'Prefer the artist’s “- Topic” channel on YouTube')}</div></section>
     <section><div class="bm-label">Queue and reminders</div><div class="bm-opts">${chk('autoMatchNew', 'Match new releases by themselves', 'in the background, as they are added: confident matches are saved, the rest wait here for you (Processing shows them)')}${chk('queueNew', 'Put new releases in the match queue', 'whatever adds them: the Add form, Rate Your Music, an import')}${chk('remindCheck', 'Remind me to check my saved links once a month', p.lastCheck ? `last checked ${bmAgo(p.lastCheck)}` : 'not checked yet')}</div>
