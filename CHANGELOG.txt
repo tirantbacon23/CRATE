@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.15
+  CURRENT_VERSION: 1.135.16
 
+  1.135.16 — 2026-11-16 — Fix: double-clicking a release in the browser column played it but put the main panel back to showing
+          everything: the first click picked it, the second (clicking a picked row again clears it) unpicked it. The second click
+          of a double-click now leaves the pick as it is, so the release stays showing while it plays. The same for artists,
+          genres and labels. A single click on a picked row still clears it.
   1.135.15 — 2026-11-16 — Fix: releases stayed in the match queue (or came back to it) after their songs were matched. A release whose
           matching has finished on every service — found or not, or every song already linked, or no tracklist — is now marked
           tried and taken out of the queue. A song skipped in the player for want of a link no longer puts its release back when

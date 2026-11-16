@@ -364,8 +364,9 @@ function buildLeftRow(entry, mode) {
     }
   }
 
-  row.addEventListener('click', () => {
+  row.addEventListener('click', (e) => {
     if (state.navFilter && state.navFilter.mode === mode && state.navFilter.value === entry.key) {
+      if (e && e.detail >= 2) return;          // (1.135.16) the second click of a double-click: what you picked stays showing (it used to clear it again)
       state.navFilter = null;
     } else {
       state.navFilter = { mode, value: entry.key };
