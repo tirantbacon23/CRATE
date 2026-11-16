@@ -5329,10 +5329,22 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
 
 /* (1.135.11) On a computer too, the space the Processing strip floats in is kept free at the bottom of the page, so it no longer covers the
    catalogue figures or the end of a list (as on a phone: a spacer at the end of #app, a flex column). */
-@media (min-width: 761px) { body.jobs-strip-on #app::after { content: ''; flex: 0 0 52px; } }
+/* (1.135.13) replaced: the strip sits in the catalogue line instead (see .jobs-strip.in-stats) */
 
 /* (1.135.12) The heart, ↓ and descriptor chips put on a song row after it's drawn no longer make the row taller (the ↓ is 22 px, taller
    than the title's line): every row moved down 6 px a moment after each redraw of the Tracks table, and that table redraws as tracklists
    arrive, so the list kept jumping. They overhang their line instead of stretching it. */
 .main-track-row .lk-heart, .main-track-row .dl-btn, .track-row .lk-heart, .track-row .dl-btn, .track-row-wrap .lk-heart, .track-row-wrap .dl-btn { margin-top: -4px; margin-bottom: -4px; }
 .main-track-row .sd-chips, .track-row .sd-chips { margin-top: -3px; margin-bottom: -3px; }
+
+/* (1.135.13) The stats line stays one line: when its figures don't fit, the end is cut with "…" (the whole line shows on hover) instead of
+   the line wrapping onto a second one and pushing the view above it up. */
+.cat-stats { flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
+.cat-stats .cs-scope { flex: none; }
+.cat-stats .cs-figs { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cat-stats .cs-cat { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; padding-left: 14px; }
+
+/* (1.135.13) The Processing strip at the right end of the catalogue line (a computer, the Music view): part of the line, one row high */
+.jobs-strip.in-stats { position: static; transform: none; left: auto; bottom: auto; z-index: auto; flex: 0 1 auto; min-width: 0; max-width: 46%; margin: -5px 0 -5px auto; padding: 0 10px; height: 22px; align-self: center; font-size: 12px; border-radius: 12px; box-shadow: none; gap: 8px; }
+.jobs-strip.in-stats[hidden] { display: none; }
+.jobs-strip.in-stats .jobs-strip-bar { width: 50px; }

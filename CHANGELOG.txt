@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.12
+  CURRENT_VERSION: 1.135.13
 
+  1.135.13 — 2026-11-16 — The catalogue line at the bottom of the Music view stays one row: on a computer the Processing strip now sits
+          at its right end (it floated below, and 1.135.11 kept a band of empty space under the line for it), and when the
+          figures don't fit, the end is cut with "…" instead of the line wrapping onto a second row (the whole line shows on
+          hover). On other views, and on a phone, the strip floats as before (jobsStripDock in 35-catalogue-stats.js).
   1.135.12 — 2026-11-16 — Fix: the songs in the Tracks view kept moving. The table is drawn again as tracklists arrive, and each time
           the rows were drawn 32 px tall, then the heart, ↓ and descriptor chips put on them a moment later made them 38 px
           (the ↓ is taller than the title's line), so the whole list jumped down and up about once a second while loading.

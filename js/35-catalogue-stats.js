@@ -45,9 +45,21 @@ let csRaf = 0;
 function catStatsSoon() { if (!csRaf) csRaf = setTimeout(() => { csRaf = 0; catStatsRender(); }, 60); }          // (many changes at once draw it once)
 function catStatsRender() {
   const bar = document.getElementById('catStats'); if (!bar) return;
-  const on = state.activeTab === 'albums' && (state.raw || []).length > 0; bar.hidden = !on; if (!on) return;
+  const on = state.activeTab === 'albums' && (state.raw || []).length > 0; bar.hidden = !on; if (!on) { jobsStripDock(); return; }
   const sel = state.raw.filter(r => state.selectedAlbums.has(String(r.row))), shown = state.filtered || [];
   const scope = sel.length ? { label: `${sel.length.toLocaleString()} selected`, list: sel } : shown.length === state.raw.length ? { label: 'Catalogue', list: shown } : { label: 'Showing', list: shown };
   const whole = scope.list === shown && shown.length === state.raw.length;
   bar.innerHTML = `<span class="cs-scope">${scope.label}</span><span class="cs-figs">${csLine(csFigures(scope.list), true)}</span>${whole ? '' : `<span class="cs-cat cs-dim"><span class="cs-scope">Catalogue</span> ${csLine(csFigures(state.raw), false)}</span>`}`;
+  bar.title = bar.textContent.replace(/\s+/g, ' ').trim();          // (1.135.13) the whole line, for when its end is cut off
+  jobsStripDock();
 }
+// (1.135.13) On a computer, the Processing strip sits at the right end of this line while it shows (the Music view), instead of floating over
+// the bottom of the page: floating, it needed a band of empty space kept under the line. Elsewhere, and on a phone, it floats as before.
+function jobsStripDock() {
+  const st = document.getElementById('jobsStrip'), bar = document.getElementById('catStats'); if (!st || !bar) return;
+  const dock = window.innerWidth > 760 && !bar.hidden;
+  if (dock && st.parentElement !== bar) bar.appendChild(st);
+  else if (!dock && st.parentElement === bar) document.body.appendChild(st);
+  st.classList.toggle('in-stats', dock);
+}
+window.addEventListener('resize', () => { clearTimeout(jobsStripDock.t); jobsStripDock.t = setTimeout(jobsStripDock, 150); });
