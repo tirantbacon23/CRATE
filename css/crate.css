@@ -5356,3 +5356,8 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
 
 /* (1.135.18) between two parents at one level of the genre breadcrumb */
 .gi-crumb-or { margin: 0 6px; opacity: 0.45; }
+
+/* (1.135.19) Group by / Then by headings in the Tracks table */
+.mt-group-head { padding: 14px 10px 6px; font: 600 12px 'IBM Plex Mono', monospace; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); border-bottom: 1px solid var(--line); }
+.mt-group-head.mt-group-l2 { padding: 8px 10px 4px 22px; font-weight: 500; color: var(--text); border-bottom-style: dashed; }
+.mt-group-n { color: var(--text-dim); font-weight: 400; }

@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.18
+  CURRENT_VERSION: 1.135.19
 
+  1.135.19 — 2026-11-16 — Fix: Group by and Then by did nothing in the Tracks and Album and Tracks views (they worked only in the grid
+          views). Both views now group too: Album and Tracks puts a heading over each group's releases, the Tracks table a heading
+          over each group's songs (grouped by their release, a release in two genres under both), with the Then by headings
+          inside each. Within a group the songs keep the table's own sort.
   1.135.18 — 2026-11-16 — A genre page's breadcrumb shows every parent: level by level, each level up holding all the parents of the
           one below, joined with | — "Genres › Rock › Alternative Rock | Pop Rock › Jangle Pop" — instead of following only the
           first parent. A genre reachable at two distances shows once, at its highest level. Each is a link to its own page.

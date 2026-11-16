@@ -91,7 +91,15 @@ function renderTrackView() {
   // tracklist: 2,840 releases was 19,000 song rows and 340,000 elements, and on a phone every pass over the page took seconds.
   el.gridContainer.appendChild(wrap);
   const mode = state.mainViewMode;
-  appendInBatches(wrap, list.map(item => () => buildAlbumTrackGroup(item)), 12, 12, (from, to) => { applyCachedArt(); loadTracksForList(list.slice(from, to), mode); });
+  // (1.135.19) Group by / Then by: a heading over each group's releases, as in the grid
+  const seq = [], head = (label, n, lvl) => seq.push({ head: label, n, lvl });
+  if (state.groupBy && state.groupBy !== 'none') groupItems(list, state.groupBy).forEach(g => {
+    head(g.label, g.items.length, 1);
+    if (state.groupBy2 && state.groupBy2 !== 'none') groupItems(g.items, state.groupBy2).forEach(g2 => { head(g2.label, g2.items.length, 2); g2.items.forEach(item => seq.push({ item })); });
+    else g.items.forEach(item => seq.push({ item }));
+  }); else list.forEach(item => seq.push({ item }));
+  const mk = (x) => () => { if (x.item) return buildAlbumTrackGroup(x.item); const h = document.createElement(x.lvl === 1 ? 'h3' : 'h4'); h.className = 'group-header' + (x.lvl === 2 ? ' group-header-sub' : ''); h.textContent = x.head + ' · ' + x.n; return h; };
+  appendInBatches(wrap, seq.map(mk), 12, 12, (from, to) => { applyCachedArt(); loadTracksForList(seq.slice(from, to).filter(x => x.item).map(x => x.item), mode); });
 }
 
 // (1.135.5) A long list made in batches: the first `eager` items at once, the rest `chunk` at a time as the end comes near the screen. A
@@ -627,6 +635,21 @@ function trackSortValue(row, key) {
 const TRACK_YT_KEY = 'crate_tracks_yt_v1';
 function trackYtFilter() { try { const v = localStorage.getItem(TRACK_YT_KEY); return v === 'has' || v === 'none' ? v : ''; } catch (e) { return ''; } }
 function trackHasYoutube(item, t) { return !!(t && t.youtubeLink) || !!(typeof releaseFullVideoId === 'function' && releaseFullVideoId(item)); }
+// (1.135.19) The Tracks table's rows under Group by (and Then by) headings: songs grouped by their release, as the grid groups releases (a
+// release in two genres is under both). Within a group the songs keep the table's order. No grouping: the rows as they are.
+function trackGroupRows(rows) {
+  if (!state.groupBy || state.groupBy === 'none') return rows;
+  const byItem = new Map(); rows.forEach(r => { let a = byItem.get(r.item); if (!a) byItem.set(r.item, a = []); a.push(r); });
+  const items = [...byItem.keys()], out = [];
+  const songsOf = (its) => { const set = new Set(its); return rows.filter(r => set.has(r.item)); };
+  groupItems(items, state.groupBy).forEach(g => {
+    const two = state.groupBy2 && state.groupBy2 !== 'none' ? groupItems(g.items, state.groupBy2) : null;
+    const songs = songsOf(g.items); out.push({ head: g.label, lvl: 1, n: songs.length });
+    if (!two) { songs.forEach(r => out.push(r)); return; }
+    two.forEach(g2 => { const s2 = songsOf(g2.items); out.push({ head: g2.label, lvl: 2, n: s2.length }); s2.forEach(r => out.push(r)); });
+  });
+  return out;
+}
 function renderFlatTrackTable() {
   const body = document.getElementById('trackTableBody');
   if (!body) return;
@@ -675,22 +698,25 @@ function renderFlatTrackTable() {
   // (1.93.5) Only the rows near the screen are made: 12,000 songs drawn at once took over a second, and while tracklists load the table is
   // redrawn every second. The first MT_CHUNK are drawn, and MT_CHUNK more each time the end comes within about two screens of view. A
   // redraw during the same load keeps as many as were drawn, so the place you scrolled to stays; Ctrl+A still selects every row.
+  // (1.135.19) Group by / Then by (the View menu) here too: a heading over each group's songs, the songs in the table's own order within it.
+  const disp = state.activePlaylistId ? rows : trackGroupRows(rows);
+  const drawOne = (r) => r.head !== undefined ? `<div class="mt-group-head mt-group-l${r.lvl}">${escapeHtml(r.head)}<span class="mt-group-n"> · ${r.n.toLocaleString()}</span></div>` : rowHtml(r);
   const MT_CHUNK = 300, keep = body._tok === flatTrackLoadToken ? (body._shown || 0) : 0;
   body._tok = flatTrackLoadToken; body._rows = rows;
-  body._shown = Math.min(rows.length, Math.max(MT_CHUNK, keep));
-  body.innerHTML = rows.slice(0, body._shown).map(rowHtml).join('') + (body._shown < rows.length ? '<div class="mt-more" data-mt-more aria-hidden="true"></div>' : '') + loadingNote;
+  body._shown = Math.min(disp.length, Math.max(MT_CHUNK, keep));
+  body.innerHTML = disp.slice(0, body._shown).map(drawOne).join('') + (body._shown < disp.length ? '<div class="mt-more" data-mt-more aria-hidden="true"></div>' : '') + loadingNote;
   if (body._io) { body._io.disconnect(); body._io = null; }
   const moreEl = body.querySelector('[data-mt-more]');
   if (moreEl && typeof IntersectionObserver === 'function') {
     const io2 = body._io = new IntersectionObserver((ents) => {
       if (!ents.some(x => x.isIntersecting) || body._io !== io2) return;
       const m = body.querySelector('[data-mt-more]'); if (!m) { io2.disconnect(); return; }
-      const n = Math.min(rows.length, body._shown + MT_CHUNK);
-      m.insertAdjacentHTML('beforebegin', rows.slice(body._shown, n).map(rowHtml).join('')); body._shown = n;
-      if (n >= rows.length) { m.remove(); io2.disconnect(); } else { io2.unobserve(m); io2.observe(m); }          // (observed again: still in view means draw more)
+      const n = Math.min(disp.length, body._shown + MT_CHUNK);
+      m.insertAdjacentHTML('beforebegin', disp.slice(body._shown, n).map(drawOne).join('')); body._shown = n;
+      if (n >= disp.length) { m.remove(); io2.disconnect(); } else { io2.unobserve(m); io2.observe(m); }          // (observed again: still in view means draw more)
     }, { rootMargin: '1500px 0px' });
     io2.observe(moreEl);
-  } else if (moreEl) { body.innerHTML = rows.map(rowHtml).join('') + loadingNote; body._shown = rows.length; }
+  } else if (moreEl) { body.innerHTML = disp.map(drawOne).join('') + loadingNote; body._shown = disp.length; }
 
   // Event delegation: single click selects (with shift/ctrl range & toggle
   // support), double-click opens the album deck for that track's row.
