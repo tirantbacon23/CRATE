@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.16
+  CURRENT_VERSION: 1.135.17
 
+  1.135.17 — 2026-11-16 — Go to the release from what's playing: click the song's title in Track info, or a row's details in Up next
+          (the line under the song in Track with Thumbnail, the columns in Track Detail, the release heading and the details
+          in Release and Tracks), and the release opens. Clicking the song itself still plays it.
   1.135.16 — 2026-11-16 — Fix: double-clicking a release in the browser column played it but put the main panel back to showing
           everything: the first click picked it, the second (clicking a picked row again clears it) unpicked it. The second click
           of a double-click now leaves the pick as it is, so the release stays showing while it plays. The same for artists,

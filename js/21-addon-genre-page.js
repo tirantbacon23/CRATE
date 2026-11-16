@@ -1238,7 +1238,15 @@ el.trackInfoFields.addEventListener('click', (e) => {               // (1.95.31)
   const a = e.target.closest('.track-info-artist-link'); if (!a) return;
   e.preventDefault(); e.stopPropagation(); openArtistInfoTab(a.dataset.artist);
 }, true);
+// (1.135.17) The release a queue row (or Track info) is about, by its cover key: from the queue itself, else the crate.
+function queueGoItem(key) { const e = (crateQueueList || []).find(x => x && x.item && artKey(x.item) === key); return (e && e.item) || rawIndex('art', artKey).get(key) || null; }
 function renderTrackInfoPanel() {
+  if (!el.trackInfoTitle.dataset.goBound) {                           // (1.135.17) the song's title: its release
+    el.trackInfoTitle.dataset.goBound = '1';
+    el.trackInfoTitle.addEventListener('click', () => { const it = typeof nowPlayingItem !== 'undefined' ? nowPlayingItem : null; if (it) openDeck(it); });
+  }
+  el.trackInfoTitle.classList.toggle('queue-go-release', typeof nowPlayingItem !== 'undefined' && !!nowPlayingItem);
+  el.trackInfoTitle.title = (typeof nowPlayingItem !== 'undefined' && nowPlayingItem) ? 'Go to the release' : '';
   if (!state.rightPanelShowTrackInfo) return;
   const hasTrack = !!nowPlayingItem || (activePlayerEngine === 'spotify' && currentSpotifyTrack);
   el.trackInfoEmpty.hidden = hasTrack;
@@ -1501,6 +1509,8 @@ function renderCrateQueuePanel() {
   if (!el.crateQueuePanelBody.dataset.clickBound) {
     el.crateQueuePanelBody.dataset.clickBound = '1';
     const jumpToRow = (e) => {
+      const go = e.target.closest('[data-go-key]');                 // (1.135.17) a row's details: its release, not the song played
+      if (go) { const it = queueGoItem(go.dataset.goKey); if (it) { e.preventDefault(); openDeck(it); } return; }
       const row = e.target.closest('.queue-row-clickable');
       if (!row) return;
       const index = parseInt(row.dataset.queueIndex, 10);
@@ -1541,7 +1551,7 @@ function renderQueueThumbnailHtml(current, upcoming, currentIndex) {
       <span class="crate-queue-source" title="${sourceTitle}">${sourceIcon}</span>
       <div class="queue-row-meta">
         <p class="queue-track-title">${escapeHtml(entry.track.trackName || '')}</p>
-        <p class="queue-track-artist">${groupingLine}</p>
+        <p class="queue-track-artist${entry.item ? ' queue-go-release' : ''}"${entry.item ? ` data-go-key="${escapeHtml(artKey(entry.item))}" title="Go to the release"` : ''}>${groupingLine}</p>
       </div>
     </div>`;
   };
@@ -1567,7 +1577,7 @@ function renderQueueTrackDetailHtml(current, upcoming, currentIndex) {
     return `<div class="queue-table-row${isCurrent ? ' queue-row-current' : ''}${clickable ? ' queue-row-clickable' : ''}" style="grid-template-columns:${gridTemplate}" ${clickable ? `data-queue-index="${index}" role="button" tabindex="0" title="Play this track"` : ''}>
       <span class="queue-table-num">${num}</span>
       <span class="queue-table-track">${escapeHtml(entry.track.trackName || '')}</span>
-      ${cols.map(k => `<span>${entry.item ? escapeHtml(trackColumnVal(k, entry.item, entry.track) || '') : ''}</span>`).join('')}
+      ${cols.map(k => entry.item ? `<span class="queue-go-release" data-go-key="${escapeHtml(artKey(entry.item))}" title="Go to the release">${escapeHtml(trackColumnVal(k, entry.item, entry.track) || '')}</span>` : '<span></span>').join('')}
     </div>`;
   };
   let n = 1;
@@ -1607,7 +1617,7 @@ function renderQueueReleaseTracksHtml(current, upcoming, currentIndex) {
 
   return groups.map(group => {
     const releaseHeaderHtml = group.item ? `
-      <div class="queue-release-header">
+      <div class="queue-release-header queue-go-release" data-go-key="${escapeHtml(artKey(group.item))}" title="Go to the release">
         <img class="queue-release-thumb art" data-key="${artKey(group.item)}" src="${state.artCache[artKey(group.item)]?.art || placeholderArt(group.item)}" alt="">
         <div class="queue-release-header-text">
           ${releaseFields.map(k => `<p class="queue-release-field">${escapeHtml(keyToVal(k, group.item) || '')}</p>`).join('') || '&nbsp;'}
@@ -1618,7 +1628,7 @@ function renderQueueReleaseTracksHtml(current, upcoming, currentIndex) {
       const extraFields = entry.item ? trackFields.map(k => trackColumnVal(k, entry.item, entry.track)).filter(Boolean) : [];
       return `<div class="queue-nested-track-row${isCurrent ? ' queue-row-current' : ''}${clickable ? ' queue-row-clickable' : ''}" ${clickable ? `data-queue-index="${index}" role="button" tabindex="0" title="Play this track"` : ''}>
         <p class="queue-track-title">${escapeHtml(entry.track.trackName || '')}</p>
-        ${extraFields.length ? `<p class="queue-track-artist">${escapeHtml(extraFields.join(' · '))}</p>` : ''}
+        ${extraFields.length ? `<p class="queue-track-artist queue-go-release" data-go-key="${escapeHtml(artKey(entry.item))}" title="Go to the release">${escapeHtml(extraFields.join(' · '))}</p>` : ''}
       </div>`;
     }).join('');
     return `<div class="queue-release-group">${releaseHeaderHtml}<div class="queue-release-tracks">${tracksHtml}</div></div>`;

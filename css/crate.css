@@ -5348,3 +5348,8 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
 .jobs-strip.in-stats { position: static; transform: none; left: auto; bottom: auto; z-index: auto; flex: 0 1 auto; min-width: 0; max-width: 46%; margin: -5px 0 -5px auto; padding: 0 10px; height: 22px; align-self: center; font-size: 12px; border-radius: 12px; box-shadow: none; gap: 8px; }
 .jobs-strip.in-stats[hidden] { display: none; }
 .jobs-strip.in-stats .jobs-strip-bar { width: 50px; }
+
+/* (1.135.17) Up next's details and Track info's title go to the release */
+.queue-go-release { cursor: pointer; }
+.queue-go-release:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.queue-release-header.queue-go-release:hover { text-decoration: none; } .queue-release-header.queue-go-release:hover .queue-release-field { color: var(--accent); }
