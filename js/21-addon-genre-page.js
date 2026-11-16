@@ -694,25 +694,37 @@ function giRenderAll(genre) {
   giRenderReleases(genre, ui, items);
 }
 const $gi = (id) => document.getElementById(id);
-// (1.135.18) The breadcrumb level by level: each level up holds every parent of the level below it, so a genre with more than one parent
-// shows them all ("Rock › Alternative Rock | Pop Rock › Jangle Pop"), not only its first parent's line. A genre reachable at two distances
-// (Rock as both parent and grandparent) shows once, at its highest level. Stops if the taxonomy loops.
-function genreTrailLevels(genre, taxonomy) {
-  const levels = [[genre]], key = genreTaxonomyKey;
-  for (let n = 0; n < 12; n++) {
-    const below = levels[0], up = [], have = new Set();
-    below.forEach(g => getGenreParents(taxonomy, g).forEach(p => { const k = key(p); if (!have.has(k) && k !== key(genre)) { have.add(k); up.push(p); } }));
-    if (!up.length) break;
-    levels.unshift(up);
-  }
-  const placed = new Set();                                          // highest level wins: walk from the top, drop repeats further down
-  return levels.map(lv => lv.filter(g => { const k = key(g); if (placed.has(k)) return false; placed.add(k); return true; })).filter(lv => lv.length);
+// (1.135.24) The breadcrumb from every line of parents, as a tree: a shared start is shown once and the lines part where they part, so
+// "Rock › Alternative Rock | Pop Rock › Jangle Pop". Lines that don't share a start sit side by side, each kept together (a line of more
+// than one genre has a faint box round it): "R&B / Soul / Funk › Rhythm & Blues | Rock › British Rhythm & Blues". (1.135.18 lined the
+// parents up level by level, which put Rock under R&B / Soul / Funk there.) A line that's only the start of a longer one is dropped (Rock
+// as a parent beside Rock › Alternative Rock), and the taxonomy looping, or more than 8 lines, stops it.
+function genreTrailPaths(genre, taxonomy) {
+  const key = genreTaxonomyKey, out = [];
+  const up = (g, chain, seen) => {
+    if (out.length >= 8) return;
+    const ps = getGenreParents(taxonomy, g).filter(p => !seen.has(key(p)));
+    if (!ps.length) { if (chain.length) out.push(chain.slice().reverse()); return; }
+    ps.forEach(p => { const s2 = new Set(seen); s2.add(key(p)); up(p, chain.concat([p]), s2); });
+  };
+  up(genre, [], new Set([key(genre)]));
+  const sig = (pth) => pth.map(key).join('\u0001');
+  const uniq = [...new Map(out.map(pth => [sig(pth), pth])).values()];
+  return uniq.filter(a => !uniq.some(b => b !== a && b.length > a.length && sig(b).startsWith(sig(a) + '\u0001')));
+}
+function genreTrailTree(paths) {                                       // [{ name, kids: [...] }], shared starts merged
+  const root = [];
+  paths.forEach(pth => { let level = root; pth.forEach(name => { let n = level.find(x => genreTaxonomyKey(x.name) === genreTaxonomyKey(name)); if (!n) level.push(n = { name, kids: [] }); level = n.kids; }); });
+  return root;
 }
 function giRenderCrumbs(genre) {
-  const levels = genreTrailLevels(genre, state.genreTaxonomy);
-  $gi('giCrumbs').innerHTML = '<span>Genres</span>' + levels.map((lv, i) => '<span class="gi-crumb-sep">\u203a</span>' +
-    (i === levels.length - 1 ? `<span class="gi-crumb-here">${escapeHtml(lv[0])}</span>`
-      : lv.map(g => `<a href="#" data-genre="${escapeHtml(g)}">${escapeHtml(g)}</a>`).join('<span class="gi-crumb-or" aria-label="and">|</span>'))).join('');
+  const sep = '<span class="gi-crumb-sep">\u203a</span>', or = '<span class="gi-crumb-or" aria-label="and">|</span>';
+  const link = (g) => `<a href="#" data-genre="${escapeHtml(g)}">${escapeHtml(g)}</a>`;
+  const chain = (n) => link(n.name) + (n.kids.length ? sep + branches(n.kids) : '');
+  const steps = (n) => 1 + (n.kids.length ? Math.max(...n.kids.map(steps)) : 0);
+  const branches = (ns) => ns.length === 1 ? chain(ns[0]) : ns.map(n => steps(n) > 1 ? `<span class="gi-crumb-group">${chain(n)}</span>` : chain(n)).join(or);
+  const tree = genreTrailTree(genreTrailPaths(genre, state.genreTaxonomy));
+  $gi('giCrumbs').innerHTML = '<span>Genres</span>' + sep + (tree.length ? branches(tree) + sep : '') + `<span class="gi-crumb-here">${escapeHtml(genre)}</span>`;
 }
 function giRenderTitle(genre, ui, items, family) {
   const st = genreStatsOf(items);

@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.23
+  CURRENT_VERSION: 1.135.24
 
+  1.135.24 — 2026-11-16 — Fix: a genre's breadcrumb could put a parent under the wrong genre. 1.135.18 lined the parents up level by
+          level, so British Rhythm & Blues (under Rhythm & Blues, itself under R&B / Soul / Funk, and under Rock) read
+          "R&B / Soul / Funk › Rock | Rhythm & Blues", as if Rock were under R&B / Soul / Funk. It's now built from each line of
+          parents as a tree: a shared start shows once and the lines part where they part ("Rock › Alternative Rock | Pop Rock
+          › Jangle Pop"), and lines that don't share a start sit side by side, each kept together in a faint box
+          ("R&B / Soul / Funk › Rhythm & Blues | Rock › British Rhythm & Blues").
   1.135.23 — 2026-11-16 — Track properties (right-click a song → Edit track properties…) has a Descriptors field: the song's descriptors
           as chips, and Edit… opens the same descriptor editor as the chips on song rows (suggestions, typing to add, × to take
           one away). The field shows the new list as soon as the editor closes.
