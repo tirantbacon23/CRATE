@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.134.0
+  CURRENT_VERSION: 1.134.1
 
+  1.134.1 — 2026-11-16 — Songs are matched straight away, whatever puts a release in the match queue: a song skipped for want of
+          a link, or the menu's Add to match queue, as well as new releases (before, those two waited for Match songs → Start).
+          And every 5 minutes anything still waiting in the queue is matched, without opening Match songs. (Settings →
+          "Match songs as soon as a release is added" switches all of it off.) Page only.
   1.134.0 — 2026-11-16 — Liked songs uses the same browser column as the Music view and playlists (Albums, Artists, Genres,
           Labels, Descriptors…, its own menu and rows), listing the releases you've liked songs from; a pick there, the search
           box and the other filters narrow the songs by the same rules. (The look-alike column from 1.133.0 is gone.) And song

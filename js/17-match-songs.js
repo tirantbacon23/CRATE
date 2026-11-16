@@ -460,7 +460,11 @@ const mqKey = (artist, title) => ytCacheNorm(artist) + '|' + ytCacheNorm(title);
 function mqAdd(items, why, song) {                                  // items: releases, or { artist, title }
   const a = mqAll(), have = new Set(a.map(e => mqKey(e.a, e.t))); let n = 0;
   (items || []).forEach(it => { if (!it || !it.artist || !it.title) return; const k = mqKey(it.artist, it.title); if (have.has(k)) { const e = a.find(x => mqKey(x.a, x.t) === k); if (song && e && !(e.songs || []).includes(song)) (e.songs = e.songs || []).push(song); return; } have.add(k); a.push({ a: it.artist, t: it.title, why: why || 'added', songs: song ? [song] : [], at: Date.now() }); n++; });
-  mqSave(a); if (bm) bmRedraw(); return n;
+  mqSave(a); if (bm) bmRedraw();
+  // (1.134.1) Matched straight away when "Match new releases by themselves" is on (it is unless you turned it off): whatever puts a release
+  // in the queue (a song skipped for want of a link, the menu's Add to match queue), not only the Add form, so nothing waits for Start.
+  if (n && smPrefs().autoMatchNew && typeof bmAutoQueue === 'function') bmAutoQueue((items || []).filter(it => it && it.artist && it.title).map(it => ({ artist: it.artist, title: it.title })));
+  return n;
 }
 function mqItems() {
   const byKey = new Map(); state.raw.forEach(r => { const k = mqKey(r.artist, r.title); if (!byKey.has(k)) byKey.set(k, r); });
@@ -703,6 +707,9 @@ function bmKickLanes() {                                            // releases 
 // what is confident is saved, and the rest waits in the run for you (Processing → Needs you). Spotify only if it is set up; YouTube only through the add-on (the API route costs quota).
 const bmAuto = { pending: [], timer: 0, tries: 0, since: 0, noSvc: false };
 const BM_AUTO_PATIENCE = 6 * 3600e3;          // (1.126.0) keeps waiting (an import, an open Match songs, RYM) this long, instead of giving up after ~10 minutes
+// (1.134.1) A sweep every 5 minutes: anything left waiting in the match queue (added while matching couldn't run, or before this version)
+// is matched without your having to open Match songs.
+setInterval(() => { try { if (document.hidden || !(state.raw || []).length || bmAuto.pending.length || (bm && bm.running)) return; if (typeof menuMatchWaiting === 'function') menuMatchWaiting(); } catch (e) { /* next time */ } }, 5 * 60e3);
 function bmAutoQueue(list) {
   if (!bmAuto.pending.length) bmAuto.since = Date.now();
   (list || []).forEach(x => { const k = mqKey(x.artist, x.title); if (!bmAuto.pending.some(e => e.k === k)) bmAuto.pending.push({ k }); });

@@ -846,7 +846,7 @@ function openAlbumCardContextMenu(item, x, y) {
     else if (action === 'rymUpdate') rymFetchUpdates(selItems);
     else if (action === 'match') openSongMatcher(item);
     else if (action === 'matchMany') bmOpen({ ticked: selItems, view: (state.filtered || []).slice() });
-    else if (action === 'matchQueue') { const its = selItems.length > 1 ? selItems : [item], n = mqAdd(its, 'menu'); flashGlobalToast(n ? `Added ${n} to the match queue (Match songs \u2192 Start).` : 'Already in the match queue.'); }
+    else if (action === 'matchQueue') { const its = selItems.length > 1 ? selItems : [item], n = mqAdd(its, 'menu'); flashGlobalToast(n ? (smPrefs().autoMatchNew ? `Matching ${n === 1 ? 'its songs' : 'the songs of ' + n + ' releases'} now (Processing shows how it goes).` : `Added ${n} to the match queue (Match songs \u2192 Start).`) : 'Already in the match queue.'); }
     else if (action === 'fullVideo') fvOpen(item);
     else if (action === 'editTracks') tgOpen(item);
     else if (action === 'pullDetails') pdOpen(item);
