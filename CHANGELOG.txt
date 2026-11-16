@@ -17,8 +17,15 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.25
+  CURRENT_VERSION: 1.135.26
 
+  1.135.26 — 2026-11-16 — Pick by mood picks single descriptors too, matches songs too, and has three layouts. Pick a whole sense
+          (sadness: any of its descriptors) or single descriptors (melancholic, bittersweet), with how many of your releases have
+          each; "Your pick" shows them all (× takes one off); typing a descriptor picks it, a word for a feeling its senses.
+          Releases | Songs: Songs matches each song's own descriptors and plays or saves songs. Descriptors in your crate the
+          list doesn't know are under Yours. ⚙ → Settings → Pick by mood looks like: Open senses (each sense chip opens ▸ to its
+          descriptors), Columns (category › sense › descriptors, with All of…), Cloud (every descriptor in your crate, by sense,
+          sized by how often).
   1.135.25 — 2026-11-16 — Fix: with several artist or genre tabs open, the header's buttons on the right were pushed off the screen
           (the tab bar couldn't give way). The buttons now always keep their room, and the tabs scroll sideways when there are
           more than fit (the mouse wheel scrolls them; the tab you're on is brought into view). With that many tabs CRATE's

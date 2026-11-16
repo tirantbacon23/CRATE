@@ -217,75 +217,157 @@ function descBrowseClose() { const ov = document.getElementById('descBrowseOverl
 // ================= Pick by mood: choose how it should feel, and CRATE finds what in your crate fits =================
 // A release "fits a sense" when any of its descriptors is in that shared sense (sadness, calm, slow, dreamy & ethereal...). The more of the senses you pick it fits, and the more of its descriptors
 // that do, the higher it ranks; ties go to what you rated highest.
-const mood = { open: false, sel: new Set(), all: false, fresh: false, shown: 40, msg: '', last: [] };
-const moodKeyOf = (c) => c.cat + ':' + c.head;
-function moodIndex() {                                           // for each release with descriptors: which senses they fall in, and which descriptors fall in each
+// (1.135.26) Picks are whole senses ("s:mood:sadness": any descriptor in it) or single descriptors ("d:melancholic"), and the tool matches
+// releases (their descriptors) or songs (each song's own descriptors). Three layouts, chosen in ⚙ → Settings → Pick by mood looks like:
+// "open" (each sense chip opens to its descriptors), "cols" (category › sense › descriptors in columns), "cloud" (every descriptor in your
+// crate, by sense, sized by how often). The more picks a release fits, and the more of its descriptors do, the higher it ranks; ties go to
+// what you rated highest.
+const MOOD_LAYOUT_KEY = 'crate_mood_layout_v1', MOOD_LAYOUTS = { open: 'Open senses', cols: 'Columns', cloud: 'Cloud' };
+function moodLayout() { try { const v = localStorage.getItem(MOOD_LAYOUT_KEY); return MOOD_LAYOUTS[v] ? v : 'open'; } catch (e) { return 'open'; } }
+function moodLayoutSet(v) { try { localStorage.setItem(MOOD_LAYOUT_KEY, v); } catch (e) { /* this visit only */ } moodLayoutMenuPaint(); if (mood.open) moodRender(); }
+function moodLayoutMenuPaint() { document.querySelectorAll('[data-mood-layout]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.moodLayout === moodLayout()))); }
+const mood = { open: false, sel: new Set(), all: false, fresh: false, shown: 40, msg: '', last: [], songs: false, opened: new Set(), colCat: 'mood', colSense: '' };
+const moodKeyOf = (c) => 's:' + c.cat + ':' + c.head;
+const MOOD_YOURS = 's:other:yours';
+function moodSenseOfKey(k) { const c = descConceptOf(k); return c ? moodKeyOf(c) : MOOD_YOURS; }
+function moodUnits() {                                             // what can be matched: releases with descriptors, or songs with their own
   const out = [];
-  state.raw.forEach(r => {
-    const keys = parseDescriptors(r.rymDescriptors).map(descKey); if (!keys.length) return;
-    const bySense = new Map(); keys.forEach(k => { const c = descConceptOf(k); if (!c) return; const id = moodKeyOf(c); if (!bySense.has(id)) bySense.set(id, []); bySense.get(id).push(k); });
-    if (bySense.size) out.push({ item: r, bySense });
+  (state.raw || []).forEach(r => {
+    if (mood.fresh && hasLoggedListen(r)) return;
+    if (!mood.songs) { const keys = parseDescriptors(r.rymDescriptors).map(descKey); if (keys.length) out.push({ item: r, keys }); return; }
+    const td = r.trackData || {}; Object.keys(td).forEach(n => { const keys = typeof sdGet === 'function' ? sdGet(r, Number(n)) : []; if (keys.length) out.push({ item: r, num: Number(n), name: likeTrackName(r, Number(n)), keys }); });
   });
   return out;
 }
-function moodResults() {
+function moodCounts(units) {                                       // descriptor -> how many; sense -> how many
+  const d = new Map(), s = new Map();
+  units.forEach(u => { const seen = new Set(); u.keys.forEach(k => { d.set(k, (d.get(k) || 0) + 1); const sid = moodSenseOfKey(k); if (!seen.has(sid)) { seen.add(sid); s.set(sid, (s.get(sid) || 0) + 1); } }); });
+  return { d, s };
+}
+function moodHit(id, keys) { return id.startsWith('d:') ? keys.filter(k => k === id.slice(2)) : keys.filter(k => moodSenseOfKey(k) === id); }
+function moodResults(units) {
   const sel = [...mood.sel], res = [];
-  moodIndex().forEach(({ item, bySense }) => {
-    if (mood.fresh && hasLoggedListen(item)) return;
-    const hit = sel.filter(id => bySense.has(id)); if (!hit.length || (mood.all && hit.length < sel.length)) return;
-    const words = []; hit.forEach(id => words.push(...bySense.get(id)));
-    res.push({ item, hit: hit.length, words, score: hit.length * 1000 + words.length * 10 });
+  units.forEach(u => {
+    const words = [], hit = sel.filter(id => { const h = moodHit(id, u.keys); h.forEach(w => { if (!words.includes(w)) words.push(w); }); return h.length; });
+    if (!hit.length || (mood.all && hit.length < sel.length)) return;
+    res.push(Object.assign({}, u, { hit: hit.length, words, score: hit.length * 1000 + words.length * 10 }));
   });
   res.sort((a, b) => b.score - a.score || (b.item.rating || 0) - (a.item.rating || 0) || (b.item.rymRating || 0) - (a.item.rymRating || 0) || a.item.title.localeCompare(b.item.title));
   return res;
 }
-function moodFeeling(text) {                                     // a word for a feeling -> the shared sense(s) that mean it: "sorrowful" -> sadness, "melan" -> sadness
+function moodFeeling(text) {                                     // a word: a descriptor itself picks that descriptor; a word for a feeling picks the sense(s) that mean it
   const q = descKey(text); if (!q) return;
-  let found = []; const con = descConceptOf(q);
-  if (con) found = [con]; else { found = descSynonymConcepts(q).map(h => h.c); if (!found.length && q.length >= 3) found = DESC_CONCEPTS.filter(c => c.words.some(w => w.startsWith(q))); }
-  if (!found.length) mood.msg = `Nothing in the thesaurus means \u201c${text.trim()}\u201d. Try another word, or pick from the list.`;
-  else { found.slice(0, 3).forEach(c => mood.sel.add(moodKeyOf(c))); mood.msg = `\u201c${text.trim()}\u201d \u2192 ${found.slice(0, 3).map(c => c.head).join(', ')}`; }
+  if (descConceptOf(q) || moodCounts(moodUnits()).d.has(q)) { mood.sel.add('d:' + q); mood.msg = `“${text.trim()}” picked`; return; }
+  let found = descSynonymConcepts(q).map(h => h.c); if (!found.length && q.length >= 3) found = DESC_CONCEPTS.filter(c => c.words.some(w => w.startsWith(q)));
+  if (!found.length) mood.msg = `Nothing in the thesaurus means “${text.trim()}”. Try another word, or pick from the list.`;
+  else { found.slice(0, 3).forEach(c => mood.sel.add(moodKeyOf(c))); mood.msg = `“${text.trim()}” → ${found.slice(0, 3).map(c => c.head).join(', ')}`; }
 }
 function moodThumb(item) {
   const url = (state.artCache[artKey(item)] && state.artCache[artKey(item)].art) || item.cover || '';
   const init = (String(item.artist || '?').match(/\b\w/g) || ['?']).slice(0, 2).join('').toUpperCase();
   return url ? `<img class="mood-img" src="${escapeHtml(url)}" ${rymIsRymImage(url) ? 'referrerpolicy="no-referrer" ' : ''}alt="" loading="lazy" data-init="${escapeHtml(init)}">` : `<div class="mood-ph" aria-hidden="true">${escapeHtml(init)}</div>`;
 }
+// the senses as the layouts show them: each category's senses, and "yours" (descriptors in your crate the list doesn't know)
+function moodSenses(counts) {
+  const cats = DESC_CATS.map(cat => ({ id: cat.id, label: cat.label, senses: cat.groups.map(g => ({ id: cat.id ? 's:' + cat.id + ':' + g.head : '', head: g.head, words: g.words, syn: g.syn })) }));
+  const known = new Set(DESC_CONCEPTS.flatMap(c => c.words)), yours = [...counts.d.keys()].filter(k => !known.has(k)).sort((a, b) => counts.d.get(b) - counts.d.get(a) || a.localeCompare(b));
+  if (yours.length) cats.push({ id: 'other', label: 'Yours (not in the list)', senses: [{ id: MOOD_YOURS, head: 'yours', words: yours, syn: [], yours: true }] });
+  return cats;
+}
+function moodSenseState(s, counts) {                               // whole sense picked, or how many of its descriptors are
+  const on = mood.sel.has(s.id), part = s.words.filter(w => mood.sel.has('d:' + w)).length;
+  return { on, part, n: counts.s.get(s.id) || 0 };
+}
+const moodDChip = (k, n, cls) => { const on = mood.sel.has('d:' + k); return `<button type="button" class="mood-dchip${on ? ' on' : ''}${n ? '' : ' none'}${cls ? ' ' + cls : ''}" data-d="${escapeHtml(k)}" aria-pressed="${on}">${escapeHtml(k)}<small>${n}</small></button>`; };
+function moodRenderOpen(cats, counts) {
+  return cats.map(cat => {
+    const chips = cat.senses.map(s => {
+      const st = moodSenseState(s, counts), open = mood.opened.has(s.id);
+      if (s.yours) return s.words.map(k => moodDChip(k, counts.d.get(k) || 0)).join('');
+      return `<span class="mood-sgroup"><button type="button" class="mood-chip${st.on ? ' on' : st.part ? ' part' : ''}${st.n ? '' : ' none'}" data-s="${escapeHtml(s.id)}" aria-pressed="${st.on}">${escapeHtml(s.head)}<small>${st.part && !st.on ? st.part + ' of ' + s.words.length + ' · ' : ''}${st.n}</small></button><button type="button" class="mood-caret${open ? ' open' : ''}" data-open="${escapeHtml(s.id)}" aria-expanded="${open}" aria-label="${open ? 'Close' : 'Open'} ${escapeHtml(s.head)}: its descriptors">${open ? '▾' : '▸'}</button></span>`;
+    }).join('');
+    const panels = cat.senses.filter(s => !s.yours && mood.opened.has(s.id)).map(s => `<div class="mood-open"><div class="mood-open-h"><b>${escapeHtml(s.head)}</b><button type="button" class="mood-link" data-s="${escapeHtml(s.id)}">${mood.sel.has(s.id) ? 'Unpick all of ' : 'Pick all of '}${escapeHtml(s.head)}</button></div><div class="mood-chips">${s.words.map(k => moodDChip(k, counts.d.get(k) || 0)).join('')}</div>${s.syn.length ? `<div class="mood-syn">also means it: ${escapeHtml(s.syn.slice(0, 6).join(', '))}</div>` : ''}</div>`).join('');
+    return `<div class="mood-cat"><div class="mood-cat-name">${escapeHtml(cat.label)}</div><div class="mood-chips">${chips}</div>${panels}</div>`;
+  }).join('');
+}
+function moodRenderCols(cats, counts) {
+  const cat = cats.find(c => c.id === mood.colCat) || cats[0];
+  const sense = cat.senses.find(s => s.id === mood.colSense) || cat.senses[0];
+  const catN = (c) => c.senses.reduce((x, s) => x + (s.words.some(w => mood.sel.has('d:' + w)) || mood.sel.has(s.id) ? 1 : 0), 0);
+  const colA = cats.map(c => `<button type="button" class="mood-ci${c === cat ? ' cur' : ''}" data-col-cat="${escapeHtml(c.id)}"><span>${escapeHtml(c.label)}</span><small>${catN(c) ? catN(c) + ' ›' : '›'}</small></button>`).join('');
+  const colB = cat.senses.map(s => { const st = moodSenseState(s, counts); return `<button type="button" class="mood-ci${s === sense ? ' cur' : ''}${st.on || st.part ? ' picked' : ''}" data-col-sense="${escapeHtml(s.id)}"><span>${escapeHtml(s.head)}</span><small>${st.on ? 'all · ' : st.part ? st.part + ' · ' : ''}${st.n} ›</small></button>`; }).join('');
+  const all = !sense.yours ? `<button type="button" class="mood-ck all${mood.sel.has(sense.id) ? ' on' : ''}" data-s="${escapeHtml(sense.id)}"><span class="mood-box" aria-hidden="true"></span><span>All of ${escapeHtml(sense.head)}</span><small>${counts.s.get(sense.id) || 0}</small></button>` : '';
+  const colC = sense.words.map(k => { const on = mood.sel.has('d:' + k), n = counts.d.get(k) || 0; return `<button type="button" class="mood-ck${on ? ' on' : ''}${n ? '' : ' none'}" data-d="${escapeHtml(k)}" aria-pressed="${on}"><span class="mood-box" aria-hidden="true"></span><span>${escapeHtml(k)}</span><small>${n}</small></button>`; }).join('');
+  return `<div class="mood-cols"><div class="mood-col"><div class="mood-cat-name">Category</div>${colA}</div><div class="mood-col"><div class="mood-cat-name">Sense</div>${colB}</div><div class="mood-col"><div class="mood-cat-name">${sense.yours ? 'Yours' : 'In ' + escapeHtml(sense.head)}</div>${all}${colC}${sense.syn && sense.syn.length ? `<div class="mood-syn">Typing ${escapeHtml(sense.syn.slice(0, 4).join(', '))} finds these too.</div>` : ''}</div></div>`;
+}
+function moodRenderCloud(cats, counts) {
+  const vals = [...counts.d.values()], max = Math.max(1, ...vals), min = Math.min(max, ...vals);
+  const size = (n) => max > min ? Math.round(12.5 + 10 * Math.sqrt((n - min) / (max - min))) : 15;          // between your least and most used descriptors
+  const clusters = [];
+  cats.forEach(cat => cat.senses.forEach(s => {
+    const present = s.words.filter(k => counts.d.get(k)); if (!present.length) return;
+    present.sort((a, b) => counts.d.get(b) - counts.d.get(a));
+    const st = moodSenseState(s, counts);
+    clusters.push(`<div class="mood-cl${s.yours ? ' wide' : ''}"><button type="button" class="mood-cl-h${st.on ? ' on' : ''}" ${s.yours ? 'disabled' : `data-s="${escapeHtml(s.id)}"`} title="${s.yours ? '' : 'Pick all of ' + escapeHtml(s.head)}">${escapeHtml(s.yours ? 'yours, not in the list' : s.head)}</button><div class="mood-cl-ws">${present.map(k => { const on = mood.sel.has('d:' + k), n = counts.d.get(k); return `<button type="button" class="mood-cw${on ? ' on' : ''}" data-d="${escapeHtml(k)}" style="font-size:${size(n)}px" title="${n} ${mood.songs ? 'song' : 'release'}${n === 1 ? '' : 's'}" aria-pressed="${on}">${escapeHtml(k)}</button>`; }).join('')}</div></div>`);
+  }));
+  return clusters.length ? `<div class="mood-cloud">${clusters.join('')}</div>` : '';
+}
+function moodPickLabel(id) { return id.startsWith('d:') ? id.slice(2) : id === MOOD_YOURS ? 'yours' : id.slice(id.indexOf(':', 2) + 1) + ' · any'; }
 function moodRender() {
   const sensesEl = document.getElementById('moodSenses'), resEl = document.getElementById('moodResults'), msgEl = document.getElementById('moodMsg'); if (!sensesEl || !resEl) return;
-  const idx = moodIndex().filter(x => !mood.fresh || !hasLoggedListen(x.item)), counts = new Map();
-  idx.forEach(x => x.bySense.forEach((_, id) => counts.set(id, (counts.get(id) || 0) + 1)));
-  sensesEl.innerHTML = DESC_CATS.map(cat => `<div class="mood-cat"><div class="mood-cat-name">${escapeHtml(cat.label)}</div><div class="mood-chips">${cat.groups.map(g => { const id = cat.id + ':' + g.head, n = counts.get(id) || 0, on = mood.sel.has(id); return `<button type="button" class="mood-chip${on ? ' on' : ''}${n ? '' : ' none'}" data-s="${escapeHtml(id)}" aria-pressed="${on}">${escapeHtml(g.head)}<small>${n}</small></button>`; }).join('')}</div></div>`).join('');
+  const layout = moodLayout(), units = moodUnits(), counts = moodCounts(units), cats = moodSenses(counts);
+  const dlg = sensesEl.closest('.mood-dialog'); if (dlg) { dlg.classList.remove('mood-l-open', 'mood-l-cols', 'mood-l-cloud'); dlg.classList.add('mood-l-' + layout); }
+  document.querySelectorAll('#moodOverlay [data-mood-mode]').forEach(b => b.classList.toggle('on', (b.dataset.moodMode === 'songs') === mood.songs));
+  const what = mood.songs ? 'song' : 'release', unitsAll = units.length;
+  sensesEl.innerHTML = layout === 'cols' ? moodRenderCols(cats, counts) : layout === 'cloud' ? (moodRenderCloud(cats, counts) || `<div class="mood-empty"><b>No ${what} has descriptors yet.</b></div>`) : moodRenderOpen(cats, counts);
+  const picks = document.getElementById('moodPicks');
+  if (picks) { picks.hidden = !mood.sel.size; picks.innerHTML = mood.sel.size ? `<span class="mood-cat-name">Your pick</span>${[...mood.sel].map(id => `<button type="button" class="mood-pick" data-x="${escapeHtml(id)}" title="Take it off">${escapeHtml(moodPickLabel(id))} <span aria-hidden="true">×</span></button>`).join('')}` : ''; }
   msgEl.textContent = mood.msg || '';
-  const res = moodResults(); mood.last = res;
-  const withD = moodIndex().length, total = state.raw.length;
+  const res = moodResults(units); mood.last = res;
   if (!mood.sel.size) {
-    resEl.innerHTML = `<div class="mood-empty"><b>Pick a sense on the left, or type a feeling above.</b><p>${withD ? `${withD} of your ${total} releases have descriptors to match on. Update more of them from Rate Your Music (update \u21bb) or add descriptors in a release\u2019s details to widen this.` : `None of your ${total} releases has descriptors yet. Update them from Rate Your Music (update \u21bb), or add descriptors in a release\u2019s details, and this will have something to choose from.`}</p></div>`; return;
+    const total = state.raw.length;
+    resEl.innerHTML = mood.songs
+      ? `<div class="mood-empty"><b>Pick a sense or a descriptor, or type a feeling above.</b><p>${unitsAll ? `${unitsAll} of your songs have descriptors of their own to match on.` : 'None of your songs has descriptors of its own yet.'} Give a song some from its chips in any tracklist, or right-click it → Edit track properties… → Descriptors.</p></div>`
+      : `<div class="mood-empty"><b>Pick a sense or a descriptor, or type a feeling above.</b><p>${unitsAll ? `${unitsAll} of your ${total} releases have descriptors to match on. Update more of them from Rate Your Music (update ↻) or add descriptors in a release’s details to widen this.` : `None of your ${total} releases has descriptors yet. Update them from Rate Your Music (update ↻), or add descriptors in a release’s details, and this will have something to choose from.`}</p></div>`;
+    return;
   }
-  const names = [...mood.sel].map(id => { const [c, h] = [id.slice(0, id.indexOf(':')), id.slice(id.indexOf(':') + 1)]; return h; });
-  const head = `<div class="mood-rhead"><span>${res.length} release${res.length === 1 ? '' : 's'} fit${res.length === 1 ? 's' : ''}${mood.sel.size > 1 ? (mood.all ? ' all ' + mood.sel.size + ' senses' : ' (best matches first)') : ''}</span><div class="mood-acts"><button type="button" class="mood-btn" data-m="surprise"${res.length ? '' : ' disabled'}>Surprise me</button><button type="button" class="mood-btn" data-m="play"${res.length ? '' : ' disabled'}>Play these</button><button type="button" class="mood-btn" data-m="save"${res.length ? '' : ' disabled'}>Save as playlist\u2026</button></div></div>`;
-  const rows = res.slice(0, mood.shown).map((r, i) => `<div class="mood-row" data-i="${i}" role="button" tabindex="0">${moodThumb(r.item)}<div class="mood-name"><b>${escapeHtml(r.item.title)}</b><i>${escapeHtml(r.item.artist)}${r.item.releaseDate ? ' \u00b7 ' + escapeHtml(String(r.item.releaseDate).slice(0, 4)) : ''}</i></div><div class="mood-words">${r.words.map(w => `<span class="mood-w">${escapeHtml(w)}</span>`).join('')}${mood.sel.size > 1 ? `<small>${r.hit} of ${mood.sel.size}</small>` : ''}</div></div>`).join('');
-  resEl.innerHTML = head + (res.length ? rows : `<div class="mood-empty"><b>Nothing fits that.</b><p>${mood.all ? 'Try without \u201cmust fit every sense\u201d, or take one of the senses off.' : 'None of your releases has descriptors in that sense yet.'}</p></div>`) + (res.length > mood.shown ? `<button type="button" class="mood-more" data-m="more">Show ${Math.min(40, res.length - mood.shown)} more</button>` : '');
+  const n = res.length, head = `<div class="mood-rhead"><span>${n} ${what}${n === 1 ? '' : 's'} fit${n === 1 ? 's' : ''}${mood.sel.size > 1 ? (mood.all ? ' every pick' : ' (best matches first)') : ''}</span><div class="mood-acts"><button type="button" class="mood-btn" data-m="surprise"${n ? '' : ' disabled'}>Surprise me</button><button type="button" class="mood-btn" data-m="play"${n ? '' : ' disabled'}>Play these</button><button type="button" class="mood-btn" data-m="save"${n ? '' : ' disabled'}>Save as playlist…</button></div></div>`;
+  const rows = res.slice(0, mood.shown).map((r, i) => `<div class="mood-row" data-i="${i}" role="button" tabindex="0">${moodThumb(r.item)}<div class="mood-name"><b>${escapeHtml(r.num ? r.name : r.item.title)}${r.num && typeof likeIsOn === 'function' && likeIsOn(r.item, r.num) ? ' <span class="mood-heart" aria-label="liked">♥</span>' : ''}</b><i>${escapeHtml(r.item.artist)}${r.num ? ' · ' + escapeHtml(r.item.title) : r.item.releaseDate ? ' · ' + escapeHtml(String(r.item.releaseDate).slice(0, 4)) : ''}</i></div><div class="mood-words">${r.words.map(w => `<span class="mood-w">${escapeHtml(w)}</span>`).join('')}${mood.sel.size > 1 ? `<small>${r.hit} of ${mood.sel.size}</small>` : ''}</div></div>`).join('');
+  resEl.innerHTML = head + (n ? rows : `<div class="mood-empty"><b>Nothing fits that.</b><p>${mood.all ? 'Try without “must fit every pick”, or take one of the picks off.' : `None of your ${what}s has those descriptors yet.`}</p></div>`) + (n > mood.shown ? `<button type="button" class="mood-more" data-m="more">Show ${Math.min(40, n - mood.shown)} more</button>` : '');
 }
 function openMoodPicker() { mood.open = true; mood.shown = 40; document.getElementById('moodOverlay').hidden = false; moodRender(); const f = document.getElementById('moodFeel'); if (f) f.focus(); }
 function closeMoodPicker() { mood.open = false; const ov = document.getElementById('moodOverlay'); if (ov) ov.hidden = true; }
 function moodAct(kind) {
-  const res = mood.last; if (!res.length) return;
-  if (kind === 'surprise') { const pool = res.slice(0, 10), pick = pool[Math.floor(Math.random() * pool.length)]; closeMoodPicker(); flashGlobalToast(`Playing \u201c${pick.item.title}\u201d \u2014 ${pick.words.slice(0, 4).join(', ')}`); playAlbumReplacingQueue(pick.item); }
-  else if (kind === 'play') { const list = res.slice(0, 100).map(r => r.item); for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; } closeMoodPicker(); playAlbumsReplacingQueue(list); }
-  else if (kind === 'save') {
-    const names = [...mood.sel].map(id => id.slice(id.indexOf(':') + 1)).slice(0, 3).join(' + '), items = res.slice(0, 100).map(r => ({ itemType: 'album', row: r.item.row, albumId: r.item.albumId || '', trackNum: '', trackName: '' }));
+  const res = mood.last; if (!res.length && kind !== 'more') return;
+  const songItem = (r) => ({ itemType: 'track', row: r.item.row, albumId: r.item.albumId || '', trackNum: r.num, trackName: r.name });
+  if (kind === 'surprise') {
+    const pool = res.slice(0, 10), pick = pool[Math.floor(Math.random() * pool.length)]; closeMoodPicker();
+    flashGlobalToast(`Playing “${pick.num ? pick.name : pick.item.title}” — ${pick.words.slice(0, 4).join(', ')}`);
+    if (pick.num) playTrackNow(pick.item, pick.name, pick.num); else playAlbumReplacingQueue(pick.item);
+  } else if (kind === 'play') {
+    const list = res.slice(0, 100); for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
+    closeMoodPicker(); if (mood.songs) playTracksNow(list.map(songItem)); else playAlbumsReplacingQueue(list.map(r => r.item));
+  } else if (kind === 'save') {
+    const names = [...mood.sel].map(moodPickLabel).slice(0, 3).join(' + '), items = res.slice(0, 100).map(r => r.num ? songItem(r) : ({ itemType: 'album', row: r.item.row, albumId: r.item.albumId || '', trackNum: '', trackName: '' }));
     closeMoodPicker(); openPlaylistModal('create', null, items); el.playlistNameInput.value = `Mood: ${names}`;
   } else if (kind === 'more') { mood.shown += 40; moodRender(); }
 }
 (function wireMood() {
   const ov = document.getElementById('moodOverlay'); if (!ov) return;
+  const toggle = (id) => { if (mood.sel.has(id)) mood.sel.delete(id); else mood.sel.add(id); mood.msg = ''; mood.shown = 40; moodRender(); };
   ov.addEventListener('click', (e) => {
     if (e.target === ov || e.target.closest('#moodClose')) { closeMoodPicker(); return; }
-    const chip = e.target.closest('.mood-chip'); if (chip) { const id = chip.dataset.s; if (mood.sel.has(id)) mood.sel.delete(id); else mood.sel.add(id); mood.msg = ''; mood.shown = 40; moodRender(); return; }
-    const act = e.target.closest('[data-m]'); if (act) { moodAct(act.dataset.m); return; }
-    if (e.target.closest('#moodClear')) { mood.sel.clear(); mood.msg = ''; moodRender(); return; }
-    const row = e.target.closest('.mood-row'); if (row) { const r = mood.last[Number(row.dataset.i)]; if (r) { closeMoodPicker(); openDeck(r.item); } }
+    const t = e.target.closest('button, .mood-row'); if (!t) return;
+    if (t.dataset.open) { if (mood.opened.has(t.dataset.open)) mood.opened.delete(t.dataset.open); else mood.opened.add(t.dataset.open); moodRender(); return; }
+    if (t.dataset.s) { toggle(t.dataset.s); return; }
+    if (t.dataset.d) { toggle('d:' + t.dataset.d); return; }
+    if (t.dataset.x) { mood.sel.delete(t.dataset.x); moodRender(); return; }
+    if (t.dataset.colCat) { mood.colCat = t.dataset.colCat; mood.colSense = ''; moodRender(); return; }
+    if (t.dataset.colSense) { mood.colSense = t.dataset.colSense; moodRender(); return; }
+    if (t.dataset.moodMode) { mood.songs = t.dataset.moodMode === 'songs'; mood.shown = 40; moodRender(); return; }
+    if (t.dataset.m) { moodAct(t.dataset.m); return; }
+    if (t.id === 'moodClear') { mood.sel.clear(); mood.msg = ''; moodRender(); return; }
+    if (t.classList.contains('mood-row')) { const r = mood.last[Number(t.dataset.i)]; if (r) { closeMoodPicker(); openDeck(r.item); } }
   });
   ov.addEventListener('change', (e) => { if (e.target.id === 'moodAll') { mood.all = e.target.checked; moodRender(); } else if (e.target.id === 'moodFresh') { mood.fresh = e.target.checked; moodRender(); } });
   ov.addEventListener('keydown', (e) => {
@@ -294,6 +376,8 @@ function moodAct(kind) {
   });
   ov.addEventListener('error', (e) => { const im = e.target; if (im && im.classList && im.classList.contains('mood-img')) { const ph = document.createElement('div'); ph.className = 'mood-ph'; ph.textContent = im.dataset.init || '?'; im.replaceWith(ph); } }, true);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && mood.open) { e.stopPropagation(); closeMoodPicker(); } }, true);
+  document.querySelectorAll('[data-mood-layout]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); moodLayoutSet(b.dataset.moodLayout); }));
+  moodLayoutMenuPaint();
 })();
 
 // ================= Merge duplicates: find releases that are the same, keep the best of each, and fold them into one =================
