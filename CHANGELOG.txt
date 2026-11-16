@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.11
+  CURRENT_VERSION: 1.135.12
 
+  1.135.12 — 2026-11-16 — Fix: the songs in the Tracks view kept moving. The table is drawn again as tracklists arrive, and each time
+          the rows were drawn 32 px tall, then the heart, ↓ and descriptor chips put on them a moment later made them 38 px
+          (the ↓ is taller than the title's line), so the whole list jumped down and up about once a second while loading.
+          Those now overhang their line instead of stretching it, and while tracklists load the table is drawn again every
+          3 s instead of every second (new songs sort in among the rows already there).
   1.135.11 — 2026-11-16 — A look round. (1) Lookups instead of searches through the whole crate where they ran over and over: the jobs
           strip's blank-filling and match-queue rows (rebuilt about once a second, and a search per waiting entry: 2 s of a
           phone's 106-s speed check), each diary entry's release, each playlist item's, the RYM queue's rows, Soulseek downloads'

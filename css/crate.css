@@ -5330,3 +5330,9 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
 /* (1.135.11) On a computer too, the space the Processing strip floats in is kept free at the bottom of the page, so it no longer covers the
    catalogue figures or the end of a list (as on a phone: a spacer at the end of #app, a flex column). */
 @media (min-width: 761px) { body.jobs-strip-on #app::after { content: ''; flex: 0 0 52px; } }
+
+/* (1.135.12) The heart, ↓ and descriptor chips put on a song row after it's drawn no longer make the row taller (the ↓ is 22 px, taller
+   than the title's line): every row moved down 6 px a moment after each redraw of the Tracks table, and that table redraws as tracklists
+   arrive, so the list kept jumping. They overhang their line instead of stretching it. */
+.main-track-row .lk-heart, .main-track-row .dl-btn, .track-row .lk-heart, .track-row .dl-btn, .track-row-wrap .lk-heart, .track-row-wrap .dl-btn { margin-top: -4px; margin-bottom: -4px; }
+.main-track-row .sd-chips, .track-row .sd-chips { margin-top: -3px; margin-bottom: -3px; }

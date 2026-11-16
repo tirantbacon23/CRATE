@@ -556,7 +556,7 @@ function loadFlatTrackTable(list) {
   }
   function settleSoon() {                                            // (1.93.4) the table fills in as tracklists arrive, at most about once a second, not only when all are in
     if (shownTimer) return;
-    shownTimer = setTimeout(settle, Math.max(0, (shownAt ? 1000 : 250) - (Date.now() - shownAt)));
+    shownTimer = setTimeout(settle, Math.max(0, (shownAt ? 3000 : 250) - (Date.now() - shownAt)));          // (1.135.12) after the first, every 3 s, not every second: each one can move the rows (new songs sort in among them)
   }
 
   function next() {
