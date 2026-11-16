@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.5
+  CURRENT_VERSION: 1.135.6
 
+  1.135.6 — 2026-11-16 — Fix: on a phone, the cover popup (tap a cover in the covers view) was 380 px wide, so on a wider phone it
+          left a strip of half-covers beside it, and it ran down over the Processing strip and the player at the bottom of the
+          screen. It now takes the whole width on a phone and stops above anything fixed along the bottom.
   1.135.5 — 2026-11-16 — Faster: the Album + Tracks view makes its releases in batches as you scroll (12 at a time, each batch's
           tracklists loaded as it's made) instead of every release with its whole tracklist at once. A phone's speed check
           showed it: 2,840 releases was 19,251 song rows and 342,614 elements on the page, and every pass over the page (the

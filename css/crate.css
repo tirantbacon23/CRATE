@@ -2990,7 +2990,7 @@ html, body {
     .album-quick-peek.album-quick-peek-sleeve { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto 1fr auto; grid-template-areas: "head" "acts" "tabs" "list" "sel"; max-height: 88vh; }
     .album-quick-peek-sleeve .album-quick-peek-header { flex-direction: row; } .album-quick-peek-sleeve .album-quick-peek-art, .album-quick-peek-sleeve .album-quick-peek-art.art { width: 96px; height: 96px; }
     .album-quick-peek-sleeve .qp-tabs, .album-quick-peek-sleeve .album-quick-peek-tracks, .album-quick-peek-sleeve .qp-panel, .album-quick-peek-sleeve .qp-selbar { border-left: none; }
-    .album-quick-peek { width: min(380px, calc(100vw - 16px)); }
+    .album-quick-peek { width: calc(100vw - 16px); }          /* (1.135.6) the whole width on a phone: 380 px left a strip of half-covers beside it */
   }
   .device-row-clickable { cursor: pointer; }
   .device-row-clickable:hover, .device-row-clickable:focus-visible { background: var(--bg-card); }

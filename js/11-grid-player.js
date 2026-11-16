@@ -2525,7 +2525,14 @@ function quickPeekTrackRowHtml(item, t, ord) {
 function placeFloatingQuickPeek(cardEl) {
   const peek = el.albumQuickPeek, r = cardEl.getBoundingClientRect();
   const gap = 6, margin = 8, cap = 560;
-  const below = window.innerHeight - r.bottom - gap - margin;
+  // (1.135.6) Stops above whatever is fixed along the bottom of the screen (the player, the jobs strip, a phone's tab bar): it used to run
+  // down over them, cutting them off.
+  let floor = window.innerHeight;
+  document.querySelectorAll('#miniPlayer, #jobsStrip, .mobile-tab-bar, .bottom-bar').forEach(b => {
+    if (b.hidden || b.contains(peek)) return; const s = getComputedStyle(b); if (s.display === 'none' || s.visibility === 'hidden' || !/fixed|sticky/.test(s.position)) return;
+    const br = b.getBoundingClientRect(); if (br.height && br.top > window.innerHeight * 0.5 && br.top < floor) floor = br.top;
+  });
+  const below = floor - r.bottom - gap - margin;
   const above = r.top - gap - margin;
   const useAbove = below < 240 && above > below;
   peek.style.maxHeight = Math.max(160, Math.min(cap, useAbove ? above : below)) + 'px';
