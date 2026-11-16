@@ -96,7 +96,7 @@ function openTrackActionsMenu({ item, trackName, trackNum, spotifyTrack, x, y, q
     <button type="button" data-player-action="queuePlayNow">Play now</button>
     <button type="button" data-player-action="queuePlayNext" ${qIdx === crateQueueIndex + 1 ? 'disabled title="Already next"' : ''}>Play next</button>
     <button type="button" data-player-action="queueRemove">Remove from queue</button>
-    ${queueEntry.item && typeof p2p !== 'undefined' && p2p.ready ? '<button type="button" data-player-action="p2pFirst">Download first (Soulseek)</button>' : ''}
+    ${queueEntry.item && typeof dlSong === 'function' && typeof dlReady === 'function' && dlReady() ? '<button type="button" data-player-action="dlSong">Download</button>' : ''}
     <div class="menu-divider"></div>` : ''}
     <button type="button" class="menu-parent-btn" data-player-action="playlist" ${item ? '' : needsCrate}>Add to playlist <span class="submenu-caret">\u25b8</span></button>
     ${queueEntry ? '' : `<button type="button" data-player-action="queue" ${item ? '' : needsCrate}>Add to queue</button>`}
@@ -134,7 +134,7 @@ function openTrackActionsMenu({ item, trackName, trackNum, spotifyTrack, x, y, q
     closeNowPlayingAddMenu();
 
     if (action === 'queue') queueTracksNow(trackPlaylistItems);
-    else if (action === 'p2pFirst') { if (queueEntry && queueEntry.item) p2pDownloadFirst(queueEntry.item, queueEntry.track.trackName, queueEntry.track.trackNumber); }          // (1.112.0)
+    else if (action === 'dlSong') { if (queueEntry && queueEntry.item) dlSong(queueEntry.item, Number(queueEntry.track.trackNumber) || 0, queueEntry.track.trackName); }          // (1.135.32) Download (was "Download first")
     else if (action === 'queuePlayNow') { const i = crateQueueList.indexOf(queueEntry); if (i > crateQueueIndex) playCrateQueueIndex(crateQueueId, i); }
     else if (action === 'queuePlayNext') crateQueuePlayNext(queueEntry);
     else if (action === 'queueRemove') crateQueueRemove(queueEntry);
@@ -233,7 +233,7 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
     <button type="button" data-track-menu-action="entry">Add to entry</button>
     <div class="menu-divider"></div>
     ${!isMultiSelect ? '<button type="button" data-track-menu-action="editProps">Edit track properties\u2026</button>' : ''}
-    ${!isMultiSelect && typeof p2p !== 'undefined' && p2p.ready ? '<button type="button" data-track-menu-action="p2pFirst" title="Fetch this song from Soulseek ahead of the others">Download first (Soulseek)</button>' : ''}
+    ${!isMultiSelect && typeof dlSong === 'function' && typeof dlReady === 'function' && dlReady() ? '<button type="button" data-track-menu-action="dlSong" title="Download this song from Soulseek">Download</button>' : ''}
     ${showMatchTools ? '<button type="button" data-track-menu-action="confirmMatch">\u2713 Confirm Spotify match</button>' : ''}
     ${showMatchTools ? '<button type="button" data-track-menu-action="nextMatch">\u21bb Try next Spotify match</button>' : ''}
     ${trackRymLink ? '<button type="button" data-track-menu-action="rym">View on RateYourMusic \u2197</button>' : ''}
@@ -270,7 +270,7 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
     else if (action === 'queue') queueTracksNow(trackPlaylistItems);
     else if (action === 'entry') addTracksToEntry(trackPlaylistItems);
     else if (action === 'editProps') openTrackPropertiesModal(item, trackNum, trackName);
-    else if (action === 'p2pFirst') p2pDownloadFirst(item, trackName, trackNum);          // (1.112.0)
+    else if (action === 'dlSong') dlSong(item, Number(trackNum) || 0, trackName);          // (1.135.32) Download (was "Download first")
     else if (action === 'confirmMatch') confirmSpotifyMatch(item, trackName, trackNum);
     else if (action === 'nextMatch') tryNextSpotifyMatch(item, trackName, trackNum);
     else if (action === 'rym') window.open(trackRymLink, '_blank', 'noopener,noreferrer');
@@ -291,6 +291,16 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
 // match on still work via trackLinkOverridesFor's title fallback) but
 // should be passed whenever available — it's required to look up a saved
 // link on a non-manual album's track, which has no other unique key.
+// (1.135.32) A song's ▶ YT button: that song played from YouTube through the queue, as one entry, so Up next shows it as now playing (it
+// played straight into the player before, past the queue, and Up next stayed empty). Its Spotify link is left out of the entry: the
+// button asked for YouTube.
+function playYtSongQueued(item, link, trackName, trackNum) {
+  if (!item || !link) { openYoutubePlayer(link, trackName, item ? state.trackCache[artKey(item)] : undefined, item); return; }
+  const num = trackNum || ((state.trackCache[artKey(item)] || []).find(t => t.trackName === trackName) || {}).trackNumber || '';
+  const myId = ++crateQueueId;
+  crateQueueList = [{ item, track: Object.assign({ trackName, trackNumber: num }, trackLinkOverridesFor(item, num, trackName), { youtubeLink: link, spotifyLink: '' }) }];
+  crateQueueIndex = -1; nowPlayingItem = item; renderCrateQueuePanel(); playCrateQueueIndex(myId, 0);
+}
 async function playTrackNow(item, trackName, trackNum) {
   if (!trackName) return;
   nowPlayingItem = item;

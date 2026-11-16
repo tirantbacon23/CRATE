@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.31
+  CURRENT_VERSION: 1.135.32
 
+  1.135.32 — 2026-11-16 — (1) Fix: in a release's tracklist, a long song title dropped to a line of its own under its ▶ YT button (and
+          its play count under that); the buttons and the title now sit side by side, the title ending in … when it's too long.
+          (2) A song's ▶ YT button (the release's tracklist, the Tracks and Album and Tracks views) now plays the song through the
+          queue, so Up next shows it as now playing; it played straight into the player before, and Up next stayed empty.
+          (3) The song menus' "Download first (Soulseek)" is now "Download", the same as the ↓ on song rows.
   1.135.31 — 2026-11-16 — Five trippy visualizer styles beside Ring, Bars and Wave (the visualizer's style button goes round them all):
           Tunnel (neon shapes rushing out of a spinning tunnel of trails), Kaleidoscope (the cover and the spectrum mirrored
           twelve ways, turning), Nebula (thousands of particles drifting through a swirling field), Hyperspace (stars streaking

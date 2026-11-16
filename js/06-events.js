@@ -1150,7 +1150,8 @@ function bindEvents() {
 
     const ytPlayBtn = e.target.closest('.track-play-yt-btn');
     if (ytPlayBtn) {
-      openYoutubePlayer(ytPlayBtn.dataset.youtubeLink, ytPlayBtn.dataset.trackName, undefined, activeItem);
+      const wrap = ytPlayBtn.closest('[data-track]');
+      playYtSongQueued(activeItem, ytPlayBtn.dataset.youtubeLink, ytPlayBtn.dataset.trackName, wrap ? wrap.dataset.track : '');          // (1.135.32) through the queue: Up next shows it
       return;
     }
 
@@ -1254,7 +1255,7 @@ function bindEvents() {
       // cached tracklist rather than whatever's open in the deck, if
       // anything. See openYoutubePlayer's comment for why that matters.
       const rowItem = state.raw.find(r => String(r.row) === ytPlayBtn.dataset.row);
-      openYoutubePlayer(ytPlayBtn.dataset.youtubeLink, ytPlayBtn.dataset.trackName, rowItem ? state.trackCache[artKey(rowItem)] : undefined, rowItem);
+      playYtSongQueued(rowItem, ytPlayBtn.dataset.youtubeLink, ytPlayBtn.dataset.trackName, ytPlayBtn.dataset.trackNum || '');          // (1.135.32) through the queue: Up next shows it
       return;
     }
     const playBtn = e.target.closest('.track-play-btn');

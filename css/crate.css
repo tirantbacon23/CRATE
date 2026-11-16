@@ -5481,3 +5481,11 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
 .br-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 22px; border-top: 1px solid var(--line); flex: none; }
 .br-done { background: var(--accent); color: #12161C; border-color: var(--accent); }
 @media (max-width: 760px) { .br-body { grid-template-columns: 1fr; } .br-side { border-left: 0; border-top: 1px solid var(--line); max-height: 40vh; } .br-sel { width: 120px; } }
+
+/* (1.135.32) The release view's tracklist: the play buttons, the title and its extras side by side. They flowed as text, so a long title
+   dropped to a line of its own under its ▶ YT button (and its play count under that). Now the buttons keep their size and the title
+   wraps within its own space. */
+.track-row-wrap .track-info-main { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; }
+.track-row-wrap .track-info-main > button, .track-row-wrap .track-info-main > a, .track-row-wrap .track-info-main > .track-scrobble-count, .track-row-wrap .track-info-main > .track-genre-preview { flex: none; }
+.track-row-wrap .track-info-main > .track-name { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.track-row-wrap .track-info-main > .track-note-preview { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
