@@ -210,7 +210,7 @@ function _socFeed(email, u, fresh) {
 // One of a friend's releases with everything worth copying into your own crate. Found by its AlbumId (or artist and title).
 // Left out: what's theirs alone. In TrackData (per song), their rating, note and "listened" are taken off; links, other titles,
 // lengths, credits, genres and RYM figures stay.
-const SOC_RELEASE_SKIP = { AlbumId: 1, DateAdded: 1, Rating: 1, Review: 1, FriendsHidden: 1, Catalog: 1, RymUpdated: 1, RymUpdateLog: 1, _row: 1 };
+const SOC_RELEASE_SKIP = { AlbumId: 1, DateAdded: 1, Rating: 1, Review: 1, FriendsHidden: 1, RymUpdated: 1, RymUpdateLog: 1, _row: 1 };
 const SOC_TRACK_PERSONAL = ['rating', 'note', 'listened', 'liked', 'likedName', 'desc'];          // (1.128.0) a like and your song descriptors are yours too
 function _socRelease(email, u, fid, albumId, artist, title) {
   if ((u.friends || []).indexOf(fid) === -1) return { ok: false, social: true, error: 'Not friends' };
@@ -234,6 +234,7 @@ function _socCopyOf(ownerEmail, albumId, artist, title, allowHidden) {
   if (!r || (!allowHidden && _socHidden(r))) return null;
   const out = {};
   Object.keys(r).forEach(k => { if (!SOC_RELEASE_SKIP[k] && r[k] !== '' && r[k] != null) out[k] = r[k]; });
+  if (out.Catalog && /^CRT-\d+$/i.test(String(out.Catalog).trim())) delete out.Catalog;          // (1.134.4) the label's catalogue number comes along; CRATE's own CRT-001 numbering doesn't
   if (out.TrackData) {
     try {
       const td = JSON.parse(String(out.TrackData)), clean = {};
