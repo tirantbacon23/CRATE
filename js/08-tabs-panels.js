@@ -11,8 +11,10 @@ function switchTab(tab) {
     el.diarySelectModeBtn.classList.remove('active');
     if (selectedDiaryKeys.size) { selectedDiaryKeys.clear(); updateDiarySelectionBar(); }
   }
+  const wasLiked = state.activeTab === 'liked';
   state.activeTab = tab;
   syncLeftPanelViews();
+  if (wasLiked !== (tab === 'liked')) { state.navFilter = null; buildLeftList(); if (typeof updateMainLabel === 'function') updateMainLabel(); }          // (1.134.0) the browser lists liked songs' releases there, the crate (or a playlist) elsewhere: a pick doesn't carry across
   el.tabAlbums.classList.toggle('active', tab === 'albums');
   renderArtistInfoTabButtons(); // dynamic tabs — .active depends on state.activeTab, so re-render rather than toggle a fixed button
   renderGenreTabButtons();

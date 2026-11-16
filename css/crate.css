@@ -5263,7 +5263,7 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
 
   /* (1.132.0) Liked songs, in the panels: the far-left strip and Up Next stay beside it, like the other views. A sortable song list
      (click a heading; again to reverse), or covers (each release you've liked songs from, its liked songs underneath). */
-  #panels.liked-mode > #leftPanel, #panels.liked-mode > #resizerLeft, #panels.liked-mode > #mainPanel { display: none !important; }
+  #panels.liked-mode > #mainPanel { display: none !important; }          /* (1.134.0) the browser column (#leftPanel) stays, listing liked songs' releases */
   #likedWrap.liked-wrap { flex: 1 1 0; min-width: 0; min-height: 0; overflow-y: auto; display: block; }
   #likedWrap.liked-wrap[hidden] { display: none !important; }
   .lkp-page { padding: 4px 18px 24px; }
@@ -5303,18 +5303,6 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
   @media (max-width: 1100px) { .lkp-c-ar, .lkp-c-when { display: none; } .lkp-sub { display: block; } .lkp-tbl td { height: 52px; } }
   @media (max-width: 900px) { .lkp-page { padding: 4px 12px 24px; } .lkp-c-rel, .lkp-c-rt { display: none; } .lkp-tools { margin-left: 0; width: 100%; } .lkp-search { flex: 1; width: auto; } }
 
-  /* (1.133.0) Liked songs' browser column, as in the Music view: Artists / Genres / Decades / Descriptors with counts; a pick shows only its songs. */
   #likedWrap.liked-wrap:not([hidden]) { display: flex; flex-direction: row; overflow: hidden; }
   #likedWrap .lkp-page { flex: 1 1 0; min-width: 0; overflow-y: auto; }
-  .lkp-col { flex: 0 0 270px; display: flex; flex-direction: column; gap: 8px; min-height: 0; border-right: 1px solid var(--line); padding: 8px 14px 0 4px; }
-  .lkp-col-tabs { display: flex; gap: 10px; flex-wrap: wrap; padding: 2px 6px 4px; }
-  .lkp-col-tab { background: none; border: 0; padding: 4px 0; font: 500 10.5px 'IBM Plex Mono', monospace; letter-spacing: 0.4px; text-transform: uppercase; color: var(--text-dim); cursor: pointer; }
-  .lkp-col-tab:hover { color: var(--text); } .lkp-col-tab.on { color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
-  .lkp-col-find { height: 30px; box-sizing: border-box; background: var(--bg-elevated); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 0 10px; font: 12.5px Inter, sans-serif; outline: none; } .lkp-col-find:focus { border-color: var(--accent); }
-  .lkp-col-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; padding-bottom: 16px; }
-  .lkp-col-row { display: flex; align-items: center; gap: 8px; min-height: 31px; padding: 0 10px; border: 0; border-radius: 4px; background: none; color: var(--text); font: 600 13px Inter, sans-serif; text-align: left; cursor: pointer; }
-  .lkp-col-row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lkp-col-row i { font: normal 11px 'IBM Plex Mono', monospace; color: var(--text-dim); }
-  .lkp-col-row:hover { background: var(--bg-card); } .lkp-col-row.on { background: var(--bg-card); color: var(--accent); }
-  .lkp-col-row:focus-visible, .lkp-col-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-  @media (max-width: 900px) { #likedWrap.liked-wrap:not([hidden]) { flex-direction: column; overflow-y: auto; } .lkp-col { flex: none; border-right: 0; border-bottom: 1px solid var(--line); max-height: 220px; padding: 8px 12px; } #likedWrap .lkp-page { overflow: visible; } }
+  

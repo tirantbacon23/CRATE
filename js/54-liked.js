@@ -111,33 +111,14 @@ const LIKED_PREFS_KEY = 'crate_liked_v1';
 try { Object.assign(likedUi, JSON.parse(localStorage.getItem(LIKED_PREFS_KEY) || '{}')); } catch (e) { /* defaults */ }
 if (!likedUi.view) likedUi.view = 'list'; if (!likedUi.dir) likedUi.dir = 1;
 if (likedUi.sort === 'new') { likedUi.sort = 'liked'; likedUi.dir = -1; }
-if (!likedUi.by) likedUi.by = 'artist'; likedUi.pick = ''; likedUi.colQ = '';
-// (1.133.0) The browser column, as in the Music view: pick an artist, genre, decade or descriptor to see only its liked songs.
-const LIKED_BY = [['artist', 'Artists'], ['genre', 'Genres'], ['decade', 'Decades'], ['desc', 'Descriptors']];
-function likedValues(x, by) {
-  const it = x.item;
-  if (by === 'artist') return [it.artist || 'Unknown artist'];
-  if (by === 'genre') { const g = (typeof genreTagsForRole === 'function' ? genreTagsForRole(it, 'any') : []).filter(v => v && v !== 'Unknown'); return g.length ? g : ['No genre']; }
-  if (by === 'decade') { const y = String(it.releaseDate || '').match(/\d{4}/); return [y ? y[0].slice(0, 3) + '0s' : 'No date']; }
-  if (by === 'desc') { const e = (it.trackData || {})[x.num] || {}; const d = Array.isArray(e.desc) ? e.desc : []; return d.length ? d : ['No descriptors']; }
-  return [];
-}
-function likedColumnHtml(all) {
-  const counts = new Map(); all.forEach(x => likedValues(x, likedUi.by).forEach(v => counts.set(v, (counts.get(v) || 0) + 1)));
-  const none = /^(No |Unknown artist)/;
-  let rows = [...counts].sort((a, b) => (none.test(a[0]) - none.test(b[0])) || (likedUi.by === 'decade' ? b[0].localeCompare(a[0]) : a[0].localeCompare(b[0], undefined, { sensitivity: 'base' })));
-  const q = pbFold(likedUi.colQ); if (q) rows = rows.filter(([v]) => pbFold(v).includes(q));
-  const row = (v, label, n) => `<button type="button" class="lkp-col-row${likedUi.pick === v ? ' on' : ''}" data-lkp="pick" data-v="${escapeHtml(v)}" aria-pressed="${likedUi.pick === v}"><span>${escapeHtml(label)}</span><i>${n}</i></button>`;
-  return `<aside class="lkp-col" aria-label="Browse liked songs">
-    <div class="lkp-col-tabs" role="group" aria-label="Browse by">${LIKED_BY.map(([k, t]) => `<button type="button" class="lkp-col-tab${likedUi.by === k ? ' on' : ''}" data-lkp="by" data-v="${k}" aria-pressed="${likedUi.by === k}">${t}</button>`).join('')}</div>
-    <input id="lkpColFind" class="lkp-col-find" type="search" placeholder="Find ${escapeHtml((LIKED_BY.find(b => b[0] === likedUi.by) || [, ''])[1].toLowerCase())}" value="${escapeHtml(likedUi.colQ)}" aria-label="Find in this list" autocomplete="off">
-    <div class="lkp-col-list">${row('', 'All liked songs', all.length)}${rows.map(([v, n]) => row(v, v, n)).join('')}</div>
-  </aside>`;
-}
-function likedPrefsSave() { try { localStorage.setItem(LIKED_PREFS_KEY, JSON.stringify({ sort: likedUi.sort, dir: likedUi.dir, view: likedUi.view, by: likedUi.by })); } catch (e) { /* this visit only */ } }
+// (1.134.0) Browsing: the same browser column as the Music view and playlists (#leftPanel: Albums, Artists, Genres, Labels, Descriptors…),
+// listing the releases you've liked songs from; what's picked there, the search box and the other filters narrow the songs, by the same rules.
+function likedReleases() { const seen = new Set(), out = []; likedAll().forEach(x => { if (!seen.has(x.item)) { seen.add(x.item); out.push(x.item); } }); return out; }
+function likedPrefsSave() { try { localStorage.setItem(LIKED_PREFS_KEY, JSON.stringify({ sort: likedUi.sort, dir: likedUi.dir, view: likedUi.view })); } catch (e) { /* this visit only */ } }
 function likedShown() {
   const q = pbFold(likedUi.q); let list = likedAll();
-  if (likedUi.pick) list = list.filter(x => likedValues(x, likedUi.by).includes(likedUi.pick));
+  const terms = typeof getSearchTerms === 'function' ? getSearchTerms() : [];
+  if (typeof albumPassesBrowse === 'function') list = list.filter(x => albumPassesBrowse(x.item, terms));
   if (q) list = list.filter(x => pbFold([x.name, x.item.artist, x.item.title, ((x.item.trackData || {})[x.num] || {}).desc ? x.item.trackData[x.num].desc.join(' ') : ''].join(' ')).includes(q));
   list.forEach(x => { x.info = likedSongInfo(x); });
   const txt = (a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' });
@@ -188,16 +169,20 @@ function likedLoadTracks(all) {
   need.forEach(([k]) => likedAsked.add(k));
   Promise.all(need.map(([, it]) => Promise.resolve(getTracksFor(it)).catch(() => null))).then(() => { if (state.activeTab === 'liked') renderLikedPage(); });
 }
+function likedFilterLabel() {
+  const f = state.navFilter; if (!f) return '';
+  if (f.mode === 'album') { const r = (state.raw || []).find(x => x.row === f.value); return r ? r.title : ''; }
+  return f.mode === 'label' && typeof labelDisplayOf === 'function' ? labelDisplayOf(f.value) : String(f.value);
+}
 function renderLikedPage() {
   const wrap = document.getElementById('likedWrap'); if (!wrap) return;
   const all = likedAll(), list = likedShown(), rels = new Set(all.map(x => x.item.row));
   const ms = all.reduce((s, x) => s + likedSongInfo(x).ms, 0), hrs = Math.floor(ms / 3600000), mins = Math.round((ms % 3600000) / 60000);
   const now = likeNow(), keepTop = wrap.dataset.drawn ? ((wrap.querySelector('.lkp-page') || {}).scrollTop || 0) : 0, focusQ = document.activeElement && document.activeElement.id === 'lkpSearch';
   const vbtn = (v, t, ico) => `<button type="button" class="lkp-vbtn${likedUi.view === v ? ' on' : ''}" data-lkp="view" data-v="${v}" aria-pressed="${likedUi.view === v}" title="${t}" aria-label="${t}">${ico}</button>`;
-  const colFocus = document.activeElement && document.activeElement.id === 'lkpColFind', colTop = (wrap.querySelector('.lkp-col-list') || {}).scrollTop || 0;
-  wrap.innerHTML = `${all.length ? likedColumnHtml(all) : ''}<div class="lkp-page">
+  wrap.innerHTML = `<div class="lkp-page">
     <div class="lkp-head"><div class="lkp-art">${LIKE_SVG(true)}</div>
-      <div class="lkp-who"><h2 class="lkp-title">Liked songs</h2><span class="lkp-meta">${likedUi.pick ? `${escapeHtml(likedUi.pick)} · ${list.length.toLocaleString()} of ` : ''}${all.length.toLocaleString()} song${all.length === 1 ? '' : 's'} · ${rels.size.toLocaleString()} release${rels.size === 1 ? '' : 's'}${ms ? ` · ${hrs ? hrs + ' h ' : ''}${mins} m` : ''}</span></div>
+      <div class="lkp-who"><h2 class="lkp-title">Liked songs</h2><span class="lkp-meta">${list.length !== all.length ? `${state.navFilter ? escapeHtml(likedFilterLabel()) + ' · ' : ''}${list.length.toLocaleString()} of ` : ''}${all.length.toLocaleString()} song${all.length === 1 ? '' : 's'} · ${rels.size.toLocaleString()} release${rels.size === 1 ? '' : 's'}${ms ? ` · ${hrs ? hrs + ' h ' : ''}${mins} m` : ''}</span></div>
       ${all.length ? `<div class="lkp-tools">
         <input id="lkpSearch" class="lkp-search" type="search" placeholder="Find in liked songs" value="${escapeHtml(likedUi.q)}" aria-label="Find in liked songs" autocomplete="off">
         <div class="lkp-views" role="group" aria-label="Show as">${vbtn('list', 'List', '☰')}${vbtn('covers', 'Covers', '▦')}</div>
@@ -207,8 +192,7 @@ function renderLikedPage() {
       : `<div class="soc-empty"><b>No liked songs yet.</b><p>Click the heart next to a song, in the player, in Track info or in any tracklist, or press L while it plays.</p></div>`}
   </div>`;
   likedShown.last = list; wrap.dataset.drawn = '1'; const pg = wrap.querySelector('.lkp-page'); if (pg) pg.scrollTop = keepTop;
-  const cl = wrap.querySelector('.lkp-col-list'); if (cl) cl.scrollTop = colTop;
-  if (colFocus) { const f = document.getElementById('lkpColFind'); f.focus(); f.setSelectionRange(f.value.length, f.value.length); }
+
   likedLoadTracks(all);
   if (focusQ) { const s = document.getElementById('lkpSearch'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
 }
@@ -230,6 +214,7 @@ function likedSidebarRow() {
 }
 
 function initLiked() {
+  if (typeof applyFiltersSort === 'function') { const af = applyFiltersSort; applyFiltersSort = function () { const r = af.apply(this, arguments); if (state.activeTab === 'liked') renderLikedPage(); return r; }; }
   // (1.130.3) Liked songs has its own button in the far-left strip, under Playlists.
   // (1.132.0) And it's pinned at the top of the Playlist Explorer again (opening the same page), drawn with the list each time.
   if (typeof renderPlaylistSidebar === 'function') { const draw = renderPlaylistSidebar; renderPlaylistSidebar = function () { const r = draw.apply(this, arguments); try { likedSidebarRow(); } catch (e) { /* the list still works */ } return r; }; setTimeout(() => { try { likedSidebarRow(); } catch (e) { /* later */ } }, 2500); }
@@ -256,8 +241,6 @@ function initLiked() {
       const b = e.target.closest('[data-lkp]'); if (!b || e.target.closest('.lk-heart')) return;
       const k = b.dataset.lkp;
       if (k === 'sort') { const v = b.dataset.v; if (likedUi.sort === v) likedUi.dir = -likedUi.dir; else { likedUi.sort = v; likedUi.dir = (v === 'liked' || v === 'rating') ? -1 : 1; } likedPrefsSave(); renderLikedPage(); }
-      else if (k === 'by') { likedUi.by = b.dataset.v; likedUi.pick = ''; likedUi.colQ = ''; likedPrefsSave(); renderLikedPage(); }
-      else if (k === 'pick') { likedUi.pick = b.dataset.v; renderLikedPage(); }
       else if (k === 'view') { likedUi.view = b.dataset.v; likedPrefsSave(); renderLikedPage(); }
       else if (k === 'rel') { const it = likeItemByRow(b.dataset.row); if (it && typeof openDeck === 'function') openDeck(it); }
       else if (k === 'play') likedPlay(likedShown(), 0, false);
@@ -265,7 +248,7 @@ function initLiked() {
       else if (k === 'row') likedPlay(likedShown.last || [], +b.dataset.i, false);
     });
     wrap.addEventListener('keydown', (e) => { const r = e.target.closest('.lkp-tr'); if (r && e.key === 'Enter') likedPlay(likedShown.last || [], +r.dataset.i, false); });
-    let qT = 0; wrap.addEventListener('input', (e) => { const id = e.target.id; if (id !== 'lkpSearch' && id !== 'lkpColFind') return; clearTimeout(qT); qT = setTimeout(() => { if (id === 'lkpSearch') likedUi.q = e.target.value; else likedUi.colQ = e.target.value; renderLikedPage(); }, 200); });
+    let qT = 0; wrap.addEventListener('input', (e) => { if (e.target.id !== 'lkpSearch') return; clearTimeout(qT); qT = setTimeout(() => { likedUi.q = e.target.value; renderLikedPage(); }, 200); });
   }
   const tab = document.getElementById('tabLiked');
   if (tab) tab.addEventListener('click', (e) => { if (e.target.closest('.lk-tab-close')) { e.stopPropagation(); closeLikedTab(); return; } openLikedTab(); });

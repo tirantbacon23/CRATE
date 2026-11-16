@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.133.2
+  CURRENT_VERSION: 1.134.0
 
+  1.134.0 — 2026-11-16 — Liked songs uses the same browser column as the Music view and playlists (Albums, Artists, Genres,
+          Labels, Descriptors…, its own menu and rows), listing the releases you've liked songs from; a pick there, the search
+          box and the other filters narrow the songs by the same rules. (The look-alike column from 1.133.0 is gone.) And song
+          lengths from Soulseek: a tracklist song with no length takes the length of its file in the folder chosen for the
+          release on P2P (never replacing one it has). Page only.
   1.133.2 — 2026-11-16 — Fix: double-clicking a release while a playlist is open (its cover, or its row in the browser beside
           the playlist) played every track of the album. It now plays just the playlist's songs from that release, in the
           playlist's order; all of them only when the playlist holds the whole release. Page only.

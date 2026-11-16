@@ -527,7 +527,8 @@ function matchesSearchTerms(r, searchTerms) {
 // the left panel so its artist/genre/album lists stay in sync with search.
 function searchFilteredRaw() {
   const searchTerms = getSearchTerms();
-  const base = state.leftNavView === 'playlists' ? playlistScopeRaw(activePlaylist()) : state.raw;          // beside a playlist, the browser lists what is IN that playlist
+  const base = state.activeTab === 'liked' && typeof likedReleases === 'function' ? likedReleases()          // (1.134.0) beside Liked songs: the releases you've liked songs from
+    : state.leftNavView === 'playlists' ? playlistScopeRaw(activePlaylist()) : state.raw;          // beside a playlist, the browser lists what is IN that playlist
   if (searchTerms.length === 0) return base;
   return base.filter(r => matchesSearchTerms(r, searchTerms));
 }

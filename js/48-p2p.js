@@ -169,7 +169,26 @@ function p2pChoose(item, f, tracks) {                                       // k
   else all[k] = { user: f.user, dir: f.dir, name: f.name, ext: f.ext, lossless: f.lossless, bitRate: f.bitRate, count: f.count, totalSize: f.totalSize, verdict: f.m.verdict, at: Date.now(),
     files: (f.files || []).map(x => ({ name: x.name, path: x.path || '', size: x.size, lengthSec: x.lengthSec })), songs: f.m.map.map(m => m.file), tracks: (tracks || []).map(t => ({ n: t.trackNumber, t: t.trackName })) };          // (1.98.0) which song each file is, for downloading
   try { localStorage.setItem(P2P_CHOICE_KEY, JSON.stringify(all)); } catch (e) { flashGlobalToast('Couldn’t keep that choice on this device (storage is full or blocked).'); }
+  if (f && state.trackCache[k]) { try { if (p2pApplyLengths(item, state.trackCache[k]) && typeof catStatsSoon === 'function') catStatsSoon(); } catch (e) { /* lengths are a bonus */ } }          // (1.134.0) song lengths from it
 }
+
+// ----- (1.134.0) song lengths from the chosen Soulseek folder -----
+// A release's tracklist often has no lengths (typed in, or from a source without them). The folder chosen for it on Soulseek knows each
+// file's length, so a song with none takes its file's (never replacing a length it already has). Applied whenever a tracklist is loaded,
+// and at once when a folder is chosen.
+function p2pApplyLengths(item, tracks) {
+  const c = item && p2pChoiceFor(item); if (!c || !Array.isArray(tracks) || !tracks.length || !Array.isArray(c.files)) return 0;
+  let n = 0;
+  (c.tracks || []).forEach((t, k) => {
+    const fi = c.songs ? c.songs[k] : -1, f = fi >= 0 ? c.files[fi] : null, sec = f && Number(f.lengthSec);
+    if (!sec || sec < 1) return;
+    const tr = tracks.find(x => Number(x.trackNumber) === Number(t.n)) || tracks[k];
+    if (tr && !tr.trackTimeMillis) { tr.trackTimeMillis = Math.round(sec * 1000); tr.lenFrom = 'p2p'; n++; }
+  });
+  return n;
+}
+if (typeof getTracksFor === 'function') { const gt = getTracksFor; getTracksFor = async function (item) { const t = await gt.apply(this, arguments); try { p2pApplyLengths(item, t); } catch (e) { /* lengths are a bonus */ } return t; }; }
+setTimeout(function p2pLengthsAtStart() { if (!(state.raw || []).length) { setTimeout(p2pLengthsAtStart, 4000); return; } const ch = p2pChoices(); (state.raw || []).forEach(it => { const k = artKey(it); if (ch[k] && state.trackCache[k]) p2pApplyLengths(it, state.trackCache[k]); }); }, 6000);
 
 // ----- the dialog -----
 function p2pEnsureDom() {
