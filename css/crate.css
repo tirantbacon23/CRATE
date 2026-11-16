@@ -5306,3 +5306,8 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
   #likedWrap.liked-wrap:not([hidden]) { display: flex; flex-direction: row; overflow: hidden; }
   #likedWrap .lkp-page { flex: 1 1 0; min-width: 0; overflow-y: auto; }
   
+
+/* (1.135.0) Friends: profile pictures */
+.soc-av.soc-av-pic { background-color: #1B212B; background-size: cover; background-position: center; }
+.soc-av.soc-av-lg { width: 44px; height: 44px; font-size: 15px; }
+.soc-pic-acts { display: flex; align-items: center; gap: 8px; flex: none; }

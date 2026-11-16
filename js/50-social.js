@@ -36,6 +36,7 @@ function socTake(d) {
   if (d.note) soc.note = d.note;
   if (d.recStamp && d.recStamp !== soc.recStamp) { soc.recStamp = d.recStamp; socRecsLoad(); }          // (1.123.0) a recommendation came or changed
   socBtnRender(); if (socOpenNow()) socRender();
+  socPicsSync();
   if (typeof renderFriendTabButtons === 'function' && (state.friendTabs || []).length) { renderFriendTabButtons(); if (state.activeTab === 'friendInfo' && !document.querySelector('#friendInfoWrap :focus')) renderFriendPage(); }
 }
 
@@ -82,7 +83,66 @@ function socAgo(ms) {
 }
 function socInitials(n) { const w = String(n || '?').trim().split(/\s+/); return ((w[0] || '?')[0] + (w.length > 1 ? w[w.length - 1][0] : (w[0][1] || ''))).toUpperCase(); }
 function socHue(id) { let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
-function socAvatar(f, cls) { return `<span class="soc-av ${cls || (f.status ? '' : 'soc-nodot')} soc-${f.status || 'offline'}" style="--soc-h:${socHue(f.id)}" aria-hidden="true">${escapeHtml(socInitials(f.name))}</span>`; }
+function socAvatar(f, cls) {
+  const pic = socPicFor(f);
+  return `<span class="soc-av ${cls || (f.status ? '' : 'soc-nodot')} soc-${f.status || 'offline'}${pic ? ' soc-av-pic' : ''}" style="--soc-h:${socHue(f.id)}${pic ? `;background-image:url('${escapeHtml(pic)}')` : ''}" aria-hidden="true">${pic ? '' : escapeHtml(socInitials(f.name))}</span>`;
+}
+// (1.135.0) PROFILE PICTURES. Each person's record says when their picture last changed (pic: a time, 0 for none); the pictures themselves
+// (small square JPEGs) are fetched with socialPics only when that changes, and kept in this browser.
+const SOC_PICS_KEY = 'crate_soc_pics_v1';
+let socPics = null;
+function socPicsAll() { if (!socPics) { try { socPics = JSON.parse(localStorage.getItem(SOC_PICS_KEY) || '{}') || {}; } catch (e) { socPics = {}; } } return socPics; }
+function socPicsSave() { try { localStorage.setItem(SOC_PICS_KEY, JSON.stringify(socPicsAll())); } catch (e) { /* kept for this visit only */ } }
+function socPicFor(f) {
+  if (!f || !f.id) return '';
+  const known = f.pic !== undefined ? f.pic : ((soc.me && soc.me.id === f.id) ? soc.me.pic : ((soc.friends || []).find(x => x.id === f.id) || {}).pic);
+  const c = socPicsAll()[f.id];
+  return known && c && c.at === known && c.url ? c.url : '';
+}
+let socPicsBusy = false;
+async function socPicsSync() {
+  if (socPicsBusy) return;
+  const all = socPicsAll(), people = [soc.me].concat(soc.friends || [], soc.incoming || [], soc.outgoing || []).filter(Boolean);
+  const want = people.filter(p => p.pic && (!all[p.id] || all[p.id].at !== p.pic)).map(p => p.id);
+  let gone = false; people.forEach(p => { if (!p.pic && all[p.id]) { delete all[p.id]; gone = true; } });
+  if (gone) socPicsSave();
+  if (!want.length) return;
+  socPicsBusy = true;
+  try {
+    const d = await socCall('socialPics', { ids: [...new Set(want)] });
+    Object.keys(d.pics || {}).forEach(id => { const x = d.pics[id]; if (x && x.url) all[id] = { at: x.at, url: x.url }; else delete all[id]; });
+    socPicsSave();
+    socBtnRender(); if (socOpenNow()) { soc.setDrawn = false; socRender(); }
+    if (typeof renderFriendTabButtons === 'function' && state.activeTab === 'friendInfo' && !document.querySelector('#friendInfoWrap :focus')) renderFriendPage();
+  } catch (e) { /* next heartbeat */ } finally { socPicsBusy = false; }
+}
+// A chosen image, cut to its middle square and made 128 px: a JPEG small enough for the backend (under ~8 KB as text).
+function socPicMake(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const s = Math.min(img.naturalWidth, img.naturalHeight); if (!s) return reject(new Error('That isn’t a picture CRATE can read.'));
+      for (const px of [128, 112, 96, 80]) {
+        const c = document.createElement('canvas'); c.width = c.height = px;
+        const g = c.getContext('2d'); g.fillStyle = '#1B212B'; g.fillRect(0, 0, px, px);
+        g.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, px, px);
+        for (const q of [0.85, 0.75, 0.6, 0.45]) { const d = c.toDataURL('image/jpeg', q); if (d.length <= 8400) return resolve(d); }
+      }
+      reject(new Error('That picture is too detailed to make small enough. Try another.'));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('That isn’t a picture CRATE can read.')); };
+    img.src = url;
+  });
+}
+async function socPicSet(pic) {
+  const me = soc.me; if (!me) return;
+  try {
+    const d = await socCall('socialSettings', { pic });
+    if (pic && d.me && d.me.pic) { socPicsAll()[d.me.id] = { at: d.me.pic, url: pic }; socPicsSave(); }
+    soc.note = pic ? 'Picture saved.' : 'Picture removed.'; soc.setDrawn = false; socTake(d);
+  } catch (e) { soc.err = e.message || String(e); soc.setDrawn = false; socRender(); }
+}
 // The release a friend is playing, if it's in my crate too.
 function socMine(artist, album) {
   if (!artist || !album) return null;
@@ -173,6 +233,7 @@ function socSetRender() {
     const hidden = (state.raw || []).filter(x => x.friendsHidden).length, custom = Object.keys(me.perFriend || {}).length;
     box.innerHTML = head('Friends settings') + `<div class="soc-sec"><div class="soc-sec-h">You</div>
         <label class="soc-tg"><span>Your name<small>How friends see you</small></span><input id="socName" type="text" value="${escapeHtml(me.name || '')}" maxlength="40" aria-label="Your name, as friends see it"></label>
+        <div class="soc-tg soc-pic-row"><span>Picture<small>A square from the middle of it</small></span><span class="soc-pic-acts">${socAvatar(Object.assign({}, me, { status: '' }), 'soc-nodot soc-av-lg')}<button type="button" class="chip-btn" data-soc-pic-pick>${me.pic ? 'Change' : 'Choose…'}</button>${me.pic ? '<button type="button" class="chip-btn" data-soc-pic-clear>Remove</button>' : ''}<input type="file" id="socPicFile" accept="image/*" hidden></span></div>
         <label class="soc-tg"><span>Appear offline<small>Friends see you as offline and nothing you play. You still see them.</small></span><input type="checkbox" data-soc-off ${me.off ? 'checked' : ''}></label>
       </div>
       <div class="soc-sec"><div class="soc-sec-h">What friends can see</div>
@@ -446,6 +507,8 @@ function initSocial() {
       if (b.dataset.socName && b.dataset.confirm !== '1') { b.dataset.confirm = '1'; b.textContent = 'Remove ' + b.dataset.socName + '?'; b.classList.add('soc-danger'); setTimeout(() => { if (b.isConnected) { b.dataset.confirm = ''; b.textContent = 'Remove'; b.classList.remove('soc-danger'); } }, 4000); return; }
       socDo('socialRemove', { id: b.dataset.socRemove }, b.dataset.socName ? b.dataset.socName + ' is no longer a friend.' : 'Request taken back.');
     }
+    else if (b.hasAttribute('data-soc-pic-pick')) { const f = document.getElementById('socPicFile'); if (f) f.click(); }
+    else if (b.hasAttribute('data-soc-pic-clear')) socPicSet('');
     else if (b.hasAttribute('data-soc-newcode')) socDo('socialNewCode', {}, 'New code made. The old one no longer works.');
     else if (b.hasAttribute('data-soc-copy')) {
       const code = soc.me ? soc.me.code : '';
@@ -469,6 +532,7 @@ function initSocial() {
     const t = e.target;
     if (t.dataset.socShare) socDo('socialSettings', { share: { [t.dataset.socShare]: t.checked } });
     else if (t.hasAttribute('data-soc-off')) socDo('socialSettings', { off: t.checked }, t.checked ? 'Friends now see you as offline.' : 'Friends can see you again.');
+    else if (t.id === 'socPicFile' && t.files && t.files[0]) { const file = t.files[0]; t.value = ''; soc.note = 'Saving picture…'; soc.err = ''; soc.setDrawn = false; socRender(); socPicMake(file).then(socPicSet, (er) => { soc.note = ''; soc.err = er.message || String(er); soc.setDrawn = false; socRender(); }); }
     else if (t.id === 'socName' && t.value.trim()) socDo('socialSettings', { name: t.value.trim() }, 'Name saved.');
   });
   setInterval(socWatch, 4000);

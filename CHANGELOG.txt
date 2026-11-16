@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.134.4
+  CURRENT_VERSION: 1.135.0
 
+  1.135.0 — 2026-11-16 — Profile pictures. Friends settings → You → Picture: Choose… takes an image, cuts the middle square,
+          makes it a small 128 px JPEG and saves it; friends see it in place of your initials (the list, requests, Activity,
+          Recommend, their tab for you). Change or Remove any time. The backend keeps each picture in its own Script Property
+          (SOC_PIC_<id>); each record says when it last changed, so CRATE fetches a picture (socialPics) only then and keeps it in
+          this browser. Backend change: paste the new apps-script-backend.gs and deploy a New version.
   1.134.4 — 2026-11-16 — Fix: a release a friend recommended (or one added from a friend's page) arrived without its catalogue
           number: the backend treated the Catalog column as personal and left it out. It now comes along, except CRATE's own
           CRT-001 style numbers. Backend change: paste the new apps-script-backend.gs and deploy a New version.

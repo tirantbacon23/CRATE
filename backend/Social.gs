@@ -31,6 +31,7 @@ const SOC_ONLINE_MS = 150 * 1000;          // seen in the last 2½ minutes: onli
 const SOC_CACHE_S = 600;                   // what someone is playing is kept 10 minutes
 const SOC_SEEN_EVERY_MS = 4 * 60 * 1000;   // "last seen" is written to the properties at most every 4 minutes (or when the song changes)
 const SOC_MAX_FRIENDS = 100;
+const SOC_PIC_MAX = 8500, SOC_PIC_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/;          // (1.135.0) a profile picture: a data URL under a Script Property's 9 KB
 const SOC_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';      // no 0/O or 1/I to mix up
 
 function _socProps() { return PropertiesService.getScriptProperties(); }
@@ -100,7 +101,7 @@ function _socView(fid, cache, now, viewerId) {
   const femail = _socEmailOf(fid); if (!femail) return null;
   const f = _socGet(femail); if (!f) return null;
   const fsh = _socShareFor(f, viewerId);
-  const v = { id: fid, name: f.name || 'Friend', status: 'offline', np: null, seen: 0, last: null,
+  const v = { id: fid, name: f.name || 'Friend', pic: f.pic || 0, status: 'offline', np: null, seen: 0, last: null,
               share: { crate: !!fsh.crate, ratings: !!fsh.ratings, diary: !!fsh.diary, liked: !!fsh.liked } };
   if (f.off) return v;                                                  // "Appear offline": nothing about them at all
   let live = null; try { live = JSON.parse(cache.get('soc:' + fid) || 'null'); } catch (e) { live = null; }
@@ -117,10 +118,10 @@ function _socView(fid, cache, now, viewerId) {
 
 function _socState(email, u) {
   const cache = CacheService.getScriptCache(), now = Date.now();
-  const people = (ids) => (ids || []).map(id => { const e = _socEmailOf(id), x = e && _socGet(e); return x ? { id: id, name: x.name || 'Someone' } : null; }).filter(Boolean);
+  const people = (ids) => (ids || []).map(id => { const e = _socEmailOf(id), x = e && _socGet(e); return x ? { id: id, name: x.name || 'Someone', pic: x.pic || 0 } : null; }).filter(Boolean);
   return {
     ok: true, social: true, now: now, recStamp: Number(_socProps().getProperty('SOC_RECSTAMP_' + email) || 0),
-    me: { id: u.id, code: u.code, name: u.name, share: u.share, off: !!u.off, perFriend: u.perFriend || {} },
+    me: { id: u.id, code: u.code, name: u.name, pic: u.pic || 0, share: u.share, off: !!u.off, perFriend: u.perFriend || {} },
     friends: (u.friends || []).map(id => _socView(id, cache, now, u.id)).filter(Boolean),
     incoming: people(u.inc),
     outgoing: people(u.out)
@@ -376,6 +377,12 @@ function _social(email, action, payload) {
         if (payload.name !== undefined) { const n = _socCleanName(payload.name); if (n) u.name = n; }
         if (payload.share !== undefined) u.share = _socShare(Object.assign({}, u.share, payload.share));
         if (payload.off !== undefined) u.off = !!payload.off;
+        if (payload.pic !== undefined) {                              // (1.135.0) a profile picture: a small square image, kept in its own property (SOC_PIC_<id>)
+          const pic = String(payload.pic || '');
+          if (!pic) { _socProps().deleteProperty('SOC_PIC_' + u.id); u.pic = 0; }
+          else if (SOC_PIC_RE.test(pic) && pic.length <= SOC_PIC_MAX) { _socProps().setProperty('SOC_PIC_' + u.id, pic); u.pic = Date.now(); }
+          else throw new Error('That picture is too big. Try another.');
+        }
         if (payload.forFriend && typeof payload.forFriend === 'object' && (u.friends || []).indexOf(String(payload.forFriend.id)) !== -1) {          // (1.122.0) what one friend sees
           const fid = String(payload.forFriend.id), pf = Object.assign({}, (u.perFriend || {})[fid]), sh = payload.forFriend.share || {};
           ['crate', 'ratings', 'diary', 'playing', 'liked'].forEach(k => { if (sh[k] === false) pf[k] = false; else if (sh[k] === true) delete pf[k]; });
@@ -386,6 +393,12 @@ function _social(email, action, payload) {
         _socPut(email, u);
         return _socState(email, u);
       }));
+    }
+
+    if (action === 'socialPics') {                                  // (1.135.0) profile pictures: mine, my friends', and people with a request either way
+      const u = _socEnsure(email), ok = {}; [u.id].concat(u.friends || [], u.inc || [], u.out || []).forEach(id => { ok[id] = true; });
+      const pics = {}; (Array.isArray(payload.ids) ? payload.ids : []).slice(0, 120).forEach(id => { id = String(id); if (!ok[id]) return; const e = _socEmailOf(id), x = e && _socGet(e); pics[id] = { at: (x && x.pic) || 0, url: (x && x.pic && _socProps().getProperty('SOC_PIC_' + id)) || '' }; });
+      return _json({ ok: true, social: true, pics: pics });
     }
 
     if (action === 'socialNewCode') {                               // the old code stops working (a request already sent with it still stands)
