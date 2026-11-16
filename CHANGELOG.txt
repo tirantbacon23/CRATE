@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.30
+  CURRENT_VERSION: 1.135.31
 
+  1.135.31 — 2026-11-16 — Five trippy visualizer styles beside Ring, Bars and Wave (the visualizer's style button goes round them all):
+          Tunnel (neon shapes rushing out of a spinning tunnel of trails), Kaleidoscope (the cover and the spectrum mirrored
+          twelve ways, turning), Nebula (thousands of particles drifting through a swirling field), Hyperspace (stars streaking
+          past, faster on the bass) and Melt (the song's wave as a ring, every frame fed back zoomed, twisted and colour-shifted
+          into liquid trails). The bass drives the zoom, turn and speed, the spectrum the shapes, and the colours drift round the
+          wheel from the cover's own.
   1.135.30 — 2026-11-16 — (1) Choose what the browser column's rows show: ⚙ → Panels configuration → Show Categories (Left Panel) →
           Panel Settings… opens "Music browser rows", a tab for each way of browsing. Albums: the cover's size, lines 1, 2 and 3
           (up to three fields each, joined with ·: title, artist, year, release date, release length, songs, genre, secondary

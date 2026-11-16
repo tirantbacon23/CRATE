@@ -9,12 +9,13 @@
 // (1.95.21, 1.95.22) With the CRATE for YouTube add-on 1.5.1 or later, the add-on captures the tab's sound instead (chrome.tabCapture): no
 // prompt and no sharing bar. Chrome mutes a captured tab, so the add-on plays the sound out from a hidden page of its own and sends the levels here. If Chrome wants the add-on's toolbar button clicked on
 // this tab first, the visualizer says so (the button's "Let CRATE hear this tab" starts it), with "Share instead" for the old prompt.
-const VIZ_STYLE_KEY = 'crate_viz_style_v1', VIZ_STYLES = ['ring', 'bars', 'wave'], VIZ_STYLE_NAMES = { ring: 'Ring', bars: 'Bars', wave: 'Wave' };
+const VIZ_STYLE_KEY = 'crate_viz_style_v1', VIZ_STYLES = ['ring', 'bars', 'wave', 'tunnel', 'kaleido', 'nebula', 'warp', 'melt'], VIZ_STYLE_NAMES = { ring: 'Ring', bars: 'Bars', wave: 'Wave', tunnel: 'Tunnel', kaleido: 'Kaleidoscope', nebula: 'Nebula', warp: 'Hyperspace', melt: 'Melt' };
+const VIZ_TRIPPY = new Set(['tunnel', 'kaleido', 'nebula', 'warp', 'melt']);          // (1.135.31) drawn by vizTrippy: trails fed back frame to frame
 let viz = { stream: null, ctx: null, analyser: null, freq: null, wave: null, raf: 0, open: false, color: [232, 163, 61], art: '', bass: 0, peaks: null };
 const vizEl = (id) => document.getElementById(id);
 function vizSupported() { return vizAddonOk() || !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia && (window.AudioContext || window.webkitAudioContext)); }          // with the add-on 1.5.1, the add-on does the listening
 function vizStyle() { try { const s = localStorage.getItem(VIZ_STYLE_KEY); return VIZ_STYLES.includes(s) ? s : 'ring'; } catch (e) { return 'ring'; } }
-function vizSetStyle(s) { try { localStorage.setItem(VIZ_STYLE_KEY, s); } catch (e) { /* this visit only */ } vizPaintChrome(); }
+function vizSetStyle(s) { try { localStorage.setItem(VIZ_STYLE_KEY, s); } catch (e) { /* this visit only */ } viz.fb = null; viz.parts = null; viz.stars = null; const c = vizEl('vizCanvas'); if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height); if (viz.open) vizResize(); const o = vizEl('vizOverlay'); if (o) o.classList.toggle('viz-trippy', VIZ_TRIPPY.has(s)); vizPaintChrome(); }
 
 // ----- the bands: the spectrum, log-spaced from about 30 Hz to 16 kHz, so the bass gets as much room as the treble -----
 function vizBands(freq, sampleRate, n) {                            // -> n values 0..1
@@ -168,7 +169,7 @@ function vizEnsureDom() {
     <div class="viz-bar">
       <button type="button" class="chip-btn" id="vizListen" title="Share this tab's sound with the visualizer (choose this tab, with &ldquo;Also share tab audio&rdquo; on)">Listen</button>
       <button type="button" class="chip-btn" id="vizShare" title="Share this tab's sound through the browser's prompt instead of the add-on" hidden>Share instead</button>
-      <button type="button" class="chip-btn" id="vizStyle" title="Ring, bars or wave">Ring</button>
+      <button type="button" class="chip-btn" id="vizStyle" title="Ring, bars, wave, tunnel, kaleidoscope, nebula, hyperspace or melt">Ring</button>
       <button type="button" class="chip-btn" id="vizStopBtn" title="Stop sharing this tab's sound">Stop listening</button>
       <button type="button" class="chip-btn" id="vizClose" title="Close (Esc)" aria-label="Close the visualizer">✕</button>
     </div>
@@ -201,7 +202,7 @@ function vizTint(url) {                                             // the cover
   img.src = url;
 }
 function openVisualizer() {
-  vizEnsureDom(); const o = vizEl('vizOverlay'); o.hidden = false; viz.open = true; vizPaintChrome(); vizRefreshInfo();
+  vizEnsureDom(); const o = vizEl('vizOverlay'); o.hidden = false; viz.open = true; o.classList.toggle('viz-trippy', VIZ_TRIPPY.has(vizStyle())); vizPaintChrome(); vizRefreshInfo();
   if (!viz.stream) { if (vizSupported()) { vizSay(vizAddonOk() ? 'Asking the CRATE for YouTube add-on for this tab’s sound…' : 'Press Listen, choose this tab, and turn on “Also share tab audio”. Only the sound is used, on this device.'); vizListen(); } else vizSay('This browser can’t share a tab’s sound. Chrome or Edge on a computer can.'); }
   vizResize(); cancelAnimationFrame(viz.raf); viz.raf = requestAnimationFrame(vizFrame);
 }
@@ -214,7 +215,8 @@ function vizRefreshInfo() {
   if (n.art !== viz.art) { viz.art = n.art; img.hidden = !n.art; if (n.art) img.src = n.art; vizTint(n.art); }
   vizEl('vizTitle').textContent = n.title; vizEl('vizSub').textContent = n.artist;
 }
-function vizResize() { const c = vizEl('vizCanvas'); if (!c) return; const dpr = Math.min(2, window.devicePixelRatio || 1); c.width = Math.round(c.clientWidth * dpr); c.height = Math.round(c.clientHeight * dpr); viz.dpr = dpr; }
+function vizResize() { const c = vizEl('vizCanvas'); if (!c) return; const dpr = VIZ_TRIPPY.has(vizStyle()) ? 1 : Math.min(2, window.devicePixelRatio || 1);          // (the trippy ones redraw the whole screen each frame: full resolution would be slow)
+  c.width = Math.round(c.clientWidth * dpr); c.height = Math.round(c.clientHeight * dpr); viz.dpr = dpr; }
 window.addEventListener('resize', () => { if (viz.open) vizResize(); });
 
 // ----- drawing -----
@@ -225,8 +227,17 @@ function vizFrame(t) {
   if (!viz.lastInfo || t - viz.lastInfo > 1000) { viz.lastInfo = t; vizRefreshInfo(); }
   if (!viz.lastLy || t - viz.lastLy > 200) { viz.lastLy = t; const line = typeof lyricsCurrentLine === 'function' ? lyricsCurrentLine() : '', e = vizEl('vizLyric'); if (e && e.textContent !== line) e.textContent = line; }          // (1.95.20) the line being sung, when the lyrics panel has them
   const c = vizEl('vizCanvas'), x = c.getContext('2d'), W = c.width, H = c.height, dpr = viz.dpr || 1; if (!W || !H) return;
-  x.clearRect(0, 0, W, H);
   const [r, g, b] = viz.color, col = (a) => `rgba(${r},${g},${b},${a})`;
+  if (VIZ_TRIPPY.has(vizStyle())) {                                   // (1.135.31) the trippy ones keep their own trails: no clearing
+    let bandsT = null, bassT = 0; vizPull();
+    if (viz.analyser) { viz.analyser.getByteFrequencyData(viz.freq); bandsT = vizBands(viz.freq, vizRate(), 96); bassT = vizBassLevel(viz.freq, vizRate()); if (viz.wave) viz.analyser.getByteTimeDomainData(viz.wave); }
+    else bandsT = new Array(96).fill(0).map((_, i) => 0.10 + 0.08 * Math.sin(t / 700 + i / 5));
+    viz.bass = viz.bass * 0.8 + bassT * 0.2;
+    const art = vizEl('vizArt'); if (art) art.style.transform = `scale(${(1 + viz.bass * 0.08).toFixed(3)})`;
+    vizTrippy(vizStyle(), x, W, H, dpr, bandsT, viz.bass, t);
+    return;
+  }
+  x.clearRect(0, 0, W, H);
   let bands = null, bass = 0;
   vizPull();
   if (viz.analyser) { viz.analyser.getByteFrequencyData(viz.freq); bands = vizBands(viz.freq, vizRate(), 96); bass = vizBassLevel(viz.freq, vizRate()); }
@@ -260,6 +271,77 @@ function vizFrame(t) {
     else { x.moveTo(0, mid); x.lineTo(W, mid); }
     x.stroke(); x.shadowBlur = 0;
   }
+}
+
+// ----- (1.135.31) the trippy ones -----
+// Each keeps a copy of the last frame (viz.fb) and draws it back slightly zoomed, turned and colour-shifted before the new shapes, so
+// everything leaves trails that swirl away (the "feedback" the old music visualizers were made of). The bass drives the zoom, the turn and
+// the speed; the spectrum the shapes; the colour drifts round the wheel from the cover's own.
+function vizFb(W, H) { if (!viz.fb || viz.fb.width !== W || viz.fb.height !== H) { viz.fb = document.createElement('canvas'); viz.fb.width = W; viz.fb.height = H; viz.fbx = viz.fb.getContext('2d'); } return viz.fbx; }
+function vizHue(t, off) { const [r, g, b] = viz.color, mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0; if (mx !== mn) { const d = mx - mn; h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; } return (h + t / 40 + (off || 0) + 360) % 360; }
+function vizFeedback(x, W, H, zoom, turn, hueStep, fade) {
+  const f = vizFb(W, H);
+  x.save(); x.globalAlpha = 1; x.fillStyle = `rgba(6,6,12,${fade})`; x.fillRect(0, 0, W, H);
+  x.translate(W / 2, H / 2); x.rotate(turn); x.scale(zoom, zoom); x.translate(-W / 2, -H / 2);
+  try { x.filter = `hue-rotate(${hueStep}deg) brightness(${(1 - fade * 0.9).toFixed(3)})`; } catch (e) { /* no filters here */ }          // (each pass a little darker: trails fade, never flood the screen)
+  x.globalAlpha = 1 - fade; x.drawImage(f.canvas, 0, 0); x.restore(); try { x.filter = 'none'; } catch (e) { /* fine */ }
+}
+function vizKeep(x, W, H) { const f = vizFb(W, H); f.clearRect(0, 0, W, H); f.drawImage(x.canvas, 0, 0); }
+function vizTrippy(style, x, W, H, dpr, bands, bass, t) {
+  const cx = W / 2, cy = H / 2, S = Math.min(W, H), n = bands.length, avg = bands.reduce((a, v) => a + v, 0) / n;
+  x.globalCompositeOperation = 'source-over';
+  if (style === 'tunnel') {
+    vizFeedback(x, W, H, 1.03 + bass * 0.05, 0.004 + bass * 0.02, 3, 0.09);
+    const sides = 6, rings = 3;
+    for (let k = 0; k < rings; k++) {
+      const R = S * (0.05 + k * 0.035) * (1 + bass * 0.8), rot = t / 1800 * (k % 2 ? -1 : 1);
+      x.beginPath();
+      for (let i = 0; i <= sides * 8; i++) { const a = rot + i / (sides * 8) * Math.PI * 2, v = bands[Math.floor(i / (sides * 8) * n) % n], rr = R * (1 + v * 0.9 + 0.12 * Math.cos(a * sides)); const px = cx + Math.cos(a) * rr, py = cy + Math.sin(a) * rr; if (i) x.lineTo(px, py); else x.moveTo(px, py); }
+      x.strokeStyle = `hsla(${vizHue(t, k * 50)},95%,${55 + k * 8}%,0.95)`; x.lineWidth = (2 + k) * dpr; x.shadowColor = x.strokeStyle; x.shadowBlur = 18 * dpr; x.stroke();
+    }
+    x.shadowBlur = 0;
+  } else if (style === 'kaleido') {
+    vizFeedback(x, W, H, 1.01 + bass * 0.02, -0.003, 1.5, 0.16);
+    const seg = 12, wedge = Math.PI * 2 / seg, img = vizEl('vizArt'), rot = t / 6000 + bass * 0.4, R = S * 0.48;
+    for (let k = 0; k < seg; k++) {
+      x.save(); x.translate(cx, cy); x.rotate(rot + k * wedge); if (k % 2) x.scale(1, -1);
+      x.beginPath(); x.moveTo(0, 0); x.arc(0, 0, R, -wedge / 2, wedge / 2); x.closePath(); x.clip();
+      if (img && img.complete && img.naturalWidth && !img.hidden) { const sz = R * (0.9 + bass * 0.5); x.globalAlpha = 0.55; x.drawImage(img, R * 0.15 - sz / 2 + Math.sin(t / 2300) * R * 0.2, -sz / 2, sz, sz); x.globalAlpha = 1; }
+      for (let i = 0; i < n; i += 3) { const v = bands[i], rr = R * (i / n); x.fillStyle = `hsla(${vizHue(t, i * 2.5)},90%,60%,${0.25 + v * 0.7})`; x.beginPath(); x.arc(rr, Math.sin(t / 900 + i) * rr * 0.12, (1.5 + v * 9) * dpr, 0, Math.PI * 2); x.fill(); }
+      x.restore();
+    }
+  } else if (style === 'nebula') {
+    x.fillStyle = 'rgba(4,4,10,0.08)'; x.fillRect(0, 0, W, H);
+    const N = 1600; if (!viz.parts || viz.parts.length !== N || viz.partsW !== W) { viz.parts = Array.from({ length: N }, () => ({ x: Math.random() * W, y: Math.random() * H, h: Math.random() * 120 })); viz.partsW = W; }
+    const speed = (0.6 + bass * 5 + avg * 3) * dpr, tt = t / 4000;
+    x.globalCompositeOperation = 'lighter';
+    for (const p of viz.parts) {
+      const a = Math.sin(p.x / (S * 0.18) + tt) * 2.2 + Math.cos(p.y / (S * 0.21) - tt * 1.3) * 2.2 + Math.atan2(p.y - cy, p.x - cx) * 0.35;
+      const nx = p.x + Math.cos(a) * speed, ny = p.y + Math.sin(a) * speed;
+      x.strokeStyle = `hsla(${vizHue(t, p.h)},90%,${50 + bands[Math.floor(p.h / 120 * (n - 1))] * 30}%,0.35)`; x.lineWidth = 1.2 * dpr;
+      x.beginPath(); x.moveTo(p.x, p.y); x.lineTo(nx, ny); x.stroke();
+      p.x = nx; p.y = ny; if (p.x < 0 || p.x > W || p.y < 0 || p.y > H || Math.random() < 0.002) { p.x = Math.random() * W; p.y = Math.random() * H; }
+    }
+    x.globalCompositeOperation = 'source-over';
+  } else if (style === 'warp') {
+    x.fillStyle = `rgba(2,2,8,${0.22 - bass * 0.12})`; x.fillRect(0, 0, W, H);
+    const N = 700; if (!viz.stars || viz.stars.length !== N) viz.stars = Array.from({ length: N }, () => ({ a: Math.random() * Math.PI * 2, d: Math.random(), b: Math.floor(Math.random() * 96) }));
+    const v = 0.004 + bass * 0.05 + avg * 0.02; x.globalCompositeOperation = 'lighter';
+    for (const st of viz.stars) {
+      const d0 = st.d * st.d * S * 0.75, nd = st.d + v * (0.3 + st.d), d1 = nd * nd * S * 0.75, lvl = bands[st.b];
+      x.strokeStyle = `hsla(${vizHue(t, st.b * 3)},95%,${55 + lvl * 35}%,${0.25 + st.d * 0.7})`; x.lineWidth = (0.6 + st.d * 2.4 + lvl * 2) * dpr;
+      x.beginPath(); x.moveTo(cx + Math.cos(st.a) * d0, cy + Math.sin(st.a) * d0); x.lineTo(cx + Math.cos(st.a) * d1, cy + Math.sin(st.a) * d1); x.stroke();
+      st.d = nd; if (st.d > 1.25) { st.d = Math.random() * 0.15; st.a = Math.random() * Math.PI * 2; }
+    }
+    x.globalCompositeOperation = 'source-over';
+  } else {                                                          // melt
+    vizFeedback(x, W, H, 1.015 + bass * 0.04, Math.sin(t / 3000) * 0.012 + bass * 0.015, 6, 0.07);
+    const w = viz.wave, m = w ? w.length : 0, R = S * (0.16 + bass * 0.12);
+    x.beginPath();
+    for (let i = 0; i <= 256; i++) { const k = m ? w[Math.floor(i / 256 * (m - 1))] : 128 + Math.sin(t / 300 + i / 8) * 20, a = i / 256 * Math.PI * 2 + t / 2500, rr = R * (1 + (k - 128) / 128 * 0.9); const px = cx + Math.cos(a) * rr, py = cy + Math.sin(a) * rr; if (i) x.lineTo(px, py); else x.moveTo(px, py); }
+    x.strokeStyle = `hsl(${vizHue(t)},100%,62%)`; x.lineWidth = 3 * dpr; x.shadowColor = x.strokeStyle; x.shadowBlur = 20 * dpr; x.stroke(); x.shadowBlur = 0;
+  }
+  vizKeep(x, W, H);
 }
 
 // ----- the player's button, and Esc -----
