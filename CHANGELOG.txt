@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.17
+  CURRENT_VERSION: 1.135.18
 
+  1.135.18 — 2026-11-16 — A genre page's breadcrumb shows every parent: level by level, each level up holding all the parents of the
+          one below, joined with | — "Genres › Rock › Alternative Rock | Pop Rock › Jangle Pop" — instead of following only the
+          first parent. A genre reachable at two distances shows once, at its highest level. Each is a link to its own page.
   1.135.17 — 2026-11-16 — Go to the release from what's playing: click the song's title in Track info, or a row's details in Up next
           (the line under the song in Track with Thumbnail, the columns in Track Detail, the release heading and the details
           in Release and Tracks), and the release opens. Clicking the song itself still plays it.

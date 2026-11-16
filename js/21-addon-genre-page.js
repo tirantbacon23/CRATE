@@ -694,10 +694,25 @@ function giRenderAll(genre) {
   giRenderReleases(genre, ui, items);
 }
 const $gi = (id) => document.getElementById(id);
+// (1.135.18) The breadcrumb level by level: each level up holds every parent of the level below it, so a genre with more than one parent
+// shows them all ("Rock › Alternative Rock | Pop Rock › Jangle Pop"), not only its first parent's line. A genre reachable at two distances
+// (Rock as both parent and grandparent) shows once, at its highest level. Stops if the taxonomy loops.
+function genreTrailLevels(genre, taxonomy) {
+  const levels = [[genre]], key = genreTaxonomyKey;
+  for (let n = 0; n < 12; n++) {
+    const below = levels[0], up = [], have = new Set();
+    below.forEach(g => getGenreParents(taxonomy, g).forEach(p => { const k = key(p); if (!have.has(k) && k !== key(genre)) { have.add(k); up.push(p); } }));
+    if (!up.length) break;
+    levels.unshift(up);
+  }
+  const placed = new Set();                                          // highest level wins: walk from the top, drop repeats further down
+  return levels.map(lv => lv.filter(g => { const k = key(g); if (placed.has(k)) return false; placed.add(k); return true; })).filter(lv => lv.length);
+}
 function giRenderCrumbs(genre) {
-  const trail = genreTrail(genre, state.genreTaxonomy);
-  $gi('giCrumbs').innerHTML = '<span>Genres</span>' + trail.map((g, i) => '<span class="gi-crumb-sep">\u203a</span>' +
-    (i === trail.length - 1 ? `<span class="gi-crumb-here">${escapeHtml(g)}</span>` : `<a href="#" data-genre="${escapeHtml(g)}">${escapeHtml(g)}</a>`)).join('');
+  const levels = genreTrailLevels(genre, state.genreTaxonomy);
+  $gi('giCrumbs').innerHTML = '<span>Genres</span>' + levels.map((lv, i) => '<span class="gi-crumb-sep">\u203a</span>' +
+    (i === levels.length - 1 ? `<span class="gi-crumb-here">${escapeHtml(lv[0])}</span>`
+      : lv.map(g => `<a href="#" data-genre="${escapeHtml(g)}">${escapeHtml(g)}</a>`).join('<span class="gi-crumb-or" aria-label="and">|</span>'))).join('');
 }
 function giRenderTitle(genre, ui, items, family) {
   const st = genreStatsOf(items);
