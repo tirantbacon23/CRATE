@@ -417,6 +417,7 @@ function searchTokenMatches(r, token) {
   if (canonicalField === 'track') {
     return trackTitlesFor(r).some(t => t.toLowerCase().includes(value.toLowerCase()));
   }
+  if (canonicalField === 'descriptor') { const v = descKey(value); return parseDescriptors(r.rymDescriptors).concat(parseDescriptors(r.descriptor)).some(d => descKey(d).includes(v)); }          // (1.135.37) the release's descriptors (from RYM, or typed in), one by one
   if (canonicalField === 'songdesc') { const v = descKey(value); return Object.values(r.trackData || {}).some(e => e && Array.isArray(e.desc) && e.desc.some(d => d.includes(v))); }          // (1.129.0)
   if (canonicalField === 'liked') { const no = /^(no|false|0)$/i.test(String(value)); const any = Object.values(r.trackData || {}).some(e => e && e.liked); return no ? !any : any; }
   if (canonicalField === 'artist') { const v = value.toLowerCase(); return [r.artist, artistCanon(r.artist)].some(n => String(n || '').toLowerCase().includes(v)); }          // an alias's releases answer to its artist's name
@@ -1016,21 +1017,22 @@ function groupItems(items, by) {
 // Picking an artist, genre or label puts it in as an exact filter (artist:"Frank Zappa") in place of the words typed, so more can follow; picking a
 // release opens it. After "genre:" (or artist:, label:, type:…) only that field's values are offered; the start of a field's name offers the field.
 let ssIndex = null, ssItems = [], ssActive = -1;
-const SS_FIELDS = ['artist', 'title', 'genre', 'label', 'year', 'type', 'rating', 'rym', 'catalog', 'track', 'region', 'location'];
+const SS_FIELDS = ['artist', 'title', 'genre', 'descriptor', 'label', 'year', 'type', 'rating', 'rym', 'catalog', 'track', 'region', 'location'];
 function ssBuildIndex() {                                            // made once per catalogue (rebuilt when it changes)
   const raw = state.raw || [];
   const cachedN = Object.keys(state.trackCache || {}).length;
   if (ssIndex && ssIndex.raw === raw && ssIndex.n === raw.length) { if (ssIndex.cachedN !== cachedN) { ssAddTracks(ssIndex, raw); ssIndex.cachedN = cachedN; } return ssIndex; }
-  const artists = new Map(), genres = new Map(), labels = new Map(), types = new Map();
+  const artists = new Map(), genres = new Map(), labels = new Map(), types = new Map(), descs = new Map();
   const bump = (m, name, extra) => { const k = smFold(name); if (!k) return; const e = m.get(k) || Object.assign({ name, n: 0 }, extra || {}); e.n++; m.set(k, e); };
   raw.forEach(r => {
     (typeof artistParts === 'function' ? artistParts(r.artist) : [r.artist]).forEach(a => bump(artists, a));
     allGenresForItem(r).forEach(g => { if (g && g !== 'Unknown') bump(genres, g); });
     String(r.label || '').split(/\s*[\/,;]\s*/).forEach(l => { if (l.trim()) bump(labels, l.trim()); });
     if (r.type && r.type !== 'Unknown') bump(types, r.type);
+    if (typeof parseDescriptors === 'function') parseDescriptors(r.rymDescriptors).concat(parseDescriptors(r.descriptor)).forEach(d => bump(descs, d.toLowerCase()));          // (1.135.37)
   });
   if (typeof artistAliasesAll === 'function') Object.values(artistAliasesAll()).forEach(e => { const k = smFold(e.alias); if (k && !artists.has(k)) artists.set(k, { name: e.alias, n: 0, to: e.to }); });          // an alias leads to its artist
-  ssIndex = { raw, n: raw.length, cachedN, tracks: [], seenT: new Set(), trackRefs: new WeakMap(), artists: [...artists.values()], genres: [...genres.values()], labels: [...labels.values()], types: [...types.values()],
+  ssIndex = { raw, n: raw.length, cachedN, tracks: [], seenT: new Set(), trackRefs: new WeakMap(), artists: [...artists.values()], genres: [...genres.values()], labels: [...labels.values()], types: [...types.values()], descs: [...descs.values()],
     releases: raw.map(r => ({ name: r.title, artist: r.artist, row: r.row, year: dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getUTCFullYear() : '' })) };
   ssAddTracks(ssIndex, raw);
   return ssIndex;
@@ -1055,7 +1057,7 @@ function ssSuggest(q) {                                              // q: the b
   const fm = /(^|\s)(-?)([a-zA-Z]+):("?)([^"]*)$/.exec(q);          // typing a field's value: "genre:sho", 'artist:"frank z'
   if (fm && SEARCH_FIELD_ALIASES[fm[3].toLowerCase()] && !(fm[4] === '' && /\s/.test(fm[5]))) {
     const field = SEARCH_FIELD_ALIASES[fm[3].toLowerCase()], part = smFold(fm[5]).trim(), from = fm.index + fm[1].length;
-    const list = field === 'artist' ? ix.artists : field === 'genre' ? ix.genres : field === 'label' ? ix.labels : field === 'type' ? ix.types : field === 'title' ? ix.releases : field === 'track' ? ix.tracks : null;
+    const list = field === 'artist' ? ix.artists : field === 'genre' ? ix.genres : field === 'label' ? ix.labels : field === 'type' ? ix.types : field === 'descriptor' || field === 'songdesc' ? ix.descs : field === 'title' ? ix.releases : field === 'track' ? ix.tracks : null;
     if (!list) return [];
     (part ? ssRank(list, part, 8) : list.slice().sort((a, b) => (b.n || 0) - (a.n || 0)).slice(0, 8)).forEach(e => out.push({ kind: field, label: e.name, sub: e.to ? `\u2192 ${e.to}` : field === 'track' ? `${e.artist} \u00b7 ${e.album}` : e.artist ? e.artist : e.n ? `${e.n}` : '', insert: `${fm[2]}${fm[3]}:${ssQuote(e.name)} `, from }));
     return out;
@@ -1068,13 +1070,14 @@ function ssSuggest(q) {                                              // q: the b
   ssRank(ix.releases, part, 4).forEach(e => out.push({ kind: 'release', label: e.name, sub: [e.artist, e.year].filter(Boolean).join(' \u00b7 '), row: e.row }));
   ssRank(ix.tracks, part, 4).forEach(e => out.push({ kind: 'track', label: e.name, sub: `${e.artist} \u00b7 ${e.album}`, insert: `track:${ssQuote(e.name)} `, from }));          // a song: the releases with it (in the Tracks view, the song itself)
   ssRank(ix.genres, part, 3).forEach(e => out.push({ kind: 'genre', label: e.name, sub: `${e.n}`, insert: `genre:${ssQuote(e.name)} `, from }));
+  ssRank(ix.descs, part, 3).forEach(e => out.push({ kind: 'descriptor', label: e.name, sub: `${e.n}`, insert: `descriptor:${ssQuote(e.name)} `, from }));          // (1.135.37)
   ssRank(ix.labels, part, 2).forEach(e => out.push({ kind: 'label', label: e.name, sub: `${e.n}`, insert: `label:${ssQuote(e.name)} `, from }));
   return out.slice(0, 14);
 }
 function ssRender() {
   const box = document.getElementById('searchSuggest'), inp = el.searchInput; if (!box || !inp) return;
   if (!ssItems.length || document.activeElement !== inp) { box.hidden = true; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); return; }
-  const kindName = { field: 'Field', artist: 'Artist', release: 'Release', track: 'Track', genre: 'Genre', label: 'Label', type: 'Type', title: 'Release' };
+  const kindName = { field: 'Field', artist: 'Artist', release: 'Release', track: 'Track', genre: 'Genre', descriptor: 'Descriptor', songdesc: 'Descriptor', label: 'Label', type: 'Type', title: 'Release' };
   box.innerHTML = ssItems.map((s, i) => `<div class="ss-item${i === ssActive ? ' on' : ''}" id="ss-${i}" role="option" aria-selected="${i === ssActive}" data-ss="${i}"><span class="ss-kind">${kindName[s.kind] || ''}</span><span class="ss-label">${escapeHtml(s.label)}</span><span class="ss-sub">${escapeHtml(String(s.sub || ''))}</span></div>`).join('');
   box.hidden = false; inp.setAttribute('aria-expanded', 'true');
   if (ssActive >= 0) inp.setAttribute('aria-activedescendant', 'ss-' + ssActive); else inp.removeAttribute('aria-activedescendant');

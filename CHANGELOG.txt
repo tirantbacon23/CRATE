@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.36
+  CURRENT_VERSION: 1.135.37
 
+  1.135.37 — 2026-11-16 — Search by descriptor: typing a descriptor in the search box suggests it ("Descriptor · melancholic"), and picking
+          it filters to the releases with it. descriptor: offers your descriptors as you type, and now checks each of a release's
+          descriptors from Rate Your Music (it used to look at an old field only). desc: does the same for song descriptors.
   1.135.36 — 2026-11-16 — Music browser rows bold what Rate Your Music bolds: the release title, the artist and the RYM average (on any
           line, or on the right); the secondary genre is quieter. "Copy link to what's playing" in the player and card menus is
           now just "Copy link".
