@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.35
+  CURRENT_VERSION: 1.135.36
 
+  1.135.36 — 2026-11-16 — Music browser rows bold what Rate Your Music bolds: the release title, the artist and the RYM average (on any
+          line, or on the right); the secondary genre is quieter. "Copy link to what's playing" in the player and card menus is
+          now just "Copy link".
   1.135.35 — 2026-11-16 — The Plays column in the Tracks view no longer slides out of sight: it has no drag edge of its own at the end of
           the table (drag the border on its left instead), and it stays between 52 and 140px wide. A Plays width saved wider than
           that comes back into view.

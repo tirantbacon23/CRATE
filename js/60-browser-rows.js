@@ -78,14 +78,20 @@ function brGroupVal(k, mode, entry) {
 }
 const brLine = (vals) => vals.filter(Boolean).join(' · ');
 // ----- the rows (buildLeftRow calls these) -----
+// (1.135.36) Bold where Rate Your Music bolds: the release title, the artist and the RYM average; the secondary genre is quieter, as there.
+const BR_BOLD = new Set(['title', 'artist', 'rym']), BR_QUIET = new Set(['genre2']);
+function brLineHtml(ks, it) {
+  return (ks || []).map(k => [k, brAlbumVal(k, it)]).filter(([, t]) => t)
+    .map(([k, t]) => BR_BOLD.has(k) ? `<b class="br-b">${escapeHtml(t)}</b>` : BR_QUIET.has(k) ? `<span class="br-quiet">${escapeHtml(t)}</span>` : escapeHtml(t)).join(' · ');
+}
 function brAlbumRowHtml(entry) {
-  const c = brOf('album'), it = entry.item, v = (ks) => brLine((ks || []).map(k => brAlbumVal(k, it)));
-  const l1 = v(c.l1) || it.title, l2 = v(c.l2), l3 = v(c.l3), right = c.right ? brAlbumVal(c.right, it) : '';
+  const c = brOf('album'), it = entry.item;
+  const l1 = brLineHtml(c.l1, it) || `<b class="br-b">${escapeHtml(it.title || '')}</b>`, l2 = brLineHtml(c.l2, it), l3 = brLineHtml(c.l3, it), right = c.right ? brAlbumVal(c.right, it) : '';
   return `<img class="left-thumb art" data-key="${entry.artKey}" alt="">
       <div class="left-row-text">
-        <p class="left-row-title">${c.flag !== false && typeof linkFlagHtml === 'function' ? linkFlagHtml(it, 'before') : ''}${escapeHtml(l1)}</p>
-        ${l2 ? `<p class="left-row-sub">${escapeHtml(l2)}</p>` : ''}${l3 ? `<p class="left-row-sub br-l3">${escapeHtml(l3)}</p>` : ''}
-      </div>${c.right ? `<span class="br-right" title="${escapeHtml((BR_ALBUM_FIELDS.find(f => f[0] === c.right) || [])[1] || '')}">${escapeHtml(right)}</span>` : ''}`;
+        <p class="left-row-title">${c.flag !== false && typeof linkFlagHtml === 'function' ? linkFlagHtml(it, 'before') : ''}${l1}</p>
+        ${l2 ? `<p class="left-row-sub">${l2}</p>` : ''}${l3 ? `<p class="left-row-sub br-l3">${l3}</p>` : ''}
+      </div>${c.right ? `<span class="br-right${BR_BOLD.has(c.right) ? ' br-b' : ''}" title="${escapeHtml((BR_ALBUM_FIELDS.find(f => f[0] === c.right) || [])[1] || '')}">${escapeHtml(right)}</span>` : ''}`;
 }
 function brAlbumDim(it) { return !!brOf('album').dim && typeof hasLoggedListen === 'function' && !hasLoggedListen(it); }
 function brGroupLine2(mode, entry) { const c = brOf(mode); return brLine((c.l2 || []).map(k => brGroupVal(k, mode, entry))); }

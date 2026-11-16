@@ -5446,6 +5446,9 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
 
 /* (1.135.30) Music browser rows: the figure on the right in a column of its own width, right-aligned, so every row lines up; the count
    badges take the same column */
+.left-row .br-b { font-weight: 600; }          /* (1.135.36) bold where Rate Your Music bolds */
+.left-row .br-quiet { opacity: .7; }
+.left-row .br-right.br-b { font-weight: 600; }
 .left-row .br-right { flex: 0 0 auto; min-width: 46px; text-align: right; font: 11px 'IBM Plex Mono', monospace; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .left-row .left-row-count { min-width: 30px; text-align: center; box-sizing: border-box; font-variant-numeric: tabular-nums; }
 .left-row-sub.br-l3 { opacity: .8; }

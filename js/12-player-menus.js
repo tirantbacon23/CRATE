@@ -107,7 +107,7 @@ function openTrackActionsMenu({ item, trackName, trackNum, spotifyTrack, x, y, q
     <button type="button" data-player-action="credits" ${item ? '' : needsCrate}>View credits</button>
     <div class="menu-divider"></div>
     <button type="button" data-player-action="rym" ${item || spotifyTrack ? '' : needsCrate}>Look up on RateYourMusic \u2197</button>
-    ${queueEntry && qIdx !== crateQueueIndex ? '' : `<button type="button" data-player-action="copyLink" ${nowPlayingLink() ? '' : 'disabled title="Nothing is playing"'}>Copy link to what\u2019s playing</button>`}
+    ${queueEntry && qIdx !== crateQueueIndex ? '' : `<button type="button" data-player-action="copyLink" ${nowPlayingLink() ? '' : 'disabled title="Nothing is playing"'}>Copy link</button>`}
     ${queueEntry ? '' : '<div class="menu-divider"></div><button type="button" data-player-action="fields">Choose what the player shows\u2026</button>'}
   `;
   document.body.appendChild(menu);
@@ -832,7 +832,7 @@ function openAlbumCardContextMenu(item, x, y, opts) {
     <div class="menu-divider"></div>
     <button type="button" data-card-action="spotify">Open on Spotify ↗</button>
     <button type="button" data-card-action="rym">View on RateYourMusic ↗</button>
-    ${nowPlayingItem === item && nowPlayingLink() ? '<button type="button" data-card-action="copyLink">Copy link to what\u2019s playing</button>' : ''}
+    ${nowPlayingItem === item && nowPlayingLink() ? '<button type="button" data-card-action="copyLink">Copy link</button>' : ''}
     <button type="button" data-card-action="rymUpdate">${selItems.length > 1 ? `Update ${selItems.length} selected from Rate Your Music\u2026` : 'Update from Rate Your Music'}</button>
     ${selItems.length > 1 ? '' : '<button type="button" data-card-action="match">Match songs\u2026</button>'}
     ${selItems.length > 1 ? `<button type="button" data-card-action="matchMany">Match songs for ${selItems.length} selected\u2026</button>` : ''}
