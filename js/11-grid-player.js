@@ -208,6 +208,7 @@ function trackColWidthsShown() {
     widths[ni] = Math.max(TRACK_NAME_MIN_WIDTH, available - widths.reduce((s, w, i) => i === ni ? s : s + w, 0));
     return widths;
   }
+  if (state.trackColWidths && state.trackColWidths.__exact) { widths[ni] = Number(state.trackColWidths.name) || trackColDefaultWidth('name'); return widths; }          // (1.135.29) sized by hand: every column exactly as you left it
   widths[ni] = Math.max(own, available - others);
   return widths;
 }
@@ -216,6 +217,7 @@ const TRACK_FIT_KEY = 'crate_track_fit_v1';
 function trackFitOn() { try { return localStorage.getItem(TRACK_FIT_KEY) === '1'; } catch (e) { return false; } }
 function trackFitSet(on) {
   try { if (on) localStorage.setItem(TRACK_FIT_KEY, '1'); else localStorage.removeItem(TRACK_FIT_KEY); } catch (e) { /* this visit only */ }
+  if (on && state.trackColWidths) { delete state.trackColWidths.__exact; delete state.trackColWidths.name; savePrefs(); }          // (1.135.29) fitting again: the Track column fills once more
   refitTrackTable();
 }
 function trackTableGridTemplate() {
@@ -357,22 +359,18 @@ function wireTrackHeaderResize(header) {
   let startX = 0;
   let startWidth = 0;
   let handleEl = null;
-  let nameEdge = false, nameStart = 0, nextStart = 0, fillStart = 0, nextKey = '';          // the Track name column's own edge (see onMove)
 
   function applyTemplateEverywhere() {
     refitTrackTable();
   }
 
+  // (1.135.29) As in a spreadsheet: dragging a column's edge changes that column only; the ones to its right move along with the edge, and
+  // the table scrolls when it's wider than the pane (or leaves room on the right when narrower). It used to keep the row filling the pane,
+  // so widening one column narrowed the Track column, and dragging the Track column's edge resized the column next to it.
   function onMove(e) {
     if (!resizeKey) return;
-    const delta = Math.round(e.clientX - startX);
-    if (nameEdge) {
-      // The name column fills the room the others leave. Dragged wider than that, it keeps the width you drag it to (the table scrolls);
-      // dragged narrower, it stays filling and the column to its right takes the room, so the edge follows the mouse either way.
-      const target = Math.max(TRACK_NAME_MIN_WIDTH, Math.min(1600, nameStart + delta));
-      if (target >= fillStart) { state.trackColWidths.name = target; if (nextKey) state.trackColWidths[nextKey] = nextStart; }
-      else { delete state.trackColWidths.name; if (nextKey) state.trackColWidths[nextKey] = Math.max(TRACK_COL_MIN_WIDTH, nextStart + fillStart - target); }
-    } else state.trackColWidths[resizeKey] = Math.max(TRACK_COL_MIN_WIDTH, Math.min(1200, startWidth + delta));
+    const delta = Math.round(e.clientX - startX), min = resizeKey === 'name' ? TRACK_NAME_MIN_WIDTH : TRACK_COL_MIN_WIDTH;
+    state.trackColWidths[resizeKey] = Math.max(min, Math.min(1600, startWidth + delta));
     applyTemplateEverywhere();
   }
 
@@ -396,13 +394,11 @@ function wireTrackHeaderResize(header) {
     const cols = trackHeaderColumns(), shown = trackColWidthsShown();
     let i = cols.findIndex(col => col.sortKey === handle.dataset.resizeKey);
     if (!cols[i]) return;
-    nameEdge = cols[i].sortKey === 'name';
     if (!state.trackColWidths) state.trackColWidths = {};
-    if (nameEdge) {
-      const available = Math.max(0, el.gridContainer.clientWidth - trackTableRowOverhead(cols.length));
-      nameStart = shown[i]; nextKey = cols[i + 1] ? cols[i + 1].sortKey : ''; nextStart = nextKey ? shown[i + 1] : 0;
-      fillStart = available - shown.reduce((sum, w, j) => j === i ? sum : sum + w, 0);
-    }
+    // (1.135.29) From the first drag on, every column keeps the width it has now (Track included), so only the dragged one changes; a drag
+    // also ends Fit to width (sizing by hand)
+    cols.forEach((col, j) => { state.trackColWidths[col.sortKey] = shown[j]; }); state.trackColWidths.__exact = 1;
+    if (typeof trackFitOn === 'function' && trackFitOn()) { try { localStorage.removeItem(TRACK_FIT_KEY); } catch (er) { /* fine */ } }
     resizeKey = cols[i].sortKey;
     handleEl = handle;
     handleEl.classList.add('ttc-resizing');
@@ -419,7 +415,7 @@ function wireTrackHeaderResize(header) {
     const handle = e.target.closest('.ttc-resize-handle');
     if (!handle) return;
     e.stopPropagation();
-    if (state.trackColWidths) delete state.trackColWidths[handle.dataset.resizeKey];
+    if (state.trackColWidths) { if (handle.dataset.resizeKey === 'name' && state.trackColWidths.__exact) state.trackColWidths.name = trackColDefaultWidth('name'); else delete state.trackColWidths[handle.dataset.resizeKey]; }
     applyTemplateEverywhere();
     savePrefs();
   });

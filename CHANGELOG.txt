@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.28
+  CURRENT_VERSION: 1.135.29
 
+  1.135.29 — 2026-11-16 — (1) Column resizing works as in a spreadsheet: dragging a column's edge changes that column only, the ones to its
+          right move along, and the table scrolls when it's wider than the pane (or leaves room on the right). It used to keep
+          the row filling the pane, so widening one column narrowed the Track column, and dragging the Track column's edge
+          resized the column next to it. Double-click an edge for that column's usual width; Fit to width fits them all again
+          (a drag turns it off). (2) Right-click does something only where CRATE has a menu: elsewhere the browser's own menu no
+          longer opens. Kept: text fields (paste), selected text (copy) and links (open in a new tab).
   1.135.28 — 2026-11-16 — Liked songs: right-click any column heading to choose the columns — Artist, Release, Year, Genre, Label, Type,
           Descriptors, Rating, RYM (song), Plays, Liked, Length (Title always shows) — ticking several in a row, or Reset to the
           usual ones. Every column sorts when its heading is clicked. Kept in this browser.
