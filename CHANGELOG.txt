@@ -17,8 +17,15 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.14
+  CURRENT_VERSION: 1.135.15
 
+  1.135.15 — 2026-11-16 — Fix: releases stayed in the match queue (or came back to it) after their songs were matched. A release whose
+          matching has finished on every service — found or not, or every song already linked, or no tracklist — is now marked
+          tried and taken out of the queue. A song skipped in the player for want of a link no longer puts its release back when
+          every song of it has a link, or when it was tried in the last 30 days (it did every time, so a release with a song
+          nothing could be found for never left). Add to match queue from the menu still always adds it (and it's matched
+          again). Releases already in the queue that are fully linked or tried leave it shortly after start and on the 5-minute
+          sweep.
   1.135.14 — 2026-11-16 — Tracks view: right-click any column heading → Fit to width. The columns are scaled so the whole table fits
           the pane (no sideways scrolling), the Track column keeping a fair share (at least about a quarter of the pane, up to
           260 px); it refits as the pane changes size. Kept on this device until turned off the same way. Every heading now has

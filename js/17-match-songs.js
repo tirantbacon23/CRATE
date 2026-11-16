@@ -457,7 +457,25 @@ const bmMk = (it) => ({ row: String(it.row), item: it, songs: null, songsP: null
 function mqAll() { try { const a = JSON.parse(localStorage.getItem(MQ_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
 function mqSave(a) { try { localStorage.setItem(MQ_KEY, JSON.stringify(a.slice(-MQ_MAX))); } catch (e) { /* kept for this visit only */ } }
 const mqKey = (artist, title) => ytCacheNorm(artist) + '|' + ytCacheNorm(title);
+// (1.135.15) A release whose matching has finished (with or without a match for each song) is "tried" and leaves the queue. A song skipped in
+// the player for want of a link put its release back every time, so releases already matched (and ones with nothing to find) never left.
+// Now a skip doesn't queue a release whose songs all have a link, or one tried in the last 30 days; Add to match queue always does.
+const MQ_TRIED_KEY = 'crate_mq_tried_v1', MQ_TRIED_MS = 30 * 864e5;
+function mqTriedAll() { try { return JSON.parse(localStorage.getItem(MQ_TRIED_KEY) || '{}') || {}; } catch (e) { return {}; } }
+function mqTried(item) {
+  const o = mqTriedAll(), now = Date.now(); o[mqKey(item.artist, item.title)] = now;
+  Object.keys(o).forEach(k => { if (now - o[k] > MQ_TRIED_MS) delete o[k]; });
+  try { localStorage.setItem(MQ_TRIED_KEY, JSON.stringify(o)); } catch (e) { /* this visit only */ }
+}
+function mqRecentlyTried(it) { const t = mqTriedAll()[mqKey(it.artist, it.title)]; return !!t && Date.now() - t < MQ_TRIED_MS; }
+function mqAllLinked(it) { const item = it && it.row != null ? it : rawIndex('mq', r => mqKey(r.artist, r.title)).get(mqKey(it.artist, it.title)); const ls = item && bmLinkState(item); return !!(ls && ls.length && ls.every(x => x.sp || x.yt)); }
+function mqPrune() {                                                 // out of the queue: releases every song of which has a link, and ones already tried
+  const a = mqAll(), keep = a.filter(e => { const it = { artist: e.a, title: e.t }; return !(mqAllLinked(it) || (e.why !== 'menu' && mqRecentlyTried(it))); });
+  if (keep.length !== a.length) { mqSave(keep); if (bm) bmRedraw(); if (typeof jobsRefresh === 'function') jobsRefresh(); }
+}
 function mqAdd(items, why, song) {                                  // items: releases, or { artist, title }
+  if (why === 'skipped') items = (items || []).filter(it => it && it.artist && it.title && !mqAllLinked(it) && !mqRecentlyTried(it));          // (1.135.15)
+  if (why === 'menu') { const o = mqTriedAll(); (items || []).forEach(it => { if (it && it.artist) delete o[mqKey(it.artist, it.title)]; }); try { localStorage.setItem(MQ_TRIED_KEY, JSON.stringify(o)); } catch (e) { /* fine */ } }          // asked for: matched again
   const a = mqAll(), have = new Set(a.map(e => mqKey(e.a, e.t))); let n = 0;
   (items || []).forEach(it => { if (!it || !it.artist || !it.title) return; const k = mqKey(it.artist, it.title); if (have.has(k)) { const e = a.find(x => mqKey(x.a, x.t) === k); if (song && e && !(e.songs || []).includes(song)) (e.songs = e.songs || []).push(song); return; } have.add(k); a.push({ a: it.artist, t: it.title, why: why || 'added', songs: song ? [song] : [], at: Date.now() }); n++; });
   mqSave(a); if (bm) bmRedraw();
@@ -709,7 +727,8 @@ const bmAuto = { pending: [], timer: 0, tries: 0, since: 0, noSvc: false };
 const BM_AUTO_PATIENCE = 6 * 3600e3;          // (1.126.0) keeps waiting (an import, an open Match songs, RYM) this long, instead of giving up after ~10 minutes
 // (1.134.1) A sweep every 5 minutes: anything left waiting in the match queue (added while matching couldn't run, or before this version)
 // is matched without your having to open Match songs.
-setInterval(() => { try { if (document.hidden || !(state.raw || []).length || bmAuto.pending.length || (bm && bm.running)) return; if (typeof menuMatchWaiting === 'function') menuMatchWaiting(); } catch (e) { /* next time */ } }, 5 * 60e3);
+setTimeout(() => { try { mqPrune(); } catch (e) { /* next sweep */ } }, 15000);          // (1.135.15) releases already linked or tried leave the queue
+setInterval(() => { try { if (document.hidden || !(state.raw || []).length || bmAuto.pending.length || (bm && bm.running)) return; mqPrune(); if (typeof menuMatchWaiting === 'function') menuMatchWaiting(); } catch (e) { /* next time */ } }, 5 * 60e3);
 function bmAutoQueue(list) {
   if (!bmAuto.pending.length) bmAuto.since = Date.now();
   (list || []).forEach(x => { const k = mqKey(x.artist, x.title); if (!bmAuto.pending.some(e => e.k === k)) bmAuto.pending.push({ k }); });
@@ -889,6 +908,12 @@ async function bmCheckLinks(kind, songs) {
 // A release with no tracklist yet that will get one from its first Rate Your Music update (just added from RYM, its update still to come) isn't
 // "No tracklist": it waits for that update (queued here if it isn't already), and is matched by itself once the tracklist is saved (bmTracklistArrived).
 const BM_TL_WAIT = 'Waiting for its tracklist from RYM', bmTlQ = { items: [], timer: 0 };
+// (1.135.15) A release done on every service of its run (found or not; not one waiting for its tracklist or for Resume): tried, and out of the queue.
+function bmRelFinished(rel) {
+  if (!rel || !rel.item || !bm) return;
+  const ks = bmKinds(); if (!ks.length || !ks.every(k => rel.st && (rel.st[k] === 'done' || (rel.st[k] === 'skip' && rel.err[k] !== BM_TL_WAIT)))) return;
+  mqTried(rel.item); mqRemove([rel.item]);
+}
 function bmTlFromRym(item) {
   if (!item || item.rymUpdated || !rymUpdateUrl(item) || !rymOutState.present) return false;
   if (!bmTlQ.items.includes(item)) bmTlQ.items.push(item);
@@ -924,7 +949,7 @@ async function bmRunLane(kind) {
       try {
         const songs = await bmSongs(rel);
         if (bm !== b) return;
-        if (!songs.length) { rel.st[kind] = 'skip'; rel.err[kind] = bmTlFromRym(rel.item) ? BM_TL_WAIT : 'No tracklist'; bmRedraw(); continue; }
+        if (!songs.length) { rel.st[kind] = 'skip'; rel.err[kind] = bmTlFromRym(rel.item) ? BM_TL_WAIT : 'No tracklist'; bmRelFinished(rel); bmRedraw(); continue; }
         let relinkOnly = false;
         if (b.songsMode === 'check') {
           const linked = songs.filter(s => smHas(s, kind));
@@ -934,7 +959,7 @@ async function bmRunLane(kind) {
           const broken = Object.keys(rel.broken[kind]);
           if (!broken.length) { rel[kind] = { status: 'done', byIdx: {} }; rel.st[kind] = 'done'; bmRedraw(); continue; }
           relinkOnly = broken.every(i => rel.broken[kind][i].newId);
-        } else if (b.songsMode === 'gaps' && songs.every(s => smHas(s, kind))) { rel.st[kind] = 'skip'; rel.err[kind] = 'All linked'; bmRedraw(); continue; }
+        } else if (b.songsMode === 'gaps' && songs.every(s => smHas(s, kind))) { rel.st[kind] = 'skip'; rel.err[kind] = 'All linked'; bmRelFinished(rel); bmRedraw(); continue; }
         if (kind === 'youtube') smSpotifyNamesToSongs(songs, rel.spotify);          // (1.95.12) Spotify's names, when it got there first
         const r = relinkOnly ? { status: 'done', byIdx: {} } : kind === 'spotify' ? await smSpotifyForRelease(rel.item, songs) : await smYoutubeForRelease(rel.item, songs);
         if (bm !== b) return;
@@ -949,6 +974,7 @@ async function bmRunLane(kind) {
           r.byIdx[s.idx] = [c, ...((r.byIdx[s.idx] || []).filter(x => x.id !== c.id))];
         });
         rel[kind] = bmFilterRejected(r, kind); rel.st[kind] = 'done';
+        bmRelFinished(rel);
         if (r.status === 'done') {
           bmSetPicks(rel, kind);
           let fullVid = false;
