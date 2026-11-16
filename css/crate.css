@@ -5318,3 +5318,8 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
 .speed-head { display: flex; flex-direction: column; gap: 2px; } .speed-sub { font-size: 12px; color: var(--muted); }
 .speed-pre { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 8px; background: var(--bg-card); border-radius: 4px; font: 11px/1.45 'IBM Plex Mono', monospace; white-space: pre; user-select: text; -webkit-user-select: text; }
 .speed-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* (1.135.9) a heart on each song in the cover popup: shown on hover (always on a phone) and while liked */
+.album-quick-peek-track .lk-qp { order: 2; flex: none; margin-left: 2px; opacity: 0; transition: opacity .12s; }
+.album-quick-peek-track:hover .lk-qp, .album-quick-peek-track.selected .lk-qp, .lk-qp[aria-pressed="true"], .lk-qp:focus-visible { opacity: 1; }
+@media (hover: none) { .album-quick-peek-track .lk-qp { opacity: 1; } }

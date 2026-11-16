@@ -97,6 +97,8 @@ function likePaint(all) {
     else if (row.classList.contains('main-track-row')) { const at = row.querySelector('.mt-title'); if (at) at.insertAdjacentHTML('afterbegin', html); }
     else { const at = row.querySelector('.track-name'); if (at) at.insertAdjacentHTML('beforeend', html); }          // (1.129.0) inside the name: these rows are a fixed grid, and an extra cell wrapped the song's length onto a line of its own
   });
+  // (1.135.9) hearts outside song rows (the cover popup's tracklist): put right when something was liked or unliked
+  if (all) document.querySelectorAll('.lk-heart.lk-qp[data-lk-row]').forEach(b => { const it = likeItemByRow(b.dataset.lkRow); if (it) likeSync(b, likeIsOn(it, Number(b.dataset.lkNum))); });
   // the player and Track info: the song playing
   const now = likeNow();
   [['miniPlayerTitle', 'lk-player'], ['trackInfoTitle', 'lk-info']].forEach(([id, cls]) => {

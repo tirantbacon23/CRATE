@@ -2509,7 +2509,7 @@ function quickPeekTrackRowHtml(item, t, ord) {
       <div class="album-quick-peek-track${isNow ? ' now' : ''}" data-track-num="${escapeHtml(String(t.trackNumber || ''))}" data-track-name="${escapeHtml(t.trackName || '')}">
         <button type="button" class="album-quick-peek-track-play" title="Play this track" aria-label="Play ${escapeHtml(t.trackName || 'this track')}">▶</button>
         <span class="album-quick-peek-track-num">${trackNumHtml(t, ord)}</span>
-        <span class="album-quick-peek-track-name"><span class="qp-title${rymBoldTrackClass(t, item)}">${escapeHtml(t.trackName || '')}</span>${songFlagHtml(item, t)}${t.trackExplicitness === 'explicit' ? '<span class="qp-explicit" title="Explicit">E</span>' : ''}</span>
+        <span class="album-quick-peek-track-name"><span class="qp-title${rymBoldTrackClass(t, item)}">${escapeHtml(t.trackName || '')}</span>${songFlagHtml(item, t)}${t.trackExplicitness === 'explicit' ? '<span class="qp-explicit" title="Explicit">E</span>' : ''}</span>${typeof likeBtnHtml === 'function' && tNum ? likeBtnHtml(item, tNum, t.trackName || '', 'lk-qp') : ''}
         ${bits.length ? `<span class="album-quick-peek-track-details">${bits.join('')}</span>` : ''}
         ${rymBar}${linkMarks}<span class="album-quick-peek-track-time">${formatDuration(t.trackTimeMillis)}</span>
         ${credits.length ? `<div class="album-quick-peek-track-credits" hidden>${credits.map(c => `<p class="track-credit-entry"><span class="track-credit-name">${escapeHtml(c.name)}</span>${c.role ? `<span class="track-credit-role">${escapeHtml(c.role)}</span>` : ''}</p>`).join('')}</div>` : ''}
