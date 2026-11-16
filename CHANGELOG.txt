@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.24
+  CURRENT_VERSION: 1.135.25
 
+  1.135.25 — 2026-11-16 — Fix: with several artist or genre tabs open, the header's buttons on the right were pushed off the screen
+          (the tab bar couldn't give way). The buttons now always keep their room, and the tabs scroll sideways when there are
+          more than fit (the mouse wheel scrolls them; the tab you're on is brought into view). With that many tabs CRATE's
+          name no longer widens to line the first tab up with the main panel, so the tabs get the room.
   1.135.24 — 2026-11-16 — Fix: a genre's breadcrumb could put a parent under the wrong genre. 1.135.18 lined the parents up level by
           level, so British Rhythm & Blues (under Rhythm & Blues, itself under R&B / Soul / Funk, and under Rock) read
           "R&B / Soul / Funk › Rock | Rhythm & Blues", as if Rock were under R&B / Soul / Funk. It's now built from each line of

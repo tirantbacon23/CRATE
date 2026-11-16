@@ -5386,3 +5386,13 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
 .tp-desc-hint { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--text-dim); margin-left: 6px; }
 /* (1.135.24) one line of parents kept together in the genre breadcrumb, beside another */
 .gi-crumb-group { display: inline-flex; align-items: center; gap: 8px; padding: 1px 6px; border-radius: 4px; background: rgba(255,255,255,0.045); }
+
+/* (1.135.25) With many tabs open the header's buttons on the right were pushed off the screen: the tab bar couldn't shrink (1.131.0's
+   flex: 0 0 auto). Now the tabs give way — they scroll sideways when there are more than fit (the wheel or a trackpad scrolls them; the
+   tab you're on is brought into view) — and the buttons always keep their room. */
+@media (min-width: 761px) {
+  .topbar .tab-bar { flex: 0 1 auto; min-width: 120px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; overscroll-behavior-x: contain; }
+  .topbar .tab-bar::-webkit-scrollbar { display: none; }
+  .topbar .tab-bar > * { flex-shrink: 0; }
+  .topbar .controls { flex: 0 0 auto; }
+}

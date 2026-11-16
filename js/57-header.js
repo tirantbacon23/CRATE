@@ -18,9 +18,13 @@ function hdrAlign() {
   const main = ['mainPanel', 'artistInfoWrap', 'genreInfoWrap', 'friendInfoWrap', 'likedWrap'].map(id => document.getElementById(id)).find(vis);
   const at = main && main.getBoundingClientRect().left > edge.getBoundingClientRect().left ? main.getBoundingClientRect().left + 6 : edge.getBoundingClientRect().right;
   const nav = document.querySelector('.topbar .tab-bar .nav-tabs');            // (what sits between CRATE's side and the first tab: ← → and their gaps)
-  const between = nav ? nav.getBoundingClientRect().left - brand.getBoundingClientRect().right : (hist ? hist.offsetWidth : 0);
+  const bar = document.getElementById('tabBar'), sl = bar ? bar.scrollLeft : 0;          // (1.135.25) where the first tab would be unscrolled
+  const between = nav ? nav.getBoundingClientRect().left + sl - brand.getBoundingClientRect().right : (hist ? hist.offsetWidth : 0);
   const w = Math.round(at - top.getBoundingClientRect().left - between);
   if (w < 120) { top.style.removeProperty('--hdr-brand-w'); top.classList.remove('hdr-aligned'); return; }
+  // (1.135.25) More tabs than fit beside a widened CRATE: no lining up, so the tabs get that room (and scroll for the rest)
+  const ctl = document.getElementById('topbarControls'), room = top.getBoundingClientRect().width - w - (ctl ? ctl.offsetWidth : 0) - 24;
+  if (bar && bar.scrollWidth > room) { top.style.removeProperty('--hdr-brand-w'); top.classList.remove('hdr-aligned'); top.classList.toggle('hdr-narrow', brand.getBoundingClientRect().width < 230); return; }
   top.style.setProperty('--hdr-brand-w', w + 'px'); top.classList.add('hdr-aligned');
   top.classList.remove('hdr-narrow'); top.classList.toggle('hdr-narrow', brand.getBoundingClientRect().width < 230);          // (as laid out: it may have given way)
 }
@@ -43,3 +47,12 @@ function initHeader() {
   setTimeout(later, 0); setTimeout(later, 1500);
 }
 initHeader();
+
+// (1.135.25) The tab bar scrolls sideways when its tabs don't fit: a mouse wheel scrolls it too, and the tab you're on is brought into view.
+(function tabBarScroll() {
+  const bar = document.getElementById('tabBar'); if (!bar) return;
+  bar.addEventListener('wheel', (e) => { if (bar.scrollWidth <= bar.clientWidth + 1 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return; bar.scrollLeft += e.deltaY; e.preventDefault(); }, { passive: false });
+  const show = () => { const a = bar.querySelector('.nav-tab.active'); if (!a || bar.scrollWidth <= bar.clientWidth + 1) return; const br = bar.getBoundingClientRect(), r = a.getBoundingClientRect(); if (r.left < br.left) bar.scrollLeft -= br.left - r.left + 24; else if (r.right > br.right) bar.scrollLeft += r.right - br.right + 24; };
+  new MutationObserver(() => requestAnimationFrame(show)).observe(bar, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+  if (typeof ResizeObserver === 'function') new ResizeObserver(() => requestAnimationFrame(show)).observe(bar);          // (the bar narrows as tabs open: bring the tab in once it has)
+})();
