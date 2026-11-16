@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.20
+  CURRENT_VERSION: 1.135.21
 
+  1.135.21 — 2026-11-16 — Right-click in Track info. The song's title: the song's menu (play, queue, add to playlist…). The release (its
+          title field, the cover, the rating): the release's menu with a new first item, Show in catalogue — the Music view with
+          the release picked in the browser column (scrolled to, however far down; a search that would hide it is cleared, a
+          playlist left). The artist: the artist's menu. A genre: the genre's menu. Any other field: Copy, Search the crate for
+          this, and Show the release in catalogue.
   1.135.20 — 2026-11-16 — Match songs' history (each Apply, with the links it replaced, for Undo) is kept in your sheet, not only in
           this browser: the Settings tab's MatchHistory row (in pieces when long). Each change is sent a few seconds later; when
           the crate loads, the sheet's copy and this browser's are put together (an undone entry stays undone, else the newer)

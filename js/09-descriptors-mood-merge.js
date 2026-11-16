@@ -657,7 +657,7 @@ if (mode === 'artist') {
 // scrolling and every tap slow, most of all on a phone, where this column is usually not even on screen. The space still to come is kept
 // (a spacer the height of the rows not made yet), so the scrollbar is the right size from the start.
 const LEFT_EAGER = 120, LEFT_CHUNK = 250;
-let leftListObs = null, leftListGen = 0;
+let leftListObs = null, leftListGen = 0, leftListFinish = () => {};
 function leftListRows(jobs) {
   const gen = ++leftListGen, list = el.leftList; let i = 0, rowH = 0, spacer = null;
   if (leftListObs) { leftListObs.disconnect(); leftListObs = null; }
@@ -674,6 +674,7 @@ function leftListRows(jobs) {
   const size = () => { spacer.style.height = Math.max(1, Math.round((jobs.length - i) * (rowH || 40))) + 'px'; };
   size(); list.appendChild(spacer);
   let root = list; while (root && root !== document.body) { const o = getComputedStyle(root).overflowY; if (o === 'auto' || o === 'scroll') break; root = root.parentElement; }
+  leftListFinish = () => { if (gen !== leftListGen || !spacer.isConnected) return; add(jobs.length); spacer.remove(); if (leftListObs) { leftListObs.disconnect(); leftListObs = null; } applyCachedArt(); };          // (1.135.21) every row now, e.g. to scroll to one far down
   leftListObs = new IntersectionObserver((ents) => {
     if (gen !== leftListGen || !ents.some(e => e.isIntersecting)) return;
     const made = add(LEFT_CHUNK);

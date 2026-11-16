@@ -774,7 +774,22 @@ function closeTrackPropertiesModal() {
 // buildCard). Unlike openAlbumContextMenu above — which has to search for a
 // track's album first — this always has a real crate row to work with, so
 // it can jump straight to acting on it.
-function openAlbumCardContextMenu(item, x, y) {
+// (1.135.21) The release in the Music view: picked in the browser column (scrolled to), the main panel showing it. A search that would hide
+// it is cleared, and a playlist left.
+function showReleaseInCatalogue(item) {
+  if (!item) return;
+  if (state.activeTab !== 'albums') switchTab('albums');
+  if (state.leftNavView === 'playlists' || state.activePlaylistId) setLeftNavView('music');
+  if (typeof albumPassesBrowse === 'function' && !albumPassesBrowse(item, getSearchTerms()) && el.searchInput && el.searchInput.value) { el.searchInput.value = ''; el.searchInput.dispatchEvent(new Event('input', { bubbles: true })); }
+  state.navFilter = { mode: 'album', value: item.row };
+  buildLeftList(); updateMainLabel(); applyFiltersSort();
+  setTimeout(() => {
+    let row = el.leftList.querySelector('.left-row.active:not(.left-row-all)');
+    if (!row && typeof leftListFinish === 'function') { leftListFinish(); row = el.leftList.querySelector('.left-row.active:not(.left-row-all)'); }
+    if (row) row.scrollIntoView({ block: 'center' });
+  }, 60);
+}
+function openAlbumCardContextMenu(item, x, y, opts) {
   closeNowPlayingAddMenu();
 
   const menu = document.createElement('div');
@@ -782,6 +797,7 @@ function openAlbumCardContextMenu(item, x, y) {
   const selItems = (state.selectedAlbums.size > 1 && state.selectedAlbums.has(String(item.row))) ? state.raw.filter(r => state.selectedAlbums.has(String(r.row))) : [item];
   menu.innerHTML = `
     <div class="menu-section-title">${escapeHtml(item.title)}</div>
+    ${opts && opts.showInCatalogue ? '<button type="button" data-card-action="showInCatalogue">Show in catalogue</button><div class="menu-divider"></div>' : ''}
     <button type="button" data-card-action="play">▶ Play now</button>
     <button type="button" data-card-action="queue">Add to queue</button>
     <button type="button" class="menu-parent-btn" data-card-action="playlist">Add to playlist <span class="submenu-caret">▸</span></button>
@@ -837,6 +853,7 @@ function openAlbumCardContextMenu(item, x, y) {
 
     closeNowPlayingAddMenu();
     if (action === 'view') openDeck(item);
+    else if (action === 'showInCatalogue') showReleaseInCatalogue(item);
     else if (action === 'artist') filterByArtist(item.artist);
     else if (action === 'play') playAlbumNow(item);
     else if (action === 'queue') queueAlbumTracks(item);

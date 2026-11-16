@@ -1253,6 +1253,38 @@ el.trackInfoFields.addEventListener('click', (e) => {               // (1.95.31)
   const a = e.target.closest('.track-info-artist-link'); if (!a) return;
   e.preventDefault(); e.stopPropagation(); openArtistInfoTab(a.dataset.artist);
 }, true);
+// (1.135.21) Right-click in Track info: the song's title → the song's menu; the release (its title field, the cover) → the release's menu with
+// Show in catalogue; the artist → the artist's menu; a genre → its own (genre links have one everywhere); any other field → Copy and Search.
+el.trackInfoBody.addEventListener('contextmenu', (e) => {
+  if (e.target.closest('.genre-link')) return;
+  const item = typeof nowPlayingItem !== 'undefined' ? nowPlayingItem : null, x = e.clientX, y = e.clientY;
+  const field = e.target.closest('.track-info-field'), key = field ? field.dataset.fiKey : '';
+  if (e.target.closest('#trackInfoTitle')) {
+    const now = typeof likeNow === 'function' ? likeNow() : null;
+    const name = (now && now.name) || el.trackInfoTitle.textContent.trim();          // (no number known: the song by its name)
+    if (item && name) { e.preventDefault(); openTrackContextMenu(item, name, x, y, now ? now.num : undefined); }
+    return;
+  }
+  if (e.target.closest('#trackInfoArt, #trackInfoRatingRow') || key === 'title' || key === 'album') { if (item) { e.preventDefault(); openAlbumCardContextMenu(item, x, y, { showInCatalogue: true }); } return; }
+  if (key === 'artist') { const v = miniPlayerFieldVal('artist'); if (v) { e.preventDefault(); openArtistRowContextMenu(String(v).split(',')[0].trim(), x, y); } return; }
+  if (field) { const v = (field.querySelector('.track-info-field-value') || {}).textContent; if (v && v.trim() && v.trim() !== '—') { e.preventDefault(); openTrackInfoValueMenu(FIELD_OPTIONS[key] || '', v.trim(), x, y, item); } }
+});
+function openTrackInfoValueMenu(label, value, x, y, item) {
+  closeNowPlayingAddMenu();
+  const menu = document.createElement('div'); menu.className = 'panel-mode-menu now-playing-add-menu';
+  menu.innerHTML = `<div class="menu-section-title">${escapeHtml(label)}: ${escapeHtml(value.length > 40 ? value.slice(0, 40) + '…' : value)}</div>
+    <button type="button" data-tiv="copy">Copy</button>
+    <button type="button" data-tiv="search">Search the crate for this</button>
+    ${item ? '<div class="menu-divider"></div><button type="button" data-tiv="show">Show the release in catalogue</button>' : ''}`;
+  document.body.appendChild(menu); positionFloatingMenu(menu, x, y);
+  menu.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-tiv]'); if (!b) return; closeNowPlayingAddMenu();
+    if (b.dataset.tiv === 'copy') { try { navigator.clipboard.writeText(value).then(() => flashGlobalToast('Copied.'), () => {}); } catch (er) { /* not allowed here */ } }
+    else if (b.dataset.tiv === 'search') { if (state.activeTab !== 'albums') switchTab('albums'); if (el.searchInput) { el.searchInput.value = value; el.searchInput.dispatchEvent(new Event('input', { bubbles: true })); } }
+    else if (b.dataset.tiv === 'show') showReleaseInCatalogue(item);
+  });
+  nowPlayingAddMenuEl = menu; setTimeout(() => document.addEventListener('click', closeNowPlayingAddMenuOnOutsideClick), 0);
+}
 // (1.135.17) The release a queue row (or Track info) is about, by its cover key: from the queue itself, else the crate.
 function queueGoItem(key) { const e = (crateQueueList || []).find(x => x && x.item && artKey(x.item) === key); return (e && e.item) || rawIndex('art', artKey).get(key) || null; }
 function renderTrackInfoPanel() {
@@ -1285,7 +1317,7 @@ function renderTrackInfoPanel() {
 
   const fields = (state.fields.trackInfo || []).filter(k => k && k !== 'none');
   el.trackInfoFields.innerHTML = fields.map(key => `
-    <div class="track-info-field">
+    <div class="track-info-field" data-fi-key="${escapeHtml(key)}">
       <span class="track-info-field-label">${escapeHtml(FIELD_OPTIONS[key] || '')}:</span>
       <span class="track-info-field-value">${key === 'genre' ? genreLinksHtml(miniPlayerFieldVal(key)) : key === 'artist' && miniPlayerFieldVal(key) ? `<a href="#" class="track-info-artist-link" data-artist="${escapeHtml(miniPlayerFieldVal(key))}" title="Open ${escapeHtml(miniPlayerFieldVal(key))}’s artist page">${escapeHtml(miniPlayerFieldVal(key))}</a>` : escapeHtml(miniPlayerFieldVal(key))}</span>
     </div>
