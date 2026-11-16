@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.34
+  CURRENT_VERSION: 1.135.35
 
+  1.135.35 — 2026-11-16 — The Plays column in the Tracks view no longer slides out of sight: it has no drag edge of its own at the end of
+          the table (drag the border on its left instead), and it stays between 52 and 140px wide. A Plays width saved wider than
+          that comes back into view.
   1.135.34 — 2026-11-16 — Resizing a column in the Tracks view moves only the border you drag: the column on the other side of it gives up
           (or takes back) the same width, so no other column shifts. Neither column goes below its smallest width; the last column
           just grows or shrinks.

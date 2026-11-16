@@ -183,8 +183,10 @@ const TRACK_COL_MIN_WIDTH = 40;
 
 function trackColWidth(sortKey) {
   const w = state.trackColWidths && state.trackColWidths[sortKey];
-  return (typeof w === 'number' && w > 0) ? w : trackColDefaultWidth(sortKey);
+  const v = (typeof w === 'number' && w > 0) ? w : trackColDefaultWidth(sortKey);
+  return sortKey === 'plays' ? Math.min(TRACK_PLAYS_MAX_WIDTH, v) : v;          // (1.135.35) Plays is a short count: never wider than this
 }
+const TRACK_PLAYS_MAX_WIDTH = 140;
 
 // The widths the Tracks table is drawn with. The Track name column takes whatever the other columns leave, so resizing one column
 // changes only that column (the name column gives or takes the difference) and the row fills the pane. When even a narrow name column
@@ -314,7 +316,7 @@ function buildTrackTableHeader() {
     const titleText = col.plays ? 'Click to sort · right-click to add a column' : col.fixed ? 'Click to sort' : 'Click to sort · right-click to change column · drag to reorder';
     return `<span class="${classes}" data-sort-key="${col.sortKey}" ${dragAttrs} title="${titleText}">` +
       `<span class="ttc-head-label">${escapeHtml(col.label)}${arrow}</span>` +
-      `<span class="ttc-resize-handle" data-resize-key="${col.sortKey}" title="Drag to resize column"></span>` +
+      (col.plays ? '' : `<span class="ttc-resize-handle" data-resize-key="${col.sortKey}" title="Drag to resize column"></span>`) +          // (1.135.35) Plays, the last column, sizes from the border on its left: an edge at the table's end only pushed it out of sight
       `</span>`;
   }).join('');
 
@@ -367,12 +369,12 @@ function wireTrackHeaderResize(header) {
   // (1.135.34) Only the border you drag moves: the column to its right gives up (or takes back) the same width, so every other column stays
   // exactly where it was. Neither side goes below its smallest width. The last column has no neighbour, so it just grows or shrinks.
   let nextKey = null, nextStart = 0;
-  const colMin = (k) => k === 'name' ? TRACK_NAME_MIN_WIDTH : TRACK_COL_MIN_WIDTH;
+  const colMin = (k) => k === 'name' ? TRACK_NAME_MIN_WIDTH : k === 'plays' ? 52 : TRACK_COL_MIN_WIDTH, colMax = (k) => k === 'plays' ? TRACK_PLAYS_MAX_WIDTH : 1600;
   function onMove(e) {
     if (!resizeKey) return;
     let delta = Math.round(e.clientX - startX);
     delta = Math.max(colMin(resizeKey) - startWidth, delta);
-    if (nextKey) delta = Math.min(nextStart - colMin(nextKey), delta);
+    if (nextKey) delta = Math.max(nextStart - colMax(nextKey), Math.min(nextStart - colMin(nextKey), delta));
     else delta = Math.min(1600 - startWidth, delta);
     state.trackColWidths[resizeKey] = startWidth + delta;
     if (nextKey) state.trackColWidths[nextKey] = nextStart - delta;
