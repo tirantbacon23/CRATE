@@ -364,13 +364,18 @@ function wireTrackHeaderResize(header) {
     refitTrackTable();
   }
 
-  // (1.135.29) As in a spreadsheet: dragging a column's edge changes that column only; the ones to its right move along with the edge, and
-  // the table scrolls when it's wider than the pane (or leaves room on the right when narrower). It used to keep the row filling the pane,
-  // so widening one column narrowed the Track column, and dragging the Track column's edge resized the column next to it.
+  // (1.135.34) Only the border you drag moves: the column to its right gives up (or takes back) the same width, so every other column stays
+  // exactly where it was. Neither side goes below its smallest width. The last column has no neighbour, so it just grows or shrinks.
+  let nextKey = null, nextStart = 0;
+  const colMin = (k) => k === 'name' ? TRACK_NAME_MIN_WIDTH : TRACK_COL_MIN_WIDTH;
   function onMove(e) {
     if (!resizeKey) return;
-    const delta = Math.round(e.clientX - startX), min = resizeKey === 'name' ? TRACK_NAME_MIN_WIDTH : TRACK_COL_MIN_WIDTH;
-    state.trackColWidths[resizeKey] = Math.max(min, Math.min(1600, startWidth + delta));
+    let delta = Math.round(e.clientX - startX);
+    delta = Math.max(colMin(resizeKey) - startWidth, delta);
+    if (nextKey) delta = Math.min(nextStart - colMin(nextKey), delta);
+    else delta = Math.min(1600 - startWidth, delta);
+    state.trackColWidths[resizeKey] = startWidth + delta;
+    if (nextKey) state.trackColWidths[nextKey] = nextStart - delta;
     applyTemplateEverywhere();
   }
 
@@ -404,6 +409,7 @@ function wireTrackHeaderResize(header) {
     handleEl.classList.add('ttc-resizing');
     startX = e.clientX;
     startWidth = shown[i];
+    nextKey = cols[i + 1] ? cols[i + 1].sortKey : null; nextStart = cols[i + 1] ? shown[i + 1] : 0;
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
     document.addEventListener('mousemove', onMove);

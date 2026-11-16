@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.33
+  CURRENT_VERSION: 1.135.34
 
+  1.135.34 — 2026-11-16 — Resizing a column in the Tracks view moves only the border you drag: the column on the other side of it gives up
+          (or takes back) the same width, so no other column shifts. Neither column goes below its smallest width; the last column
+          just grows or shrinks.
   1.135.33 — 2026-11-16 — Credits and song details from Rate Your Music (with the CRATE for RateYourMusic add-on 1.22.0, now kept in this
           repository under rym-addon/). A release page's credits (read when you open it, add it or update from it): roles on
           given tracks go on those songs (their credits, under each song in the release view), the rest on the release ("Release
