@@ -1930,7 +1930,7 @@ window.addEventListener('message', (e) => {
   const d = e.data; if (!d || d.source !== 'crate-addon' || typeof d.type !== 'string' || d.type.slice(0, 3) !== 'yt-') return;
   const redraw = () => { if (typeof smState !== 'undefined' && smState) smRender(); if (typeof bmRedraw === 'function') bmRedraw(); };
   if (d.type === 'yt-script') ytAddonHello();
-  else if (d.type === 'yt-ready') { ytAddon.ready = !!d.ok; ytAddon.version = d.version || ''; if (d.state) ytAddon.state = d.state; ytAddon.today = d.today || 0; ytAddon.cap = d.cap || 0; ytAddon.parallel = Math.max(1, Number(d.parallel) || 1); if (ytAddon.ready) bmAddonArrived(); redraw(); }
+  else if (d.type === 'yt-ready') { ytAddon.ready = !!d.ok; ytAddon.version = d.version || ''; if (d.state) ytAddon.state = d.state; ytAddon.today = d.today || 0; ytAddon.cap = d.cap || 0; ytAddon.parallel = Math.max(1, Number(d.parallel) || 1); if (ytAddon.ready) { bmAddonArrived(); if (smPrefs().autoMatchNew && typeof menuMatchWaiting === 'function') setTimeout(() => { try { if (!bmAuto.pending.length) menuMatchWaiting(); } catch (e) { /* the 5-minute sweep */ } }, 3000); } redraw(); }          // (1.134.2) the add-on arriving after CRATE started: what waits is matched now
   else if (d.type === 'yt-accepted') {
     const pr = ytAddon.pending.get(d.reqId); if (!pr) return; const r = d.resp || {};
     if (!r.ok) { ytAddon.pending.delete(d.reqId); clearTimeout(pr.timer); pr.reject(new Error('addon: ' + (r.reason || 'noanswer'))); } else { pr.accepted = true; pr.arm(150000); }
