@@ -5323,3 +5323,6 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
 .album-quick-peek-track .lk-qp { order: 2; flex: none; margin-left: 2px; opacity: 0; transition: opacity .12s; }
 .album-quick-peek-track:hover .lk-qp, .album-quick-peek-track.selected .lk-qp, .lk-qp[aria-pressed="true"], .lk-qp:focus-visible { opacity: 1; }
 @media (hover: none) { .album-quick-peek-track .lk-qp { opacity: 1; } }
+
+/* (1.135.10) a song on its way or downloaded: its ↓ keeps its place, hidden, so every row lines up */
+.dl-btn.dl-busy, .track-row:hover .dl-btn.dl-busy, .main-track-row:hover .dl-btn.dl-busy, .track-row-wrap:hover .dl-btn.dl-busy { visibility: hidden; pointer-events: none; }

@@ -61,10 +61,11 @@ function dlPaint() {
     const rec = p2pDl[artKey(s.item)], so = rec ? p2pSongFor(s.item, { trackNumber: s.num, trackName: s.name }) : null;
     const busy = !!(so && (p2pActive(so) || (so.st === 'done' && so.local)));
     let b = row.querySelector('.dl-btn');
-    if (busy) { if (b) b.remove(); return; }                         // the row's progress badge shows it now
-    if (b) return;
+    // (1.135.10) A song on its way or downloaded keeps its ↓'s place, only hidden (its progress badge shows it now): taking the button
+    // away moved everything after it on that row, so the rows' play buttons and names didn't line up.
+    if (b) { b.classList.toggle('dl-busy', busy); b.tabIndex = busy ? -1 : 0; return; }
     const at = row.querySelector('.lk-heart') || row.querySelector('.track-name, .mt-title'); if (!at) return;
-    const html = `<button type="button" class="dl-btn" data-dl-row="${escapeHtml(String(s.item.row))}" data-dl-num="${s.num}" data-dl-name="${escapeHtml(s.name)}" title="Download from Soulseek" aria-label="Download ${escapeHtml(s.name)} from Soulseek">${DL_SVG}</button>`;
+    const html = `<button type="button" class="dl-btn${busy ? ' dl-busy' : ''}"${busy ? ' tabindex="-1"' : ''} data-dl-row="${escapeHtml(String(s.item.row))}" data-dl-num="${s.num}" data-dl-name="${escapeHtml(s.name)}" title="Download from Soulseek" aria-label="Download ${escapeHtml(s.name)} from Soulseek">${DL_SVG}</button>`;
     if (at.classList.contains('lk-heart')) at.insertAdjacentHTML('afterend', html); else at.insertAdjacentHTML('beforeend', html);
   });
   // (1.130.3) Up Next's songs: a ↓ right after the song's name (where its download bar appears once it's on its way)

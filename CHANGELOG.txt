@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.9
+  CURRENT_VERSION: 1.135.10
 
+  1.135.10 — 2026-11-16 — Fix: in the Tracks view (and other song lists) some rows' play buttons and names sat further left than the
+          rest. A song downloading or downloaded from Soulseek had its ↓ button taken away, which moved everything after it on
+          that row by the button's width. It now keeps its place, hidden, so every row lines up.
   1.135.9 — 2026-11-16 — A heart on each song in the cover popup's tracklist (tap a cover in the covers view): like or unlike a song
           from there, as from the release's own tracklist. Shown on hover (always on a phone) and while liked.
   1.135.8 — 2026-11-16 — Match songs → Preferences → "On YouTube, look first for": A full-release video (as before: when a release
