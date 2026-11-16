@@ -5378,3 +5378,9 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
 .recent-d { flex: none; font: 11px 'IBM Plex Mono', monospace; color: var(--text-dim); }
 .recent-empty { padding: 14px; color: var(--text-dim); font-size: 12.5px; }
 .recent-foot { padding: 8px 14px 12px; border-top: 1px solid var(--line); }
+
+/* (1.135.23) Track properties: the song's descriptors */
+.tp-desc { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tp-desc-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.tp-desc-none { font-size: 12px; color: var(--text-dim); }
+.tp-desc-hint { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--text-dim); margin-left: 6px; }

@@ -487,6 +487,11 @@ async function addTracksToEntry(trackPlaylistItems) {
 // and the album deck's own tracklist — since they all funnel through
 // openTrackContextMenu()'s "Edit track properties…" action.
 let trackPropsOverlayEl = null;
+// (1.135.23) A song's descriptors as chips (Track properties), or a note that it has none.
+function tpDescChips(item, num, list) {
+  const l = list || sdGet(item, Number(num));
+  return l.length ? l.map(d => `<span class="sd-chip sd-cat-${descCatOf(d)}">${escapeHtml(d)}</span>`).join('') : '<span class="tp-desc-none">None yet</span>';
+}
 function openTrackPropertiesModal(item, trackNum, trackName) {
   closeTrackPropertiesModal();
   refreshGenreAutocompleteList();
@@ -545,6 +550,10 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
           <label for="trackPropsGenre">Genre</label>
           <input type="text" id="trackPropsGenre" list="genreAutocompleteList" placeholder="e.g. Dream Pop" value="${escapeHtml(tData.genre || '')}">
         </div>
+        ${typeof sdGet === 'function' && Number(trackNum) ? `<div class="track-props-field">
+          <label>Descriptors <span class="tp-desc-hint">what this song is like: its mood, its sound</span></label>
+          <div class="tp-desc"><span class="tp-desc-chips" id="trackPropsDesc">${tpDescChips(item, trackNum)}</span><button type="button" class="chip-btn" data-track-props-action="descriptors">Edit\u2026</button></div>
+        </div>` : ''}
         <div class="track-props-field">
           <label for="trackPropsCredits">Credits (one per line: Name \u2014 Role(s))</label>
           <textarea id="trackPropsCredits" rows="4" placeholder="John Lennon \u2014 lead vocals, songwriter&#10;Paul McCartney \u2014 bass, backing vocals">${escapeHtml(tData.credits || '')}</textarea>
@@ -756,6 +765,11 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
     const btn = e.target.closest('button[data-track-props-action]');
     if (!btn) return;
     if (btn.dataset.trackPropsAction === 'save') doSave();
+    else if (btn.dataset.trackPropsAction === 'descriptors') {          // (1.135.23) the song's descriptors, in the same editor as its chips
+      sdEdOpen(btn, item, trackNum, trackName);
+      const back = () => { document.removeEventListener('crate-sd-closed', back); const c = document.getElementById('trackPropsDesc'); if (c) c.innerHTML = tpDescChips(item, trackNum, sdEd.list); };
+      document.addEventListener('crate-sd-closed', back);
+    }
     else if (btn.dataset.trackPropsAction === 'fullvideo') { const hint = youtubeInput.value.trim(); closeTrackPropertiesModal(); fvOpen(item, hint); }
     else closeTrackPropertiesModal();
   });

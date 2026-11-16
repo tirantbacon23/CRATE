@@ -47,7 +47,7 @@ function sdPaint(all) {
 // ----- the editor -----
 const sdEd = { item: null, num: 0, name: '', list: [], timer: 0 };
 function sdUsedCounts() { const m = new Map(); (state.raw || []).forEach(it => Object.values(it.trackData || {}).forEach(e => (e && Array.isArray(e.desc) ? e.desc : []).forEach(d => m.set(d, (m.get(d) || 0) + 1)))); return m; }
-function sdEdClose() { const m = document.getElementById('sdEd'); if (m) m.remove(); document.removeEventListener('mousedown', sdEdOutside, true); if (sdEd.timer) { clearTimeout(sdEd.timer); sdEd.timer = 0; sdSet(sdEd.item, sdEd.num, sdEd.list, sdEd.name); } }
+function sdEdClose() { const m = document.getElementById('sdEd'); if (m) m.remove(); document.removeEventListener('mousedown', sdEdOutside, true); if (sdEd.timer) { clearTimeout(sdEd.timer); sdEd.timer = 0; sdSet(sdEd.item, sdEd.num, sdEd.list, sdEd.name); } document.dispatchEvent(new CustomEvent('crate-sd-closed')); }          // (1.135.23) the event: Track properties shows the new list
 function sdEdOutside(e) { if (!e.target.closest('#sdEd')) sdEdClose(); }
 function sdEdSave() { clearTimeout(sdEd.timer); sdEd.timer = setTimeout(() => { sdEd.timer = 0; sdSet(sdEd.item, sdEd.num, sdEd.list, sdEd.name); }, 500); }
 function sdEdRender(keepFocus) {

@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.22
+  CURRENT_VERSION: 1.135.23
 
+  1.135.23 — 2026-11-16 — Track properties (right-click a song → Edit track properties…) has a Descriptors field: the song's descriptors
+          as chips, and Edit… opens the same descriptor editor as the chips on song rows (suggestions, typing to add, × to take
+          one away). The field shows the new list as soon as the editor closes.
   1.135.22 — 2026-11-16 — Recently added: a new header button (a stack with a +) drops down the 40 releases added most recently,
           newest first, under Today / Yesterday / This week / This month / then each month, with each one's cover and the day it
           was added. Click one to open it; right-click for its menu (Show in catalogue…). "Show the crate newest-added first"
