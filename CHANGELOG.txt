@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.38
+  CURRENT_VERSION: 1.135.39
 
+  1.135.39 — 2026-11-16 — A release's format, as on Rate Your Music (Vinyl LP, Vinyl 12"/10"/7", CD, Cassette, Lossless digital, Digital):
+          a Format box beside Type in Edit and Add release (grouped, or Other… to type your own), kept in a new Format column (needs
+          the updated backend). Shown as two small tags, type and format, on the release card, the quick peek and the deck; as Type and
+          Format lines in Track info when the release has them; and as a Format field for the music browser rows (drawn short, as a
+          tag: LP, 7", CD, FLAC), whose line 2 now takes up to four fields. Format is also a field for cards and the player. The
+          Edition box is no longer offered among descriptor suggestions.
   1.135.38 — 2026-11-16 — Clicking a song's title (in Track info, or in the player bar) takes you to the song in the catalogue: its release
           is picked in the browser, the main panel shows its songs (Tracks, or Album+Tracks if that's on), and the song's row is
           scrolled to, selected and flashed.

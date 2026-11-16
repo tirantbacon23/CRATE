@@ -1665,6 +1665,7 @@ function keyToVal(key, item) {
 
   const map = {
     catalog: item.catalog,
+    format: item.format ? item.format + (item.formatSrc === 'rym' ? ' \u00b7 from RYM' : '') : '',          // (1.135.39)
     descriptor: item.descriptor,
     scene: item.scene,
     movement: item.movement,

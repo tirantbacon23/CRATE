@@ -1029,7 +1029,7 @@ function ssBuildIndex() {                                            // made onc
     allGenresForItem(r).forEach(g => { if (g && g !== 'Unknown') bump(genres, g); });
     String(r.label || '').split(/\s*[\/,;]\s*/).forEach(l => { if (l.trim()) bump(labels, l.trim()); });
     if (r.type && r.type !== 'Unknown') bump(types, r.type);
-    if (typeof parseDescriptors === 'function') parseDescriptors(r.rymDescriptors).concat(parseDescriptors(r.descriptor)).forEach(d => bump(descs, d.toLowerCase()));          // (1.135.37)
+    if (typeof parseDescriptors === 'function') parseDescriptors(r.rymDescriptors).forEach(d => bump(descs, d.toLowerCase()));          // (1.135.37)
   });
   if (typeof artistAliasesAll === 'function') Object.values(artistAliasesAll()).forEach(e => { const k = smFold(e.alias); if (k && !artists.has(k)) artists.set(k, { name: e.alias, n: 0, to: e.to }); });          // an alias leads to its artist
   ssIndex = { raw, n: raw.length, cachedN, tracks: [], seenT: new Set(), trackRefs: new WeakMap(), artists: [...artists.values()], genres: [...genres.values()], labels: [...labels.values()], types: [...types.values()], descs: [...descs.values()],

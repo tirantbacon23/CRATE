@@ -2474,7 +2474,7 @@ function qpRymLine(item) {
 }
 function qpFacts(item) {                                            // the lines under the title: what it is, its genres, the two ratings
   const year = dateVal(item.releaseDate) !== -Infinity ? new Date(item.releaseDate).getUTCFullYear() : '';
-  el.albumQuickPeekSub.innerHTML = `<button type="button" class="quick-peek-artist-link">${escapeHtml(item.artist)}</button>${[year, item.label, item.type && item.type !== 'Unknown' ? item.type : ''].filter(Boolean).map(x => ' · ' + escapeHtml(String(x))).join('')}<span class="qp-len"></span>`;
+  el.albumQuickPeekSub.innerHTML = `<button type="button" class="quick-peek-artist-link">${escapeHtml(item.artist)}</button>${[year, item.label].filter(Boolean).map(x => ' · ' + escapeHtml(String(x))).join('')}<span class="qp-len"></span>${typeof relTagsHtml === 'function' ? relTagsHtml(item) : ''}`;          // (1.135.39) type and format as two small tags
   const genres = genreLinksHtml(getGenreList(combinedGenreStr(item)).slice(0, 4).join(', '));          // links: click opens the genre's page, right-click its menu
   const mine = Number(item.rating) > 0 ? `<span class="qp-stars" title="Your rating">${starRatingHtml(item.rating)}</span>` : '';
   el.albumQuickPeekFacts.innerHTML = `${genres ? `<p class="qp-line qp-dim">${genres}</p>` : ''}${mine || item.rymRating ? `<p class="qp-line">${mine}${mine && item.rymRating ? ' ' : ''}${qpRymLine(item)}</p>` : ''}`;

@@ -1328,6 +1328,7 @@ function renderTrackInfoPanel() {
   el.trackInfoTitle.textContent = el.miniPlayerTitle.textContent || '';
 
   const fields = (state.fields.trackInfo || []).filter(k => k && k !== 'none');
+  if (nowPlayingItem) ['type', 'format'].forEach(k => { if (!fields.includes(k) && keyToVal(k, nowPlayingItem)) fields.push(k); });          // (1.135.39) the release's type and format, when it has them
   el.trackInfoFields.innerHTML = fields.map(key => `
     <div class="track-info-field" data-fi-key="${escapeHtml(key)}">
       <span class="track-info-field-label">${escapeHtml(FIELD_OPTIONS[key] || '')}:</span>

@@ -5,7 +5,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.135.38';
+const APP_VERSION = '1.135.39';
 // (1.93.4) With CRATE open in more than one window (a pop-out, a second tab), only ONE of them does the work done in the background: adding
 // and applying what the Rate Your Music add-on sends, the Last.fm sync, the new-release check, and the look-ups for newly added releases. Each
 // window used to do it all itself (a release sent from RYM was added once per window). The first CRATE window opened is that one (a pop-out
@@ -805,6 +805,7 @@ const FIELD_OPTIONS = {
   rymVotes: 'RYM ratings (count)',
   rymPop: 'RYM popularity',
   type: 'Media Type (LP/EP)',
+  format: 'Format (Vinyl, CD…)',          // (1.135.39)
   catalog: 'Catalog Number',
   descriptor: 'Descriptor',
   scene: 'Scene',

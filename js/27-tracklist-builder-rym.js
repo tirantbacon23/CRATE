@@ -1308,6 +1308,7 @@ function showAddForm(prefill) {
   el.addTitle.value = prefill.title || '';
   const validTypes = ['Album', 'EP', 'Single', 'Compilation', 'Live', 'Mixtape'];
   el.addType.value = validTypes.includes(prefill.type) ? prefill.type : 'Album';
+  if (typeof formatFillSelect === 'function') formatFillSelect(document.getElementById('addFormat'), prefill.format || '');          // (1.135.39)
   setReleaseDateFields('add', prefill.releaseDate || '');
   setRecordedDateFields('add', prefill.recordedDate || '');
   el.addGenre.value = prefill.genre || '';
@@ -1467,6 +1468,7 @@ async function saveNewAlbum() {
     Location: el.addLocation.value.trim(), // 👈 Map viewer — REQUIRES BACKEND COLUMN, see 1.29.14 log entry
     Label: el.addLabel.value.trim(), Catalog: el.addCatalog.value.trim(), // 👈 ADD CATALOG
     Descriptor: el.addDescriptor.value.trim(),
+    Format: typeof formatSelVal === 'function' ? formatSelVal('addFormat') : '',          // (1.135.39)
     RymDescriptors: descNormalizeField((document.getElementById('addRymDescriptors') || {}).value),
     Scene: el.addScene.value.trim(),
     Movement: el.addMovement.value.trim(),

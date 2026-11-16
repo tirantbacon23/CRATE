@@ -21,6 +21,7 @@ function openEditModal() {
   el.editLabel.value = activeItem.label || '';
   el.editCatalog.value = activeItem.catalog || ''; // 👈 ADD THIS
   el.editDescriptor.value = activeItem.descriptor || '';
+  if (typeof formatFillSelect === 'function') formatFillSelect(document.getElementById('editFormat'), activeItem.format);          // (1.135.39)
   { const rd = document.getElementById('editRymDescriptors'); if (rd) rd.value = activeItem.rymDescriptors || ''; }
   el.editScene.value = activeItem.scene || '';
   el.editMovement.value = activeItem.movement || '';
@@ -71,6 +72,8 @@ async function saveEditAlbum() {
     Label: el.editLabel.value.trim(),
     Catalog: el.editCatalog.value.trim(), // 👈 ADD THIS
     Descriptor: el.editDescriptor.value.trim(),
+    Format: typeof formatSelVal === 'function' ? formatSelVal('editFormat') : (activeItem.format || ''),
+    FormatSrc: typeof formatSelVal === 'function' && formatSelVal('editFormat') === (activeItem.format || '') ? (activeItem.formatSrc || '') : '',          // (1.135.39) changed by hand: the add-on leaves it alone from now on
     RymDescriptors: descNormalizeField((document.getElementById('editRymDescriptors') || {}).value),
     Scene: el.editScene.value.trim(),
     Movement: el.editMovement.value.trim(),
@@ -100,6 +103,7 @@ async function saveEditAlbum() {
     activeItem.label = payload.Label;
 	activeItem.catalog = payload.Catalog || 'CRT-' + String(activeItem.row).padStart(3, '0'); // 👈 ADD THIS
     activeItem.descriptor = payload.Descriptor;
+    activeItem.format = payload.Format || ''; activeItem.formatSrc = payload.FormatSrc || '';
     activeItem.scene = payload.Scene;
     activeItem.movement = payload.Movement;
     activeItem.link = payload.Link;

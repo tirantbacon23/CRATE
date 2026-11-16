@@ -21,7 +21,7 @@ function brSave() { try { localStorage.setItem(BR_KEY, JSON.stringify(brAll()));
 // ----- fields -----
 const BR_ALBUM_FIELDS = [
   ['title', 'Title'], ['artist', 'Artist'], ['year', 'Year'], ['date', 'Release date'], ['length', 'Release length'], ['songs', 'Songs'],
-  ['genre', 'Genre'], ['genre2', 'Secondary genre'], ['label', 'Label'], ['catalog', 'Catalog #'], ['type', 'Type'], ['rating', 'Your rating'],
+  ['genre', 'Genre'], ['genre2', 'Secondary genre'], ['label', 'Label'], ['catalog', 'Catalog #'], ['type', 'Type'], ['format', 'Format'], ['rating', 'Your rating'],
   ['rym', 'RYM rating'], ['plays', 'Plays'], ['added', 'Date added'], ['desc', 'Descriptors'], ['region', 'Region']
 ];
 const BR_GROUP_FIELDS = [['count', 'Count'], ['releases', 'Releases'], ['years', 'Years'], ['avg', 'Average rating'], ['length', 'Total length'], ['plays', 'Plays']];
@@ -41,6 +41,7 @@ function brAlbumVal(k, it) {
     case 'label': return it.label || '';
     case 'catalog': return it.catalog || '';
     case 'type': return it.type && it.type !== 'Unknown' ? it.type : '';
+    case 'format': return typeof formatOf === 'function' ? formatOf(it) : '';          // (1.135.39) shown short, as a tag (formatTagHtml)
     case 'rating': return brStars(it.rating);
     case 'rym': return Number(it.rymRating) > 0 ? Number(it.rymRating).toFixed(2) : '';
     case 'plays': { const n = typeof scrobbleCountFor === 'function' ? scrobbleCountFor(it.artist, it.title) : 0; return n ? n + ' play' + (n === 1 ? '' : 's') : ''; }
@@ -82,11 +83,11 @@ const brLine = (vals) => vals.filter(Boolean).join(' · ');
 const BR_BOLD = new Set(['title', 'artist', 'rym']), BR_QUIET = new Set(['genre2']);
 function brLineHtml(ks, it) {
   return (ks || []).map(k => [k, brAlbumVal(k, it)]).filter(([, t]) => t)
-    .map(([k, t]) => BR_BOLD.has(k) ? `<b class="br-b">${escapeHtml(t)}</b>` : BR_QUIET.has(k) ? `<span class="br-quiet">${escapeHtml(t)}</span>` : escapeHtml(t)).join(' · ');
+    .map(([k, t]) => k === 'format' && typeof formatTagHtml === 'function' ? formatTagHtml(it) : BR_BOLD.has(k) ? `<b class="br-b">${escapeHtml(t)}</b>` : BR_QUIET.has(k) ? `<span class="br-quiet">${escapeHtml(t)}</span>` : escapeHtml(t)).join(' · ');
 }
 function brAlbumRowHtml(entry) {
   const c = brOf('album'), it = entry.item;
-  const l1 = brLineHtml(c.l1, it) || `<b class="br-b">${escapeHtml(it.title || '')}</b>`, l2 = brLineHtml(c.l2, it), l3 = brLineHtml(c.l3, it), right = c.right ? brAlbumVal(c.right, it) : '';
+  const l1 = brLineHtml(c.l1, it) || `<b class="br-b">${escapeHtml(it.title || '')}</b>`, l2 = brLineHtml(c.l2, it), l3 = brLineHtml(c.l3, it), right = c.right ? (c.right === 'format' && typeof formatShort === 'function' ? formatShort(brAlbumVal('format', it)) : brAlbumVal(c.right, it)) : '';
   return `<img class="left-thumb art" data-key="${entry.artKey}" alt="">
       <div class="left-row-text">
         <p class="left-row-title">${c.flag !== false && typeof linkFlagHtml === 'function' ? linkFlagHtml(it, 'before') : ''}${l1}</p>
@@ -128,7 +129,7 @@ function brRender() {
   }
   if (brTab === 'album') {
     form += row('Line 1', brLineSlots('l1', c.l1, BR_ALBUM_FIELDS, 3));
-    form += row('Line 2', brLineSlots('l2', c.l2, BR_ALBUM_FIELDS, 3));
+    form += row('Line 2', brLineSlots('l2', c.l2, BR_ALBUM_FIELDS, 4));          // (1.135.39) up to four
     form += row('Line 3', brLineSlots('l3', c.l3, BR_ALBUM_FIELDS, 3));
     form += row('On the right', brSel('right', c.right, BR_ALBUM_FIELDS, 'Nothing'));
     form += `<div class="br-sep"></div>`;

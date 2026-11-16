@@ -5502,3 +5502,11 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
 /* (1.135.38) the song you jumped to from its title */
 @keyframes songFlash { 0%, 40% { background: rgba(214, 162, 76, .28); } 100% { background: transparent; } }
 .song-flash { animation: songFlash 2.2s ease-out; }
+
+/* (1.135.39) a release's format (and type) as small tags */
+.fmt-tag { display: inline-block; font: 500 10px/1.5 'IBM Plex Mono', monospace; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); border-radius: 3px; padding: 0 4px; vertical-align: 1px; }
+.rel-tags { display: inline-flex; gap: 6px; flex-wrap: wrap; vertical-align: middle; }
+.rel-tags .rel-type, .rel-tags .fmt-tag { font: 500 11px/20px 'IBM Plex Mono', monospace; height: 20px; padding: 0 7px; border-radius: 4px; vertical-align: 0; }
+.rel-tags .rel-type { background: rgba(255, 255, 255, .07); color: var(--text-dim); }
+#albumQuickPeekSub .rel-tags { margin-left: 8px; }
+#deckTags { margin: 6px 0 2px; }
