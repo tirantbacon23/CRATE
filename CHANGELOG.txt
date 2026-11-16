@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.26
+  CURRENT_VERSION: 1.135.27
 
+  1.135.27 — 2026-11-16 — Fix: the cover popup could open below (or above) a cover with room for only one song of its tracklist (its
+          header and buttons take about 240 px, and it opened on a side with as little as that). With less than 420 px above
+          and below the cover, it now opens beside it (its right, else its left) at full height.
   1.135.26 — 2026-11-16 — Pick by mood picks single descriptors too, matches songs too, and has three layouts. Pick a whole sense
           (sadness: any of its descriptors) or single descriptors (melancholic, bittersweet), with how many of your releases have
           each; "Your pick" shows them all (× takes one off); typing a descriptor picks it, a word for a feeling its senses.

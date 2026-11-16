@@ -2578,9 +2578,21 @@ function placeFloatingQuickPeek(cardEl) {
   });
   const below = floor - r.bottom - gap - margin;
   const above = r.top - gap - margin;
-  const useAbove = below < 240 && above > below;
+  // (1.135.27) Its header and buttons alone take about 240 px: with less room than ROOM_MIN above and below the card, it opens BESIDE the
+  // card (its right, else its left) at full height instead of squeezing its tracklist down to one song.
+  const ROOM_MIN = 420, w = peek.getBoundingClientRect().width;
+  if (Math.max(above, below) < ROOM_MIN && floor - 2 * margin > Math.max(above, below)) {
+    const right = r.right + gap, left = r.left - gap - w;
+    const x = right + w <= window.innerWidth - margin ? right : left >= margin ? left : null;
+    if (x !== null) {
+      const h = Math.min(cap, floor - 2 * margin);
+      peek.style.maxHeight = h + 'px'; peek.style.left = Math.round(x) + 'px'; peek.style.bottom = 'auto';
+      peek.style.top = Math.round(Math.max(margin, Math.min(r.top, floor - margin - h))) + 'px';
+      return;
+    }
+  }
+  const useAbove = below < ROOM_MIN && above > below;
   peek.style.maxHeight = Math.max(160, Math.min(cap, useAbove ? above : below)) + 'px';
-  const w = peek.getBoundingClientRect().width;
   peek.style.left = Math.max(4, Math.min(r.left, window.innerWidth - w - margin)) + 'px';
   if (useAbove) { peek.style.top = 'auto'; peek.style.bottom = (window.innerHeight - r.top + gap) + 'px'; }
   else { peek.style.bottom = 'auto'; peek.style.top = Math.max(4, r.bottom + gap) + 'px'; }
