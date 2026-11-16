@@ -598,6 +598,7 @@ if (mode === 'artist') {
   // menu's own visibility toggle in updateLeftMenuUI). Buckets the
   // already-sorted `entries` array by key rather than re-deriving from
   // sourceRaw, so rows within each group keep the chosen Name/Count sort.
+  const rowJobs = [];          // (1.135.1) rows are made in batches as you scroll (leftListRows), not all at once
   if (mode === 'album' && state.leftGroupBy && state.leftGroupBy !== 'none') {
     const groupMap = new Map();
     entries.forEach(entry => {
@@ -620,8 +621,8 @@ if (mode === 'artist') {
       const header = document.createElement('div');
       header.className = 'left-group-header';
       header.textContent = `${gk} · ${groupEntries.length}`;
-      el.leftList.appendChild(header);
-      groupEntries.forEach(entry => el.leftList.appendChild(buildLeftRow(entry, mode)));
+      rowJobs.push(() => header);
+      groupEntries.forEach(entry => rowJobs.push(() => buildLeftRow(entry, mode)));
     });
   } else if (mode === 'descriptor') {                            // grouped by what they describe, each group can be folded away
     const byCat = new Map(); entries.forEach(e => { if (!byCat.has(e.cat)) byCat.set(e.cat, []); byCat.get(e.cat).push(e); });
@@ -642,12 +643,45 @@ if (mode === 'artist') {
       });
     });
   } else {
-    entries.forEach(entry => el.leftList.appendChild(buildLeftRow(entry, mode)));
+    entries.forEach(entry => rowJobs.push(() => buildLeftRow(entry, mode)));
   }
+  leftListRows(rowJobs);
 
   applyCachedArt();
   if (mode === 'artist') loadArtistDiscogBadges(entries.map(e => e.label));
   if (mode === 'year') loadYearCoverageBadges(entries.map(e => e.label).filter(y => y !== 'Unknown'));
+}
+
+// (1.135.1) The browser column's rows, made the first LEFT_EAGER at once and the rest in batches as they near the screen. It used to make one row
+// (with a cover) for every release at once: 4,000 releases was 24,000 elements on the page, built again at every search or filter, and it made
+// scrolling and every tap slow, most of all on a phone, where this column is usually not even on screen. The space still to come is kept
+// (a spacer the height of the rows not made yet), so the scrollbar is the right size from the start.
+const LEFT_EAGER = 120, LEFT_CHUNK = 250;
+let leftListObs = null, leftListGen = 0;
+function leftListRows(jobs) {
+  const gen = ++leftListGen, list = el.leftList; let i = 0, rowH = 0, spacer = null;
+  if (leftListObs) { leftListObs.disconnect(); leftListObs = null; }
+  const add = (n) => {
+    const frag = document.createDocumentFragment(), end = Math.min(jobs.length, i + n), made = [];
+    for (; i < end; i++) { const node = jobs[i](); frag.appendChild(node); made.push(node); }
+    if (spacer) list.insertBefore(frag, spacer); else list.appendChild(frag);
+    return made;
+  };
+  add(LEFT_EAGER);
+  if (i >= jobs.length || typeof IntersectionObserver === 'undefined') { add(jobs.length); return; }
+  const sample = list.querySelector('.left-row:not(.left-row-all)'); rowH = sample ? sample.getBoundingClientRect().height || 0 : 0;
+  spacer = document.createElement('div'); spacer.className = 'left-list-spacer'; spacer.setAttribute('aria-hidden', 'true');
+  const size = () => { spacer.style.height = Math.max(1, Math.round((jobs.length - i) * (rowH || 40))) + 'px'; };
+  size(); list.appendChild(spacer);
+  let root = list; while (root && root !== document.body) { const o = getComputedStyle(root).overflowY; if (o === 'auto' || o === 'scroll') break; root = root.parentElement; }
+  leftListObs = new IntersectionObserver((ents) => {
+    if (gen !== leftListGen || !ents.some(e => e.isIntersecting)) return;
+    const made = add(LEFT_CHUNK);
+    made.forEach(n => n.querySelectorAll && n.querySelectorAll('img.art[data-key]').forEach(img => { const u = state.artCache[img.dataset.key] && state.artCache[img.dataset.key].art; if (u) img.src = u; }));
+    if (i >= jobs.length) { spacer.remove(); leftListObs.disconnect(); leftListObs = null; return; }
+    size(); leftListObs.unobserve(spacer); leftListObs.observe(spacer);          // still in view (a fast scroll, a dragged scrollbar): another batch at once
+  }, { root: root === document.body ? null : root, rootMargin: '1200px 0px' });
+  leftListObs.observe(spacer);
 }
 
 function groupCount(items, keyFn) {

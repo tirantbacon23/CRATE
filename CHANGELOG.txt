@@ -17,8 +17,15 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.0
+  CURRENT_VERSION: 1.135.1
 
+  1.135.1 — 2026-11-16 — Faster, most of all on a phone. (1) Covers found on iTunes are now kept in this browser (60 days; "none
+          found" a week): every visit used to look up every release without a Cover URL again, two requests each, four at a
+          time, for minutes, and the phone was busy the whole while (with a 4,000-release test crate, half the CPU at phone
+          speed while doing nothing, and 643 iTunes requests at every start; now about 6% and none). (2) The browser column
+          makes its rows in batches as you scroll instead of one row with a cover per release at once (4,000 releases was
+          24,000 elements on the page, built again at every search or filter): the page went from 35,000 elements to under
+          12,000, CRATE shows the crate sooner, and the cover pass that runs as covers arrive costs a sixth of what it did.
   1.135.0 — 2026-11-16 — Profile pictures. Friends settings → You → Picture: Choose… takes an image, cuts the middle square,
           makes it a small 128 px JPEG and saves it; friends see it in place of your initials (the list, requests, Activity,
           Recommend, their tab for you). Change or Remove any time. The backend keeps each picture in its own Script Property

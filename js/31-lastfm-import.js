@@ -531,6 +531,30 @@ function prefetchArt(items) {
   for (let i = 0; i < concurrency; i++) next();
 }
 
+// (1.135.1) Covers found on iTunes are kept in this browser (localStorage), so a visit doesn't look up every release without a Cover URL again:
+// that was two iTunes requests per release at every start, four at a time, often for minutes, and on a phone it slowed scrolling, taps and
+// playback the whole while. A found cover is kept 60 days; "none found" a week, then asked again.
+const ART_KEPT_KEY = 'crate_art_found_v1', ART_KEPT_MS = 60 * 864e5, ART_NONE_MS = 7 * 864e5;
+let artKept = null, artKeptTimer = 0;
+function artKeptAll() {
+  if (!artKept) { try { artKept = JSON.parse(localStorage.getItem(ART_KEPT_KEY) || '{}') || {}; } catch (e) { artKept = {}; } }
+  return artKept;
+}
+function artKeptGet(key) {
+  const e = artKeptAll()[key]; if (!e) return null;
+  if (Date.now() - e[2] > (e[0] ? ART_KEPT_MS : ART_NONE_MS)) { delete artKept[key]; return null; }
+  return { url: e[0], id: e[1] };
+}
+function artKeptSet(key, url, id) {
+  artKeptAll()[key] = [url || '', id || null, Date.now()];
+  if (!artKeptTimer) artKeptTimer = setTimeout(artKeptSave, 3000);          // at most every 3 s while covers keep arriving
+}
+function artKeptSave() {
+  artKeptTimer = 0; if (!artKept) return;
+  try { localStorage.setItem(ART_KEPT_KEY, JSON.stringify(artKept)); } catch (e) { /* full: kept for this visit */ }
+}
+window.addEventListener('pagehide', artKeptSave);
+
 // iTunes cover lookups take turns, at most ART_LOOKUPS_AT_ONCE (declared above startApp) at a time across the whole page. Every card without a
 // cover used to start its own lookup the moment it was drawn, so a big crate fired thousands at once: iTunes refuses
 // that many (and the release got a placeholder), and the tracklist lookups behind them — playing a genre — had to wait.
@@ -554,6 +578,11 @@ async function fetchArt(item) {
   
   const usable = () => state.artCache[key] && state.artCache[key].art !== badArtUrls[key];
   if (usable()) { artFetchInFlight.delete(key); return applyCachedArtFor(key); }
+  const kept = artKeptGet(key);                                       // (1.135.1) found on an earlier visit: no lookup
+  if (kept && kept.url !== badArtUrls[key]) {
+    state.artCache[key] = kept.url ? { art: kept.url, collectionId: kept.id } : { art: placeholderArt(item), collectionId: null };
+    artFetchInFlight.delete(key); return applyCachedArtFor(key);
+  }
   await artLookupSlot();
   try {
     // Another lookup for the same release (prefetchArt and a card both ask) may have finished while this one waited.
@@ -561,8 +590,10 @@ async function fetchArt(item) {
       const hit = await findItunesAlbum(item, (u) => fetchWithTimeout(u));          // (1.134.3) with a time limit: a stalled request held one of the 4 turns for good, and enough of them left every later cover blank
       if (hit && hit.artworkUrl100) {
         state.artCache[key] = { art: hit.artworkUrl100.replace('100x100', '600x600'), collectionId: hit.collectionId };
+        artKeptSet(key, state.artCache[key].art, hit.collectionId);
       } else {
         state.artCache[key] = { art: placeholderArt(item), collectionId: null };
+        artKeptSet(key, '', null);                                     // none found: asked again after a week
       }
     }
   } catch (e) {
@@ -590,12 +621,15 @@ async function fetchArt(item) {
 async function recoverFailedArt(key, failedUrl) {
   const item = state.raw.find(r => artKey(r) === key);
   if (!item) return;
+  const kept = artKeptGet(key);
+  if (kept && kept.url && kept.url !== failedUrl) { state.artCache[key] = { art: kept.url, collectionId: kept.id }; return applyCachedArtFor(key); }
   try {
     const hit = await findItunesAlbum(item, (u) => fetchWithTimeout(u));
     let art = hit && hit.artworkUrl100 ? hit.artworkUrl100.replace('100x100', '600x600') : '';
     if (art && art === failedUrl) art = hit.artworkUrl100;           // (1.134.3) the big size is what failed: the small one, else the initials — never the same dead link again
     if (art === failedUrl) art = '';
     state.artCache[key] = art ? { art, collectionId: hit.collectionId } : { art: placeholderArt(item), collectionId: null };
+    artKeptSet(key, art, art ? hit.collectionId : null);
   } catch (e) {
     state.artCache[key] = { art: placeholderArt(item), collectionId: null };
   }
