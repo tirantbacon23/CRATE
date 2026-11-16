@@ -272,7 +272,7 @@ function initDownloads() {
   if (deckBtn) deckBtn.addEventListener('click', () => { const it = typeof activeItem !== 'undefined' ? activeItem : null; if (!it) return; const rec = p2pDl[artKey(it)]; if (rec && rec.songs.some(s => s.st === 'fail') && !rec.songs.some(p2pActive)) p2pRetry(artKey(it)).then(dlvRender); else dlRelease(it); });
   const mb = document.getElementById('menuDownloads'); if (mb) mb.addEventListener('click', () => { const lm = document.getElementById('layoutMenu'); if (lm) lm.hidden = true; dlvOpen(); });
   // keep it current
-  let t = 0; new MutationObserver(() => { clearTimeout(t); t = setTimeout(dlPaint, 160); }).observe(document.body, { childList: true, subtree: true });
+  let t = 0; new MutationObserver((recs) => { if (!pageGotElements(recs)) return; clearTimeout(t); t = setTimeout(dlPaint, 160); }).observe(document.body, { childList: true, subtree: true });
   setInterval(() => { if (document.hidden) return; dlPaint(); dlDeckPaint(); dlvRender(); }, 1000);
   if (dlvPrefs().mode === 'float' && dlvPrefs().open) dlvPlace();
   setTimeout(() => { dlPaint(); dlvRender(); }, 2500);

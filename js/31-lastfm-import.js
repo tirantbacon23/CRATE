@@ -636,6 +636,28 @@ async function recoverFailedArt(key, failedUrl) {
   applyCachedArtFor(key);
 }
 
+// (1.135.4) A cover that never arrives. A picture that fails is replaced (recoverFailedArt, through the error listener in bindEvents), but one
+// whose server just never answers — Cover Art Archive's pictures are served by archive.org, which often stalls — sent no error, so the card
+// stayed blank for good. Every few seconds, a cover that has been on screen and still not loaded for 10 s is treated as failed: the
+// iTunes cover (or the initials) takes its place, and that address isn't tried again this visit.
+const ART_STALL_MS = 10000, artStallSeen = new WeakMap();
+setInterval(() => {
+  if (document.hidden) return;
+  const now = Date.now(), vh = window.innerHeight, vw = window.innerWidth;
+  document.querySelectorAll('img.art[data-key]').forEach(img => {
+    const src = img.getAttribute('src');
+    if (!src || src.startsWith('data:') || (img.complete && img.naturalWidth)) { artStallSeen.delete(img); return; }
+    if (img.complete) return;                                          // failed: the error listener has it
+    const r = img.getBoundingClientRect(); if (!r.width || r.bottom < 0 || r.top > vh || r.right < 0 || r.left > vw) return;          // not on screen: a lazy picture isn't even asked for yet
+    const seen = artStallSeen.get(img);
+    if (!seen || seen.src !== src) { artStallSeen.set(img, { src, at: now }); return; }
+    if (now - seen.at < ART_STALL_MS) return;
+    artStallSeen.delete(img);
+    const key = img.dataset.key; if (badArtUrls[key] === img.src) return;
+    badArtUrls[key] = img.src; recoverFailedArt(key, img.src);
+  });
+}, 3000);
+
 // One pass over the art images on the page, each looked up in the cache. It used to be one whole-page search
 // PER CACHED COVER, which with a few thousand releases on screen took over 20 seconds every time the grid was drawn.
 function applyCachedArt(onlyKeys) {

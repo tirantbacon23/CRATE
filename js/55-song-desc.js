@@ -97,7 +97,7 @@ function initSongDesc() {
   const open = (c) => { const it = likeItemByRow(c.dataset.sdRow); if (it) sdEdOpen(c, it, c.dataset.sdNum, c.dataset.sdName); };
   document.addEventListener('click', (e) => { const c = e.target.closest('.sd-chips'); if (!c) return; e.preventDefault(); e.stopPropagation(); open(c); }, true);
   document.addEventListener('keydown', (e) => { const c = e.target.closest && e.target.closest('.sd-chips'); if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(c); } });
-  let t = 0; new MutationObserver(() => { clearTimeout(t); t = setTimeout(() => sdPaint(false), 140); }).observe(document.body, { childList: true, subtree: true });
+  let t = 0; new MutationObserver((recs) => { if (!pageGotElements(recs)) return; clearTimeout(t); t = setTimeout(() => sdPaint(false), 140); }).observe(document.body, { childList: true, subtree: true });
   setInterval(() => { if (!document.hidden) sdPaint(false); }, 1600);
   setTimeout(() => sdPaint(true), 3200);
 }

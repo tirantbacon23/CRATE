@@ -8,13 +8,18 @@
 // rather than jumping straight to the album, since the whole point of the
 // diary is to review *what you thought*, not just the album itself.
 
+// (1.135.4) One date formatter, made once: toLocaleDateString made a new one for every date, a few hundred of a second each, and the Diary
+// and Scrobbles lists format thousands (half the time of opening the Diary on a phone).
+let dsDayFmt = null, dsTimeFmt = null;
+function dsDay(v) { try { return (dsDayFmt || (dsDayFmt = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric' }))).format(new Date(v)); } catch (e) { return new Date(v).toLocaleDateString(); } }
+function dsTime(v) { try { return (dsTimeFmt || (dsTimeFmt = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }))).format(new Date(v)); } catch (e) { return new Date(v).toLocaleTimeString(); } }
 function diaryDateLabel(entry) {
   const hasDate = dateVal(entry.date) !== -Infinity;
   let label = hasDate
-    ? new Date(entry.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+    ? dsDay(entry.date)
     : 'Undated';
   if (dateVal(entry.timestamp) !== -Infinity) {
-    label += ` at ${new Date(entry.timestamp).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+    label += ` at ${dsTime(entry.timestamp)}`;
   }
   return label;
 }
@@ -456,9 +461,7 @@ function scrobbleTotals() {
 }
 
 function scrobbleCountFor(artist, title) {
-  return state.scrobbles
-    .filter(s => s.artist === artist && s.title === title)
-    .reduce((sum, s) => sum + s.playCount, 0);
+  return scrobIndex().album.get(artist + '\u0001' + title) || 0;
 }
 
 // Normalize a track name for matching Last.fm scrobble titles against
@@ -476,12 +479,24 @@ function trackNormKey(name) {                // "\u00bd Way Down" and "Halfway D
     .replace(/[^a-z0-9]+/g, '');
 }
 
+// (1.135.4) Play counts from one pass over the scrobbles, made again when they change. Each song row used to search every scrobble (tens of
+// thousands) for its own: a long tracklist on a phone took seconds.
+let scrobIdx = null, scrobIdxOf = null, scrobIdxN = -1;
+function scrobIndex() {
+  const list = state.scrobbles || [];
+  if (scrobIdx && scrobIdxOf === list && scrobIdxN === list.length) return scrobIdx;
+  const album = new Map(), track = new Map();
+  list.forEach(s => {
+    const a = s.artist + '\u0001' + s.title; album.set(a, (album.get(a) || 0) + s.playCount);
+    const tn = trackNormKey(s.track); if (tn) { const k = a + '\u0001' + tn; track.set(k, (track.get(k) || 0) + s.playCount); }
+  });
+  scrobIdx = { album, track }; scrobIdxOf = list; scrobIdxN = list.length;
+  return scrobIdx;
+}
 function trackScrobbleCountFor(artist, title, trackName) {
   const tn = trackNormKey(trackName);
   if (!tn) return 0;
-  return state.scrobbles
-    .filter(s => s.artist === artist && s.title === title && trackNormKey(s.track) === tn)
-    .reduce((sum, s) => sum + s.playCount, 0);
+  return scrobIndex().track.get(artist + '\u0001' + title + '\u0001' + tn) || 0;
 }
 
 function renderScrobbles() {
@@ -500,7 +515,7 @@ function renderScrobbles() {
     const row = document.createElement('div');
     row.className = 'diary-entry';
     const lastPlayedLabel = dateVal(g.lastDay) !== -Infinity
-      ? new Date(g.lastDay).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+      ? dsDay(g.lastDay)
       : g.lastDay;
 
     row.innerHTML = `

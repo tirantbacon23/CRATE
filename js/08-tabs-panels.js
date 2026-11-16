@@ -29,6 +29,10 @@ function switchTab(tab) {
   el.genreInfoWrap.hidden = tab !== 'genreInfo';
   { const fw = document.getElementById('friendInfoWrap'); if (fw) fw.hidden = tab !== 'friendInfo'; }
   { const lw = document.getElementById('likedWrap'), lt = document.getElementById('tabLiked'); if (lw) lw.hidden = tab !== 'liked'; if (lt) lt.classList.toggle('active', tab === 'liked'); const ln = document.getElementById('navLikedBtn'); if (ln) ln.classList.toggle('active', tab === 'liked'); }          // (1.128.0)
+  // (1.135.4) A list view you leave is emptied: it's drawn again when you come back anyway, and left on the page (the Diary and Scrobbles
+  // can be tens of thousands of elements) it slowed everything else: every pass over the page's song rows, every layout.
+  if (tab !== 'diary' && el.diaryContainer && el.diaryContainer.firstChild) el.diaryContainer.textContent = '';
+  if (tab !== 'scrobbles' && el.scrobblesContainer && el.scrobblesContainer.firstChild) el.scrobblesContainer.textContent = '';
   el.diaryWrap.hidden = tab !== 'diary';
   el.scrobblesWrap.hidden = tab !== 'scrobbles';
   el.statsWrap.hidden = tab !== 'stats';

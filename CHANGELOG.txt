@@ -17,8 +17,22 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.3
+  CURRENT_VERSION: 1.135.4
 
+  1.135.4 — 2026-11-16 — Fix: CRATE could stop answering for minutes on a phone, and some covers stayed blank for good.
+          FROZEN PHONE: measured with a crate of 2,000 releases, 1,500 diary entries and 30,000 scrobbles at phone speed.
+          (1) The liked hearts, song descriptors and download buttons are put on song rows by three painters that run every
+          second or so and after any change to the page; each looked up a row's release by searching the whole crate, for every
+          song row on the page — millions of comparisons a second with a long tracklist showing. Now a map of the crate by row.
+          They also no longer run when only some text changed (the player's clock changed text twice a second). Together they
+          took about 6 s a minute; now under 1. (2) A list view you leave (Diary, Scrobbles) is emptied (it's drawn again when
+          you come back): left on the page it was tens of thousands of elements that slowed everything else. (3) Song play
+          counts come from one pass over the scrobbles instead of a search of all of them per song row. (4) One date formatter
+          for the Diary and Scrobbles instead of a new one per date. Diary opened in 3 s, now 1.9; Scrobbles 1.8 s, now 1.2.
+          BLANK COVERS: a cover whose server never answers (Cover Art Archive's pictures come from archive.org, which often
+          stalls) sent no error, so nothing replaced it. A cover on screen and still not loaded after 10 s is now treated as
+          failed: the iTunes cover (or the initials) takes its place.
+          Tests: tests/mock.js takes ?scrob=, ?diary= and ?pl= for a diary, scrobbles and playlists of that size.
   1.135.3 — 2026-11-16 — Speed check (⚙ → Settings → Speed check…, this browser only): CRATE times its own work on the device —
           each function's own time and calls, each tap from finger-up to the screen being able to change (and what ran), and
           every stall of 150 ms or more (and what ran) — plus when the files, the crate and the sheet's answer arrived. A ⏱

@@ -25,7 +25,18 @@
     const u = String(url && url.url || url);
     if (u.includes('script.google.com')) {
       if (opts && opts.method === 'POST') return json({ ok: true, success: true }, 50);
-      return json({ rows, diary: [], scrobbles: [], playlists: [], rym: true }, 200);
+      if (!window.__mockSide) {          // ?scrob=, ?diary=, ?pl= : a diary, scrobbles and playlists too (for speed tests; none by default)
+        const q = new URLSearchParams(location.search), ns = +(q.get('scrob') || 0), nd = +(q.get('diary') || 0), np = +(q.get('pl') || 0);
+        const pick = () => rows[Math.floor(rnd() * rows.length)];
+        const day = (k) => new Date(Date.UTC(2015, 0, 1) + k * 864e5).toISOString().slice(0, 10);
+        window.__mockSide = {
+          scrobbles: Array.from({ length: ns }, (_, k) => { const r = pick(); return { Row: r._row, Artist: r.Artist, Title: r.Title, Date: day(Math.floor(k / 20)), Track: 'Song ' + (k % 10) + ' of ' + r.AlbumId.slice(1), PlayCount: 1 + Math.floor(rnd() * 3) }; }),
+          diary: Array.from({ length: nd }, (_, k) => { const r = pick(); return { Row: k + 2, Date: day(k), Timestamp: day(k) + 'T12:00:00Z', Artist: r.Artist, Title: r.Title, Rating: Math.floor(rnd() * 10) / 2, EntryTitle: '', Description: rnd() < 0.3 ? 'A few words about it, as a diary entry would have.' : '', Tracks: '', Full: true }; }),
+          playlists: Array.from({ length: np }, (_, k) => ({ Id: 'pl' + k, Name: 'Playlist ' + k, CreatedAt: day(k) })),
+          playlistItems: [].concat(...Array.from({ length: np }, (_, k) => Array.from({ length: 40 }, (_, j) => { const r = pick(); return { Id: 'pi' + k + '_' + j, PlaylistId: 'pl' + k, ItemType: 'track', AlbumId: r.AlbumId, Row: r._row, TrackNum: 1 + (j % 8), TrackName: 'Song ' + (j % 8) + ' of ' + r.AlbumId.slice(1), Position: j }; })))
+        };
+      }
+      return json(Object.assign({ rows, rym: true }, window.__mockSide), 200);
     }
     if (u.includes('itunes.apple.com/search')) {
       window.__mockStats.itunes++;

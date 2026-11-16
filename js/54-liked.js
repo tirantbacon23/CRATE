@@ -16,7 +16,22 @@
 const LIKE_SVG = (on) => `<svg viewBox="0 0 24 24" ${on ? 'fill="currentColor"' : 'fill="none" stroke="currentColor" stroke-width="2"'} aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.3C.9 8.3 3 4.5 6.6 4.5c2 0 3.6 1.1 4.4 2.7.8-1.6 2.4-2.7 4.4-2.7 3.6 0 5.7 3.8 4.2 7.2C19.5 16.4 12 21 12 21z"/></svg>`;
 const likedUi = { sort: 'new', q: '', genre: '', decade: '' };
 
-function likeItemByRow(row) { row = String(row); return (typeof activeItem !== 'undefined' && activeItem && String(activeItem.row) === row) ? activeItem : (state.raw || []).find(r => String(r.row) === row) || null; }
+// (1.135.4) Found through a map of the crate by row, made again when the crate changes. It was a search through every release, for every
+// song row on the page, by three painters every second or so and after any change to the page: with a couple of thousand releases and a long
+// tracklist on screen that was millions of comparisons a second, and on a phone CRATE stopped answering for minutes.
+let likeRowMap = null, likeRowMapOf = null, likeRowMapN = -1;
+function likeItemByRow(row) {
+  row = String(row);
+  if (typeof activeItem !== 'undefined' && activeItem && String(activeItem.row) === row) return activeItem;
+  const raw = state.raw || [];
+  if (likeRowMapOf !== raw || likeRowMapN !== raw.length) { likeRowMap = new Map(); raw.forEach(r => { const k = String(r.row); if (!likeRowMap.has(k)) likeRowMap.set(k, r); }); likeRowMapOf = raw; likeRowMapN = raw.length; }
+  const hit = likeRowMap.get(row);
+  if (hit && String(hit.row) === row) return hit;
+  return raw.find(r => String(r.row) === row) || null;          // (a release whose row changed in place since the map was made)
+}
+// (1.135.4) Whether a change to the page added any elements (new rows to paint), not just changed some text: the player's clock changes
+// text twice a second, and each change used to set all three painters off.
+function pageGotElements(recs) { for (const r of recs) for (const n of r.addedNodes) if (n.nodeType === 1 && !(n.closest && n.closest('#speedPanel'))) return true; return false; }
 function likeIsOn(item, num) { const e = item && item.trackData && item.trackData[num]; return !!(e && e.liked); }
 function likeTrackName(item, num) {
   const e = item && item.trackData && item.trackData[num]; if (e && e.likedName) return e.likedName;
@@ -254,7 +269,7 @@ function initLiked() {
   if (tab) tab.addEventListener('click', (e) => { if (e.target.closest('.lk-tab-close')) { e.stopPropagation(); closeLikedTab(); return; } openLikedTab(); });
   const mb = document.getElementById('menuLiked'); if (mb) mb.addEventListener('click', () => { const lm = document.getElementById('layoutMenu'); if (lm) lm.hidden = true; openLikedTab(); });
   // new rows on screen get their hearts as they appear; the player's follows the song
-  let t = 0; new MutationObserver(() => { clearTimeout(t); t = setTimeout(() => likePaint(false), 120); }).observe(document.body, { childList: true, subtree: true });
+  let t = 0; new MutationObserver((recs) => { if (!pageGotElements(recs)) return; clearTimeout(t); t = setTimeout(() => likePaint(false), 120); }).observe(document.body, { childList: true, subtree: true });
   setInterval(() => { if (!document.hidden) likePaint(false); }, 1500);
   setTimeout(() => { likePaint(true); }, 3000);
 }
