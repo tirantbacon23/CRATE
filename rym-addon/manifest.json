@@ -1,0 +1,114 @@
+{
+  "manifest_version": 3,
+  "name": "CRATE for RateYourMusic",
+  "version": "1.22.0",
+  "description": "Flags releases on RateYourMusic pages that are already in your CRATE collection, and lets CRATE show RYM ratings and genre descriptions.",
+  "permissions": [
+    "storage",
+    "scripting",
+    "offscreen",
+    "declarativeNetRequestWithHostAccess"
+  ],
+  "host_permissions": [
+    "https://rateyourmusic.com/*",
+    "https://www.rateyourmusic.com/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://rateyourmusic.com/*",
+        "https://www.rateyourmusic.com/*"
+      ],
+      "js": [
+        "content-tips.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://rateyourmusic.com/artist/*",
+        "https://www.rateyourmusic.com/artist/*",
+        "https://rateyourmusic.com/genre/*",
+        "https://www.rateyourmusic.com/genre/*",
+        "https://rateyourmusic.com/charts/*",
+        "https://www.rateyourmusic.com/charts/*"
+      ],
+      "js": [
+        "core.js",
+        "content-rym.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://rateyourmusic.com/release/*",
+        "https://www.rateyourmusic.com/release/*"
+      ],
+      "js": [
+        "core.js",
+        "content-release.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://rateyourmusic.com/genre/*",
+        "https://www.rateyourmusic.com/genre/*"
+      ],
+      "js": [
+        "core.js",
+        "content-genre.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://rateyourmusic.com/song/*",
+        "https://www.rateyourmusic.com/song/*"
+      ],
+      "js": [
+        "core.js",
+        "content-song.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "CRATE for RateYourMusic",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "options.html"
+      ],
+      "matches": [
+        "https://rateyourmusic.com/*",
+        "https://www.rateyourmusic.com/*"
+      ]
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}

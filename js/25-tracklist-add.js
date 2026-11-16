@@ -158,7 +158,7 @@ function renderTracklistBody(item, tracks) {
   }
 
   const allListened = tracks.length > 0 && listenedCount === tracks.length;
-  html += `${tlSourceLine(item)}`;
+  html += (typeof rymdReleaseCreditsHtml === 'function' ? rymdReleaseCreditsHtml(item) : '') + `${tlSourceLine(item)}`;          // (1.135.33) the release's own credits
   html += `
     <div class="tracklist-footer">
       <span class="track-total-label">Total Duration</span>

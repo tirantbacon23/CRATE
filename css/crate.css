@@ -5489,3 +5489,9 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
 .track-row-wrap .track-info-main > button, .track-row-wrap .track-info-main > a, .track-row-wrap .track-info-main > .track-scrobble-count, .track-row-wrap .track-info-main > .track-genre-preview { flex: none; }
 .track-row-wrap .track-info-main > .track-name { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .track-row-wrap .track-info-main > .track-note-preview { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* (1.135.33) the release's own credits, under its tracklist */
+.tl-release-credits { margin: 14px 0 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; }
+.tl-release-credits summary { cursor: pointer; font: 500 11px 'IBM Plex Mono', monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); }
+.tl-release-credits summary span { margin-left: 6px; color: var(--accent); }
+.tl-release-credits-list { margin-top: 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px 18px; }

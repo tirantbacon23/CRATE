@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>CRATE for RateYourMusic — options</title><link rel="stylesheet" href="ui.css"></head>
+<body><main>
+  <h1>CRATE for RateYourMusic</h1>
+  <p class="sub">Flags releases on RateYourMusic artist and genre pages that are already in your CRATE. Everything stays in your browser; nothing is sent anywhere.</p>
+
+  <section><h2>Your crate data</h2><p id="statusLine" role="status"></p><p id="statusDetail" class="dim"></p></section>
+
+  <section><h2>1 · Connect to your CRATE</h2>
+    <p class="dim">Paste your CRATE's address. The add-on then receives your list of releases (artist, title, year, edition, catalogue number and RYM link; no ratings or listening history) whenever CRATE is open. Your browser asks permission for that one address only.</p>
+    <input id="crateUrl" type="url" placeholder="https://yourname.github.io/crate/" aria-label="Your CRATE's address" autocomplete="off">
+    <div class="row"><button id="connect" type="button">Connect</button><button id="disconnect" type="button" class="secondary" hidden>Disconnect</button><a id="openCrate" class="btn secondary" target="_blank" rel="noopener" hidden>Open CRATE</a></div>
+    <p id="connectMsg" class="msg" role="status"></p>
+    <p class="dim">In CRATE, <b>⚙ → “Share my crate with the RYM add-on”</b> must be on (it is by default).</p>
+  </section>
+
+  <section id="checkSection"><h2>Connection check</h2>
+    <p class="dim">Tests each step between your CRATE and this add-on, and says what to do about the first one that fails.</p>
+    <ul id="checkList" aria-live="polite"></ul>
+    <div class="row"><button id="syncNow" type="button" class="secondary">Check and sync now</button></div>
+  </section>
+
+  <section><h2>Or import a file</h2>
+    <p class="dim">In CRATE choose <b>⚙ → Export crate…</b>, leave “Other” links ticked (that's where the RYM address is), and download the file. Choose it here. It's a snapshot, so import again after adding releases, or connect above to keep it current.</p>
+    <input id="file" type="file" accept=".json,application/json" aria-label="CRATE export file">
+    <p id="fileMsg" class="msg" role="status"></p>
+  </section>
+
+  <section><h2>How it looks and matches</h2>
+    <label class="opt"><input type="checkbox" id="dimOwned"> Dim releases already in my crate</label>
+    <label class="opt"><input type="checkbox" id="hideOwned"> Hide releases already in my crate</label>
+    <label class="opt"><input type="checkbox" id="flagEditions"> Flag another edition (same album, different year) in amber</label>
+    <label class="opt"><input type="checkbox" id="matchByTitle"> When CRATE has no saved RYM link, match by artist and title</label>
+    <label class="opt"><input type="checkbox" id="matchTypes"> Treat different release types (album, single, EP, compilation, video…) as different releases</label>
+    <label class="opt"><input type="checkbox" id="showPill"> Show the small “CRATE · 3 of 7” summary on artist and genre pages</label>
+  </section>
+
+  <section><h2>RYM ratings</h2>
+    <label class="opt"><input type="checkbox" id="captureRatings"> Remember the average rating shown on RateYourMusic pages (artist, genre and release pages) so CRATE can show it next to your own</label>
+    <p id="ratingsLine" class="dim" role="status"></p>
+    <div class="row"><button id="forgetRatings" type="button" class="secondary">Forget the ratings collected so far</button> <span id="ratingsMsg" class="msg" role="status"></span></div>
+    <p class="dim">The ratings stay in this browser until your CRATE asks for them (⚙ → RYM ratings… in CRATE). Only the average, the number of ratings and the release's name are kept.</p>
+  </section>
+
+  <section><h2>Send to CRATE</h2>
+    <label class="opt"><input type="checkbox" id="showSendButton"> Show a "Send to CRATE" button on RateYourMusic release pages, and in the page panel on genre, artist and chart pages</label>
+    <p id="outboxLine" class="dim" role="status"></p>
+    <div class="row"><button id="clearOutbox" type="button" class="secondary">Discard what is waiting</button> <span id="outboxMsg" class="msg" role="status"></span></div>
+    <p class="dim">Nothing is sent just by visiting a page: only when you press the button. What you send waits in this browser until your CRATE asks for it (CRATE shows a bar to review it).</p>
+  </section>
+
+  <section><h2>Tracklists</h2>
+    <label class="opt"><input type="checkbox" id="captureTracklists"> Remember the tracklist shown on a RateYourMusic release page (titles, order, lengths, and track ratings where shown), so CRATE's tracklist editor can fill from it</label>
+    <label class="opt"><input type="checkbox" id="fetchInTabs"> "Update from Rate Your Music": read each page in a background tab, as before 1.20 (normally they are read without opening tabs, and a tab opens only when Rate Your Music asks for a check)</label>
+    <p id="tracklistsLine" class="dim" role="status"></p>
+    <div class="row"><button id="forgetTracklists" type="button" class="secondary">Forget the tracklists collected so far</button> <span id="tracklistsMsg" class="msg" role="status"></span></div>
+    <p class="dim">Kept in this browser until your CRATE asks for them (the "RYM" button under Fill from, in CRATE's tracklist editor).</p>
+  </section>
+
+  <section><h2>Genre descriptions</h2>
+    <label class="opt"><input type="checkbox" id="captureGenres"> Remember the description RateYourMusic shows on a genre's page, so CRATE can fill in that genre's description</label>
+    <p id="genresLine" class="dim" role="status"></p>
+    <div class="row"><button id="forgetGenres" type="button" class="secondary">Forget the genre descriptions collected so far</button> <span id="genresMsg" class="msg" role="status"></span></div>
+    <p class="dim">Only the genre's name, its description text and the page address are kept, in this browser, until your CRATE asks for them (⚙ → RYM ratings &amp; genres… in CRATE).</p>
+  </section>
+
+  <section><h2>Your progress through genres and charts</h2>
+    <p class="dim">Each genre or chart page you open on RateYourMusic is noted here, with how much of it is in your crate. A page is <b>done</b> when you send it to CRATE, press “Mark this page done” in the page panel, or already have everything on it.</p>
+    <ul id="pagesList" class="dim"></ul>
+    <div class="row"><button id="forgetPages" type="button" class="secondary">Forget this progress</button> <span id="pagesMsg" class="msg" role="status"></span></div>
+  </section>
+
+  <section><details><summary>Advanced: if RateYourMusic's page changes</summary>
+    <p class="dim">The add-on looks for <code>.component_discography_item</code> (and the older <code>.disco_release</code>). If RYM changes its markup you can name the right CSS selectors here. Use “Diagnose this page” in the toolbar popup to see what it finds. Leave blank for the defaults.</p>
+    <label class="dim" for="selItem">Selector for one discography item</label><input id="selItem" type="text" placeholder=".component_discography_item">
+    <label class="dim" for="selLink">Selector for the release link inside an item</label><input id="selLink" type="text" placeholder="a[href*='/release/']">
+    <label class="dim" for="selYear">Selector for the year inside an item</label><input id="selYear" type="text" placeholder="(found automatically)">
+    <label class="dim" for="selRating">Selector for the average rating inside an item</label><input id="selRating" type="text" placeholder="(found automatically)">
+    <label class="dim" for="selCover">Selector for the cover picture on a release page</label><input id="selCover" type="text" placeholder="(found automatically)">
+    <label class="dim" for="selReleaseArtist">Selector for the artist name(s) on a release page</label><input id="selReleaseArtist" type="text" placeholder="(from the page title)">
+    <label class="dim" for="selTracks">Selector for one track row on a release page</label><input id="selTracks" type="text" placeholder="(found automatically)">
+    <label class="dim" for="selGenreDesc">Selector for the genre description on a genre page</label><input id="selGenreDesc" type="text" placeholder="(found automatically)">
+    <div class="row"><button id="resetSel" type="button" class="secondary">Reset to defaults</button></div>
+  </details></section>
+
+  <section><button id="clear" type="button" class="secondary">Forget my crate data</button> <span id="clearMsg" class="msg" role="status"></span></section>
+</main>
+<script src="core.js"></script><script src="options.js"></script></body></html>

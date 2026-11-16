@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en" class="popup"><head><meta charset="utf-8"><title>CRATE for RYM</title><link rel="stylesheet" href="ui.css"></head>
+<body class="popup"><main>
+  <h1>CRATE for RYM</h1>
+  <p id="statusLine" role="status" style="font-weight:600;margin:6px 0 2px"></p><p id="statusDetail" class="dim" style="margin:0 0 10px"></p>
+  <label class="opt"><input type="checkbox" id="dimOwned"> Dim releases I already have</label>
+  <label class="opt"><input type="checkbox" id="hideOwned"> Hide releases I already have</label>
+  <label class="opt"><input type="checkbox" id="flagEditions"> Flag another edition (amber)</label>
+  <div class="row"><button id="diagnose" type="button" class="secondary">Diagnose this page</button><button id="options" type="button" class="secondary">Options</button></div>
+  <p id="diagMsg" class="msg" role="status"></p><pre id="diagOut" hidden></pre>
+  <div class="row"><button id="copy" type="button" class="secondary" hidden>Copy report</button></div>
+</main><script src="popup.js"></script></body></html>

@@ -17,8 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.32
+  CURRENT_VERSION: 1.135.33
 
+  1.135.33 — 2026-11-16 — Credits and song details from Rate Your Music (with the CRATE for RateYourMusic add-on 1.22.0, now kept in this
+          repository under rym-addon/). A release page's credits (read when you open it, add it or update from it): roles on
+          given tracks go on those songs (their credits, under each song in the release view), the rest on the release ("Release
+          credits" under the tracklist). A song page you view (rateyourmusic.com/song/…): its RYM rating and rating count, genre,
+          descriptors and credits go on that song, found by the releases the page lists, else by artist and title. What you typed
+          stays: credits, genre and descriptors are filled in only where there are none (or came from RYM before); the RYM
+          rating is brought up to date. What arrives before the release or its tracklist is in the crate waits on this device.
+          The lyrics on a song page are never read (js/61-rym-details.js).
   1.135.32 — 2026-11-16 — (1) Fix: in a release's tracklist, a long song title dropped to a line of its own under its ▶ YT button (and
           its play count under that); the buttons and the title now sit side by side, the title ending in … when it's too long.
           (2) A song's ▶ YT button (the release's tracklist, the Tracks and Album and Tracks views) now plays the song through the
