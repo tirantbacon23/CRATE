@@ -1380,7 +1380,8 @@ function buildCard(item) {
   // directly.
   const thisArtKey = artKey(item);
   const cachedArt = state.artCache[thisArtKey];
-  const artNeedsFetch = item.cover ? (!cachedArt || cachedArt.art !== item.cover) : !cachedArt;
+  const coverOk = item.cover && badArtUrls[thisArtKey] !== item.cover;          // (1.134.3) a dead Cover URL was swapped for a found cover: keep that one, don't put the dead link back each time the card is drawn
+  const artNeedsFetch = coverOk ? (!cachedArt || cachedArt.art !== item.cover) : (!cachedArt || cachedArt.art === badArtUrls[thisArtKey]);
   if (artNeedsFetch && !artFetchInFlight.has(thisArtKey)) {
     artFetchInFlight.add(thisArtKey);
     fetchArt(item);

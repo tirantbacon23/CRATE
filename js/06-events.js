@@ -14,7 +14,7 @@ function bindEvents() {
     const failedUrl = img.src;
     if (badArtUrls[key] === failedUrl) return; // already tried recovering from this exact failure
     badArtUrls[key] = failedUrl;
-    recoverFailedArt(key);
+    recoverFailedArt(key, failedUrl);
   }, true);
 
   // Star rating widgets: click, hover-preview, and drag-to-rate.

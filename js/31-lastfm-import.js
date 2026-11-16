@@ -545,19 +545,20 @@ function artLookupDone() { artLookupsActive--; artLookupNext(); }
 async function fetchArt(item) {
   const key = artKey(item);
   
-  if (item.cover) {
+  if (item.cover && badArtUrls[key] !== item.cover) {                 // (1.134.3) a Cover URL that already failed to load is looked up instead, not put back
     state.artCache[key] = { art: item.cover, collectionId: null };
     applyCachedArtFor(key);
     artFetchInFlight.delete(key);
     return;
   }
   
-  if (state.artCache[key]) { artFetchInFlight.delete(key); return applyCachedArtFor(key); }
+  const usable = () => state.artCache[key] && state.artCache[key].art !== badArtUrls[key];
+  if (usable()) { artFetchInFlight.delete(key); return applyCachedArtFor(key); }
   await artLookupSlot();
   try {
     // Another lookup for the same release (prefetchArt and a card both ask) may have finished while this one waited.
-    if (!state.artCache[key]) {
-      const hit = await findItunesAlbum(item);
+    if (!usable()) {
+      const hit = await findItunesAlbum(item, (u) => fetchWithTimeout(u));          // (1.134.3) with a time limit: a stalled request held one of the 4 turns for good, and enough of them left every later cover blank
       if (hit && hit.artworkUrl100) {
         state.artCache[key] = { art: hit.artworkUrl100.replace('100x100', '600x600'), collectionId: hit.collectionId };
       } else {
@@ -586,14 +587,15 @@ async function fetchArt(item) {
 // NEW failure (e.g. after editing in a different cover, or if the
 // fallback itself later goes bad) to attempt recovery again, since it'll
 // be a different failed URL.
-async function recoverFailedArt(key) {
+async function recoverFailedArt(key, failedUrl) {
   const item = state.raw.find(r => artKey(r) === key);
   if (!item) return;
   try {
-    const hit = await findItunesAlbum(item);
-    state.artCache[key] = hit && hit.artworkUrl100
-      ? { art: hit.artworkUrl100.replace('100x100', '600x600'), collectionId: hit.collectionId }
-      : { art: placeholderArt(item), collectionId: null };
+    const hit = await findItunesAlbum(item, (u) => fetchWithTimeout(u));
+    let art = hit && hit.artworkUrl100 ? hit.artworkUrl100.replace('100x100', '600x600') : '';
+    if (art && art === failedUrl) art = hit.artworkUrl100;           // (1.134.3) the big size is what failed: the small one, else the initials — never the same dead link again
+    if (art === failedUrl) art = '';
+    state.artCache[key] = art ? { art, collectionId: hit.collectionId } : { art: placeholderArt(item), collectionId: null };
   } catch (e) {
     state.artCache[key] = { art: placeholderArt(item), collectionId: null };
   }

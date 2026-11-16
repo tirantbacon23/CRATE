@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.134.2
+  CURRENT_VERSION: 1.134.3
 
+  1.134.3 — 2026-11-16 — Fix: release covers in the main music panel could stay blank. Cover lookups had no time limit, so a
+          stalled iTunes request held one of the four lookup turns for good, and once a few had stalled every later cover
+          waited forever. They now give up after 15 seconds and the release gets its initials. Also, a Cover URL that no
+          longer loads stays replaced by the found cover instead of being put back (and left blank) each time the card is drawn,
+          and a found cover that also fails falls back to the smaller size, then the initials.
   1.134.2 — 2026-11-16 — Fix: when the CRATE for YouTube add-on connected a few seconds after CRATE started, releases waiting to
           be matched were dropped until Match songs was started by hand. They're matched as soon as it connects. Page only.
   1.134.1 — 2026-11-16 — Songs are matched straight away, whatever puts a release in the match queue: a song skipped for want of
