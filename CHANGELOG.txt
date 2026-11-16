@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.2
+  CURRENT_VERSION: 1.135.3
 
+  1.135.3 — 2026-11-16 — Speed check (⚙ → Settings → Speed check…, this browser only): CRATE times its own work on the device —
+          each function's own time and calls, each tap from finger-up to the screen being able to change (and what ran), and
+          every stall of 150 ms or more (and what ran) — plus when the files, the crate and the sheet's answer arrived. A ⏱
+          button (bottom left) shows the report, with Copy, Start over and Turn off. Off, it does nothing (js/58-speed.js).
   1.135.2 — 2026-11-16 — Faster start and view changes. (1) The crate from last time is kept in this browser (IndexedDB, for the
           signed-in account only, 30 days) and shown at once at start, and the sheet's answer follows as a quiet sync that
           changes only what differs: with the Apps Script taking 4 s, the crate showed after 5.3 s and now after 0.7 s.
