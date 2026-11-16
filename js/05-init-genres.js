@@ -189,7 +189,8 @@ const ART_LOOKUPS_AT_ONCE = 4; let artLookupsActive = 0; const artLookupWaiting 
   paintMp(); paintDialogs(); paintQa(); paintSearch();
 })();
 
-const GRID_EAGER = 120, GRID_LAZY_AHEAD = '1600px 0px', GRID_UNLOAD_BEYOND = '5000px 0px';          // see buildGridSection; declared here because the grid can be drawn while startApp runs
+const GRID_EAGER = (window.innerWidth || 1200) < 700 ? 30 : 120,          // (1.135.2) a phone shows about 15 covers: 30 made at once, not 120
+      GRID_LAZY_AHEAD = '1600px 0px', GRID_UNLOAD_BEYOND = '5000px 0px';          // see buildGridSection; declared here because the grid can be drawn while startApp runs
 let gridEagerLeft = 0, gridEagerTick = false, gridLazyObs = null, gridLazyRoot = null, gridUnloadObs = null;
 const jobsState = { waiting: [], timer: 0, nextTimer: 0, nextAt: 0, rymLast: null, rymLogged: true, scan: null, acts: [], runRows: [], held: false, pausing: false, filter: 'all', menu: false, dragging: null };          // see Processing (jobsCollect)          // see Activity (jobsCollect)
 let sceneKnownCache = null, sceneKeysCache = null;          // see sceneKnownGenres / sceneGenreKeys: genres are read while startApp draws the first page
@@ -295,7 +296,9 @@ async function init() {
   // those changes instead of leaving the mini player stuck on a stale track.
   setInterval(refreshNowPlayingFromWebApi, 6000);
 
-  await fetchCatalog();
+  { const snap = await catalogSnapLoad();          // (1.135.2) the crate from last time at once, then the real one as a quiet sync
+    if (snap) { try { await fetchCatalog({ snapData: snap }); } catch (e) { /* the real load below */ } fetchCatalog({ quiet: true, afterSnap: true }).catch(() => {}); }          // (what changed since is shown, not treated as just added)
+    else await fetchCatalog(); }
   applyPanelLayout(); // covers all three panels — see its own comment. Right panel's own piece needs to run after fetchCatalog so state.scrobbles/state.raw are populated if History is on; also this is the earliest safe point for crateQueueList (declared later in the file — see the genre-taxonomy TDZ note above for why that matters)
   applyAddFormFieldVisibility();
   maybeRunBackgroundLastfmSync(); // fire-and-forget; doesn't block first paint

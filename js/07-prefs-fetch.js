@@ -309,13 +309,30 @@ function catalogMarkArrived(items) {                 // releases that came in wi
     setTimeout(() => { c.classList.remove('card-arrive'); c.style.animationDelay = ''; }, 1500 + Math.min(i, 12) * 45);
   }));
 }
+// (1.135.2) THE CRATE KEPT FROM LAST TIME. CRATE used to show "Cataloguing…" at every start until the Apps Script answered (often several
+// seconds, more after it's been idle). The last answer is now kept in this browser (IndexedDB 'crate-catalog', for the signed-in account
+// only, 30 days): the crate shows from it at once, and the real answer follows as a quiet sync, which changes only what differs.
+function catalogSnapWho() { const p = typeof decodeJwtPayload === 'function' ? decodeJwtPayload(getStoredIdToken() || '') : null; return (p && p.email) || ''; }
+let catalogSnapDbP = null;
+function catalogSnapDb() { return catalogSnapDbP || (catalogSnapDbP = new Promise((res, rej) => { try { const r = indexedDB.open('crate-catalog', 1); r.onupgradeneeded = () => r.result.createObjectStore('snap'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); } catch (e) { rej(e); } })); }
+function catalogSnapSave(data) {
+  const who = catalogSnapWho(); if (!who || !data || !Array.isArray(data.rows)) return;
+  catalogSnapDb().then(db => { try { db.transaction('snap', 'readwrite').objectStore('snap').put({ who, at: Date.now(), data }, 'last'); } catch (e) { /* not kept this time */ } }).catch(() => {});
+}
+function catalogSnapLoad() {
+  const who = catalogSnapWho(); if (!who) return Promise.resolve(null);
+  const read = catalogSnapDb().then(db => new Promise(res => { try { const r = db.transaction('snap', 'readonly').objectStore('snap').get('last'); r.onsuccess = () => { const v = r.result; res(v && v.who === who && Date.now() - v.at < 30 * 864e5 && v.data && Array.isArray(v.data.rows) ? v.data : null); }; r.onerror = () => res(null); } catch (e) { res(null); } })).catch(() => null);
+  return Promise.race([read, new Promise(res => setTimeout(() => res(null), 1500))]);          // a stuck database never holds the start up
+}
+
 async function fetchCatalogOnce(opts) {
   opts = opts || {};
   if (!CONFIG.SCRIPT_URL || CONFIG.SCRIPT_URL.indexOf('PASTE_YOUR') === 0) {
     showState('setup', 'albums');
     return;
   }
-  if (!opts.retried && tokenExpMs(getStoredIdToken()) && tokenExpMs(getStoredIdToken()) < Date.now() + 30000) await authRenew();          // about to run out: renew first
+  const snap = opts.snapData || null;          // (1.135.2) the copy kept from last time (catalogSnapLoad): shown at once, no request
+  if (!snap && !opts.retried && tokenExpMs(getStoredIdToken()) && tokenExpMs(getStoredIdToken()) < Date.now() + 30000) await authRenew();          // about to run out: renew first
   const idToken = getStoredIdToken();
   if (!idToken) { handleAuthError(); return; }
   let authRetry = false;
@@ -356,14 +373,14 @@ async function fetchCatalogOnce(opts) {
     // clear a legitimately heavy load; the slowNotice above is what
     // actually addresses "is this frozen?" now, not an aggressive timeout.
     const writeGen = catalogWrites.started, writing = catalogWrites.inFlight;          // (see catalogWrites)
-    const res = await fetchWithTimeout(
+    const res = snap ? null : await fetchWithTimeout(
       CONFIG.SCRIPT_URL + '?id_token=' + encodeURIComponent(idToken),
       { method: 'GET' },
       90000
     );
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    if (quiet && (opts.staleTries || 0) < 3 && (writing || catalogWrites.inFlight || catalogWrites.started !== writeGen)) { await catalogWritesSettled(); return { stale: true }; }          // read while the sheet was being written: done again
+    if (res && !res.ok) throw new Error('HTTP ' + res.status);
+    const data = snap || await res.json();
+    if (!snap && quiet && (opts.staleTries || 0) < 3 && (writing || catalogWrites.inFlight || catalogWrites.started !== writeGen)) { await catalogWritesSettled(); return { stale: true }; }          // read while the sheet was being written: done again
     if (isAuthError(data)) {                                        // the token ran out: renew it quietly and load again, once
       if (data.reason === 'not_allowed') { handleAuthError(authRefusedMessage(data)); return; }          // (1.121.0) renewing won't help
       if (!opts.retried && await authRenew()) { authRetry = true; return; }
@@ -383,6 +400,7 @@ async function fetchCatalogOnce(opts) {
       if (quiet) flashGlobalToast('Couldn\u2019t sync with your sheet just now \u2014 \u27f3 to try again.'); else showState('error', 'albums', data.error);
       return;
     }
+    if (!snap) catalogSnapSave(data);
 
     // Genre taxonomy sync — per-account (via the backend's own Settings
     // sheet) rather than per-browser, so a taxonomy built up on one device
@@ -393,7 +411,8 @@ async function fetchCatalogOnce(opts) {
     // one yet (data.genreTaxonomy null — e.g. a brand new account, or one
     // that hasn't opened the taxonomy editor since this feature shipped).
     artistAliasesArrived(data); artistDetailsArrived(data);
-    if (data.genreTaxonomy) {
+    if (snap) { /* the taxonomy waits for the real answer */ }
+    else if (data.genreTaxonomy) {
       if (taxSyncState().dirty) {
         saveGenreTaxonomy(state.genreTaxonomy);          // this browser has changes the account never received: keep them and send them again, instead of replacing them with the account's older copy
       } else try {
@@ -406,7 +425,7 @@ async function fetchCatalogOnce(opts) {
     }
 
     // Inside fetchCatalog(), update the state.raw mapping:
-      state.catalogFetchedAt = Date.now();      // so the duplicate check knows how fresh its copy of the crate is
+      if (!snap) state.catalogFetchedAt = Date.now();      // so the duplicate check knows how fresh its copy of the crate is
       state.backendTaxChunks = !!(data && data.taxChunks);          // the backend stores a long genre taxonomy in pieces
       state.backendRym = !!(data && data.rym);
       state.backendRymHist = !!(data && data.rymHist);        // the backend stores the history column          // the backend says it can store RYM ratings
@@ -581,7 +600,7 @@ async function fetchCatalogOnce(opts) {
     if (state.activeTab === 'artist') { renderArtistList(); renderArtistDetail(); }
     checkAlbumAnniversaries();
     checkForDuplicateRows();
-    if (quiet) { catalogFlipAfter(flip, rec.added); catalogMarkArrived(rec.added); if (crateIsMain()) { rymUpdateAdded(rec.added); afQueueAdded(rec.added); if (typeof locQueueAdded === 'function') locQueueAdded(rec.added); } }          // (1.93.4) looked up by one window
+    if (quiet && !opts.afterSnap) { catalogFlipAfter(flip, rec.added); catalogMarkArrived(rec.added); if (crateIsMain()) { rymUpdateAdded(rec.added); afQueueAdded(rec.added); if (typeof locQueueAdded === 'function') locQueueAdded(rec.added); } }          // (1.93.4) looked up by one window
   } catch (err) {
     console.error(err);
     // AbortError is fetchWithTimeout's controller.abort() firing — a real

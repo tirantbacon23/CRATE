@@ -34,7 +34,7 @@ function switchTab(tab) {
   el.statsWrap.hidden = tab !== 'stats';
   el.artistWrap.hidden = tab !== 'artist';
   el.app.classList.toggle('app-wide-diary-tracks', tab === 'diary' && state.diaryViewMode === 'tracks');
-  if (tab === 'albums') renderGrid();
+  if (tab === 'albums') { if (gridUnchanged()) gridFillVisible(); else renderGrid(); }          // (1.135.2) back to Music: the grid as you left it, unless what it shows changed
   else if (tab === 'artistInfo') renderArtistInfoTab();
   else if (tab === 'genreInfo') renderGenreInfoTab();
   else if (tab === 'diary') renderDiary();

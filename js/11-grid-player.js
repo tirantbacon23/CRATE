@@ -3,7 +3,14 @@
 // exactly as when they were one <script>: a later file’s functions exist only once it has loaded, so the app starts in 99-boot.js, after all of them.
 /* ---------- Grid rendering ---------- */
 
+// (1.135.2) What the grid was last drawn from. Coming back to the Music view used to draw it all again every time (about a second on a phone
+// with a big crate); now it's kept when it would come out the same: the same list (applyFiltersSort makes a new one at every change), view,
+// grouping, playlist and browser pick. Everything that changes a release on the page either redraws or updates its card in place.
+let gridDrawn = null;
+function gridSigNow() { return JSON.stringify([state.activePlaylistId || '', state.mainViewMode, state.playlistViewMode, state.viewMode, state.groupBy, state.groupBy2, state.navFilter || null, state.fitArtwork, state.fieldPlacement]); }
+function gridUnchanged() { return !!(gridDrawn && gridDrawn.list === state.filtered && gridDrawn.sig === gridSigNow() && el.gridContainer.firstElementChild); }
 function renderGrid() {
+  gridDrawn = { list: state.filtered, sig: gridSigNow() };
   gridEagerReset();                                      // each drawing builds its own first GRID_EAGER cards (see buildGridSection)
   if (state.activePlaylistId) { renderPlaylistMainPanel(); return; }
   // Safety: an inline-style album quick peek (see openAlbumQuickPeek) can
