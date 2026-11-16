@@ -1493,6 +1493,15 @@ async function quickRemoveTracksFromTracklist(trackPlaylistItems) {
   flashGlobalToast(`Removed ${removed} track${removed === 1 ? '' : 's'} from ${albumCount === 1 ? 'tracklist' : 'tracklists'}`);
 }
 
+// (1.133.2) A release double-clicked while a playlist is open: just the songs the playlist has from it, in the playlist's order (all of
+// them only when the playlist holds the whole release). It used to play every track of the album, whatever the playlist held.
+async function playReleaseInView(item) {
+  const pl = typeof activePlaylist === 'function' ? activePlaylist() : null;
+  if (!pl || !item) { playAlbumReplacingQueue(item); return; }
+  const mine = pl.items.filter(it => { const a = playlistAlbumFor(it); return a && String(a.row) === String(item.row); });
+  if (!mine.length || mine.some(it => it.type !== 'track')) { playAlbumReplacingQueue(item); return; }
+  playTracksNow(mine.map(it => ({ row: item.row, trackNum: it.trackNum, trackName: it.trackName })));
+}
 async function playPlaylistFromStart(playlist) {
   if (!playlist.items.length) { flashGlobalToast('Nothing to play \u2014 this playlist is empty.'); return; }
   const myId = ++crateQueueId;

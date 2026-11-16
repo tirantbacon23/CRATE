@@ -1281,7 +1281,7 @@ function buildCard(item) {
   });
   card.addEventListener('dblclick', () => {
     const isCoversView = (state.activePlaylistId ? state.playlistViewMode : state.mainViewMode) === 'covers';
-    if (isCoversView) { closeAlbumQuickPeek(); playAlbumReplacingQueue(item); }
+    if (isCoversView) { closeAlbumQuickPeek(); playReleaseInView(item); }          // (1.133.2) in a playlist: its songs from this release
     else openDeck(item);
   });
   card.addEventListener('keydown', (e) => {

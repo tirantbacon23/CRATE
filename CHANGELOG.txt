@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.133.1
+  CURRENT_VERSION: 1.133.2
 
+  1.133.2 — 2026-11-16 — Fix: double-clicking a release while a playlist is open (its cover, or its row in the browser beside
+          the playlist) played every track of the album. It now plays just the playlist's songs from that release, in the
+          playlist's order; all of them only when the playlist holds the whole release. Page only.
   1.133.1 — 2026-11-15 — Fix: Stop downloading only stopped it for a moment, then it started again. It left the songs marked
           "download first" and the release marked as playing from Soulseek, so the next check asked for them again. Stopping now
           clears both; the release's songs play from your other sources until you download or play it from P2P again. Page only.

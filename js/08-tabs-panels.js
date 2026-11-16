@@ -383,7 +383,7 @@ function buildLeftRow(entry, mode) {
     // why that's a different function from queueAlbumTracks/"Add to
     // queue" (which appends instead), and works for every album, not
     // just ones on Spotify.
-    row.addEventListener('dblclick', () => playAlbumReplacingQueue(entry.item));
+    row.addEventListener('dblclick', () => playReleaseInView(entry.item));          // (1.133.2) beside a playlist: its songs from this release
   }
   // Double-click a GENRE: queue and play every release under it (sub-genres
   // included — the same set the grid shows when you filter by it, since both
