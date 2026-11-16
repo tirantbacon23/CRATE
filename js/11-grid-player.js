@@ -191,8 +191,24 @@ function trackColWidthsShown() {
   const ni = cols.findIndex(col => col.sortKey === 'name');
   const others = widths.reduce((s, w, i) => i === ni ? s : s + w, 0);
   const own = Number(state.trackColWidths && state.trackColWidths.name) || TRACK_NAME_MIN_WIDTH;          // a width you dragged it to: at least that
+  if (trackFitOn()) {                                               // (1.135.14) Fit to width: every column scaled to the pane, no sideways scroll
+    const nameMin = Math.min(260, Math.max(TRACK_NAME_MIN_WIDTH, Math.round(available * 0.28)));
+    if (others > available - nameMin) {
+      const k = Math.max(0, available - nameMin) / (others || 1);
+      cols.forEach((col, i) => { if (i !== ni) widths[i] = Math.max(col.sortKey === 'num' ? 32 : 48, Math.floor(widths[i] * k)); });
+    }
+    widths[ni] = Math.max(TRACK_NAME_MIN_WIDTH, available - widths.reduce((s, w, i) => i === ni ? s : s + w, 0));
+    return widths;
+  }
   widths[ni] = Math.max(own, available - others);
   return widths;
+}
+// (1.135.14) Right-click a column heading → Fit to width. Kept on this device; on, the table always fits the pane (trackColWidthsShown).
+const TRACK_FIT_KEY = 'crate_track_fit_v1';
+function trackFitOn() { try { return localStorage.getItem(TRACK_FIT_KEY) === '1'; } catch (e) { return false; } }
+function trackFitSet(on) {
+  try { if (on) localStorage.setItem(TRACK_FIT_KEY, '1'); else localStorage.removeItem(TRACK_FIT_KEY); } catch (e) { /* this visit only */ }
+  refitTrackTable();
 }
 function trackTableGridTemplate() {
   return trackColWidthsShown().map(w => `${w}px`).join(' ');
@@ -311,8 +327,8 @@ function buildTrackTableHeader() {
     const head = e.target.closest('.ttc-head');
     if (!head) return;
     const plays = head.dataset.sortKey === 'plays';                // Plays stays last; right-clicking it adds a column before it
-    if (head.dataset.slotIndex === undefined && !plays) return;    // # and Track are fixed
     e.preventDefault();
+    if (head.dataset.slotIndex === undefined && !plays) { openTrackColumnMenu(head, -1, e.clientX, e.clientY, false, true); return; }          // # and Track can't be changed: only Fit to width
     openTrackColumnMenu(head, plays ? activeTrackColumns().length : parseInt(head.dataset.slotIndex, 10), e.clientX, e.clientY, plays);
   });
 
@@ -462,13 +478,14 @@ function wireTrackHeaderDragToReorder(header) {
 // Right-click context menu for reassigning a single Tracks-table column to a
 // different field, without opening the full "Customize panel" modal.
 let trackColumnMenuEl = null;
-function openTrackColumnMenu(headEl, slotIndex, x, y, adding) {
+function openTrackColumnMenu(headEl, slotIndex, x, y, adding, fitOnly) {
   closeTrackColumnMenu();
   const menu = document.createElement('div');
   menu.className = 'panel-mode-menu track-col-menu';
   // The Tracks list, not the releases' one: it has the song's own Rate Your Music rating and rating count.
   const cur = activeTrackColumns();
-  menu.innerHTML = `
+  const fitBtn = `<button type="button" data-track-fit class="${trackFitOn() ? 'track-col-menu-active' : ''}" title="Scale the columns so the whole table fits the pane, with no sideways scrolling">${trackFitOn() ? '✓ ' : ''}Fit to width</button>`;
+  menu.innerHTML = fitOnly ? fitBtn : `${fitBtn}
     <div class="menu-section-title">${adding ? 'Add a column' : 'Change column'}</div>
     ${Object.entries(TRACK_COLUMN_LABELS).filter(([val]) => !(adding && val === 'none')).map(([val, lbl]) => {
       const current = adding ? undefined : cur[slotIndex];
@@ -484,6 +501,7 @@ function openTrackColumnMenu(headEl, slotIndex, x, y, adding) {
   menu.style.top = Math.max(4, top) + 'px';
 
   menu.addEventListener('click', (e) => {
+    if (e.target.closest('button[data-track-fit]')) { trackFitSet(!trackFitOn()); closeTrackColumnMenu(); return; }
     const btn = e.target.closest('button[data-field-val]');
     if (!btn) return;
     const val = btn.dataset.fieldVal;

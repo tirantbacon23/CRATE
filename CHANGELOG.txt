@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.13
+  CURRENT_VERSION: 1.135.14
 
+  1.135.14 — 2026-11-16 — Tracks view: right-click any column heading → Fit to width. The columns are scaled so the whole table fits
+          the pane (no sideways scrolling), the Track column keeping a fair share (at least about a quarter of the pane, up to
+          260 px); it refits as the pane changes size. Kept on this device until turned off the same way. Every heading now has
+          the menu (# and Track only this option).
   1.135.13 — 2026-11-16 — The catalogue line at the bottom of the Music view stays one row: on a computer the Processing strip now sits
           at its right end (it floated below, and 1.135.11 kept a band of empty space under the line for it), and when the
           figures don't fit, the end is cut with "…" instead of the line wrapping onto a second row (the whole line shows on
