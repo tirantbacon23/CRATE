@@ -519,9 +519,42 @@ async function bmSavedSummary() {
 
 // ----- history: every Apply, each undoable on its own -----
 function bmHistAll() { try { const a = JSON.parse(localStorage.getItem(BM_HIST_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
-function bmHistSave(a) {
+function bmHistSave(a, fromSheet) {
   a = a.slice(-BM_HIST_MAX);
-  for (let tries = 0; tries < 4; tries++) { try { localStorage.setItem(BM_HIST_KEY, JSON.stringify(a)); return; } catch (e) { if (a.length <= 1) return; a = a.slice(Math.ceil(a.length / 2)); } }
+  for (let tries = 0; tries < 4; tries++) { try { localStorage.setItem(BM_HIST_KEY, JSON.stringify(a)); break; } catch (e) { if (a.length <= 1) break; a = a.slice(Math.ceil(a.length / 2)); } }
+  if (!fromSheet) bmHistToSheetSoon();
+}
+// (1.135.20) THE HISTORY IN YOUR SHEET. It was kept in this browser only, so another device (or a cleared browser) had none to undo. Each change
+// is sent to the sheet a few seconds later (Settings tab, MatchHistory); when the crate loads, the sheet's copy and this browser's are put
+// together (by entry; an undone one stays undone, else the newer), and whichever side was missing something gets it.
+const BM_HIST_DIRTY_KEY = 'crate_match_history_dirty_v1', BM_HIST_SHEET_MAX = 880000;
+let bmHistSheet = null, bmHistTimer = 0;          // bmHistSheet: the backend keeps it (true), doesn't (false), not known yet (null)
+function bmHistToSheetSoon() {
+  try { localStorage.setItem(BM_HIST_DIRTY_KEY, '1'); } catch (e) { /* ignore */ }
+  if (bmHistSheet === false) return;
+  clearTimeout(bmHistTimer); bmHistTimer = setTimeout(bmHistToSheet, 3000);
+}
+function bmHistToSheet() {
+  if (bmHistSheet === false || typeof postUpdate !== 'function') return;
+  let a = bmHistAll(), text = JSON.stringify(a);
+  while (text.length > BM_HIST_SHEET_MAX && a.length > 1) { a = a.slice(1); text = JSON.stringify(a); }          // too long for the sheet: the oldest go first
+  postUpdate({ action: 'saveMatchHistory', history: text })
+    .then(res => { if (res && res.matchHistSaved) { bmHistSheet = true; try { localStorage.removeItem(BM_HIST_DIRTY_KEY); } catch (e) { /* ignore */ } } })
+    .catch(() => { /* still marked to send: next time */ });
+}
+function bmHistArrived(data) {                                        // the crate's answer from the sheet
+  if (!data || data.matchHist !== true) { bmHistSheet = false; return; }
+  bmHistSheet = true;
+  let theirs = []; try { theirs = data.matchHistory ? JSON.parse(data.matchHistory) : []; } catch (e) { theirs = []; }
+  if (!Array.isArray(theirs)) theirs = [];
+  const mine = bmHistAll(), byId = new Map();
+  const better = (x, y) => (!!x.undone !== !!y.undone ? (x.undone ? x : y) : ((x.t || 0) >= (y.t || 0) ? x : y));
+  theirs.concat(mine).forEach(h => { if (!h || !h.id) return; const had = byId.get(h.id); byId.set(h.id, had ? better(had, h) : h); });
+  const merged = [...byId.values()].sort((x, y) => (x.t || 0) - (y.t || 0)).slice(-BM_HIST_MAX);
+  let dirty = false; try { dirty = localStorage.getItem(BM_HIST_DIRTY_KEY) === '1'; } catch (e) { /* ignore */ }
+  bmHistSave(merged, true);
+  if (dirty || JSON.stringify(merged) !== JSON.stringify(theirs.slice(-BM_HIST_MAX))) bmHistToSheetSoon();
+  if (bm) bmRedraw();
 }
 function bmHistStart(label, kind) { const h = { id: 'h' + Date.now().toString(36), t: Date.now(), label, kind: kind || 'batch', entries: [], n: 0, undone: false }; const a = bmHistAll(); a.push(h); bmHistSave(a); return h.id; }
 function bmHistPush(id, entry) { const a = bmHistAll(), h = a.find(x => x.id === id); if (!h) return; h.entries.push(entry); h.n += entry.n; h.t = Date.now(); bmHistSave(a); }

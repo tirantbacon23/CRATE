@@ -411,6 +411,7 @@ async function fetchCatalogOnce(opts) {
     // one yet (data.genreTaxonomy null — e.g. a brand new account, or one
     // that hasn't opened the taxonomy editor since this feature shipped).
     artistAliasesArrived(data); artistDetailsArrived(data);
+    if (!snap && typeof bmHistArrived === 'function') bmHistArrived(data);          // (1.135.20) Match songs' history from the sheet
     if (snap) { /* the taxonomy waits for the real answer */ }
     else if (data.genreTaxonomy) {
       if (taxSyncState().dirty) {

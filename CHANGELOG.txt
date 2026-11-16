@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.19
+  CURRENT_VERSION: 1.135.20
 
+  1.135.20 — 2026-11-16 — Match songs' history (each Apply, with the links it replaced, for Undo) is kept in your sheet, not only in
+          this browser: the Settings tab's MatchHistory row (in pieces when long). Each change is sent a few seconds later; when
+          the crate loads, the sheet's copy and this browser's are put together (an undone entry stays undone, else the newer)
+          and whichever side was missing something gets it, so every device has the same history. The last 30 are kept.
+          Backend change: paste the new apps-script-backend.gs and deploy a New version (until then it stays in this browser).
   1.135.19 — 2026-11-16 — Fix: Group by and Then by did nothing in the Tracks and Album and Tracks views (they worked only in the grid
           views). Both views now group too: Album and Tracks puts a heading over each group's releases, the Tracks table a heading
           over each group's songs (grouped by their release, a release in two genres under both), with the Then by headings
