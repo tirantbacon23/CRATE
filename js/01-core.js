@@ -5,7 +5,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.135.10';
+const APP_VERSION = '1.135.11';
 // (1.93.4) With CRATE open in more than one window (a pop-out, a second tab), only ONE of them does the work done in the background: adding
 // and applying what the Rate Your Music add-on sends, the Last.fm sync, the new-release check, and the look-ups for newly added releases. Each
 // window used to do it all itself (a release sent from RYM was added once per window). The first CRATE window opened is that one (a pop-out
@@ -1173,3 +1173,14 @@ const el = {};
 
 let activeItem = null;
 let logRating = 0;
+
+// (1.135.11) A lookup of the crate by some key, kept until the crate changes (state.raw replaced or a release added or removed). Background
+// jobs that run every second or so (the jobs strip, the match queue) used to build theirs again each time: thousands of releases, every second.
+const rawIndexCache = new Map();
+function rawIndex(name, keyFn) {
+  const raw = state.raw || [], c = rawIndexCache.get(name);
+  if (c && c.of === raw && c.n === raw.length) return c.map;
+  const map = new Map(); raw.forEach(r => { const k = keyFn(r); if (!map.has(k)) map.set(k, r); });
+  rawIndexCache.set(name, { of: raw, n: raw.length, map });
+  return map;
+}

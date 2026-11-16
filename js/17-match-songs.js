@@ -467,7 +467,7 @@ function mqAdd(items, why, song) {                                  // items: re
   return n;
 }
 function mqItems() {
-  const byKey = new Map(); state.raw.forEach(r => { const k = mqKey(r.artist, r.title); if (!byKey.has(k)) byKey.set(k, r); });
+  const byKey = rawIndex('mq', r => mqKey(r.artist, r.title));
   return mqAll().map(e => byKey.get(mqKey(e.a, e.t))).filter(Boolean);
 }
 function mqRemove(items) { const ks = new Set(items.map(it => mqKey(it.artist, it.title))); mqSave(mqAll().filter(e => !ks.has(mqKey(e.a, e.t)))); }

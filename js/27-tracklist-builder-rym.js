@@ -730,19 +730,19 @@ function jobsQueueRym(items, quiet, front) {
 function jobsStartNextRym() {
   clearTimeout(jobsState.nextTimer); jobsState.nextTimer = 0; jobsState.nextAt = 0;
   if (rymFetchState.active || !jobsState.waiting.length) return;
-  const w = jobsState.waiting.shift(), items = w.rows.map(r => state.raw.find(x => String(x.row) === r)).filter(Boolean);
+  const w = jobsState.waiting.shift(), items = w.rows.map(r => rawIndex('row', r => String(r.row)).get(String(r))).filter(Boolean);
   if (items.length) rymFetchUpdates(items, { queued: true }); else jobsStartNextRym();
   jobsRefresh();
 }
 function jobsRymNow() {                                           // the running update as it stands: how far, which release, when the next page opens
   const last = jobsState.rymLast || {}, q = state.rymQueueMode && rymQ.run ? rymQ.run : null, r = q || last;
   const total = r.total || rymFetchState.total || jobsState.runRows.length || 0, done = r.done || 0, i = r.i != null ? r.i : done;
-  const it = q ? (rymQ.runEntries[i] || null) : state.raw.find(x => String(x.row) === jobsState.runRows[i]) || null;
+  const it = q ? (rymQ.runEntries[i] || null) : rawIndex('row', r => String(r.row)).get(String(jobsState.runRows[i])) || null;
   return { total, done, state: r.state || last.state || '', nextAt: r.nextAt || last.nextAt || 0, name: it ? `${it.artist} \u2014 ${it.title}` : '' };
 }
 function jobsPauseRym() {                                         // RYM's runs can only be stopped: what hasn't been read goes back to the front of the queue, held
   if (!rymFetchState.active) return;
-  const rest = jobsState.runRows.slice(jobsRymNow().done), items = rest.map(r => state.raw.find(x => String(x.row) === r)).filter(Boolean);
+  const rest = jobsState.runRows.slice(jobsRymNow().done), items = rest.map(r => rawIndex('row', r => String(r.row)).get(String(r))).filter(Boolean);
   jobsState.pausing = true; rymFetchCancel();
   if (items.length) { jobsQueueRym(items, true, true); if (jobsState.waiting[0]) jobsState.waiting[0].paused = true; }
 }
@@ -826,7 +826,7 @@ function jobsCollect() {
   if (newReleaseScanInFlight) { const sc = jobsState.scan; run.push({ cat: 'sync', icon: 'search', title: 'Looking for new releases', detail: sc ? `${sc.done} of ${jobsPl(sc.total, 'artist')}` : 'From the artists in your crate', pct: sc && sc.total ? sc.done / sc.total * 100 : null }); }
   jobsState.waiting.forEach((w, i) => {
     const right = jobsState.held ? 'held' : w.paused ? 'paused' : i === 0 && jobsState.nextAt > now ? `in ${Math.max(1, Math.round((jobsState.nextAt - now) / 1000))} s` : i === 0 && rymFetchState.active ? 'next' : i === 0 ? 'ready' : `after ${i}`;
-    const names = w.rows.slice(0, 2).map(r => { const it = state.raw.find(x => String(x.row) === r); return it ? it.title : ''; }).filter(Boolean).join(', ');
+    const names = w.rows.slice(0, 2).map(r => { const it = rawIndex('row', r => String(r.row)).get(String(r)); return it ? it.title : ''; }).filter(Boolean).join(', ');
     wait.push({ cat: 'rym', icon: 'sync', drag: i, title: 'Update from Rate Your Music', sub: jobsPl(w.rows.length, 'release'), detail: names + (w.rows.length > 2 ? '\u2026' : ''), right,
       acts: [i === 0 && !rymFetchState.active ? { icon: 'play', label: 'Start now', fn: () => { jobsState.held = false; w.paused = false; jobsStartNextRym(); } } : null, { icon: 'x', label: 'Remove', fn: () => { const k = jobsState.waiting.indexOf(w); if (k >= 0) jobsState.waiting.splice(k, 1); if (!jobsState.waiting.length) { clearTimeout(jobsState.nextTimer); jobsState.nextAt = 0; } } }] });
   });

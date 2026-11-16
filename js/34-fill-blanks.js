@@ -103,13 +103,13 @@ async function afFill(item) {
 // ----- Processing: the one filling now, and what is left for you -----
 // Processing has a tab of its own for this step ("Pull details"): there each release with blanks left is a row of its own, and each one filled
 // today (under Done today) can be opened to see or change what was taken.
-const afItemOf = (k) => state.raw.find(x => afKey(x) === k) || null;
+const afItemOf = (k) => rawIndex('af', afKey).get(k) || null;          // (1.135.11) a lookup, not a search: it runs for every entry each time the jobs strip is drawn
 function afOpenFor(k) { const it = afItemOf(k); if (it) pdOpen(it); }
 function afDoneAct(e) { return e.k && afItemOf(e.k) ? { label: 'Pull details', fn: () => afOpenFor(e.k), opens: true } : null; }
 function afJobs(run, need, wait) {
   if (af.running) run.push({ cat: 'fill', icon: 'layers', title: 'Filling blanks', sub: 'from other sources', detail: af.running.title });
   if (state.afOn) {
-    const byKey = new Map(state.raw.map(x => [afKey(x), x]));
+    const byKey = rawIndex('af', afKey);
     af.pending.forEach(p => { const it = byKey.get(p.k); if (it) wait.push({ cat: 'fill', icon: 'layers', title: it.title, sub: it.artist, right: rymAddHolding(it) ? 'after its RYM update' : 'next', acts: [{ label: 'Pull details now', fn: () => pdOpen(it), opens: true }] }); });
   }
   const left = afLeftAll().filter(e => afItemOf(e.k));
@@ -117,7 +117,7 @@ function afJobs(run, need, wait) {
     left.forEach(e => need.push({ cat: 'fill', icon: 'layers', title: e.title, sub: e.artist, detail: 'No source had ' + e.missing.join(', '),
       acts: [{ label: 'Pull details', fn: () => { afLeftDrop(e.k); afOpenFor(e.k); }, opens: true, primary: true }, { label: 'Skip', fn: () => afLeftDrop(e.k) }] }));
   } else if (left.length) {
-    const first = left[0], it = state.raw.find(x => afKey(x) === first.k);
+    const first = left[0], it = rawIndex('af', afKey).get(first.k);
     need.push({ cat: 'fill', icon: 'layers', title: `${jobsPl(left.length, 'release')} with blanks no source filled`, detail: `${first.title}: ${first.missing.join(', ')}${left.length > 1 ? ` · and ${left.length - 1} more` : ''}`,
       acts: [it ? { label: 'Pull details', fn: () => { afLeftDrop(first.k); pdOpen(it); }, opens: true, primary: true } : null, { label: 'Skip', fn: () => afLeftDrop(first.k) }, left.length > 1 ? { label: 'Skip all', fn: () => { afLeftSave([]); jobsRefresh(); } } : null].filter(Boolean) });
   }

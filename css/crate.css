@@ -5326,3 +5326,7 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
 
 /* (1.135.10) a song on its way or downloaded: its ↓ keeps its place, hidden, so every row lines up */
 .dl-btn.dl-busy, .track-row:hover .dl-btn.dl-busy, .main-track-row:hover .dl-btn.dl-busy, .track-row-wrap:hover .dl-btn.dl-busy { visibility: hidden; pointer-events: none; }
+
+/* (1.135.11) On a computer too, the space the Processing strip floats in is kept free at the bottom of the page, so it no longer covers the
+   catalogue figures or the end of a list (as on a phone: a spacer at the end of #app, a flex column). */
+@media (min-width: 761px) { body.jobs-strip-on #app::after { content: ''; flex: 0 0 52px; } }

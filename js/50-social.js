@@ -147,7 +147,7 @@ async function socPicSet(pic) {
 function socMine(artist, album) {
   if (!artist || !album) return null;
   const a = pbFold(artist), t = pbFold(album);
-  return (state.raw || []).find(x => pbFold(x.title) === t && pbFold(x.artist) === a) || null;
+  return rawIndex('fold', x => pbFold(x.artist) + '\u0001' + pbFold(x.title)).get(a + '\u0001' + t) || null;          // (1.135.11) a lookup: it runs for every friend and feed item
 }
 // (1.117.0) A cover a friend's data points at is shown only from the image services CRATE itself gets covers from. Any other address
 // could be a friend's own server, which would learn when you looked and from where. Otherwise your own copy of that cover is used, if any.

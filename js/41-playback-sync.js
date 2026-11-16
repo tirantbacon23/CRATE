@@ -19,7 +19,7 @@ const PB_LOCAL_KEY = 'crate_playback_v1', PB_SET_KEY = 'crate_pbsync_v1', PLACE_
 const PB_KEEP_MS = 12 * 3600e3;                                       // a refresh carries on with what was playing up to 12 hours ago
 const pbFold = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 const pbId = (it) => (it && (it.albumId || (it.row != null ? 'r' + it.row : ''))) || '';
-function pbItemOf(id) { if (!id) return null; return (state.raw || []).find(x => x.albumId === id || 'r' + x.row === id) || null; }
+function pbItemOf(id) { if (!id) return null; return rawIndex('albumId', r => r.albumId || '\u0000').get(id) || (/^r/.test(id) ? rawIndex('row', r => String(r.row)).get(id.slice(1)) : null) || (state.raw || []).find(x => x.albumId === id || 'r' + x.row === id) || null; }          // (1.135.11) lookups first
 let pbQueueMovedAt = 0, pbQueueSeen = '', pbItemSeen = null, pbItemMovedAt = 0;
 // (1.94.2) The song playing now, whatever plays it. Only Spotify's player sets currentSpotifyTrack: while a song played from YouTube (or
 // SoundCloud) it still held the last Spotify song, so nothing was sent at all (its artist wasn't the release's), or the wrong song was.

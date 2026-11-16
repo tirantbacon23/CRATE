@@ -16,7 +16,7 @@ function p2pDlSave() { try { localStorage.setItem(P2P_DL_KEY, JSON.stringify(p2p
 function p2pKeep() { try { return Object.assign({ mode: 'delete', capGb: 2, ahead: 1 }, JSON.parse(localStorage.getItem(P2P_KEEP_KEY) || '{}')); } catch (e) { return { mode: 'delete', capGb: 2, ahead: 1 }; } }
 function p2pSetKeep(p) { try { localStorage.setItem(P2P_KEEP_KEY, JSON.stringify(Object.assign(p2pKeep(), p))); } catch (e) { /* this visit only */ } p2pTidy(); }
 const p2pItemRefs = new Map();                                       // the releases P2P has been asked about this visit, by key
-const p2pItemByKey = (k) => p2pItemRefs.get(k) || (state.raw || []).find(r => artKey(r) === k) || null;
+const p2pItemByKey = (k) => p2pItemRefs.get(k) || rawIndex('art', artKey).get(k) || null;          // (1.135.11) a lookup
 const p2pActive = (s) => s.st === 'wait' || s.st === 'down';
 
 // ----- slskd's downloads folder, through Chrome's folder access (kept in IndexedDB, asked again only when Chrome forgets) -----
@@ -477,7 +477,7 @@ async function p2pNewRun() {                                          // (1.111.
   p2pNewState.running = true; let searched = false;
   const drop = () => { const i = p2pNewQ.indexOf(e); if (i >= 0) p2pNewQ.splice(i, 1); };
   try {
-    const item = (state.raw || []).find(r => mqKey(r.artist, r.title) === e.k);
+    const item = rawIndex('mq', r => mqKey(r.artist, r.title)).get(e.k);
     if (!item) { e.waits = (e.waits || 0) + 1; e.st = 'list'; e.due = Date.now() + Math.min(15000 * Math.pow(2, e.waits - 1), 180000); if (e.waits > 12) drop(); return; }          // not in the list yet: 15 s, 30 s, 1 min… for about 20 minutes
     if (p2pHasSource(item)) { drop(); return; }
     const tracks = ((await Promise.resolve(getTracksFor(item)).catch(() => [])) || []).filter(t => t && t.trackName);
@@ -529,7 +529,7 @@ function p2pPaintRows() {
   document.querySelectorAll('#crateQueuePanelBody [data-queue-index]').forEach(row => { const e = crateQueueList[Number(row.dataset.queueIndex)]; if (e && e.item && p2pDl[artKey(e.item)]) p2pRowBadge(row, p2pSongFor(e.item, e.track)); });
   document.querySelectorAll('.track-row[data-track-key]').forEach(row => {
     const m = /^(.*)::@(\d+)$/.exec(row.dataset.trackKey || ''); if (!m) return;
-    let it = p2pRowItems.get(m[1]); if (it === undefined) { it = (state.raw || []).find(r => String(r.row) === m[1]) || null; p2pRowItems.set(m[1], it); }
+    let it = p2pRowItems.get(m[1]); if (it === undefined) { it = rawIndex('row', r => String(r.row)).get(m[1]) || null; p2pRowItems.set(m[1], it); }
     if (!it || !p2pDl[artKey(it)]) return;
     const t = (state.trackCache[artKey(it)] || [])[Number(m[2])]; if (t) p2pRowBadge(row, p2pSongFor(it, t));
   });

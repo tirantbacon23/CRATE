@@ -17,8 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.10
+  CURRENT_VERSION: 1.135.11
 
+  1.135.11 — 2026-11-16 — A look round. (1) Lookups instead of searches through the whole crate where they ran over and over: the jobs
+          strip's blank-filling and match-queue rows (rebuilt about once a second, and a search per waiting entry: 2 s of a
+          phone's 106-s speed check), each diary entry's release, each playlist item's, the RYM queue's rows, Soulseek downloads'
+          releases, the friends feed's "in your crate", and playback sync's release by id. One cache (rawIndex in 01-core.js),
+          kept until the crate changes. (2) On a computer the Processing strip covered the middle of the catalogue figures at the
+          bottom of the page; the page now keeps that space free while it shows, as it already did on a phone.
+          Checked: every view (Music in all four modes, a release, Diary, Scrobbles, Stats, Artist, Liked songs) at computer and
+          phone size, with no errors and nothing wider than the screen.
   1.135.10 — 2026-11-16 — Fix: in the Tracks view (and other song lists) some rows' play buttons and names sat further left than the
           rest. A song downloading or downloaded from Soulseek had its ↓ button taken away, which moved everything after it on
           that row by the button's width. It now keeps its place, hidden, so every row lines up.

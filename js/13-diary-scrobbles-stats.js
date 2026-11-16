@@ -32,7 +32,7 @@ function diaryEntryTracksLabel(entry) {
 }
 
 function matchAlbumForEntry(entry) {
-  return state.raw.find(r => r.artist === entry.artist && r.title === entry.title) || null;
+  return rawIndex('at', r => r.artist + '\u0001' + r.title).get(entry.artist + '\u0001' + entry.title) || null;          // (1.135.11) a lookup: this runs for every diary entry drawn
 }
 
 function coverArtForEntry(entry) {

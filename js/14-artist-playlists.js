@@ -357,7 +357,7 @@ let playlistSidebarDragId = null; // playlist id currently being dragged in the 
 // unless/until they're updated to check it too.
 function playlistAlbumFor(playlistItem) {
   if (playlistItem.albumId) {
-    const byId = state.raw.find(r => r.albumId && r.albumId === playlistItem.albumId);
+    const byId = rawIndex('albumId', r => r.albumId || '\u0000').get(playlistItem.albumId);          // (1.135.11) lookups: this runs for every playlist item
     if (byId) return byId;
     // Has an albumId but nothing in the crate matches it — the album was
     // genuinely deleted, not a lookup failure. Don't fall through to the
@@ -367,7 +367,7 @@ function playlistAlbumFor(playlistItem) {
     // wrong-album bug this field exists to prevent.
     return null;
   }
-  return state.raw.find(r => String(r.row) === String(playlistItem.row)) || null;
+  return rawIndex('row', r => String(r.row)).get(String(playlistItem.row)) || null;
 }
 function playlistItemArtUrl(album) {
   if (!album) return placeholderArt({ artist: '', title: '' });
