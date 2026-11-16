@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.40
+  CURRENT_VERSION: 1.135.41
 
+  1.135.41 — 2026-11-16 — Releases pulled from Rate Your Music that weren't updated: "Send to CRATE" of a release you already have is now an
+          update (just after the add-on is installed or reinstalled it doesn't know your crate yet, so it offered Send rather than
+          Update, and CRATE dropped it as "already in your crate"). A release with no RYM link is matched by artist and title even
+          when its year or type differ from RYM's, if it's your only release by that name. An update that can't be applied says why
+          (no match, or more than one), and one that fails to save says so and is tried again a minute later.
   1.135.40 — 2026-11-16 — Pull details checks that MusicBrainz's release is this one: its title and artist must match yours (an edition in
           brackets is fine), looking through the first ten results rather than taking the first. A near miss is turned down ("Found
           'Bryter Layter': not this release") instead of its details being offered, and the column shows which release it found

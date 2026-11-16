@@ -465,11 +465,24 @@ function rymQProgress(d) {
   rymQRender();
   if (!rymQ.open) { if (rymFetchState.active) rymQMirror(); else { const c = rymQCounts(); bgStatus(`Rate Your Music update finished: ${c.updated} updated${c.review ? `, ${c.review} need a look` : ''}.`, 100, { always: true, close: true, view: true }); } }
 }
+// (1.135.41) "Send to CRATE" of one release you already have is an update. The add-on offers Update only when it knows your crate (CRATE gives
+// it the list); just after it's installed or reinstalled it doesn't yet, so it offered Send, and CRATE said "already in your crate" and
+// dropped it. Matched by its RYM link, else by artist and title (a lone match), as updates are.
+function rymSendsAsUpdates() {
+  const ix = rymBuildIndex(state.raw, dupKey);
+  rymOutState.batches.forEach(b => {
+    if (b.kind === 'update' || rymQ.seen.has(b.id) || !Array.isArray(b.releases) || b.releases.length !== 1) return;
+    const rel = b.releases[0]; if (!rel || !(rel.rymLink || (b.source && /\/release\//.test(String(b.source.url || ''))))) return;
+    const hit = rymMatchEntry(ix, { p: rel.rymLink || (b.source && b.source.url), ar: rel.artist, ti: rel.title, ty: rel.type, y: String(rel.releaseDate || '').slice(0, 4) });
+    if (hit && hit.item) { b.kind = 'update'; rymAutoTried.add(b.id); }
+  });
+}
 function rymQIngestAll() {                                      // every update that has arrived and not yet been taken is read, matched to your release and applied
   if (!state.rymQueueMode || !crateIsMain()) return;               // (1.93.4) by one window
+  rymSendsAsUpdates();
   const ups = rymOutState.batches.filter(b => b.kind === 'update' && !rymQ.seen.has(b.id)); if (!ups.length) return;
   ups.forEach(b => rymQ.seen.add(b.id));
-  rymQ.chain = rymQ.chain.then(async () => { for (const b of ups) { try { await rymQIngest(b); } catch (e) { rymQ.seen.delete(b.id); } rymQRender(); } renderRymInbox(); });
+  rymQ.chain = rymQ.chain.then(async () => { for (const b of ups) { try { await rymQIngest(b); } catch (e) { rymQ.seen.delete(b.id); const r = b.releases && b.releases[0]; flashGlobalToast(`Rate Your Music update${r && r.title ? ` for \u201c${r.title}\u201d` : ''} couldn\u2019t be saved (${(e && e.message) || 'error'}): it\u2019s tried again shortly.`); setTimeout(rymQIngestAll, 60000); } rymQRender(); } renderRymInbox(); });          // (1.135.41) a failed save is said, and retried
 }
 async function rymQIngest(b) {
   const rel = b.releases && b.releases[0]; if (!rel) { rymBatchDone([b.id]); return; }
@@ -477,8 +490,10 @@ async function rymQIngest(b) {
   const hit = rymMatchEntry(rymBuildIndex(state.raw, dupKey), { p: rel.rymLink, ar: rel.artist, ti: rel.title, ty: rel.type, y: String(rel.releaseDate || '').slice(0, 4) });
   if (!hit || !hit.item) {
     const e = rymQ.entries.find(x => x.key === pathKey);
-    if (hit && hit.ambiguous) { if (e) { e.state = 'error'; e.note = 'more than one release of yours matches'; } return; }          // stays waiting: it can't be decided here
-    if (e) { e.state = 'skipped'; e.note = 'not in your crate'; } rymBatchDone([b.id]); return;
+    const nm = `\u201c${rel.title || '?'}\u201d${rel.artist ? ' by ' + rel.artist : ''}`;          // (1.135.41) said out loud, not only in the queue's list: an update read on its own page used to vanish without a word
+    if (hit && hit.ambiguous) { if (e) { e.state = 'error'; e.note = 'more than one release of yours matches'; } if (!rymQ.open) flashGlobalToast(`Rate Your Music update for ${nm} not applied: more than one release in your crate matches it. Give the right one its RYM link (Edit release) and open its page again.`); return; }          // stays waiting: it can't be decided here
+    if (e) { e.state = 'skipped'; e.note = 'not in your crate'; } else if (!rymQ.open) flashGlobalToast(`Rate Your Music update for ${nm} not applied: no release in your crate matches it${pathKey ? ' (by its RYM link, or by artist and title)' : ''}. If it is there under another name, give it this RYM link in Edit release.`);
+    rymBatchDone([b.id]); return;
   }
   const item = hit.item, e = rymQEntryFor(item, true), before = item.cover || ''; e.batchId = b.id; if (e.cover0 === undefined) e.cover0 = before;
   if (rel.tracks && rel.tracks.length >= 2) { try { await getTracksFor(item); } catch (er) { /* nothing to compare with */ } }
@@ -1190,6 +1205,7 @@ const rymAutoTried = new Set();
 function rymAutoImport() {
   if (!crateIsMain()) return;                                       // (1.93.4) one window adds it, not every open one
   if (!state.rymAutoImport || (typeof cxImp !== 'undefined' && cxImp && (cxImp.running || !cxEl('cxImportOverlay').hidden))) return;
+  if (state.rymQueueMode) { rymSendsAsUpdates(); if (rymOutState.batches.some(b => b.kind === 'update' && !rymQ.seen.has(b.id))) rymQIngestAll(); }          // (1.135.41) one you already have: updated, not "nothing new"
   const merged = rymMergeBatches(rymOutState.batches.filter(b => !rymAutoTried.has(b.id))); if (!merged) return;
   merged.ids.forEach(id => rymAutoTried.add(id));
   openRymImport(merged); cxEl('cxImportOverlay').hidden = true;          // (read and sorted as for the review, which isn't shown)

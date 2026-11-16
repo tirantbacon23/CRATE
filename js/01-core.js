@@ -5,7 +5,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.135.40';
+const APP_VERSION = '1.135.41';
 // (1.93.4) With CRATE open in more than one window (a pop-out, a second tab), only ONE of them does the work done in the background: adding
 // and applying what the Rate Your Music add-on sends, the Last.fm sync, the new-release check, and the look-ups for newly added releases. Each
 // window used to do it all itself (a release sent from RYM was added once per window). The first CRATE window opened is that one (a pop-out
@@ -267,13 +267,15 @@ function rymMatchEntry(index, entry) {
   const p = rymPathOfUrl(entry.p);
   if (p && index.byPath.has(p)) return { item: index.byPath.get(p), how: 'link' };                    // the saved RYM address is certain
   if (!entry.ar || !entry.ti) return null;
-  const cands = (index.byKey.get(index.keyFn(entry.ar, entry.ti)) || []).filter(it => {
+  const all = index.byKey.get(index.keyFn(entry.ar, entry.ti)) || [];
+  const cands = all.filter(it => {
     const et = rymTypeGroup(entry.ty) || rymTypeOfPath(p), it2 = rymTypeGroup(it.type);
     if (et && it2 && et !== it2) return false;                                                             // an album is not its single or its video
     const ey = rymYearOf(entry.y), iy = rymYearOf(it.releaseDate);
     return !(ey && iy && ey !== iy);
   });
-  if (!cands.length) return null; if (cands.length > 1) return { ambiguous: true };
+  if (!cands.length) return all.length === 1 && !rymPathOfUrl(all[0].rymLink) ? { item: all[0], how: 'title' } : null;          // (1.135.41) your only release by that name, with no RYM link of its own: it, though its year or type differ (a reissue date; Album here, Compilation there)
+  if (cands.length > 1) return { ambiguous: true };
   return { item: cands[0], how: 'title' };
 }
 // What to do with a batch of entries (newest first wins per release). Never touches a rating you typed.
