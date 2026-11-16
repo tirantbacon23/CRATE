@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.37
+  CURRENT_VERSION: 1.135.38
 
+  1.135.38 — 2026-11-16 — Clicking a song's title (in Track info, or in the player bar) takes you to the song in the catalogue: its release
+          is picked in the browser, the main panel shows its songs (Tracks, or Album+Tracks if that's on), and the song's row is
+          scrolled to, selected and flashed.
   1.135.37 — 2026-11-16 — Search by descriptor: typing a descriptor in the search box suggests it ("Descriptor · melancholic"), and picking
           it filters to the releases with it. descriptor: offers your descriptors as you type, and now checks each of a release's
           descriptors from Rate Your Music (it used to look at an old field only). desc: does the same for song descriptors.

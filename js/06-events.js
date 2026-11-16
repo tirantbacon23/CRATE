@@ -1009,7 +1009,7 @@ function bindEvents() {
   // (they navigate using currentSpotifyTrack) — a no-op while a YouTube
   // track is showing in the same slot, guarded via activePlayerEngine.
   // Same mobile bail-out as the art click above, same reasoning.
-  el.miniPlayerTitle.addEventListener('click', () => { if (isMiniPlayerMobileLayout()) return; if (activePlayerEngine === 'spotify') goToTrackPage(currentSpotifyTrack); });
+  el.miniPlayerTitle.addEventListener('click', () => { if (isMiniPlayerMobileLayout()) return; const it = typeof nowPlayingItem !== 'undefined' ? nowPlayingItem : null; if (it && typeof showSongInCatalogue === 'function') { const now = typeof likeNow === 'function' ? likeNow() : null; showSongInCatalogue(it, (now && now.name) || el.miniPlayerTitle.textContent.trim(), now ? now.num : undefined); return; } if (activePlayerEngine === 'spotify') goToTrackPage(currentSpotifyTrack); });          // (1.135.38) the song in the catalogue
   // A line that shows the artist (the player's lines are yours to choose) opens the artist's page; otherwise they do what they did.
   const playerArtistName = (slot) => { if ((state.fields.miniPlayer || [])[slot] !== 'artist') return ''; return (nowPlayingItem && nowPlayingItem.artist) || (activePlayerEngine === 'spotify' && currentSpotifyTrack && currentSpotifyTrack.artists && currentSpotifyTrack.artists[0] ? currentSpotifyTrack.artists[0].name : ''); };
   el.miniPlayerArtist.addEventListener('click', (e) => { if (isMiniPlayerMobileLayout() || e.target.closest('a')) return; const a = playerArtistName(0); if (a) { openArtistInfoTab(a); return; } if (activePlayerEngine === 'spotify') goToArtistTracks(currentSpotifyTrack); });

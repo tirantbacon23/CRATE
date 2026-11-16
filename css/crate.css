@@ -5498,3 +5498,7 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
 .tl-release-credits summary { cursor: pointer; font: 500 11px 'IBM Plex Mono', monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); }
 .tl-release-credits summary span { margin-left: 6px; color: var(--accent); }
 .tl-release-credits-list { margin-top: 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px 18px; }
+
+/* (1.135.38) the song you jumped to from its title */
+@keyframes songFlash { 0%, 40% { background: rgba(214, 162, 76, .28); } 100% { background: transparent; } }
+.song-flash { animation: songFlash 2.2s ease-out; }

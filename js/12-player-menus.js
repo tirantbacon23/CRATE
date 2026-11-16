@@ -813,6 +813,27 @@ function showReleaseInCatalogue(item) {
     if (row) row.scrollIntoView({ block: 'center' });
   }, 60);
 }
+// (1.135.38) The song in the catalogue: its release picked as above, the main panel showing songs (Tracks, unless Album+Tracks is on), and
+// the song's row scrolled to, selected and flashed. By its place in the tracklist when known, else by its name.
+function showSongInCatalogue(item, name, num) {
+  if (!item) return;
+  showReleaseInCatalogue(item);
+  if (state.mainViewMode !== 'tracks' && state.mainViewMode !== 'albumTracks') { state.mainViewMode = 'tracks'; if (typeof applyMainViewMode === 'function') applyMainViewMode(); applyFiltersSort(); }
+  const want = typeof trackNormKey === 'function' ? trackNormKey(name || '') : String(name || '').toLowerCase();
+  let tries = 0;
+  const find = () => {
+    const rows = [...el.gridContainer.querySelectorAll(`[data-track-key^="${CSS.escape(String(item.row))}::"]`)];
+    const nameOf = (r) => { const t = r.querySelector('.trk-title') || r.querySelector('.mt-title'); if (!t) return ''; const c = t.cloneNode(true); c.querySelectorAll('button, a').forEach(x => x.remove()); return c.textContent.trim(); };
+    const hit = rows.find(r => want && (typeof trackNormKey === 'function' ? trackNormKey(nameOf(r)) : nameOf(r).toLowerCase()) === want)
+      || (num != null ? rows.find(r => { const n = r.querySelector('.mt-num, .track-num'); return n && n.textContent.trim() === String(num); }) : null);
+    if (!hit) { if (++tries < 20) setTimeout(find, 150); return; }
+    state.selectedTracks.clear(); state.selectedTracks.add(hit.dataset.trackKey);
+    el.gridContainer.querySelectorAll('[data-track-key].selected').forEach(r => r.classList.remove('selected')); hit.classList.add('selected');
+    hit.scrollIntoView({ block: 'center' }); hit.classList.remove('song-flash'); void hit.offsetWidth; hit.classList.add('song-flash');
+    setTimeout(() => hit.classList.remove('song-flash'), 2200);
+  };
+  setTimeout(find, 120);
+}
 function openAlbumCardContextMenu(item, x, y, opts) {
   closeNowPlayingAddMenu();
 

@@ -1302,10 +1302,10 @@ function queueGoItem(key) { const e = (crateQueueList || []).find(x => x && x.it
 function renderTrackInfoPanel() {
   if (!el.trackInfoTitle.dataset.goBound) {                           // (1.135.17) the song's title: its release
     el.trackInfoTitle.dataset.goBound = '1';
-    el.trackInfoTitle.addEventListener('click', () => { const it = typeof nowPlayingItem !== 'undefined' ? nowPlayingItem : null; if (it) openDeck(it); });
+    el.trackInfoTitle.addEventListener('click', () => { const it = typeof nowPlayingItem !== 'undefined' ? nowPlayingItem : null; if (!it) return; const now = typeof likeNow === 'function' ? likeNow() : null; showSongInCatalogue(it, (now && now.name) || el.trackInfoTitle.textContent.trim(), now ? now.num : undefined); });          // (1.135.38) the song itself, in the catalogue
   }
   el.trackInfoTitle.classList.toggle('queue-go-release', typeof nowPlayingItem !== 'undefined' && !!nowPlayingItem);
-  el.trackInfoTitle.title = (typeof nowPlayingItem !== 'undefined' && nowPlayingItem) ? 'Go to the release' : '';
+  el.trackInfoTitle.title = (typeof nowPlayingItem !== 'undefined' && nowPlayingItem) ? 'Show this song in the catalogue' : '';
   if (!state.rightPanelShowTrackInfo) return;
   const hasTrack = !!nowPlayingItem || (activePlayerEngine === 'spotify' && currentSpotifyTrack);
   el.trackInfoEmpty.hidden = hasTrack;
