@@ -17,8 +17,17 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.29
+  CURRENT_VERSION: 1.135.30
 
+  1.135.30 — 2026-11-16 — (1) Choose what the browser column's rows show: ⚙ → Panels configuration → Show Categories (Left Panel) →
+          Panel Settings… opens "Music browser rows", a tab for each way of browsing. Albums: the cover's size, lines 1, 2 and 3
+          (up to three fields each, joined with ·: title, artist, year, release date, release length, songs, genre, secondary
+          genre, label, catalog #, type, your rating, RYM rating, plays, date added, descriptors, region), a figure on the right,
+          the ! for songs with no link, and dimming what you haven't listened to. Artists, Labels, Years: a second line and the
+          figure on the right (count, releases, years, average rating, total length, plays). Genres, Descriptors: the count or
+          nothing. A preview draws real rows; the figure on the right has a column of its own width, so rows line up
+          (js/60-browser-rows.js). (2) Fix: in the Tracks table, songs drawn as you scrolled down after resizing a column kept the
+          old widths, so they didn't line up with the heading; every row now follows the heading.
   1.135.29 — 2026-11-16 — (1) Column resizing works as in a spreadsheet: dragging a column's edge changes that column only, the ones to its
           right move along, and the table scrolls when it's wider than the pane (or leaves room on the right). It used to keep
           the row filling the pane, so widening one column narrowed the Track column, and dragging the Track column's edge

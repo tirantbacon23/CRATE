@@ -277,30 +277,34 @@ function buildLeftRow(entry, mode) {
   const isActive = (!state.activePlaylistId || state.leftNavView === 'playlists') && state.navFilter && state.navFilter.mode === mode && state.navFilter.value === entry.key;
   if (isActive) row.classList.add('active');
 
+  // (1.135.30) What a row shows is yours to set: ⚙ → Panels configuration → Show Categories → Panel Settings… (js/60-browser-rows.js)
+  const br = typeof brOf === 'function', l2 = br && mode !== 'album' ? brGroupLine2(mode, entry) : '', rightAlt = br && mode !== 'album' ? brGroupRight(mode, entry) : null, noCount = br && mode !== 'album' && brGroupHideCount(mode);
+  const sub2 = l2 ? `<p class="left-row-sub">${escapeHtml(l2)}</p>` : '', alt = rightAlt !== null ? `<span class="br-right">${escapeHtml(rightAlt)}</span>` : '';
   if (mode === 'album') {
-    row.innerHTML = `
+    row.innerHTML = br ? brAlbumRowHtml(entry) : `
       <img class="left-thumb art" data-key="${entry.artKey}" alt="">
       <div class="left-row-text">
         <p class="left-row-title">${linkFlagHtml(entry.item, 'before')}${escapeHtml(entry.label)}</p>
         <p class="left-row-sub">${escapeHtml(entry.sub)}</p>
       </div>`;
+    if (br && brAlbumDim(entry.item)) row.classList.add('br-dim');
   } else if (mode === 'artist') {
     const cached = state.artistDiscogCache[entry.label.toLowerCase()];
     const countText = (cached && cached.total != null) ? formatCoverageBadge(entry.count, cached.total) : entry.count;
     row.innerHTML = `
       <img class="left-thumb left-thumb-round art" data-key="${entry.sampleKey}" alt="">
-      <div class="left-row-text"><p class="left-row-title">${escapeHtml(entry.label)}</p></div>
-      <span class="left-row-count" data-artist="${escapeHtml(entry.label)}" data-owned-count="${entry.count}" title="Studio albums logged vs. MusicBrainz's discography for this artist">${countText}</span>`;
+      <div class="left-row-text"><p class="left-row-title">${escapeHtml(entry.label)}</p>${sub2}</div>
+      ${alt || (noCount ? '' : `<span class="left-row-count" data-artist="${escapeHtml(entry.label)}" data-owned-count="${entry.count}" title="Studio albums logged vs. MusicBrainz's discography for this artist">${countText}</span>`)}`;
   } else if (mode === 'year') {
     const cached = state.yearCoverageCache[entry.label];
     const countText = (cached && cached.total != null) ? formatCoverageBadge(entry.count, cached.total) : entry.count;
     row.innerHTML = `
-      <div class="left-row-text"><p class="left-row-title">${escapeHtml(entry.label)}</p></div>
-      <span class="left-row-count" data-year="${escapeHtml(entry.label)}" data-owned-count="${entry.count}" title="Albums/EPs/singles logged vs. MusicBrainz's count of releases for this year">${countText}</span>`;
+      <div class="left-row-text"><p class="left-row-title">${escapeHtml(entry.label)}</p>${sub2}</div>
+      ${alt || (noCount ? '' : `<span class="left-row-count" data-year="${escapeHtml(entry.label)}" data-owned-count="${entry.count}" title="Albums/EPs/singles logged vs. MusicBrainz's count of releases for this year">${countText}</span>`)}`;
   } else {
     row.innerHTML = `
-      <div class="left-row-text"><p class="left-row-title">${escapeHtml(entry.label)}</p></div>
-      <span class="left-row-count">${Math.round(entry.count * 10) / 10}</span>`;
+      <div class="left-row-text"><p class="left-row-title">${escapeHtml(entry.label)}</p>${sub2}</div>
+      ${alt || (noCount ? '' : `<span class="left-row-count">${Math.round(entry.count * 10) / 10}</span>`)}`;
     // Genre mode is the only one with a real hierarchy (see buildGenreTree)
     // — indent each row under its parent AND visually distinguish parent
     // vs. child (root: full weight/brightness; each level down: a small

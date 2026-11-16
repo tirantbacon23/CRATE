@@ -249,7 +249,7 @@ function refitTrackTable() {
   const template = trackTableGridTemplate();
   header.style.gridTemplateColumns = template;
   const body = document.getElementById('trackTableBody');
-  if (body) body.querySelectorAll('.main-track-row').forEach(row => { row.style.gridTemplateColumns = template; });
+  if (body) { body.style.setProperty('--mt-cols', template); body.querySelectorAll('.main-track-row').forEach(row => { row.style.gridTemplateColumns = template; }); }
 }
 
 function activeTrackColumns() {
@@ -669,6 +669,7 @@ function renderFlatTrackTable() {
 
   const activeCols = activeTrackColumns();
   const template = trackTableGridTemplate();
+  body.style.setProperty('--mt-cols', template);          // (1.135.30) every row reads the widths from here, so rows drawn later (as you scroll) follow a resize too
 
   const rowHtml = (row) => {
     const { item, track: t } = row;
@@ -684,7 +685,7 @@ function renderFlatTrackTable() {
     }).join('');
     const selected = state.selectedTracks.has(rowKey);
     return `
-      <div class="main-track-row${selected ? ' selected' : ''}" data-track-key="${rowKey}" tabindex="0" style="grid-template-columns: ${template}">
+      <div class="main-track-row${selected ? ' selected' : ''}" data-track-key="${rowKey}" tabindex="0" style="grid-template-columns: var(--mt-cols, ${template})">
         <span class="mt-num">${trackNumHtml(t, row.idx)}</span>
         <span class="mt-title${rymBoldTrackClass(t, item)}" title="${escapeHtml(t.trackName || '')}${rymTrackIsBold(item, t) ? ' · one of the songs Rate Your Music prints in bold' : ''}">${t.youtubeLink ? `<button type="button" class="track-play-yt-btn mt-yt" data-youtube-link="${escapeHtml(t.youtubeLink)}" data-track-name="${escapeHtml(t.trackName || '')}" data-row="${escapeHtml(String(item.row))}" title="Play on YouTube" aria-label="Play ${escapeHtml(t.trackName || '')} on YouTube">\u25b6 YT</button>` : ''}${escapeHtml(t.trackName || '')}</span>
         ${colsHtml}

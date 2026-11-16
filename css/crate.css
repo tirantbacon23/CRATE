@@ -5443,3 +5443,41 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
 /* (1.135.28) Liked songs: the extra columns you can choose */
 .lkp-c-yr { width: 64px; } .lkp-c-gen { width: 14%; } .lkp-c-lab { width: 12%; } .lkp-c-ty { width: 84px; } .lkp-c-rym { width: 92px; font-family: 'IBM Plex Mono', monospace; } .lkp-c-pl { width: 64px; text-align: right; font-family: 'IBM Plex Mono', monospace; }
 .lkp-tbl th.lkp-c-pl { text-align: right; }
+
+/* (1.135.30) Music browser rows: the figure on the right in a column of its own width, right-aligned, so every row lines up; the count
+   badges take the same column */
+.left-row .br-right { flex: 0 0 auto; min-width: 46px; text-align: right; font: 11px 'IBM Plex Mono', monospace; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.left-row .left-row-count { min-width: 30px; text-align: center; box-sizing: border-box; font-variant-numeric: tabular-nums; }
+.left-row-sub.br-l3 { opacity: .8; }
+.left-row.br-dim .left-row-title, .left-row.br-dim .left-thumb { opacity: .5; }
+.br-arrange-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.br-arrange-label { display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer; }
+/* the settings window */
+.floating-modal.br-modal { position: fixed; z-index: 470; top: 50%; left: 50%; right: auto; bottom: auto; transform: translate(-50%, -50%); width: min(980px, calc(100vw - 24px)); max-width: none; height: min(640px, calc(100vh - 40px)); max-height: none; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 18px 50px rgba(0,0,0,.55); }
+.br-modal .arrange-header { padding: 16px 22px; border-bottom: 0; }
+.br-modal .br-intro { margin-top: -4px; }
+.floating-modal.br-modal[hidden] { display: none; }
+.br-intro { margin: 0; padding: 0 22px 10px; font-size: 12.5px; color: var(--text-dim); }
+.br-tabs { display: flex; gap: 2px; padding: 0 22px; border-bottom: 1px solid var(--line); flex: none; }
+.br-tab { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--text-dim); font: 500 11.5px 'IBM Plex Mono', monospace; letter-spacing: .06em; text-transform: uppercase; padding: 9px 12px; cursor: pointer; }
+.br-tab.on { color: var(--text); border-bottom-color: var(--accent); }
+.br-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; min-height: 0; flex: 1 1 auto; }
+.br-form { padding: 10px 22px 14px; overflow-y: auto; }
+.br-row { display: grid; grid-template-columns: 110px minmax(0, 1fr); align-items: center; column-gap: 14px; padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,.05); }
+.br-row .br-hint { grid-column: 2; margin-top: 5px; }
+.br-lbl { font-size: 13px; color: var(--text); }
+.br-ctl { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; }
+.br-sel { width: 150px; height: 32px; box-sizing: border-box; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; font: 12.5px Inter, sans-serif; }
+.br-dot { width: 8px; text-align: center; color: var(--text-dim); }
+.br-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.br-seg button { background: none; border: 0; color: var(--text-dim); font: 500 12px Inter, sans-serif; padding: 7px 13px; cursor: pointer; }
+.br-seg button.on { background: var(--accent); color: #12161C; }
+.br-ck { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; } .br-ck input { accent-color: var(--accent); }
+.br-hint { font-size: 11.5px; color: var(--text-dim); }
+.br-sep { height: 6px; }
+.br-side { border-left: 1px solid var(--line); background: var(--bg); padding: 12px 10px; overflow-y: auto; min-height: 0; }
+.br-side-h { font: 500 10.5px 'IBM Plex Mono', monospace; letter-spacing: .1em; text-transform: uppercase; color: var(--text-dim); padding: 0 6px 8px; }
+.br-preview-list .left-row { cursor: default; }
+.br-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 22px; border-top: 1px solid var(--line); flex: none; }
+.br-done { background: var(--accent); color: #12161C; border-color: var(--accent); }
+@media (max-width: 760px) { .br-body { grid-template-columns: 1fr; } .br-side { border-left: 0; border-top: 1px solid var(--line); max-height: 40vh; } .br-sel { width: 120px; } }

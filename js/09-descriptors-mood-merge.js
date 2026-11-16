@@ -590,6 +590,7 @@ function buildLeftList() {
   // aren't narrowed by search — they're your own named lists, not derived
   // from the catalog the search box filters.
   const sourceRaw = searchFilteredRaw();
+  if (typeof brSourceRaw !== 'undefined') brSourceRaw = sourceRaw;          // (1.135.30) what Artist / Label / Year rows count from
   if (state.leftNavView === 'playlists' && !sourceRaw.length) {
     el.leftList.innerHTML = `<p class="left-empty">${activePlaylist() ? 'Nothing in this playlist matches the search.' : 'Open a playlist to browse what is in it.'}</p>`;
     return;
