@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.4
+  CURRENT_VERSION: 1.135.5
 
+  1.135.5 — 2026-11-16 — Faster: the Album + Tracks view makes its releases in batches as you scroll (12 at a time, each batch's
+          tracklists loaded as it's made) instead of every release with its whole tracklist at once. A phone's speed check
+          showed it: 2,840 releases was 19,251 song rows and 342,614 elements on the page, and every pass over the page (the
+          liked hearts, descriptors and download buttons, every second or so) took seconds; taps took 7 s on average. Now
+          about 250 song rows to start with (appendInBatches in 11-grid-player.js).
   1.135.4 — 2026-11-16 — Fix: CRATE could stop answering for minutes on a phone, and some covers stayed blank for good.
           FROZEN PHONE: measured with a crate of 2,000 releases, 1,500 diary entries and 30,000 scrobbles at phone speed.
           (1) The liked hearts, song descriptors and download buttons are put on song rows by three painters that run every

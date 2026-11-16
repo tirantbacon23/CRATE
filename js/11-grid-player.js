@@ -87,10 +87,39 @@ function renderTrackView() {
     return;
   }
 
-  list.forEach(item => wrap.appendChild(buildAlbumTrackGroup(item)));
+  // (1.135.5) Made in batches as you scroll, each batch's tracklists loaded as it's made. All of it at once was every release with its whole
+  // tracklist: 2,840 releases was 19,000 song rows and 340,000 elements, and on a phone every pass over the page took seconds.
   el.gridContainer.appendChild(wrap);
-  applyCachedArt();
-  loadTracksForList(list, state.mainViewMode);
+  const mode = state.mainViewMode;
+  appendInBatches(wrap, list.map(item => () => buildAlbumTrackGroup(item)), 12, 12, (from, to) => { applyCachedArt(); loadTracksForList(list.slice(from, to), mode); });
+}
+
+// (1.135.5) A long list made in batches: the first `eager` items at once, the rest `chunk` at a time as the end comes near the screen. A
+// spacer the height of what's still to come keeps the scrollbar about right. onBatch(from, to) runs after each batch is on the page.
+let batchObs = null;
+function appendInBatches(box, jobs, eager, chunk, onBatch) {
+  if (batchObs) { batchObs.disconnect(); batchObs = null; }
+  let i = 0, spacer = null;
+  const add = (n) => {
+    const from = i, frag = document.createDocumentFragment(), end = Math.min(jobs.length, i + n);
+    for (; i < end; i++) frag.appendChild(jobs[i]());
+    if (spacer) box.insertBefore(frag, spacer); else box.appendChild(frag);
+    if (onBatch && end > from) onBatch(from, end);
+  };
+  add(eager);
+  if (i >= jobs.length) return;
+  if (typeof IntersectionObserver === 'undefined') { add(jobs.length); return; }
+  spacer = document.createElement('div'); spacer.className = 'batch-spacer'; spacer.setAttribute('aria-hidden', 'true');
+  const size = () => { const kids = box.children.length - 1, h = kids > 0 ? (box.scrollHeight - spacer.offsetHeight) / kids : 300; spacer.style.height = Math.max(1, Math.round((jobs.length - i) * Math.max(60, h || 300))) + 'px'; };
+  box.appendChild(spacer); size();
+  const root = gridScrollParent(box);
+  const obs = batchObs = new IntersectionObserver((ents) => {
+    if (obs !== batchObs || !spacer.isConnected || !ents.some(e => e.isIntersecting)) return;
+    add(chunk);
+    if (i >= jobs.length) { spacer.remove(); obs.disconnect(); if (batchObs === obs) batchObs = null; return; }
+    size(); obs.unobserve(spacer); obs.observe(spacer);
+  }, { root: root && root !== document.body && root !== document.documentElement ? root : null, rootMargin: '1500px 0px' });
+  obs.observe(spacer);
 }
 
 // Column widths for the flat "Tracks" file-list table. "#" and "Track" are
