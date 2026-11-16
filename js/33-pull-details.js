@@ -23,15 +23,38 @@ async function pdFromRym(item) {
   if (!tracks.length && !d.label && !d.date && !d.genre && !d.cover) return { err: 'Not seen yet: open its RYM page once' };
   return { tracks, label: d.label || '', catalog: d.catalog || '', date: d.date || '', genre: d.genre || '', cover: d.cover || '' };
 }
+// (1.135.40) MusicBrainz's release has to be this one: its title (and artist) are checked against yours, so a near miss from a loose search
+// (another album by the artist, a single of the same name) is turned down rather than its details offered. A release you linked yourself is
+// taken as it is. The column says which MusicBrainz release it shows.
+const pdKey = (s) => normMatchKey(smFold(String(s || '')).replace(/\s*[\(\[][^)\]]*[\)\]]/g, ''));
+function pdSameTitle(a, b) { const x = pdKey(a), y = pdKey(b); if (!x || !y) return false; if (x === y) return true; const [s, l] = x.length < y.length ? [x, y] : [y, x]; return (l.startsWith(s + ' ') || l.endsWith(' ' + s)) && s.length / l.length >= 0.6; }
+function pdSameArtist(credit, artist) { const c = pdKey((credit || []).map(x => (x && (x.name || (x.artist && x.artist.name))) || '').join(' ')), a = pdKey(artist); return !c || !a || c === a || c.includes(a) || a.includes(c); }
+async function pdMbFind(item) {
+  const esc = (s) => String(s || '').replace(/["\\]/g, '\\$&'), clean = String(item.title || '').replace(/\s*\[.*?\]|\s*\(.*?\)/g, '').trim(), head = { headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' } };
+  let closest = '';
+  for (const q of [`artist:"${esc(item.artist)}" AND release:"${esc(clean)}"`, `${item.artist} ${clean}`]) {
+    try {
+      const r = await mbFetch(`https://musicbrainz.org/ws/2/release/?query=${encodeURIComponent(q)}&fmt=json&limit=10`, head); if (!r.ok) continue;
+      const list = (await r.json()).releases || [];
+      if (!closest && list[0]) closest = list[0].title || '';
+      const hit = list.find(x => pdSameTitle(x.title, item.title) && pdSameArtist(x['artist-credit'], item.artist));
+      if (hit) return { id: hit.id };
+    } catch (e) { /* try the next way */ }
+  }
+  return { closest };
+}
 async function pdFromMb(item) {
-  const id = (String(item.link || '').match(/musicbrainz\.org\/release\/([a-f0-9-]{36})/i) || [])[1] || await lookupMbReleaseId(item.artist, item.title);
-  if (!id) return { err: 'Not found' };
-  const res = await mbFetch(`https://musicbrainz.org/ws/2/release/${id}?inc=recordings+labels&fmt=json`, { headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' } });
+  const linked = (String(item.link || '').match(/musicbrainz\.org\/release\/([a-f0-9-]{36})/i) || [])[1];
+  const found = linked ? { id: linked } : await pdMbFind(item), id = found.id;
+  if (!id) return { err: found.closest ? `Closest is \u201c${found.closest}\u201d: not this release` : 'Not found' };
+  const res = await mbFetch(`https://musicbrainz.org/ws/2/release/${id}?inc=recordings+labels+artist-credits&fmt=json`, { headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' } });
   if (!res.ok) return { err: 'MusicBrainz answered ' + res.status };
   const d = await res.json(), media = d.media || [], tracks = [];
+  if (!linked && !(pdSameTitle(d.title, item.title) && pdSameArtist(d['artist-credit'], item.artist))) return { err: `Found \u201c${d.title || '?'}\u201d: not this release` };
+  const matchText = `\u201c${d.title || ''}\u201d${d.date ? ' \u00b7 ' + String(d.date).slice(0, 4) : ''}${d.country ? ' \u00b7 ' + d.country : ''}${linked ? ' \u00b7 your link' : ''}`;
   media.forEach((m, mi) => (m.tracks || []).forEach(t => tracks.push({ title: t.title || (t.recording && t.recording.title) || '', durationMs: t.length || (t.recording && t.recording.length) || 0, section: media.length > 1 ? 'Disc ' + (mi + 1) : '' })));
   const li = (d['label-info'] || []).find(x => x && x.label && x.label.name);
-  return { date: d.date || '', label: li ? li.label.name : '', catalog: (li && li['catalog-number']) || '', cover: d['cover-art-archive'] && d['cover-art-archive'].front ? `https://coverartarchive.org/release/${id}/front-500` : '', tracks: pdTracks(tracks) };
+  return { matchText, date: d.date || '', label: li ? li.label.name : '', catalog: (li && li['catalog-number']) || '', cover: d['cover-art-archive'] && d['cover-art-archive'].front ? `https://coverartarchive.org/release/${id}/front-500` : '', tracks: pdTracks(tracks) };
 }
 async function pdFromSpotify(item) {
   const token = await getSpotifyToken(); if (!token) return { err: 'Spotify isn’t connected' };
@@ -130,7 +153,7 @@ function pdShow(k, f) {
 function pdDraw() {
   const ov = document.getElementById('pdOverlay'); if (!ov || !pd) return;
   const it = pd.item, cols = `grid-template-columns: 112px repeat(${PD_SRC.length}, minmax(96px, 1fr))`;
-  const head = PD_SRC.map(([k, n]) => { const d = pd.data[k]; return `<div class="pd-hd"><div class="pd-hn"><span>${n}</span>${k !== 'crate' && !d.loading && !d.err ? `<button type="button" class="pd-all" data-pd-all="${k}">use all</button>` : ''}</div><div class="pd-hs${d.err ? ' pd-err' : ''}">${d.loading ? 'Looking…' : d.err ? escapeHtml(d.err) : k === 'crate' ? 'what you have now' : k === 'dc' && d.choiceText ? escapeHtml(d.choiceText) + (dgCatKey(pdVal('crate', 'catalog')) && dgCatKey(pdVal('crate', 'catalog')) === dgCatKey(d.catalog) ? ' <span class="pd-match">your catalogue no.</span>' : '') : 'found'}</div>${k === 'dc' && d.choices && d.choices.length > 1 ? `<select class="pd-dc-pick" data-pd-dc aria-label="Which Discogs pressing" ${d.loading ? 'disabled' : ''}>${d.choices.map(c => `<option value="${c.id}"${c.id === d.chosenId ? ' selected' : ''}>${escapeHtml(pdDgChoiceText(c))}</option>`).join('')}</select><div class="pd-hs">${d.choices.length} pressings on Discogs</div>` : ''}</div>`; }).join('');
+  const head = PD_SRC.map(([k, n]) => { const d = pd.data[k]; return `<div class="pd-hd"><div class="pd-hn"><span>${n}</span>${k !== 'crate' && !d.loading && !d.err ? `<button type="button" class="pd-all" data-pd-all="${k}">use all</button>` : ''}</div><div class="pd-hs${d.err ? ' pd-err' : ''}">${d.loading ? 'Looking…' : d.err ? escapeHtml(d.err) : k === 'crate' ? 'what you have now' : k === 'dc' && d.choiceText ? escapeHtml(d.choiceText) + (dgCatKey(pdVal('crate', 'catalog')) && dgCatKey(pdVal('crate', 'catalog')) === dgCatKey(d.catalog) ? ' <span class="pd-match">your catalogue no.</span>' : '') : d.matchText ? escapeHtml(d.matchText) : 'found'}</div>${k === 'dc' && d.choices && d.choices.length > 1 ? `<select class="pd-dc-pick" data-pd-dc aria-label="Which Discogs pressing" ${d.loading ? 'disabled' : ''}>${d.choices.map(c => `<option value="${c.id}"${c.id === d.chosenId ? ' selected' : ''}>${escapeHtml(pdDgChoiceText(c))}</option>`).join('')}</select><div class="pd-hs">${d.choices.length} pressings on Discogs</div>` : ''}</div>`; }).join('');
   const rel = PD_FIELDS.map(([f, n]) => `<div class="pd-row" style="${cols}"><div class="pd-l">${n}</div>${PD_SRC.map(([k]) => pd.data[k].loading ? '<div class="pd-cell pd-none">…</div>' : pdCell(k, f, pdShow(k, f), pd.pick[f] === k)).join('')}</div>`).join('');
   const base = pdBase();
   const songs = base.map((s, i) => `<div class="pd-row" style="${cols}"><div class="pd-l" title="${escapeHtml(s.title)}">${i + 1}. ${escapeHtml(s.title)}</div>${PD_SRC.map(([k]) => { if (pd.data[k].loading) return '<div class="pd-cell pd-none">…</div>'; const ms = pdLen(k, s, i, base.length); return pdCell(k, 'len' + i, ms ? tlFormatTime(ms) : null, pd.pick['len' + i] === k); }).join('')}</div>`).join('');

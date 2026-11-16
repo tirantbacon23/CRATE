@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.39
+  CURRENT_VERSION: 1.135.40
 
+  1.135.40 — 2026-11-16 — Pull details checks that MusicBrainz's release is this one: its title and artist must match yours (an edition in
+          brackets is fine), looking through the first ten results rather than taking the first. A near miss is turned down ("Found
+          'Bryter Layter': not this release") instead of its details being offered, and the column shows which release it found
+          (title, year, country). A MusicBrainz release you linked yourself is taken as it is.
   1.135.39 — 2026-11-16 — A release's format, as on Rate Your Music (Vinyl LP, Vinyl 12"/10"/7", CD, Cassette, Lossless digital, Digital):
           a Format box beside Type in Edit and Add release (grouped, or Other… to type your own), kept in a new Format column (needs
           the updated backend). Shown as two small tags, type and format, on the release card, the quick peek and the deck; as Type and
