@@ -9,7 +9,9 @@
   const txt = (el) => (el && el.textContent || '').replace(/\s+/g, ' ').trim();
   const uniq = (a) => [...new Set(a.filter(Boolean))];
   const BAD = /related|similar|recommend|review|comment|lyric|chart|list|footer|header|nav|menu/i;
-  const inBad = (el) => { for (let e = el; e && e !== document.body; e = e.parentElement) if (BAD.test((e.id || '') + ' ' + String(e.className || ''))) return true; return false; };
+  // (1.22.2) The song's own blocks (page_song_header_…, page_section_main_info_…) are named "header" too, so they're trusted before the check.
+  const GOOD = /page_song_header|page_song_temp_section_header|page_section_main_info/i;
+  const inBad = (el) => { for (let e = el; e && e !== document.body; e = e.parentElement) { const k = (e.id || '') + ' ' + String(e.className || ''); if (GOOD.test(k)) return false; if (BAD.test(k)) return true; } return false; };
   function songPath() { const m = /^\/song\/([^/]+)\/([^/]+)\/?/.exec(location.pathname); return m ? `/song/${m[1]}/${m[2]}` : ''; }
   // (1.22.1) The page's structured data first (the hidden summary many sites give: name, artist, rating, genre, album), then its layout.
   function fromLd() {
@@ -29,14 +31,21 @@
     const ld = fromLd();
     const docT = (document.title || '').replace(/\s*[-|–—]\s*(?:RYM|Rate Your Music|Sonemic|rateyourmusic\.com).*$/i, '').trim();
     const byM = /^(.*?)\s+by\s+(.+)$/i.exec(docT);
-    const h1 = document.querySelector('h1'), artistA = document.querySelector('[class*="song_header" i] a[href^="/artist/"], [class*="header" i] a[href^="/artist/"], a[href^="/artist/"]');
+    const h1 = document.querySelector('.page_song_header_main_info h1, h1');
+    const artistA = document.querySelector('.page_song_header_info_artist .ui_name_locale_original, .page_song_header_info_artist a.artist, [class*="song_header" i] a[href^="/artist/"], a[href^="/artist/"]');
     const title = C.tidyName((h1 && txt(h1)) || (byM ? byM[1] : '') || ''), artist = C.tidyName((artistA && txt(artistA)) || (byM ? byM[2] : '') || '');
     let a = 0, n = 0;
     const avgEl = document.querySelector('[class*="rating_value" i], .avg_rating, [class*="avg_rating" i], [class*="rating_avg" i]');
     const cntEl = document.querySelector('[class*="rating_count" i], .num_ratings, [class*="num_ratings" i], [class*="ratings_count" i]');
     if (avgEl) { const r = C.ratingFromTexts(txt(avgEl), cntEl ? txt(cntEl) : ''); if (r) { a = r.a; n = r.n || 0; } else { const m = /(\d\.\d{1,2})/.exec(txt(avgEl)); if (m) a = Number(m[1]); } }
+    const rm = document.querySelector('.page_section_main_info_music_rating_main');          // (1.22.2) the song's rating block
+    if (!a && rm) {
+      const r = C.ratingFromTexts(txt(rm), txt(rm)); if (r && r.a) { a = r.a; n = r.n || 0; }
+      else { const t = txt(rm), m = /\b([0-5]\.\d{1,2})\b/.exec(t), c = /([\d,]+)\s*rating/i.exec(t); if (m) a = Number(m[1]); if (c) n = Number(c[1].replace(/,/g, '')); }
+    }
     if (!n && cntEl) { const m = /([\d,]+)/.exec(txt(cntEl)); if (m) n = Number(m[1].replace(/,/g, '')); }
-    const genreLinks = [...document.querySelectorAll('a[href^="/genre/"]')].filter(x => !inBad(x));
+    const gBox = document.querySelector('.page_song_header_info_genre');
+    const genreLinks = gBox ? [...gBox.querySelectorAll('a[href^="/genre/"]')] : [...document.querySelectorAll('a[href^="/genre/"]')].filter(x => !inBad(x));
     const isSec = (x) => !!x.closest('[class*="secondary" i], [class*="sec_genre" i]');
     const pri = uniq(genreLinks.filter(x => !isSec(x)).map(txt)).slice(0, 6), sec = uniq(genreLinks.filter(isSec).map(txt)).slice(0, 6);
     let desc = uniq([...document.querySelectorAll('a[href*="/descriptor/"]')].filter(x => !inBad(x)).map(txt));
