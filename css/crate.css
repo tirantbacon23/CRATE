@@ -5439,3 +5439,7 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
 .mood-cw { text-align: left; background: none; border: 0; padding: 0 3px; border-radius: 4px; color: #C9C3B8; font-family: Inter, sans-serif; line-height: 1.25; cursor: pointer; } .mood-cw:hover { color: var(--text, #EDE7DC); } .mood-cw.on { background: var(--accent, #D6A24C); color: #12161C; }
 .mood-heart { color: #E0603F; font-size: 12px; }
 .mood-dialog.mood-l-cols, .mood-dialog.mood-l-cloud { width: min(1240px, 100%); }
+
+/* (1.135.28) Liked songs: the extra columns you can choose */
+.lkp-c-yr { width: 64px; } .lkp-c-gen { width: 14%; } .lkp-c-lab { width: 12%; } .lkp-c-ty { width: 84px; } .lkp-c-rym { width: 92px; font-family: 'IBM Plex Mono', monospace; } .lkp-c-pl { width: 64px; text-align: right; font-family: 'IBM Plex Mono', monospace; }
+.lkp-tbl th.lkp-c-pl { text-align: right; }

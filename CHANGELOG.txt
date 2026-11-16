@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.27
+  CURRENT_VERSION: 1.135.28
 
+  1.135.28 — 2026-11-16 — Liked songs: right-click any column heading to choose the columns — Artist, Release, Year, Genre, Label, Type,
+          Descriptors, Rating, RYM (song), Plays, Liked, Length (Title always shows) — ticking several in a row, or Reset to the
+          usual ones. Every column sorts when its heading is clicked. Kept in this browser.
   1.135.27 — 2026-11-16 — Fix: the cover popup could open below (or above) a cover with room for only one song of its tracklist (its
           header and buttons take about 240 px, and it opened on a side with as little as that). With less than 420 px above
           and below the cover, it now opens beside it (its right, else its left) at full height.

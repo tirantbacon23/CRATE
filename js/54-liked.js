@@ -131,7 +131,7 @@ if (likedUi.sort === 'new') { likedUi.sort = 'liked'; likedUi.dir = -1; }
 // (1.134.0) Browsing: the same browser column as the Music view and playlists (#leftPanel: Albums, Artists, Genres, Labels, Descriptors…),
 // listing the releases you've liked songs from; what's picked there, the search box and the other filters narrow the songs, by the same rules.
 function likedReleases() { const seen = new Set(), out = []; likedAll().forEach(x => { if (!seen.has(x.item)) { seen.add(x.item); out.push(x.item); } }); return out; }
-function likedPrefsSave() { try { localStorage.setItem(LIKED_PREFS_KEY, JSON.stringify({ sort: likedUi.sort, dir: likedUi.dir, view: likedUi.view })); } catch (e) { /* this visit only */ } }
+function likedPrefsSave() { try { localStorage.setItem(LIKED_PREFS_KEY, JSON.stringify({ sort: likedUi.sort, dir: likedUi.dir, view: likedUi.view, cols: likedUi.cols })); } catch (e) { /* this visit only */ } }
 function likedShown() {
   const q = pbFold(likedUi.q); let list = likedAll();
   const terms = typeof getSearchTerms === 'function' ? getSearchTerms() : [];
@@ -146,6 +146,12 @@ function likedShown() {
     release: (a, b) => txt(a.item.title, b.item.title) || a.num - b.num,
     rating: (a, b) => a.info.rating - b.info.rating,
     time: (a, b) => a.info.ms - b.info.ms,
+    year: (a, b) => dateVal(a.item.releaseDate) - dateVal(b.item.releaseDate) || txt(a.item.title, b.item.title),
+    genre: (a, b) => txt(String(a.item.genre || ''), String(b.item.genre || '')),
+    label: (a, b) => txt(String(a.item.label || ''), String(b.item.label || '')),
+    type: (a, b) => txt(String(a.item.type || ''), String(b.item.type || '')),
+    rym: (a, b) => likedRym(a) - likedRym(b),
+    plays: (a, b) => likedPlays(a) - likedPlays(b),
   }[likedUi.sort] || ((a, b) => a.at - b.at);
   const d = likedUi.dir < 0 ? -1 : 1;
   return list.sort((a, b) => d * by(a, b) || b.at - a.at);
@@ -157,15 +163,48 @@ function likedPlay(list, from, shuffle) {
 }
 function likedStars(r) { if (!r) return ''; const full = Math.floor(r), half = r - full >= 0.5; return '★'.repeat(full) + (half ? '½' : ''); }
 function likedCover(it, cls) { const c = state.artCache[artKey(it)], art = (c && c.art) || it.cover || ''; return art ? `<img class="${cls}" src="${escapeHtml(art)}" alt="" loading="lazy">` : `<span class="${cls} fp-noimg"></span>`; }
+// (1.135.28) The list's columns are yours to choose: right-click any column heading → tick the ones to show (kept in this browser). Title
+// (with the cover) always shows; the rest in this order. Every column sorts when its heading is clicked.
+const LIKED_COLS = {
+  artist: { label: 'Artist', cls: 'lkp-c-ar', cell: (x) => escapeHtml(x.item.artist) },
+  release: { label: 'Release', cls: 'lkp-c-rel', cell: (x) => `<button type="button" class="lkp-link" data-lkp="rel" data-row="${escapeHtml(String(x.item.row))}">${escapeHtml(x.item.title)}</button>` },
+  year: { label: 'Year', cls: 'lkp-c-yr', cell: (x) => escapeHtml(String(x.item.releaseDate || '').slice(0, 4)) },
+  genre: { label: 'Genre', cls: 'lkp-c-gen', cell: (x) => escapeHtml(String(x.item.genre || '').split(',').slice(0, 2).join(', ')) },
+  label: { label: 'Label', cls: 'lkp-c-lab', cell: (x) => escapeHtml(x.item.label || '') },
+  type: { label: 'Type', cls: 'lkp-c-ty', cell: (x) => escapeHtml(x.item.type || '') },
+  desc: { label: 'Descriptors', cls: 'lkp-c-desc', nosort: true, cell: (x) => escapeHtml(x.info.desc.slice(0, 3).join(', ')) },
+  rating: { label: 'Rating', cls: 'lkp-c-rt', cell: (x) => likedStars(x.info.rating) },
+  rym: { label: 'RYM (song)', cls: 'lkp-c-rym', cell: (x) => { const v = likedRym(x); return v ? v.toFixed(2) : ''; } },
+  plays: { label: 'Plays', cls: 'lkp-c-pl', cell: (x) => { const n = likedPlays(x); return n ? String(n) : ''; } },
+  liked: { label: 'Liked', cls: 'lkp-c-when', cell: (x) => typeof socAgo === 'function' && x.at ? socAgo(x.at) : '' },
+  time: { label: 'Length', cls: 'lkp-c-tm', cell: (x) => x.info.ms ? formatDuration(x.info.ms) : '' },
+};
+const LIKED_COLS_DEFAULT = ['artist', 'release', 'desc', 'rating', 'liked', 'time'];
+function likedCols() { const c = Array.isArray(likedUi.cols) ? likedUi.cols.filter(k => LIKED_COLS[k]) : LIKED_COLS_DEFAULT; return Object.keys(LIKED_COLS).filter(k => c.includes(k)); }
+function likedRym(x) { const e = (x.item.trackData || {})[x.num]; return e && Number(e.rymRating) > 0 ? Number(e.rymRating) : 0; }
+function likedPlays(x) { return typeof trackScrobbleCountFor === 'function' ? trackScrobbleCountFor(x.item.artist, x.item.title, x.name) : 0; }
+function likedColsMenu(x, y) {
+  closeNowPlayingAddMenu();
+  const shown = likedCols(), m = document.createElement('div'); m.className = 'panel-mode-menu now-playing-add-menu lkp-cols-menu';
+  m.innerHTML = `<div class="menu-section-title">Columns</div>${Object.keys(LIKED_COLS).map(k => `<button type="button" class="menu-toggle-btn" data-lkc="${k}" aria-pressed="${shown.includes(k)}"><span class="menu-check" aria-hidden="true">\u2713</span>${escapeHtml(LIKED_COLS[k].label)}</button>`).join('')}<div class="menu-divider"></div><button type="button" data-lkc-reset>Reset to the usual columns</button>`;
+  document.body.appendChild(m); positionFloatingMenu(m, x, y);
+  m.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return; e.stopPropagation();
+    if (b.hasAttribute('data-lkc-reset')) { delete likedUi.cols; likedPrefsSave(); closeNowPlayingAddMenu(); renderLikedPage(); return; }
+    const k = b.dataset.lkc, cur = likedCols(), on = cur.includes(k);
+    likedUi.cols = on ? cur.filter(c => c !== k) : cur.concat(k); likedPrefsSave();
+    b.setAttribute('aria-pressed', String(!on)); renderLikedPage();          // the menu stays open: tick several in a row
+  });
+  nowPlayingAddMenuEl = m; setTimeout(() => document.addEventListener('click', closeNowPlayingAddMenuOnOutsideClick), 0);
+}
 function likedListHtml(list, now) {
-  const col = (k, t, cls) => { const on = likedUi.sort === k; return `<th class="${cls || ''}" scope="col" aria-sort="${on ? (likedUi.dir < 0 ? 'descending' : 'ascending') : 'none'}"><button type="button" class="lkp-sort${on ? ' on' : ''}" data-lkp="sort" data-v="${k}">${t}${on ? (likedUi.dir < 0 ? ' ▾' : ' ▴') : ''}</button></th>`; };
-  return `<table class="lkp-tbl"><thead><tr><th class="lkp-n" scope="col">#</th>${col('song', 'Title')}${col('artist', 'Artist', 'lkp-c-ar')}${col('release', 'Release', 'lkp-c-rel')}<th class="lkp-c-desc" scope="col">Descriptors</th>${col('rating', 'Rating', 'lkp-c-rt')}${col('liked', 'Liked', 'lkp-c-when')}${col('time', 'Time', 'lkp-c-tm')}</tr></thead><tbody>`
+  const col = (k, t, cls, nosort) => { const on = likedUi.sort === k; return nosort ? `<th class="${cls || ''}" scope="col">${t}</th>` : `<th class="${cls || ''}" scope="col" aria-sort="${on ? (likedUi.dir < 0 ? 'descending' : 'ascending') : 'none'}"><button type="button" class="lkp-sort${on ? ' on' : ''}" data-lkp="sort" data-v="${k}">${t}${on ? (likedUi.dir < 0 ? ' \u25be' : ' \u25b4') : ''}</button></th>`; };
+  const cols = likedCols();
+  return `<table class="lkp-tbl"><thead title="Right-click to choose the columns"><tr><th class="lkp-n" scope="col">#</th>${col('song', 'Title')}${cols.map(k => col(k, LIKED_COLS[k].label, LIKED_COLS[k].cls, LIKED_COLS[k].nosort)).join('')}</tr></thead><tbody>`
     + list.map((x, i) => `<tr class="lkp-tr${now && now.item === x.item && now.num === x.num ? ' playing' : ''}" data-lkp="row" data-i="${i}" tabindex="0" aria-label="Play ${escapeHtml(x.name)}">
       <td class="lkp-n">${i + 1}</td>
       <td><span class="lkp-tt">${likedCover(x.item, 'lkp-cv')}<span class="lkp-t"><b>${escapeHtml(x.name)}</b><span class="lkp-sub">${escapeHtml(x.item.artist)} · ${escapeHtml(x.item.title)}</span></span>${likeBtnHtml(x.item, x.num, x.name, 'lk-row')}</span></td>
-      <td class="lkp-c-ar">${escapeHtml(x.item.artist)}</td><td class="lkp-c-rel"><button type="button" class="lkp-link" data-lkp="rel" data-row="${escapeHtml(String(x.item.row))}">${escapeHtml(x.item.title)}</button></td>
-      <td class="lkp-c-desc">${escapeHtml(x.info.desc.slice(0, 3).join(', '))}</td><td class="lkp-c-rt">${likedStars(x.info.rating)}</td>
-      <td class="lkp-c-when">${typeof socAgo === 'function' && x.at ? socAgo(x.at) : ''}</td><td class="lkp-c-tm">${x.info.ms ? formatDuration(x.info.ms) : ''}</td></tr>`).join('')
+      ${cols.map(k => `<td class="${LIKED_COLS[k].cls}">${LIKED_COLS[k].cell(x)}</td>`).join('')}</tr>`).join('')
     + '</tbody></table>';
 }
 function likedCoversHtml(list, now) {
@@ -254,6 +293,7 @@ function initLiked() {
   });
   const wrap = document.getElementById('likedWrap');
   if (wrap) {
+    wrap.addEventListener('contextmenu', (e) => { if (!e.target.closest('.lkp-tbl thead')) return; e.preventDefault(); likedColsMenu(e.clientX, e.clientY); });          // (1.135.28) choose the columns
     wrap.addEventListener('click', (e) => {
       const b = e.target.closest('[data-lkp]'); if (!b || e.target.closest('.lk-heart')) return;
       const k = b.dataset.lkp;
