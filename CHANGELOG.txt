@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.48
+  CURRENT_VERSION: 1.135.49
 
+  1.135.49 — 2026-11-17 — The release right-click menu is tidied: the title with artist and year, then Play now / Add to queue / Add to
+          playlist, then where to go (Open release, Artist's discography, Search, Spotify, Rate Your Music), then three flyouts:
+          Fix and fill in (Update from RYM, Pull details, Edit tracks, Match songs, match queue, Full-release video, where it was
+          recorded), Download (Soulseek, P2P source) and Friends (Recommend, Hide), and Delete on its own at the end. Picking a release
+          in the browser column no longer scrolls it out of view: the list keeps its place. The Processing button grows to fit its
+          percent, so the percent and the red count no longer spill over the icon.
   1.135.48 — 2026-11-17 — Retry one download: a song's "failed · retry" badge (in the tracklist, Up next or the quick peek) tries it again
           when clicked, its line in Downloads has ↻ Retry, and its menus say "↻ Retry download" in place of Download. The search box
           has a ⊞ button beside ▾ that turns the detailed search on and off (gold when on); on a phone it's there until you type.

@@ -5611,3 +5611,14 @@ select.srch-chip { padding: 0 6px; background: var(--bg-elevated); }
   .search-wrap .search-detail-btn { right: 37px; }
   .search-wrap.mobile-search-has-value .search-detail-btn { display: none; }          /* phone: room for what's typed; the switch is at the foot of the suggestions */
 }
+
+/* (1.135.49) the release menu, tidied */
+.album-card-menu .menu-section-title { display: flex; flex-direction: column; gap: 2px; }
+.menu-section-sub { font: 400 11.5px Inter, sans-serif; letter-spacing: 0; text-transform: none; color: var(--text-dim); }
+.album-card-menu .menu-parent-btn.open { background: var(--bg-card); }
+.album-card-sub { z-index: 1001; min-width: 220px; }
+
+/* (1.135.49) the Processing button grows to fit its percent (a header rule held it at 36px, so the percent and the count spilled over the icon) */
+.topbar .processing-btn, .controls .processing-btn, .processing-btn { width: auto !important; min-width: 36px; }
+.processing-btn.running { padding: 0 10px 0 8px; }
+.processing-btn-badge { top: -5px; right: -5px; min-width: 15px; height: 15px; line-height: 15px; font-size: 9.5px; box-shadow: 0 0 0 2px var(--bg); }

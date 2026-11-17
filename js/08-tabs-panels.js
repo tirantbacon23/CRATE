@@ -376,9 +376,14 @@ function buildLeftRow(entry, mode) {
       state.navFilter = { mode, value: entry.key };
     }
     if (state.leftNavView !== 'playlists') exitPlaylistView();          // beside a playlist, a pick NARROWS the playlist instead of leaving it
+    // (1.135.49) the list is made again, so where it was scrolled to is kept: emptying it first sent it back to the top, and a row picked
+    // further down went out of sight. Rows past the first batch are all made, so the place exists to come back to.
+    const sc = leftListScroller(), keep = sc ? sc.scrollTop : 0, deep = keep > 0;
     buildLeftList();
+    if (sc && deep) { if (typeof leftListFinish === 'function') leftListFinish(); sc.scrollTop = keep; }
     updateMainLabel();
     applyFiltersSort();
+    if (sc && deep && Math.abs(sc.scrollTop - keep) > 2) sc.scrollTop = keep;
   });
   // Right-click an album row for the same menu (Play, queue, add to
   // playlist, view, search, Spotify/RYM links, Delete…) the main grid's
@@ -489,3 +494,5 @@ function playFilteredReleases() {
   if (!state.filtered.length) { flashGlobalToast('Nothing to play \u2014 no releases match.'); return; }
   playAlbumsReplacingQueue(state.filtered.slice());
 }
+// (1.135.49) The element that scrolls the browser column (the list itself, or the panel around it)
+function leftListScroller() { let r = el.leftList; while (r && r !== document.body) { const o = getComputedStyle(r).overflowY; if ((o === 'auto' || o === 'scroll') && r.scrollHeight > r.clientHeight) return r; r = r.parentElement; } return null; }

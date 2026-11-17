@@ -196,6 +196,7 @@ function closeNowPlayingAddMenu() {
   closeAlbumSearchSubmenu();
   closeAddToPlaylistSubmenu();
   if (typeof closePlaylistMoveSubmenu === 'function') closePlaylistMoveSubmenu();
+  if (typeof cardGroupClose === 'function') cardGroupClose();
 }
 
 // Right-click menu on an individual track row — in the flat Tracks table,
@@ -840,35 +841,46 @@ function openAlbumCardContextMenu(item, x, y, opts) {
   const menu = document.createElement('div');
   menu.className = 'panel-mode-menu now-playing-add-menu album-card-menu';
   const selItems = (state.selectedAlbums.size > 1 && state.selectedAlbums.has(String(item.row))) ? state.raw.filter(r => state.selectedAlbums.has(String(r.row))) : [item];
+  // (1.135.49) Tidied: what you do most first (play, queue, playlist), then where to go, then the rest gathered into three flyouts (Fix and
+  // fill in, Download, Friends), and Delete on its own at the end. Several releases selected: the title says how many.
+  const many = selItems.length > 1, n = selItems.length, its = many ? selItems : [item], hid = its.every(x => x.friendsHidden);
+  const yr = String(item.releaseDate || '').slice(0, 4);
+  const groups = {
+    fix: `<button type="button" data-card-action="rymUpdate">${many ? `Update ${n} from Rate Your Music\u2026` : 'Update from Rate Your Music'}</button>
+      ${many ? '' : '<button type="button" data-card-action="pullDetails">Pull details\u2026</button>'}
+      <button type="button" data-card-action="editTracks">Edit tracks\u2026</button>
+      <div class="menu-divider"></div>
+      ${many ? `<button type="button" data-card-action="matchMany">Match songs for ${n}\u2026</button>` : '<button type="button" data-card-action="match">Match songs\u2026</button>'}
+      <button type="button" data-card-action="matchQueue">${many ? `Add ${n} to the match queue` : 'Add to the match queue'}</button>
+      <button type="button" data-card-action="fullVideo">Full-release video\u2026</button>
+      <div class="menu-divider"></div>
+      <button type="button" data-card-action="recordedAt">${many ? `Find where ${n} were recorded` : 'Find where it was recorded'}</button>`,
+    dl: `<button type="button" data-card-action="dlRelease">${many ? `Download ${n} from Soulseek` : 'Download from Soulseek'}</button>
+      ${many ? '' : `<button type="button" data-card-action="p2pFind">${typeof p2pHasSource === 'function' && p2pHasSource(item) ? 'Change P2P source\u2026' : 'Find on P2P\u2026'}</button>`}`,
+    friends: `${many || !(typeof soc !== 'undefined' && soc.me) ? '' : '<button type="button" data-card-action="recommend">Recommend to a friend\u2026</button>'}
+      <button type="button" data-card-action="${hid ? 'friendsShow' : 'friendsHide'}" title="${hid ? 'Friends can see it again' : 'Friends won\u2019t see it in your crate'}">${hid ? 'Show to friends' : 'Hide from friends'}</button>`
+  };
+  const parent = (g, label) => `<button type="button" class="menu-parent-btn" data-card-group="${g}">${label} <span class="submenu-caret">\u25b8</span></button>`;
   menu.innerHTML = `
-    <div class="menu-section-title">${escapeHtml(item.title)}</div>
+    <div class="menu-section-title">${many ? `${n} releases selected` : escapeHtml(item.title)}${!many ? `<span class="menu-section-sub">${escapeHtml([item.artist, yr].filter(Boolean).join(' \u00b7 '))}</span>` : ''}</div>
     ${opts && opts.showInCatalogue ? '<button type="button" data-card-action="showInCatalogue">Show in catalogue</button><div class="menu-divider"></div>' : ''}
-    <button type="button" data-card-action="play">▶ Play now</button>
+    <button type="button" data-card-action="play">\u25b6 Play now</button>
     <button type="button" data-card-action="queue">Add to queue</button>
-    <button type="button" class="menu-parent-btn" data-card-action="playlist">Add to playlist <span class="submenu-caret">▸</span></button>
+    <button type="button" class="menu-parent-btn" data-card-action="playlist">Add to playlist <span class="submenu-caret">\u25b8</span></button>
     <div class="menu-divider"></div>
-    <button type="button" data-card-action="view">View album</button>
-    <button type="button" data-card-action="artist">View artist discography</button>
-    <button type="button" class="menu-parent-btn" data-card-action="search">Search <span class="submenu-caret">▸</span></button>
-    <div class="menu-divider"></div>
-    <button type="button" data-card-action="spotify">Open on Spotify ↗</button>
-    <button type="button" data-card-action="rym">View on RateYourMusic ↗</button>
+    ${many ? '' : '<button type="button" data-card-action="view">Open release</button>'}
+    <button type="button" data-card-action="artist">Artist\u2019s discography</button>
+    <button type="button" class="menu-parent-btn" data-card-action="search">Search <span class="submenu-caret">\u25b8</span></button>
+    <button type="button" data-card-action="spotify">Open on Spotify \u2197</button>
+    <button type="button" data-card-action="rym">Open on Rate Your Music \u2197</button>
     ${nowPlayingItem === item && nowPlayingLink() ? '<button type="button" data-card-action="copyLink">Copy link</button>' : ''}
-    <button type="button" data-card-action="rymUpdate">${selItems.length > 1 ? `Update ${selItems.length} selected from Rate Your Music\u2026` : 'Update from Rate Your Music'}</button>
-    ${selItems.length > 1 ? '' : '<button type="button" data-card-action="match">Match songs\u2026</button>'}
-    ${selItems.length > 1 ? `<button type="button" data-card-action="matchMany">Match songs for ${selItems.length} selected\u2026</button>` : ''}
-    <button type="button" data-card-action="matchQueue">${selItems.length > 1 ? `Add ${selItems.length} to the match queue` : 'Add to the match queue'}</button>
-    <button type="button" data-card-action="fullVideo">Full-release video…</button>
-    <button type="button" data-card-action="editTracks">Edit tracks…</button>
-    ${selItems.length > 1 ? '' : '<button type="button" data-card-action="pullDetails">Pull details\u2026</button>'}
-    <button type="button" data-card-action="dlRelease">${selItems.length > 1 ? `Download ${selItems.length} selected from Soulseek` : 'Download from Soulseek'}</button>
-    ${selItems.length > 1 ? '' : `<button type="button" data-card-action="p2pFind">${typeof p2pHasSource === 'function' && p2pHasSource(item) ? 'Change P2P source\u2026' : 'Find on P2P\u2026'}</button>`}
-    ${(() => { const its = selItems.length > 1 ? selItems : [item], hid = its.every(x => x.friendsHidden); return `<button type="button" data-card-action="${hid ? 'friendsShow' : 'friendsHide'}" title="${hid ? 'Friends can see it again' : 'Friends won\u2019t see it in your crate, diary or activity'}">${hid ? 'Show to friends' : 'Hide from friends'}${its.length > 1 ? ` (${its.length})` : ''}</button>`; })()}
-    ${selItems.length > 1 || !(typeof soc !== 'undefined' && soc.me) ? '' : '<button type="button" data-card-action="recommend">Recommend to a friend\u2026</button>'}
-    <button type="button" data-card-action="recordedAt">${selItems.length > 1 ? `Find where ${selItems.length} selected were recorded` : 'Find where it was recorded'}</button>
+    <div class="menu-divider"></div>
+    ${parent('fix', 'Fix and fill in')}
+    ${parent('dl', 'Download')}
+    ${parent('friends', 'Friends')}
     ${state.activePlaylistId ? '<div class="menu-divider"></div><button type="button" class="remove-menu-btn" data-card-action="removeFromPlaylist">Remove from playlist</button>' : ''}
     <div class="menu-divider"></div>
-    <button type="button" class="remove-menu-btn" data-card-action="delete">${selItems.length > 1 ? `Delete ${selItems.length} selected from crate` : 'Delete from crate'}</button>
+    <button type="button" class="remove-menu-btn" data-card-action="delete">${many ? `Delete ${n} from crate` : 'Delete from crate'}</button>
   `;
   document.body.appendChild(menu);
   positionFloatingMenu(menu, x, y);
@@ -885,10 +897,17 @@ function openAlbumCardContextMenu(item, x, y, opts) {
   playlistBtn.addEventListener('mouseleave', scheduleCloseAddToPlaylistSubmenu);
 
   const searchBtn = menu.querySelector('[data-card-action="search"]');
-  searchBtn.addEventListener('mouseenter', () => openAlbumSearchSubmenu(searchBtn, item));
+  searchBtn.addEventListener('mouseenter', () => { cardGroupClose(); openAlbumSearchSubmenu(searchBtn, item); });
   searchBtn.addEventListener('mouseleave', scheduleCloseAlbumSearchSubmenu);
+  playlistBtn.addEventListener('mouseenter', cardGroupClose);
+  // the three flyouts: hover (or tap) a parent; their buttons act like the menu's own
+  menu.querySelectorAll('[data-card-group]').forEach(pb => {
+    pb.addEventListener('mouseenter', () => { closeAlbumSearchSubmenu(); closeAddToPlaylistSubmenu(); cardGroupOpen(pb, groups[pb.dataset.cardGroup], onAct); });
+  });
+  menu.querySelectorAll('button:not(.menu-parent-btn)').forEach(b => b.addEventListener('mouseenter', cardGroupClose));
 
-  menu.addEventListener('click', (e) => {
+  const onAct = (e) => {
+    const gb = e.target.closest('[data-card-group]'); if (gb) { cardGroupOpen(gb, groups[gb.dataset.cardGroup], onAct); return; }          // tap-to-open for touch
     const btn = e.target.closest('button[data-card-action]');
     if (!btn) return;
     const action = btn.dataset.cardAction;
@@ -919,10 +938,24 @@ function openAlbumCardContextMenu(item, x, y, opts) {
     else if (action === 'recordedAt') locFind(selItems.length > 1 ? selItems : [item]);
     else if (action === 'removeFromPlaylist') removeAlbumFromActivePlaylist(item);
     else if (action === 'delete') deleteAlbumsFromContextMenu(selItems);
-  });
+  };
+  menu.addEventListener('click', onAct);
 
   nowPlayingAddMenuEl = menu;
   setTimeout(() => document.addEventListener('click', closeNowPlayingAddMenuOnOutsideClick), 0);
+}
+
+// (1.135.49) A flyout of the release menu (Fix and fill in, Download, Friends): beside its parent, the same look as Search's.
+let cardGroupEl = null;
+function cardGroupClose() { if (cardGroupEl) { cardGroupEl.remove(); cardGroupEl = null; } document.querySelectorAll('.album-card-menu .menu-parent-btn.open').forEach(b => b.classList.remove('open')); }
+function cardGroupOpen(anchor, html, onAct) {
+  if (cardGroupEl && cardGroupEl._anchor === anchor) return;
+  cardGroupClose();
+  const m = document.createElement('div'); m.className = 'panel-mode-menu now-playing-add-menu album-card-sub'; m.innerHTML = html; m._anchor = anchor;
+  document.body.appendChild(m); cardGroupEl = m; anchor.classList.add('open');
+  const r = anchor.getBoundingClientRect(); m.style.position = 'fixed'; m.style.left = `${r.right + 2}px`; m.style.top = `${r.top - 4}px`;
+  requestAnimationFrame(() => { const mr = m.getBoundingClientRect(); if (mr.right > window.innerWidth) m.style.left = `${Math.max(4, r.left - mr.width - 2)}px`; if (mr.bottom > window.innerHeight) m.style.top = `${Math.max(4, window.innerHeight - mr.height - 4)}px`; });
+  m.addEventListener('click', (e) => { e.stopPropagation(); onAct(e); });
 }
 
 // Flyout for the album card menu's "Search" item — "Find artist" jumps to
