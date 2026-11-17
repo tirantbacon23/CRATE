@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.83
+  CURRENT_VERSION: 1.135.84
 
+  1.135.84 — 2026-11-18 — Match songs: going back from the full-release video to individual videos (V, or "Search song by song" in the
+          YouTube menu) now switches every song that was on the full video over to its own best video, sure or likely (a weak one
+          waits for you), and searches those with none. Before, songs that already had their own videos were left unticked, since
+          choosing the full video had marked them all as yours. Choosing the full video still puts every song on it.
   1.135.83 — 2026-11-18 — Group by › Then by works: its list of choices opened but was cut off by the Group by list around it, so
           nothing showed and nothing could be picked. It now shows beside it. Also, a release with two genres under one name (a
           genre given twice, or both in one family) showed twice in that group; each group has it once now.

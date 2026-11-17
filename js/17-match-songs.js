@@ -865,9 +865,13 @@ function bmFullVideoTickAll(rel) {                                   // "Tick al
 }
 function bmFullVideoAside(rel) {                                     // "Search song by song" chosen while a full-release video is offered: its parts stop counting as matches (else every song has one and nothing is searched);
   const y = rel.youtube; if (!y || !y.fullVideo) return;              // the video stays in the menu to take back
+  const swapped = [];
   Object.keys(y.byIdx || {}).forEach(idx => { const had = y.byIdx[idx], keep = had.filter(c => c.source !== 'fullvideo'); if (keep.length) y.byIdx[idx] = keep; else delete y.byIdx[idx];
-    if (rel.pick.youtube[idx] && had.some(c => c.source === 'fullvideo' && c.id === rel.pick.youtube[idx])) delete rel.pick.youtube[idx]; });
+    if (rel.pick.youtube[idx] && had.some(c => c.source === 'fullvideo' && c.id === rel.pick.youtube[idx])) { delete rel.pick.youtube[idx]; swapped.push(+idx); } });
   y.fullVideoAside = y.fullVideo; delete y.fullVideo;
+  // (1.135.84) back to individual videos: each song that was on the full video goes over to its own best one (sure or likely; a weak
+  // one waits for you), as choosing the full video put every song on it. Songs with none are searched next (bmSearchRest).
+  swapped.forEach(idx => { if (rel.touched.youtube) delete rel.touched.youtube[idx]; const c = (y.byIdx[idx] || [])[0]; if (c && (c.band === 'confident' || c.band === 'likely')) rel.pick.youtube[idx] = c.id; });
 }
 async function bmSearchRest(rel) {                                  // YouTube, song by song, for what the playlist didn't have
   if (!rel.youtube || rel.youtube.status !== 'done') rel.youtube = Object.assign({ status: 'done', byIdx: {} }, rel.youtube && rel.youtube.status === 'done' ? rel.youtube : {});
