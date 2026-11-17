@@ -17,8 +17,10 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.57
+  CURRENT_VERSION: 1.135.58
 
+  1.135.58 — 2026-11-17 — In the album view's songs, a song's title keeps its room: its descriptor chips sit after it and give way first. They
+          used to take the whole width, cutting a title with chips down to a few letters ("Sun King" showed as "Su…").
   1.135.57 — 2026-11-17 — The descriptor suggestions ("Similar to energetic…") no longer stay floating at the top left of the page: they show
           only for the descriptor box you're typing in while it's on screen, and close when Edit or Add release closes or you click
           anywhere else. A value filled in from elsewhere (the descriptor picker, a release picked on RYM) used to open them out of place.

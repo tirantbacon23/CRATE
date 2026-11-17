@@ -5742,3 +5742,8 @@ select.srch-chip { padding: 0 6px; background: var(--bg-elevated); }
 .deck-rym-block .deck-rym-hist[open] { flex-basis: 100%; }
 .deck-look-b .deck-rym-block { background: color-mix(in srgb, var(--accent) 7%, var(--bg-card)); }
 .deck-look-a .deck-heading h2 { line-height: 1; }
+
+/* (1.135.57) the album view's songs: a song's descriptor chips sit after its title and give way first (they took the whole width, squeezing
+   "Sun King" down to "Su…") */
+.track-row-wrap .track-info-main > .sd-chips:not(.sd-empty) { display: inline-flex; flex-wrap: nowrap; width: auto; flex: 0 100 auto; min-width: 0; overflow: hidden; margin: 0 0 0 4px; }
+.track-row-wrap .track-info-main > .track-name { flex: 0 0 auto; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
