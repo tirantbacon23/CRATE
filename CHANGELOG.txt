@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.102
+  CURRENT_VERSION: 1.135.103
 
+  1.135.103 — 2026-11-18 — Search online: a catalogue-number search shows only releases with that catalogue number. 1.135.102's MusicBrainz
+          plain-word search (when it had nothing under the number) brought unrelated releases, a 2014 compilation among them; it's
+          gone, and whatever a source sends whose number isn't the one you typed (written any way: LIB 55838, LIB-55838) is left out.
   1.135.102 — 2026-11-18 — Search online: a search that came back empty is tried again. The search menu kept its last online answer for the
           same words for good, so one that was empty (a source not answering, say) stayed "Nothing more found online" while Add a
           release found it. Now an answer is kept only when every source answered, and for 2 minutes; and the menu says which

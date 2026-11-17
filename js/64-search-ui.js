@@ -136,14 +136,18 @@ function srchOnlineSearch() {
     const catTyped = !parts.artists.length && !parts.genres.length && typeof looksLikeCatno === 'function' && looksLikeCatno(parts.text || srchFreeText(el.searchInput.value));
     const catOnly = (parts.catalogs.length || catTyped) && !parts.artists.length && !parts.genres.length;          // (1.135.101) EKS 74013 typed plainly too: only the sources that can look a catalogue number up          // (a catalogue number: only the sources that can look one up)
     const names = catOnly ? (act.some(k => k === 'mb' || k === 'dg') ? act.filter(k => k === 'mb' || k === 'dg') : ['mb']) : parts.artists.length || parts.genres.length ? [] : act;
-    const jobs = catOnly ? (act.some(k => k === 'mb' || k === 'dg') ? act.filter(k => k === 'mb' || k === 'dg') : ['mb']).map(k => (k === 'mb' ? mb().then(l => l.length ? l : mb(true)) : ADD_SRC_FN[k](q)).catch(() => null)) : parts.artists.length ? [srchArtistOnline(parts.artists, parts.genres, parts.text)] : parts.genres.length ? [srchGenreOnline(parts.genres, parts.text)] : act.map(k => (k === 'mb' ? mb() : ADD_SRC_FN[k](q)).catch(() => null));
+    const jobs = catOnly ? (act.some(k => k === 'mb' || k === 'dg') ? act.filter(k => k === 'mb' || k === 'dg') : ['mb']).map(k => (k === 'mb' ? mb() : ADD_SRC_FN[k](q)).catch(() => null)) : parts.artists.length ? [srchArtistOnline(parts.artists, parts.genres, parts.text)] : parts.genres.length ? [srchGenreOnline(parts.genres, parts.text)] : act.map(k => (k === 'mb' ? mb() : ADD_SRC_FN[k](q)).catch(() => null));
     const lists = await Promise.all(jobs); if (seq !== srch.seq) return;
     const seen = new Set(), out = []; let owned = 0, failed = 0; const failedNames = [];
     lists.forEach((l, li) => { if (!l) { failed++; if (names[li]) failedNames.push(srchSrcName(names[li]) || names[li]); return; } l.forEach(r => { const k = dupKey(r.artist, r.title); if (!k || seen.has(k)) return; seen.add(k);
       const v = dupVerdict(dupMatches({ artist: r.artist, title: r.title, catalog: r.catalog || '', releaseDate: r.date || '', descriptor: '' }));
       if (v === 'exact' || v === 'edition') { owned++; if (hide) return; r.owned = true; } out.push(r); }); });
     const catQ = catOnly ? String(parts.catalogs[0] || parts.text || srchFreeText(el.searchInput.value)).toLowerCase().replace(/[^a-z0-9]/g, '') : '';
-    if (catQ) out.forEach(r => { r.catExact = String(r.catalog || '').toLowerCase().replace(/[^a-z0-9]/g, '') === catQ; });
+    if (catQ) {          // (1.135.103) a catalogue-number search keeps only releases with that number (a source's loose matches were mixed in: a 2014 compilation for LIB-…)
+      const nc = (r) => String(r.catalog || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      out.forEach(r => { r.catExact = nc(r) === catQ; });
+      for (let i = out.length - 1; i >= 0; i--) { const c = nc(out[i]); if (!c || !(c.includes(catQ) || catQ.includes(c))) out.splice(i, 1); }
+    }
     srch.onlineAll = false;
     srch.online = out.slice(0, 40); srch.onlineState = failed === lists.length ? 'error' : 'done'; srchPopSort();
     srch.onlinePartial = failed > 0; srch.onlineAt = Date.now();
