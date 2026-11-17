@@ -13,13 +13,19 @@ function wallOpen() {
   if (wall.el) return;
   wall.items = wallItems(); wall.shuffled = false;
   const ov = document.createElement('div'); ov.id = 'coverWall'; ov.className = 'cw'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', 'Cover wall');
-  ov.innerHTML = `<div class="cw-bar"><span class="cw-name">CRATE</span><span class="cw-count"></span><span class="cw-sp"></span>
+  ov.innerHTML = `<div class="cw-bar"><span class="cw-name">CRATE</span><span class="cw-count"></span>
+    <input type="search" class="cw-q" placeholder="Filter: words, genre:, year:, format:…" aria-label="Filter the releases" value="${escapeHtml(el.searchInput ? el.searchInput.value : '')}">
+    <select class="cw-sel" data-cws="sort" aria-label="Sort">${wallOpts('sort')}</select><select class="cw-sel" data-cws="group" aria-label="Group by">${wallOpts('group')}</select><select class="cw-sel" data-cws="group2" aria-label="Then by">${wallOpts('group2')}</select>
+    <button type="button" class="cw-btn cw-tog" data-cw="listened" title="Only releases you've logged a full listen for" aria-pressed="${!!state.listenedOnly}">Listened</button><button type="button" class="cw-btn" data-cw="clear" title="Clear the filter, the browser's selection and the listened filter">Clear</button>
+    <span class="cw-sp"></span>
     <button type="button" class="cw-btn" data-cw="smaller" title="Smaller covers (−)" aria-label="Smaller covers">−</button><input type="range" class="cw-size" min="80" max="420" step="10" aria-label="Cover size"><button type="button" class="cw-btn" data-cw="bigger" title="Bigger covers (+)" aria-label="Bigger covers">+</button>
     <button type="button" class="cw-btn cw-tog" data-cw="names" title="Names under the covers (T)">Names</button><button type="button" class="cw-btn cw-tog" data-cw="gap" title="A little space between covers">Gaps</button><button type="button" class="cw-btn" data-cw="shuffle" title="Shuffle the order (S)">Shuffle</button>
     <button type="button" class="cw-btn" data-cw="close" title="Leave (Esc)" aria-label="Leave the cover wall">✕</button></div><div class="cw-grid" tabindex="0"></div>`;
   document.body.appendChild(ov); wall.el = ov;
   const grid = ov.querySelector('.cw-grid');
   ov.addEventListener('click', wallClick); ov.addEventListener('dblclick', wallDbl); ov.addEventListener('contextmenu', wallCtx);
+  ov.querySelector('.cw-q').addEventListener('input', (e) => { const inp = el.searchInput; if (!inp) return; inp.value = e.target.value; inp.dispatchEvent(new Event('input', { bubbles: true })); });
+  ov.addEventListener('change', (e) => { const sel = e.target.closest('[data-cws]'); if (!sel) return; wallSetting(sel.dataset.cws, sel.value); });
   ov.querySelector('.cw-size').addEventListener('input', (e) => { const p = wallPrefs(); p.size = +e.target.value; wallSave(p); wallStyle(); });
   grid.addEventListener('wheel', (e) => { if (!e.ctrlKey) return; e.preventDefault(); wallZoom(e.deltaY < 0 ? 20 : -20); }, { passive: false });
   document.addEventListener('keydown', wallKey, true);
@@ -47,14 +53,23 @@ function wallStyle() {
   wall.el.querySelector('[data-cw="gap"]').setAttribute('aria-pressed', String(!!p.gap));
 }
 function wallZoom(d) { const p = wallPrefs(); p.size = Math.max(80, Math.min(420, p.size + d)); wallSave(p); wallStyle(); }
+// (1.135.126) the view's Group by / Then by as headings across the wall (not while shuffled)
+function wallDisplay() {
+  const g1 = state.groupBy && state.groupBy !== 'none' && !wall.shuffled && typeof groupItems === 'function' ? state.groupBy : '', g2 = g1 && state.groupBy2 && state.groupBy2 !== 'none' ? state.groupBy2 : '';
+  if (!g1) return wall.items.map(it => ({ it }));
+  const out = [];
+  groupItems(wall.items, g1).forEach(g => { out.push({ head: g.label, n: g.items.length, lvl: 1 }); if (!g2) { g.items.forEach(it => out.push({ it })); return; } groupItems(g.items, g2).forEach(h => { out.push({ head: h.label, n: h.items.length, lvl: 2 }); h.items.forEach(it => out.push({ it })); }); });
+  return out;
+}
 function wallDraw() {
   const grid = wall.el.querySelector('.cw-grid'), n = wall.items.length;
   wall.el.querySelector('.cw-count').textContent = `${n.toLocaleString()} release${n === 1 ? '' : 's'}${wall.shuffled ? ' · shuffled' : ''}`;
-  grid.innerHTML = wall.items.map((it, i) => `<div class="cw-cell" data-i="${i}" title="${escapeHtml(it.title + ' · ' + it.artist)}"><img class="cw-art art" data-key="${escapeHtml(artKey(it))}" src="${escapeHtml(srchItemCover(it))}" alt="" loading="lazy" decoding="async"><div class="cw-cap"><b>${escapeHtml(it.title)}</b><span>${escapeHtml(it.artist)}</span></div></div>`).join('');
+  wall.disp = wallDisplay();
+  grid.innerHTML = wall.disp.map((d, i) => d.head !== undefined ? `<div class="cw-head cw-head-${d.lvl}">${escapeHtml(String(d.head))}<span> · ${d.n.toLocaleString()}</span></div>` : `<div class="cw-cell" data-i="${i}" title="${escapeHtml(d.it.title + ' · ' + d.it.artist)}"><img class="cw-art art" data-key="${escapeHtml(artKey(d.it))}" src="${escapeHtml(srchItemCover(d.it))}" alt="" loading="lazy" decoding="async"><div class="cw-cap"><b>${escapeHtml(d.it.title)}</b><span>${escapeHtml(d.it.artist)}</span></div></div>`).join('');
   if (wall.io) wall.io.disconnect();
   // (1.135.125) a cover not fetched yet is fetched as it comes near the screen, as the grid's cards do (before, releases the grid had
   // never shown had no cover here, so most of the wall below the first screens was blank); it fills in where it is when it arrives
-  wall.io = new IntersectionObserver((ents) => ents.forEach(e => { if (!e.isIntersecting) return; const a = e.target, it = wall.items[+a.parentNode.dataset.i]; wall.io.unobserve(a); if (!it) return;
+  wall.io = new IntersectionObserver((ents) => ents.forEach(e => { if (!e.isIntersecting) return; const a = e.target, it = (wall.disp[+a.parentNode.dataset.i] || {}).it; wall.io.unobserve(a); if (!it) return;
     const k = artKey(it), c = state.artCache[k], coverOk = it.cover && (typeof badArtUrls === 'undefined' || badArtUrls[k] !== it.cover);
     if (c && c.art) { if (a.src !== c.art) a.src = c.art; return; }
     if (!coverOk && typeof fetchArt === 'function' && typeof artFetchInFlight !== 'undefined' && !artFetchInFlight.has(k)) { artFetchInFlight.add(k); fetchArt(it); }
@@ -67,15 +82,16 @@ function wallRing() {
   if (el.deckOverlay && el.deckOverlay.classList.contains('open')) { wallClose(); return; }          // (the release's page opened from the wall: it steps aside)
   const it = typeof nowPlayingItem !== 'undefined' ? nowPlayingItem : null;
   wall.el.querySelectorAll('.cw-cell.cw-now').forEach(c => c.classList.remove('cw-now'));
-  if (!it) return; const i = wall.items.indexOf(it); if (i < 0) return;
-  const c = wall.el.querySelector(`.cw-cell[data-i="${i}"]`); if (c) c.classList.add('cw-now');
+  if (!it) return; (wall.disp || []).forEach((d, i) => { if (d.it === it) { const c = wall.el.querySelector(`.cw-cell[data-i="${i}"]`); if (c) c.classList.add('cw-now'); } });
 }
-const wallCellItem = (e) => { const c = e.target.closest('.cw-cell'); return c ? wall.items[+c.dataset.i] : null; };
+const wallCellItem = (e) => { const c = e.target.closest('.cw-cell'); return c ? ((wall.disp || [])[+c.dataset.i] || {}).it || null : null; };
 let wallClickT = 0;
 function wallClick(e) {
   const b = e.target.closest('[data-cw]');
   if (b) { const a = b.dataset.cw, p = wallPrefs();
     if (a === 'close') wallClose(); else if (a === 'smaller') wallZoom(-20); else if (a === 'bigger') wallZoom(20);
+    else if (a === 'listened') { if (el.listenedFilterBtn) el.listenedFilterBtn.click(); b.setAttribute('aria-pressed', String(!!state.listenedOnly)); }
+    else if (a === 'clear') { const inp = el.searchInput; if (inp) { inp.value = ''; inp.dispatchEvent(new Event('input', { bubbles: true })); } wall.el.querySelector('.cw-q').value = ''; if (state.listenedOnly && el.listenedFilterBtn) el.listenedFilterBtn.click(); if (state.navFilter) { state.navFilter = null; if (typeof buildLeftList === 'function') buildLeftList(); } applyFiltersSort(); wall.el.querySelector('[data-cw="listened"]').setAttribute('aria-pressed', 'false'); }
     else if (a === 'names') { p.names = !p.names; wallSave(p); wallStyle(); } else if (a === 'gap') { p.gap = !p.gap; wallSave(p); wallStyle(); }
     else if (a === 'shuffle') { for (let i = wall.items.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [wall.items[i], wall.items[j]] = [wall.items[j], wall.items[i]]; } wall.shuffled = true; wallDraw(); wall.el.querySelector('.cw-grid').scrollTop = 0; }
     return; }
@@ -121,3 +137,32 @@ function wallKey(e) {
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
 })();
+
+
+// ----- (1.135.126) the view's sort, grouping and filters, from the wall -----
+// They are the view's own (the same buttons are pressed), so the wall and the view always agree, and the wall follows whenever the view's
+// list changes (a filter typed here or anywhere, a genre picked in the browser before, a release added…).
+function wallOpts(kind) {
+  if (kind === 'sort') { const cur = state.activePlaylistId ? state.playlistSort : state.sort; return [...document.querySelectorAll('#sortFilterMenu .sort-filter-option[data-sort]')].filter(b => !b.hidden).map(b => `<option value="${b.dataset.sort}"${b.dataset.sort === cur ? ' selected' : ''}>${escapeHtml(b.textContent.trim())}</option>`).join(''); }
+  const sel = kind === 'group' ? '#groupBySubmenu > button[data-group]' : '#groupBy2Submenu > button[data-group2]', cur = kind === 'group' ? (state.groupBy || 'none') : (state.groupBy2 || 'none');
+  const att = kind === 'group' ? 'group' : 'group2';
+  return [...document.querySelectorAll(sel)].map(b => `<option value="${b.dataset[att]}"${b.dataset[att] === cur ? ' selected' : ''}>${escapeHtml(kind === 'group' ? (b.dataset[att] === 'none' ? 'No grouping' : 'Group: ' + b.textContent.trim()) : (b.dataset[att] === 'none' ? 'Then: none' : 'Then: ' + b.textContent.trim()))}</option>`).join('');
+}
+function wallSetting(kind, v) {
+  const btn = kind === 'sort' ? document.querySelector(`#sortFilterMenu .sort-filter-option[data-sort="${v}"]`) : kind === 'group' ? document.querySelector(`#groupBySubmenu > button[data-group="${v}"]`) : document.querySelector(`#groupBy2Submenu > button[data-group2="${v}"]`);
+  if (btn) btn.click();
+  if (el.sortFilterMenu) el.sortFilterMenu.hidden = true; if (el.albumsViewMenu) el.albumsViewMenu.hidden = true;
+  wall.shuffled = false; wallRefresh();
+}
+function wallRefresh() {
+  if (!wall.el) return;
+  const g = wall.el.querySelector('.cw-grid'), top = g.scrollTop;
+  wall.items = wallItems(); wall.shuffled = false; wallDraw();
+  ['sort', 'group', 'group2'].forEach(k => { const s = wall.el.querySelector(`[data-cws="${k}"]`); if (s) s.innerHTML = wallOpts(k); });
+  const lb = wall.el.querySelector('[data-cw="listened"]'); if (lb) lb.setAttribute('aria-pressed', String(!!state.listenedOnly));
+  g.scrollTop = Math.min(top, g.scrollHeight);
+}
+const wallBaseAFS = applyFiltersSort;
+applyFiltersSort = function () { const r = wallBaseAFS.apply(this, arguments); if (wall.el) { clearTimeout(wallRefresh.t); wallRefresh.t = setTimeout(wallRefresh, 120); } return r; };
+const wallBaseRenderGrid = renderGrid;
+renderGrid = function () { const r = wallBaseRenderGrid.apply(this, arguments); if (wall.el) { clearTimeout(wallRefresh.t); wallRefresh.t = setTimeout(wallRefresh, 120); } return r; };          // (Group by and Then by redraw the grid without filtering again)

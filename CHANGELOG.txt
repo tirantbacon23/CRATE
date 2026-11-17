@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.125
+  CURRENT_VERSION: 1.135.126
 
+  1.135.126 — 2026-11-18 — Cover wall: the view's own sort, Group by and Then by (headings that stay at the top as you scroll their covers), a
+          filter box (the search, with genre:, year:… ), Listened and Clear, in its bar. They set the view's own, so the wall and the
+          view agree, and the wall follows when the view's list changes. Up next: a song's Soulseek download is a small icon coloured
+          by how it stands (the words on hover; a failed one still retries on click), not a bar and words that left the song's name
+          a couple of letters wide.
   1.135.125 — 2026-11-18 — Cover wall: releases further down showed no cover. It only used covers already fetched, and the grid fetches a
           release's cover when its card is drawn, so releases the grid had never shown were blank. The wall now fetches a cover as it
           comes near the screen, and it fills in where it is when it arrives.

@@ -6402,3 +6402,27 @@ html.cur-on input:not([type="range"]):not([type="checkbox"]):not([type="radio"])
 .qf-row { display: flex; align-items: center; gap: 8px; padding: 4px 10px; font-size: 12.5px; cursor: pointer; }
 .qf-note { margin: 6px 10px 0; font-size: 11.5px; color: var(--text-dim); line-height: 1.4; }
 .queue-row-thumb .queue-track-artist { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.35; }
+
+/* (1.135.126) Up next: a song's Soulseek download as a small icon (its colour says how it stands; the words are on hover), not a bar and
+   a word that left the song's name a couple of letters wide */
+#crateQueuePanelBody .p2p-tr { flex-direction: column; justify-content: center; gap: 2px; margin-left: 4px; width: 18px; }
+#crateQueuePanelBody .p2p-tr span { display: none; }
+#crateQueuePanelBody .p2p-tr .p2p-tr-ico { display: block; color: var(--text-dim); }
+#crateQueuePanelBody .p2p-tr[data-st="down"] .p2p-tr-ico { color: var(--accent); }
+#crateQueuePanelBody .p2p-tr[data-st="fail"] .p2p-tr-ico { color: #E5734A; }
+#crateQueuePanelBody .p2p-tr[data-st="done"] .p2p-tr-ico, #crateQueuePanelBody .p2p-tr[data-st="play"] .p2p-tr-ico { color: #5fbf86; }
+#crateQueuePanelBody .p2p-tr i { width: 16px; height: 2px; }
+#crateQueuePanelBody .p2p-tr[data-st="fail"] i, #crateQueuePanelBody .p2p-tr[data-st="done"] i, #crateQueuePanelBody .p2p-tr[data-st="play"] i, #crateQueuePanelBody .p2p-tr[data-st="gone"] i { display: none; }
+#crateQueuePanelBody .p2p-tr[data-st="fail"]:hover { text-decoration: none; }
+#crateQueuePanelBody .queue-row-meta { flex: 1 1 auto; min-width: 0; }
+/* (1.135.126) the cover wall's sort, grouping and filter */
+.cw-bar { flex-wrap: wrap; row-gap: 6px; }
+.cw-q { pointer-events: auto; height: 28px; width: 240px; padding: 0 12px; border: 1px solid rgba(255,255,255,.22); border-radius: 14px; background: rgba(0,0,0,.5); color: #EEE; font: inherit; font-size: 12px; }
+.cw-q:focus { outline: none; border-color: var(--accent); }
+.cw-sel { pointer-events: auto; height: 28px; padding: 0 8px; border: 1px solid rgba(255,255,255,.22); border-radius: 14px; background: rgba(0,0,0,.6); color: #EEE; font: inherit; font-size: 12px; max-width: 170px; }
+.cw.cw-idle .cw-q, .cw.cw-idle .cw-sel { pointer-events: none; }
+.cw-q:focus ~ * { }
+.cw-head { grid-column: 1 / -1; position: sticky; top: 0; z-index: 2; padding: 10px 16px 8px; background: rgba(0,0,0,.86); backdrop-filter: blur(6px); font: 400 26px/1 'Bebas Neue', sans-serif; letter-spacing: .03em; color: #F2EEE6; }
+.cw-head span { font: 500 11px 'IBM Plex Mono', monospace; color: #9AA0AA; letter-spacing: .06em; }
+.cw-head-2 { font-size: 19px; color: var(--accent); padding-left: 28px; top: 44px; background: rgba(0,0,0,.78); }
+.cw-grid { padding-top: 52px; }
