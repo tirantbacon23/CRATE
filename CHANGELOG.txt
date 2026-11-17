@@ -17,8 +17,9 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.66
+  CURRENT_VERSION: 1.135.67
 
+  1.135.67 — 2026-11-18 — The Scrobbles view scrolls again: its panel ran on past the bottom of the window instead of scrolling, as the Diary's does.
   1.135.66 — 2026-11-18 — A new Scrobbles view, three ways, switched at its top (Overview · Timeline · Charts) or in ⚙ Settings → "Scrobbles looks
           like", kept on this device. Overview: a period (7 days, 30 days, this year, all time), its totals (plays, days listened,
           releases, artists, songs), the top 10 releases as covers with a play bar, the chart for the period (Releases / Artists /

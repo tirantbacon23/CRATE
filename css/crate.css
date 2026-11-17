@@ -5777,7 +5777,7 @@ select.srch-chip { padding: 0 6px; background: var(--bg-elevated); }
 .deck-look-b .deck-header, .deck-look-b .deck-actions-bar, .deck-look-b .deck-rym-block { background: var(--deck-tint, color-mix(in srgb, var(--accent) 7%, var(--bg-card))); transition: background .4s ease; }
 
 /* (1.135.66) the Scrobbles view: Overview, Timeline, Charts */
-#scrobblesWrap { max-width: none; }
+#scrobblesWrap { max-width: none; flex: 1; overflow-y: auto; min-height: 0; width: 100%; }          /* (1.135.67) it scrolls, as the Diary does */
 .scv { max-width: 1320px; margin: 0 auto; padding: 18px 24px 40px; display: flex; flex-direction: column; gap: 18px; }
 .scv-head, .scv-tlhead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .scv-title { font: 400 30px/1 'Bebas Neue', sans-serif; letter-spacing: .03em; margin: 0 14px 0 0; }
