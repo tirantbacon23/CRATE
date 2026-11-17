@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.120
+  CURRENT_VERSION: 1.135.121
 
+  1.135.121 — 2026-11-18 — The cover wall: ⛶ beside the grid / list buttons (or W) shows every release the view shows (filters, search and sort as
+          they are) as covers edge to edge, full screen. − / + / the slider / Ctrl+wheel size them; Names (T) under them; Gaps; Shuffle
+          (S); the release playing has a ring. Click: its popup, over the wall; double-click: play; right-click: its menu. The bar fades
+          when the mouse rests. Esc leaves. Covers load as they come into view (js/76-cover-wall.js).
   1.135.120 — 2026-11-18 — The floating player, minimal: ◫ on its bar makes it a slim card (cover, song, artist, play/pause, next, a thin line
           along its foot for where the song is); previous and the buttons back to the full player (⤢) or to dock it (⇩) show when the
           mouse is over it, and it drags from anywhere. Remembered (js/75-player-min.js).
