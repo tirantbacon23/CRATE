@@ -1135,11 +1135,12 @@ async function aiRenderAlbumsTab(artist, owned, token) {
     return;
   }
   const mbOk = result.items != null;
+  if (mbOk) aiMbRetry.delete(artist.toLowerCase()); else aiMbRetrySoon(artist, token);          // (1.135.109) MusicBrainz is asked again until it answers
   const mb = document.getElementById('aiMbLink');
   if (mb && result.mbid) mb.innerHTML = `<a class="ai-link-btn" href="https://musicbrainz.org/artist/${escapeHtml(result.mbid)}" target="_blank" rel="noopener noreferrer">MusicBrainz ↗</a>`;
   const items = aiMoreMerge(artist, mbOk ? result.items : [], extra.items);
   if (!items.length) {
-    if (!mbOk) { grid.innerHTML = '<div class="ai-note"><p>Couldn’t reach MusicBrainz right now, and Last.fm and Discogs had nothing either — try again in a moment.</p><button type="button" class="config-btn" data-ai-action="retryAlbums">Retry</button></div>'; return; }
+    if (!mbOk) { grid.innerHTML = `<div class="ai-note"><p>Couldn’t reach MusicBrainz yet, and Last.fm and Discogs had nothing — <span id="aiMbRetryNote">${aiMbRetryText(artist)}</span></p><button type="button" class="config-btn" data-ai-action="retryMore">Retry now</button></div>`; return; }
     const why = result.mbid ? 'No albums or EPs found on MusicBrainz, Last.fm or Discogs for this artist.' : `${escapeHtml(artist)} isn’t on MusicBrainz, Last.fm or Discogs under this name, so there’s no discography to show.`;
     grid.innerHTML = `<div class="ai-note"><p>${why}</p><button type="button" class="config-btn" data-ai-action="manualAdd">+ Add a release manually</button></div>`;
     return;
@@ -1151,14 +1152,14 @@ async function aiRenderAlbumsTab(artist, owned, token) {
   const byPlays = state.aiMoreSort === 'plays' && items.some(w => w.plays);
   const order = items.map((w, i) => ({ w, i })).sort((a, b) => byPlays ? (b.w.plays || 0) - (a.w.plays || 0) || a.i - b.i : a.i - b.i);
   const fails = [!mbOk ? 'MusicBrainz' : '', extra.lfErr ? 'Last.fm' : '', extra.dgErr ? 'Discogs' : ''].filter(Boolean);
-  const note = `<div class="ai-more-note">${items.length} release${items.length === 1 ? '' : 's'} · ${have} in your crate · MusicBrainz ${bySrc('MusicBrainz')} · Last.fm ${extra.lf == null ? '–' : bySrc('Last.fm')} · Discogs ${extra.dg == null ? '–' : bySrc('Discogs')}${extra.plays ? ` · ${aiMoreN(extra.plays)} Last.fm plays in all` : ''}${fails.length ? ` · <span class="ai-more-warn">${fails.join(', ')} didn’t answer</span> <button type="button" class="ai-link-btn" data-ai-action="retryMore">Retry</button>` : ''}${items.some(w => w.plays) ? ` <button type="button" class="ai-link-btn" data-ai-action="moreSort">${byPlays ? 'Order by year' : 'Most played first'}</button>` : ''}</div>`;
+  const note = `<div class="ai-more-note">${items.length} release${items.length === 1 ? '' : 's'} · ${have} in your crate · MusicBrainz ${bySrc('MusicBrainz')} · Last.fm ${extra.lf == null ? '–' : bySrc('Last.fm')} · Discogs ${extra.dg == null ? '–' : bySrc('Discogs')}${extra.plays ? ` · ${aiMoreN(extra.plays)} Last.fm plays in all` : ''}${fails.length ? ` · <span class="ai-more-warn">${fails.join(', ')} didn’t answer</span>${!mbOk ? ` <span class="ai-mb-retry" id="aiMbRetryNote">${aiMbRetryText(artist)}</span>` : ''} <button type="button" class="ai-link-btn" data-ai-action="retryMore">Retry now</button>` : ''}${items.some(w => w.plays) ? ` <button type="button" class="ai-link-btn" data-ai-action="moreSort">${byPlays ? 'Order by year' : 'Most played first'}</button>` : ''}</div>`;
   grid.innerHTML = reset + note + order.map(({ w, i }) => {
     const match = ownedByKey.get(lastfmNormKey(artist, w.title));
     const cover = match ? aiArtImg(match, 'ai-cover-img')
       : w.id ? `<img class="ai-cover-img ai-caa" loading="lazy" alt="" src="https://coverartarchive.org/release-group/${escapeHtml(w.id)}/front-250">`
       : `<img class="ai-cover-img" loading="lazy" alt="" src="${escapeHtml(w.cover || '')}" onerror="this.style.visibility='hidden'">`;
     return `<div class="ai-album ai-rg${match ? ' owned' : ''}" data-rg="${escapeHtml(w.id || '')}" data-i="${i}" data-title="${escapeHtml(w.title)}" data-type="${escapeHtml(w.type || '')}" data-year="${escapeHtml(w.year || '')}" tabindex="0"
-        title="${match ? 'In your crate — click to open' : 'Not in your crate — click to search Spotify'}">
+        title="${match ? 'In your crate — click to open' : 'Not in your crate — click for its songs and their numbers'}">
       <div class="ai-cover">${cover}${match ? '<span class="ai-owned-badge" title="In your crate">●</span>' : ''}</div>
       <div class="ai-album-title">${escapeHtml(w.title)}</div>
       <div class="ai-album-year">${w.year || '—'}${w.type && w.type !== 'Album' ? ` · ${escapeHtml(w.type)}` : ''}</div>
@@ -1166,6 +1167,27 @@ async function aiRenderAlbumsTab(artist, owned, token) {
       ${match ? '' : '<button type="button" class="ai-add-btn" data-ai-action="addRg">+ Add</button>'}
     </div>`;
   }).join('');
+}
+// ----- (1.135.109) MusicBrainz didn't answer: asked again by itself (5 s, then longer, up to a minute between tries) while the
+// More albums tab of that artist is open, and the tab fills in when it does -----
+const aiMbRetry = new Map();
+function aiMbRetryText(artist) { const e = aiMbRetry.get(artist.toLowerCase()); return e ? `asking again in ${Math.max(1, Math.round((e.at - Date.now()) / 1000))} s (try ${e.n + 1})` : 'asking again shortly'; }
+function aiMbRetrySoon(artist, token) {
+  const k = artist.toLowerCase(), prev = aiMbRetry.get(k); if (prev) { clearTimeout(prev.timer); clearInterval(prev.tick); }
+  const n = prev ? prev.n + 1 : 1, wait = Math.min(60000, 5000 * Math.pow(1.6, n - 1)), e = { n, at: Date.now() + wait, timer: 0, tick: 0 };
+  const here = () => state.activeArtistInfoTab === artist && state.artistInfoSubTab[artist] === 'albums';
+  e.tick = setInterval(() => { const t = document.getElementById('aiMbRetryNote'); if (!here() || !t) { clearInterval(e.tick); return; } t.textContent = aiMbRetryText(artist); }, 1000);
+  e.timer = setTimeout(async () => {
+    clearInterval(e.tick);
+    if (!here() || aiMbRetry.get(k) !== e) { if (aiMbRetry.get(k) === e) aiMbRetry.delete(k); return; }          // (left the tab: asked again when you come back)
+    const t = document.getElementById('aiMbRetryNote'); if (t) t.textContent = `asking MusicBrainz (try ${n + 1})…`;
+    delete state.artistWorksCache[`${k}::main`]; delete state.artistWorksCache[`${k}::all`];
+    let r = null; try { r = await fetchArtistDiscography(artist, new Set(), state.artistShowAllTypes); } catch (err) { r = null; }
+    if (!here() || aiMbRetry.get(k) !== e) return;
+    if (r && (r.items != null || r.ambiguous)) { aiMbRetry.delete(k); aiRenderBody(artist); return; }          // it answered: the tab drawn again with it
+    aiMbRetrySoon(artist, token);
+  }, wait);
+  aiMbRetry.set(k, e);
 }
 // ----- (1.135.106) More Albums from Last.fm and Discogs too -----
 let aiMoreItems = [];
@@ -1528,7 +1550,7 @@ function aiAction(action, node, artist) {
     aiExt(artist).profile = null; aiEnsureProfile(artist);
     aiRenderBody(artist);
   } else if (action === 'manualAdd') { openAddModal(); showAddForm({ artist }); }
-  else if (action === 'retryMore') { aiMoreMem.delete(artist.toLowerCase()); delete state.artistWorksCache[`${artist.toLowerCase()}::main`]; delete state.artistWorksCache[`${artist.toLowerCase()}::all`]; aiRenderBody(artist); }
+  else if (action === 'retryMore') { const re = aiMbRetry.get(artist.toLowerCase()); if (re) { clearTimeout(re.timer); clearInterval(re.tick); aiMbRetry.delete(artist.toLowerCase()); } aiMoreMem.delete(artist.toLowerCase()); delete state.artistWorksCache[`${artist.toLowerCase()}::main`]; delete state.artistWorksCache[`${artist.toLowerCase()}::all`]; aiRenderBody(artist); }
   else if (action === 'moreSort') { state.aiMoreSort = state.aiMoreSort === 'plays' ? 'year' : 'plays'; aiRenderBody(artist); }
   else if (action === 'addRg') {
     const t = node.closest('.ai-rg'), w = aiMoreItems[+t.dataset.i];
@@ -1554,7 +1576,14 @@ function aiBodyClick(e) {
   const rg = e.target.closest('.ai-rg');
   if (rg) {
     const match = aiOwned(artist).find(r => lastfmNormKey(artist, r.title) === lastfmNormKey(artist, rg.dataset.title));
-    if (match) openDeck(match); else window.open(spotifySearchUrl({ artist, title: rg.dataset.title }), '_blank', 'noopener,noreferrer');
+    if (match) { openDeck(match); return; }
+    // (1.135.109) not in your crate: its songs and their numbers, in a card (Spotify search there before)
+    if (typeof stlOpenCard === 'function') {
+      const w = aiMoreItems[+rg.dataset.i] || {}, r = Object.assign({ artist, title: rg.dataset.title, date: rg.dataset.year || '', type: rg.dataset.type || 'Album', src: w.id ? 'mbg' : (w.r && w.r.src) || 'mbg' }, w.r || {}, { artist: (w.r && w.r.artist) || artist });
+      const cover = (rg.querySelector('img') || {}).src || w.cover || '';
+      stlOpenCard({ artist: r.artist, title: rg.dataset.title, r: Object.assign(r, { cover: r.cover || cover }), cover,
+        add: () => { if (w.id || !w.r) openAddModalForReleaseGroup({ artist, title: rg.dataset.title, type: rg.dataset.type, releaseDate: rg.dataset.year || '', rgId: rg.dataset.rg || '' }); else srchAddOnline(Object.assign({}, w.r, { artist: w.r.artist || artist })); } });
+    } else window.open(spotifySearchUrl({ artist, title: rg.dataset.title }), '_blank', 'noopener,noreferrer');
     return;
   }
   const tile = e.target.closest('.ai-album');

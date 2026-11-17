@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.108
+  CURRENT_VERSION: 1.135.109
 
+  1.135.109 — 2026-11-18 — Search: a Sort menu (Best match, Listeners, Plays, Your plays, Newest, Oldest, A–Z) for your crate's releases and
+          the ones found online alike (in the detailed grid, together); each release shows the number it's sorted by. Listeners and
+          plays are Last.fm's (album.getInfo, kept a month), looked up for your crate's shown releases too when sorting by them.
+          Artist page › More albums: when MusicBrainz doesn't answer it's asked again by itself (5 s, then up to a minute apart) while
+          the tab is open, with a countdown and Retry now; the tab fills in when it answers. A release there that isn't in your crate
+          opens a card with its songs and their numbers (listeners, plays, yours…) and + Add, instead of a Spotify search.
   1.135.108 — 2026-11-18 — Search: every release it shows has its release date, as much as is known ("14 Mar 1991", "Mar 1991" or "1991"):
           in your crate and online, in the simple and drop lists, the detailed grid (which had none) and the songs panel and card.
   1.135.107 — 2026-11-18 — Artist page › More albums: a Retry beside "… didn't answer" asks every source again.

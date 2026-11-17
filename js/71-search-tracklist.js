@@ -160,7 +160,7 @@ function stlPanelHtml(subj, mode) {
 // Repaint every place showing this release (the rest of the dropdown stays as it is)
 function stlPaint(key) {
   const id = stlId(key), d = stl.data.get(key); if (!d) return;
-  document.querySelectorAll(`#searchSuggest [data-stl="${id}"]`).forEach(n => { n.innerHTML = n.dataset.stlMode === 'a' ? stlAHtml(key) : stlPanelHtml(d.subj, n.dataset.stlMode); });
+  document.querySelectorAll(`[data-stl="${id}"]`).forEach(n => { n.innerHTML = n.dataset.stlMode === 'a' ? stlAHtml(key) : stlPanelHtml(d.subj, n.dataset.stlMode); });
 }
 
 // ----- A: ▸ in the list -----
@@ -299,7 +299,7 @@ function stlDate(d) {
   const mo = m[2] ? +m[2] : 0, dy = m[3] ? +m[3] : 0;
   return (mo >= 1 && mo <= 12 ? (dy >= 1 && dy <= 31 ? dy + ' ' : '') + STL_MON[mo - 1] + ' ' : '') + m[1];
 }
-function stlDateSub(s) {
+let stlDateSub = function (s) {
   if (!s) return;
   if (s.kind === 'release') {
     const it = s.it || state.raw.find(r => String(r.row) === String(s.row)); if (!it) return;
@@ -308,6 +308,149 @@ function stlDateSub(s) {
     const r = s.r, d = stlDate(r.date);
     s.sub = [r.artist, d, s.col !== 'grid' && r.type && r.type !== 'Album' ? r.type : '', srchPopFmt(r.listeners, r) || (s.col !== 'grid' ? srchSrcName(r.src) : '')].filter(Boolean).join(' · ');
   }
-}
+};
 const stlBaseItems = srchItems;
-srchItems = function () { const a = stlBaseItems.apply(this, arguments); try { a.forEach(stlDateSub); } catch (e) { /* as they were */ } return a; };
+srchItems = function () { const a = stlBaseItems.apply(this, arguments); try { a.forEach(x => stlDateSub(x)); } catch (e) { /* as they were */ } return a; };
+
+// ----- (1.135.109) Sort the releases the search shows: best match, Last.fm listeners or plays, your plays, newest, oldest, A–Z -----
+// One choice for your crate's releases and the ones found online (in the detailed grid, all of them together). Listeners and plays
+// come from Last.fm's album.getInfo, the same lookup "Popular first" made (kept a month); your plays from your scrobbles.
+const STL_SORTSEL_KEY = 'crate_search_sort_v1';
+const STL_SORTS = [['match', 'Best match'], ['listeners', 'Listeners'], ['plays', 'Plays'], ['yours', 'Your plays'], ['new', 'Newest'], ['old', 'Oldest'], ['az', 'A–Z']];
+function stlSortKey() { const v = srchLs(STL_SORTSEL_KEY, null); if (STL_SORTS.some(s => s[0] === v)) return v; return srchPopSortOn() ? 'listeners' : 'match'; }
+let stlYoursMap = null, stlYoursOf = null, stlYoursN = -1;
+function stlYoursOfName(a, t) {
+  const l = state.scrobbles || [];
+  if (stlYoursOf !== l || stlYoursN !== l.length) { stlYoursMap = new Map(); l.forEach(s => { const k = stlRelKey(s.artist, s.title); stlYoursMap.set(k, (stlYoursMap.get(k) || 0) + (Number(s.playCount) || 0)); }); stlYoursOf = l; stlYoursN = l.length; }
+  return stlYoursMap.get(stlRelKey(a, t)) || 0;
+}
+function stlVal(k, x) {          // x: { it } (crate) or { r } (online)
+  const it = x.it, r = x.r, c = srchPopAll()[srchPopK(it || r)] || {};
+  if (k === 'listeners') return (r && r.listeners) || c.n || 0;
+  if (k === 'plays') return (r && r.playcount) || c.p || 0;
+  if (k === 'yours') return it ? stlYoursOfName(it.artist, it.title) : stlYoursOfName(r.artist, r.title);
+  if (k === 'new' || k === 'old') return String((it ? it.releaseDate : r.date) || '').slice(0, 10);
+  if (k === 'az') return String((it || r).title || '').toLowerCase();
+  return null;
+}
+function stlCmp(k, a, b) {
+  const A = stlVal(k, a), B = stlVal(k, b);
+  if (k === 'az') return A.localeCompare(B);
+  if (k === 'new' || k === 'old') { if (!A !== !B) return A ? -1 : 1; return k === 'new' ? B.localeCompare(A) : A.localeCompare(B); }          // (no date: last)
+  return (B || 0) - (A || 0);
+}
+srchPopSort = function () {
+  srch.online.forEach((r, i) => { if (r._at == null) r._at = i; });
+  const k = stlSortKey(), cat = (a, b) => (b.catExact ? 1 : 0) - (a.catExact ? 1 : 0);
+  if (k === 'match') { srch.online.sort((a, b) => cat(a, b) || (a._at || 0) - (b._at || 0)); return; }
+  if (k === 'listeners') { const byL = srch.online.some(r => r.listeners), pop = (r) => (r.editions || 0) * 400 + (r.have || 0);
+    srch.online.sort((a, b) => cat(a, b) || (byL ? ((b.listeners || -1) - (a.listeners || -1) || pop(b) - pop(a)) : pop(b) - pop(a)) || a._at - b._at); return; }
+  srch.online.sort((a, b) => cat(a, b) || stlCmp(k, { r: a }, { r: b }) || a._at - b._at);
+};
+// album.getInfo for the releases found online (as before) and, sorting by listeners or plays, your crate's shown releases too: both numbers kept
+srchPopRank = async function (seq, key) {
+  const all = srchPopAll(), now = Date.now(), list = srch.online, k = stlSortKey(); list.forEach((r, i) => { r._at = i; });
+  const need = list.filter(r => { const c = all[srchPopK(r)]; if (c && now - c.t < 30 * 864e5 && (k !== 'plays' || c.p != null)) { r.listeners = c.n; if (c.p != null) r.playcount = c.p; return false; } return true; });
+  if (!need.length) { srchPopSort(); ssRender(); return; }
+  const r0 = await stlPopFetch(need.map(r => ({ r })), seq);
+  if (seq !== srch.seq) return;
+  if (r0.failed && !r0.ok) srch.onlineNote = `Last.fm didn't answer (${srchLfErr}): not ranked by listeners`; else if (r0.ok) srchLfErr = '';
+  srchPopSort(); ssRender();
+};
+async function stlPopFetch(xs, seq) {          // xs: [{ r } | { it }]; fills the cache (and r.listeners / r.playcount)
+  const all = srchPopAll(), now = Date.now(); let i = 0, ok = 0, failed = 0;
+  const one = async () => { while (i < xs.length) { const x = xs[i++], o = x.r || x.it; if (seq != null && seq !== srch.seq) return;
+    try { const j = await srchLf({ method: 'album.getinfo', artist: o.artist, album: o.title, autocorrect: '1' }), al = j && j.album, n = al ? Number(al.listeners) || 0 : 0, p = al ? Number(al.playcount) || 0 : 0;
+      all[srchPopK(o)] = { n, p, t: now }; ok++; if (x.r) { x.r.listeners = n; x.r.playcount = p; if (!x.r.cover && al && Array.isArray(al.image)) { const im = (al.image.find(z => z.size === 'extralarge') || al.image.slice(-1)[0] || {})['#text']; if (im) x.r.cover = im; } }
+    } catch (e) { if (e && e.lfCode === 6) { all[srchPopK(o)] = { n: 0, p: 0, t: now }; ok++; } else { failed++; srchLfFail(e); } } } };
+  await Promise.all([one(), one(), one(), one()]); srchPopSave();
+  return { ok, failed };
+}
+let stlCrateFetching = false;
+function stlCrateNums(its) {          // your crate's releases shown, sorted by listeners or plays: their numbers looked up once
+  const k = stlSortKey(); if ((k !== 'listeners' && k !== 'plays') || stlCrateFetching || !srchLfKey()) return;
+  const all = srchPopAll(), now = Date.now(), need = its.filter(it => { const c = all[srchPopK(it)]; return !(c && now - c.t < 30 * 864e5 && c.p != null); }).slice(0, 40);
+  if (!need.length) return;
+  stlCrateFetching = true; stlPopFetch(need.map(it => ({ it }))).then(() => { stlCrateFetching = false; ssRender(); }).catch(() => { stlCrateFetching = false; });
+}
+// the crate's releases, sorted, before the detailed grid takes its first 18 / 48
+srchDetailItems = function (q) {
+  const items = [], tab = srch.tab, has = q.trim(), k = stlSortKey();
+  if (!has) return items;
+  const crate = (state.filtered || []).slice();
+  if (k !== 'match') { crate.sort((a, b) => stlCmp(k, { it: a }, { it: b })); }
+  const grid = [];
+  if (tab === 'all' || tab === 'crate') crate.slice(0, tab === 'crate' ? 48 : 18).forEach(it => grid.push({ kind: 'release', col: 'grid', it, label: it.title, sub: it.artist, row: it.row, cover: srchItemCover(it) }));
+  if (tab === 'all' || tab === 'add') srch.online.slice(0, tab === 'add' ? 30 : 12).forEach(r => grid.push({ kind: 'online', col: 'grid', r, label: r.title, sub: [r.artist, srchPopFmt(r.listeners, r)].filter(Boolean).join(' · '), cover: r.cover, add: true }));
+  if (k !== 'match' && tab === 'all') grid.sort((a, b) => stlCmp(k, a, b));          // (sorted: your crate's and the ones to add together)
+  items.push(...grid);
+  stlCrateNums(grid.filter(x => x.it).map(x => x.it));
+  const sug = srchCrateItems(q);
+  if (tab === 'all' || tab === 'songs') sug.filter(s => s.kind === 'track').forEach(s => items.push(Object.assign({}, s, { col: 'songs' })));
+  if (tab === 'all' || tab === 'artists') sug.filter(s => s.kind === 'artist').forEach(s => items.push(Object.assign({}, s, { col: 'artists' })));
+  return items;
+};
+// the drop and simple lists: the releases among your crate's suggestions sorted (artists, genres… stay on top), the online ones already are
+const stlBaseItems2 = srchItems;
+srchItems = function () {
+  const a = stlBaseItems2.apply(this, arguments), k = stlSortKey(), lk = srchLook();
+  if (lk === 'detail') return a;
+  const isRel = (s) => s.kind === 'release' && (s.it || (s.it = state.raw.find(r => String(r.row) === String(s.row))));
+  const rels = a.filter(s => s.col !== 'online' && isRel(s));
+  if (k !== 'match' && rels.length > 1) { const sorted = rels.slice().sort((x, y) => stlCmp(k, x, y)); let j = 0; for (let i = 0; i < a.length; i++) if (a[i].col !== 'online' && isRel(a[i])) a[i] = sorted[j++]; }
+  stlCrateNums(rels.map(s => s.it));
+  return a;
+};
+// the number it's sorted by, on each release
+const stlNumFmt = (n) => n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'm' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(n);
+const stlBaseDateSub = stlDateSub;
+stlDateSub = function (s) {
+  stlBaseDateSub(s);
+  const k = stlSortKey(); if ((k !== 'plays' && k !== 'yours' && k !== 'listeners') || !s || (s.kind !== 'release' && s.kind !== 'online')) return;
+  const x = s.kind === 'online' ? { r: s.r } : { it: s.it || state.raw.find(r => String(r.row) === String(s.row)) }; if (!x.r && !x.it) return;
+  const v = stlVal(k, x); if (!v) return;
+  const tag = k === 'plays' ? `${stlNumFmt(v)} plays` : k === 'yours' ? `you ${stlNumFmt(v)}` : `${stlNumFmt(v)} listeners`;
+  if (!String(s.sub || '').includes(tag)) s.sub = [String(s.sub || '').replace(/ · [\d.]+[mk]? listeners$/, ''), tag].filter(Boolean).join(' · ');
+};
+// the menu, where "Popular first" was (and above the crate column)
+function stlSortSelHtml() { const k = stlSortKey(); return `<label class="stl-sortsel"><span>Sort</span><select data-stl-sortsel aria-label="Sort releases">${STL_SORTS.map(([v, l]) => `<option value="${v}"${v === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`; }
+const STL_POP_RE = /<button type="button" class="srch-popsort" data-srch-pop[^>]*>[^<]*<\/button>/g;
+const stlBaseDrop2 = srchDropdownHtml;
+srchDropdownHtml = function () { const h = stlBaseDrop2.apply(this, arguments).replace(STL_POP_RE, ''); return h.replace('<div class="srch-cols">', `<div class="stl-sortbar">${stlSortSelHtml()}</div><div class="srch-cols">`); };
+const stlBaseDetail2 = srchDetailHtml;
+srchDetailHtml = function () { const h = stlBaseDetail2.apply(this, arguments).replace(STL_POP_RE, ''); return el.searchInput.value.trim() ? h.replace('<div class="srch-grid">', `<div class="stl-sortbar">${stlSortSelHtml()}</div><div class="srch-grid">`) : h; };
+const stlBaseSimple = srchSimpleHtml;
+srchSimpleHtml = function () { const h = stlBaseSimple.apply(this, arguments); return ssItems.filter(s => s.kind === 'release' || s.kind === 'online').length > 1 ? h.replace('<div class="srch-simple-foot">', `<div class="srch-simple-foot"><div class="stl-sortbar stl-sortbar-s">${stlSortSelHtml()}</div>`) : h; };
+function stlSortChange(e) {
+  const sel = e.target.closest('[data-stl-sortsel]'); if (!sel) return;
+  srchLsSet(STL_SORTSEL_KEY, sel.value); srchLsSet(SRCH_POP_SORT_KEY, sel.value === 'match' ? 'match' : 'pop');
+  srchPopSort(); if (sel.value === 'plays' || sel.value === 'listeners') { const seq = srch.seq; if (srchLfKey() && srch.online.length) srchPopRank(seq); }
+  ssRender(); el.searchInput.focus({ preventScroll: true });
+}
+const stlBaseInit2 = initSearchSuggest;
+initSearchSuggest = function () { stlBaseInit2.apply(this, arguments); const box = document.getElementById('searchSuggest'); if (box && !box.dataset.stlSort) { box.dataset.stlSort = '1'; box.addEventListener('change', stlSortChange); } };
+
+
+// ----- (1.135.109) The same card on its own, over the page: a release on the artist page's More albums that isn't in your crate -----
+// subj: { artist, title, r: { artist, title, date, type, src, cover }, cover, add: fn }
+let stlPop = null;
+function stlOpenCard(subj) {
+  stlCloseCard();
+  subj = Object.assign({ key: 'o:' + srchPopK(subj), it: null }, subj);
+  const ov = document.createElement('div'); ov.className = 'stl-pop-ov'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', subj.title + ': songs');
+  ov.innerHTML = `<section class="stl-card stl-pop" data-stl="${stlId(subj.key)}" data-stl-mode="c"></section>`;
+  document.body.appendChild(ov); stlPop = { ov, subj };
+  stlWant(subj, 0); const d = stl.data.get(subj.key); if (d) d.subj = Object.assign({}, d.subj, subj);
+  ov.querySelector('.stl-pop').innerHTML = stlPanelHtml(subj, 'c');
+  ov.addEventListener('mousedown', (e) => { if (e.target === ov) stlCloseCard(); });
+  ov.addEventListener('click', (e) => {
+    const g = (q) => e.target.closest(q);
+    if (g('[data-stl-close]')) { e.preventDefault(); stlCloseCard(); return; }
+    if (g('[data-stl-add]')) { e.preventDefault(); const f = subj.add; stlCloseCard(); if (f) f(); else if (subj.r) srchAddOnline(subj.r); return; }
+    const b = g('[data-stl-sort]'); if (b) { stl.sort = b.dataset.stlSort; srchLsSet(STL_SORT_KEY, stl.sort); stlPaint(subj.key); }
+  });
+  stlPop.key = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); stlCloseCard(); } };
+  document.addEventListener('keydown', stlPop.key, true);
+  const x = ov.querySelector('[data-stl-close]'); if (x) x.focus();
+}
+function stlCloseCard() { if (!stlPop) return; document.removeEventListener('keydown', stlPop.key, true); stlPop.ov.remove(); stlPop = null; }
