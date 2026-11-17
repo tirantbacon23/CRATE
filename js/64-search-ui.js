@@ -139,7 +139,10 @@ function srchOnlineSearch() {
     const jobs = catOnly ? (act.some(k => k === 'mb' || k === 'dg') ? act.filter(k => k === 'mb' || k === 'dg') : ['mb']).map(k => (k === 'mb' ? mb() : ADD_SRC_FN[k](q)).catch(() => null)) : parts.artists.length ? [srchArtistOnline(parts.artists, parts.genres, parts.text)] : parts.genres.length ? [srchGenreOnline(parts.genres, parts.text)] : act.map(k => (k === 'mb' ? mb() : ADD_SRC_FN[k](q)).catch(() => null));
     const lists = await Promise.all(jobs); if (seq !== srch.seq) return;
     const seen = new Set(), out = []; let owned = 0, failed = 0; const failedNames = [];
-    lists.forEach((l, li) => { if (!l) { failed++; if (names[li]) failedNames.push(srchSrcName(names[li]) || names[li]); return; } l.forEach(r => { const k = dupKey(r.artist, r.title); if (!k || seen.has(k)) return; seen.add(k);
+    const kept = new Map();          // (1.135.110) the same release from another source fills what the first one lacked (Last.fm has no release date)
+    lists.forEach((l, li) => { if (!l) { failed++; if (names[li]) failedNames.push(srchSrcName(names[li]) || names[li]); return; } l.forEach(r => { const k = dupKey(r.artist, r.title); if (!k) return;
+      if (seen.has(k)) { const f = kept.get(k); if (f) ['date', 'catalog', 'label', 'cover', 'genre', 'link'].forEach(x => { if (!f[x] && r[x]) f[x] = r[x]; }); if (f && f.type === 'Album' && r.type && r.type !== 'Album') f.type = r.type; return; }
+      seen.add(k); kept.set(k, r);
       const v = dupVerdict(dupMatches({ artist: r.artist, title: r.title, catalog: r.catalog || '', releaseDate: r.date || '', descriptor: '' }));
       if (v === 'exact' || v === 'edition') { owned++; if (hide) return; r.owned = true; } out.push(r); }); });
     const catQ = catOnly ? String(parts.catalogs[0] || parts.text || srchFreeText(el.searchInput.value)).toLowerCase().replace(/[^a-z0-9]/g, '') : '';

@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.109
+  CURRENT_VERSION: 1.135.110
 
+  1.135.110 — 2026-11-18 — Search online: releases from Last.fm had no release date (it gives none), and the same release from MusicBrainz,
+          which has one, was dropped as a duplicate. Now a duplicate fills in what the first lacked (date, catalogue, label, cover, type),
+          and any still without a date gets MusicBrainz's first release date, looked up one at a time for the first 24 shown (kept 90 days).
   1.135.109 — 2026-11-18 — Search: a Sort menu (Best match, Listeners, Plays, Your plays, Newest, Oldest, A–Z) for your crate's releases and
           the ones found online alike (in the detailed grid, together); each release shows the number it's sorted by. Listeners and
           plays are Last.fm's (album.getInfo, kept a month), looked up for your crate's shown releases too when sorting by them.

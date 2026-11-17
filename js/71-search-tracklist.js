@@ -454,3 +454,38 @@ function stlOpenCard(subj) {
   const x = ov.querySelector('[data-stl-close]'); if (x) x.focus();
 }
 function stlCloseCard() { if (!stlPop) return; document.removeEventListener('keydown', stlPop.key, true); stlPop.ov.remove(); stlPop = null; }
+
+// ----- (1.135.110) Release dates for the releases found online that came without one (Last.fm gives none): MusicBrainz is asked for
+// each (its release group's first release date), one at a time, for the first 24 shown; kept in this browser for 90 days -----
+const STL_DATES_KEY = 'crate_search_dates_v1';
+let stlDatesMem = null, stlDatesRun = 0;
+function stlDates() { if (!stlDatesMem) stlDatesMem = srchLs(STL_DATES_KEY, {}) || {}; return stlDatesMem; }
+function stlDatesApply() { const all = stlDates(); let n = 0; srch.online.forEach(r => { if (r.date) return; const c = all[srchPopK(r)]; if (c && c.d) { r.date = c.d; n++; } }); return n; }
+function stlDatesSoon() { clearTimeout(stlDatesSoon.t); stlDatesSoon.t = setTimeout(stlDatesFill, 400); }
+async function stlDatesFill() { stlDatesFill.busy = true; try { await stlDatesFillRun(); } finally { stlDatesFill.busy = false; } }
+async function stlDatesFillRun() {
+  const seq = srch.seq, run = ++stlDatesRun, all = stlDates(), now = Date.now();
+  stlDatesApply();
+  const need = srch.online.slice(0, 24).filter(r => !r.date && !(all[srchPopK(r)] && now - all[srchPopK(r)].t < 90 * 864e5));
+  let last = 0;
+  for (const r of need) {
+    if (seq !== srch.seq || run !== stlDatesRun) return;
+    let d = '';
+    try {
+      const q = `releasegroup:"${String(r.title).replace(/"/g, '')}" AND artist:"${String(r.artist).replace(/"/g, '')}"`;
+      const res = await mbFetch(`https://musicbrainz.org/ws/2/release-group/?query=${encodeURIComponent(q)}&fmt=json&limit=5`, { headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' }, timeoutMs: 9000, retryBusy: 1 });
+      if (!res.ok) continue;          // (not kept: asked again next time)
+      const t = stlNorm(r.title), hits = ((await res.json())['release-groups'] || []).filter(h => h['first-release-date']);
+      const h = hits.find(x => stlNorm(x.title) === t) || hits.find(x => { const y = stlNorm(x.title); return y && (y.startsWith(t) || t.startsWith(y)); });
+      d = h ? h['first-release-date'] : '';
+    } catch (e) { continue; }
+    all[srchPopK(r)] = { d, t: now }; if (d) r.date = d;
+    if (Date.now() - last > 700) { last = Date.now(); if (stlSortKey() === 'new' || stlSortKey() === 'old') srchPopSort(); ssRender(); }
+  }
+  const ks = Object.keys(all); if (ks.length > 4000) ks.slice(0, ks.length - 4000).forEach(k => delete all[k]);
+  srchLsSet(STL_DATES_KEY, all);
+  if (seq === srch.seq && run === stlDatesRun) { if (stlSortKey() === 'new' || stlSortKey() === 'old') srchPopSort(); ssRender(); }
+}
+const stlBasePopSort = srchPopSort;
+function stlDatesNeeded() { const all = stlDates(), now = Date.now(); return srch.online.slice(0, 24).some(r => !r.date && !(all[srchPopK(r)] && now - all[srchPopK(r)].t < 90 * 864e5)); }
+srchPopSort = function () { if (srch.online.some(r => !r.date)) { stlDatesApply(); if (stlDatesNeeded() && !stlDatesFill.busy) stlDatesSoon(); } return stlBasePopSort.apply(this, arguments); };
