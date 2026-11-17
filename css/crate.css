@@ -6425,4 +6425,4 @@ html.cur-on input:not([type="range"]):not([type="checkbox"]):not([type="radio"])
 .cw-head { grid-column: 1 / -1; position: sticky; top: 0; z-index: 2; padding: 10px 16px 8px; background: rgba(0,0,0,.86); backdrop-filter: blur(6px); font: 400 26px/1 'Bebas Neue', sans-serif; letter-spacing: .03em; color: #F2EEE6; }
 .cw-head span { font: 500 11px 'IBM Plex Mono', monospace; color: #9AA0AA; letter-spacing: .06em; }
 .cw-head-2 { font-size: 19px; color: var(--accent); padding-left: 28px; top: 44px; background: rgba(0,0,0,.78); }
-.cw-grid { padding-top: 52px; }
+/* (1.135.129) no strip kept for the bar: the covers reach the top, and the bar floats over them while it shows (a black band stayed there when it faded) */
