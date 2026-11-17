@@ -17,8 +17,9 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.106
+  CURRENT_VERSION: 1.135.107
 
+  1.135.107 — 2026-11-18 — Artist page › More albums: a Retry beside "… didn't answer" asks every source again.
   1.135.106 — 2026-11-18 — Artist page › More albums: from MusicBrainz, Last.fm and Discogs, merged by title (a deluxe edition counts as the
           album). Each release says which sources know it and how much it's played on Last.fm; a line on top counts them per source,
           says which didn't answer (with Retry) and turns on "Most played first". Still works when MusicBrainz is down. + Add on one only

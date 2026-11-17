@@ -1151,7 +1151,7 @@ async function aiRenderAlbumsTab(artist, owned, token) {
   const byPlays = state.aiMoreSort === 'plays' && items.some(w => w.plays);
   const order = items.map((w, i) => ({ w, i })).sort((a, b) => byPlays ? (b.w.plays || 0) - (a.w.plays || 0) || a.i - b.i : a.i - b.i);
   const fails = [!mbOk ? 'MusicBrainz' : '', extra.lfErr ? 'Last.fm' : '', extra.dgErr ? 'Discogs' : ''].filter(Boolean);
-  const note = `<div class="ai-more-note">${items.length} release${items.length === 1 ? '' : 's'} · ${have} in your crate · MusicBrainz ${bySrc('MusicBrainz')} · Last.fm ${extra.lf == null ? '–' : bySrc('Last.fm')} · Discogs ${extra.dg == null ? '–' : bySrc('Discogs')}${extra.plays ? ` · ${aiMoreN(extra.plays)} Last.fm plays in all` : ''}${fails.length ? ` · <span class="ai-more-warn">${fails.join(', ')} didn’t answer</span>` : ''}${items.some(w => w.plays) ? ` <button type="button" class="ai-link-btn" data-ai-action="moreSort">${byPlays ? 'Order by year' : 'Most played first'}</button>` : ''}</div>`;
+  const note = `<div class="ai-more-note">${items.length} release${items.length === 1 ? '' : 's'} · ${have} in your crate · MusicBrainz ${bySrc('MusicBrainz')} · Last.fm ${extra.lf == null ? '–' : bySrc('Last.fm')} · Discogs ${extra.dg == null ? '–' : bySrc('Discogs')}${extra.plays ? ` · ${aiMoreN(extra.plays)} Last.fm plays in all` : ''}${fails.length ? ` · <span class="ai-more-warn">${fails.join(', ')} didn’t answer</span> <button type="button" class="ai-link-btn" data-ai-action="retryMore">Retry</button>` : ''}${items.some(w => w.plays) ? ` <button type="button" class="ai-link-btn" data-ai-action="moreSort">${byPlays ? 'Order by year' : 'Most played first'}</button>` : ''}</div>`;
   grid.innerHTML = reset + note + order.map(({ w, i }) => {
     const match = ownedByKey.get(lastfmNormKey(artist, w.title));
     const cover = match ? aiArtImg(match, 'ai-cover-img')
@@ -1528,6 +1528,7 @@ function aiAction(action, node, artist) {
     aiExt(artist).profile = null; aiEnsureProfile(artist);
     aiRenderBody(artist);
   } else if (action === 'manualAdd') { openAddModal(); showAddForm({ artist }); }
+  else if (action === 'retryMore') { aiMoreMem.delete(artist.toLowerCase()); delete state.artistWorksCache[`${artist.toLowerCase()}::main`]; delete state.artistWorksCache[`${artist.toLowerCase()}::all`]; aiRenderBody(artist); }
   else if (action === 'moreSort') { state.aiMoreSort = state.aiMoreSort === 'plays' ? 'year' : 'plays'; aiRenderBody(artist); }
   else if (action === 'addRg') {
     const t = node.closest('.ai-rg'), w = aiMoreItems[+t.dataset.i];
