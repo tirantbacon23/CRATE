@@ -17,8 +17,10 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.88
+  CURRENT_VERSION: 1.135.89
 
+  1.135.89 — 2026-11-18 — Track info panel: clicking the song's title opens its release's deck (it showed the song in the catalogue);
+          right-clicking it gives the song's menu as before, with Show in catalogue and the rest.
   1.135.88 — 2026-11-18 — Search: genre: looks online too. "genre:indie rock" fills "Not in your crate yet · online" with releases of
           that genre you don't have: the most played albums with that tag on Last.fm first (with your Last.fm key), then albums tagged
           with it on MusicBrainz; plain words beside it narrow both ("genre:indie rock pixies"). Releases you have are left out as
