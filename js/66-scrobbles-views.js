@@ -6,10 +6,49 @@
 //  · Charts: the ranked chart on its own, for a period, with the days played and the last time.
 // Scrobbles are kept one row per release, song and day (from the Last.fm import), so plays are counted per day, not per minute.
 const SCV_KEY = 'crate_scrob_view_v1';
-function scvPrefs() { try { return Object.assign({ view: 'overview', period: '30', chart: 'releases', year: '' }, JSON.parse(localStorage.getItem(SCV_KEY) || '{}') || {}); } catch (e) { return { view: 'overview', period: '30', chart: 'releases', year: '' }; } }
+function scvPrefs() { try { return Object.assign({ view: 'overview', period: '30', chart: 'releases', year: '', outside: false }, JSON.parse(localStorage.getItem(SCV_KEY) || '{}') || {}); } catch (e) { return { view: 'overview', period: '30', chart: 'releases', year: '' }; } }
 function scvSet(o) { const p = Object.assign(scvPrefs(), o); try { localStorage.setItem(SCV_KEY, JSON.stringify(p)); } catch (e) { /* this visit */ } document.querySelectorAll('[data-scv-look]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.scvLook === p.view))); renderScrobbles(); }
 const SCV_PERIODS = [['7', '7 days'], ['30', '30 days'], ['year', 'This year'], ['all', 'All time']];
 let scvDaysShown = 30;
+
+// ----- (1.135.86) releases you scrobbled that aren't in your crate, shown when you ask -----
+// Your crate's Scrobbles sheet only holds plays of releases in it. With "Not in crate" on, the rest are kept here, in this browser
+// (an IndexedDB store per Last.fm user): your whole history is read once when you turn it on, and each sync adds what is new. They are
+// shown, never saved to the sheet, and a release you add to the crate later is counted from the sheet instead (no play counted twice).
+const scvOut = { user: '', groups: null, through: 0, busy: false, msg: '' };
+let scvOutDbP = null;
+function scvOutDb() { return scvOutDbP || (scvOutDbP = new Promise((res, rej) => { try { const r = indexedDB.open('crate-lastfm-outside', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); } catch (e) { rej(e); } })); }
+async function scvOutLoad(user) {
+  if (scvOut.user === user && scvOut.groups) return scvOut;
+  let v = null; try { const db = await scvOutDb(); v = await new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(user); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); }); } catch (e) { /* none */ }
+  Object.assign(scvOut, { user, groups: v ? v.groups || [] : null, through: v ? v.through || 0 : 0 }); return scvOut;
+}
+async function scvOutSave() { try { const db = await scvOutDb(); db.transaction('kv', 'readwrite').objectStore('kv').put({ groups: scvOut.groups || [], through: scvOut.through }, scvOut.user); } catch (e) { /* kept for this visit */ } }
+function scvOutAdd(user, unmatched) {                                  // a sync's plays outside the crate, when the store is there
+  if (!scvPrefs().outside || scvOut.user !== user || !scvOut.groups || !unmatched || !unmatched.length) return;
+  const fresh = unmatched.filter(g => (g.lastUts || 0) > scvOut.through); if (!fresh.length) return;
+  fresh.forEach(g => scvOut.groups.push({ artist: g.artist, title: g.title, track: g.track || '', day: g.day, playCount: g.playCount }));
+  scvOut.through = Math.max(scvOut.through, ...fresh.map(g => g.lastUts || 0)); scvOutSave();
+}
+async function scvOutEnsure() {                                        // the first time: read the whole history from Last.fm
+  const creds = typeof loadLastfmCreds === 'function' ? loadLastfmCreds() : {}; if (!creds.username || !creds.apiKey) { scvOut.msg = 'Connect Last.fm first (the Last.fm import, in ⚙).'; return; }
+  await scvOutLoad(creds.username); if (scvOut.groups || scvOut.busy) return;
+  scvOut.busy = true; scvOut.msg = 'Reading your Last.fm history for what isn’t in your crate…'; renderScrobbles();
+  try {
+    const tracks = await fetchAllLastfmScrobbles(creds.username, creds.apiKey, 0, (t) => { scvOut.msg = t; const m = document.querySelector('.scv-outmsg'); if (m) m.textContent = t; });
+    const { unmatched } = matchScrobbleGroups(aggregateScrobbles(tracks));
+    scvOut.groups = unmatched.map(g => ({ artist: g.artist, title: g.title, track: g.track || '', day: g.day, playCount: g.playCount }));
+    scvOut.through = tracks.length ? Math.max(...tracks.map(t => t.uts)) : Math.floor(Date.now() / 1000); scvOut.msg = ''; await scvOutSave();
+  } catch (e) { scvOut.msg = 'Couldn’t read Last.fm: ' + ((e && e.message) || e); }
+  finally { scvOut.busy = false; renderScrobbles(); }
+}
+function scvOutRows() {                                                // as scrobble rows, without any that are in the crate now
+  if (!scvPrefs().outside || !scvOut.groups) return [];
+  return scvOut.groups.map(g => ({ row: '', artist: g.artist, title: g.title, day: g.day, track: g.track, playCount: g.playCount, out: true })).filter(s => !scvItem(s));
+}
+function scvAll() { const o = scvOutRows(); return o.length ? (state.scrobbles || []).concat(o) : (state.scrobbles || []); }
+const scvArtOf = (g) => g.item || (g.artist ? { artist: g.artist, title: g.release || g.title } : null);          // a release outside the crate: its cover looked up by name
+const scvOutAttr = (g) => !g.item && g.artist ? ` data-scv-add="${escapeHtml(g.artist + '\u0001' + (g.release || g.title))}" title="Not in your crate: click to add it"` : '';
 
 // ----- the numbers -----
 const scvIso = (d) => { const z = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`; };
@@ -21,7 +60,7 @@ function scvRange(period, back) {          // [from, to) as day strings; back = 
   const n = Number(period) || 30, to = new Date(now); to.setDate(to.getDate() + 1 - n * (back ? 1 : 0)); const from = new Date(to); from.setDate(from.getDate() - n);
   return [scvIso(from), scvIso(to)];
 }
-function scvRows(range) { if (!range) return []; return (state.scrobbles || []).filter(s => { const d = scvDay(s); return d && d >= range[0] && d < range[1]; }); }
+function scvRows(range) { if (!range) return []; return scvAll().filter(s => { const d = scvDay(s); return d && d >= range[0] && d < range[1]; }); }
 // (1.135.68) The release a scrobble is about: by its artist and title (the sheet row it was saved with can point at another release once rows
 // have moved, which gave the wrong covers and opened the wrong album), the row only when it still is that release.
 function scvItem(s) {
@@ -63,7 +102,7 @@ const scvImg = (it, cls) => { scvArtNeed(it); return `<img class="${cls}${it ? '
 function scvHead(p) {
   const views = [['overview', 'Overview'], ['timeline', 'Timeline'], ['charts', 'Charts']];
   const per = p.view === 'timeline' ? '' : SCV_PERIODS.map(([k, l]) => `<button type="button" class="scv-chip${p.period === k ? ' on' : ''}" data-scv-period="${k}">${l}</button>`).join('');
-  return `<div class="scv-head"><h2 class="scv-title">Scrobbles</h2><div class="scv-views" role="tablist">${views.map(([k, l]) => `<button type="button" role="tab" aria-selected="${p.view === k}" class="scv-view${p.view === k ? ' on' : ''}" data-scv-view="${k}">${l}</button>`).join('')}</div><span class="scv-gap"></span>${per}</div>`;
+  return `<div class="scv-head"><h2 class="scv-title">Scrobbles</h2><div class="scv-views" role="tablist">${views.map(([k, l]) => `<button type="button" role="tab" aria-selected="${p.view === k}" class="scv-view${p.view === k ? ' on' : ''}" data-scv-view="${k}">${l}</button>`).join('')}</div><span class="scv-gap"></span>${per}<label class="scv-outtog" title="Also show releases you scrobbled that aren’t in your crate (kept in this browser, never saved to your crate)"><input type="checkbox" data-scv-outside${p.outside ? ' checked' : ''}> Not in crate</label></div>`;
 }
 function scvChartHtml(p, rows, limit) {
   const kind = p.chart, list = scvChart(rows, kind).slice(0, limit), prevRange = scvRange(p.period, 1), prev = prevRange ? scvChart(scvRows(prevRange), kind) : null;
@@ -73,7 +112,7 @@ function scvChartHtml(p, rows, limit) {
     const r = i + 1, was = prevRank ? prevRank.get(g.key) : null;
     const mv = !prevRank ? '' : !was ? '<span class="scv-mv new">NEW</span>' : was > r ? `<span class="scv-mv up">▲ ${was - r}</span>` : was < r ? `<span class="scv-mv down">▼ ${r - was}</span>` : '<span class="scv-mv">=</span>';
     const name = kind === 'songs' ? `${escapeHtml(g.title)}<span class="scv-sub2"> · ${escapeHtml(g.release)}</span>` : escapeHtml(g.title);
-    return `<div class="scv-tr" data-scv-open="${escapeHtml(String(g.item ? g.item.row : ''))}" data-scv-artist="${kind === 'artists' ? escapeHtml(g.title) : ''}"><span class="scv-rk">${r}</span>${kind === 'artists' ? `<span class="scv-badge">${escapeHtml((g.title || '?').replace(/^the\s+/i, '').slice(0, 2).toUpperCase())}</span>` : scvImg(g.item, 'scv-cv')}<div class="scv-name"><div class="scv-t">${name}</div>${mv}</div><span class="scv-s">${escapeHtml(g.artist)}</span><span class="scv-s">${g.days} day${g.days === 1 ? '' : 's'}</span><span class="scv-s">${escapeHtml(scvWhen(g.last))}</span><div class="scv-pb"><b>${g.plays}</b><span class="scv-bar"><i style="width:${Math.max(3, g.plays / max * 100).toFixed(1)}%"></i></span></div></div>`;
+    return `<div class="scv-tr${kind !== 'artists' && !g.item ? ' scv-outrow' : ''}" data-scv-open="${escapeHtml(String(g.item ? g.item.row : ''))}"${kind !== 'artists' ? scvOutAttr(g) : ''} data-scv-artist="${kind === 'artists' ? escapeHtml(g.title) : ''}"><span class="scv-rk">${r}</span>${kind === 'artists' ? `<span class="scv-badge">${escapeHtml((g.title || '?').replace(/^the\s+/i, '').slice(0, 2).toUpperCase())}</span>` : scvImg(g.item, 'scv-cv')}<div class="scv-name"><div class="scv-t">${name}</div>${mv}</div><span class="scv-s">${escapeHtml(g.artist)}</span><span class="scv-s">${g.days} day${g.days === 1 ? '' : 's'}</span><span class="scv-s">${escapeHtml(scvWhen(g.last))}</span><div class="scv-pb"><b>${g.plays}</b><span class="scv-bar"><i style="width:${Math.max(3, g.plays / max * 100).toFixed(1)}%"></i></span></div></div>`;
   }).join('');
   return `<div class="scv-tabs">${tabs}</div><div class="scv-table"><div class="scv-th"><span>#</span><span></span><span>${kind === 'artists' ? 'Artist' : kind === 'songs' ? 'Song' : 'Release'}</span><span>${kind === 'artists' ? '' : 'Artist'}</span><span>Days</span><span>Last</span><span>Plays</span></div>${rowsHtml || '<p class="scv-empty">Nothing played in this period.</p>'}</div>`;
 }
@@ -86,7 +125,7 @@ function scvDaysHtml(rows, maxDays, big) {          // day by day: each release 
     return `<div class="scv-day" id="scv-day-${d}"><div class="scv-dayh"><b>${escapeHtml(nice)}</b><span>${plays} play${plays === 1 ? '' : 's'} · ${rel.length} release${rel.length === 1 ? '' : 's'}</span></div>${rel.map(g => {
       const n = g.item && typeof csTracksOf === 'function' ? (csTracksOf(g.item) || []).length : 0, whole = n && g.songs.size >= n;
       const songs = [...g.songs]; const songsTxt = whole ? `${g.songs.size} songs, the whole album` : songs.length ? `${songs.length} song${songs.length === 1 ? '' : 's'} · ${songs.slice(0, 3).join(', ')}${songs.length > 3 ? '…' : ''}` : `${g.plays} play${g.plays === 1 ? '' : 's'}`;
-      return `<div class="scv-ses${big ? ' big' : ''}" data-scv-open="${escapeHtml(String(g.item ? g.item.row : ''))}">${scvImg(g.item, big ? 'scv-cv-big' : 'scv-cv')}<div class="scv-name"><div class="scv-t">${escapeHtml(g.title)} <span class="scv-sub2">· ${escapeHtml(g.artist)}</span></div><div class="scv-s">${escapeHtml(songsTxt)}</div></div>${big && g.item ? `<span class="scv-acts"><button type="button" class="scv-act" data-scv-play="${escapeHtml(String(g.item.row))}">▶ Play again</button><button type="button" class="scv-act" data-scv-log="${escapeHtml(String(g.item.row))}">✎ Log in diary</button></span>` : ''}</div>`;
+      return `<div class="scv-ses${big ? ' big' : ''}${g.item ? '' : ' scv-outrow'}" data-scv-open="${escapeHtml(String(g.item ? g.item.row : ''))}"${scvOutAttr(g)}>${scvImg(scvArtOf(g), big ? 'scv-cv-big' : 'scv-cv')}<div class="scv-name"><div class="scv-t">${escapeHtml(g.title)} <span class="scv-sub2">· ${escapeHtml(g.artist)}</span></div><div class="scv-s">${escapeHtml(songsTxt)}</div></div>${big && g.item ? `<span class="scv-acts"><button type="button" class="scv-act" data-scv-play="${escapeHtml(String(g.item.row))}">▶ Play again</button><button type="button" class="scv-act" data-scv-log="${escapeHtml(String(g.item.row))}">✎ Log in diary</button></span>` : ''}</div>`;
     }).join('')}</div>`;
   }).join('');
   return html + (days.length > shown.length ? `<button type="button" class="scv-more" data-scv-more>Show ${Math.min(30, days.length - shown.length)} more days</button>` : '') + (days.length ? '' : '<p class="scv-empty">Nothing played in this period.</p>');
@@ -96,13 +135,13 @@ function scvDaysHtml(rows, maxDays, big) {          // day by day: each release 
 function scvOverview(p) {
   const rows = scvRows(scvRange(p.period)), t = scvTotals(rows), top = scvChart(rows, 'releases').slice(0, 10), max = top.length ? top[0].plays : 1;
   const stat = (n, l) => `<div class="scv-stat"><b>${Number(n).toLocaleString()}</b><span>${l}</span></div>`;
-  const covers = top.map((g, i) => `<div class="scv-cell" data-scv-open="${escapeHtml(String(g.item ? g.item.row : ''))}"><div class="scv-cellcv">${scvImg(g.item, 'scv-cv-fill')}<span class="scv-rkb">${i + 1}</span></div><div class="scv-t">${escapeHtml(g.title)}</div><div class="scv-s">${escapeHtml(g.artist)} · ${g.plays}</div><span class="scv-bar"><i style="width:${(g.plays / max * 100).toFixed(1)}%"></i></span></div>`).join('');
+  const covers = top.map((g, i) => `<div class="scv-cell${g.item ? '' : ' scv-outrow'}" data-scv-open="${escapeHtml(String(g.item ? g.item.row : ''))}"${scvOutAttr(g)}><div class="scv-cellcv">${scvImg(scvArtOf(g), 'scv-cv-fill')}<span class="scv-rkb">${i + 1}</span></div><div class="scv-t">${escapeHtml(g.title)}</div><div class="scv-s">${escapeHtml(g.artist)} · ${g.plays}</div><span class="scv-bar"><i style="width:${(g.plays / max * 100).toFixed(1)}%"></i></span></div>`).join('');
   return `<div class="scv-stats">${stat(t.plays, 'plays')}${stat(t.days, 'days listened')}${stat(t.releases, 'releases')}${stat(t.artists, 'artists')}${stat(t.songs, 'songs')}</div>
     <div class="scv-cols"><div class="scv-main"><div class="scv-lbl">Top releases</div><div class="scv-grid">${covers || '<p class="scv-empty">Nothing played in this period.</p>'}</div><div class="scv-lbl" style="margin-top:22px">Chart</div>${scvChartHtml(p, rows, 50)}</div>
     <div class="scv-side"><div class="scv-lbl">Day by day</div>${scvDaysHtml(rows, Math.min(scvDaysShown, 14), false)}</div></div>`;
 }
 function scvTimeline(p) {
-  const all = state.scrobbles || [], years = [...new Set(all.map(s => scvDay(s).slice(0, 4)).filter(Boolean))].sort().reverse();
+  const all = scvAll(), years = [...new Set(all.map(s => scvDay(s).slice(0, 4)).filter(Boolean))].sort().reverse();
   const year = years.includes(p.year) ? p.year : years[0] || String(new Date().getFullYear());
   const rows = all.filter(s => scvDay(s).startsWith(year)), perDay = new Map(); rows.forEach(s => { const d = scvDay(s); perDay.set(d, (perDay.get(d) || 0) + (Number(s.playCount) || 0)); });
   const vals = [...perDay.values()].sort((a, b) => a - b), q = (f) => vals.length ? vals[Math.min(vals.length - 1, Math.floor(vals.length * f))] : 0, q1 = q(.25), q2 = q(.5), q3 = q(.8);
@@ -120,16 +159,19 @@ function scvCharts(p) { return scvChartHtml(p, scvRows(scvRange(p.period)), 100)
 
 function renderScrobbles() {
   el.scrobblesContainer.innerHTML = '';
-  if (!state.scrobbles.length) { showState('emptyScrobbles', 'scrobbles'); return; }
+  if (scvPrefs().outside && typeof loadLastfmCreds === 'function') { const u = (loadLastfmCreds() || {}).username; if (u && (scvOut.user !== u || !scvOut.groups) && !scvOut.busy) { scvOutLoad(u).then(() => { if (!scvOut.groups) scvOutEnsure(); else renderScrobbles(); }); } }
+  if (!scvAll().length) { showState('emptyScrobbles', 'scrobbles'); return; }
   hideState('scrobbles');
   const p = scvPrefs(), box = document.createElement('div'); box.className = 'scv scv-' + p.view;
-  box.innerHTML = scvHead(p) + (p.view === 'timeline' ? scvTimeline(p) : p.view === 'charts' ? scvCharts(p) : scvOverview(p));
+  box.innerHTML = scvHead(p) + (p.outside && (scvOut.busy || scvOut.msg) ? `<div class="scv-outmsg">${escapeHtml(scvOut.msg)}</div>` : '') + (p.view === 'timeline' ? scvTimeline(p) : p.view === 'charts' ? scvCharts(p) : scvOverview(p));
   el.scrobblesContainer.appendChild(box);
   if (typeof applyCachedArt === 'function') applyCachedArt();
   if (!el.scrobblesContainer.dataset.scvWired) {
     el.scrobblesContainer.dataset.scvWired = '1';
     el.scrobblesContainer.addEventListener('click', (e) => {
       const g = (s) => e.target.closest(s); let b;
+      if ((b = g('[data-scv-outside]'))) { const on = b.checked; scvSet({ outside: on }); if (on) scvOutEnsure(); return; }
+      if ((b = g('[data-scv-add]'))) { const [ar, ti] = b.dataset.scvAdd.split('\u0001'); if (typeof openAddModal === 'function') { openAddModal(); el.addSearchInput.value = `${ar} ${ti}`.trim(); if (typeof doAddSearch === 'function') doAddSearch(); } return; }
       if ((b = g('[data-scv-view]'))) { scvDaysShown = 30; return scvSet({ view: b.dataset.scvView }); }
       if ((b = g('[data-scv-period]'))) return scvSet({ period: b.dataset.scvPeriod });
       if ((b = g('[data-scv-chart]'))) return scvSet({ chart: b.dataset.scvChart });

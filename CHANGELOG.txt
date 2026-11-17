@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.85
+  CURRENT_VERSION: 1.135.86
 
+  1.135.86 — 2026-11-18 — Scrobbles: "Not in crate" (a tick at the top right). On, the overview, charts, timeline and day by day also show
+          the releases you scrobbled that aren't in your crate, marked "not in crate", with covers looked up by name; click one to
+          add it. Turning it on reads your Last.fm history once for them, and every sync adds what's new. They're kept in this
+          browser only, never saved to your crate's Scrobbles sheet, and a release you add later is counted from the sheet instead,
+          so no play counts twice. Remembered.
   1.135.85 — 2026-11-18 — Crate Galaxy: "Physics" (beside 3D). On, the map is a live simulation: every link a spring, tighter the more
           two releases share, crowded stars pushing apart, each family held loosely in its place. Grab a star and pull it: what it
           shares the most with trails after it, and when you let go it's thrown and everything settles back. Works in 2D and 3D

@@ -364,6 +364,7 @@ async function maybeRunBackgroundLastfmSync() {
     const tracks = await fetchAllLastfmScrobbles(creds.username, creds.apiKey, sinceUts, null);
     const groups = tracks.length ? aggregateScrobbles(tracks) : [];
     const { matched, unmatched } = matchScrobbleGroups(groups);
+    if (typeof scvOutLoad === 'function' && scvPrefs().outside) { await scvOutLoad(creds.username); scvOutAdd(creds.username, unmatched); }          // (1.135.86) Scrobbles › Not in crate
     // What isn't in the crate is KEPT, merged with what was kept before, and re-matched: some may have been added since.
     const st = lfLoadState(creds.username);
     const ignoredKeys = new Set(st.ignored);                      // plays of an album you chose to ignore are discarded, not stored out of sight
