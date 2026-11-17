@@ -160,7 +160,7 @@ function stlPanelHtml(subj, mode) {
 // Repaint every place showing this release (the rest of the dropdown stays as it is)
 function stlPaint(key) {
   const id = stlId(key), d = stl.data.get(key); if (!d) return;
-  document.querySelectorAll(`[data-stl="${id}"]`).forEach(n => { n.innerHTML = n.dataset.stlMode === 'a' ? stlAHtml(key) : stlPanelHtml(d.subj, n.dataset.stlMode); });
+  document.querySelectorAll(`[data-stl="${id}"]`).forEach(n => { n.innerHTML = n.dataset.stlMode === 'a' ? stlAHtml(key) : n.dataset.stlMode === 'q' ? stlQpHtml(key) : stlPanelHtml(d.subj, n.dataset.stlMode); });
 }
 
 // ----- A: ▸ in the list -----
@@ -502,3 +502,40 @@ let stlMouseDown = false, stlRenderT = 0;
 function stlRenderSoon() { clearTimeout(stlRenderT); stlRenderT = setTimeout(() => { if (stlMouseDown) return stlRenderSoon(); ssRender(); }, 250); }
 document.addEventListener('mousedown', (e) => { if (e.target.closest && e.target.closest('#searchSuggest')) stlMouseDown = true; }, true);
 document.addEventListener('mouseup', () => { setTimeout(() => { stlMouseDown = false; }, 0); }, true);
+
+
+// ----- (1.135.112) The cover view's popup › Listens: Last.fm's numbers for the release and each song (listeners, plays, yours) -----
+// Looked up when the Listens tab is shown (the same lookups as the search's songs, kept two days), under your own plays.
+function stlQpHtml(key) {
+  const d = stl.data.get(key);
+  const head = '<div class="qp-lf-head"><span class="qp-dim">On Last.fm</span></div>';
+  if (!srchLfKey()) return head + '<p class="tracklist-status">Save a Last.fm API key (⚙ › Last.fm) to see how much this is played there.</p>';
+  if (!d || (d.state === 'loading' && !d.songs.length)) return head + '<p class="tracklist-status">Looking it up on Last.fm…</p>';
+  const rel = d.rel || {}, sm = d.songs.length ? stlSum(d) : null, L = rel.l, P = rel.p;
+  const k = (lbl, v, you) => `<div class="stl-k"><span>${lbl}</span><b${you ? ' class="stl-you"' : ''}>${v}</b></div>`;
+  const yours = rel.u != null ? rel.u : sm ? sm.you : rel.loc;
+  const kp = `<div class="stl-kpis qp-lf-kpis">${k('Listeners', stlF(L))}${k('Plays', stlF(P))}${k('Plays each', L && P ? (P / L).toFixed(1) : '–')}${k('Yours', stlF(yours), true)}</div>`;
+  const top = sm && sm.top >= 0 && sm.totP ? `<div class="qp-about-row"><span class="qp-dim">Most played song</span><span>${escapeHtml(d.songs[sm.top].name)} · ${Math.round((d.songs[sm.top].p || 0) / sm.totP * 100)}% of its plays</span></div>` : '';
+  const link = rel.url ? ` <a class="qp-dim qp-lf-link" href="${escapeHtml(rel.url)}" target="_blank" rel="noopener">Last.fm ↗</a>` : '';
+  return head.replace('</div>', link + '</div>') + kp + top + `<div class="stl-a qp-lf-tbl">${stlTableHtml(key, d, 'a')}${stlFootHtml(d, 'a')}</div>`;
+}
+function stlQpMount(item, load) {
+  const box = el.albumQuickPeekListens; if (!box || !item) return;
+  const subj = { key: 'c:' + item.row, artist: item.artist, title: item.title, it: item, r: null, cover: srchItemCover(item) };
+  let host = box.querySelector('.qp-lf'); if (!host) { host = document.createElement('div'); host.className = 'qp-lf'; box.appendChild(host); }
+  host.dataset.stl = stlId(subj.key); host.dataset.stlMode = 'q';
+  if ((load || !box.hidden) && srchLfKey()) stlWant(subj, 0);
+  const d = stl.data.get(subj.key); if (d) d.subj = Object.assign({}, d.subj, subj);
+  host.innerHTML = stlQpHtml(subj.key);
+  if (!box.dataset.stlWired) { box.dataset.stlWired = '1';
+    box.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-stl-play]'), m = e.target.closest('[data-stl-all]'); if (!b && !m) return;
+      e.stopPropagation(); const key = stl.byId.get((e.target.closest('[data-stl]') || {}).dataset.stl || ''); if (!key) return;
+      if (m) { stl.all.add(key); stlPaint(key); return; }
+      const dd = stl.data.get(key), s = dd && dd.songs[+b.dataset.stlPlay]; if (s && dd.subj.it && typeof playTrackNow === 'function') playTrackNow(dd.subj.it, s.name, s.n);
+    }); }
+}
+const stlBaseQp = openAlbumQuickPeek;
+openAlbumQuickPeek = function (item) { const r = stlBaseQp.apply(this, arguments); try { stlQpMount(item); } catch (e) { /* the popup as before */ } return r; };
+const stlBaseQpTab = qpSetTab;
+qpSetTab = function (tab) { stlBaseQpTab.apply(this, arguments); try { if (tab === 'listens' && typeof quickPeekItem !== 'undefined' && quickPeekItem) stlQpMount(quickPeekItem, true); } catch (e) { /* as before */ } };

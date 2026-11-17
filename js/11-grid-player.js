@@ -2490,7 +2490,7 @@ function qpAboutHtml(item) {
     || '<p class="tracklist-status">Nothing more is known about this release yet.</p>';
 }
 function qpListensHtml(item, p) {
-  if (!p.n) return '<p class="tracklist-status">No plays yet: none in your diary, and none scrobbled to Last.fm.</p>';
+  if (!p.n) return '<p class="tracklist-status">No plays in your diary or your synced scrobbles yet.</p>';
   const years = new Map(); p.dates.forEach(([d, c]) => { const y = d.slice(0, 4); if (/^\d{4}$/.test(y)) years.set(y, (years.get(y) || 0) + c); });
   const ys = [...years.keys()].sort(), max = Math.max(1, ...years.values());
   const bars = ys.length ? `<div class="qp-hist">${ys.map(y => `<span class="qp-hbar" style="height:${Math.max(6, years.get(y) / max * 100)}%" title="${y}: ${years.get(y)} play${years.get(y) === 1 ? '' : 's'}"></span>`).join('')}</div><div class="qp-hist-x qp-dim"><span>${ys[0]}</span><span>${ys[ys.length - 1]}</span></div>` : '';
