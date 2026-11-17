@@ -1604,9 +1604,18 @@ function bmPrefsHtml() {
 }
 
 // ----- drawing the window -----
+let bmSelHeldUntil = 0;
+document.addEventListener('mousedown', (e) => { if (e.target && e.target.tagName === 'SELECT' && e.target.closest('#bmModal')) bmSelHeldUntil = Date.now() + 1500; }, true);          // (1.135.70) pressing a dropdown: hold the redraw while it opens
 function bmRender() {
   const ov = bmEl('batchMatchOverlay'); if (!bm || !ov || ov.hidden) return;
   const modal = bmEl('bmModal'), keep = {};
+  // (1.135.70) A dropdown open (or just pressed) in the window: the redraw waits until you've picked, since drawing the window again closed it
+  // (while the queue ran, several times a second, so nothing in a dropdown could be chosen). It happens as soon as the dropdown is left.
+  const focusSel = document.activeElement && modal.contains(document.activeElement) && document.activeElement.tagName === 'SELECT' ? document.activeElement : null;
+  if (focusSel || (bmSelHeldUntil && Date.now() < bmSelHeldUntil)) {
+    if (!bm.renderHeld) { bm.renderHeld = true; const go = () => { bm.renderHeld = false; bmSelHeldUntil = 0; bmRender(); }; if (focusSel) { focusSel.addEventListener('change', () => setTimeout(() => { focusSel.blur(); go(); }, 0), { once: true }); focusSel.addEventListener('blur', () => setTimeout(go, 0), { once: true }); } else setTimeout(go, Math.max(50, bmSelHeldUntil - Date.now())); }
+    return;
+  }
   modal.querySelectorAll('[data-scroll]').forEach(e => { keep[e.dataset.scroll] = e.scrollTop; });
   const act = document.activeElement, keepKey = act && modal.contains(act) && act.dataset ? act.dataset.keep : null, keepVal = keepKey ? act.value : '', keepSel = keepKey && typeof act.selectionStart === 'number' ? [act.selectionStart, act.selectionEnd] : null;
   const pasteVals = {}; modal.querySelectorAll('[data-keep]').forEach(e => { pasteVals[e.dataset.keep] = e.value; });
