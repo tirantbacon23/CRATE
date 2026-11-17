@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.129
+  CURRENT_VERSION: 1.135.130
 
+  1.135.130 — 2026-11-18 — The start-up screen's bar shows how far along it is, with a percentage: CRATE's own files loading (to 40%), your
+          crate being fetched and read (to 74%), the releases laid out (to 100%), its words saying which. Between steps it creeps on
+          towards the next, slower and slower, so it never sits still but never runs ahead of what's done.
   1.135.129 — 2026-11-18 — Cover wall: no black band at the top when its bar fades. The covers kept a strip free for the bar; now they reach
           the top, and the bar floats over them while it shows (the covers under it can still be clicked).
   1.135.128 — 2026-11-18 — Player: clicking the album's title under the song opens the release in the deck (for a release in your crate it did

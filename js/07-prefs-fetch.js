@@ -462,13 +462,16 @@ async function fetchCatalogOnce(opts) {
     // clear a legitimately heavy load; the slowNotice above is what
     // actually addresses "is this frozen?" now, not an aggressive timeout.
     const writeGen = catalogWrites.started, writing = catalogWrites.inFlight;          // (see catalogWrites)
+    if (typeof window.crateBootProgress === 'function') window.crateBootProgress(snap ? 72 : 42, snap ? 'Laying out your crate…' : 'Fetching your crate…');          // (1.135.130) the start-up screen's bar
     const res = snap ? null : await fetchWithTimeout(
       CONFIG.SCRIPT_URL + '?id_token=' + encodeURIComponent(idToken),
       { method: 'GET' },
       90000
     );
     if (res && !res.ok) throw new Error('HTTP ' + res.status);
+    if (res && typeof window.crateBootProgress === 'function') window.crateBootProgress(62, 'Reading your crate…');
     const data = snap || await res.json();
+    if (typeof window.crateBootProgress === 'function') window.crateBootProgress(74, 'Laying out your crate…');
     if (!snap && quiet && (opts.staleTries || 0) < 3 && (writing || catalogWrites.inFlight || catalogWrites.started !== writeGen)) { await catalogWritesSettled(); return { stale: true }; }          // read while the sheet was being written: done again
     if (isAuthError(data)) {                                        // the token ran out: renew it quietly and load again, once
       if (data.reason === 'not_allowed') { handleAuthError(authRefusedMessage(data)); return; }          // (1.121.0) renewing won't help
