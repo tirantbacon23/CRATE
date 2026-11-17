@@ -542,7 +542,15 @@ function addDupRefresh() {
   }
   addDupApplyButton();
 }
+// (1.135.98) The crate is read again as soon as the Add window opens (when it's over 2 minutes old), so it's fresh by the time you press
+// Save, instead of the save waiting for it.
+let addDupPrefetch = null;
+function addDupWarm() {
+  if (addDupPrefetch || Date.now() - (state.catalogFetchedAt || 0) <= DUP_FRESH_MS - 15000 || typeof fetchCatalog !== 'function') return;
+  addDupPrefetch = Promise.resolve().then(() => fetchCatalog({ quiet: true })).catch(() => {}).finally(() => { addDupPrefetch = null; if (typeof addDupRefresh === 'function' && !el.addForm.hidden) addDupRefresh(); });
+}
 async function addDupGuard() {         // true = fine to save. Authoritative: it doesn't trust what the banner last showed.
+  if (addDupPrefetch) { const label = el.addSaveBtn.textContent; el.addSaveBtn.disabled = true; el.addSaveBtn.textContent = 'Checking your crate\u2026'; await addDupPrefetch; el.addSaveBtn.textContent = label; }
   if (Date.now() - (state.catalogFetchedAt || 0) > DUP_FRESH_MS) {
     const label = el.addSaveBtn.textContent; el.addSaveBtn.disabled = true; el.addSaveBtn.textContent = 'Checking your crate\u2026';
     try { await fetchCatalog({ quiet: true }); } catch (e) { console.warn('refresh before duplicate check failed', e); }

@@ -1460,6 +1460,21 @@ async function maybeOfferAddMusicBrainzTracklist(prefill) {
   el.addMusicBrainzMatchBanner.hidden = false;
 }
 
+function addReleaseLocally(payload, res) {
+  if (!res || !res.row || typeof catalogRowToItem !== 'function') return null;
+  try {
+    const row = Object.assign({}, payload, { _row: res.row, AlbumId: res.albumId || payload.AlbumId || '', DateAdded: new Date().toISOString() }); delete row.action;
+    const item = catalogRowToItem(row, state.raw.length);
+    if (state.raw.some(x => (item.albumId && x.albumId === item.albumId) || (String(x.row) === String(item.row) && x.artist === item.artist && x.title === item.title))) return null;          // (already there: a sync beat us to it)
+    state.raw = state.raw.concat([item]);
+    buildLeftList(); if (typeof renderPlaylistSidebar === 'function') renderPlaylistSidebar(); if (typeof updateMainLabel === 'function') updateMainLabel(); applyFiltersSort();
+    if (typeof prefetchArt === 'function') prefetchArt([item]);
+    const added = [item]; if (typeof catalogMarkArrived === 'function') catalogMarkArrived(added);
+    if (typeof crateIsMain !== 'function' || crateIsMain()) { if (typeof rymUpdateAdded === 'function') rymUpdateAdded(added); if (typeof afQueueAdded === 'function') afQueueAdded(added); if (typeof locQueueAdded === 'function') locQueueAdded(added); }
+    if (typeof catStatsSoon === 'function') catStatsSoon();
+    return item;
+  } catch (e) { console.warn('adding the release locally failed: the sheet is read again instead', e); return null; }
+}
 async function saveNewAlbum() {
   const artist = el.addArtist.value.trim();
   const title = el.addTitle.value.trim();
@@ -1470,7 +1485,9 @@ async function saveNewAlbum() {
   // A last pass for songs that were typed in (or changed) and haven't been matched yet. It can never get in the way of saving:
   // it only runs when something has changed since the last run, it is capped at 25 seconds, and any failure just saves what
   // is in the form.
-  if (manualTracks.length && state.autoMatchOnAdd && manualTracks.some(t => !t.spotifyLink) && addFormSignature() !== addMatchLastSig) {
+  // (1.135.98) Not when new releases are matched by themselves in the background (Match songs › Preferences): it would only make you wait
+  const bgMatch = typeof smPrefs === 'function' && smPrefs().autoMatchNew;
+  if (!bgMatch && manualTracks.length && state.autoMatchOnAdd && manualTracks.some(t => !t.spotifyLink) && addFormSignature() !== addMatchLastSig) {
     const label = el.addSaveBtn.textContent; el.addSaveBtn.disabled = true; el.addSaveBtn.textContent = 'Matching songs\u2026';
     try { await Promise.race([autoMatchAddForm(), new Promise(res => setTimeout(res, 25000))]); } catch (e) { console.warn('match before save failed', e); }
     el.addSaveBtn.textContent = label; addDupRefresh();
@@ -1505,7 +1522,12 @@ async function saveNewAlbum() {
     const addRes = await postUpdate(payload);
     rymAfterAdd(payload, addRes);
     { const linked = manualTracks.filter(t => t.spotifyLink).length; flashToast(el.addToast, state.autoMatchOnAdd && linked ? `Added to your crate \u00b7 ${linked} of ${manualTracks.length} songs linked on Spotify` : 'Added to your crate'); }
-    setTimeout(async () => { if (lfAddQueue) lfAddQueue.advancing = true; closeAddModal(); await fetchCatalog({ quiet: true }); await lfAfterAdd(); }, 700);    // lfAfterAdd: log this album's stored Last.fm plays, and open the next album of a Last.fm review
+    // (1.135.98) The release goes into the crate at once, from what was saved and the row the sheet gave it, instead of loading the whole
+    // sheet again first (seconds, with a big crate); the sheet is read again quietly a little later to settle anything it added.
+    const local = addReleaseLocally(payload, addRes);
+    if (lfAddQueue) lfAddQueue.advancing = true; closeAddModal();
+    if (local) { await lfAfterAdd(); setTimeout(() => fetchCatalog({ quiet: true }), 6000); }
+    else { await fetchCatalog({ quiet: true }); await lfAfterAdd(); }    // lfAfterAdd: log this album's stored Last.fm plays, and open the next album of a Last.fm review
   } catch (err) {
     // err.message now carries the backend's own error text when this was
     // a generic (non-auth) failure — see postUpdate's own comment — rather

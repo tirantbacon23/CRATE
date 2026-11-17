@@ -325,6 +325,95 @@ function catalogSnapLoad() {
   return Promise.race([read, new Promise(res => setTimeout(() => res(null), 1500))]);          // a stuck database never holds the start up
 }
 
+// (1.135.98) One sheet row → one release, as the catalog load makes them; also used to put a release you just added straight into the
+// crate, without loading the whole sheet again.
+function catalogRowToItem(r, i) {
+  return ({
+          row: r._row,
+          // Permanent, stable identifier — see apps-script-backend.gs's
+          // AlbumId column/backfillAlbumIds(). Preferred over `row` by
+          // playlistAlbumFor and friends wherever available, since `row`
+          // itself shifts whenever an earlier row is deleted/inserted and
+          // can even collide across two different albums after enough
+          // sheet edits (the actual root cause of a playlist showing one
+          // album's track under a completely different album's title/
+          // artist). Blank for any album added before that backend change
+          // and not yet backfilled — those fall back to the old row-based
+          // lookup exactly as before.
+          albumId: r.AlbumId ? String(r.AlbumId).trim() : '',
+          artist: String(r.Artist).trim(),
+          title: String(r.Title).trim(),
+          type: (r.Type ? String(r.Type).trim() : 'Unknown'),
+          releaseDate: r.ReleaseDate != null ? String(r.ReleaseDate) : '',
+          recordedDate: r.Recorded != null ? String(r.Recorded) : '',
+          genre: r.Genre || '',
+          genre2: r.SecondaryGenre || '',
+          label: r.Label ? String(r.Label).trim() : '',
+          rymDescriptors: r.RymDescriptors ? String(r.RymDescriptors).trim() : '',          // Rate Your Music's descriptors (lo-fi, melodic…): their own field, because "Descriptor" is the EDITION label the duplicate check compares
+          region: r.Region ? String(r.Region).trim() : '',
+          // Where it happened — formed, recorded (studio), or played
+          // (venue). Free text, geocoded client-side for the Map viewer
+          // (see openMapModal/geocodeLocation). REQUIRES A BACKEND CHANGE
+          // THIS FILE CAN'T MAKE: apps-script-backend.gs needs a
+          // "Location" column read here and written on addAlbum/editAlbum,
+          // same as Catalog/ManualTracks were added before.
+          location: r.Location ? String(r.Location).trim() : '',
+          cover: r.Cover ? String(r.Cover).trim() : '',
+          rating: Number(r.Rating) || 0,
+          review: r.Review || '',
+          link: r.Link ? String(r.Link).trim() : '',
+          rymLink: r.RymLink ? String(r.RymLink).trim() : '',
+          rymRank: rymVotesNum(r.RymRank), rymBoldMark: String(r.RymBold == null ? '' : r.RymBold).trim() === '1' ? true : String(r.RymBold == null ? '' : r.RymBold).trim() === '0' ? false : undefined, rymUpdated: r.RymUpdated ? String(r.RymUpdated).trim() : '', rymUpdateLog: rymParseLog(r.RymUpdateLog), rymRating: rymNum(r.RymRating), rymVotes: rymVotesNum(r.RymVotes), rymSrc: rymNum(r.RymRating) ? (r.RymSrc === 'a' ? 'a' : 'm') : '', rymHist: rymParseHist(r.RymHistory),
+          friendsHidden: r.FriendsHidden === true || String(r.FriendsHidden == null ? '' : r.FriendsHidden).toLowerCase() === 'true' || String(r.FriendsHidden) === '1',          // (1.117.0) Hide from friends
+          dateAdded: r.DateAdded || '',
+          catalog: r.Catalog ? String(r.Catalog).trim() : 'CRT-' + String(i + 1).padStart(3, '0'),
+          // Free-text release descriptor (e.g. "Deluxe Edition", "2024
+          // Remaster") — same simple string-column pattern as Catalog just
+          // above. Backend now has a "Descriptor" column read here and
+          // written on addAlbum/editAlbum (added to apps-script-backend.gs
+          // after the column was found missing entirely — the field had
+          // been silently failing to persist since it first shipped).
+          descriptor: r.Descriptor ? String(r.Descriptor).trim() : '',
+          fullVideo: r.FullVideo ? String(r.FullVideo).trim() : '',          // (1.135.79) the release's full-album video, kept beside its songs' own links
+          format: r.Format ? String(r.Format).trim() : '', formatSrc: r.FormatSrc ? String(r.FormatSrc).trim() : '',          // (1.135.39) the copy you have: Vinyl LP, CD… (62-format.js)
+          // Scene (a local music community/geographic cultural moment —
+          // "Madchester", "Seattle grunge scene") and Movement (a broader
+          // artistic/stylistic movement — "Post-Punk", "British
+          // Invasion") — same plain string-column pattern as Descriptor
+          // just above, added to apps-script-backend.gs's fields arrays
+          // in the SAME pass as this frontend change specifically to
+          // avoid repeating the exact mistake that silently dropped every
+          // Descriptor save for months (see that bugfix's own changelog
+          // entry) — the backend column and the frontend read/write both
+          // need to exist together, not one now and the other "later".
+          scene: r.Scene ? String(r.Scene).trim() : '',
+          movement: r.Movement ? String(r.Movement).trim() : '',
+          trackData: (function(){ try { return r.TrackData ? JSON.parse(String(r.TrackData)) : {}; } catch(e) { return {}; } })(),
+          // Manually-typed tracklist (title + optional YouTube link per
+          // track), entered via the Add/Edit forms — see showAddForm()'s
+          // tracklist-builder rows and saveNewAlbum()/saveEditForm(). Same
+          // JSON-in-a-column pattern as TrackData above. REQUIRES A BACKEND
+          // CHANGE THIS FILE CAN'T MAKE: apps-script-backend.gs needs a new
+          // "ManualTracks" column read here and written on addAlbum/editAlbum,
+          // same as Catalog/TrackData were added before.
+          manualTracks: (function(){ try { const arr = r.ManualTracks ? JSON.parse(String(r.ManualTracks)) : []; return Array.isArray(arr) ? arr : []; } catch(e) { return []; } })(),
+          // Whether this album has EVER had a manual tracklist explicitly
+          // saved against it — including an intentionally emptied one
+          // (ManualTracks: "[]"). Deliberately separate from manualTracks
+          // itself: manualTracks.length reaching 0 (user removed every
+          // track via the tracklist builder / batch "Remove from
+          // tracklist") must NOT be treated the same as an album that never
+          // had a manual tracklist at all, or isManualAlbum() below falls
+          // back to the iTunes/MusicBrainz auto-lookup and silently
+          // repopulates the very tracks that were just deleted — which is
+          // also why a release could never be made to have zero tracks.
+          // r.ManualTracks is a non-empty string ("[]") once anything has
+          // been saved, vs. "" / undefined when the column's never been
+          // touched for that row, so this needs no backend change.
+          hasManualTracklist: !!(r.ManualTracks && String(r.ManualTracks).trim())
+        });
+}
+
 async function fetchCatalogOnce(opts) {
   opts = opts || {};
   if (!CONFIG.SCRIPT_URL || CONFIG.SCRIPT_URL.indexOf('PASTE_YOUR') === 0) {
@@ -432,90 +521,7 @@ async function fetchCatalogOnce(opts) {
       state.backendRymHist = !!(data && data.rymHist);        // the backend stores the history column          // the backend says it can store RYM ratings
       const freshRaw = (data.rows || [])
         .filter(r => r.Artist && r.Title)
-        .map((r, i) => ({
-          row: r._row,
-          // Permanent, stable identifier — see apps-script-backend.gs's
-          // AlbumId column/backfillAlbumIds(). Preferred over `row` by
-          // playlistAlbumFor and friends wherever available, since `row`
-          // itself shifts whenever an earlier row is deleted/inserted and
-          // can even collide across two different albums after enough
-          // sheet edits (the actual root cause of a playlist showing one
-          // album's track under a completely different album's title/
-          // artist). Blank for any album added before that backend change
-          // and not yet backfilled — those fall back to the old row-based
-          // lookup exactly as before.
-          albumId: r.AlbumId ? String(r.AlbumId).trim() : '',
-          artist: String(r.Artist).trim(),
-          title: String(r.Title).trim(),
-          type: (r.Type ? String(r.Type).trim() : 'Unknown'),
-          releaseDate: r.ReleaseDate != null ? String(r.ReleaseDate) : '',
-          recordedDate: r.Recorded != null ? String(r.Recorded) : '',
-          genre: r.Genre || '',
-          genre2: r.SecondaryGenre || '',
-          label: r.Label ? String(r.Label).trim() : '',
-          rymDescriptors: r.RymDescriptors ? String(r.RymDescriptors).trim() : '',          // Rate Your Music's descriptors (lo-fi, melodic…): their own field, because "Descriptor" is the EDITION label the duplicate check compares
-          region: r.Region ? String(r.Region).trim() : '',
-          // Where it happened — formed, recorded (studio), or played
-          // (venue). Free text, geocoded client-side for the Map viewer
-          // (see openMapModal/geocodeLocation). REQUIRES A BACKEND CHANGE
-          // THIS FILE CAN'T MAKE: apps-script-backend.gs needs a
-          // "Location" column read here and written on addAlbum/editAlbum,
-          // same as Catalog/ManualTracks were added before.
-          location: r.Location ? String(r.Location).trim() : '',
-          cover: r.Cover ? String(r.Cover).trim() : '',
-          rating: Number(r.Rating) || 0,
-          review: r.Review || '',
-          link: r.Link ? String(r.Link).trim() : '',
-          rymLink: r.RymLink ? String(r.RymLink).trim() : '',
-          rymRank: rymVotesNum(r.RymRank), rymBoldMark: String(r.RymBold == null ? '' : r.RymBold).trim() === '1' ? true : String(r.RymBold == null ? '' : r.RymBold).trim() === '0' ? false : undefined, rymUpdated: r.RymUpdated ? String(r.RymUpdated).trim() : '', rymUpdateLog: rymParseLog(r.RymUpdateLog), rymRating: rymNum(r.RymRating), rymVotes: rymVotesNum(r.RymVotes), rymSrc: rymNum(r.RymRating) ? (r.RymSrc === 'a' ? 'a' : 'm') : '', rymHist: rymParseHist(r.RymHistory),
-          friendsHidden: r.FriendsHidden === true || String(r.FriendsHidden == null ? '' : r.FriendsHidden).toLowerCase() === 'true' || String(r.FriendsHidden) === '1',          // (1.117.0) Hide from friends
-          dateAdded: r.DateAdded || '',
-          catalog: r.Catalog ? String(r.Catalog).trim() : 'CRT-' + String(i + 1).padStart(3, '0'),
-          // Free-text release descriptor (e.g. "Deluxe Edition", "2024
-          // Remaster") — same simple string-column pattern as Catalog just
-          // above. Backend now has a "Descriptor" column read here and
-          // written on addAlbum/editAlbum (added to apps-script-backend.gs
-          // after the column was found missing entirely — the field had
-          // been silently failing to persist since it first shipped).
-          descriptor: r.Descriptor ? String(r.Descriptor).trim() : '',
-          fullVideo: r.FullVideo ? String(r.FullVideo).trim() : '',          // (1.135.79) the release's full-album video, kept beside its songs' own links
-          format: r.Format ? String(r.Format).trim() : '', formatSrc: r.FormatSrc ? String(r.FormatSrc).trim() : '',          // (1.135.39) the copy you have: Vinyl LP, CD… (62-format.js)
-          // Scene (a local music community/geographic cultural moment —
-          // "Madchester", "Seattle grunge scene") and Movement (a broader
-          // artistic/stylistic movement — "Post-Punk", "British
-          // Invasion") — same plain string-column pattern as Descriptor
-          // just above, added to apps-script-backend.gs's fields arrays
-          // in the SAME pass as this frontend change specifically to
-          // avoid repeating the exact mistake that silently dropped every
-          // Descriptor save for months (see that bugfix's own changelog
-          // entry) — the backend column and the frontend read/write both
-          // need to exist together, not one now and the other "later".
-          scene: r.Scene ? String(r.Scene).trim() : '',
-          movement: r.Movement ? String(r.Movement).trim() : '',
-          trackData: (function(){ try { return r.TrackData ? JSON.parse(String(r.TrackData)) : {}; } catch(e) { return {}; } })(),
-          // Manually-typed tracklist (title + optional YouTube link per
-          // track), entered via the Add/Edit forms — see showAddForm()'s
-          // tracklist-builder rows and saveNewAlbum()/saveEditForm(). Same
-          // JSON-in-a-column pattern as TrackData above. REQUIRES A BACKEND
-          // CHANGE THIS FILE CAN'T MAKE: apps-script-backend.gs needs a new
-          // "ManualTracks" column read here and written on addAlbum/editAlbum,
-          // same as Catalog/TrackData were added before.
-          manualTracks: (function(){ try { const arr = r.ManualTracks ? JSON.parse(String(r.ManualTracks)) : []; return Array.isArray(arr) ? arr : []; } catch(e) { return []; } })(),
-          // Whether this album has EVER had a manual tracklist explicitly
-          // saved against it — including an intentionally emptied one
-          // (ManualTracks: "[]"). Deliberately separate from manualTracks
-          // itself: manualTracks.length reaching 0 (user removed every
-          // track via the tracklist builder / batch "Remove from
-          // tracklist") must NOT be treated the same as an album that never
-          // had a manual tracklist at all, or isManualAlbum() below falls
-          // back to the iTunes/MusicBrainz auto-lookup and silently
-          // repopulates the very tracks that were just deleted — which is
-          // also why a release could never be made to have zero tracks.
-          // r.ManualTracks is a non-empty string ("[]") once anything has
-          // been saved, vs. "" / undefined when the column's never been
-          // touched for that row, so this needs no backend change.
-          hasManualTracklist: !!(r.ManualTracks && String(r.ManualTracks).trim())
-        }));
+        .map(catalogRowToItem);
       const flip = quiet ? catalogFlipBefore() : null;
       const rec = catalogReconcile(state.raw, freshRaw); state.raw = rec.raw;
       const sideBefore = quiet ? JSON.stringify([state.diary, state.scrobbles, state.playlists]) : '';

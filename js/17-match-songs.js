@@ -410,6 +410,12 @@ function bmDur(sec) { const n = Math.max(1, sec); return n < 90 ? n + (n === 1 ?
 // and where in it the song starts; two songs of a release with the same key are the same video for both, which is never right.
 function bmYtKey(link) { const id = youtubeVideoIdFromUrl(link); return id ? id + '@' + (youtubeSegmentFromUrl(link).start || 0) : ''; }
 function bmSameVideoAs(rel, s) { const k = bmYtKey(s.youtubeLink); return k ? (rel.songs || []).find(o => o !== s && bmYtKey(o.youtubeLink) === k) || null : null; }          // the other song that has this song's video, at the same place
+// (1.135.98) A song with no length of its own takes the length of the track it is matched to: Spotify's, else the YouTube video's (a part of
+// a full-release video: its part's). One it already has is kept. Saved with the link, as the length "Edit track properties…" sets.
+function smLengthFrom(u, s, kind, c) {
+  if (!u || !s || s.durationMs || !c || !(c.durationMs > 0)) return;
+  if (kind === 'spotify' || !u.lengthMs) u.lengthMs = Math.round(c.durationMs);
+}
 function bmUpdates(songs, pick, res, linkOf) {                      // what is ticked -> { updates: { trackNum: { spotifyLink?, youtubeLink? } }, n, dup }
   const updates = {}; let n = 0, dup = 0;
   const taken = {}; songs.forEach(s => { const k = bmYtKey(s.youtubeLink); if (k && !(pick.youtube && pick.youtube[s.idx])) taken[k] = s; });          // videos songs already have
@@ -419,6 +425,7 @@ function bmUpdates(songs, pick, res, linkOf) {                      // what is t
     const link = linkOf(kind, c);
     if (kind === 'youtube') { const k = bmYtKey(link); if (k && taken[k] && taken[k] !== s) { dup++; return; } if (k) taken[k] = s; }          // the same video for a second song: left out
     (updates[s.trackNum] = updates[s.trackNum] || {})[kind === 'spotify' ? 'spotifyLink' : 'youtubeLink'] = link; n++;
+    smLengthFrom(updates[s.trackNum], s, kind, c);
   }));
   return { updates, n, dup };
 }
@@ -1178,7 +1185,7 @@ function bmApplyRel(rel, onlyKind, histLabel) {
     const prev = {}; Object.keys(updates).forEach(num => { const td = (rel.item.trackData || {})[num] || {}; prev[num] = {}; Object.keys(updates[num]).forEach(f => { prev[num][f] = td[f] || ''; }); });
     const ok = await saveSongLinks(rel.item, updates);
     if (!ok) return;
-    rel.songs.forEach(s => { const u = updates[s.trackNum]; if (u) { if (u.spotifyLink) s.spotifyLink = u.spotifyLink; if (u.youtubeLink) s.youtubeLink = u.youtubeLink; } });
+    rel.songs.forEach(s => { const u = updates[s.trackNum]; if (u) { if (u.spotifyLink) s.spotifyLink = u.spotifyLink; if (u.youtubeLink) s.youtubeLink = u.youtubeLink; if (u.lengthMs && !s.durationMs) s.durationMs = u.lengthMs; } });
     ['spotify', 'youtube'].forEach(k => { if (!onlyKind || onlyKind === k) { rel.pick[k] = {}; rel.broken[k] = {}; } });
     if (!b.histId) b.histId = bmHistStart(histLabel || b.label || 'Match songs', b.songsMode === 'check' ? 'check' : (b.one || histLabel) ? 'release' : 'batch');
     bmHistPush(b.histId, { row: rel.row, artist: rel.item.artist, title: rel.item.title, prev, n });
@@ -2488,8 +2495,9 @@ async function smSave() {
     const c = ((st[kind].byIdx[s.idx] || []).find(x => x.id === id)) || (st.custom[kind][s.idx] && st.custom[kind][s.idx].id === id ? st.custom[kind][s.idx] : null);
     if (!c) return;
     (updates[s.trackNum] = updates[s.trackNum] || {})[kind === 'spotify' ? 'spotifyLink' : 'youtubeLink'] = c.link || smCandLink(kind, c);
+    if (!st.onSave) smLengthFrom(updates[s.trackNum], s, kind, c);
   }));
-  const n = Object.values(updates).reduce((a, u) => a + Object.keys(u).length, 0);
+  const n = Object.values(updates).reduce((a, u) => a + Object.keys(u).filter(k => k !== 'lengthMs').length, 0);
   if (!n) return;
   el.songMatchSave.disabled = true;
   const ok = st.onSave ? await st.onSave(updates) : await saveSongLinks(st.item, updates);      // a draft writes into the Add form's boxes, not to the backend

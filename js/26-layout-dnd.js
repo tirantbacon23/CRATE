@@ -228,6 +228,7 @@ function openAddModalSearch(q) {
   if (el.addSearchInput.value.length >= 2) doAddSearch();
 }
 function openAddModal() {
+  if (typeof addDupWarm === 'function') addDupWarm();          // (1.135.98) the crate read again now, not at Save
   addHideOwnedWire();
   el.addOverlay.hidden = false;
   el.addSearchInput.value = '';
@@ -422,6 +423,7 @@ async function fetchReleasesForReleaseGroup(rgId) {
 // from the discography row) if there's no id to look up, the lookup comes
 // back empty, or it fails outright.
 function openAddModalForReleaseGroup(basic) {
+  if (typeof addDupWarm === 'function') addDupWarm();          // (1.135.98) the crate read again now, not at Save
   el.addOverlay.hidden = false;
   el.addForm.hidden = true;
   el.addSearchInput.value = '';
