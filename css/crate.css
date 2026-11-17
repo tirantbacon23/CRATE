@@ -6292,3 +6292,10 @@ select.srch-chip { padding: 0 6px; background: var(--bg-elevated); }
 .qpc-group { border: 0; margin: 0; padding: 0; min-width: 0; }
 .qpc-group legend { font: 500 9.5px 'IBM Plex Mono', monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); padding: 4px 0 2px; }
 .qpc-row { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 2px 0; cursor: pointer; }
+/* (1.135.116) Tracks view: Last.fm listens */
+.tlf-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 6px 10px; margin: 0 0 6px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; color: var(--text-dim); }
+.tlf-lbl { font: 500 10px 'IBM Plex Mono', monospace; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.tlf-btn { height: 24px; padding: 0 10px; border: 1px solid var(--line); border-radius: 12px; background: none; color: var(--text); font: inherit; font-size: 12px; cursor: pointer; }
+.tlf-btn.tlf-pri { border-color: var(--accent); color: var(--accent); }
+.tlf-dim { font-size: 11px; }
+.tlf-bar { width: 120px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; } .tlf-bar i { display: block; height: 100%; background: var(--accent); }

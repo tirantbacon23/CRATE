@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.115
+  CURRENT_VERSION: 1.135.116
 
+  1.135.116 — 2026-11-18 — Tracks view: Last.fm listens. Five columns (right-click a header, or "+ Last.fm columns"): the song's Last.fm plays
+          and listeners, your Last.fm plays of it, the release's plays and listeners. A bar over the table pulls them for the songs
+          shown ("Pull listens for N songs and M releases", progress, Stop), four at a time, kept in this browser (songs two days,
+          releases a month; shared with the search and the cover popup). They sort like any column, most first on the first click
+          (js/73-tracks-lastfm.js).
   1.135.115 — 2026-11-18 — The cover view's popup: ⚙ at the end of its tabs chooses what it shows: genres, ratings, the buttons, the link count,
           the About and Listens tabs, each song column (headers, number, like, RYM, links, Last.fm plays, length), what's under each
           song (rating, plays, genre, listened, credits, note) and both parts of Listens. At once, remembered in this browser; "Show
