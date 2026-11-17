@@ -78,7 +78,7 @@ async function srchGenreOnline(genres, text) {
   })().catch(() => null) : Promise.resolve(null);
   const mbq = genres.map(x => `tag:"${x.replace(/"/g, '')}"`).join(' AND ') + ' AND primarytype:album' + (text ? ` AND (${text.replace(/[()"]/g, ' ')})` : '');
   const mb = mbFetch(`https://musicbrainz.org/ws/2/release-group/?query=${encodeURIComponent(mbq)}&fmt=json&limit=25`, { headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' }, timeoutMs: 9000, retryBusy: 1 })
-    .then(async res => { if (!res.ok) throw new Error('HTTP ' + res.status); return ((await res.json())['release-groups'] || []).map(h => ({ src: 'mbg', title: h.title || '', artist: (h['artist-credit'] || []).map(a => a.name + (a.joinphrase || '')).join(''), date: h['first-release-date'] || '', type: h['primary-type'] || 'Album', genre: genres.join(', '), cover: h.id ? `https://coverartarchive.org/release-group/${h.id}/front-250` : '' })); })
+    .then(async res => { if (!res.ok) throw new Error('HTTP ' + res.status); return ((await res.json())['release-groups'] || []).map(h => ({ src: 'mbg', title: h.title || '', artist: (h['artist-credit'] || []).map(a => a.name + (a.joinphrase || '')).join(''), date: h['first-release-date'] || '', type: h['primary-type'] || 'Album', genre: genres.join(', '), cover: h.id ? `https://coverartarchive.org/release-group/${h.id}/front-250` : '', editions: Number(h.count) || (h.releases || []).length || 0 })); })
     .catch(() => null);
   const [a, b] = await Promise.all([lf, mb]);
   if (!a && !b) return null;
@@ -106,7 +106,7 @@ function srchOnlineSearch() {
     srch.online = out.slice(0, 30); srch.onlineState = failed === lists.length ? 'error' : 'done';
     srch.onlineNote = srch.onlineState === 'error' ? 'No source answered.' : !out.length ? 'Nothing more found online.' : owned ? `${owned} you have left out` : '';
     const lfKey = typeof loadLastfmCreds === 'function' ? (loadLastfmCreds() || {}).apiKey : '';
-    if (!lfKey && out.length) srch.onlineNote = (srch.onlineNote ? srch.onlineNote + ' · ' : '') + 'Add your Last.fm key (⚙ › Last.fm) to rank these by popularity';
+    if (!lfKey && out.length) { srch.onlineNote = (srch.onlineNote ? srch.onlineNote + ' · ' : '') + 'No Last.fm key in this browser (⚙ › Last.fm): ranked by editions on MusicBrainz'; srchPopSort(); }
     ssRender();
     if (lfKey && out.length) srchPopRank(seq, lfKey);
   }, 600);
@@ -130,7 +130,7 @@ function srchCrateItems(q) {
   if (q.trim() && have.size < 4) (state.filtered || []).filter(it => !have.has(String(it.row))).slice(0, 4 - have.size).forEach(it => items.push({ kind: 'release', col: 'crate', it, row: it.row, label: it.title, sub: [it.artist, String(it.releaseDate || '').slice(0, 4)].filter(Boolean).join(' \u00b7 '), cover: srchItemCover(it) }));
   return items;
 }
-function srchOnlineItems() { return srch.online.slice(0, 6).map(r => ({ kind: 'online', col: 'online', r, label: r.title, sub: [r.artist, String(r.date || '').slice(0, 4), r.type && r.type !== 'Album' ? r.type : '', srchPopFmt(r.listeners) || srchSrcName(r.src)].filter(Boolean).join(' · '), cover: r.cover })); }
+function srchOnlineItems() { return srch.online.slice(0, 6).map(r => ({ kind: 'online', col: 'online', r, label: r.title, sub: [r.artist, String(r.date || '').slice(0, 4), r.type && r.type !== 'Album' ? r.type : '', srchPopFmt(r.listeners, r) || srchSrcName(r.src)].filter(Boolean).join(' · '), cover: r.cover })); }
 
 function srchItems() { const q = el.searchInput.value, lk = srchLook(); return lk === 'detail' ? srchDetailItems(q) : lk === 'drop' ? srchCrateItems(q).concat(srchOnlineItems()) : ssSuggest(q); }          // (simple: the suggestions as they always were)
 function ssUpdate() { if (srchLook() !== 'simple') srchOnlineSearch(); ssActive = -1; ssRender(); }
@@ -196,7 +196,7 @@ function srchDetailItems(q) {
   const items = [], tab = srch.tab, has = q.trim();
   if (!has) return items;
   if (tab === 'all' || tab === 'crate') (state.filtered || []).slice(0, tab === 'crate' ? 48 : 18).forEach(it => items.push({ kind: 'release', col: 'grid', it, label: it.title, sub: it.artist, row: it.row, cover: srchItemCover(it) }));
-  if (tab === 'all' || tab === 'add') srch.online.slice(0, tab === 'add' ? 30 : 12).forEach(r => items.push({ kind: 'online', col: 'grid', r, label: r.title, sub: [r.artist, srchPopFmt(r.listeners)].filter(Boolean).join(' · '), cover: r.cover, add: true }));
+  if (tab === 'all' || tab === 'add') srch.online.slice(0, tab === 'add' ? 30 : 12).forEach(r => items.push({ kind: 'online', col: 'grid', r, label: r.title, sub: [r.artist, srchPopFmt(r.listeners, r)].filter(Boolean).join(' · '), cover: r.cover, add: true }));
   const sug = srchCrateItems(q);
   if (tab === 'all' || tab === 'songs') sug.filter(s => s.kind === 'track').forEach(s => items.push(Object.assign({}, s, { col: 'songs' })));
   if (tab === 'all' || tab === 'artists') sug.filter(s => s.kind === 'artist').forEach(s => items.push(Object.assign({}, s, { col: 'artists' })));
@@ -222,7 +222,7 @@ function srchDetailHtml() {
       else (s.col === 'songs' ? songs : artists).push(srchRowHtml(s, i));
     });
     const nC = (state.filtered || []).length, nA = srch.online.length;
-    main = `<div class="srch-lbl">Releases · ${nC} in your crate${srch.tab !== 'crate' ? ` · ${srch.onlineState === 'loading' ? 'looking online…' : nA + ' to add'}` : ''}${srch.tab !== 'crate' && nA ? ` <button type="button" class="srch-popsort" data-srch-pop title="Order the releases found online">${srchPopSortOn() ? 'Popular first' : 'Best match'}</button>` : ''}</div>
+    main = `<div class="srch-lbl">Releases · ${nC} in your crate${srch.tab !== 'crate' ? ` · ${srch.onlineState === 'loading' ? 'looking online…' : nA + ' to add'}` : ''}${srch.tab !== 'crate' && nA ? ` <button type="button" class="srch-popsort" data-srch-pop title="Order the releases found online">${srchPopSortOn() ? 'Popular first' : 'Best match'}</button>${srch.onlineNote ? ` <span class="srch-popnote">${escapeHtml(srch.onlineNote)}</span>` : ''}` : ''}</div>
       <div class="srch-grid">${grid.join('') || `<div class="srch-note">${escapeHtml(srchOnlineStatus() || 'Nothing here.')}</div>`}</div>
       ${songs.length ? `<div class="srch-lbl">Songs</div>${songs.join('')}` : ''}${artists.length ? `<div class="srch-lbl">Artists</div>${artists.join('')}` : ''}`;
   }
@@ -336,6 +336,7 @@ function srchOpSpans(q) {
 }
 function srchMirrorPaint(inp, m, tx) {
   const q = inp.value || '', spans = q ? srchOpSpans(q) : [], on = spans.length > 0 && inp.offsetWidth > 60 && getComputedStyle(inp).opacity !== '0';
+  if (on && !inp.classList.contains('search-has-ops')) m.style.backgroundColor = getComputedStyle(inp).backgroundColor;          // (the box's own colour, kept behind it while it is see-through)
   inp.classList.toggle('search-has-ops', on); m.hidden = !on; if (!on) return;
   const cs = getComputedStyle(inp);
   Object.assign(m.style, { left: inp.offsetLeft + 'px', top: inp.offsetTop + 'px', width: inp.offsetWidth + 'px', height: inp.offsetHeight + 'px', font: cs.font, letterSpacing: cs.letterSpacing });
@@ -358,7 +359,8 @@ const srchPopK = (r) => (typeof dupKey === 'function' ? dupKey(r.artist, r.title
 function srchPopSort() {
   if (!srchPopSortOn()) { srch.online.sort((a, b) => (a._at || 0) - (b._at || 0)); return; }
   srch.online.forEach((r, i) => { if (r._at == null) r._at = i; });
-  srch.online.sort((a, b) => (b.listeners || -1) - (a.listeners || -1) || a._at - b._at);
+  const byL = srch.online.some(r => r.listeners);          // Last.fm listeners when there are some; else how many editions MusicBrainz knows (a reissued album is a known one)
+  srch.online.sort((a, b) => byL ? ((b.listeners || -1) - (a.listeners || -1) || a._at - b._at) : ((b.editions || 0) - (a.editions || 0) || a._at - b._at));
 }
 async function srchPopRank(seq, key) {
   const all = srchPopAll(), now = Date.now(), list = srch.online; list.forEach((r, i) => { r._at = i; });
@@ -372,4 +374,4 @@ async function srchPopRank(seq, key) {
   await Promise.all([one(), one(), one(), one()]); if (seq !== srch.seq) return;
   srchPopSave(); srchPopSort(); ssRender();
 }
-function srchPopFmt(n) { return !n ? '' : n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'm listeners' : n >= 1e3 ? Math.round(n / 1e3) + 'k listeners' : n + ' listeners'; }
+function srchPopFmt(n, r) { if (!n && r && r.editions > 1) return `${r.editions} editions`; return !n ? '' : n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'm listeners' : n >= 1e3 ? Math.round(n / 1e3) + 'k listeners' : n + ' listeners'; }

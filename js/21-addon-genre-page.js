@@ -1262,7 +1262,12 @@ function initGenreLinks() {
   }, true);
 }
 el.trackInfoFields.addEventListener('click', (e) => {               // (1.95.31) the artist's name opens their artist page (a shared credit: its first artist), as the player's does
-  const a = e.target.closest('.track-info-artist-link'); if (!a) return;
+  const a = e.target.closest('.track-info-artist-link');
+  if (!a) {          // (1.135.93) the release's own title (its Title or Album field): its deck, as the song's title does; a right-click has its menu
+    const f = e.target.closest('.track-info-field'), k = f ? f.dataset.fiKey : '', it = typeof nowPlayingItem !== 'undefined' ? nowPlayingItem : null;
+    if (it && (k === 'title' || k === 'album') && e.target.closest('.track-info-field-value')) { e.preventDefault(); e.stopPropagation(); if (state.activeTab !== 'albums' && typeof switchTab === 'function') switchTab('albums'); openDeck(it); }
+    return;
+  }
   e.preventDefault(); e.stopPropagation(); openArtistInfoTab(a.dataset.artist);
 }, true);
 // (1.135.21) Right-click in Track info: the song's title → the song's menu; the release (its title field, the cover) → the release's menu with

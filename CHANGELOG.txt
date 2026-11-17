@@ -17,8 +17,18 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.92
+  CURRENT_VERSION: 1.135.93
 
+  1.135.93 — 2026-11-18 — Fixes:
+          · Search pills: the box's own text always shows now (the pills are tinted shapes behind it), and the search icon and
+            buttons always sit on top; in some setups the box drew over them and the pills, and the text looked half gone. The box
+            also widens (to about 420px) while you type in it or while it holds operators, so "genre:" no longer scrolls out of sight.
+          · Stats: the tab scrolls (it had no scrolling of its own since it used to be short).
+          · Search online: with no Last.fm key in this browser (⚙ › Last.fm), MusicBrainz albums are ranked by how many editions
+            they've had (a reissued album is a known one; "12 editions" shows), and the detailed search says why beside
+            "Popular first". With a key it ranks by listeners, as before.
+          · Track info: clicking the release's own title (its Title or Album field) opens its deck; right-clicking it gives the
+            release's menu (Show in catalogue and the rest), as before.
   1.135.92 — 2026-11-18 — Search online: the releases not in your crate come most popular first. Each one's Last.fm listener count is
           looked up (with your Last.fm key; kept in this browser for a month), shown beside it ("2.5m listeners"), and the list is
           sorted by it; "Popular first / Best match" beside the heading switches back to the sources' own order. MusicBrainz results
