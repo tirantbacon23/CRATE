@@ -5,9 +5,9 @@
 // sections down the side, one shown, a count of changes on each and at the foot. The fields are the same elements either way (moved once into
 // their sections), so everything that fills and saves them works as before.
 const LAYOUT_KEY = 'crate_layouts_v1';
-function layoutPrefs() { try { return Object.assign({ deck: 'a', edit: 'a' }, JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}') || {}); } catch (e) { return { deck: 'a', edit: 'a' }; } }
-function layoutSet(k, v) { const p = layoutPrefs(); p[k] = v; try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(p)); } catch (e) { /* this visit */ } layoutMenuPaint(); if (k === 'deck') deckLayoutApply(); else editLayoutApply(); }
-function layoutMenuPaint() { const p = layoutPrefs(); document.querySelectorAll('[data-layout-deck]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.layoutDeck === p.deck))); document.querySelectorAll('[data-layout-edit]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.layoutEdit === p.edit))); }
+function layoutPrefs() { try { return Object.assign({ deck: 'a', edit: 'a', hdr: 'side' }, JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}') || {}); } catch (e) { return { deck: 'a', edit: 'a', hdr: 'side' }; } }
+function layoutSet(k, v) { const p = layoutPrefs(); p[k] = v; try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(p)); } catch (e) { /* this visit */ } layoutMenuPaint(); if (k === 'deck' || k === 'hdr') deckLayoutApply(); else editLayoutApply(); }
+function layoutMenuPaint() { const p = layoutPrefs(); document.querySelectorAll('[data-layout-deck]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.layoutDeck === p.deck))); document.querySelectorAll('[data-layout-edit]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.layoutEdit === p.edit))); document.querySelectorAll('[data-layout-hdr]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.layoutHdr === p.hdr))); }
 
 // ----- the album view -----
 let deckLayoutReady = false, deckTab = 'songs';
@@ -53,6 +53,7 @@ function deckTabShow(t) {
 function deckLayoutApply() {
   deckLayoutInit(); const deck = document.querySelector('#deckOverlay .deck'); if (!deck) return;
   const b = layoutPrefs().deck === 'b'; deck.classList.toggle('deck-look-a', !b); deck.classList.toggle('deck-look-b', b);
+  const h = layoutPrefs().hdr; deck.classList.toggle('deck-hdr-center', h === 'center'); deck.classList.toggle('deck-hdr-big', h === 'big');          // (1.135.63) the header: beside the cover, centred, or a bigger cover
   if (b) deckTabShow(deckTab || 'songs'); else deck.querySelectorAll('.deck-tab-off').forEach(s => s.classList.remove('deck-tab-off'));
 }
 // What the Details tab lists, for the release open
@@ -137,6 +138,7 @@ function editLayoutOnOpen() {
   const go = () => {
     document.querySelectorAll('[data-layout-deck]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); layoutSet('deck', b.dataset.layoutDeck); }));
     document.querySelectorAll('[data-layout-edit]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); layoutSet('edit', b.dataset.layoutEdit); }));
+    document.querySelectorAll('[data-layout-hdr]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); layoutSet('hdr', b.dataset.layoutHdr); }));
     layoutMenuPaint(); deckLayoutApply(); editLayoutApply();
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();

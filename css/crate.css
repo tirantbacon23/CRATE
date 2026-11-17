@@ -5751,3 +5751,19 @@ select.srch-chip { padding: 0 6px; background: var(--bg-elevated); }
 /* (1.135.59) the search, waiting behind a release opened from it */
 #searchSuggest.srch-behind { z-index: 40; pointer-events: none; }
 
+
+/* (1.135.63) the album view's header, two more ways: Centred (A) and Bigger cover (B) */
+.deck.deck-hdr-center .deck-header { flex-direction: column; align-items: center; text-align: center; gap: 12px; padding-top: 28px; }
+.deck.deck-hdr-center .deck-art { flex: none; width: 210px; height: 210px; box-shadow: 0 12px 30px rgba(0,0,0,.45); }
+.deck.deck-hdr-center .deck-heading { align-items: center; width: 100%; }
+.deck.deck-hdr-center .deck-heading .deck-rating-row, .deck.deck-hdr-center .rel-tags, .deck.deck-hdr-center #deckTags { justify-content: center; }
+.deck.deck-hdr-center .deck-rym-block { justify-content: center; }
+.deck.deck-hdr-center .deck-actions-bar { justify-content: center; }
+.deck.deck-hdr-center .deck-bar-gap { display: none; }
+.deck.deck-hdr-center .deck-drop-menu { right: auto; left: 50%; transform: translateX(-50%); }
+.deck.deck-hdr-big .deck-header { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; align-items: stretch; }
+.deck.deck-hdr-big .deck-sidebar { width: auto; }
+.deck.deck-hdr-big .deck-art { width: 100%; height: auto; aspect-ratio: 1 / 1; flex: none; }
+.deck.deck-hdr-big .deck-heading { justify-content: center; }
+.deck.deck-hdr-big .deck-heading h2 { font-size: 40px; }
+@media (max-width: 700px) { .deck.deck-hdr-big .deck-header { grid-template-columns: minmax(0, 1fr); } }

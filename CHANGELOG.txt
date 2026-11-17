@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.62
+  CURRENT_VERSION: 1.135.63
 
+  1.135.63 — 2026-11-17 — Two more ways to lay out the album view's header, in ⚙ Settings → "Album view header" (with either look, Column or
+          Tabs): Centred (a bigger cover with the title, artist, tags, stars, the RYM line and the buttons centred under it, like a
+          record sleeve) and Bigger cover (the cover takes half the width and the details fill the other half). "Beside the cover"
+          is the header as it was.
   1.135.62 — 2026-11-17 — The quick peek (the popup with a release's tracklist) closes when a tool opens from it or over it: Match songs, Edit
           details, Edit tracks, Pull details, Full-release video and Find on P2P. It used to stay on top, covering the tool.
   1.135.61 — 2026-11-17 — Double-clicking a song in the album view plays it (not when on its buttons, stars, note or chips). The figures column
