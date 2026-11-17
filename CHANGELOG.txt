@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.68
+  CURRENT_VERSION: 1.135.69
 
+  1.135.69 — 2026-11-18 — Match songs finds more songs on YouTube when searching for them one by one ("Search YouTube for the rest"): a search that
+          found nothing before (remembered for a week) is tried again rather than trusted; when "artist song" turns up nothing
+          likely, two more searches are made, the song with its release's title and the song's name in quotes with the artist (a
+          short, common title like "Premonition" gets lost among other songs of that name), through the add-on free, through the
+          API only if the first found nothing at all; and a video with exactly the right name but little else to go on (another
+          channel, no length) is shown as a weak option for you to judge, where it used to be left out.
   1.135.68 — 2026-11-18 — The Scrobbles view shows each release's own cover (and opens the right album): a play was matched to a release by the
           sheet row it was saved with, which points at another release once rows have moved; it's now matched by artist and title.
           A cover not loaded yet is looked up and fills in when it arrives, where it used to stay as initials.

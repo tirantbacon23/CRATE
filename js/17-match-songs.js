@@ -2127,13 +2127,24 @@ async function smYoutubeSearchOne(item, title) {                   // one more v
   const cands = ids.map(id => { const dt = details.get(id) || {}; return { id, title: dt.title || '', channel: dt.channel || '', durationMs: dt.durationMs || 0, blocked: !!dt.blocked, index: 0 }; });
   ytCachePut(qk, { cands }, cands.length ? YT_REL_TTL : YT_NONE_TTL); return cands;
 }
+async function smYoutubeSearchQ(q) {                                  // (1.135.69) one more video search by its own words, remembered like the others
+  const qk = 'song|' + ytCacheNorm(q), hit = ytCacheGet(qk); if (hit && hit.v.cands && hit.v.cands.length) return hit.v.cands;
+  let cands;
+  if (ytUseAddon()) cands = (await ytAddonRequest({ kind: 'search-video', q })).slice(0, 8).map(v => ({ id: v.id, title: v.title, channel: v.channel, durationMs: v.durationMs || 0, blocked: false, index: 0 }));
+  else {
+    const d = await smYtApi('search', { part: 'snippet', type: 'video', maxResults: 5, q }, 100);
+    const ids = (d.items || []).filter(it => it.id && it.id.videoId).map(it => it.id.videoId), details = ids.length ? await smYtDetails(ids) : new Map();
+    cands = ids.map(id => { const dt = details.get(id) || {}; return { id, title: dt.title || '', channel: dt.channel || '', durationMs: dt.durationMs || 0, blocked: !!dt.blocked, index: 0 }; });
+  }
+  ytCachePut(qk, { cands }, cands.length ? YT_REL_TTL : YT_NONE_TTL); return cands;
+}
 async function smYoutubeSearchSongs(item, songs, idxs, onStep) {     // 100 quota units each: only ever on request
   const added = {};
   for (const idx of idxs) {
     const s = songs.find(x => x.idx === idx); if (!s) continue;
     const extra = s.altTitle && smWords(smFold(s.altTitle)) !== smWords(smFold(s.title)) ? await smYoutubeSearchOne(item, s.altTitle) : [];          // (1.95.12) and under its other title
     let cands; const qk = 'song|' + ytCacheNorm(`${item.artist} ${s.title}`), hit = ytCacheGet(qk);
-    if (hit) cands = hit.v.cands;                                    // looked up before: nothing to pay
+    if (hit && hit.v.cands && hit.v.cands.length) cands = hit.v.cands;          // looked up before: nothing to pay ((1.135.69) "found nothing" isn't trusted when you search again: it's looked up anew)
     else if (ytUseAddon()) {                                              // a video search through the add-on: the results already carry their lengths, so no second call
       const r = await ytAddonRequest({ kind: 'search-video', q: `${item.artist} ${s.title}` });
       cands = r.slice(0, 8).map(v => ({ id: v.id, title: v.title, channel: v.channel, durationMs: v.durationMs || 0, blocked: false, index: 0 }));
@@ -2146,7 +2157,20 @@ async function smYoutubeSearchSongs(item, songs, idxs, onStep) {     // 100 quot
       ytCachePut(qk, { cands }, cands.length ? YT_REL_TTL : YT_NONE_TTL);
     }
     const seen = new Set(cands.map(c => c.id)); extra.forEach(c => { if (!seen.has(c.id)) { seen.add(c.id); cands.push(c); } });
-    const top = smTopCands(s, cands, 35, 4).map(c => Object.assign(c, { source: 'search' }));
+    // (1.135.69) Nothing good under "artist song"? Two more ways of asking: the song with its release's title, and the song's name in quotes
+    // with the artist (a short, common title such as "Premonition" is lost among other songs called that). Through the add-on these cost
+    // nothing; through the API (100 units each) only when the first search found nothing at all.
+    if (!smTopCands(s, cands, 65, 1).length && (ytUseAddon() || !cands.length)) {
+      const album = String(item.title || '').replace(/\s*\[.*?\]|\s*\(.*?\)/g, '').trim();
+      for (const q of [`${s.title} ${album}`, `"${s.title}" ${item.artist}`]) {
+        let more = [];
+        try { more = await smYoutubeSearchQ(q); } catch (e) { more = []; }
+        more.forEach(c => { if (!seen.has(c.id)) { seen.add(c.id); cands.push(c); } });
+        if (smTopCands(s, cands, 65, 1).length) break;
+      }
+    }
+    let top = smTopCands(s, cands, 35, 4).map(c => Object.assign(c, { source: 'search' }));
+    if (!top.length) top = cands.map(c => Object.assign({}, c, smScore(s, c, {}))).filter(c => c.titleSim >= 0.9 && c.score >= 15).sort((a, b) => b.score - a.score).slice(0, 3).map(c => Object.assign(c, { source: 'search' }));          // (1.135.69) the right name but little else to go on (another channel, no length): shown, weak, for you to judge
     if (top.length) added[idx] = top;
     if (onStep) onStep(idx, top);
   }
