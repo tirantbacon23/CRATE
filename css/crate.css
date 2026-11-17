@@ -6333,3 +6333,27 @@ html.thm-fade body, html.thm-fade body * { transition: background-color .9s ease
 .thm-recent { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px 0 3px; border: 1px solid var(--line); border-radius: 15px; background: none; color: var(--text); font: inherit; font-size: 12px; cursor: pointer; max-width: 200px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .thm-recent.on { border-color: var(--accent); } .thm-recent img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
 .thm-note { font-size: 12px; color: var(--text-dim); margin: 0; }
+
+/* (1.135.120) the floating player, minimal */
+.pmin-btn { margin-left: auto; font-size: 13px; }
+.pmin-tools { display: none; }
+.mini-player.detached.mp-min { width: 340px; padding: 10px 12px 12px; border-radius: 14px; overflow: hidden; cursor: grab; }
+.mini-player.detached.mp-min .mini-player-drag-handle,
+.mini-player.mp-min .mini-player-options, .mini-player.mp-min .mini-player-progress-row, .mini-player.mp-min .mini-player-release,
+.mini-player.mp-min #miniPlayerShuffle, .mini-player.mp-min #miniPlayerLoop, .mini-player.mp-min #miniPlayerAlbum, .mini-player.mp-min .mini-player-extra { display: none !important; }
+.mini-player.mp-min .mini-player-row { flex-wrap: nowrap !important; gap: 10px; align-items: center; }
+.mini-player.mp-min .mini-player-track { flex: 1 1 auto !important; min-width: 0; display: flex; align-items: center; gap: 10px; }
+.mini-player.mp-min .mini-player-art, .mini-player.mp-min .mini-player-video-wrap:not(.vf-floating) { width: 52px !important; height: 52px !important; min-width: 52px; border-radius: 6px; }
+.mini-player.mp-min .mini-player-meta { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mini-player.mp-min .mini-player-title { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.mini-player.mp-min .mini-player-artist { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-player.mp-min .mini-player-transport { flex: none !important; display: flex; align-items: center; gap: 2px; }
+.mini-player.mp-min #miniPlayerPrev { display: none; }
+.mini-player.mp-min:hover #miniPlayerPrev { display: inline-flex; }
+.mini-player.mp-min .mini-player-btn-play { width: 38px; height: 38px; border-radius: 50%; background: var(--accent); color: var(--on-accent, #12161C); display: inline-flex; align-items: center; justify-content: center; }
+.mini-player.mp-min .mini-player-mobile-progress { display: block !important; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--line); }
+.mini-player.mp-min .mini-player-mobile-progress-fill { height: 100%; background: var(--accent); }
+.mini-player.mp-min .pmin-tools { display: flex; position: absolute; top: 6px; left: 6px; gap: 2px; opacity: 0; transition: opacity .15s; z-index: 2; }
+.mini-player.mp-min:hover .pmin-tools, .mini-player.mp-min:focus-within .pmin-tools { opacity: 1; }
+.pmin-tools button { width: 22px; height: 22px; border: 0; border-radius: 5px; background: var(--bg-card); color: var(--text-dim); cursor: pointer; font-size: 12px; padding: 0; }
+.pmin-tools button:hover { color: var(--accent); }
