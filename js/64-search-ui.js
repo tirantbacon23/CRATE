@@ -104,7 +104,7 @@ function ssUpdate() { if (srchDetail()) srchOnlineSearch(); ssActive = -1; ssRen
 function srchSimpleHtml() {
   const kindName = { field: 'Field', artist: 'Artist', release: 'Release', track: 'Track', genre: 'Genre', descriptor: 'Descriptor', songdesc: 'Descriptor', label: 'Label', type: 'Type', title: 'Release' };
   return ssItems.map((s, i) => `<div class="ss-item ss-k-${s.kind}${i === ssActive ? ' on' : ''}" id="ss-${i}" role="option" aria-selected="${i === ssActive}" data-ss="${i}"><span class="ss-kind">${kindName[s.kind] || ''}</span><span class="ss-label">${escapeHtml(s.label)}</span><span class="ss-sub">${escapeHtml(String(s.sub || ''))}</span></div>`).join('')
-    + `<div class="srch-simple-foot"><button type="button" class="srch-link" data-srch-look="detail" title="Covers, filters, songs and artists, and releases to add from online">\u2922 Detailed search</button></div>`;
+    + `<div class="srch-simple-foot"><button type="button" class="srch-link" data-srch-look="detail" title="Covers, filters, songs and artists, and releases to add from online">\u2922 Detailed search</button>${srchSongsBtn()}</div>`;
 }
 
 function srchRowHtml(s, i) {
@@ -123,9 +123,10 @@ function srchChipsHtml() {
   const refine = `<div class="srch-refine"><span class="srch-lbl">Refine</span>${SRCH_REFINE.map(([l, w]) => `<button type="button" class="srch-chip${srchHas(w) >= 0 ? ' on' : ''}" data-srch-chip="${escapeHtml(w)}">${escapeHtml(l)}</button>`).join('')}<select class="srch-chip srch-dec${dec ? ' on' : ''}" data-srch-decade aria-label="Decade"><option value="">Decade</option>${SRCH_DECADES.map(d => `<option value="${d}"${d === dec ? ' selected' : ''}>${d}s</option>`).join('')}</select></div>`;
   return active + refine;
 }
+function srchSongsBtn() { const on = searchSongsOnly(); return `<button type="button" class="srch-link srch-songs${on ? ' on' : ''}" data-search-songs aria-pressed="${on}" title="Look for the words in song titles only, not whole releases">\u266a Songs only${on ? ': on' : ''}</button>`; }
 function srchFootHtml() {
   const q = el.searchInput.value.trim(), det = srchDetail();
-  return `<div class="srch-foot"><span>↑↓ move</span><span>⏎ open</span><span>Esc close</span>${q ? `<button type="button" class="srch-link" data-srch-save>★ Save this search</button>` : ''}<button type="button" class="srch-link srch-look" data-srch-look="${det ? 'drop' : 'detail'}">${det ? '⤡ Simple search' : '⤢ Detailed search'}</button></div>`;
+  return `<div class="srch-foot"><span>↑↓ move</span><span>⏎ open</span><span>Esc close</span>${srchSongsBtn()}${q ? `<button type="button" class="srch-link" data-srch-save>★ Save this search</button>` : ''}<button type="button" class="srch-link srch-look" data-srch-look="${det ? 'drop' : 'detail'}">${det ? '⤡ Simple search' : '⤢ Detailed search'}</button></div>`;
 }
 function srchEmptyHtml() {
   const rec = srchLs(SRCH_RECENT_KEY, []), sav = srchLs(SRCH_SAVED_KEY, []);
@@ -224,6 +225,7 @@ function srchClick(e) {
   if ((b = g('[data-srch-jump]'))) return srchJump(b.dataset.srchJump);
   if ((b = g('[data-srch-save]'))) return srchSave();
   if ((b = g('[data-srch-look]'))) return srchDetailSet(b.dataset.srchLook === 'detail');
+  if ((b = g('[data-search-songs]'))) return searchSongsOnlySet(!searchSongsOnly());
   if ((b = g('[data-srch-tab]'))) { srch.tab = b.dataset.srchTab; return ssUpdate(); }
   if ((b = g('[data-srch-all]'))) { srchRemember(inp.value); inp.blur(); return openAddModalSearch(b.dataset.srchAll); }
   if (g('[data-srch-close]')) { srchRemember(inp.value); return inp.blur(); }
@@ -252,6 +254,8 @@ function initSearchSuggest() {
   // (1.135.48) ⊞ in the box: detailed search on or off (lights up when on), straight into it
   const db = document.getElementById('searchDetailBtn');
   if (db) { srchDetailBtnPaint(); db.addEventListener('mousedown', (e) => e.preventDefault()); db.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); srchDetailSet(!srchDetail()); inp.focus(); ssUpdate(); }); }
+  if (searchSongsOnly()) { inp.placeholder = 'Search song titles\u2026'; wrap.classList.add('search-songs-only'); }
+  document.querySelectorAll('#layoutMenu [data-search-songs]').forEach(b => { b.setAttribute('aria-pressed', String(searchSongsOnly())); b.addEventListener('click', (ev) => { ev.stopPropagation(); searchSongsOnlySet(!searchSongsOnly()); }); });
   // ⚙ Settings → Search looks like
   document.querySelectorAll('[data-search-look]').forEach(b => { b.setAttribute('aria-pressed', String((b.dataset.searchLook === 'detail') === srchDetail())); b.addEventListener('click', (ev) => { ev.stopPropagation(); srchDetailSet(b.dataset.searchLook === 'detail'); }); });
 }

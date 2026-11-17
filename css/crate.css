@@ -5622,3 +5622,9 @@ select.srch-chip { padding: 0 6px; background: var(--bg-elevated); }
 .topbar .processing-btn, .controls .processing-btn, .processing-btn { width: auto !important; min-width: 36px; }
 .processing-btn.running { padding: 0 10px 0 8px; }
 .processing-btn-badge { top: -5px; right: -5px; min-width: 15px; height: 15px; line-height: 15px; font-size: 9.5px; box-shadow: 0 0 0 2px var(--bg); }
+
+/* (1.135.50) songs only */
+.srch-simple-foot { display: flex; justify-content: space-between; }
+.srch-simple-foot .srch-link { width: auto; }
+.srch-songs.on { color: var(--accent); font-weight: 600; }
+.search-wrap.search-songs-only #searchInput { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }

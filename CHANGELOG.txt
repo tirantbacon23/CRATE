@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.49
+  CURRENT_VERSION: 1.135.50
 
+  1.135.50 — 2026-11-17 — Search "Songs only": the words you type are looked for in song titles only, not in whole releases (artist, title,
+          genres…). A release shows when one of its songs has them, and the Tracks and Album+Tracks views show just those songs.
+          Field filters (genre:, year:…) still apply as usual. Turned on with "♪ Songs only" under the suggestions, at the foot of
+          the detailed search, or ⚙ Settings → "Search song titles only"; the box says "Search song titles…" while it's on.
   1.135.49 — 2026-11-17 — The release right-click menu is tidied: the title with artist and year, then Play now / Add to queue / Add to
           playlist, then where to go (Open release, Artist's discography, Search, Spotify, Rate Your Music), then three flyouts:
           Fix and fill in (Update from RYM, Pull details, Edit tracks, Match songs, match queue, Full-release video, where it was

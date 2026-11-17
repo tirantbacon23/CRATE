@@ -377,11 +377,11 @@ function filterTracksBySearch(item, tracks) {
   // A plain word the release itself already has (its artist, title, genres…) is about the release, not its songs: "artist:the jesus and m"
   // is read as artist "the" plus the words "jesus", "and", "m", and those must not narrow the list to "Vegetable Man" and "Never Understand".
   // Only a track: term, or a word the release doesn't have, narrows it.
-  const base = releaseSearchTextNoTracks(item);
-  const songTerms = terms.map(t => ({ field: t.field, v: t.value.toLowerCase() })).filter(t => t.field || !base.includes(t.v));
+  const only = searchSongsOnly(), base = only ? '' : releaseSearchTextNoTracks(item);
+  const songTerms = terms.map(t => ({ field: t.field, v: t.value.toLowerCase() })).filter(t => only || t.field || !base.includes(t.v));
   if (!songTerms.length) return tracks;
   const hits = tracks.filter(t => { const name = (t.trackName || '').toLowerCase(); return songTerms.every(term => name.includes(term.v)); });
-  return hits.length ? hits : tracks;
+  return hits.length || only ? hits : tracks;          // (songs only: never all of them back)
 }
 
 // Track titles available for search without triggering a network fetch: a saved tracklist (r.manualTracks), and (1.93.1) one CRATE has
@@ -394,8 +394,20 @@ function trackTitlesFor(r) {
   return own.concat(cached.map(t => t && t.trackName).filter(t => t && !seen.has(t.toLowerCase())));
 }
 
+// (1.135.50) "Songs only": the words typed (not field:value filters) are looked for in song titles only, so a release shows when one of its
+// songs has them, and in the song views only those songs show. A choice under the search suggestions, in the detailed search and in ⚙ Settings.
+const SEARCH_SONGS_KEY = 'crate_search_songs_only_v1';
+function searchSongsOnly() { try { return localStorage.getItem(SEARCH_SONGS_KEY) === '1'; } catch (e) { return false; } }
+function searchSongsOnlySet(on) {
+  try { if (on) localStorage.setItem(SEARCH_SONGS_KEY, '1'); else localStorage.removeItem(SEARCH_SONGS_KEY); } catch (e) { /* this visit */ }
+  if (el.searchInput) el.searchInput.placeholder = on ? 'Search song titles\u2026' : 'Search artist, title, or catalog\u2026';
+  if (el.searchWrap) el.searchWrap.classList.toggle('search-songs-only', !!on);
+  document.querySelectorAll('[data-search-songs]').forEach(b => b.setAttribute('aria-pressed', String(!!on)));
+  buildLeftList(); applyFiltersSort(); if (typeof ssRender === 'function') ssRender();
+}
 function searchTokenMatches(r, token) {
   const { field, value } = token;
+  if (!field && searchSongsOnly()) { const v = value.toLowerCase(); return trackTitlesFor(r).some(t => t.toLowerCase().includes(v)); }
   if (!field) return combinedSearchText(r).includes(value.toLowerCase());
 
   const canonicalField = SEARCH_FIELD_ALIASES[field.toLowerCase()];
