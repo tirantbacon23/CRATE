@@ -468,7 +468,7 @@ async function addTracksToEntry(trackPlaylistItems) {
     }
   }
   flashGlobalToast(`Added ${total} track${total === 1 ? '' : 's'} to entry`);
-  if (activeItem && !el.logForm.hidden) { renderLogTrackSummary(); return; }
+  if (activeItem && !el.logForm.hidden) { renderLogTrackSummary(); deckRevealLog(); return; }
 
   // Single album, form not already open: open (or switch) the deck to it
   // and pop the log form open, same as pressing "+ Log a listen" directly
@@ -482,8 +482,26 @@ async function addTracksToEntry(trackPlaylistItems) {
     if (owner) {
       if (activeItem !== owner) openDeck(owner);
       el.logListenBtn.click();
+      deckRevealLog();
     }
   }
+}
+// (1.135.55) Ctrl+A (⌘A) in the album view selects every song of the tracklist (as clicking them would), so their menu acts on all of them.
+document.addEventListener('keydown', (e) => {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey || (e.key !== 'a' && e.key !== 'A')) return;
+  if (!el.deckOverlay || !el.deckOverlay.classList.contains('open') || !activeItem) return;
+  const t = e.target; if (t && (t.closest('input, textarea, select, [contenteditable="true"]'))) return;
+  const rows = [...el.deckTracklist.querySelectorAll('.track-row-wrap[data-track-key]')]; if (!rows.length) return;
+  e.preventDefault();
+  state.selectedTracks.clear(); rows.forEach(r => { state.selectedTracks.add(r.dataset.trackKey); r.classList.add('selected'); });
+  state.lastSelectedTrackKey = rows[rows.length - 1].dataset.trackKey;
+  flashGlobalToast(`${rows.length} songs selected: right-click for what to do with them.`);
+});
+// (1.135.55) The diary form, brought into view: it's below the tracklist (or, in the Tabs look, on the Diary tab), so opening it from a song's
+// menu looked like nothing had happened.
+function deckRevealLog() {
+  if (typeof deckTabShow === 'function' && typeof layoutPrefs === 'function' && layoutPrefs().deck === 'b') deckTabShow('diary');
+  requestAnimationFrame(() => { if (el.logForm && !el.logForm.hidden) el.logForm.scrollIntoView({ block: 'center', behavior: 'smooth' }); });
 }
 
 // "Edit track properties…" — a real modal window (single-track only, see

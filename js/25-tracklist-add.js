@@ -165,9 +165,7 @@ function renderTracklistBody(item, tracks) {
       <span>${tracks.length} tracks \u00b7 ${totalTimeStr}</span>
     </div>
     <div class="tracklist-select-actions">
-      <button type="button" id="tlSelectAllBtn" class="chip-btn">Select all</button>
       <button type="button" id="tlClearSelectionBtn" class="chip-btn" ${listenedCount ? '' : 'disabled'}>Clear selection</button>
-      <button type="button" id="tlAddTrackBtn" class="chip-btn">+ Add track</button>
       <button type="button" id="tlMatchSongsBtn" class="chip-btn" title="Find Spotify and YouTube links for every song at once">Match songs…</button>
     </div>
     <div class="tracklist-listen-progress ${allListened ? 'complete' : ''}">

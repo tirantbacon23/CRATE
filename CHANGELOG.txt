@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.54
+  CURRENT_VERSION: 1.135.55
 
+  1.135.55 — 2026-11-17 — The album view's tracklist loses its "Select all" and "+ Add track" buttons. Ctrl+A (⌘A) there selects every song,
+          so a right-click acts on all of them. "Add to entry" on songs now brings the diary form into view (in the Tabs look, it
+          opens the Diary tab): it was working, but the form opened out of sight below the tracklist, so it looked like nothing
+          happened.
   1.135.54 — 2026-11-17 — The album view's header is tidied: the cover sits alone on the left with the title, artist, tags, details and your
           stars right beside it, and the RYM line (rating, count, open, update, and the "Updated from RYM" and "RYM history" notes)
           has a row of its own under the header. They used to share the cover's column, which made it wide and pushed the title far
