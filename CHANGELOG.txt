@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.114
+  CURRENT_VERSION: 1.135.115
 
+  1.135.115 — 2026-11-18 — The cover view's popup: ⚙ at the end of its tabs chooses what it shows: genres, ratings, the buttons, the link count,
+          the About and Listens tabs, each song column (headers, number, like, RYM, links, Last.fm plays, length), what's under each
+          song (rating, plays, genre, listened, credits, note) and both parts of Listens. At once, remembered in this browser; "Show
+          everything" puts it all back. With Last.fm plays and On Last.fm both hidden, the popup doesn't look them up (js/72-quickpeek-custom.js).
   1.135.114 — 2026-11-18 — The cover view's popup › Tracks: column headers (#, Song, RYM, S·Y, Plays, Len), made from a copy of the first song
           row so they sit exactly over its columns; they don't select or play anything.
   1.135.113 — 2026-11-18 — The cover view's popup › Tracks: each song's Last.fm plays on its row, with a bar against the release's most

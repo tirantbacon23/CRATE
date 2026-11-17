@@ -6281,3 +6281,14 @@ select.srch-chip { padding: 0 6px; background: var(--bg-elevated); }
 .qp-head .qp-rymbar.qp-hcell { height: auto; background: none; overflow: visible; text-align: left; }
 .qp-head .qp-lfp.qp-hcell { justify-content: flex-end; }
 .qp-head .album-quick-peek-track-time.qp-hcell { text-align: right; }
+/* (1.135.115) choosing what the cover popup shows */
+.qp-tab.qp-custom-btn { margin-left: auto; font-size: 13px; padding: 4px 8px; }
+.qp-tab.qp-custom-btn[aria-expanded="true"] { color: var(--accent); }
+.qp-custom { margin: 0 14px 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-card); }
+.qpc-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; font-size: 12.5px; }
+.qpc-link { background: none; border: 0; color: var(--accent); font: inherit; font-size: 12px; cursor: pointer; padding: 0; margin-left: auto; }
+.qpc-x { background: none; border: 0; color: var(--text-dim); cursor: pointer; font-size: 13px; padding: 2px 4px; }
+.qpc-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; }
+.qpc-group { border: 0; margin: 0; padding: 0; min-width: 0; }
+.qpc-group legend { font: 500 9.5px 'IBM Plex Mono', monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); padding: 4px 0 2px; }
+.qpc-row { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 2px 0; cursor: pointer; }
