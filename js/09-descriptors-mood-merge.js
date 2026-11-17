@@ -860,7 +860,7 @@ function mbFetch(url, opts, attempt = 0) {
     const wait = Math.max(0, mbLastRequestAt + MB_MIN_INTERVAL_MS - Date.now());
     if (wait > 0) await new Promise(r => setTimeout(r, wait));
     mbLastRequestAt = Date.now();
-    return fetchWithTimeout(url, opts);
+    return fetchWithTimeout(url, opts, (opts && opts.timeoutMs) || 15000);
   };
   // Chain onto the shared queue so this request waits for whatever else is
   // already pending, regardless of which feature queued it. The .catch on
@@ -868,7 +868,11 @@ function mbFetch(url, opts, attempt = 0) {
   const queued = mbQueueTail.then(run, run);
   mbQueueTail = queued.catch(() => {});
 
+  // (1.135.44) opts.retryBusy: also try again (after 1.5 s, then 3 s) when MusicBrainz is busy (502/503/504), times out or can't be reached,
+  // which used to mean pressing search again by hand.
+  const busyRetry = async () => { await new Promise(r => setTimeout(r, 1500 * Math.pow(2, attempt))); return mbFetch(url, opts, attempt + 1); };
   return queued.then(async (res) => {
+    if (opts && opts.retryBusy && [502, 503, 504].includes(res.status) && attempt < opts.retryBusy) return busyRetry();
     if (res.status === 429 && attempt < MB_MAX_RETRIES) {
       const retryAfterHeader = res.headers.get('Retry-After');
       const retryAfterMs = retryAfterHeader
@@ -878,5 +882,5 @@ function mbFetch(url, opts, attempt = 0) {
       return mbFetch(url, opts, attempt + 1);
     }
     return res;
-  });
+  }, (err) => { if (opts && opts.retryBusy && attempt < opts.retryBusy) return busyRetry(); throw err; });
 }

@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.43
+  CURRENT_VERSION: 1.135.44
 
+  1.135.44 — 2026-11-17 — Add a release searches more than MusicBrainz: Apple Music (no account needed), Spotify (when connected) and Discogs
+          (with a token) are asked at the same time, each in its own section as it answers, an album already listed above not
+          repeated. "Search:" chips above the results pick which (kept on this device). MusicBrainz now tries again by itself when
+          it's busy or slow (after 1.5 s, then 3 s, 9 s timeout), and a source that still doesn't answer has its own Retry. Discogs
+          results bring the format (Vinyl LP, 7", CD…). Rate Your Music has no public search: its pages' "Send to CRATE" adds from there.
   1.135.43 — 2026-11-17 — The crate's suggestions no longer end with a "Search online" line: the Online tab at the top does that.
   1.135.42 — 2026-11-17 — Adding a release, from the search box: the suggestions open with two tabs, In your crate (filters your crate, as
           before) and Online · to add (MusicBrainz, one line per album, the ones you already have left out). Picking an online

@@ -652,66 +652,42 @@ async function doAddSearch() {
   const q = el.addSearchInput.value.trim();
   if (!q) return;
   const mySeq = ++addSearchSeq;
-  el.addResults.innerHTML = '<p class="tracklist-status">Searching MusicBrainz…</p>';
   el.addForm.hidden = true;
-
+  el.addResults.classList.toggle('add-results-grid-mode', state.releaseSearchGridView);
+  if (typeof addSrcChipsRender === 'function') addSrcChipsRender();
+  // (1.135.44) Every source picked above the results is asked at once, each in its own section (63-add-sources.js): MusicBrainz no longer
+  // holds everything up, and one that doesn't answer has its own Retry.
+  const act = typeof addSrcSections === 'function' ? addSrcSections() : ['mb'];
+  const manualBtn = document.createElement('button');
+  manualBtn.type = 'button'; manualBtn.className = 'add-manual-link'; manualBtn.textContent = "Can't find it? Enter manually";
+  manualBtn.addEventListener('click', () => showAddForm({ title: q }));
+  el.addResults.appendChild(manualBtn);
+  if (act.includes('mb')) doAddSearchMb(q, mySeq);
+  act.filter(k => k !== 'mb').forEach(k => addSrcRun(k, q, mySeq));
+}
+async function doAddSearchMb(q, mySeq) {
+  const sec = typeof addSrcSec === 'function' ? addSrcSec('mb') : null, body = sec ? sec.querySelector('.add-src-body') : el.addResults;
+  if (typeof addSrcSay === 'function') addSrcSay('mb', 'Searching\u2026');
   try {
-    // The catno clause deliberately still searches the FULL original query
-    // (untouched by any field-extraction above) rather than the parsed
-    // clauses — a catalog number can itself contain a 4-digit run (e.g.
-    // "CRT-2022") or look like a field prefix, and this OR-fallback exists
-    // specifically so a bare catalog number typed with no "catno:" prefix
-    // at all still matches.
+    // The catno clause deliberately still searches the FULL original query (a bare catalogue number typed with no "catno:" still matches).
+    // inc=labels+genres+tags: label + catalogue no. and genre on each hit without a separate lookup.
     const catnoSafe = q.replace(/["\\]/g, '\\$&');
-    const mainClause = buildMbSearchQuery(q);
-    const termUrl = encodeURIComponent(`(${mainClause}) OR catno:"${catnoSafe}"`);
-
-    // MusicBrainz API (Requires a User-Agent to avoid getting blocked)
-    // inc=labels+genres+tags: labels is what makes label-info (label name +
-    // catalog number) come back on each hit — without it every row here
-    // would show a blank catalog number regardless of what you searched by,
-    // since buildReleaseResultRow has nothing to read it from. genres+tags
-    // is so we can show/prefill genre without a separate lookup per result.
+    const termUrl = encodeURIComponent(`(${buildMbSearchQuery(q)}) OR catno:"${catnoSafe}"`);
     const res = await mbFetch(`https://musicbrainz.org/ws/2/release/?query=${termUrl}&fmt=json&limit=12&inc=labels+genres+tags`, {
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'CRATEMusicLog/1.0'
-      }
+      headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' }, timeoutMs: 9000, retryBusy: 2
     });
-    // Surface a bad/malformed-query response as a real error instead of
-    // letting res.json() throw a confusing JSON-parse error on whatever
-    // MusicBrainz's error body actually looks like.
     if (!res.ok) throw new Error('HTTP ' + res.status);
-
     const data = await res.json();
-    if (mySeq !== addSearchSeq) return; // a newer keystroke already kicked off another search — drop this stale response
+    if (mySeq !== addSearchSeq) return;
     const hits = data.releases || [];
-
-    el.addResults.classList.toggle('add-results-grid-mode', state.releaseSearchGridView);
-    el.addResults.innerHTML = '';
-    if (!hits.length) {
-      el.addResults.innerHTML = '<p class="tracklist-status">No matches found.</p>';
-    } else {
-      hits.forEach(hit => el.addResults.appendChild(buildReleaseResultRow(hit, { drillToPressings: true })));
-      addHideOwnedApply();
-    }
-
-    const manualBtn = document.createElement('button');
-    manualBtn.type = 'button';
-    manualBtn.className = 'add-manual-link';
-    manualBtn.textContent = hits.length ? "Can't find it? Enter manually" : 'Enter it manually';
-    manualBtn.addEventListener('click', () => showAddForm({ title: q }));
-    el.addResults.appendChild(manualBtn);
-
+    body.innerHTML = '';
+    hits.forEach(hit => { const row = buildReleaseResultRow(hit, { drillToPressings: true }); const ar = (hit['artist-credit'] || []).map(a => a.name + (a.joinphrase || '')).join(''); const k = typeof dupKey === 'function' ? dupKey(ar, hit.title || '') : ''; if (k) row.dataset.dupKey = k; body.appendChild(row); });
+    if (typeof addSrcSay === 'function') addSrcSay('mb', hits.length ? `${hits.length} found` : 'nothing found');
+    addHideOwnedApply();
   } catch (err) {
-    if (mySeq !== addSearchSeq) return; // superseded by a newer search — don't clobber its results
-    console.error("MusicBrainz Error:", err);
-    el.addResults.innerHTML = '<p class="tracklist-status">Search failed — try again, or enter it manually below.</p>';
-    const manualBtn = document.createElement('button');
-    manualBtn.type = 'button';
-    manualBtn.className = 'add-manual-link';
-    manualBtn.textContent = 'Enter it manually';
-    manualBtn.addEventListener('click', () => showAddForm({ title: q }));
-    el.addResults.appendChild(manualBtn);
+    if (mySeq !== addSearchSeq) return;
+    console.error('MusicBrainz Error:', err);
+    if (typeof addSrcSay === 'function' && sec) addSrcSay('mb', `didn\u2019t answer (${err && err.name === 'AbortError' ? 'timed out' : (err && err.message) || 'error'})`, () => doAddSearchMb(q, addSearchSeq));
+    else el.addResults.innerHTML = '<p class="tracklist-status">Search failed — try again, or enter it manually below.</p>';
   }
 }
