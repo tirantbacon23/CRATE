@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.63
+  CURRENT_VERSION: 1.135.64
 
+  1.135.64 — 2026-11-17 — In the album view, "Updated from RYM" and "RYM history" leave the header and go to Details (its tab in the Tabs look; a
+          Details section at the end in the Column look, which now has one too). The empty stars of your rating are brighter, so
+          they show against the background. In the Tabs look, the header band takes its colour from the release's cover (its
+          average colour, darkened so the text reads), where the cover's site lets CRATE read it.
   1.135.63 — 2026-11-17 — Two more ways to lay out the album view's header, in ⚙ Settings → "Album view header" (with either look, Column or
           Tabs): Centred (a bigger cover with the title, artist, tags, stars, the RYM line and the buttons centred under it, like a
           record sleeve) and Bigger cover (the cover takes half the width and the details fill the other half). "Beside the cover"

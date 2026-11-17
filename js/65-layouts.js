@@ -28,7 +28,7 @@ function deckLayoutInit() {
   const heading = deck.querySelector('.deck-heading'), rating = deck.querySelector('.deck-rating-row'), header = deck.querySelector('.deck-header');
   if (heading && rating) { const added = document.getElementById('deckAdded'); heading.insertBefore(rating, added || null); }
   const rymBox = document.createElement('div'); rymBox.className = 'deck-rym-block';
-  ['deckRymRow', 'deckRymLog', 'deckRymHist'].forEach(i => { const n = document.getElementById(i); if (n) rymBox.appendChild(n); });
+  ['deckRymRow'].forEach(i => { const n = document.getElementById(i); if (n) rymBox.appendChild(n); });          // (1.135.64: the "Updated from RYM" and "RYM history" notes go to Details)
   if (header) header.insertAdjacentElement('afterend', rymBox);
   bar.appendChild(Object.assign(document.createElement('span'), { className: 'deck-bar-gap' }));
   bar.appendChild(deckDrop('deckOpenOn', '↗ Open on…', 'Listen link, Spotify, SoundCloud, Rate Your Music', ['deckLink', 'deckSpotifyLink', 'deckSoundcloudLink', 'deckRymLink']));
@@ -38,7 +38,8 @@ function deckLayoutInit() {
   const body = deck.querySelector('.deck-body'), secs = [...body.querySelectorAll(':scope > .deck-section')];
   const tagOf = (s) => s.querySelector('#deckTracklist') ? 'songs' : s.querySelector('#deckDiaryList') ? 'diary' : s.querySelector('#deckReview') ? 'notes' : s.classList.contains('deck-danger') ? 'details' : 'songs';
   secs.forEach(s => { s.dataset.deckTab = tagOf(s); });
-  const det = document.createElement('section'); det.className = 'deck-section deck-details'; det.dataset.deckTab = 'details'; det.innerHTML = '<div id="deckDetailsBody" class="deck-kv"></div>';
+  const det = document.createElement('section'); det.className = 'deck-section deck-details'; det.dataset.deckTab = 'details'; det.innerHTML = '<h3 class="section-title">Details</h3><div id="deckDetailsBody" class="deck-kv"></div><div class="deck-rym-notes"></div>';
+  ['deckRymLog', 'deckRymHist'].forEach(i => { const n = document.getElementById(i); if (n) det.querySelector('.deck-rym-notes').appendChild(n); });          // (1.135.64) out of the header, into Details
   const danger = body.querySelector('.deck-danger'); body.insertBefore(det, danger || null);
   const tabs = document.createElement('div'); tabs.className = 'deck-tabs'; tabs.setAttribute('role', 'tablist');
   tabs.innerHTML = [['songs', 'Songs'], ['details', 'Details'], ['diary', 'Diary'], ['notes', 'Notes']].map(([k, l]) => `<button type="button" role="tab" data-deck-tab-btn="${k}">${l}</button>`).join('');
@@ -72,7 +73,30 @@ function deckDetailsPaint(item) {
   ].filter(r => r[1]);
   box.innerHTML = rows.map(([k, v]) => `<span>${escapeHtml(k)}</span><span>${escapeHtml(String(v))}</span>`).join('');
 }
-function deckLayoutOnOpen(item) { deckTab = 'songs'; deckLayoutApply(); deckDetailsPaint(item); }          // (1.135.61: the figures column on the right is gone again)
+// (1.135.64) The Tabs look's header band takes its colour from the cover: its average colour, darkened so text stays readable. A cover from
+// a site that doesn't allow reading its pixels keeps the usual colour.
+const deckTintCache = new Map();
+function deckTint(item) {
+  const deck = document.querySelector('#deckOverlay .deck'); if (!deck) return;
+  deck.style.removeProperty('--deck-tint');
+  const src = (state.artCache[artKey(item)] || {}).art || item.cover; if (!src || /^data:image\/svg/.test(src)) return;
+  const set = (c) => { if (c && activeItem === item) deck.style.setProperty('--deck-tint', c); };
+  if (deckTintCache.has(src)) { set(deckTintCache.get(src)); return; }
+  const img = new Image(); img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    try {
+      const cv = document.createElement('canvas'); cv.width = cv.height = 24; const cx = cv.getContext('2d'); cx.drawImage(img, 0, 0, 24, 24);
+      const d = cx.getImageData(0, 0, 24, 24).data; let r = 0, g = 0, b = 0, n = 0;
+      for (let i = 0; i < d.length; i += 4) { const l = (d[i] + d[i + 1] + d[i + 2]) / 3; if (l < 18 || l > 240) continue; r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+      if (!n) return; r /= n; g /= n; b /= n;
+      const k = 0.45, c = `rgb(${Math.round(r * k + 18 * (1 - k))}, ${Math.round(g * k + 22 * (1 - k))}, ${Math.round(b * k + 28 * (1 - k))})`;          // mixed toward the page's dark ground
+      deckTintCache.set(src, c); set(c);
+    } catch (e) { deckTintCache.set(src, ''); }          // (pixels not readable: the usual colour)
+  };
+  img.onerror = () => deckTintCache.set(src, '');
+  img.src = src;
+}
+function deckLayoutOnOpen(item) { deckTab = 'songs'; deckLayoutApply(); deckDetailsPaint(item); deckTint(item); }          // (1.135.61: the figures column on the right is gone again)
 
 // ----- Edit details -----
 const ED_SECS = [

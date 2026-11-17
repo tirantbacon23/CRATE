@@ -5767,3 +5767,11 @@ select.srch-chip { padding: 0 6px; background: var(--bg-elevated); }
 .deck.deck-hdr-big .deck-heading { justify-content: center; }
 .deck.deck-hdr-big .deck-heading h2 { font-size: 40px; }
 @media (max-width: 700px) { .deck.deck-hdr-big .deck-header { grid-template-columns: minmax(0, 1fr); } }
+
+/* (1.135.64) Details also shows in the Column look (at the end), with the RYM notes; empty stars that can be seen; the Tabs band from the cover */
+.deck-look-a .deck-details { display: block; }
+.deck-look-b .deck-details .section-title { display: none; }
+.deck-rym-notes { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.deck-rym-notes .deck-rym-hist { margin-top: 0; }
+#deckStars .star-back { color: color-mix(in srgb, var(--text) 38%, transparent); }
+.deck-look-b .deck-header, .deck-look-b .deck-actions-bar, .deck-look-b .deck-rym-block { background: var(--deck-tint, color-mix(in srgb, var(--accent) 7%, var(--bg-card))); transition: background .4s ease; }
