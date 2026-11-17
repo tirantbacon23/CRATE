@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.72
+  CURRENT_VERSION: 1.135.73
 
+  1.135.73 — 2026-11-18 — Match songs: the Queue table shows each release's cover beside its title, as the list down the left
+          of the workbench does. A cover CRATE doesn't have yet is looked up once and fills in when it comes; until then the
+          release's drawn placeholder shows instead of a blank square.
   1.135.72 — 2026-11-18 — Match songs is a workbench now: the run's releases down the left (cover, artist, song count, and a dot
           for its state: amber needs a look, red a problem, a ring ready, solid done, pulsing while it's looked up), with Needs a
           look / Ready / Done / All and a find box above, and the chosen release on the right. The header holds each service's

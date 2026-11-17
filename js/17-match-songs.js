@@ -1289,10 +1289,11 @@ function bmViewBtns() {
   return `<div class="bm-seg" role="tablist">${v.map(([k, l]) => `<button type="button" role="tab" class="bm-segb${bm.view === k ? ' on' : ''}" aria-selected="${bm.view === k}" data-bm="tab" data-v="${k}">${l}</button>`).join('')}</div><button type="button" class="chip-btn bm-ico${bm.view === 'prefs' ? ' on' : ''}" data-bm="tab" data-v="prefs" title="Preferences" aria-label="Preferences">⚙</button>`;
 }
 // A release's cover: the one CRATE has, or looked up and filled in when it comes (as the grid does)
+const bmArtAsked = new Set();
 function bmCoverHtml(it, cls) {
   if (!it) return `<span class="${cls}"></span>`;
-  const k = artKey(it), c = state.artCache[k], src = (c && c.art) || it.cover || '';
-  if (!src && typeof fetchArt === 'function' && !artFetchInFlight.has(k)) { artFetchInFlight.add(k); fetchArt(it); }
+  const k = artKey(it), c = state.artCache[k], src = (c && c.art) || it.cover || (typeof placeholderArt === 'function' ? placeholderArt(it) : '');
+  if (!(c && c.art) && !it.cover && !bmArtAsked.has(k) && typeof fetchArt === 'function' && !artFetchInFlight.has(k)) { bmArtAsked.add(k); artFetchInFlight.add(k); fetchArt(it); }          // asked once a visit
   return `<span class="${cls}"><img class="art" data-key="${escapeHtml(k)}" src="${escapeHtml(src)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><b>${escapeHtml(bmInitials(it.title))}</b></span>`;
 }
 // The queue down the left of the workbench: one line per release, its state as a dot
@@ -1398,7 +1399,7 @@ function bmQueueHtml() {
   const rows = bmQueueRows(), shown = bmShownKinds(), sel = bm.qsel;
   const allOn = rows.length > 0 && rows.every(x => sel.has(x.r.row));
   const body = rows.map(({ r, s }) => `<tr class="bm-qrow${r.row === bm.sel ? ' on' : ''}" data-bm="open-rel" data-row="${escapeHtml(r.row)}"><td class="bm-tick"><input type="checkbox" data-bm="qsel" data-row="${escapeHtml(r.row)}"${sel.has(r.row) ? ' checked' : ''} aria-label="Select ${escapeHtml(r.item.title)}"></td>
-    <td><div class="bm-t">${escapeHtml(r.item.title)}</div><div class="bm-dim">${escapeHtml(r.item.artist)}${r.songs ? ` · ${r.songs.length} songs` : ''}</div></td>${shown.map(k => `<td class="bm-qbar">${bmBarHtml(r, k)}</td>`).join('')}<td>${bmChip(s.tone, escapeHtml(s.label))}</td><td class="bm-qx"><button type="button" class="bm-linkbtn" data-bm="qremove" data-row="${escapeHtml(r.row)}" title="Remove from this run" aria-label="Remove ${escapeHtml(r.item.title)} from this run">\u2715</button></td></tr>`).join('');
+    <td><div class="bm-qrel">${bmCoverHtml(r.item, 'bm-wq-c')}<div class="bm-ct"><div class="bm-t">${escapeHtml(r.item.title)}</div><div class="bm-dim">${escapeHtml(r.item.artist)}${r.songs ? ` · ${r.songs.length} songs` : ''}</div></div></div></td>${shown.map(k => `<td class="bm-qbar">${bmBarHtml(r, k)}</td>`).join('')}<td>${bmChip(s.tone, escapeHtml(s.label))}</td><td class="bm-qx"><button type="button" class="bm-linkbtn" data-bm="qremove" data-row="${escapeHtml(r.row)}" title="Remove from this run" aria-label="Remove ${escapeHtml(r.item.title)} from this run">\u2715</button></td></tr>`).join('');
   const mq = mqAll().length, why = mqWhyCounts();
   const later = mq ? `<div class="bm-later bm-dim">Waiting in the match queue: ${[why.skipped ? `${bmPl(why.skipped, 'release')} with songs the player skipped` : '', why.added ? `${bmPl(why.added, 'new release')}` : '', why.menu ? `${bmPl(why.menu, 'release')} you added` : ''].filter(Boolean).join(' · ')} <button type="button" class="chip-btn" data-bm="mq-add">Add them to this run</button> <button type="button" class="chip-btn" data-bm="mq-clear">Clear</button></div>` : '';
   return `<div class="bm-tool"><div class="bm-fchips">${chip('all', 'All', bm.rels.length)}${chip('look', 'Needs a look', cnt('look'))}${chip('problem', 'Problems', cnt('problem'))}${chip('ready', 'Ready', cnt('ready'))}${chip('done', 'Done', cnt('done'))}</div>
