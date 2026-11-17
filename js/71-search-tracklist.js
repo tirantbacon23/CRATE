@@ -88,7 +88,7 @@ async function stlTrackNums(artist, songs, user, key) {
 }
 
 // ----- numbers, as shown -----
-const stlF = (n) => n == null || isNaN(n) ? '–' : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M' : n >= 1e4 ? Math.round(n / 1e3) + 'K' : n >= 1e3 ? (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K' : String(n);
+const stlF = (n) => n == null || isNaN(n) ? '–' : numsExact() ? Number(n).toLocaleString() : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M' : n >= 1e4 ? Math.round(n / 1e3) + 'K' : n >= 1e3 ? (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K' : String(n);
 const stlLen = (ms) => { if (!ms) return ''; const s = Math.round(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = String(s % 60).padStart(2, '0'); return h ? `${h}:${String(m).padStart(2, '0')}:${x}` : `${m}:${x}`; };
 const stlAgo = (d) => { if (!d) return '–'; const t = Date.parse(d + 'T12:00:00'); if (isNaN(t)) return '–'; const days = Math.max(0, Math.round((Date.now() - t) / 864e5)); return days < 1 ? 'today' : days < 14 ? days + ' d' : days < 60 ? Math.round(days / 7) + ' w' : days < 730 ? Math.round(days / 30) + ' mo' : Math.round(days / 365) + ' y'; };
 const stlYou = (s) => Math.max(s.u || 0, s.loc || 0);
@@ -415,7 +415,7 @@ srchItems = function () {
   return a;
 };
 // the number it's sorted by, on each release
-const stlNumFmt = (n) => n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'm' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(n);
+const stlNumFmt = (n) => numsExact() ? Number(n).toLocaleString() : n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'm' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(n);
 const stlBaseDateSub = stlDateSub;
 stlDateSub = function (s) {
   stlBaseDateSub(s);

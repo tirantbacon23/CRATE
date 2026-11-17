@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.126
+  CURRENT_VERSION: 1.135.127
 
+  1.135.127 — 2026-11-18 — ⚙ › Look › Numbers: Last.fm's plays and listeners Short (1.2M) or Exact (1,234,567), everywhere they show: the
+          search and its songs panels, the cover popup, Up next, the Tracks view's Last.fm columns, the artist page's More albums.
+          Last.fm gives them exact; they were only ever shortened to fit.
   1.135.126 — 2026-11-18 — Cover wall: the view's own sort, Group by and Then by (headings that stay at the top as you scroll their covers), a
           filter box (the search, with genre:, year:… ), Listened and Clear, in its bar. They set the view's own, so the wall and the
           view agree, and the wall follows when the view's list changes. Up next: a song's Soulseek download is a small icon coloured

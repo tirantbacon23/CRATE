@@ -17,7 +17,7 @@ function tlfNum(key, item, track) {          // the number, or null when not loo
 }
 const tlfBaseVal = trackColumnVal;
 trackColumnVal = function (key, item, track) {
-  if (TLF_KEYS.includes(key)) { const n = tlfNum(key, item, track); return n == null ? '' : n < 1e4 ? n.toLocaleString() : stlF(n); }
+  if (TLF_KEYS.includes(key)) { const n = tlfNum(key, item, track); return n == null ? '' : n < 1e4 || numsExact() ? n.toLocaleString() : stlF(n); }
   return tlfBaseVal.apply(this, arguments);
 };
 const tlfBaseSort = trackSortValue;

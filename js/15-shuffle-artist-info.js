@@ -1192,7 +1192,7 @@ function aiMbRetrySoon(artist, token) {
 // ----- (1.135.106) More Albums from Last.fm and Discogs too -----
 let aiMoreItems = [];
 const aiMoreMem = new Map();
-const aiMoreN = (n) => n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'K' : String(n);
+const aiMoreN = (n) => numsExact() ? Number(n).toLocaleString() : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'K' : String(n);
 async function aiMoreOthers(artist) {
   const k = artist.toLowerCase(), kept = aiMoreMem.get(k); if (kept && Date.now() - kept.at < 30 * 60e3) return kept;
   const fa = smFold(artist), sameArtist = (n) => { const x = smFold(n || ''); return !!x && (x === fa || x.includes(fa) || fa.includes(x)); };

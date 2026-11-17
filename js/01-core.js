@@ -5,7 +5,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.135.126';
+const APP_VERSION = '1.135.127';
 // (1.93.4) With CRATE open in more than one window (a pop-out, a second tab), only ONE of them does the work done in the background: adding
 // and applying what the Rate Your Music add-on sends, the Last.fm sync, the new-release check, and the look-ups for newly added releases. Each
 // window used to do it all itself (a release sent from RYM was added once per window). The first CRATE window opened is that one (a pop-out
@@ -1188,3 +1188,6 @@ function rawIndex(name, keyFn) {
   rawIndexCache.set(name, { of: raw, n: raw.length, map });
   return map;
 }
+
+// (1.135.127) Last.fm's numbers in full (1,234,567) or short (1.2M): ⚙ › Look › Numbers. Read wherever they are shown.
+function numsExact() { try { return localStorage.getItem('crate_numbers_exact_v1') === '1'; } catch (e) { return false; } }

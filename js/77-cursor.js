@@ -44,8 +44,14 @@ if (typeof thmPanelHtml === 'function') {
     const h = curBasePanel.apply(this, arguments), cur = curPref(), acc = curAccent();
     const prev = (k) => k === 'system' ? '<span class="cur-sys" aria-hidden="true">↖</span>' : `<img src="data:image/svg+xml,${encodeURIComponent(curSvg(k, false, acc)[0])}" alt="" width="24" height="24">`;
     const row = `<div class="thm-row"><span class="thm-lbl">Cursor</span>${CUR_NAMES.map(([k, l]) => `<button type="button" class="thm-seg cur-opt${cur === k ? ' on' : ''}" data-cur="${k}" aria-pressed="${cur === k}">${prev(k)}${l}</button>`).join('')}</div>`;
-    const at = h.lastIndexOf('<p class="thm-note">Kept in this browser.'); return at < 0 ? h + row : h.slice(0, at) + row + h.slice(at);
+    const ex = numsExact(), nums = `<div class="thm-row"><span class="thm-lbl">Numbers</span><button type="button" class="thm-seg${ex ? '' : ' on'}" data-nums="0" aria-pressed="${!ex}">Short \u00b7 1.2M</button><button type="button" class="thm-seg${ex ? ' on' : ''}" data-nums="1" aria-pressed="${ex}">Exact \u00b7 1,234,567</button><span class="thm-note">Last.fm\u2019s plays and listeners</span></div>`;
+    const at = h.lastIndexOf('<p class="thm-note">Kept in this browser.'); return at < 0 ? h + row + nums : h.slice(0, at) + row + nums + h.slice(at);
   };
   document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('#thmOverlay [data-cur]'); if (!b) return; e.stopPropagation(); curSet(b.dataset.cur); if (typeof thmPaint === 'function') thmPaint(); }, true);
 }
 try { if (curPref() !== 'system') curApply(); } catch (e) { /* the computer's cursor */ }
+document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('#thmOverlay [data-nums]'); if (!b) return; e.stopPropagation();
+  try { localStorage.setItem('crate_numbers_exact_v1', b.dataset.nums); } catch (er) { /* this visit */ }
+  if (typeof thmPaint === 'function') thmPaint();
+  try { if (typeof renderCrateQueuePanel === 'function') renderCrateQueuePanel(); if ((state.mainViewMode === 'tracks' || state.mainViewMode === 'albumTracks') && typeof renderFlatTrackTable === 'function') renderFlatTrackTable(); if (typeof quickPeekItem !== 'undefined' && quickPeekItem && typeof stlPaint === 'function') stlPaint('c:' + quickPeekItem.row); } catch (er) { /* next time they're drawn */ }
+}, true);

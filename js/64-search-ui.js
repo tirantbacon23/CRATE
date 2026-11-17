@@ -434,4 +434,4 @@ async function srchPopRank(seq, key) {
   if (failed && !ok) srch.onlineNote = `Last.fm didn't answer (${srchLfErr}): not ranked by listeners`; else if (ok) srchLfErr = '';
   srchPopSave(); srchPopSort(); ssRender();
 }
-function srchPopFmt(n, r) { if (!n && r && r.editions > 1) return `${r.editions} editions`; if (!n && r && r.have) return `${r.have >= 1000 ? Math.round(r.have / 1000) + 'k' : r.have} own it on Discogs`; return !n ? '' : n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'm listeners' : n >= 1e3 ? Math.round(n / 1e3) + 'k listeners' : n + ' listeners'; }
+function srchPopFmt(n, r) { if (!n && r && r.editions > 1) return `${r.editions} editions`; if (!n && r && r.have) return `${r.have >= 1000 ? Math.round(r.have / 1000) + 'k' : r.have} own it on Discogs`; return !n ? '' : numsExact() ? Number(n).toLocaleString() + ' listeners' : n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'm listeners' : n >= 1e3 ? Math.round(n / 1e3) + 'k listeners' : n + ' listeners'; }
