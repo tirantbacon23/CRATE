@@ -82,6 +82,7 @@ function bindEvents() {
 
   // 1. Search Logic
   el.searchInput.addEventListener('input', debounce(() => {
+    if (typeof ssScope !== 'undefined' && ssScope === 'online') return;          // (1.135.42) an online search doesn't filter your crate
     state.query = el.searchInput.value.trim().toLowerCase();
     el.searchWrap.classList.toggle('mobile-search-has-value', !!state.query); // keeps the mobile icon-collapsed search bar expanded while a query is active — see .search-wrap's mobile CSS
     buildLeftList();
@@ -718,6 +719,7 @@ function bindEvents() {
 
   // 8. Add / Edit Album Events
   el.addAlbumBtn.addEventListener('click', openAddModal);
+  el.stateMsg.addEventListener('click', (e) => { const b = e.target.closest('[data-add-q]'); if (b) openAddModalSearch(b.dataset.addQ); });          // (1.135.42) nothing in your crate matches: find it to add
   el.lastfmBtn.addEventListener('click', () => { el.layoutMenu.hidden = true; openLastfmModal(); });
   el.timelineBtn.addEventListener('click', openTimelineModal);
   el.timelineClose.addEventListener('click', closeTimelineModal);

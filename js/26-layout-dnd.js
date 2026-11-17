@@ -210,7 +210,25 @@ function applyAddFormFieldVisibility() {
   });
 }
 
+// (1.135.42) "Hide ones I have" above the results: releases already in your crate (that pressing, by artist, title and catalogue no.) are left out,
+// with a line saying how many; another edition of one you have still shows. Remembered on this device.
+const ADD_HIDE_OWNED_KEY = 'crate_add_hide_owned_v1';
+function addHideOwnedOn() { try { return localStorage.getItem(ADD_HIDE_OWNED_KEY) !== '0'; } catch (e) { return true; } }
+function addHideOwnedApply() {
+  const on = addHideOwnedOn(), cb = document.getElementById('addHideOwned'); if (cb) cb.checked = on;
+  let n = 0;
+  el.addResults.querySelectorAll('.add-result-row, .add-result-card').forEach(r => { const own = !!r.querySelector('.add-result-owned:not(.edition)'); r.hidden = on && own; if (own) n++; });
+  let note = el.addResults.querySelector('.add-owned-note'); if (note) note.remove();
+  if (n) { note = document.createElement('p'); note.className = 'add-owned-note'; note.textContent = on ? `${n} already in your crate, hidden.` : `${n} already in your crate (marked).`; el.addResults.insertBefore(note, el.addResults.querySelector('.add-manual-link')); }
+}
+function addHideOwnedWire() { const cb = document.getElementById('addHideOwned'); if (!cb || cb.dataset.wired) return; cb.dataset.wired = '1'; cb.checked = addHideOwnedOn(); cb.addEventListener('change', () => { try { localStorage.setItem(ADD_HIDE_OWNED_KEY, cb.checked ? '1' : '0'); } catch (e) { /* this visit */ } addHideOwnedApply(); }); }
+// (1.135.42) Open Add a release with a search already typed and run (from the main search box, or when nothing in your crate matches).
+function openAddModalSearch(q) {
+  openAddModal(); el.addSearchInput.value = String(q || '').trim();
+  if (el.addSearchInput.value.length >= 2) doAddSearch();
+}
 function openAddModal() {
+  addHideOwnedWire();
   el.addOverlay.hidden = false;
   el.addSearchInput.value = '';
   el.addResults.innerHTML = '';
@@ -675,6 +693,7 @@ async function doAddSearch() {
       el.addResults.innerHTML = '<p class="tracklist-status">No matches found.</p>';
     } else {
       hits.forEach(hit => el.addResults.appendChild(buildReleaseResultRow(hit, { drillToPressings: true })));
+      addHideOwnedApply();
     }
 
     const manualBtn = document.createElement('button');

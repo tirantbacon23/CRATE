@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.41
+  CURRENT_VERSION: 1.135.42
 
+  1.135.42 — 2026-11-17 — Adding a release, from the search box: the suggestions open with two tabs, In your crate (filters your crate, as
+          before) and Online · to add (MusicBrainz, one line per album, the ones you already have left out). Picking an online
+          result opens Add a release on that album's pressings; Enter or "All results" opens the full search there. An online search
+          doesn't filter your crate. When nothing in your crate matches, a button finds it online to add. Add a release has "Hide
+          ones I have" (on by default), with a line saying how many were left out.
   1.135.41 — 2026-11-16 — Releases pulled from Rate Your Music that weren't updated: "Send to CRATE" of a release you already have is now an
           update (just after the add-on is installed or reinstalled it doesn't know your crate yet, so it offered Send rather than
           Update, and CRATE dropped it as "already in your crate"). A release with no RYM link is matched by artist and title even

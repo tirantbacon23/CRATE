@@ -1072,19 +1072,65 @@ function ssSuggest(q) {                                              // q: the b
   ssRank(ix.genres, part, 3).forEach(e => out.push({ kind: 'genre', label: e.name, sub: `${e.n}`, insert: `genre:${ssQuote(e.name)} `, from }));
   ssRank(ix.descs, part, 3).forEach(e => out.push({ kind: 'descriptor', label: e.name, sub: `${e.n}`, insert: `descriptor:${ssQuote(e.name)} `, from }));          // (1.135.37)
   ssRank(ix.labels, part, 2).forEach(e => out.push({ kind: 'label', label: e.name, sub: `${e.n}`, insert: `label:${ssQuote(e.name)} `, from }));
-  return out.slice(0, 14);
+  const res = out.slice(0, 13);
+  if (tail.trim().length >= 2) res.push({ kind: 'addweb', label: `Search online for \u201c${tail.trim()}\u201d`, sub: 'releases you don\u2019t have', q: tail.trim() });          // (1.135.42) the add search, from here
+  return res;
 }
 function ssRender() {
   const box = document.getElementById('searchSuggest'), inp = el.searchInput; if (!box || !inp) return;
-  if (!ssItems.length || document.activeElement !== inp) { box.hidden = true; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); return; }
-  const kindName = { field: 'Field', artist: 'Artist', release: 'Release', track: 'Track', genre: 'Genre', descriptor: 'Descriptor', songdesc: 'Descriptor', label: 'Label', type: 'Type', title: 'Release' };
-  box.innerHTML = ssItems.map((s, i) => `<div class="ss-item${i === ssActive ? ' on' : ''}" id="ss-${i}" role="option" aria-selected="${i === ssActive}" data-ss="${i}"><span class="ss-kind">${kindName[s.kind] || ''}</span><span class="ss-label">${escapeHtml(s.label)}</span><span class="ss-sub">${escapeHtml(String(s.sub || ''))}</span></div>`).join('');
+  if (document.activeElement !== inp || (!ssItems.length && !ssOnlineNote && !inp.value.trim() && ssScope === 'crate' && !ssScopeShown)) { box.hidden = true; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); return; }
+  const scopeBar = `<div class="ss-scope" role="tablist" aria-label="Search where"><button type="button" role="tab" data-ss-scope="crate" aria-selected="${ssScope === 'crate'}" class="${ssScope === 'crate' ? 'on' : ''}">In your crate</button><button type="button" role="tab" data-ss-scope="online" aria-selected="${ssScope === 'online'}" class="${ssScope === 'online' ? 'on' : ''}">Online \u00b7 to add</button></div>`;
+  const kindName = { field: 'Field', artist: 'Artist', release: 'Release', track: 'Track', genre: 'Genre', addweb: '+ Add', online: '+ Add', onlineall: 'All', descriptor: 'Descriptor', songdesc: 'Descriptor', label: 'Label', type: 'Type', title: 'Release' };
+  box.innerHTML = scopeBar + (ssOnlineNote ? `<div class="ss-note">${escapeHtml(ssOnlineNote)}</div>` : '') + ssItems.map((s, i) => `<div class="ss-item ss-k-${s.kind}${i === ssActive ? ' on' : ''}" id="ss-${i}" role="option" aria-selected="${i === ssActive}" data-ss="${i}"><span class="ss-kind">${kindName[s.kind] || ''}</span><span class="ss-label">${escapeHtml(s.label)}</span><span class="ss-sub">${escapeHtml(String(s.sub || ''))}</span></div>`).join('');
   box.hidden = false; inp.setAttribute('aria-expanded', 'true');
   if (ssActive >= 0) inp.setAttribute('aria-activedescendant', 'ss-' + ssActive); else inp.removeAttribute('aria-activedescendant');
 }
-function ssUpdate() { ssItems = ssSuggest(el.searchInput.value); ssActive = -1; ssRender(); }
+function ssUpdate() { if (ssScope === 'online') { ssOnlineSearch(); return; } ssOnlineNote = ''; ssItems = ssSuggest(el.searchInput.value); ssActive = -1; ssRender(); }
+// (1.135.42) Two places to search, picked at the top of the suggestions: In your crate (the box filters your crate, as always) and Online (MusicBrainz:
+// releases to add, one line per album, the ones already in your crate left out unless "Hide ones I have" is off in Add a release). Picking an online
+// result opens Add a release on that album's pressings. Online doesn't filter your crate. The choice is kept while this page is open.
+let ssScope = 'crate', ssScopeShown = false, ssOnlineNote = '', ssOnlineSeq = 0, ssOnlineTimer = 0;
+function ssSetScope(sc) {
+  if (sc === ssScope) return; ssScope = sc; const inp = el.searchInput;
+  inp.placeholder = sc === 'online' ? 'Find releases to add\u2026' : 'Search artist, title, or catalog\u2026';
+  el.searchWrap.classList.toggle('search-online', sc === 'online');
+  if (sc === 'online') { if (state.query) { state.query = ''; buildLeftList(); applyFiltersSort(); } }          // your crate isn't filtered by an online search
+  else inp.dispatchEvent(new Event('input'));          // back: what's typed filters your crate again
+  ssItems = []; ssOnlineNote = ''; ssActive = -1; ssUpdate(); inp.focus();
+}
+function ssOnlineSearch() {
+  const q = el.searchInput.value.trim(); clearTimeout(ssOnlineTimer);
+  if (q.length < 2) { ssItems = []; ssOnlineNote = 'Type an artist or album to find releases to add.'; ssRender(); return; }
+  ssOnlineNote = 'Searching MusicBrainz\u2026'; ssRender();
+  const seq = ++ssOnlineSeq;
+  ssOnlineTimer = setTimeout(async () => {
+    try {
+      const res = await mbFetch(`https://musicbrainz.org/ws/2/release/?query=${encodeURIComponent(buildMbSearchQuery(q))}&fmt=json&limit=25&inc=labels`, { headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' } });
+      if (seq !== ssOnlineSeq || ssScope !== 'online') return;
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const hits = (await res.json()).releases || [], seen = new Set(), hide = typeof addHideOwnedOn === 'function' ? addHideOwnedOn() : true; let owned = 0;
+      const items = [];
+      hits.forEach(h => {
+        const rg = (h['release-group'] && h['release-group'].id) || h.id; if (seen.has(rg)) return; seen.add(rg);          // one line per album, not per pressing
+        const artist = (h['artist-credit'] || []).map(a => a.name + (a.joinphrase || '')).join('') || '', li = (h['label-info'] || [])[0] || {};
+        const v = dupVerdict(dupMatches({ artist, title: h.title || '', catalog: li['catalog-number'] || '', releaseDate: h.date || '', descriptor: '' }));
+        if (v === 'exact' || v === 'edition') { owned++; if (hide) return; }
+        const ty = (h['release-group'] && h['release-group']['primary-type']) || '', y = String(h.date || '').slice(0, 4);
+        items.push({ kind: 'online', label: (h.title || '') + (v === 'exact' || v === 'edition' ? ' \u2713' : ''), sub: [artist, y, ty].filter(Boolean).join(' \u00b7 '), hit: h, q });
+      });
+      items.splice(10);
+      items.push({ kind: 'onlineall', label: `All results for \u201c${q}\u201d`, sub: 'in Add a release', q });
+      ssItems = items; ssActive = -1;
+      ssOnlineNote = !hits.length ? 'Nothing found on MusicBrainz.' : owned ? `${owned} you already have ${hide ? 'left out' : 'marked \u2713'}.` : '';
+      ssRender();
+    } catch (e) { if (seq !== ssOnlineSeq) return; ssItems = [{ kind: 'onlineall', label: `Search again in Add a release`, sub: '', q }]; ssOnlineNote = 'MusicBrainz didn\u2019t answer.'; ssRender(); }
+  }, 450);
+}
 function ssPick(i) {
   const s = ssItems[i], inp = el.searchInput; if (!s) return;
+  if (s.kind === 'online') { ssItems = []; ssRender(); inp.blur(); openAddModal(); el.addSearchInput.value = s.q; const row = buildReleaseResultRow(s.hit, { drillToPressings: true }); el.addResults.appendChild(row); row.click(); return; }
+  if (s.kind === 'onlineall') { ssItems = []; ssRender(); inp.blur(); openAddModalSearch(s.q); return; }
+  if (s.kind === 'addweb') { ssSetScope('online'); return; }
   if (s.kind === 'release' || (s.kind === 'title' && s.row != null)) { const it = state.raw.find(r => String(r.row) === String(s.row)); ssItems = []; ssRender(); if (it) { inp.blur(); openDeck(it); } return; }
   inp.value = inp.value.slice(0, s.from) + s.insert; inp.setSelectionRange(inp.value.length, inp.value.length);
   inp.dispatchEvent(new Event('input')); inp.focus();
@@ -1098,12 +1144,14 @@ function initSearchSuggest() {
   inp.addEventListener('focus', ssUpdate);
   inp.addEventListener('blur', () => setTimeout(ssRender, 120));
   inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && ssScope === 'online' && ssActive < 0 && inp.value.trim().length >= 2) { e.preventDefault(); e.stopImmediatePropagation(); ssItems = []; ssRender(); inp.blur(); openAddModalSearch(inp.value.trim()); return; }          // Enter: every result, in Add a release
     if (box.hidden || !ssItems.length) return;
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); const n = ssItems.length; ssActive = e.key === 'ArrowDown' ? (ssActive + 1 >= n ? -1 : ssActive + 1) : (ssActive <= -1 ? n - 1 : ssActive - 1); ssRender(); const on = box.querySelector('.ss-item.on'); if (on) on.scrollIntoView({ block: 'nearest' }); return; }          // (past the last: back to what you typed)
     if ((e.key === 'Enter' || e.key === 'Tab') && ssActive >= 0) { e.preventDefault(); e.stopImmediatePropagation(); ssPick(ssActive); return; }
     if (e.key === 'Escape') { e.preventDefault(); ssItems = []; ssRender(); }
   }, true);
   box.addEventListener('mousedown', (e) => e.preventDefault());          // keeps the box focused, so the click lands
-  box.addEventListener('click', (e) => { const it = e.target.closest('[data-ss]'); if (it) ssPick(+it.dataset.ss); });
+  box.addEventListener('click', (e) => { const sc = e.target.closest('[data-ss-scope]'); if (sc) { ssSetScope(sc.dataset.ssScope); return; } const it = e.target.closest('[data-ss]'); if (it) ssPick(+it.dataset.ss); });
+  inp.addEventListener('focus', () => { ssScopeShown = true; ssRender(); });
 }
 

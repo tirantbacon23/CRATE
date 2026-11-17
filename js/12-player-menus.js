@@ -1833,7 +1833,7 @@ function showState(kind, which, detail) {
     // troubleshooting path for what's usually just a Google Apps Script
     // cold start.
     timeout: 'The crate took a while to respond — Google Apps Script can be slow to spin up, especially after it\u2019s been idle. Give it another try.' + retryBtnHtml,
-    empty: 'No sleeves match your search.' + describeActiveFilters(),
+    empty: 'No sleeves match your search.' + describeActiveFilters() + (state.query && state.query.replace(/(^|\s)-?[a-z]+:("[^"]*"|\S+)/gi, ' ').trim().length >= 2 ? `<div><button type="button" class="state-msg-add-btn" data-add-q="${escapeHtml(state.query.replace(/(^|\s)-?[a-z]+:("[^"]*"|\S+)/gi, ' ').trim())}">+ Find \u201c${escapeHtml(state.query.replace(/(^|\s)-?[a-z]+:("[^"]*"|\S+)/gi, ' ').trim())}\u201d to add it</button></div>` : ''),          // (1.135.42)
     // Distinct from 'empty' above: that one means "you searched/filtered
     // and nothing matched" — this one means the catalog has literally
     // nothing in it yet (a brand-new spreadsheet, e.g. a friend's first
