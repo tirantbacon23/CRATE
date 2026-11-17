@@ -1118,46 +1118,88 @@ async function aiRenderAlbumsTab(artist, owned, token) {
       <div class="ai-albums-tools"><button type="button" class="ai-link-btn" data-ai-action="toggleAllTypes">${state.artistShowAllTypes ? 'Albums &amp; EPs only' : 'Show everything (singles, comps\u2026)'}</button><span id="aiMbLink"></span></div></div>
     <div id="aiRgGrid" class="ai-album-grid"><p class="ai-empty">Looking up ${escapeHtml(artist)}\u2019s discography on MusicBrainz\u2026</p></div>`;
   const ownedKeys = new Set(owned.map(r => lastfmNormKey(artist, r.title)));
-  const result = await fetchArtistDiscography(artist, ownedKeys, state.artistShowAllTypes);
+  // (1.135.106) MusicBrainz's discography, with Last.fm's albums (and how much each is played) and Discogs' releases laid over it
+  const [result, extra] = await Promise.all([fetchArtistDiscography(artist, ownedKeys, state.artistShowAllTypes), aiMoreOthers(artist)]);
   if (token !== aiBodyToken) return;               // sub-tab or artist changed while that was in flight
   const grid = document.getElementById('aiRgGrid');
   if (!grid) return;
-  if (result.items == null && !result.ambiguous) {   // ambiguous results carry no items either — see the same fix in renderArtistDetail
-    grid.innerHTML = '<div class="ai-note"><p>Couldn\u2019t reach MusicBrainz right now \u2014 try again in a moment.</p><button type="button" class="config-btn" data-ai-action="retryAlbums">Retry</button></div>';
-    return;
-  }
   if (result.ambiguous) {
     aiAmbiguousResult = result;
-    grid.innerHTML = `<div class="ai-note"><p>More than one artist named \u201c${escapeHtml(artist)}\u201d has releases on MusicBrainz \u2014 which one is this?</p>` +
+    grid.innerHTML = `<div class="ai-note"><p>More than one artist named “${escapeHtml(artist)}” has releases on MusicBrainz — which one is this?</p>` +
       result.options.map(opt => {
         const sample = opt.items.slice(0, 3).map(it => it.title).join(', ');
         return `<div class="ai-disambig"><div class="ai-disambig-desc">${escapeHtml(opt.disambiguation || 'No description on MusicBrainz')}</div>
-          <div class="ai-disambig-sample">${opt.items.length} release${opt.items.length === 1 ? '' : 's'} \u2014 e.g. ${escapeHtml(sample)}${opt.items.length > 3 ? ', \u2026' : ''}</div>
+          <div class="ai-disambig-sample">${opt.items.length} release${opt.items.length === 1 ? '' : 's'} — e.g. ${escapeHtml(sample)}${opt.items.length > 3 ? ', …' : ''}</div>
           <button type="button" class="config-btn" data-ai-action="pickMbid" data-mbid="${escapeHtml(opt.mbid)}">Use this one</button></div>`;
       }).join('') + '</div>';
     return;
   }
+  const mbOk = result.items != null;
   const mb = document.getElementById('aiMbLink');
-  if (mb && result.mbid) mb.innerHTML = `<a class="ai-link-btn" href="https://musicbrainz.org/artist/${escapeHtml(result.mbid)}" target="_blank" rel="noopener noreferrer">MusicBrainz \u2197</a>`;
-  if (!result.items.length) {
-    const why = result.mbid ? 'No albums or EPs found on MusicBrainz for this artist.' : `${escapeHtml(artist)} isn\u2019t on MusicBrainz under this name, so there\u2019s no discography to show.`;
+  if (mb && result.mbid) mb.innerHTML = `<a class="ai-link-btn" href="https://musicbrainz.org/artist/${escapeHtml(result.mbid)}" target="_blank" rel="noopener noreferrer">MusicBrainz ↗</a>`;
+  const items = aiMoreMerge(artist, mbOk ? result.items : [], extra.items);
+  if (!items.length) {
+    if (!mbOk) { grid.innerHTML = '<div class="ai-note"><p>Couldn’t reach MusicBrainz right now, and Last.fm and Discogs had nothing either — try again in a moment.</p><button type="button" class="config-btn" data-ai-action="retryAlbums">Retry</button></div>'; return; }
+    const why = result.mbid ? 'No albums or EPs found on MusicBrainz, Last.fm or Discogs for this artist.' : `${escapeHtml(artist)} isn’t on MusicBrainz, Last.fm or Discogs under this name, so there’s no discography to show.`;
     grid.innerHTML = `<div class="ai-note"><p>${why}</p><button type="button" class="config-btn" data-ai-action="manualAdd">+ Add a release manually</button></div>`;
     return;
   }
+  aiMoreItems = items;
   const ownedByKey = new Map(owned.map(r => [lastfmNormKey(artist, r.title), r]));
   const reset = loadArtistMbidChoice(artist) ? `<div class="ai-note ai-note-inline"><button type="button" class="ai-link-btn" data-ai-action="resetMatch">Not the right ${escapeHtml(artist)}? Reset match</button></div>` : '';
-  grid.innerHTML = reset + result.items.map(w => {
+  const bySrc = (s) => items.filter(w => w.srcs.includes(s)).length, have = items.filter(w => ownedByKey.has(lastfmNormKey(artist, w.title))).length;
+  const byPlays = state.aiMoreSort === 'plays' && items.some(w => w.plays);
+  const order = items.map((w, i) => ({ w, i })).sort((a, b) => byPlays ? (b.w.plays || 0) - (a.w.plays || 0) || a.i - b.i : a.i - b.i);
+  const fails = [!mbOk ? 'MusicBrainz' : '', extra.lfErr ? 'Last.fm' : '', extra.dgErr ? 'Discogs' : ''].filter(Boolean);
+  const note = `<div class="ai-more-note">${items.length} release${items.length === 1 ? '' : 's'} · ${have} in your crate · MusicBrainz ${bySrc('MusicBrainz')} · Last.fm ${extra.lf == null ? '–' : bySrc('Last.fm')} · Discogs ${extra.dg == null ? '–' : bySrc('Discogs')}${extra.plays ? ` · ${aiMoreN(extra.plays)} Last.fm plays in all` : ''}${fails.length ? ` · <span class="ai-more-warn">${fails.join(', ')} didn’t answer</span>` : ''}${items.some(w => w.plays) ? ` <button type="button" class="ai-link-btn" data-ai-action="moreSort">${byPlays ? 'Order by year' : 'Most played first'}</button>` : ''}</div>`;
+  grid.innerHTML = reset + note + order.map(({ w, i }) => {
     const match = ownedByKey.get(lastfmNormKey(artist, w.title));
     const cover = match ? aiArtImg(match, 'ai-cover-img')
-      : `<img class="ai-cover-img ai-caa" loading="lazy" alt="" src="https://coverartarchive.org/release-group/${escapeHtml(w.id)}/front-250">`;
-    return `<div class="ai-album ai-rg${match ? ' owned' : ''}" data-rg="${escapeHtml(w.id)}" data-title="${escapeHtml(w.title)}" data-type="${escapeHtml(w.type || '')}" data-year="${escapeHtml(w.year || '')}" tabindex="0"
-        title="${match ? 'In your crate \u2014 click to open' : 'Not in your crate \u2014 click to search Spotify'}">
-      <div class="ai-cover">${cover}${match ? '<span class="ai-owned-badge" title="In your crate">\u25cf</span>' : ''}</div>
+      : w.id ? `<img class="ai-cover-img ai-caa" loading="lazy" alt="" src="https://coverartarchive.org/release-group/${escapeHtml(w.id)}/front-250">`
+      : `<img class="ai-cover-img" loading="lazy" alt="" src="${escapeHtml(w.cover || '')}" onerror="this.style.visibility='hidden'">`;
+    return `<div class="ai-album ai-rg${match ? ' owned' : ''}" data-rg="${escapeHtml(w.id || '')}" data-i="${i}" data-title="${escapeHtml(w.title)}" data-type="${escapeHtml(w.type || '')}" data-year="${escapeHtml(w.year || '')}" tabindex="0"
+        title="${match ? 'In your crate — click to open' : 'Not in your crate — click to search Spotify'}">
+      <div class="ai-cover">${cover}${match ? '<span class="ai-owned-badge" title="In your crate">●</span>' : ''}</div>
       <div class="ai-album-title">${escapeHtml(w.title)}</div>
-      <div class="ai-album-year">${w.year || '\u2014'}${w.type && w.type !== 'Album' ? ` \u00b7 ${escapeHtml(w.type)}` : ''}</div>
+      <div class="ai-album-year">${w.year || '—'}${w.type && w.type !== 'Album' ? ` · ${escapeHtml(w.type)}` : ''}</div>
+      <div class="ai-album-src">${w.plays ? `<b>${aiMoreN(w.plays)}</b> plays · ` : ''}${w.srcs.map(s => ({ MusicBrainz: 'MB', 'Last.fm': 'Last.fm', Discogs: 'Discogs' })[s] || s).join(' · ')}</div>
       ${match ? '' : '<button type="button" class="ai-add-btn" data-ai-action="addRg">+ Add</button>'}
     </div>`;
   }).join('');
+}
+// ----- (1.135.106) More Albums from Last.fm and Discogs too -----
+let aiMoreItems = [];
+const aiMoreMem = new Map();
+const aiMoreN = (n) => n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'K' : String(n);
+async function aiMoreOthers(artist) {
+  const k = artist.toLowerCase(), kept = aiMoreMem.get(k); if (kept && Date.now() - kept.at < 30 * 60e3) return kept;
+  const fa = smFold(artist), sameArtist = (n) => { const x = smFold(n || ''); return !!x && (x === fa || x.includes(fa) || fa.includes(x)); };
+  const lfKey = typeof srchLfKey === 'function' ? srchLfKey() : '';
+  const lf = lfKey ? srchLf({ method: 'artist.gettopalbums', artist, autocorrect: '1', limit: '100' }).then(j => (((j.topalbums || {}).album) || []).filter(x => x && x.name && x.name !== '(null)' && sameArtist((x.artist && x.artist.name) || artist))
+    .map(x => ({ src: 'lf', title: x.name, artist, date: '', type: 'Album', playcount: Number(x.playcount) || 0, cover: ((x.image || []).find(i => i.size === 'extralarge') || (x.image || []).slice(-1)[0] || {})['#text'] || '' }))).catch(e => { if (typeof srchLfFail === 'function') srchLfFail(e); return 'err'; }) : Promise.resolve(null);
+  const dgOn = typeof srchDiscogsOn === 'function' && srchDiscogsOn();
+  const dg = dgOn ? addSrcDiscogs('', { params: { artist } }).then(l => (l || []).filter(r => sameArtist(r.artist))).catch(() => 'err') : Promise.resolve(null);
+  const [a, b] = await Promise.all([lf, dg]);
+  const out = { at: Date.now(), lf: Array.isArray(a) ? a : null, dg: Array.isArray(b) ? b : null, lfErr: a === 'err', dgErr: b === 'err' };
+  out.items = [].concat(out.lf || [], out.dg || []); out.plays = (out.lf || []).reduce((s, x) => s + (x.playcount || 0), 0);
+  if (!out.lfErr && !out.dgErr) aiMoreMem.set(k, out);
+  return out;
+}
+function aiMoreMerge(artist, mbItems, extra) {
+  const all = !!state.artistShowAllTypes, map = new Map(), list = [];
+  (mbItems || []).forEach(w => { const k = lastfmNormKey(artist, w.title); if (map.has(k)) return; const x = Object.assign({}, w, { srcs: ['MusicBrainz'], plays: 0 }); map.set(k, x); list.push(x); });
+  (extra || []).forEach(r => {
+    const name = r.src === 'lf' ? 'Last.fm' : 'Discogs', k = lastfmNormKey(artist, r.title); if (!k || !r.title) return;
+    const cur = map.get(k);
+    if (cur) { if (!cur.srcs.includes(name)) cur.srcs.push(name); if (r.playcount) cur.plays = Math.max(cur.plays, r.playcount); if (!cur.cover && r.cover) cur.cover = r.cover; if (!cur.year && r.date) cur.year = String(r.date).slice(0, 4); if (!cur.r) cur.r = r; return; }
+    const type = r.type || 'Album';
+    if (!all && /single|compil|mixtape|dj-mix|live|bootleg/i.test(type + ' ' + (r.format || ''))) return;          // (albums and EPs only, as MusicBrainz's list is, until "Show everything")
+    if (r.src === 'lf' && !r.playcount) return;          // (Last.fm's never-played entries are mostly misspellings)
+    const x = { id: '', title: r.title, type, year: String(r.date || '').slice(0, 4), srcs: [name], plays: r.playcount || 0, cover: r.cover || '', r };
+    map.set(k, x); list.push(x);
+  });
+  // MusicBrainz's order (by year) with the others by year too; the ones with no year last
+  return list.sort((a, b) => (a.year ? 0 : 1) - (b.year ? 0 : 1) || String(a.year || '').localeCompare(String(b.year || '')));
 }
 
 // ----- Profile (Wikipedia, found through MusicBrainz) -----
@@ -1486,8 +1528,10 @@ function aiAction(action, node, artist) {
     aiExt(artist).profile = null; aiEnsureProfile(artist);
     aiRenderBody(artist);
   } else if (action === 'manualAdd') { openAddModal(); showAddForm({ artist }); }
+  else if (action === 'moreSort') { state.aiMoreSort = state.aiMoreSort === 'plays' ? 'year' : 'plays'; aiRenderBody(artist); }
   else if (action === 'addRg') {
-    const t = node.closest('.ai-rg');
+    const t = node.closest('.ai-rg'), w = aiMoreItems[+t.dataset.i];
+    if (w && !w.id && w.r && typeof srchAddOnline === 'function') { srchAddOnline(Object.assign({}, w.r, { artist: w.r.artist || artist })); return; }          // (1.135.106) one only Last.fm or Discogs knows
     openAddModalForReleaseGroup({ artist, title: t.dataset.title, type: t.dataset.type, releaseDate: t.dataset.year || '', rgId: t.dataset.rg || '' });
   } else if (action === 'readMore') {
     const open = document.getElementById('aiBioText').classList.toggle('expanded');
