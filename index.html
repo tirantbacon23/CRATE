@@ -119,10 +119,38 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <!-- CRATE's own styles, in the head so the page is never drawn without them (from 1.78.0 to 1.90.5 this sat at the very end
      of <body>, so a phone showed the bare, unstyled markup for a moment on every load). After Leaflet's, so ours win. -->
-<link rel="stylesheet" href="css/crate.css?v=1.135.64">
+<link rel="stylesheet" href="css/crate.css?v=1.135.65">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
+<!-- (1.135.65) Loading screen after a refresh: shown at once (its look is here, not in crate.css, so it paints before anything loads), and
+     faded out when the crate's first covers (or rows, or a message) are on screen. Never longer than 25 s. -->
+<div id="bootSplash" role="status" aria-live="polite" style="position:fixed;inset:0;z-index:100000;background:#12161C;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;transition:opacity .35s ease;font-family:'IBM Plex Mono',ui-monospace,monospace">
+  <div style="font:400 64px/1 'Bebas Neue',Impact,sans-serif;letter-spacing:.04em;color:#D6A24C">CRATE</div>
+  <div style="width:160px;height:3px;border-radius:2px;background:#2A313C;overflow:hidden"><i id="bootSplashBar" style="display:block;height:100%;width:35%;background:#D6A24C;border-radius:2px;animation:bootSplashMove 1.2s ease-in-out infinite"></i></div>
+  <div id="bootSplashMsg" style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#8B93A0">Opening your crate…</div>
+  <style>@keyframes bootSplashMove{0%{transform:translateX(-110%)}100%{transform:translateX(320%)}}</style>
+</div>
+<script>
+(function () {
+  var t0 = Date.now(), done = false;
+  function hide() {
+    if (done) return; done = true; var s = document.getElementById('bootSplash'); if (!s) return;
+    s.style.opacity = '0'; s.style.pointerEvents = 'none'; setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 400);
+  }
+  window.crateBootSplashHide = hide;
+  function ready() {
+    if (document.querySelector('.grid .card, .main-track-row, .track-row')) return true;
+    var m = document.getElementById('stateMsg'); if (m && !m.hidden && m.textContent && !/Cataloguing/i.test(m.textContent)) return true;          // empty crate, an error: show it
+    return false;
+  }
+  (function check() {
+    if (done) return; if (ready() || Date.now() - t0 > 25000) { setTimeout(hide, 120); return; }
+    var msg = document.getElementById('bootSplashMsg'); if (msg && Date.now() - t0 > 4000) msg.textContent = 'Still loading your crate…';
+    setTimeout(check, 100);
+  })();
+})();
+</script>
 
 <!-- Auth gate — shown before the app is usable. Only a signed-in Google account
      whose ID token the backend accepts (see apps-script-backend.gs) gets past this.
@@ -2325,72 +2353,72 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
   </div>
 </div>
 
-<script src="js/01-core.js?v=1.135.64"></script>
-<script src="js/02-auth.js?v=1.135.64"></script>
-<script src="js/03-taxonomy-layout.js?v=1.135.64"></script>
-<script src="js/04-obsidian-export.js?v=1.135.64"></script>
-<script src="js/05-init-genres.js?v=1.135.64"></script>
-<script src="js/06-events.js?v=1.135.64"></script>
-<script src="js/07-prefs-fetch.js?v=1.135.64"></script>
-<script src="js/08-tabs-panels.js?v=1.135.64"></script>
-<script src="js/09-descriptors-mood-merge.js?v=1.135.64"></script>
-<script src="js/10-filters-search.js?v=1.135.64"></script>
-<script src="js/11-grid-player.js?v=1.135.64"></script>
-<script src="js/12-player-menus.js?v=1.135.64"></script>
-<script src="js/13-diary-scrobbles-stats.js?v=1.135.64"></script>
-<script src="js/14-artist-playlists.js?v=1.135.64"></script>
-<script src="js/15-shuffle-artist-info.js?v=1.135.64"></script>
-<script src="js/16-tabbar-updatelog.js?v=1.135.64"></script>
-<script src="js/17-match-songs.js?v=1.135.64"></script>
-<script src="js/18-exchange.js?v=1.135.64"></script>
-<script src="js/19-sound.js?v=1.135.64"></script>
-<script src="js/20-export-import.js?v=1.135.64"></script>
-<script src="js/21-addon-genre-page.js?v=1.135.64"></script>
-<script src="js/22-deck.js?v=1.135.64"></script>
-<script src="js/23-timeline-map.js?v=1.135.64"></script>
-<script src="js/24-diary-log.js?v=1.135.64"></script>
-<script src="js/25-tracklist-add.js?v=1.135.64"></script>
-<script src="js/26-layout-dnd.js?v=1.135.64"></script>
-<script src="js/27-tracklist-builder-rym.js?v=1.135.64"></script>
-<script src="js/28-edit-links-youtube.js?v=1.135.64"></script>
-<script src="js/29-lastfm-scrobbling.js?v=1.135.64"></script>
-<script src="js/30-new-releases.js?v=1.135.64"></script>
-<script src="js/31-lastfm-import.js?v=1.135.64"></script>
-<script src="js/32-utils.js?v=1.135.64"></script>
-<script src="js/33-pull-details.js?v=1.135.64"></script>
-<script src="js/34-fill-blanks.js?v=1.135.64"></script>
-<script src="js/35-catalogue-stats.js?v=1.135.64"></script>
-<script src="js/36-galaxy.js?v=1.135.64"></script>
-<script src="js/37-taste.js?v=1.135.64"></script>
-<script src="js/38-ask.js?v=1.135.64"></script>
-<script src="js/39-phone-playback.js?v=1.135.64"></script>
-<script src="js/40-recorded-at.js?v=1.135.64"></script>
-<script src="js/41-playback-sync.js?v=1.135.64"></script>
-<script src="js/42-floating-video.js?v=1.135.64"></script>
-<script src="js/43-map-kin.js?v=1.135.64"></script>
-<script src="js/44-play-source.js?v=1.135.64"></script>
-<script src="js/45-direct-link.js?v=1.135.64"></script>
-<script src="js/46-visualizer.js?v=1.135.64"></script>
-<script src="js/47-lyrics.js?v=1.135.64"></script>
-<script src="js/48-p2p.js?v=1.135.64"></script>
-<script src="js/49-p2p-local.js?v=1.135.64"></script>
-<script src="js/50-social.js?v=1.135.64"></script>
-<script src="js/51-friend-page.js?v=1.135.64"></script>
-<script src="js/52-cover-jobs.js?v=1.135.64"></script>
-<script src="js/53-settings-menu.js?v=1.135.64"></script>
-<script src="js/54-liked.js?v=1.135.64"></script>
-<script src="js/55-song-desc.js?v=1.135.64"></script>
-<script src="js/56-downloads.js?v=1.135.64"></script>
-<script src="js/57-header.js?v=1.135.64"></script>
-<script src="js/58-speed.js?v=1.135.64"></script>
-<script src="js/59-recent.js?v=1.135.64"></script>
-<script src="js/60-browser-rows.js?v=1.135.64"></script>
-<script src="js/61-rym-details.js?v=1.135.64"></script>
-<script src="js/62-format.js?v=1.135.64"></script>
-<script src="js/63-add-sources.js?v=1.135.64"></script>
-<script src="js/64-search-ui.js?v=1.135.64"></script>
-<script src="js/65-layouts.js?v=1.135.64"></script>
-<script src="js/99-boot.js?v=1.135.64"></script>
+<script src="js/01-core.js?v=1.135.65"></script>
+<script src="js/02-auth.js?v=1.135.65"></script>
+<script src="js/03-taxonomy-layout.js?v=1.135.65"></script>
+<script src="js/04-obsidian-export.js?v=1.135.65"></script>
+<script src="js/05-init-genres.js?v=1.135.65"></script>
+<script src="js/06-events.js?v=1.135.65"></script>
+<script src="js/07-prefs-fetch.js?v=1.135.65"></script>
+<script src="js/08-tabs-panels.js?v=1.135.65"></script>
+<script src="js/09-descriptors-mood-merge.js?v=1.135.65"></script>
+<script src="js/10-filters-search.js?v=1.135.65"></script>
+<script src="js/11-grid-player.js?v=1.135.65"></script>
+<script src="js/12-player-menus.js?v=1.135.65"></script>
+<script src="js/13-diary-scrobbles-stats.js?v=1.135.65"></script>
+<script src="js/14-artist-playlists.js?v=1.135.65"></script>
+<script src="js/15-shuffle-artist-info.js?v=1.135.65"></script>
+<script src="js/16-tabbar-updatelog.js?v=1.135.65"></script>
+<script src="js/17-match-songs.js?v=1.135.65"></script>
+<script src="js/18-exchange.js?v=1.135.65"></script>
+<script src="js/19-sound.js?v=1.135.65"></script>
+<script src="js/20-export-import.js?v=1.135.65"></script>
+<script src="js/21-addon-genre-page.js?v=1.135.65"></script>
+<script src="js/22-deck.js?v=1.135.65"></script>
+<script src="js/23-timeline-map.js?v=1.135.65"></script>
+<script src="js/24-diary-log.js?v=1.135.65"></script>
+<script src="js/25-tracklist-add.js?v=1.135.65"></script>
+<script src="js/26-layout-dnd.js?v=1.135.65"></script>
+<script src="js/27-tracklist-builder-rym.js?v=1.135.65"></script>
+<script src="js/28-edit-links-youtube.js?v=1.135.65"></script>
+<script src="js/29-lastfm-scrobbling.js?v=1.135.65"></script>
+<script src="js/30-new-releases.js?v=1.135.65"></script>
+<script src="js/31-lastfm-import.js?v=1.135.65"></script>
+<script src="js/32-utils.js?v=1.135.65"></script>
+<script src="js/33-pull-details.js?v=1.135.65"></script>
+<script src="js/34-fill-blanks.js?v=1.135.65"></script>
+<script src="js/35-catalogue-stats.js?v=1.135.65"></script>
+<script src="js/36-galaxy.js?v=1.135.65"></script>
+<script src="js/37-taste.js?v=1.135.65"></script>
+<script src="js/38-ask.js?v=1.135.65"></script>
+<script src="js/39-phone-playback.js?v=1.135.65"></script>
+<script src="js/40-recorded-at.js?v=1.135.65"></script>
+<script src="js/41-playback-sync.js?v=1.135.65"></script>
+<script src="js/42-floating-video.js?v=1.135.65"></script>
+<script src="js/43-map-kin.js?v=1.135.65"></script>
+<script src="js/44-play-source.js?v=1.135.65"></script>
+<script src="js/45-direct-link.js?v=1.135.65"></script>
+<script src="js/46-visualizer.js?v=1.135.65"></script>
+<script src="js/47-lyrics.js?v=1.135.65"></script>
+<script src="js/48-p2p.js?v=1.135.65"></script>
+<script src="js/49-p2p-local.js?v=1.135.65"></script>
+<script src="js/50-social.js?v=1.135.65"></script>
+<script src="js/51-friend-page.js?v=1.135.65"></script>
+<script src="js/52-cover-jobs.js?v=1.135.65"></script>
+<script src="js/53-settings-menu.js?v=1.135.65"></script>
+<script src="js/54-liked.js?v=1.135.65"></script>
+<script src="js/55-song-desc.js?v=1.135.65"></script>
+<script src="js/56-downloads.js?v=1.135.65"></script>
+<script src="js/57-header.js?v=1.135.65"></script>
+<script src="js/58-speed.js?v=1.135.65"></script>
+<script src="js/59-recent.js?v=1.135.65"></script>
+<script src="js/60-browser-rows.js?v=1.135.65"></script>
+<script src="js/61-rym-details.js?v=1.135.65"></script>
+<script src="js/62-format.js?v=1.135.65"></script>
+<script src="js/63-add-sources.js?v=1.135.65"></script>
+<script src="js/64-search-ui.js?v=1.135.65"></script>
+<script src="js/65-layouts.js?v=1.135.65"></script>
+<script src="js/99-boot.js?v=1.135.65"></script>
 
 </body>
 </html>

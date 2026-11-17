@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.64
+  CURRENT_VERSION: 1.135.65
 
+  1.135.65 — 2026-11-17 — A loading screen when CRATE opens or you refresh: CRATE in gold with a moving bar and "Opening your crate…" ("Still
+          loading your crate…" after 4 s), shown at once, before anything else has loaded, and faded out as soon as the crate's
+          covers (or songs, or a message such as an empty crate) are on screen; never longer than 25 s.
   1.135.64 — 2026-11-17 — In the album view, "Updated from RYM" and "RYM history" leave the header and go to Details (its tab in the Tabs look; a
           Details section at the end in the Column look, which now has one too). The empty stars of your rating are brighter, so
           they show against the background. In the Tabs look, the header band takes its colour from the release's cover (its
