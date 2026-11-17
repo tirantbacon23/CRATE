@@ -6183,3 +6183,5 @@ select.srch-chip { padding: 0 6px; background: var(--bg-elevated); }
 .track-info-field[data-fi-key="title"] .track-info-field-value:hover, .track-info-field[data-fi-key="album"] .track-info-field-value:hover { color: var(--accent); text-decoration: underline; }
 /* (1.135.99) no song matching in Add release: Match songs does it */
 #addTracksMatchBtn, #addMatchStatus { display: none !important; }
+.ss-item.ss-k-online .ss-kind { color: var(--accent); }
+.ss-online-note { padding: 6px 8px; font: 11px 'IBM Plex Mono', monospace; color: var(--text-dim); }

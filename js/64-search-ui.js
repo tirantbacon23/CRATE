@@ -91,12 +91,16 @@ async function srchGenreOnline(genres, text) {
   const mb = mbFetch(`https://musicbrainz.org/ws/2/release-group/?query=${encodeURIComponent(mbq)}&fmt=json&limit=25`, { headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' }, timeoutMs: 9000, retryBusy: 1 })
     .then(async res => { if (!res.ok) throw new Error('HTTP ' + res.status); return ((await res.json())['release-groups'] || []).map(h => ({ src: 'mbg', title: h.title || '', artist: (h['artist-credit'] || []).map(a => a.name + (a.joinphrase || '')).join(''), date: h['first-release-date'] || '', type: h['primary-type'] || 'Album', genre: genres.join(', '), cover: h.id ? `https://coverartarchive.org/release-group/${h.id}/front-250` : '', editions: Number(h.count) || (h.releases || []).length || 0 })); })
     .catch(() => null);
-  const [a, b] = await Promise.all([lf, mb]);
-  if (!a && !b) return null;
-  return out.concat(a || [], b || []);
+  const dg = srchDiscogsOn() ? addSrcDiscogs('', { params: Object.assign({ style: srchDgTag(g) }, text ? { q: text } : {}) })
+    .then(l => l.length ? l : addSrcDiscogs('', { params: Object.assign({ genre: srchDgTag(g) }, text ? { q: text } : {}) })).catch(() => null) : Promise.resolve(null);          // (1.135.100) Discogs: its style (else genre) of that name
+  const [a, b, c] = await Promise.all([lf, mb, dg]);
+  if (!a && !b && !c) return null;
+  return out.concat(a || [], b || [], c || []);
 }
 // (1.135.96) An artist's releases that aren't in the crate (artist:"…"): Last.fm's most played albums of theirs (with your Last.fm key), then
 // their release groups on MusicBrainz (albums, EPs, singles, live…); a genre: beside it narrows MusicBrainz to that tag, plain words both.
+function srchDiscogsOn() { return typeof addSrcActive === 'function' && addSrcActive().includes('dg') && typeof addSrcDiscogs === 'function'; }
+const srchDgTag = (g) => String(g || '').replace(/\b\w/g, c => c.toUpperCase());          // Discogs' styles are written "Proto-Punk", "Indie Rock"
 async function srchArtistOnline(artists, genres, text) {
   const a = artists[0], words = smFold(text).split(' ').filter(Boolean), fits = (r) => !words.length || words.every(w => smFold(r.title).includes(w) || smFold(r.artist).includes(w));
   const lf = srchLfKey() ? srchLf({ method: 'artist.gettopalbums', artist: a, autocorrect: '1', limit: '50' }).then(j => { srchLfErr = '';
@@ -108,10 +112,12 @@ async function srchArtistOnline(artists, genres, text) {
       return ((await res.json())['release-groups'] || []).filter(h => (h['artist-credit'] || []).some(c => smFold(c.name || (c.artist || {}).name || '').includes(fa) || fa.includes(smFold(c.name || '')))).map(h => ({ src: 'mbg', title: h.title || '', artist: (h['artist-credit'] || []).map(c => c.name + (c.joinphrase || '')).join(''), date: h['first-release-date'] || '',
         type: [h['primary-type'], ...((h['secondary-types'] || []))].filter(Boolean).join(' · ') || 'Album', genre: genres.join(', '), cover: h.id ? `https://coverartarchive.org/release-group/${h.id}/front-250` : '', editions: Number(h.count) || 0 })); })
     .catch(() => null);
-  const [x, y] = await Promise.all([lf, mb]);
-  if (!x && !y) return null;
-  // Last.fm's albums are only kept when no genre narrows it (Last.fm can't), the release groups always
-  return [].concat(genres.length ? [] : (x || []), y || []);
+  const fa = smFold(a), dg = srchDiscogsOn() ? addSrcDiscogs('', { params: Object.assign({ artist: a }, genres.length ? { style: srchDgTag(genres[0]) } : {}, text ? { q: text } : {}) })
+    .then(l => l.filter(r => { const ra = smFold(r.artist); return ra && (ra.includes(fa) || fa.includes(ra)); })).catch(() => null) : Promise.resolve(null);          // (1.135.100) Discogs: that artist's releases (another with a similar name left out)
+  const [x, y, z] = await Promise.all([lf, mb, dg]);
+  if (!x && !y && !z) return null;
+  // Last.fm's albums are only kept when no genre narrows it (Last.fm can't), the release groups and Discogs' always
+  return [].concat(genres.length ? [] : (x || []), y || [], z || []);
 }
 function srchOnlineSearch() {
   const parts = srchParts(el.searchInput.value), q = parts.catalogs.length && !parts.artists.length && !parts.genres.length ? `catalog:"${parts.catalogs[0].toUpperCase()}"` : parts.artists.length ? `artist:${parts.artists.join('+')} genre:${parts.genres.join('+')} ${parts.text}`.trim() : parts.genres.length ? `genre:${parts.genres.join('+')} ${parts.text}`.trim() : srchFreeText(el.searchInput.value); clearTimeout(srch.timer);
@@ -163,13 +169,17 @@ function srchCrateItems(q) {
 }
 function srchOnlineItems() { return srch.online.slice(0, 6).map(r => ({ kind: 'online', col: 'online', r, label: r.title, sub: [r.artist, String(r.date || '').slice(0, 4), r.type && r.type !== 'Album' ? r.type : '', srchPopFmt(r.listeners, r) || srchSrcName(r.src)].filter(Boolean).join(' · '), cover: r.cover })); }
 
-function srchItems() { const q = el.searchInput.value, lk = srchLook(); return lk === 'detail' ? srchDetailItems(q) : lk === 'drop' ? srchCrateItems(q).concat(srchOnlineItems()) : ssSuggest(q); }          // (simple: the suggestions as they always were)
-function ssUpdate() { if (srchLook() !== 'simple') srchOnlineSearch(); ssActive = -1; ssRender(); }
+// (1.135.100) The simple look looks online too when your crate has nothing for what's typed, or it reads as a catalogue number (LIB-55838):
+// up to four releases to add, under the suggestions (it showed nothing at all until you went into Add a release)
+function srchSimpleOnline(q) { const t = srchFreeText(q || ''), pp = srchParts(q || ''); if (pp.catalogs.length) return true; if (t.length < 3) return false; return (typeof looksLikeCatno === 'function' && looksLikeCatno(t)) || !ssSuggest(q).length; }
+function srchItems() { const q = el.searchInput.value, lk = srchLook(); return lk === 'detail' ? srchDetailItems(q) : lk === 'drop' ? srchCrateItems(q).concat(srchOnlineItems()) : ssSuggest(q).concat(srchSimpleOnline(q) ? srchOnlineItems().slice(0, 4) : []); }          // (simple: the suggestions as they always were, and releases to add when those are none)
+function ssUpdate() { if (srchLook() !== 'simple' || srchSimpleOnline(el.searchInput.value)) srchOnlineSearch(); ssActive = -1; ssRender(); }
 // (1.135.46) The simple list, as before 1.135.42: what in your crate matches what's typed, by kind. At its foot, the switch to the detailed panel.
 function srchSimpleHtml() {
-  const kindName = { field: 'Field', artist: 'Artist', release: 'Release', track: 'Track', genre: 'Genre', descriptor: 'Descriptor', songdesc: 'Descriptor', label: 'Label', type: 'Type', title: 'Release' };
+  const kindName = { field: 'Field', artist: 'Artist', release: 'Release', track: 'Track', genre: 'Genre', descriptor: 'Descriptor', songdesc: 'Descriptor', label: 'Label', type: 'Type', title: 'Release', online: '+ Add' };
+  const look = srchSimpleOnline(el.searchInput.value) ? (srch.onlineState === 'loading' ? '<div class="ss-online-note">Looking online\u2026</div>' : !ssItems.some(x => x.kind === 'online') && srch.onlineState === 'done' ? `<div class="ss-online-note">${escapeHtml(srch.onlineNote || 'Nothing found online either.')}</div>` : '') : '';
   return ssItems.map((s, i) => `<div class="ss-item ss-k-${s.kind}${i === ssActive ? ' on' : ''}" id="ss-${i}" role="option" aria-selected="${i === ssActive}" data-ss="${i}"><span class="ss-kind">${kindName[s.kind] || ''}</span><span class="ss-label">${escapeHtml(s.label)}</span><span class="ss-sub">${escapeHtml(String(s.sub || ''))}</span></div>`).join('')
-    + `<div class="srch-simple-foot"><button type="button" class="srch-link" data-srch-look="drop" title="Your crate and releases to add from online, with covers, refine chips, recent and saved searches">\u2922 More search</button>${srchSongsBtn()}</div>`;
+    + look + `<div class="srch-simple-foot"><button type="button" class="srch-link" data-srch-look="drop" title="Your crate and releases to add from online, with covers, refine chips, recent and saved searches">\u2922 More search</button>${srchSongsBtn()}</div>`;
 }
 
 function srchRowHtml(s, i) {
@@ -269,7 +279,7 @@ function ssRender() {
   if (!behind && document.activeElement !== inp && !box.contains(document.activeElement)) { srch.keep = false; box.hidden = true; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); return; }
   const lk = srchLook(), det = lk === 'detail';
   ssItems = srchItems(); if (ssActive >= ssItems.length) ssActive = -1;          // (made again each time: online results and the crate's filtering arrive after the typing)
-  if (lk === 'simple' && !ssItems.length) { box.hidden = true; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); return; }          // simple: nothing to suggest, nothing shown
+  if (lk === 'simple' && !ssItems.length && !(srchSimpleOnline(inp.value) && srch.onlineState === 'loading')) { box.hidden = true; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); return; }          // simple: nothing to suggest, nothing shown
   box.classList.toggle('srch-detail', det);
   box.classList.toggle('srch-simple', lk === 'simple');
   box.innerHTML = det ? srchDetailHtml() : lk === 'drop' ? (inp.value.trim() ? srchDropdownHtml() : srchChipsHtml() + srchEmptyHtml() + srchFootHtml()) : srchSimpleHtml();
@@ -393,7 +403,8 @@ function srchPopSort() {
   if (!srchPopSortOn()) { srch.online.sort((a, b) => (a._at || 0) - (b._at || 0)); return; }
   srch.online.forEach((r, i) => { if (r._at == null) r._at = i; });
   const byL = srch.online.some(r => r.listeners);          // Last.fm listeners when there are some; else how many editions MusicBrainz knows (a reissued album is a known one)
-  srch.online.sort((a, b) => byL ? ((b.listeners || -1) - (a.listeners || -1) || a._at - b._at) : ((b.editions || 0) - (a.editions || 0) || a._at - b._at));
+  const pop = (r) => (r.editions || 0) * 400 + (r.have || 0);          // (no listeners: a MusicBrainz edition counts for about as much as 400 Discogs owners)
+  srch.online.sort((a, b) => byL ? ((b.listeners || -1) - (a.listeners || -1) || pop(b) - pop(a) || a._at - b._at) : (pop(b) - pop(a) || a._at - b._at));
 }
 async function srchPopRank(seq, key) {
   const all = srchPopAll(), now = Date.now(), list = srch.online; list.forEach((r, i) => { r._at = i; });
@@ -407,4 +418,4 @@ async function srchPopRank(seq, key) {
   if (failed && !ok) srch.onlineNote = `Last.fm didn't answer (${srchLfErr}): not ranked by listeners`; else if (ok) srchLfErr = '';
   srchPopSave(); srchPopSort(); ssRender();
 }
-function srchPopFmt(n, r) { if (!n && r && r.editions > 1) return `${r.editions} editions`; return !n ? '' : n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'm listeners' : n >= 1e3 ? Math.round(n / 1e3) + 'k listeners' : n + ' listeners'; }
+function srchPopFmt(n, r) { if (!n && r && r.editions > 1) return `${r.editions} editions`; if (!n && r && r.have) return `${r.have >= 1000 ? Math.round(r.have / 1000) + 'k' : r.have} own it on Discogs`; return !n ? '' : n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'm listeners' : n >= 1e3 ? Math.round(n / 1e3) + 'k listeners' : n + ' listeners'; }

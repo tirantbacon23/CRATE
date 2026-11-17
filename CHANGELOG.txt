@@ -17,8 +17,15 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.99
+  CURRENT_VERSION: 1.135.100
 
+  1.135.100 — 2026-11-18 — Search online:
+          · Discogs joins genre: and artist: searches (with your Discogs token, its source ticked): genre:"Proto-Punk" brings its
+            releases of that style (else genre), artist:"…" that artist's releases, a release each, not every pressing. Without
+            Last.fm listener counts they're ranked by how many own it on Discogs ("9k own it on Discogs") and MusicBrainz editions.
+          · The simple search (the plain list of suggestions) looks online too when your crate has nothing for what you type, or
+            it reads as a catalogue number: LIB-55838 now shows its release to add (from Discogs or MusicBrainz) right under the box,
+            instead of nothing until you went into Add a release.
   1.135.99 — 2026-11-18 — Add release no longer matches songs to Spotify (or YouTube): Match songs does that. Gone: the matching while
           you fill in the form and before Save, its status line, the form's "Match songs…" button, and the two "Matching songs when
           adding" toggles in ⚙. New releases still join Match songs' queue (or are matched by themselves in the background, with

@@ -30,18 +30,27 @@ async function addSrcSpotify(q) {
   if (!res.ok) throw new Error('HTTP ' + res.status);
   return (((await res.json()).albums || {}).items || []).filter(Boolean).map(a => ({ src: 'sp', title: a.name || '', artist: (a.artists || []).map(x => x.name).join(', '), date: a.release_date || '', type: addSrcType(a.album_type), cover: (a.images && a.images[0] && a.images[0].url) || '', link: (a.external_urls && a.external_urls.spotify) || '', genre: '', label: '', catalog: '' }));
 }
-async function addSrcDiscogs(q) {
+async function addSrcDiscogs(q, opts) {          // opts (1.135.100): { params: { style, genre, artist… }, type: 'master' } in place of q
   const tok = loadDiscogsToken(); if (!tok) throw new Error('no token');
+  if (opts && opts.params) {
+    const qs = new URLSearchParams(Object.assign({ type: opts.type || 'master', per_page: '40' }, opts.params)).toString();
+    const res = await fetchWithTimeout(`https://api.discogs.com/database/search?${qs}`, { headers: { 'Authorization': 'Discogs token=' + tok } }, 9000);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return addSrcDiscogsMap((await res.json()).results || []);
+  }
   const cat = typeof looksLikeCatno === 'function' && looksLikeCatno(q), cm = /(?:^|\s)(?:catalog|catno|cat):("[^"]+"|\S+)/i.exec(q);          // (1.135.99) a catalogue number: Discogs' own catno search
   const qs = cm ? `catno=${encodeURIComponent(cm[1].replace(/"/g, ''))}` : cat ? `catno=${encodeURIComponent(q.trim())}` : `q=${encodeURIComponent(q)}`;
   const res = await fetchWithTimeout(`https://api.discogs.com/database/search?type=release&per_page=25&${qs}`, { headers: { 'Authorization': 'Discogs token=' + tok } }, 9000);
   if (!res.ok) throw new Error('HTTP ' + res.status);
+  return addSrcDiscogsMap((await res.json()).results || []);
+}
+function addSrcDiscogsMap(results) {
   const seen = new Set();
-  return ((await res.json()).results || []).filter(r => { const k = r.master_id || r.id; if (seen.has(k)) return false; seen.add(k); return true; }).map(r => {
+  return results.filter(r => { const k = r.master_id || r.id; if (seen.has(k)) return false; seen.add(k); return true; }).map(r => {
     const m = /^(.+?)\s+-\s+(.+)$/.exec(r.title || ''), fm = (r.format || []).map(String);
     const type = fm.some(f => /^single$/i.test(f)) ? 'Single' : fm.some(f => /^EP$/i.test(f)) ? 'EP' : fm.some(f => /compilation/i.test(f)) ? 'Compilation' : 'Album';
     const fmt = fm.includes('Vinyl') ? (fm.some(f => /7"/.test(f)) ? 'Vinyl 7"' : fm.some(f => /10"/.test(f)) ? 'Vinyl 10"' : fm.some(f => /12"/.test(f)) && !fm.includes('LP') ? 'Vinyl 12"' : 'Vinyl LP') : fm.includes('CD') ? 'CD' : fm.includes('Cassette') ? 'Cassette' : '';
-    return { src: 'dg', title: m ? m[2] : (r.title || ''), artist: m ? (typeof dgArtist === 'function' ? dgArtist(m[1]) : m[1]) : '', date: String(r.year || ''), type, label: ((r.label || [])[0] || '').replace(/\s*\(\d+\)$/, ''), catalog: r.catno && !/^none$/i.test(r.catno) ? r.catno : '', genre: (r.style || r.genre || []).slice(0, 3).join(', '), cover: r.cover_image || r.thumb || '', link: r.uri ? 'https://www.discogs.com' + r.uri : '', format: fmt };
+    return { src: 'dg', title: m ? m[2] : (r.title || ''), artist: m ? (typeof dgArtist === 'function' ? dgArtist(m[1]) : m[1]) : '', date: String(r.year || ''), type, label: ((r.label || [])[0] || '').replace(/\s*\(\d+\)$/, ''), catalog: r.catno && !/^none$/i.test(r.catno) ? r.catno : '', genre: (r.style || r.genre || []).slice(0, 3).join(', '), have: Number((r.community || {}).have) || 0, cover: r.cover_image || r.thumb || '', link: r.uri ? 'https://www.discogs.com' + r.uri : '', format: fmt };
   });
 }
 const ADD_SRC_FN = { it: addSrcItunes, sp: addSrcSpotify, dg: addSrcDiscogs };
