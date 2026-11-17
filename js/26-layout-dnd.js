@@ -610,7 +610,11 @@ function mbQuoteIfNeeded(v) {
   return /\s/.test(v) ? `"${v.replace(/"/g, '\\"')}"` : v;
 }
 
+// (1.135.99) A catalogue number (EKS 74013, EKS-74013, SST 001, 4AD0106) on its own: looked for as one, written the ways labels do
+function looksLikeCatno(q) { q = String(q || '').trim(); return q.length >= 4 && q.length <= 24 && !/^(19|20)\d{2}$/.test(q) && /^[a-z]{1,8}[\s.\-]?\d[\w.\-\s]{0,14}$/i.test(q) && /\d/.test(q) && !/\s\S+\s/.test(q); }
+function catnoForms(q) { q = String(q).trim().replace(/\s+/g, ' '); const m = /^([a-z]+)[\s.\-]?(.+)$/i.exec(q); return [...new Set([q, m ? `${m[1]} ${m[2]}` : q, m ? `${m[1]}-${m[2]}` : q, m ? `${m[1]}${m[2]}` : q])]; }
 function buildMbSearchQuery(q) {
+  if (looksLikeCatno(q)) return '(' + catnoForms(q).map(f => `catno:"${f.replace(/"/g, '')}"`).join(' OR ') + ')';
   const tokens = tokenizeSearchQuery(q);
   const clauses = [];
   const freeWords = [];
@@ -624,6 +628,8 @@ function buildMbSearchQuery(q) {
         // search, turned into a real Lucene date range MB understands.
         const range = t.value.match(/^(\d{4})-(\d{4})$/);
         clause = range ? `date:[${range[1]}-01-01 TO ${range[2]}-12-31]` : `date:${t.value}`;
+      } else if (mbField === 'catno') {
+        clause = '(' + catnoForms(t.value).map(f => `catno:"${f.replace(/"/g, '')}"`).join(' OR ') + ')';          // (1.135.99) the ways labels write it
       } else {
         clause = `${mbField}:${mbQuoteIfNeeded(t.value)}`;
       }

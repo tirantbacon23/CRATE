@@ -332,7 +332,7 @@ function releaseSearchTextNoTracks(r) {
   const year = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getUTCFullYear() : '';
   const genres = getGenreList(combinedGenreStr(r)).join(' ');
   const canon = artistCanon(r.artist);
-  return `${r.artist} ${canon !== r.artist ? canon + ' ' : ''}${r.title} ${year} ${r.catalog} ${r.descriptor || ''} ${r.rymDescriptors || ''} ${r.scene || ''} ${r.movement || ''} ${genres}`.toLowerCase();
+  return `${r.artist} ${canon !== r.artist ? canon + ' ' : ''}${r.title} ${year} ${r.catalog} ${String(r.catalog || '').replace(/[^a-z0-9]/gi, '')} ${r.descriptor || ''} ${r.rymDescriptors || ''} ${r.scene || ''} ${r.movement || ''} ${genres}`.toLowerCase();
 }
 
 // (1.93.3) Remembered per release: the song part until its tracklist changes, the rest for one search pass (applyFiltersSort bumps
@@ -419,6 +419,7 @@ function searchTokenMatches(r, token) {
   // matching everything or nothing.
   if (!canonicalField) return combinedSearchText(r).includes(`${field}:${value}`.toLowerCase());
 
+  if (canonicalField === 'catalog') { const n = (x) => String(x || '').toLowerCase().replace(/[^a-z0-9]/g, ''), v = n(value); return !!v && n(r.catalog).includes(v); }          // (1.135.99) catalog:eks74013 = EKS-74013
   if (canonicalField === 'year') {
     const year = dateVal(r.releaseDate) !== -Infinity ? new Date(r.releaseDate).getUTCFullYear() : null;
     return numericClauseMatches(year, parseNumericClause(value));

@@ -32,7 +32,9 @@ async function addSrcSpotify(q) {
 }
 async function addSrcDiscogs(q) {
   const tok = loadDiscogsToken(); if (!tok) throw new Error('no token');
-  const res = await fetchWithTimeout(`https://api.discogs.com/database/search?type=release&per_page=25&q=${encodeURIComponent(q)}`, { headers: { 'Authorization': 'Discogs token=' + tok } }, 9000);
+  const cat = typeof looksLikeCatno === 'function' && looksLikeCatno(q), cm = /(?:^|\s)(?:catalog|catno|cat):("[^"]+"|\S+)/i.exec(q);          // (1.135.99) a catalogue number: Discogs' own catno search
+  const qs = cm ? `catno=${encodeURIComponent(cm[1].replace(/"/g, ''))}` : cat ? `catno=${encodeURIComponent(q.trim())}` : `q=${encodeURIComponent(q)}`;
+  const res = await fetchWithTimeout(`https://api.discogs.com/database/search?type=release&per_page=25&${qs}`, { headers: { 'Authorization': 'Discogs token=' + tok } }, 9000);
   if (!res.ok) throw new Error('HTTP ' + res.status);
   const seen = new Set();
   return ((await res.json()).results || []).filter(r => { const k = r.master_id || r.id; if (seen.has(k)) return false; seen.add(k); return true; }).map(r => {

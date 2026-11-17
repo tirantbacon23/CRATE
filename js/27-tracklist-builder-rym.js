@@ -1481,18 +1481,7 @@ async function saveNewAlbum() {
   if (!artist || !title) { flashToast(el.addToast, 'Artist and title are required'); return; }
   if (!(await addDupGuard())) return;      // already in the crate? (see "Duplicate protection when adding")
 
-  let manualTracks = collectTracklistBuilderRows(el.addTracksRows);
-  // A last pass for songs that were typed in (or changed) and haven't been matched yet. It can never get in the way of saving:
-  // it only runs when something has changed since the last run, it is capped at 25 seconds, and any failure just saves what
-  // is in the form.
-  // (1.135.98) Not when new releases are matched by themselves in the background (Match songs › Preferences): it would only make you wait
-  const bgMatch = typeof smPrefs === 'function' && smPrefs().autoMatchNew;
-  if (!bgMatch && manualTracks.length && state.autoMatchOnAdd && manualTracks.some(t => !t.spotifyLink) && addFormSignature() !== addMatchLastSig) {
-    const label = el.addSaveBtn.textContent; el.addSaveBtn.disabled = true; el.addSaveBtn.textContent = 'Matching songs\u2026';
-    try { await Promise.race([autoMatchAddForm(), new Promise(res => setTimeout(res, 25000))]); } catch (e) { console.warn('match before save failed', e); }
-    el.addSaveBtn.textContent = label; addDupRefresh();
-    manualTracks = collectTracklistBuilderRows(el.addTracksRows);
-  }
+  const manualTracks = collectTracklistBuilderRows(el.addTracksRows);          // (1.135.99) no matching before saving: Match songs does it
 
   const payload = {
     action: 'addAlbum', Artist: artist, Title: title, Type: el.addType.value,
@@ -1521,7 +1510,7 @@ async function saveNewAlbum() {
   try {
     const addRes = await postUpdate(payload);
     rymAfterAdd(payload, addRes);
-    { const linked = manualTracks.filter(t => t.spotifyLink).length; flashToast(el.addToast, state.autoMatchOnAdd && linked ? `Added to your crate \u00b7 ${linked} of ${manualTracks.length} songs linked on Spotify` : 'Added to your crate'); }
+    flashToast(el.addToast, 'Added to your crate');
     // (1.135.98) The release goes into the crate at once, from what was saved and the row the sheet gave it, instead of loading the whole
     // sheet again first (seconds, with a big crate); the sheet is read again quietly a little later to settle anything it added.
     const local = addReleaseLocally(payload, addRes);

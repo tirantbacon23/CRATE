@@ -17,8 +17,15 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.98
+  CURRENT_VERSION: 1.135.99
 
+  1.135.99 — 2026-11-18 — Add release no longer matches songs to Spotify (or YouTube): Match songs does that. Gone: the matching while
+          you fill in the form and before Save, its status line, the form's "Match songs…" button, and the two "Matching songs when
+          adding" toggles in ⚙. New releases still join Match songs' queue (or are matched by themselves in the background, with
+          "Match new releases by themselves" on).
+          Search by catalogue number: "EKS 74013", "EKS-74013" or "EKS74013" finds it in your crate (spaces, dashes and dots don't
+          matter, catalog:eks74013 too), and online it's looked up as a catalogue number on MusicBrainz and Discogs, in the ways
+          labels write it, in the Add window's search as well. One that starts with a digit (4AD0106) needs catalog: in front.
   1.135.98 — 2026-11-18 — Adding a release is quicker:
           · It goes into your crate the moment the sheet has saved it, built from what you saved and the row the sheet gave it.
             Before, the whole sheet was read again first (seconds, with a big crate); now that happens quietly a few seconds later.

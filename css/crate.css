@@ -6181,3 +6181,5 @@ select.srch-chip { padding: 0 6px; background: var(--bg-elevated); }
 /* (1.135.93) Track info: the release's title opens its deck */
 .track-info-field[data-fi-key="title"] .track-info-field-value, .track-info-field[data-fi-key="album"] .track-info-field-value { cursor: pointer; }
 .track-info-field[data-fi-key="title"] .track-info-field-value:hover, .track-info-field[data-fi-key="album"] .track-info-field-value:hover { color: var(--accent); text-decoration: underline; }
+/* (1.135.99) no song matching in Add release: Match songs does it */
+#addTracksMatchBtn, #addMatchStatus { display: none !important; }

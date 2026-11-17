@@ -2663,6 +2663,7 @@ function addMatchSummary(result) {
   return (bits.join(' \u00b7 ') || 'No songs to match.') + ' <button type="button" class="ai-link-btn" data-am="review">Review\u2026</button>';
 }
 async function autoMatchAddForm(opts) {
+  return null;          // (1.135.99) matching songs while adding is gone: Match songs does it (new releases join its queue, or are matched by themselves)
   opts = opts || {};
   if (addMatchRun) return addMatchRun;
   const seq = addMatchSeq;
