@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.96
+  CURRENT_VERSION: 1.135.97
 
+  1.135.97 — 2026-11-18 — Group by (and Then by): "Release month" groups by the month a release came out ("March 1979", newest first; one
+          known only to its year sits under the year, after its months), and "Date added" by the month you added it. Year and Decade
+          are now called Release year and Release decade, which is what they always were.
   1.135.96 — 2026-11-18 — Search online: artist:"…" brings up that artist's releases that aren't in your crate: Last.fm's most played
           albums of theirs (with your Last.fm key), then their release groups on MusicBrainz (albums, EPs, singles, live, with
           covers), most popular first as before. Releases you have are left out; another artist with a similar name isn't mixed in.

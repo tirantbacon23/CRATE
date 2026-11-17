@@ -998,6 +998,9 @@ function groupKeysFor(item, by) {
     return genres;
   }
   if (by === 'year') return [dateVal(item.releaseDate) !== -Infinity ? String(new Date(item.releaseDate).getUTCFullYear()) : 'Unknown'];
+  // (1.135.97) by month: "1979-03" (a release known only to the year stays "1979", after its months); and by the month it was added
+  if (by === 'month') { const m = /^(\d{4})(?:-(\d{2}))?/.exec(String(item.releaseDate || '')); return [m ? (m[2] ? `${m[1]}-${m[2]}` : m[1]) : 'Unknown']; }
+  if (by === 'added') { const t = dateVal(item.dateAdded); if (t === -Infinity) return ['Unknown']; const d = new Date(t); return [`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`]; }
   if (by === 'decade') {
     if (dateVal(item.releaseDate) === -Infinity) return ['Unknown'];
     const y = new Date(item.releaseDate).getUTCFullYear();
@@ -1021,14 +1024,15 @@ function groupItems(items, by) {
   });
 
   let sortedKeys = Array.from(map.keys());
-  const numeric = by === 'year' || by === 'decade';
+  const numeric = by === 'year' || by === 'decade' || by === 'month' || by === 'added';
   sortedKeys.sort((a, b) => {
     if (a === 'Unknown') return 1;
     if (b === 'Unknown') return -1;
     return numeric ? b.localeCompare(a) : a.localeCompare(b);
   });
 
-  return sortedKeys.map(k => ({ label: k, items: map.get(k) }));
+  const monthName = (k) => { const m = /^(\d{4})-(\d{2})$/.exec(k); return m ? new Date(+m[1], +m[2] - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : k; };
+  return sortedKeys.map(k => ({ label: by === 'month' || by === 'added' ? monthName(k) : k, items: map.get(k) }));
 }	
 
 // ---- Suggestions as you type in the search box: artists, releases, genres and labels of your crate that match what you are typing, best first.
