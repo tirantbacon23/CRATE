@@ -563,7 +563,7 @@ quickPeekTrackRowHtml = function (item, t) {
 };
 function stlQpTracksPaint(key) {
   if (typeof quickPeekItem === 'undefined' || !quickPeekItem || stlQpKey(quickPeekItem) !== key || !el.albumQuickPeekTracks) return;
-  el.albumQuickPeekTracks.querySelectorAll('.album-quick-peek-track').forEach(row => { const c = row.querySelector('[data-qp-lf]'); if (!c) return; const name = row.dataset.trackName || ''; c.innerHTML = stlQpCellHtml(quickPeekItem, name); c.title = stlQpTitle(quickPeekItem, name); });
+  el.albumQuickPeekTracks.querySelectorAll('.album-quick-peek-track:not(.qp-head)').forEach(row => { const c = row.querySelector('[data-qp-lf]'); if (!c) return; const name = row.dataset.trackName || ''; c.innerHTML = stlQpCellHtml(quickPeekItem, name); c.title = stlQpTitle(quickPeekItem, name); });
 }
 const stlBaseQp2 = openAlbumQuickPeek;
 openAlbumQuickPeek = function (item) {
@@ -571,3 +571,29 @@ openAlbumQuickPeek = function (item) {
   try { if (item && srchLfKey()) { stlWant({ key: stlQpKey(item), artist: item.artist, title: item.title, it: item, r: null, cover: srchItemCover(item) }, 0); stlQpTracksPaint(stlQpKey(item)); } } catch (e) { /* as before */ }
   return r;
 };
+
+// ----- (1.135.114) Column headers over the cover popup's songs, made from a copy of the first row so they sit exactly over its columns -----
+function stlQpHeadPut() {
+  const box = el.albumQuickPeekTracks; if (!box) return;
+  const first = box.querySelector('.album-quick-peek-track:not(.qp-head)'); const old = box.querySelector('.qp-head');
+  if (!first) { if (old) old.remove(); return; }
+  if (old && old.nextElementSibling && (old.nextElementSibling === first || old.nextElementSibling.classList.contains('album-quick-peek-disc'))) return;
+  if (old) old.remove();
+  const h = first.cloneNode(true); h.className = 'album-quick-peek-track qp-head'; h.removeAttribute('data-track-num'); h.removeAttribute('data-track-name'); h.setAttribute('aria-hidden', 'true');
+  h.querySelectorAll('.album-quick-peek-track-details, .album-quick-peek-track-credits').forEach(n => n.remove());
+  const set = (sel, txt, title) => { const n = h.querySelector(sel); if (!n) return; n.textContent = txt; n.className = n.className.split(' ')[0] + ' qp-hcell'; if (title) n.title = title; };
+  const pl = h.querySelector('.album-quick-peek-track-play'); if (pl) { const sp = document.createElement('span'); sp.className = 'album-quick-peek-track-play'; pl.replaceWith(sp); }
+  set('.album-quick-peek-track-num', '#'); set('.album-quick-peek-track-name', 'Song');
+  h.querySelectorAll('button, .lk-qp').forEach(n => { n.style.visibility = 'hidden'; n.tabIndex = -1; });
+  set('.qp-rymbar', 'RYM', 'Rate Your Music rating'); set('.qp-links', 'S·Y', 'Spotify · YouTube link saved');
+  set('.qp-lfp', 'Plays', 'Last.fm plays (hover a song for listeners and yours)'); set('.album-quick-peek-track-time', 'Len');
+  h.querySelectorAll('[data-qp-lf]').forEach(n => n.removeAttribute('data-qp-lf'));
+  ['click', 'dblclick', 'mousedown', 'contextmenu'].forEach(t => h.addEventListener(t, (e) => { e.stopPropagation(); e.preventDefault(); }));
+  const firstHead = box.firstElementChild && box.firstElementChild.classList.contains('album-quick-peek-disc') ? box.firstElementChild : first;
+  box.insertBefore(h, firstHead);
+}
+(function stlQpHeadWatch() {
+  const go = () => { const box = el && el.albumQuickPeekTracks; if (!box) return setTimeout(go, 500);
+    new MutationObserver(() => { try { stlQpHeadPut(); } catch (e) { /* no headers */ } }).observe(box, { childList: true }); };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
+})();

@@ -17,8 +17,10 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.113
+  CURRENT_VERSION: 1.135.114
 
+  1.135.114 — 2026-11-18 — The cover view's popup › Tracks: column headers (#, Song, RYM, S·Y, Plays, Len), made from a copy of the first song
+          row so they sit exactly over its columns; they don't select or play anything.
   1.135.113 — 2026-11-18 — The cover view's popup › Tracks: each song's Last.fm plays on its row, with a bar against the release's most
           played song (hover: listeners, plays and yours), filled in as they're looked up when the popup opens (kept two days).
           The "N plays" on a song now says it's yours (your synced scrobbles), not Last.fm's.

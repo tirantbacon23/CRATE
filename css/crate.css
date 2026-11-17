@@ -6275,3 +6275,9 @@ select.srch-chip { padding: 0 6px; background: var(--bg-elevated); }
 .qp-lfp b { font: 500 10.5px 'IBM Plex Mono', monospace; color: var(--text-dim); font-variant-numeric: tabular-nums; min-width: 4ch; text-align: right; }
 .qp-lfp-bar { width: 24px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; display: block; }
 .qp-lfp-bar i { display: block; height: 100%; background: #7FD1B9; opacity: .8; }
+/* (1.135.114) the cover popup's song column headers */
+.album-quick-peek-track.qp-head { cursor: default; padding-top: 2px; padding-bottom: 4px; border-bottom: 1px solid var(--line); background: none !important; }
+.album-quick-peek-track.qp-head > * { font: 500 9.5px 'IBM Plex Mono', monospace !important; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim) !important; }
+.qp-head .qp-rymbar.qp-hcell { height: auto; background: none; overflow: visible; text-align: left; }
+.qp-head .qp-lfp.qp-hcell { justify-content: flex-end; }
+.qp-head .album-quick-peek-track-time.qp-hcell { text-align: right; }
