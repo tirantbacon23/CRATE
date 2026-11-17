@@ -4552,6 +4552,13 @@ html, body {
 .gx-card div { display: flex; flex-direction: column; gap: 3px; min-width: 0; font: 13px Inter, sans-serif; } .gx-card i { font-style: normal; color: var(--text-dim, #8B93A0); } .gx-card em { font: 10px 'IBM Plex Mono', monospace; color: #F0C26A; font-style: normal; }
 .gx-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; } .gx-acts .gx-primary { border-color: #F0C26A; color: #F0C26A; }
 .gx-h { font: 11px 'IBM Plex Mono', monospace; letter-spacing: .6px; text-transform: uppercase; color: var(--accent, #D6A24C); margin: 12px 0 6px; } .gx-wh { border-top: 1px solid var(--line, #2A313C); padding-top: 12px; }
+.gx-skey { display: flex; flex-direction: column; gap: 10px; }
+.gx-sk-fam b { display: block; font: 400 15px/1.1 'Bebas Neue', Inter, sans-serif; letter-spacing: .04em; margin-bottom: 3px; }
+.gx-sk-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.gx-sk { display: inline-flex; align-items: center; gap: 5px; background: transparent; border: 1px solid var(--line, #2A313C); border-radius: 12px; padding: 2px 8px 2px 5px; color: var(--text, #EDE7DC); font: 12px Inter, sans-serif; cursor: pointer; max-width: 100%; }
+.gx-sk i { width: 10px; height: 10px; border-radius: 50%; flex: none; } .gx-sk em { font-style: normal; color: var(--text-dim, #8B93A0); font-size: 11px; }
+.gx-sk:hover { border-color: var(--text-dim, #8B93A0); } .gx-sk.on { border-color: var(--accent, #D6A24C); background: rgba(214,162,76,0.12); } .gx-sk.off { opacity: 0.5; }
+.gx-sk-clear { background: none; border: 0; color: var(--text-dim, #8B93A0); font: 11px 'IBM Plex Mono', monospace; text-decoration: underline; cursor: pointer; text-transform: none; letter-spacing: 0; margin-left: 6px; }
 .gx-row { width: 100%; display: flex; align-items: center; gap: 8px; background: transparent; border: 0; border-radius: 6px; padding: 4px; color: inherit; text-align: left; cursor: pointer; } .gx-row:hover { background: rgba(255,255,255,0.05); }
 .gx-row img { width: 34px; height: 34px; object-fit: cover; border-radius: 4px; flex: none; } .gx-row span { flex: 1; min-width: 0; display: flex; flex-direction: column; font: 12px Inter, sans-serif; }
 .gx-row b, .gx-row i { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; } .gx-row i { font-style: normal; font-weight: 400; color: var(--text-dim, #8B93A0); }

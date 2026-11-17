@@ -91,12 +91,29 @@ function gxPath(graph, a, b) {
 }
 
 // ----- the layout: each family of genres starts round its own point on a ring, then links pull and crowding pushes until it settles -----
+// (1.135.78) A genre's subgenre: the step just under its family on its first line of parents ("Indie Rock" for Slacker Rock under Rock),
+// the genre itself when it sits right under the family, and the family when the genre is the family.
+function gxSubOf(genre, tax) {
+  let g = String(genre || '').trim(); if (!g) return '';
+  const chain = [g], seen = new Set([gxNorm(g)]);
+  for (let i = 0; i < 12; i++) { const p = gxParents(tax, g)[0]; if (!p || seen.has(gxNorm(p))) break; seen.add(gxNorm(p)); chain.push(p); g = p; }
+  return chain.length >= 2 ? chain[chain.length - 2] : chain[0];
+}
 function gxFamilies(items, tax) {
-  const fam = items.map(it => gxFamily(gxSplit(it.genre)[0] || gxSplit(it.genre2)[0] || '', tax) || 'Unfiled');
+  const first = items.map(it => gxSplit(it.genre)[0] || gxSplit(it.genre2)[0] || '');
+  const fam = first.map(g => gxFamily(g, tax) || 'Unfiled');
   const count = new Map(); fam.forEach(f => count.set(f, (count.get(f) || 0) + 1));
   const order = [...count].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(x => x[0]);
-  return { fam, order, count };
+  // subgenres, each a shade of its family's colour: the biggest nearest the family's own hue, the rest fanned out either side and lighter or darker in turn
+  const sub = first.map((g, i) => (g && gxSubOf(g, tax)) || fam[i]), subCount = new Map(), subFam = new Map();
+  sub.forEach((x, i) => { subCount.set(x, (subCount.get(x) || 0) + 1); if (!subFam.has(x)) subFam.set(x, fam[i]); });
+  const subOrder = [...subCount].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(x => x[0]), subTone = new Map(), perFam = new Map();
+  const STEP = [0, 22, -22, 44, -44, 11, -11, 33, -33, 55, -55];
+  subOrder.forEach(x => { const f = subFam.get(x), k = perFam.get(f) || 0; perFam.set(f, k + 1);
+    subTone.set(x, x === f ? { h: gxHue(f), s: 30, l: 60 } : { h: (gxHue(f) + STEP[k % STEP.length] + 360) % 360, s: 72 - (Math.floor(k / STEP.length) * 10), l: [64, 54, 74][k % 3] }); });
+  return { fam, order, count, sub, subOrder, subCount, subFam, subTone };
 }
+function gxSubColor(name, a) { const t = gx.fams && gx.fams.subTone && gx.fams.subTone.get(name); return t ? `hsla(${t.h},${t.s}%,${t.l}%,${a == null ? 1 : a})` : `hsla(220,8%,50%,${a == null ? 1 : a})`; }
 function gxLayoutInit(items, fams) {
   const N = items.length, R = GX_LEN * Math.sqrt(N) * 1.25, anchor = new Map(), big = fams.order.slice(0, 28);
   big.forEach((f, i) => { const a = (i / big.length) * Math.PI * 2, r = R * (0.55 + 0.45 * ((i % 3) / 2)); anchor.set(f, [Math.cos(a) * r, Math.sin(a) * r]); });
@@ -148,6 +165,7 @@ function gxColor(i) {
   const it = gx.items[i];
   if (gx.color === 'decade') { const y = gxYear(it); if (!y) return 'hsl(220,8%,45%)'; const t = Math.max(0, Math.min(1, (y - 1950) / 75)); return `hsl(${Math.round(260 - t * 230)},70%,${58 + t * 6}%)`; }
   if (gx.color === 'rating' || gx.color === 'rym') { const r = gx.color === 'rating' ? Number(it.rating) || 0 : Number(it.rymRating) || 0; if (!r) return 'hsl(220,8%,38%)'; const t = Math.max(0, Math.min(1, (r - (gx.color === 'rym' ? 2.5 : 1)) / (gx.color === 'rym' ? 1.8 : 4))); return `hsl(${Math.round(210 - t * 172)},${55 + t * 30}%,${44 + t * 18}%)`; }
+  if (gx.color === 'sub' && gx.fams.sub) return gxSubColor(gx.fams.sub[i]);
   return `hsl(${gxHue(gx.fams.fam[i])},62%,62%)`;
 }
 
@@ -205,7 +223,7 @@ function gxSettle() {                                                 // runs th
   if (!gx.keepCam && (L.iter < 40 || L.iter % 30 < 3)) gxFit(true);          // (an update keeps the camera where you left it)
   gxDraw(); gxRenderSide();
   if (!done && gx.open) gx.layoutTimer = setTimeout(gxSettle, 0);
-  if (done) { if (!gx.keepCam) gxFit(true); gx.keepCam = false; gxLabels(); gx.cache.set(gx.key, { fams: gx.fams, graph: gx.graph, layout: gx.layout, pos: gx.pos, labels: gx.labels }); gxDraw(); }
+  if (done) { if (!gx.keepCam) gxFit(true); gx.keepCam = false; gxLabels(); gx.cache.set(gx.key, { fams: gx.fams, graph: gx.graph, layout: gx.layout, pos: gx.pos, labels: gx.labels, subLabels: gx.subLabels }); gxDraw(); }
 }
 function gxSetStatus(t) { const s = gxEl('gxStatus'); if (s) { s.textContent = t; s.hidden = !t; } }
 
@@ -238,6 +256,7 @@ function gxResize() {
 // ----- drawing -----
 function gxLit(i) {                                                   // dimmed by the decade picked or the words typed
   const it = gx.items[i];
+  if (gx.subPick && gx.fams.sub && gx.fams.sub[i] !== gx.subPick) return false;          // (1.135.78) one subgenre picked in the key
   if (gx.decade) { const y = gxYear(it); if (!y || String(Math.floor(y / 10) * 10) !== gx.decade) return false; }
   if (gx.find) { const q = gx.find; if (!(gxNorm(it.title).includes(q) || gxNorm(it.artist).includes(q) || gxNorm(it.genre).includes(q) || gxNorm(it.genre2).includes(q))) return false; }
   return true;
@@ -247,6 +266,8 @@ function gxLabels() {                                                 // a name 
   const sum = new Map();
   gx.fams.fam.forEach((f, i) => { const s = sum.get(f) || { x: 0, y: 0, n: 0 }; s.x += gx.pos[2 * i]; s.y += gx.pos[2 * i + 1]; s.n++; sum.set(f, s); });
   gx.labels = gx.fams.order.slice(0, 18).filter(f => sum.get(f).n >= Math.max(3, gx.items.length * 0.008)).map(f => { const s = sum.get(f); return { f, x: s.x / s.n, y: s.y / s.n, n: s.n }; });
+  const ss = new Map(); (gx.fams.sub || []).forEach((f, i) => { const s = ss.get(f) || { x: 0, y: 0, n: 0 }; s.x += gx.pos[2 * i]; s.y += gx.pos[2 * i + 1]; s.n++; ss.set(f, s); });
+  gx.subLabels = (gx.fams.subOrder || []).slice(0, 36).filter(f => ss.get(f).n >= Math.max(3, gx.items.length * 0.005)).map(f => { const s = ss.get(f); return { f, x: s.x / s.n, y: s.y / s.n, n: s.n, sub: true }; });
 }
 function gxDraw() {
   if (!gx.open) return; const c = gxEl('gxCanvas'); if (!c) return; gxResize();
@@ -290,9 +311,10 @@ function gxDraw() {
   [gx.sel, gx.hover].forEach((i, k) => { if (i < 0) return; ctx.strokeStyle = k ? 'rgba(255,255,255,0.6)' : '#FFFFFF'; ctx.lineWidth = k ? 1 : 2; ctx.beginPath(); ctx.arc(sx[i], sy[i], gxRadius(i) * sc + 4, 0, Math.PI * 2); ctx.stroke(); });
   // names: the families from afar; release titles once you are close
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  if (gx.labels && z * GX_LEN < 60) gx.labels.forEach(L => {
-    const x = (L.x - gx.cam.x) * z + v.w / 2, y = (L.y - gx.cam.y) * z + v.h / 2, fs = Math.max(11, Math.min(22, 9 + Math.sqrt(L.n) * 0.9));
-    ctx.font = `${fs}px 'Bebas Neue', Inter, sans-serif`; ctx.fillStyle = gx.color === 'family' ? `hsla(${gxHue(L.f)},70%,78%,0.85)` : 'rgba(237,231,220,0.75)';
+  const labs = gx.color === 'sub' ? (gx.subPick ? (gx.subLabels || []).filter(L => L.f === gx.subPick) : gx.subLabels) : gx.labels;
+  if (labs && z * GX_LEN < 60) labs.forEach(L => {
+    const x = (L.x - gx.cam.x) * z + v.w / 2, y = (L.y - gx.cam.y) * z + v.h / 2, fs = Math.max(L.sub ? 10 : 11, Math.min(L.sub ? 18 : 22, (L.sub ? 8 : 9) + Math.sqrt(L.n) * 0.9));
+    ctx.font = `${fs}px 'Bebas Neue', Inter, sans-serif`; ctx.fillStyle = L.sub ? gxSubColor(L.f, 0.9) : gx.color === 'family' ? `hsla(${gxHue(L.f)},70%,78%,0.85)` : 'rgba(237,231,220,0.75)';
     ctx.shadowColor = '#000'; ctx.shadowBlur = 6; ctx.fillText(L.f.toUpperCase(), x, y); ctx.shadowBlur = 0;
   });
   if (z * GX_LEN > 70) {
@@ -328,6 +350,7 @@ function gxRenderSide() {
       <div class="gx-acts"><button type="button" class="chip-btn" data-gx="open">Open</button><button type="button" class="chip-btn" data-gx="play">Play</button><button type="button" class="chip-btn" data-gx="from">Wormhole from here</button><button type="button" class="chip-btn" data-gx="to"${gx.from < 0 || gx.from === gx.sel ? ' disabled' : ''}>…to here</button></div>
       <div class="gx-h">Nearest stars</div>${nb.map(({ j, s }) => gxRow(j, `<em class="gx-sim">${Math.round(s * 100)}%</em>`)).join('') || '<p class="gx-dim">Nothing close: this one is out on its own.</p>'}`;
   } else h += `<p class="gx-dim">Every release is a star, placed near what it shares the most with: genres and their parents in your taxonomy, descriptors, scene, label, artist and decade. Rare things in common pull harder than common ones.</p><p class="gx-dim">Click a star to see its neighbours. Pick two to open a <b>wormhole</b>: the smoothest chain of releases from one to the other, to play in order.</p><p class="gx-dim">Drag to move, scroll or pinch to zoom.</p>`;
+  if (gx.color === 'sub' && gx.fams && gx.fams.subOrder && gx.sel < 0) h += gxSubKeyHtml();
   if (gx.from >= 0) {
     h += `<div class="gx-h gx-wh">Wormhole</div>`;
     if (gx.path.length > 1) h += `<p class="gx-dim">${gx.path.length} releases, ${gx.path.length - 1} steps.</p><div class="gx-acts"><button type="button" class="chip-btn gx-primary" data-gx="playpath">Play the wormhole</button><button type="button" class="chip-btn" data-gx="clear">Clear</button></div>${gx.path.map((i, k) => gxRow(i, `<em class="gx-sim">${k + 1}</em>`)).join('')}`;
@@ -336,9 +359,21 @@ function gxRenderSide() {
   }
   side.innerHTML = h;
 }
+// (1.135.78) The key for "Colour: subgenre": each family with its subgenres as swatches; one clicked lights up only its stars and flies there
+function gxSubKeyHtml() {
+  const F = gx.fams, by = new Map(); F.subOrder.forEach(x => { const f = F.subFam.get(x); if (!by.has(f)) by.set(f, []); by.get(f).push(x); });
+  const fams = F.order.filter(f => by.has(f)).slice(0, 14);
+  return `<div class="gx-h">Subgenres${gx.subPick ? ` <button type="button" class="gx-sk-clear" data-gx="subclear">show all</button>` : ''}</div><div class="gx-skey">${fams.map(f => `<div class="gx-sk-fam"><b style="color:hsl(${gxHue(f)},70%,74%)">${escapeHtml(f)}</b><div class="gx-sk-list">${by.get(f).slice(0, 10).map(x => `<button type="button" class="gx-sk${gx.subPick === x ? ' on' : ''}${gx.subPick && gx.subPick !== x ? ' off' : ''}" data-gx-sub="${escapeHtml(x)}" title="${escapeHtml(x)}: ${F.subCount.get(x)} release${F.subCount.get(x) === 1 ? '' : 's'}"><i style="background:${gxSubColor(x)}"></i>${escapeHtml(x === f ? `just ${f}` : x)} <em>${F.subCount.get(x)}</em></button>`).join('')}${by.get(f).length > 10 ? `<span class="gx-dim">+${by.get(f).length - 10} more</span>` : ''}</div></div>`).join('')}</div>`;
+}
+function gxSubPick(name) {
+  gx.subPick = gx.subPick === name ? '' : name; gxRenderSide();
+  const L = gx.subPick && (gx.subLabels || []).find(x => x.f === gx.subPick);
+  if (L) gxFly({ x: L.x, y: L.y, z: Math.max(gx.cam.z, 0.9) }); else if (gx.subPick) { const i = gx.fams.sub.indexOf(gx.subPick); if (i >= 0) gxFlyTo(i, gx.cam.z); else gxDraw(); } else gxDraw();
+}
 function gxSelect(i, fly) { gx.sel = i; gxRenderSide(); if (fly && i >= 0) gxFlyTo(i); else gxDraw(); }
 function gxAct(kind) {
   const it = gx.items[gx.sel];
+  if (kind === 'subclear') { gxSubPick(gx.subPick); return; }
   if (kind === 'open' && it) { closeGalaxy(); openDeck(it); }
   else if (kind === 'play' && it) { flashGlobalToast(`Playing “${it.title}”`); playAlbumReplacingQueue(it); }
   else if (kind === 'from' && gx.sel >= 0) { gx.from = gx.sel; gx.to = -1; gx.path = []; gxRenderSide(); gxDraw(); }
@@ -367,12 +402,13 @@ function gxFindGo() {                                                 // Enter i
   ov.addEventListener('click', (e) => {
     if (e.target === ov || e.target.closest('#gxClose')) { closeGalaxy(); return; }
     const go = e.target.closest('[data-gx-go]'); if (go) { gxSelect(Number(go.dataset.gxGo), true); return; }
+    const sk = e.target.closest('[data-gx-sub]'); if (sk) { gxSubPick(sk.dataset.gxSub); return; }
     const a = e.target.closest('[data-gx]'); if (a && !a.disabled) gxAct(a.dataset.gx);
   });
   ov.addEventListener('input', (e) => { if (e.target.id === 'gxFind') { gx.find = gxNorm(e.target.value); gxDraw(); } });
   ov.addEventListener('keydown', (e) => { if (e.target.id === 'gxFind' && e.key === 'Enter') { e.preventDefault(); gxFindGo(); } });
   ov.addEventListener('change', (e) => {
-    if (e.target.id === 'gxColor') { gx.color = e.target.value; gxDraw(); }
+    if (e.target.id === 'gxColor') { gx.color = e.target.value; if (gx.color !== 'sub') gx.subPick = ''; if (gx.fams && !gx.subLabels && gx.pos) gxLabels(); gxRenderSide(); gxDraw(); }
     else if (e.target.id === 'gxDecade') { gx.decade = e.target.value; gxDraw(); }
     else if (e.target.id === 'gxOnlyShown') { gx.onlyShown = e.target.checked; gx.key = ''; openGalaxy(); }
   });
