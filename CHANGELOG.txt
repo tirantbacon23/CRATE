@@ -17,8 +17,10 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.107
+  CURRENT_VERSION: 1.135.108
 
+  1.135.108 — 2026-11-18 — Search: every release it shows has its release date, as much as is known ("14 Mar 1991", "Mar 1991" or "1991"):
+          in your crate and online, in the simple and drop lists, the detailed grid (which had none) and the songs panel and card.
   1.135.107 — 2026-11-18 — Artist page › More albums: a Retry beside "… didn't answer" asks every source again.
   1.135.106 — 2026-11-18 — Artist page › More albums: from MusicBrainz, Last.fm and Discogs, merged by title (a deluxe edition counts as the
           album). Each release says which sources know it and how much it's played on Last.fm; a line on top counts them per source,

@@ -142,7 +142,7 @@ function stlAHtml(key) {
 }
 function stlPanelHtml(subj, mode) {
   const d = stl.data.get(subj.key) || { state: 'loading', songs: [], rel: {}, subj }, sb = d.subj || subj, it = sb.it, r = sb.r || {};
-  const yr = String((it ? it.releaseDate : r.date) || '').slice(0, 4), lab = it ? it.label : r.label, cat = it ? (/^CRT-\d+$/.test(it.catalog || '') ? '' : it.catalog) : r.catalog;
+  const yr = stlDate(it ? it.releaseDate : r.date), lab = it ? it.label : r.label, cat = it ? (/^CRT-\d+$/.test(it.catalog || '') ? '' : it.catalog) : r.catalog;
   const sm = d.songs.length ? stlSum(d) : null, rel = d.rel || {};
   const L = rel.l != null ? rel.l : null, P = rel.p != null ? rel.p : null;
   const k = (lbl, v, sub, you) => `<div class="stl-k"><span>${lbl}</span><b${you ? ' class="stl-you"' : ''}>${v}</b>${mode === 'c' ? `<em>${sub || '&nbsp;'}</em>` : ''}</div>`;
@@ -291,3 +291,23 @@ initSearchSuggest = function () {
   box.addEventListener('mouseover', stlHover);
   inp.addEventListener('keydown', stlKey, true);
 };
+
+// ----- (1.135.108) Release dates on every release the search shows: "14 Mar 1991", "Mar 1991" or "1991", whichever is known -----
+const STL_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function stlDate(d) {
+  const m = String(d || '').trim().match(/^(\d{4})(?:[-/.](\d{1,2})(?:[-/.](\d{1,2}))?)?/); if (!m) return '';
+  const mo = m[2] ? +m[2] : 0, dy = m[3] ? +m[3] : 0;
+  return (mo >= 1 && mo <= 12 ? (dy >= 1 && dy <= 31 ? dy + ' ' : '') + STL_MON[mo - 1] + ' ' : '') + m[1];
+}
+function stlDateSub(s) {
+  if (!s) return;
+  if (s.kind === 'release') {
+    const it = s.it || state.raw.find(r => String(r.row) === String(s.row)); if (!it) return;
+    const d = stlDate(it.releaseDate); if (d) s.sub = [it.artist, d].filter(Boolean).join(' · ');
+  } else if (s.kind === 'online' && s.r) {
+    const r = s.r, d = stlDate(r.date);
+    s.sub = [r.artist, d, s.col !== 'grid' && r.type && r.type !== 'Album' ? r.type : '', srchPopFmt(r.listeners, r) || (s.col !== 'grid' ? srchSrcName(r.src) : '')].filter(Boolean).join(' · ');
+  }
+}
+const stlBaseItems = srchItems;
+srchItems = function () { const a = stlBaseItems.apply(this, arguments); try { a.forEach(stlDateSub); } catch (e) { /* as they were */ } return a; };
