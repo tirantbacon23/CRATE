@@ -160,7 +160,8 @@ function stlPanelHtml(subj, mode) {
 // Repaint every place showing this release (the rest of the dropdown stays as it is)
 function stlPaint(key) {
   const id = stlId(key), d = stl.data.get(key); if (!d) return;
-  document.querySelectorAll(`[data-stl="${id}"]`).forEach(n => { n.innerHTML = n.dataset.stlMode === 'a' ? stlAHtml(key) : n.dataset.stlMode === 'q' ? stlQpHtml(key) : stlPanelHtml(d.subj, n.dataset.stlMode); });
+  if (typeof stlIsDown === 'function' && stlIsDown()) { stlPaintHeld.add(key); return; }          // (1.135.118) a button held on it: once it's let go
+  document.querySelectorAll(`[data-stl="${id}"]`).forEach(n => { const h = n.dataset.stlMode === 'a' ? stlAHtml(key) : n.dataset.stlMode === 'q' ? stlQpHtml(key) : stlPanelHtml(d.subj, n.dataset.stlMode); if (n._stlH !== h) { n._stlH = h; n.innerHTML = h; } });          // (unchanged: left alone)
   try { stlQpTracksPaint(key); } catch (e) { /* the popup's songs as they were */ }
 }
 
@@ -238,6 +239,7 @@ srchDetailHtml = function () {
 // ----- clicks, keys and the mouse -----
 const stlBaseRender = ssRender;
 ssRender = function () {
+  if (typeof stlIsDown === 'function' && stlIsDown()) { stlHeld = true; return; }          // (1.135.118) not under a held button: once it's let go
   stlBaseRender.apply(this, arguments);
   const box = document.getElementById('searchSuggest'); if (!box) return;
   box.classList.toggle('stl-wide', stlWide() && !!el.searchInput.value.trim());
@@ -273,9 +275,15 @@ function stlKey(e) {
   if (e.key === 'ArrowRight' && !open && inp.selectionStart === inp.value.length) { e.preventDefault(); stlToggleKey(sj.key, true); }
   else if (e.key === 'ArrowLeft' && open) { e.preventDefault(); stlToggleKey(sj.key, false); }
 }
+// (1.135.118) The panel beside the list follows the mouse only once it has rested on a row a moment: on the way across the list to the
+// panel, the mouse passed over other rows and the panel kept changing to them.
+let stlHoverT = 0;
 function stlHover(e) {
   if (!stlWide()) return;
-  const row = e.target.closest('#searchSuggest [data-ss]'); if (!row) return;
+  const row = e.target.closest('#searchSuggest [data-ss]'); clearTimeout(stlHoverT); if (!row) return;
+  stlHoverT = setTimeout(() => { if (row.isConnected && row.matches(':hover')) stlHoverNow(row); }, 220);
+}
+function stlHoverNow(row) {
   const i = +row.dataset.ss; if (i === ssActive) return;
   const s = ssItems[i]; if (!s || !(s.kind === 'release' || s.kind === 'online' || s.kind === 'track') || !stlSubj(s)) return;
   const box = document.getElementById('searchSuggest');
@@ -433,7 +441,7 @@ function stlSortChange(e) {
   ssRender(); el.searchInput.focus({ preventScroll: true });
 }
 const stlBaseInit2 = initSearchSuggest;
-initSearchSuggest = function () { stlBaseInit2.apply(this, arguments); const box = document.getElementById('searchSuggest'); if (box && !box.dataset.stlSort) { box.dataset.stlSort = '1'; box.addEventListener('change', stlSortChange); } };
+initSearchSuggest = function () { stlBaseInit2.apply(this, arguments); const box = document.getElementById('searchSuggest'); if (box && !box.dataset.stlSortInit) { box.dataset.stlSortInit = '1'; box.addEventListener('change', stlSortChange); } };
 
 
 // ----- (1.135.109) The same card on its own, over the page: a release on the artist page's More albums that isn't in your crate -----
@@ -499,10 +507,23 @@ srchPopSort = function () { if (srch.online.some(r => !r.date)) { stlDatesApply(
 
 // (1.135.111) Redraws from lookups finishing in the background wait while the mouse is down on the menu (a redraw between press and
 // release swallowed the click) and come at most every 250 ms.
-let stlMouseDown = false, stlRenderT = 0;
-function stlRenderSoon() { clearTimeout(stlRenderT); stlRenderT = setTimeout(() => { if (stlMouseDown) return stlRenderSoon(); ssRender(); }, 250); }
-document.addEventListener('mousedown', (e) => { if (e.target.closest && e.target.closest('#searchSuggest')) stlMouseDown = true; }, true);
-document.addEventListener('mouseup', () => { setTimeout(() => { stlMouseDown = false; }, 0); }, true);
+// (1.135.118) …and every other redraw of the menu too (the search's own, when online results arrive, and the songs panels filling in):
+// held until the button is let go, then done once. The hold ends by itself after 1.5 s (a button let go outside the window never
+// says so, and before this the menu then never drew again).
+let stlRenderT = 0, stlDownAt = 0, stlHeld = false;
+const stlPaintHeld = new Set();
+function stlIsDown() { return !!stlDownAt && Date.now() - stlDownAt < 1500; }
+function stlRelease() {
+  if (!stlDownAt) return; stlDownAt = 0;
+  setTimeout(() => {          // (after the click the release belongs to has been handled)
+    if (stlHeld) { stlHeld = false; try { ssRender(); } catch (e) { /* next time */ } }
+    const ks = [...stlPaintHeld]; stlPaintHeld.clear(); ks.forEach(k => { try { stlPaint(k); } catch (e) { /* next time */ } });
+  }, 0);
+}
+function stlRenderSoon() { clearTimeout(stlRenderT); stlRenderT = setTimeout(() => ssRender(), 250); }
+document.addEventListener('mousedown', (e) => { if (e.target.closest && e.target.closest('#searchSuggest, .stl-pop-ov')) { stlDownAt = Date.now(); setTimeout(() => { if (stlIsDown() === false && stlDownAt) stlRelease(); }, 1600); } }, true);
+['mouseup', 'pointercancel', 'dragend'].forEach(t => document.addEventListener(t, stlRelease, true));
+window.addEventListener('blur', stlRelease);
 
 
 // ----- (1.135.112) The cover view's popup › Listens: Last.fm's numbers for the release and each song (listeners, plays, yours) -----

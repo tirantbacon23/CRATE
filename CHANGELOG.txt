@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.117
+  CURRENT_VERSION: 1.135.118
 
+  1.135.118 — 2026-11-18 — Search menu: no click in it did anything since 1.135.109. The search box carried a "set up once" mark named like the
+          songs' Sort buttons, so every click in the menu was read as a sort click and dropped; renamed. Also: nothing in the menu is
+          redrawn while a mouse button is held on it (online results arriving, the songs panels filling in): it waits until the button
+          is let go, so a slow click lands; that hold ends by itself after 1.5 s (a button let go outside the window left the menu never
+          drawing again). The panel beside the drop list follows the mouse only once it rests on a row, so crossing the list to the
+          panel no longer switches it.
   1.135.117 — 2026-11-18 — Themes (⚙ › Settings › Look…): CRATE, Black, Paper (light), Night blue, High contrast, and From releases; your own
           accent (six or any colour); Paper when the computer is in light mode. From releases: the colours of what's playing (fading
           over a second as releases change) or of one you pin (right-click a release › Use as theme; the last six are kept to go back
