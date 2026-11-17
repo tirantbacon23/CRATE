@@ -74,7 +74,8 @@ function srchParts(raw) {
   let terms = []; try { terms = mergeGenrePhrases(tokenizeSearchQuery(String(raw || '').toLowerCase())); } catch (e) { terms = []; }
   const genres = terms.filter(t => !t.negate && t.value && t.field && SEARCH_FIELD_ALIASES[t.field.toLowerCase()] === 'genre').map(t => t.value.trim()).filter(Boolean);
   const text = terms.filter(t => !t.field && !t.negate && t.value).map(t => t.value).join(' ').trim();
-  return { genres, text };
+  const artists = terms.filter(t => !t.negate && t.value && t.field && SEARCH_FIELD_ALIASES[t.field.toLowerCase()] === 'artist').map(t => t.value.trim()).filter(Boolean);          // (1.135.96)
+  return { genres, text, artists };
 }
 // Releases of a genre that aren't in the crate: Last.fm's most played albums with that tag (with your Last.fm key), then MusicBrainz's
 // albums tagged with it; the plain words, when there are some, narrow both.
@@ -93,9 +94,27 @@ async function srchGenreOnline(genres, text) {
   if (!a && !b) return null;
   return out.concat(a || [], b || []);
 }
+// (1.135.96) An artist's releases that aren't in the crate (artist:"…"): Last.fm's most played albums of theirs (with your Last.fm key), then
+// their release groups on MusicBrainz (albums, EPs, singles, live…); a genre: beside it narrows MusicBrainz to that tag, plain words both.
+async function srchArtistOnline(artists, genres, text) {
+  const a = artists[0], words = smFold(text).split(' ').filter(Boolean), fits = (r) => !words.length || words.every(w => smFold(r.title).includes(w) || smFold(r.artist).includes(w));
+  const lf = srchLfKey() ? srchLf({ method: 'artist.gettopalbums', artist: a, autocorrect: '1', limit: '50' }).then(j => { srchLfErr = '';
+    return (((j.topalbums || {}).album) || []).filter(x => x && x.name && x.name !== '(null)').map(x => ({ src: 'lf', title: x.name, artist: (x.artist && x.artist.name) || a, date: '', type: 'Album', listeners: 0, playcount: Number(x.playcount) || 0,
+      cover: ((x.image || []).find(i => i.size === 'extralarge') || (x.image || []).slice(-1)[0] || {})['#text'] || '' })).filter(fits); }).catch(e => { srchLfFail(e); return null; }) : Promise.resolve(null);
+  const mbq = `artist:"${a.replace(/"/g, '')}"` + (genres.length ? ' AND ' + genres.map(x => `tag:"${x.replace(/"/g, '')}"`).join(' AND ') : '') + (text ? ` AND (${text.replace(/[()"]/g, ' ')})` : '');
+  const mb = mbFetch(`https://musicbrainz.org/ws/2/release-group/?query=${encodeURIComponent(mbq)}&fmt=json&limit=50`, { headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' }, timeoutMs: 9000, retryBusy: 1 })
+    .then(async res => { if (!res.ok) throw new Error('HTTP ' + res.status); const fa = smFold(a);
+      return ((await res.json())['release-groups'] || []).filter(h => (h['artist-credit'] || []).some(c => smFold(c.name || (c.artist || {}).name || '').includes(fa) || fa.includes(smFold(c.name || '')))).map(h => ({ src: 'mbg', title: h.title || '', artist: (h['artist-credit'] || []).map(c => c.name + (c.joinphrase || '')).join(''), date: h['first-release-date'] || '',
+        type: [h['primary-type'], ...((h['secondary-types'] || []))].filter(Boolean).join(' · ') || 'Album', genre: genres.join(', '), cover: h.id ? `https://coverartarchive.org/release-group/${h.id}/front-250` : '', editions: Number(h.count) || 0 })); })
+    .catch(() => null);
+  const [x, y] = await Promise.all([lf, mb]);
+  if (!x && !y) return null;
+  // Last.fm's albums are only kept when no genre narrows it (Last.fm can't), the release groups always
+  return [].concat(genres.length ? [] : (x || []), y || []);
+}
 function srchOnlineSearch() {
-  const parts = srchParts(el.searchInput.value), q = parts.genres.length ? `genre:${parts.genres.join('+')} ${parts.text}`.trim() : srchFreeText(el.searchInput.value); clearTimeout(srch.timer);
-  if (!parts.genres.length && q.length < 3) { srch.online = []; srch.onlineState = 'idle'; srch.onlineQ = ''; return; }
+  const parts = srchParts(el.searchInput.value), q = parts.artists.length ? `artist:${parts.artists.join('+')} genre:${parts.genres.join('+')} ${parts.text}`.trim() : parts.genres.length ? `genre:${parts.genres.join('+')} ${parts.text}`.trim() : srchFreeText(el.searchInput.value); clearTimeout(srch.timer);
+  if (!parts.genres.length && !parts.artists.length && q.length < 3) { srch.online = []; srch.onlineState = 'idle'; srch.onlineQ = ''; return; }
   if (q === srch.onlineQ && srch.onlineState !== 'error') return;
   srch.onlineState = 'loading'; const seq = ++srch.seq;
   srch.timer = setTimeout(async () => {
@@ -106,7 +125,7 @@ function srchOnlineSearch() {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       return ((await res.json()).releases || []).map(h => { const rg = h['release-group'] || {}; return { src: 'mb', hit: h, title: h.title || '', artist: (h['artist-credit'] || []).map(a => a.name + (a.joinphrase || '')).join(''), date: h.date || '', type: rg['primary-type'] || 'Album', catalog: ((h['label-info'] || [])[0] || {})['catalog-number'] || '', cover: rg.id ? `https://coverartarchive.org/release-group/${rg.id}/front-250` : '' }; });
     };
-    const jobs = parts.genres.length ? [srchGenreOnline(parts.genres, parts.text)] : act.map(k => (k === 'mb' ? mb() : ADD_SRC_FN[k](q)).catch(() => null));
+    const jobs = parts.artists.length ? [srchArtistOnline(parts.artists, parts.genres, parts.text)] : parts.genres.length ? [srchGenreOnline(parts.genres, parts.text)] : act.map(k => (k === 'mb' ? mb() : ADD_SRC_FN[k](q)).catch(() => null));
     const lists = await Promise.all(jobs); if (seq !== srch.seq) return;
     const seen = new Set(), out = []; let owned = 0, failed = 0;
     lists.forEach(l => { if (!l) { failed++; return; } l.forEach(r => { const k = dupKey(r.artist, r.title); if (!k || seen.has(k)) return; seen.add(k);
@@ -115,7 +134,7 @@ function srchOnlineSearch() {
     srch.online = out.slice(0, 30); srch.onlineState = failed === lists.length ? 'error' : 'done';
     srch.onlineNote = srch.onlineState === 'error' ? 'No source answered.' : !out.length ? 'Nothing more found online.' : owned ? `${owned} you have left out` : '';
     const lfKey = srchLfKey();
-    if (lfKey && parts.genres.length && srchLfErr) srch.onlineNote = `Last.fm didn't answer (${srchLfErr})`;
+    if (lfKey && (parts.genres.length || parts.artists.length) && srchLfErr) srch.onlineNote = `Last.fm didn't answer (${srchLfErr})`;
     if (!lfKey && out.length) { srch.onlineNote = (srch.onlineNote ? srch.onlineNote + ' · ' : '') + 'No Last.fm API key in this browser (⚙ › Last.fm scrobbling, or the Last.fm import): ranked by editions on MusicBrainz'; srchPopSort(); }
     ssRender();
     if (lfKey && out.length) srchPopRank(seq, lfKey);
@@ -184,7 +203,8 @@ function srchEmptyHtml() {
 }
 function srchOnlineStatus() {
   const pp = srchParts(el.searchInput.value);
-  if (!pp.genres.length && (!srchFreeText(el.searchInput.value) || srchFreeText(el.searchInput.value).length < 3)) return 'Type an artist or album to look online.';
+  if (!pp.genres.length && !pp.artists.length && (!srchFreeText(el.searchInput.value) || srchFreeText(el.searchInput.value).length < 3)) return 'Type an artist or album to look online.';
+  if (pp.artists.length && srch.onlineState === 'done' && !srch.onlineNote) return `${pp.artists[0]}'s releases not in your crate${srchLfKey() ? ', most played on Last.fm first' : ''}.`;
   if (pp.genres.length && srch.onlineState === 'done' && srchLfErr && srchLfKey()) return `Last.fm didn't answer (${srchLfErr}): only MusicBrainz here.`;
   if (pp.genres.length && srch.onlineState === 'done' && !srch.onlineNote) return `Releases tagged ${pp.genres.join(' + ')}${typeof loadLastfmCreds === 'function' && (loadLastfmCreds() || {}).apiKey ? ', most played on Last.fm first' : ''}.`;
   if (srch.onlineState === 'loading') return 'Looking…';

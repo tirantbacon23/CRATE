@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.95
+  CURRENT_VERSION: 1.135.96
 
+  1.135.96 — 2026-11-18 — Search online: artist:"…" brings up that artist's releases that aren't in your crate: Last.fm's most played
+          albums of theirs (with your Last.fm key), then their release groups on MusicBrainz (albums, EPs, singles, live, with
+          covers), most popular first as before. Releases you have are left out; another artist with a similar name isn't mixed in.
+          A genre: beside it narrows the MusicBrainz ones to that tag, plain words narrow both (artist:"The Stooges" live).
   1.135.95 — 2026-11-18 — One Last.fm key for everything. Scrobbling (⚙ › Last.fm scrobbling) and the Last.fm import each kept their own
           API key, and search, similar artists, the sound map and Scrobbles' "Not in crate" only read the import's: a key saved for
           scrobbling left them saying there was none. They now use the import's key, else the scrobbling one (and its signed-in
