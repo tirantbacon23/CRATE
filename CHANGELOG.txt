@@ -17,8 +17,10 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.58
+  CURRENT_VERSION: 1.135.59
 
+  1.135.59 — 2026-11-17 — A release opened from the search (any of its three looks) no longer closes the search: it waits behind the release,
+          and when you close the release you're back in it, with what you typed and its results.
   1.135.58 — 2026-11-17 — In the album view's songs, a song's title keeps its room: its descriptor chips sit after it and give way first. They
           used to take the whole width, cutting a title with chips down to a few letters ("Sun King" showed as "Su…").
   1.135.57 — 2026-11-17 — The descriptor suggestions ("Similar to energetic…") no longer stay floating at the top left of the page: they show

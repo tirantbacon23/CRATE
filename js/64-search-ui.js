@@ -200,7 +200,9 @@ function srchDetailHtml() {
 
 function ssRender() {
   const box = document.getElementById('searchSuggest'), inp = el.searchInput; if (!box || !inp) return;
-  if (document.activeElement !== inp && !box.contains(document.activeElement)) { box.hidden = true; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); return; }
+  const behind = srch.keep && el.deckOverlay && el.deckOverlay.classList.contains('open');
+  box.classList.toggle('srch-behind', !!behind);
+  if (!behind && document.activeElement !== inp && !box.contains(document.activeElement)) { srch.keep = false; box.hidden = true; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); return; }
   const lk = srchLook(), det = lk === 'detail';
   ssItems = srchItems(); if (ssActive >= ssItems.length) ssActive = -1;          // (made again each time: online results and the crate's filtering arrive after the typing)
   if (lk === 'simple' && !ssItems.length) { box.hidden = true; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); return; }          // simple: nothing to suggest, nothing shown
@@ -214,7 +216,7 @@ function ssPick(i) {
   const s = ssItems[i], inp = el.searchInput; if (!s) return;
   srchRemember(inp.value);
   if (s.kind === 'online') { srchAddOnline(s.r); return; }
-  if (s.kind === 'release') { const it = s.it || state.raw.find(r => String(r.row) === String(s.row)); inp.blur(); if (it) openDeck(it); return; }
+  if (s.kind === 'release') { const it = s.it || state.raw.find(r => String(r.row) === String(s.row)); if (it) { srch.keep = true; inp.blur(); openDeck(it); ssRender(); } else inp.blur(); return; }          // (1.135.59) the search stays open behind the release
   if (s.kind === 'track' && s.it && typeof showSongInCatalogue === 'function') { inp.blur(); showSongInCatalogue(s.it, s.label); return; }
   inp.value = inp.value.slice(0, s.from) + s.insert; inp.setSelectionRange(inp.value.length, inp.value.length);
   inp.dispatchEvent(new Event('input')); inp.focus();
@@ -267,3 +269,5 @@ function initSearchSuggest() {
   // ⚙ Settings → Search looks like
   document.querySelectorAll('[data-search-look]').forEach(b => { b.setAttribute('aria-pressed', String(b.dataset.searchLook === srchLook())); b.addEventListener('click', (ev) => { ev.stopPropagation(); srchLookSet(b.dataset.searchLook); }); });
 }
+// (1.135.59) A release opened from the search: the search waits behind it, and is back (with what you typed) when you close the release.
+function srchAfterDeckClose() { if (!srch.keep) return; srch.keep = false; const inp = el.searchInput; if (inp) { inp.focus({ preventScroll: true }); ssRender(); } }

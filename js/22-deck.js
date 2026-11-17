@@ -99,6 +99,7 @@ function openDeck(item) {
 
 function closeDeck() {
   el.deckOverlay.classList.remove('open');
+  if (typeof srchAfterDeckClose === 'function') setTimeout(srchAfterDeckClose, 0);          // (1.135.59) back to the search it was opened from
   document.body.style.overflow = '';
   activeItem = null;
   resetRemoveBtn();

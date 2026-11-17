@@ -5747,3 +5747,6 @@ select.srch-chip { padding: 0 6px; background: var(--bg-elevated); }
    "Sun King" down to "Su…") */
 .track-row-wrap .track-info-main > .sd-chips:not(.sd-empty) { display: inline-flex; flex-wrap: nowrap; width: auto; flex: 0 100 auto; min-width: 0; overflow: hidden; margin: 0 0 0 4px; }
 .track-row-wrap .track-info-main > .track-name { flex: 0 0 auto; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* (1.135.59) the search, waiting behind a release opened from it */
+#searchSuggest.srch-behind { z-index: 40; pointer-events: none; }
