@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.101
+  CURRENT_VERSION: 1.135.102
 
+  1.135.102 — 2026-11-18 — Search online: a search that came back empty is tried again. The search menu kept its last online answer for the
+          same words for good, so one that was empty (a source not answering, say) stayed "Nothing more found online" while Add a
+          release found it. Now an answer is kept only when every source answered, and for 2 minutes; and the menu says which
+          sources didn't answer ("Discogs didn't answer"), as Add a release does. A catalogue number is also asked of Discogs in
+          its plain search beside its catalogue-number one (they're written "LIB 55838", "LIB-55838"…), and of MusicBrainz as
+          plain words when it has nothing under that number.
   1.135.101 — 2026-11-18 — Search online: what Add a release finds shows in the search menu too.
           · A catalogue number typed plainly (LIB-55838) asks only MusicBrainz and Discogs, as catalog: does: Apple Music and Spotify
             only text-search it and their unrelated albums, ranked "popular", pushed the real one out of the six shown.

@@ -122,29 +122,33 @@ async function srchArtistOnline(artists, genres, text) {
 function srchOnlineSearch() {
   const parts = srchParts(el.searchInput.value), q = parts.catalogs.length && !parts.artists.length && !parts.genres.length ? `catalog:"${parts.catalogs[0].toUpperCase()}"` : parts.artists.length ? `artist:${parts.artists.join('+')} genre:${parts.genres.join('+')} ${parts.text}`.trim() : parts.genres.length ? `genre:${parts.genres.join('+')} ${parts.text}`.trim() : srchFreeText(el.searchInput.value); clearTimeout(srch.timer);
   if (!parts.genres.length && !parts.artists.length && !parts.catalogs.length && q.length < 3) { srch.online = []; srch.onlineState = 'idle'; srch.onlineQ = ''; return; }
-  if (q === srch.onlineQ && srch.onlineState !== 'error') return;
+  if (q === srch.onlineQ && srch.onlineState === 'loading') return;
+  if (q === srch.onlineQ && srch.onlineState === 'done' && !srch.onlinePartial && Date.now() - (srch.onlineAt || 0) < 120000) return;          // (1.135.102) the same search again: kept only when every source answered, and for 2 minutes (an empty answer was kept for good)
   srch.onlineState = 'loading'; const seq = ++srch.seq;
   srch.timer = setTimeout(async () => {
     srch.onlineQ = q;
     const act = typeof addSrcActive === 'function' ? addSrcActive() : ['mb'], hide = typeof addHideOwnedOn === 'function' ? addHideOwnedOn() : true;
-    const mb = async () => {
-      const res = await mbFetch(`https://musicbrainz.org/ws/2/release/?query=${encodeURIComponent(buildMbSearchQuery(q))}&fmt=json&limit=20&inc=labels`, { headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' }, timeoutMs: 9000, retryBusy: 1 });
+    const mb = async (plain) => {          // (1.135.102) plain: the words as words (a catalogue number MusicBrainz doesn't have as one can still be in a title or barcode)
+      const res = await mbFetch(`https://musicbrainz.org/ws/2/release/?query=${encodeURIComponent(plain ? String(q).replace(/^catalog:/i, '').replace(/"/g, '') : buildMbSearchQuery(q))}&fmt=json&limit=20&inc=labels`, { headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' }, timeoutMs: 9000, retryBusy: 1 });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       return ((await res.json()).releases || []).map(h => { const rg = h['release-group'] || {}; return { src: 'mb', hit: h, title: h.title || '', artist: (h['artist-credit'] || []).map(a => a.name + (a.joinphrase || '')).join(''), date: h.date || '', type: rg['primary-type'] || 'Album', catalog: ((h['label-info'] || [])[0] || {})['catalog-number'] || '', cover: rg.id ? `https://coverartarchive.org/release-group/${rg.id}/front-250` : '' }; });
     };
     const catTyped = !parts.artists.length && !parts.genres.length && typeof looksLikeCatno === 'function' && looksLikeCatno(parts.text || srchFreeText(el.searchInput.value));
     const catOnly = (parts.catalogs.length || catTyped) && !parts.artists.length && !parts.genres.length;          // (1.135.101) EKS 74013 typed plainly too: only the sources that can look a catalogue number up          // (a catalogue number: only the sources that can look one up)
-    const jobs = catOnly ? (act.some(k => k === 'mb' || k === 'dg') ? act.filter(k => k === 'mb' || k === 'dg') : ['mb']).map(k => (k === 'mb' ? mb() : ADD_SRC_FN[k](q)).catch(() => null)) : parts.artists.length ? [srchArtistOnline(parts.artists, parts.genres, parts.text)] : parts.genres.length ? [srchGenreOnline(parts.genres, parts.text)] : act.map(k => (k === 'mb' ? mb() : ADD_SRC_FN[k](q)).catch(() => null));
+    const names = catOnly ? (act.some(k => k === 'mb' || k === 'dg') ? act.filter(k => k === 'mb' || k === 'dg') : ['mb']) : parts.artists.length || parts.genres.length ? [] : act;
+    const jobs = catOnly ? (act.some(k => k === 'mb' || k === 'dg') ? act.filter(k => k === 'mb' || k === 'dg') : ['mb']).map(k => (k === 'mb' ? mb().then(l => l.length ? l : mb(true)) : ADD_SRC_FN[k](q)).catch(() => null)) : parts.artists.length ? [srchArtistOnline(parts.artists, parts.genres, parts.text)] : parts.genres.length ? [srchGenreOnline(parts.genres, parts.text)] : act.map(k => (k === 'mb' ? mb() : ADD_SRC_FN[k](q)).catch(() => null));
     const lists = await Promise.all(jobs); if (seq !== srch.seq) return;
-    const seen = new Set(), out = []; let owned = 0, failed = 0;
-    lists.forEach(l => { if (!l) { failed++; return; } l.forEach(r => { const k = dupKey(r.artist, r.title); if (!k || seen.has(k)) return; seen.add(k);
+    const seen = new Set(), out = []; let owned = 0, failed = 0; const failedNames = [];
+    lists.forEach((l, li) => { if (!l) { failed++; if (names[li]) failedNames.push(srchSrcName(names[li]) || names[li]); return; } l.forEach(r => { const k = dupKey(r.artist, r.title); if (!k || seen.has(k)) return; seen.add(k);
       const v = dupVerdict(dupMatches({ artist: r.artist, title: r.title, catalog: r.catalog || '', releaseDate: r.date || '', descriptor: '' }));
       if (v === 'exact' || v === 'edition') { owned++; if (hide) return; r.owned = true; } out.push(r); }); });
     const catQ = catOnly ? String(parts.catalogs[0] || parts.text || srchFreeText(el.searchInput.value)).toLowerCase().replace(/[^a-z0-9]/g, '') : '';
     if (catQ) out.forEach(r => { r.catExact = String(r.catalog || '').toLowerCase().replace(/[^a-z0-9]/g, '') === catQ; });
     srch.onlineAll = false;
     srch.online = out.slice(0, 40); srch.onlineState = failed === lists.length ? 'error' : 'done'; srchPopSort();
+    srch.onlinePartial = failed > 0; srch.onlineAt = Date.now();
     srch.onlineNote = srch.onlineState === 'error' ? 'No source answered.' : !out.length ? 'Nothing more found online.' : owned ? `${owned} you have left out` : '';
+    if (failedNames.length && srch.onlineState !== 'error') srch.onlineNote = (srch.onlineNote ? srch.onlineNote + ' · ' : '') + `${failedNames.join(', ')} didn\u2019t answer`;
     const lfKey = srchLfKey();
     if (lfKey && (parts.genres.length || parts.artists.length) && srchLfErr) srch.onlineNote = `Last.fm didn't answer (${srchLfErr})`;
     if (!lfKey && out.length) { srch.onlineNote = (srch.onlineNote ? srch.onlineNote + ' · ' : '') + 'No Last.fm API key in this browser (⚙ › Last.fm scrobbling, or the Last.fm import): ranked by editions on MusicBrainz'; srchPopSort(); }

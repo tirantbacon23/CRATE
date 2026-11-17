@@ -39,10 +39,13 @@ async function addSrcDiscogs(q, opts) {          // opts (1.135.100): { params: 
     return addSrcDiscogsMap((await res.json()).results || []);
   }
   const cat = typeof looksLikeCatno === 'function' && looksLikeCatno(q), cm = /(?:^|\s)(?:catalog|catno|cat):("[^"]+"|\S+)/i.exec(q);          // (1.135.99) a catalogue number: Discogs' own catno search
-  const qs = cm ? `catno=${encodeURIComponent(cm[1].replace(/"/g, ''))}` : cat ? `catno=${encodeURIComponent(q.trim())}` : `q=${encodeURIComponent(q)}`;
-  const res = await fetchWithTimeout(`https://api.discogs.com/database/search?type=release&per_page=25&${qs}`, { headers: { 'Authorization': 'Discogs token=' + tok } }, 9000);
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  return addSrcDiscogsMap((await res.json()).results || []);
+  const one = async (qs) => { const res = await fetchWithTimeout(`https://api.discogs.com/database/search?type=release&per_page=25&${qs}`, { headers: { 'Authorization': 'Discogs token=' + tok } }, 9000); if (!res.ok) throw new Error('HTTP ' + res.status); return (await res.json()).results || []; };
+  if (cm || cat) {          // (1.135.102) a catalogue number: Discogs' catno search is strict about how it's written, so its plain search (which reads catalogue numbers too) runs beside it
+    const c = (cm ? cm[1].replace(/"/g, '') : q).trim(), [a, b] = await Promise.all([one(`catno=${encodeURIComponent(c)}`).catch(() => null), one(`q=${encodeURIComponent(c)}`).catch(() => null)]);
+    if (!a && !b) throw new Error('no answer');
+    return addSrcDiscogsMap((a || []).concat(b || []));
+  }
+  return addSrcDiscogsMap(await one(`q=${encodeURIComponent(q)}`));
 }
 function addSrcDiscogsMap(results) {
   const seen = new Set();
