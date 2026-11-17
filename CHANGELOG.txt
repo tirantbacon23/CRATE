@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.53
+  CURRENT_VERSION: 1.135.54
 
+  1.135.54 — 2026-11-17 — The album view's header is tidied: the cover sits alone on the left with the title, artist, tags, details and your
+          stars right beside it, and the RYM line (rating, count, open, update, and the "Updated from RYM" and "RYM history" notes)
+          has a row of its own under the header. They used to share the cover's column, which made it wide and pushed the title far
+          to the right with a gap in between.
   1.135.53 — 2026-11-17 — "⌕ Search RYM" in Edit (and Add) release now brings the release back: open the right one from RYM's search and
           press "Send to CRATE" (or Update) on it, and its details fill the form that asked: artist, title, type, release and
           recorded dates, genres, label, catalogue no., descriptors, scene, movement, cover, tracklist and the RYM link. Nothing is

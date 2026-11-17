@@ -23,6 +23,13 @@ function deckDrop(id, label, title, ids) {          // a button with a little me
 function deckLayoutInit() {
   if (deckLayoutReady) return; const deck = document.querySelector('#deckOverlay .deck'), bar = document.getElementById('deckActionsBar'); if (!deck || !bar) return;
   deckLayoutReady = true;
+  // (1.135.54) the cover column holds only the cover: your stars go under the title, and the RYM line with its history goes in a row of its
+  // own under the header (they made the cover's column wide, which pushed the title far to the right)
+  const heading = deck.querySelector('.deck-heading'), rating = deck.querySelector('.deck-rating-row'), header = deck.querySelector('.deck-header');
+  if (heading && rating) { const added = document.getElementById('deckAdded'); heading.insertBefore(rating, added || null); }
+  const rymBox = document.createElement('div'); rymBox.className = 'deck-rym-block';
+  ['deckRymRow', 'deckRymLog', 'deckRymHist'].forEach(i => { const n = document.getElementById(i); if (n) rymBox.appendChild(n); });
+  if (header) header.insertAdjacentElement('afterend', rymBox);
   bar.appendChild(Object.assign(document.createElement('span'), { className: 'deck-bar-gap' }));
   bar.appendChild(deckDrop('deckOpenOn', '↗ Open on…', 'Listen link, Spotify, SoundCloud, Rate Your Music', ['deckLink', 'deckSpotifyLink', 'deckSoundcloudLink', 'deckRymLink']));
   bar.appendChild(deckDrop('deckMore', '⋯', 'More: edit details, edit tracks, full-release video', ['deckEditBtn', 'deckTrackGridBtn', 'deckFullVideoBtn', 'deckPlaylistRemoveBtn']));

@@ -5730,3 +5730,15 @@ select.srch-chip { padding: 0 6px; background: var(--bg-elevated); }
 
 /* (1.135.52) ⊞: gold in the dropdown look, filled in the detailed panel */
 .search-detail-btn.srch-btn-detail { background: var(--accent); color: #12161C; }
+
+/* (1.135.54) the album view's header, tidied: the cover alone on the left, stars under the title, the RYM line in its own row */
+.deck-look-a .deck-sidebar, .deck-look-b .deck-sidebar { flex: none; width: auto; }
+.deck-look-a .deck-heading .deck-rating-row, .deck-look-b .deck-heading .deck-rating-row { margin: 8px 0 4px; }
+.deck-look-a .deck-heading .deck-rating-row .stars, .deck-look-b .deck-heading .deck-rating-row .stars { font-size: 20px; }
+.deck-look-a .deck-meta { margin-top: 6px; line-height: 1.5; }
+.deck-rym-block { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; padding: 0 24px 12px; }
+.deck-rym-block .deck-rym-row { margin-top: 0; }
+.deck-rym-block .deck-rym-hist { margin-top: 0; }
+.deck-rym-block .deck-rym-hist[open] { flex-basis: 100%; }
+.deck-look-b .deck-rym-block { background: color-mix(in srgb, var(--accent) 7%, var(--bg-card)); }
+.deck-look-a .deck-heading h2 { line-height: 1; }
