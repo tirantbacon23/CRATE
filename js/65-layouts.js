@@ -71,22 +71,7 @@ function deckDetailsPaint(item) {
   ].filter(r => r[1]);
   box.innerHTML = rows.map(([k, v]) => `<span>${escapeHtml(k)}</span><span>${escapeHtml(String(v))}</span>`).join('');
 }
-// (1.135.60) The header's right-hand side: the release's figures, so the header isn't all piled on the left: RYM's average (big) and how many
-// ratings, the length and number of songs, your plays, when you added it.
-function deckFactsPaint(item) {
-  const header = document.querySelector('#deckOverlay .deck-header'); if (!header || !item) return;
-  let box = document.getElementById('deckFacts'); if (!box) { box = document.createElement('div'); box.id = 'deckFacts'; box.className = 'deck-facts'; header.appendChild(box); }
-  const tr = typeof csTracksOf === 'function' ? csTracksOf(item) : null, ms = tr ? tr.reduce((a, t) => a + (t.ms || 0), 0) : 0;
-  const plays = typeof scrobbleCountFor === 'function' ? scrobbleCountFor(item.artist, item.title) : 0;
-  const added = dateVal(item.dateAdded) !== -Infinity ? new Date(item.dateAdded).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '';
-  const rows = [];
-  if (item.rymRating) rows.push(`<div class="deck-fact-big"><b>${Number(item.rymRating).toFixed(2)}</b><span>RYM${item.rymVotes ? ` \u00b7 ${Number(item.rymVotes).toLocaleString()}` : ''}</span></div>`);
-  if (tr && tr.length) rows.push(`<div class="deck-fact"><b>${tr.length}</b> song${tr.length === 1 ? '' : 's'}${ms ? ` \u00b7 <b>${Math.round(ms / 60000)}</b> min` : ''}</div>`);
-  if (plays) rows.push(`<div class="deck-fact"><b>${plays}</b> play${plays === 1 ? '' : 's'}</div>`);
-  if (added) rows.push(`<div class="deck-fact deck-fact-dim">Added ${escapeHtml(added)}</div>`);
-  box.innerHTML = rows.join(''); box.hidden = !rows.length;
-}
-function deckLayoutOnOpen(item) { deckTab = 'songs'; deckLayoutApply(); deckDetailsPaint(item); deckFactsPaint(item); setTimeout(() => { if (activeItem === item) deckFactsPaint(item); }, 1500); }
+function deckLayoutOnOpen(item) { deckTab = 'songs'; deckLayoutApply(); deckDetailsPaint(item); }          // (1.135.61: the figures column on the right is gone again)
 
 // ----- Edit details -----
 const ED_SECS = [

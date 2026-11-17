@@ -1244,6 +1244,15 @@ function bindEvents() {
 
     openTrackContextMenu(activeItem, track ? track.trackName : '', e.clientX, e.clientY, track ? track.trackNumber : '', selectedItems);
   });
+  // (1.135.61) Double-click a song in the album view: it plays (not on its buttons, stars, note or chips)
+  el.deckTracklist.addEventListener('dblclick', (e) => {
+    const rowEl = e.target.closest('.track-row-wrap'); if (!rowEl || !activeItem) return;
+    if (e.target.closest('button, a, input, textarea, select, .track-interactive, .track-note-wrap, .sd-chips, .track-stars')) return;
+    const track = currentTracklistTracks.find(t => String(t.trackNumber || 0) === String(rowEl.dataset.track));
+    if (!track) return;
+    e.preventDefault(); if (window.getSelection) { try { window.getSelection().removeAllRanges(); } catch (er) { /* fine */ } }
+    playTrackNow(activeItem, track.trackName, track.trackNumber);
+  });
 
   // 11b. Play buttons in the "Album and Tracks" list (each row carries its
   // own artist, since — unlike the deck — this view shows many albums at
