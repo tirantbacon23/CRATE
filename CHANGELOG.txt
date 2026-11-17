@@ -17,8 +17,10 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.46
+  CURRENT_VERSION: 1.135.47
 
+  1.135.47 — 2026-11-17 — "⌕ Search RYM" beside the RYM Link box in Edit release (and Add release): opens Rate Your Music's release search
+          for the artist and title in the form, in a new tab, so you can copy the release's link back.
   1.135.46 — 2026-11-17 — Search is simple again: the suggestions under the box as they were before (nothing shown until something matches).
           The detailed search (tabs, filters down the side, a cover grid, songs and artists, releases to add from online, recent and
           saved searches) is switched on with "⤢ Detailed search" under the suggestions or in ⚙ Settings → Search looks like, and off

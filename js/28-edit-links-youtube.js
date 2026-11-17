@@ -182,6 +182,16 @@ function rymSearchUrl(item) {
   return 'https://rateyourmusic.com/search?searchterm=' + encodeURIComponent(item.artist + ' ' + item.title) + '&searchtype=l';
 }
 
+// (1.135.47) "Search RYM" beside the RYM Link box in Edit / Add release: RYM's release search for the artist and title as they are in the form, in
+// a new tab, so its link can be copied back. With nothing typed yet, the release being edited.
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-rym-search]'); if (!b) return; e.preventDefault();
+  const pre = b.dataset.rymSearch, v = (id) => ((document.getElementById(pre + id) || {}).value || '').trim();
+  const it = { artist: v('Artist') || (pre === 'edit' && activeItem ? activeItem.artist : ''), title: v('Title') || (pre === 'edit' && activeItem ? activeItem.title : '') };
+  if (!it.artist && !it.title) { flashGlobalToast('Type the artist or title first.'); return; }
+  window.open(rymSearchUrl(it), '_blank', 'noopener');
+});
+
 /* ---- RYM release resolution via Wikidata ----
    RateYourMusic release IDs on Wikidata (P8392) look like
    "album/stromae/racine-carree" and turn into a real page at
