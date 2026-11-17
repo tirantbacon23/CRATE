@@ -484,13 +484,18 @@ function trackNormKey(name) {                // "\u00bd Way Down" and "Halfway D
 let scrobIdx = null, scrobIdxOf = null, scrobIdxN = -1;
 function scrobIndex() {
   const list = state.scrobbles || [];
-  if (scrobIdx && scrobIdxOf === list && scrobIdxN === list.length) return scrobIdx;
+  const rawN = (state.raw || []).length;
+  if (scrobIdx && scrobIdxOf === list && scrobIdxN === list.length && scrobIdx.rawN === rawN) return scrobIdx;
   const album = new Map(), track = new Map();
+  // (1.135.105) a play saved while its release wasn't in the crate (no row) has Last.fm's spelling: counted under the crate's, once it's there
+  const nk = typeof lastfmNormKey === 'function' ? lastfmNormKey : null, byNorm = new Map();
+  if (nk && list.some(s => !s.row)) (state.raw || []).forEach(r => { const k = nk(r.artist, r.title); if (!byNorm.has(k)) byNorm.set(k, r); });
   list.forEach(s => {
-    const a = s.artist + '\u0001' + s.title; album.set(a, (album.get(a) || 0) + s.playCount);
+    const hit = !s.row && byNorm.size ? byNorm.get(nk(s.artist, s.title)) : null;
+    const a = hit ? hit.artist + '\u0001' + hit.title : s.artist + '\u0001' + s.title; album.set(a, (album.get(a) || 0) + s.playCount);
     const tn = trackNormKey(s.track); if (tn) { const k = a + '\u0001' + tn; track.set(k, (track.get(k) || 0) + s.playCount); }
   });
-  scrobIdx = { album, track }; scrobIdxOf = list; scrobIdxN = list.length;
+  scrobIdx = { album, track, rawN }; scrobIdxOf = list; scrobIdxN = list.length;
   return scrobIdx;
 }
 function trackScrobbleCountFor(artist, title, trackName) {

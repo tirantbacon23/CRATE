@@ -5,7 +5,7 @@
 // ---- Last.fm startup review: what is kept, merged and shown (pure: the key function is passed in) ----
 // Scrobbles for albums that aren't in your crate used to be counted in a toast and then forgotten (the sync baseline moved on).
 // They are now kept as track-level "groups" (artist, album, track, day, plays), merged as more arrive, and offered for review.
-function lfGroupKey(g, keyFn) { return keyFn(g.artist, g.title) + '::' + g.day + '::' + String(g.track || '').toLowerCase().trim(); }
+function lfGroupKey(g, keyFn) { return keyFn(g.artist, g.title) + '::' + g.day + '::' + String(g.track || '').toLowerCase().trim() + (g.saved ? '::saved' : ''); }          // (1.135.105) plays already saved to the sheet never merge with ones that aren't
 function lfMergePending(pending, groups, keyFn, cap) {
   const map = new Map();
   (pending || []).concat(groups || []).forEach(g => {

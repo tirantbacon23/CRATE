@@ -42,11 +42,14 @@ async function scvOutEnsure() {                                        // the fi
   } catch (e) { scvOut.msg = 'Couldn’t read Last.fm: ' + ((e && e.message) || e); }
   finally { scvOut.busy = false; renderScrobbles(); }
 }
-function scvOutRows() {                                                // as scrobble rows, without any that are in the crate now
+const scvOutK = (s) => (typeof lastfmNormKey === 'function' ? lastfmNormKey(s.artist, s.title) : (s.artist + '|' + s.title).toLowerCase()) + '|' + String(s.track || '').toLowerCase().trim() + '|' + String(s.day || '').slice(0, 10);
+function scvOutRows() {                                                // as scrobble rows, without any that are in the crate now, or saved to the sheet (1.135.105)
   if (!scvPrefs().outside || !scvOut.groups) return [];
-  return scvOut.groups.map(g => ({ row: '', artist: g.artist, title: g.title, day: g.day, track: g.track, playCount: g.playCount, out: true })).filter(s => !scvItem(s));
+  const saved = new Set((state.scrobbles || []).filter(s => !s.row).map(scvOutK));
+  return scvOut.groups.map(g => ({ row: '', artist: g.artist, title: g.title, day: g.day, track: g.track, playCount: g.playCount, out: true })).filter(s => !scvItem(s) && !saved.has(scvOutK(s)));
 }
-function scvAll() { const o = scvOutRows(); return o.length ? (state.scrobbles || []).concat(o) : (state.scrobbles || []); }
+// (1.135.105) The sheet now holds plays of releases outside the crate too (no crate row): shown with "Not in crate" on, as the browser's were
+function scvAll() { const sh = state.scrobbles || [], base = scvPrefs().outside ? sh : sh.filter(s => s.row || scvItem(s)), o = scvOutRows(); return o.length ? base.concat(o) : base; }
 const scvArtOf = (g) => g.item || (g.artist ? { artist: g.artist, title: g.release || g.title } : null);          // a release outside the crate: its cover looked up by name
 const scvOutAttr = (g) => !g.item && g.artist ? ` data-scv-add="${escapeHtml(g.artist + '\u0001' + (g.release || g.title))}" title="Not in your crate: click to add it"` : '';
 
@@ -102,7 +105,7 @@ const scvImg = (it, cls) => { scvArtNeed(it); return `<img class="${cls}${it ? '
 function scvHead(p) {
   const views = [['overview', 'Overview'], ['timeline', 'Timeline'], ['charts', 'Charts']];
   const per = p.view === 'timeline' ? '' : SCV_PERIODS.map(([k, l]) => `<button type="button" class="scv-chip${p.period === k ? ' on' : ''}" data-scv-period="${k}">${l}</button>`).join('');
-  return `<div class="scv-head"><h2 class="scv-title">Scrobbles</h2><div class="scv-views" role="tablist">${views.map(([k, l]) => `<button type="button" role="tab" aria-selected="${p.view === k}" class="scv-view${p.view === k ? ' on' : ''}" data-scv-view="${k}">${l}</button>`).join('')}</div><span class="scv-gap"></span>${per}<label class="scv-outtog" title="Also show releases you scrobbled that aren’t in your crate (kept in this browser, never saved to your crate)"><input type="checkbox" data-scv-outside${p.outside ? ' checked' : ''}> Not in crate</label></div>`;
+  return `<div class="scv-head"><h2 class="scv-title">Scrobbles</h2><div class="scv-views" role="tablist">${views.map(([k, l]) => `<button type="button" role="tab" aria-selected="${p.view === k}" class="scv-view${p.view === k ? ' on' : ''}" data-scv-view="${k}">${l}</button>`).join('')}</div><span class="scv-gap"></span>${per}<label class="scv-outtog" title="Also show releases you scrobbled that aren’t in your crate"><input type="checkbox" data-scv-outside${p.outside ? ' checked' : ''}> Not in crate</label><label class="scv-outtog" title="Each Last.fm sync saves plays of releases that aren’t in your crate to your Scrobbles sheet too, so they’re kept on every device and count for a release you add later"><input type="checkbox" data-scv-saveout${typeof lfSaveOutside === 'function' && lfSaveOutside() ? ' checked' : ''}> Save them</label></div>`;
 }
 function scvChartHtml(p, rows, limit) {
   const kind = p.chart, list = scvChart(rows, kind).slice(0, limit), prevRange = scvRange(p.period, 1), prev = prevRange ? scvChart(scvRows(prevRange), kind) : null;
@@ -170,6 +173,7 @@ function renderScrobbles() {
     el.scrobblesContainer.dataset.scvWired = '1';
     el.scrobblesContainer.addEventListener('click', (e) => {
       const g = (s) => e.target.closest(s); let b;
+      if ((b = g('[data-scv-saveout]'))) { lfSaveOutsideSet(b.checked); flashGlobalToast(b.checked ? 'Plays of releases outside your crate are saved from the next Last.fm sync.' : 'Plays of releases outside your crate aren’t saved any more (what is saved stays).'); return; }
       if ((b = g('[data-scv-outside]'))) { const on = b.checked; scvSet({ outside: on }); if (on) scvOutEnsure(); return; }
       if ((b = g('[data-scv-add]'))) { const [ar, ti] = b.dataset.scvAdd.split('\u0001'); if (typeof openAddModal === 'function') { openAddModal(); el.addSearchInput.value = `${ar} ${ti}`.trim(); if (typeof doAddSearch === 'function') doAddSearch(); } return; }
       if ((b = g('[data-scv-view]'))) { scvDaysShown = 30; return scvSet({ view: b.dataset.scvView }); }

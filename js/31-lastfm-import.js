@@ -243,7 +243,8 @@ function renderLastfmPreview(totalScrobbles) {
 }
 
 async function confirmLastfmImport() {
-  if (!lastfmMatchedGroups.length) { closeLastfmModal(); return; }
+  const outside = lfSaveOutside() ? lastfmUnmatchedGroups : [];          // (1.135.105) releases not in the crate are saved too
+  if (!lastfmMatchedGroups.length && !outside.length) { closeLastfmModal(); return; }
 
   el.lastfmImportBtn.disabled = true;
   el.lastfmImportStatus.hidden = false;
@@ -252,8 +253,8 @@ async function confirmLastfmImport() {
   // individual scrobble timestamp, and not written into the Diary.
   // Scrobbles are a separate, raw play-count log; the Diary stays reserved
   // for your own rated/noted entries.
-  const entries = lastfmMatchedGroups.map(g => ({
-    row: g.row, artist: g.artist, title: g.title, date: g.day, track: g.track, playCount: g.playCount
+  const entries = lastfmMatchedGroups.concat(outside).map(g => ({
+    row: g.row || '', artist: g.artist, title: g.title, date: g.day, track: g.track, playCount: g.playCount
   }));
 
   const chunks = [];
@@ -273,7 +274,7 @@ async function confirmLastfmImport() {
     });
 
     const totalPlays = entries.reduce((sum, e) => sum + e.playCount, 0);
-    const newestUts = Math.max(...lastfmMatchedGroups.map(g => g.lastUts));
+    const newestUts = Math.max(...lastfmMatchedGroups.concat(outside).map(g => g.lastUts));
     const username = el.lastfmUsername.value.trim();
     localStorage.setItem(LASTFM_SYNC_KEY + ':' + username, new Date(newestUts * 1000).toISOString());
 
@@ -335,9 +336,23 @@ function lfLoadState(user) {
 function lfSaveState(user, st) {
   try { const all = JSON.parse(localStorage.getItem(LFR_STATE_KEY) || '{}') || {}; all[user] = st; localStorage.setItem(LFR_STATE_KEY, JSON.stringify(all)); } catch (e) { /* storage full or blocked: it just won't be remembered */ }
 }
+// (1.135.105) Plays of releases that aren't in your crate are saved to the Scrobbles sheet too (with no crate row), unless you turn it off
+// (Scrobbles › Save plays outside crate). They stay in the review of albums not in your crate, marked saved, so adding the release later
+// doesn't log them a second time: the crate counts plays by artist and title, so they count for it then.
+const LF_OUT_SAVE_KEY = 'crate_lf_save_outside_v1';
+function lfSaveOutside() { try { return localStorage.getItem(LF_OUT_SAVE_KEY) !== '0'; } catch (e) { return true; } }
+function lfSaveOutsideSet(on) { try { localStorage.setItem(LF_OUT_SAVE_KEY, on ? '1' : '0'); } catch (e) { /* this visit */ } }
+async function lfSaveOutsideGroups(st) {          // the review's albums not yet saved: saved now, and marked
+  if (!lfSaveOutside() || !st || !st.groups.length) return 0;
+  const ign = new Set(st.ignored || []), unsaved = st.groups.filter(g => !g.saved && !ign.has(lastfmNormKey(g.artist, g.title)));
+  if (!unsaved.length) return 0;
+  const plays = await lfLogGroups(unsaved.map(g => Object.assign({}, g, { row: '' })));
+  unsaved.forEach(g => { g.saved = true; });
+  return plays;
+}
 async function lfLogGroups(groups) {      // writes matched track-level groups to the Scrobbles sheet (as the import does) and refreshes what's on screen
   if (!groups.length) return 0;
-  const entries = groups.map(g => ({ row: g.row, artist: g.artist, title: g.title, date: g.day, track: g.track, playCount: g.playCount }));
+  const entries = groups.map(g => ({ row: g.row || '', artist: g.artist, title: g.title, date: g.day, track: g.track, playCount: g.playCount }));
   for (let i = 0; i < entries.length; i += LASTFM_CHUNK_SIZE) await postUpdate({ action: 'bulkLogScrobbles', entries: entries.slice(i, i + LASTFM_CHUNK_SIZE) });
   entries.forEach(p => state.scrobbles.push({ row: p.row, artist: p.artist, title: p.title, day: p.date, track: p.track, playCount: p.playCount }));
   if (state.activeTab === 'scrobbles') renderScrobbles();
@@ -377,17 +392,18 @@ async function maybeRunBackgroundLastfmSync() {
     st.groups = lfMergePending(st.groups, unmatched.filter(g => !ignoredKeys.has(lastfmNormKey(g.artist, g.title))), lastfmNormKey, LFR_PENDING_CAP);
     const re = matchScrobbleGroups(st.groups);
     st.groups = re.unmatched;
-    const toLog = matched.concat(re.matched);
+    const toLog = matched.concat(re.matched.filter(g => !g.saved));          // (already saved while outside the crate: not again)
     const loggedPlays = await lfLogGroups(toLog);
+    const outPlays = await lfSaveOutsideGroups(st);          // (1.135.105) and the plays of releases outside it
     lfSaveState(creds.username, st);                           // only after the log succeeded: a failure keeps everything for next time
     if (tracks.length) localStorage.setItem(syncKey, new Date(Math.max(...tracks.map(t => t.uts)) * 1000).toISOString());
-    const sync = { since: lastSync, totalTracks: tracks.length, noAlbum: tracks.filter(t => !t.album).length, loggedPlays, loggedAlbums: lfLoggedAlbums(toLog),
+    const sync = { since: lastSync, totalTracks: tracks.length, noAlbum: tracks.filter(t => !t.album).length, loggedPlays, outPlays, loggedAlbums: lfLoggedAlbums(toLog),
       newUnmatched: lfAlbumsFromGroups(unmatched, lastfmNormKey, st.ignored).length };
     const pending = lfAlbumsFromGroups(st.groups, lastfmNormKey, st.ignored);
     if (state.lastfmReviewAtStartup && pending.length && (sync.newUnmatched > 0 || !lfIsSnoozed(st, Date.now()))) openLastfmReview(creds.username, sync);
     else lfSyncToast(creds.username, sync);
     try { localStorage.setItem(JOBS_LF_AT_KEY, String(Date.now())); } catch (e) { /* the next 6-hourly sync waits for a reload */ }
-    if (tracks.length) jobsDone('lastfm', `Last.fm sync: ${jobsPl(tracks.length, 'new play')}, ${jobsPl(Number(loggedPlays) || 0, 'play')} logged`);
+    if (tracks.length) jobsDone('lastfm', `Last.fm sync: ${jobsPl(tracks.length, 'new play')}, ${jobsPl(Number(loggedPlays) || 0, 'play')} logged${outPlays ? `, ${jobsPl(outPlays, 'play')} of releases outside your crate saved` : ''}`);
     if (state.rightPanelShowHistory) renderLastfmHistoryPanel();
   } catch (err) {
     console.warn('Background Last.fm sync failed:', err);      // stays silent in the UI — a failed background sync shouldn't interrupt anyone
@@ -496,10 +512,10 @@ async function lfAfterAdd() {
       if (st.groups.length) {
         const re = matchScrobbleGroups(st.groups);                 // the catalogue has just been refetched: anything now in it gets its plays logged
         if (re.matched.length) {
-          const plays = await lfLogGroups(re.matched);
+          const fresh = re.matched.filter(g => !g.saved), plays = fresh.length ? await lfLogGroups(fresh) : 0;          // (saved while outside the crate: they count for it already)
           st.groups = re.unmatched; lfSaveState(creds.username, st);
           const names = [...new Set(re.matched.map(g => g.title))];
-          flashGlobalToast(`Last.fm: logged ${lfrPlural(plays, 'play')} for \u201c${names[0]}\u201d${names.length > 1 ? ` and ${names.length - 1} more` : ''}.`);
+          if (plays) flashGlobalToast(`Last.fm: logged ${lfrPlural(plays, 'play')} for \u201c${names[0]}\u201d${names.length > 1 ? ` and ${names.length - 1} more` : ''}.`);
           if (lfAddQueue) lfAddQueue.added++;
         }
       }

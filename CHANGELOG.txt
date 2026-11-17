@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.104
+  CURRENT_VERSION: 1.135.105
 
+  1.135.105 — 2026-11-18 — Match songs: closing it, a release every song of which has a link is done: out of the match queue (marked tried),
+          and a service that hadn't reached it yet skips it, so it no longer shows "Queued · match"; a run with nothing else left closes.
+          Scrobbles: plays of releases outside your crate are saved to the Scrobbles sheet too (no crate row) by each Last.fm sync and the
+          import, and the ones waiting in the review are saved on the next sync, marked so adding the release later doesn't log them
+          again. They count for a release you add later (matched by name). Scrobbles › "Save them" turns it off.
   1.135.104 — 2026-11-18 — Search: every release it shows (in your crate or not yet) can show its songs, each with its Last.fm listeners
           and plays and your own plays. Simple look: ▸ on a release opens them under it (→ / ← too). Drop look: a panel beside
           the list for the release you're on, with its cover, five headline numbers and the songs (on a narrow window, the ▸).

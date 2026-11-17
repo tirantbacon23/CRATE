@@ -666,9 +666,18 @@ function bmPickTotals() {
   bm.rels.forEach(r => { if (!r.include) return; let any = 0; ['spotify', 'youtube'].forEach(k => { const c = Object.values(r.pick[k]).filter(Boolean).length; t[k] += c; any += c; }); t.n += any; if (any) t.releases++; });
   return t;
 }
+// (1.135.105) On Close: a release every song of which has a link is done. It leaves the match queue (and is marked tried), and a service
+// that hadn't reached it yet doesn't any more, so it no longer shows "Queued · match". A run with nothing else left closes for real.
+function bmSettleLinked() {
+  if (!bm) return; const ks = bmKinds(), done = [];
+  bm.rels.forEach(r => { if (!r.item || !mqAllLinked(r.item)) return; done.push(r.item); ks.forEach(k => { if (r.st[k] === 'wait') { r.st[k] = 'skip'; r.err[k] = 'Every song has a link'; } }); });
+  if (done.length) { mqRemove(done); done.forEach(it => mqTried(it)); }
+}
+const bmLeft = () => !!bm && bm.rels.some(r => r.include && bmKinds().some(k => r.st[k] === 'wait' || r.st[k] === 'work'));
 function bmClose(force) {
   if (!bm) { bmEl('batchMatchOverlay').hidden = true; updateAlbumSelBar(); return; }
-  if (bm.started && bm.running && !force) { bmHide(); return; }                      // still working: closing the window is "keep working"
+  try { bmSettleLinked(); } catch (e) { /* as before */ }
+  if (bm.started && bm.running && !force && bmLeft()) { bmHide(); bmAfterClose(); return; }          // still working on others: closing the window is "keep working"
   const t = bmPickTotals();
   if (!force && bm.started && t.n > 0 && !confirm(`Discard ${bmPl(t.n, 'match', 'matches')} you haven’t applied?`)) return;
   if (bm.running) { bm.stopped = true; ytAddonCancel(); }
@@ -676,7 +685,9 @@ function bmClose(force) {
   bm = null; spotifyApiParallel = 1; bmEl('batchMatchOverlay').hidden = true; updateAlbumSelBar(); bmStripRender();
   if (wasStarted) bmRunDel();
   if (typeof tgAfterMatcher === 'function') tgAfterMatcher();
+  bmAfterClose();
 }
+function bmAfterClose() { try { if (typeof cjPaint === 'function') cjPaint(); if (typeof jobsRefresh === 'function') jobsRefresh(); if (typeof menuMatchWaiting === 'function') menuMatchWaiting(); } catch (e) { /* repainted on the next sweep */ } }
 
 // ----- the health check: is each service really answering? -----
 const BM_TEST_QUERIES = ['Radiohead Karma Police', 'Fleetwood Mac Dreams', 'Talking Heads Once in a Lifetime', 'Kate Bush Running Up That Hill', 'The Cure Just Like Heaven', 'Joy Division Atmosphere', 'Pixies Where Is My Mind', 'Portishead Glory Box', 'Massive Attack Teardrop', 'Cocteau Twins Heaven or Las Vegas', 'New Order Ceremony', 'The Smiths There Is a Light That Never Goes Out'];
