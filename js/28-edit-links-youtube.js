@@ -4,6 +4,7 @@
 /* ---------- Edit album ---------- */
 
 function openEditModal() {
+  if (typeof closeAlbumQuickPeek === 'function') closeAlbumQuickPeek();          // (1.135.62) the quick peek closes when a tool opens over it
   if (!activeItem) return;
   refreshGenreAutocompleteList();
   el.editOverlay.hidden = false;
@@ -632,6 +633,7 @@ function openYoutubePlayer(url, trackName, tracks, item) {
 let fv = null;                                                      // { item, intro, rows: [{ n, title, start, end, len }] } while the dialog is open (start/end are what is typed; len: the song's length you have, in seconds, 0 if none)
 const fvEl = (id) => document.getElementById(id);
 async function fvOpen(item, hintUrl) {
+  if (typeof closeAlbumQuickPeek === 'function') closeAlbumQuickPeek();          // (1.135.62) the quick peek closes when a tool opens over it
   if (!item) return;
   let tracks = []; try { tracks = (await getTracksFor(item)) || []; } catch (e) { /* none */ }
   tracks = tracks.filter(t => t && t.trackNumber);

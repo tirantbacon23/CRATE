@@ -601,6 +601,7 @@ function bmFullyLinked(item, kinds) { const ls = bmLinkState(item); return !!(ls
 // ----- opening -----
 // opts: { ticked: [items], view: [items], genre: { name, items }, queue: true, one: item, focusTrackNum }
 function bmOpen(opts) {
+  if (typeof closeAlbumQuickPeek === 'function') closeAlbumQuickPeek();          // (1.135.62) the quick peek closes when a tool opens over it
   opts = opts || {};
   if (bm && bm.started) {
     if (opts.one) { bmAddOne(opts.one, opts.focusTrackNum); return; }
@@ -2165,6 +2166,7 @@ function smDefaultPicks(kind) {            // confident matches are ticked for s
   return picks;
 }
 async function openSongMatcher(item, opts) {
+  if (typeof closeAlbumQuickPeek === 'function') closeAlbumQuickPeek();          // (1.135.62) the quick peek closes when a tool opens over it
   opts = opts || {};
   closeNowPlayingAddMenu();
   if (!opts.draft && !opts.songs) { bmOpen({ one: item, focusTrackNum: opts.focusTrackNum }); return; }          // a saved release: the Match songs window (see bmOpen)

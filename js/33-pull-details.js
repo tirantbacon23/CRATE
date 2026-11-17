@@ -125,6 +125,7 @@ function pdDefaults() {                                                  // what
   base.forEach((s, i) => { const key = 'len' + i; if (pd.touched.has(key)) return; pd.pick[key] = order.find(k => pdLen(k, s, i, base.length) > 0) || ''; });
 }
 function pdOpen(item) {
+  if (typeof closeAlbumQuickPeek === 'function') closeAlbumQuickPeek();          // (1.135.62) the quick peek closes when a tool opens over it
   if (!item) return;
   pd = { item, data: {}, pick: {}, touched: new Set(), busy: false };
   let ov = document.getElementById('pdOverlay');

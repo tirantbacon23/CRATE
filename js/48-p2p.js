@@ -237,6 +237,7 @@ function p2pEnsureDom() {
   });
 }
 function p2pOpen(item) {                                            // item: a release (searches by itself, and checks against its tracklist), or nothing (free search)
+  if (typeof closeAlbumQuickPeek === 'function') closeAlbumQuickPeek();          // (1.135.62) the quick peek closes when a tool opens over it
   p2pEnsureDom();
   const ov = document.getElementById('p2pOverlay'), q = document.getElementById('p2pQuery');
   p2p.cur = { item: item || null, reqId: '', state: 'idle', folders: [], ranked: [], responses: 0, files: 0, error: '', tracks: null, autoPending: !!item, tries: 0, open: new Set(), text: '', status2: '' };

@@ -1228,6 +1228,7 @@ function tgCols() { let saved = null; try { saved = JSON.parse(localStorage.getI
 const tgOrigMap = () => new Map(tg.orig.map(r => [r.id, r]));
 const tgPlanNow = () => tgPlan(tg.rows, tg.orig, { isManual: isManualAlbum(tg.item), trackData: tg.item.trackData || {}, minNext: tlMinNext(tg.item) });
 async function tgOpen(item) {
+  if (typeof closeAlbumQuickPeek === 'function') closeAlbumQuickPeek();          // (1.135.62) the quick peek closes when a tool opens over it
   if (!item) return;
   let tracks = []; try { tracks = (await getTracksFor(item)) || []; } catch (e) { tracks = []; }
   const rows = tgRowsFrom(tracks, item.trackData || {});

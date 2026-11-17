@@ -17,8 +17,10 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.61
+  CURRENT_VERSION: 1.135.62
 
+  1.135.62 — 2026-11-17 — The quick peek (the popup with a release's tracklist) closes when a tool opens from it or over it: Match songs, Edit
+          details, Edit tracks, Pull details, Full-release video and Find on P2P. It used to stay on top, covering the tool.
   1.135.61 — 2026-11-17 — Double-clicking a song in the album view plays it (not when on its buttons, stars, note or chips). The figures column
           on the right of the album header (1.135.60) is taken out again, and "Added …" is back under your stars.
   1.135.60 — 2026-11-17 — The album view's header is balanced: its right-hand side shows the release's figures (RYM's average, large, with how
