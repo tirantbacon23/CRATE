@@ -5750,3 +5750,16 @@ select.srch-chip { padding: 0 6px; background: var(--bg-elevated); }
 
 /* (1.135.59) the search, waiting behind a release opened from it */
 #searchSuggest.srch-behind { z-index: 40; pointer-events: none; }
+
+/* (1.135.60) the album view's header, balanced: the release's figures on the right */
+.deck-facts { flex: none; margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; text-align: right; padding-top: 4px; min-width: 120px; }
+.deck-facts[hidden] { display: none; }
+.deck-fact-big { display: flex; flex-direction: column; align-items: flex-end; margin-bottom: 4px; }
+.deck-fact-big b { font: 400 40px/1 'Bebas Neue', sans-serif; color: var(--accent); letter-spacing: .02em; }
+.deck-fact-big span { font: 500 10.5px 'IBM Plex Mono', monospace; color: var(--text-dim); letter-spacing: .06em; }
+.deck-fact { font-size: 12.5px; color: var(--text-dim); }
+.deck-fact b { color: var(--text); font-weight: 600; }
+.deck-fact-dim { font: 11px 'IBM Plex Mono', monospace; }
+.deck-look-a #deckAdded, .deck-look-b #deckAdded { display: none !important; }          /* (shown on the right instead) */
+.deck-look-b .deck-facts { align-self: flex-end; }
+@media (max-width: 700px) { .deck-facts { margin-left: 0; align-items: flex-start; text-align: left; flex-direction: row; flex-wrap: wrap; gap: 4px 14px; } .deck-fact-big { flex-direction: row; align-items: baseline; gap: 6px; } }
