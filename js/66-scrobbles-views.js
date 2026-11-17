@@ -22,11 +22,19 @@ function scvRange(period, back) {          // [from, to) as day strings; back = 
   return [scvIso(from), scvIso(to)];
 }
 function scvRows(range) { if (!range) return []; return (state.scrobbles || []).filter(s => { const d = scvDay(s); return d && d >= range[0] && d < range[1]; }); }
-function scvItem(s) { return rawIndex('row', r => String(r.row)).get(String(s.row)) || null; }
+// (1.135.68) The release a scrobble is about: by its artist and title (the sheet row it was saved with can point at another release once rows
+// have moved, which gave the wrong covers and opened the wrong album), the row only when it still is that release.
+function scvItem(s) {
+  const k = typeof lastfmNormKey === 'function' ? lastfmNormKey(s.artist, s.title) : (s.artist + '|' + s.title).toLowerCase();
+  const byKey = rawIndex('scvKey', r => typeof lastfmNormKey === 'function' ? lastfmNormKey(r.artist, r.title) : (r.artist + '|' + r.title).toLowerCase()).get(k);
+  if (byKey) return byKey;
+  const byRow = rawIndex('row', r => String(r.row)).get(String(s.row));
+  return byRow && (typeof lastfmNormKey === 'function' ? lastfmNormKey(byRow.artist, byRow.title) === k : byRow.title === s.title) ? byRow : null;
+}
 function scvChart(rows, kind) {          // -> [{ key, title, artist, plays, days, last, item, track }] best first
   const m = new Map();
   rows.forEach(s => {
-    const key = kind === 'artists' ? s.artist : kind === 'songs' ? s.row + '|' + (s.track || '') : String(s.row);
+    const rk = (s.artist + '\u0001' + s.title).toLowerCase(), key = kind === 'artists' ? s.artist : kind === 'songs' ? rk + '|' + (s.track || '') : rk;
     if (kind === 'songs' && !s.track) return;
     let g = m.get(key); if (!g) { g = { key, title: kind === 'artists' ? s.artist : kind === 'songs' ? s.track : s.title, artist: kind === 'artists' ? '' : s.artist, release: s.title, plays: 0, dayset: new Set(), last: '', item: scvItem(s), track: s.track || '' }; m.set(key, g); }
     g.plays += Number(s.playCount) || 0; const d = scvDay(s); g.dayset.add(d); if (d > g.last) g.last = d;
@@ -35,7 +43,7 @@ function scvChart(rows, kind) {          // -> [{ key, title, artist, plays, day
 }
 function scvTotals(rows) {
   const t = { plays: 0, days: new Set(), releases: new Set(), artists: new Set(), songs: new Set() };
-  rows.forEach(s => { t.plays += Number(s.playCount) || 0; t.days.add(scvDay(s)); t.releases.add(String(s.row)); t.artists.add(s.artist); if (s.track) t.songs.add(s.row + '|' + s.track); });
+  rows.forEach(s => { t.plays += Number(s.playCount) || 0; t.days.add(scvDay(s)); t.releases.add((s.artist + '\u0001' + s.title).toLowerCase()); t.artists.add(s.artist); if (s.track) t.songs.add((s.artist + '\u0001' + s.title).toLowerCase() + '|' + s.track); });
   return { plays: t.plays, days: t.days.size, releases: t.releases.size, artists: t.artists.size, songs: t.songs.size };
 }
 function scvWhen(d) {
@@ -44,7 +52,12 @@ function scvWhen(d) {
   return new Date(d + 'T12:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: d.slice(0, 4) === today.slice(0, 4) ? undefined : 'numeric' });
 }
 const scvCover = (it) => typeof srchItemCover === 'function' ? srchItemCover(it) : ((it && it.cover) || '');
-const scvImg = (it, cls) => `<img class="${cls}" src="${escapeHtml(scvCover(it) || '')}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`;
+// (1.135.68) a cover that isn't here yet is looked up, and the image fills in when it arrives (class art + data-key, as the grid's)
+function scvArtNeed(it) {
+  if (!it || typeof fetchArt !== 'function') return; const k = artKey(it), c = state.artCache[k];
+  if ((!c || !c.art) && !artFetchInFlight.has(k)) { artFetchInFlight.add(k); fetchArt(it); }
+}
+const scvImg = (it, cls) => { scvArtNeed(it); return `<img class="${cls}${it ? ' art' : ''}" ${it ? `data-key="${escapeHtml(artKey(it))}"` : ''} src="${escapeHtml(scvCover(it) || '')}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`; };
 
 // ----- the pieces -----
 function scvHead(p) {
@@ -65,7 +78,7 @@ function scvChartHtml(p, rows, limit) {
   return `<div class="scv-tabs">${tabs}</div><div class="scv-table"><div class="scv-th"><span>#</span><span></span><span>${kind === 'artists' ? 'Artist' : kind === 'songs' ? 'Song' : 'Release'}</span><span>${kind === 'artists' ? '' : 'Artist'}</span><span>Days</span><span>Last</span><span>Plays</span></div>${rowsHtml || '<p class="scv-empty">Nothing played in this period.</p>'}</div>`;
 }
 function scvDaysHtml(rows, maxDays, big) {          // day by day: each release played that day, its songs
-  const byDay = new Map(); rows.forEach(s => { const d = scvDay(s); if (!d) return; if (!byDay.has(d)) byDay.set(d, new Map()); const m = byDay.get(d), k = String(s.row); if (!m.has(k)) m.set(k, { item: scvItem(s), title: s.title, artist: s.artist, plays: 0, songs: new Set() }); const g = m.get(k); g.plays += Number(s.playCount) || 0; if (s.track) g.songs.add(s.track); });
+  const byDay = new Map(); rows.forEach(s => { const d = scvDay(s); if (!d) return; if (!byDay.has(d)) byDay.set(d, new Map()); const m = byDay.get(d), k = (s.artist + '\u0001' + s.title).toLowerCase(); if (!m.has(k)) m.set(k, { item: scvItem(s), title: s.title, artist: s.artist, plays: 0, songs: new Set() }); const g = m.get(k); g.plays += Number(s.playCount) || 0; if (s.track) g.songs.add(s.track); });
   const days = [...byDay.keys()].sort().reverse(), shown = days.slice(0, maxDays);
   const html = shown.map(d => {
     const rel = [...byDay.get(d).values()].sort((a, b) => b.plays - a.plays), plays = rel.reduce((a, g) => a + g.plays, 0);
