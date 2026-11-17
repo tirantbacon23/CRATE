@@ -64,6 +64,7 @@ function openDeck(item) {
   el.deckRymLink.href = deckRymLinkSet ? item.rymLink.trim() : rymSearchUrl(item);
   el.deckRymLink.classList.toggle('direct-link', deckRymLinkSet);
   el.deckRymLink.title = deckRymLinkSet ? 'Open on RateYourMusic' : 'Search on RateYourMusic';
+  { const fb = document.getElementById('deckFullAlbumPlay'); if (fb) fb.hidden = !item.fullVideo; }          // (1.135.79) the release's full-album video, when it has one
   // Same condition as qaRemoveBtn in the Quick Actions sheet — only makes
   // sense while actually browsing inside a playlist.
   el.deckPlaylistRemoveBtn.hidden = !state.activePlaylistId;

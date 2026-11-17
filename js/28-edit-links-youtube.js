@@ -28,6 +28,7 @@ function openEditModal() {
   el.editMovement.value = activeItem.movement || '';
   el.editLink.value = activeItem.link || '';
   el.editRymLink.value = activeItem.rymLink || '';
+  { const fv_ = document.getElementById('editFullVideo'); if (fv_) fv_.value = activeItem.fullVideo || ''; }
   rymEl('editRymRating').value = activeItem.rymRating ? activeItem.rymRating.toFixed(2) : ''; rymEl('editRymVotes').value = activeItem.rymVotes ? String(activeItem.rymVotes) : '';
   el.editCover.value = activeItem.cover || '';
   el.editToast.textContent = '';
@@ -81,6 +82,7 @@ async function saveEditAlbum() {
     Movement: el.editMovement.value.trim(),
     Link: el.editLink.value.trim(),
     RymLink: el.editRymLink.value.trim(),
+    FullVideo: ((document.getElementById('editFullVideo') || {}).value || '').trim(),          // (1.135.79)
     Cover: el.editCover.value.trim(),
     RymRating: rymNum(rymEl('editRymRating').value) || '', RymVotes: rymNum(rymEl('editRymRating').value) ? (rymVotesNum(rymEl('editRymVotes').value) || '') : '',
     RymSrc: rymNum(rymEl('editRymRating').value) ? (rymNum(rymEl('editRymRating').value) !== (activeItem.rymRating || 0) ? 'm' : (activeItem.rymSrc || 'm')) : ''     // typing a new value makes it yours; leaving it alone keeps whoever set it
@@ -110,6 +112,7 @@ async function saveEditAlbum() {
     activeItem.movement = payload.Movement;
     activeItem.link = payload.Link;
     activeItem.rymLink = payload.RymLink;
+    activeItem.fullVideo = payload.FullVideo || '';
     activeItem.rymRating = rymNum(payload.RymRating); activeItem.rymVotes = activeItem.rymRating ? rymVotesNum(payload.RymVotes) : 0; activeItem.rymSrc = payload.RymSrc || '';
     rymLocalSet(activeItem); if (activeItem.rymRating && !(editRes && editRes.rymSaved)) { activeItem._rymLocal = true; rymNoteLocalOnly(); } else { rymLocalClear(activeItem); activeItem._rymLocal = false; }
     activeItem.cover = payload.Cover;
@@ -930,7 +933,8 @@ async function fvSave() {
   const queued = fvRetimeQueue(v.id, v.rows.map((r, i) => ({ row: fv.rows[i], start: r.start, end: r.end, has: r.has })));
   flashGlobalToast(`Saved where ${n} song${n === 1 ? '' : 's'} start${n === 1 ? 's' : ''} and end${n === 1 ? 's' : ''} in the video` + (lens ? `, and ${lens} song length${lens === 1 ? '' : 's'}` : '') + (queued ? ' (the player has the new times too)' : '') + '.'); fvClose();
 }
-fvEl('deckFullVideoBtn').addEventListener('click', () => { if (activeItem) fvOpen(activeItem); });
+fvEl('deckFullVideoBtn').addEventListener('click', () => { if (activeItem) fvOpen(activeItem, activeItem.fullVideo || ''); });
+{ const fb = document.getElementById('deckFullAlbumPlay'); if (fb) fb.addEventListener('click', () => { if (activeItem && activeItem.fullVideo) openYoutubePlayer(activeItem.fullVideo, activeItem.title, [], activeItem); }); }          // (1.135.79)
 fvEl('fullVideoClose').addEventListener('click', fvClose); fvEl('fullVideoCancel').addEventListener('click', fvClose);
 fvEl('fullVideoOverlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) fvClose(); });
 fvEl('fullVideoOverlay').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); fvClose(); } });

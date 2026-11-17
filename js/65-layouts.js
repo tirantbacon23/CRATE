@@ -31,7 +31,7 @@ function deckLayoutInit() {
   ['deckRymRow'].forEach(i => { const n = document.getElementById(i); if (n) rymBox.appendChild(n); });          // (1.135.64: the "Updated from RYM" and "RYM history" notes go to Details)
   if (header) header.insertAdjacentElement('afterend', rymBox);
   bar.appendChild(Object.assign(document.createElement('span'), { className: 'deck-bar-gap' }));
-  bar.appendChild(deckDrop('deckOpenOn', '↗ Open on…', 'Listen link, Spotify, SoundCloud, Rate Your Music', ['deckLink', 'deckSpotifyLink', 'deckSoundcloudLink', 'deckRymLink']));
+  bar.appendChild(deckDrop('deckOpenOn', '↗ Open on…', 'Listen link, Spotify, SoundCloud, Rate Your Music', ['deckLink', 'deckSpotifyLink', 'deckSoundcloudLink', 'deckRymLink', 'deckFullAlbumPlay']));
   bar.appendChild(deckDrop('deckMore', '⋯', 'More: edit details, edit tracks, full-release video', ['deckEditBtn', 'deckTrackGridBtn', 'deckFullVideoBtn', 'deckPlaylistRemoveBtn']));
   document.addEventListener('click', (e) => { if (!e.target.closest('.deck-drop')) document.querySelectorAll('.deck-drop-menu').forEach(m => { m.hidden = true; }); });
   // tabs (Tabs look): the body's sections, and a Details section made here
@@ -103,7 +103,7 @@ const ED_SECS = [
   ['release', 'The release', '', [['editArtist'], ['editTitle'], ['editType'], ['editFormat'], ['editReleaseYear', 1], ['editRecordedYear', 1]]],
   ['sound', 'Sound', 'genres and descriptors', [['editGenre'], ['editGenreDiscogsStatus', 1], ['editGenre2'], ['editRymDescriptors', 1]]],
   ['label', 'Label and place', '', [['editLabel'], ['editCatalog'], ['editRegion'], ['editLocation']]],
-  ['links', 'Links', 'and Rate Your Music', [['editRymLink', 1], ['editLink'], ['editRymRating']]],
+  ['links', 'Links', 'and Rate Your Music', [['editRymLink', 1], ['editLink'], ['editFullVideo'], ['editRymRating']]],
   ['songs', 'Songs', 'tracklist', [['editTracksRows', 1]]],
   ['more', 'More', 'edition, scene, movement, cover', [['editDescriptor'], ['editScene'], ['editMovement'], ['editCover', 1]]]
 ];

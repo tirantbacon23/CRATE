@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.78
+  CURRENT_VERSION: 1.135.79
 
+  1.135.79 — 2026-11-18 — A release can keep a full-album video of its own, beside its songs' links. Match songs keeps the
+          full-release video it found (one it's sure of, or one you chose) with the release when you apply, even when you switched
+          to individual videos (V); one the release already has is left alone. Its YouTube box says so and has ▶ to play the video
+          whole. The release page has "▶ Full album video" under Open on…, Edit details › Links has a "Full album video" field, and
+          the full-release video tool starts from it. NEEDS THE BACKEND UPDATE: the sheet gets a FullVideo column the first time
+          one is saved (paste the new apps-script-backend.gs into Apps Script and deploy a New version).
   1.135.78 — 2026-11-18 — Crate Galaxy: "Colour: subgenre". Each release takes the subgenre its first genre sits under in your
           taxonomy (the step just below its family: Slacker Rock counts under Indie Rock, under Rock), and each subgenre is a shade
           of its family's colour, so a family's subgenres read as related but apart. The map names the subgenres instead of the

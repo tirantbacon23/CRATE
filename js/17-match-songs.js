@@ -1155,6 +1155,7 @@ function bmApplyRel(rel, onlyKind, histLabel) {
     const pick = onlyKind ? { [onlyKind]: rel.pick[onlyKind] } : rel.pick;
     const { updates, n, dup } = bmUpdates(rel.songs, pick, { spotify: rel.spotify, youtube: rel.youtube }, (kind, c) => c.link || smCandLink(kind, c));
     if (dup) flashGlobalToast(`Left out ${bmPl(dup, 'YouTube match')}: that video is already another song’s in “${rel.item.title}”.`);
+    if (onlyKind !== 'spotify') await bmSaveFullVideo(rel);
     if (!n) return;
     const prev = {}; Object.keys(updates).forEach(num => { const td = (rel.item.trackData || {})[num] || {}; prev[num] = {}; Object.keys(updates[num]).forEach(f => { prev[num][f] = td[f] || ''; }); });
     const ok = await saveSongLinks(rel.item, updates);
@@ -1166,6 +1167,14 @@ function bmApplyRel(rel, onlyKind, histLabel) {
     rel.applied += n; b.saved += n; bmRedraw();
   }).catch(() => { /* a failed save has already said so */ });
   return b.chain;
+}
+// (1.135.79) The full-release video found for a release (used, or set aside for song-by-song videos) is kept with the release itself, beside
+// its songs' own links, so it can be played whole from the release page. Only one CRATE is sure of, or one you chose; one already there is kept.
+function bmFullVideoLinkOf(rel) { const y = rel && rel.youtube, v = y && (y.fullVideo || y.fullVideoAside); return v && v.id && v.confident && !isBiliId(v.id) ? `https://www.youtube.com/watch?v=${v.id}` : ''; }
+async function bmSaveFullVideo(rel) {
+  const link = bmFullVideoLinkOf(rel), it = rel && rel.item; if (!link || !it || it.fullVideo) return;
+  try { await postUpdate({ action: 'editAlbum', row: it.row, FullVideo: link }); it.fullVideo = link; if (typeof activeItem !== 'undefined' && activeItem === it) { const fb = document.getElementById('deckFullAlbumPlay'); if (fb) fb.hidden = false; } }
+  catch (e) { /* the songs are still saved; the release's video can be added in Edit details */ }
 }
 function bmUnlinkAll(rel, kind) {                                   // (1.95.13) "Remove all N links": every song of the release is left without a link of this kind, in one save (Undo puts them all back)
   const b = bm, f = kind === 'spotify' ? 'spotifyLink' : 'youtubeLink', item = rel && rel.item, songs = ((rel && rel.songs) || []).filter(s => s[f]); if (!songs.length) return;
@@ -1536,7 +1545,9 @@ function bmSourcePanel(rel, kind) {
   const paste = bm.pasteFor === kind ? `<div class="bm-paste"><input type="text" placeholder="${kind === 'spotify' ? 'https://open.spotify.com/album/…' : 'https://www.youtube.com/playlist?list=…'}" data-keep="paste-src-${kind}" aria-label="Paste a ${kind === 'spotify' ? 'Spotify album' : 'YouTube playlist'} link"><button type="button" class="chip-btn" data-bm="paste-src" data-kind="${kind}">Use</button><button type="button" class="chip-btn" data-bm="paste-src-cancel">Cancel</button></div>` : '';
   const kept = (rel.songs || []).filter(s => s[kind === 'spotify' ? 'spotifyLink' : 'youtubeLink']).length;          // (1.95.13) every link of this kind the release has, removed at once
   const unall = kept ? `<button type="button" class="chip-btn bm-sm" data-bm="unlink-all" data-kind="${kind}" title="Remove the ${bmName(kind)} link from every song of this release. History \u2192 Undo puts them back">Remove all ${kept} link${kept === 1 ? '' : 's'}</button>` : '';
-  return `<div class="bm-panel"><div class="bm-label">${bmName(kind)}</div><div class="bm-panel-row"><div class="bm-ct"><div class="bm-panel-t">${title}</div><div class="bm-m">${meta}</div></div>${ctl}${unall}</div>${paste}</div>`;
+  const fvv = kind === 'youtube' && r && (r.fullVideo || r.fullVideoAside), fvKeep = fvv ? (rel.item.fullVideo ? 'the release keeps its own full-album video' : fvv.confident ? 'kept with the release as its full-album video when you apply' : '') : '';
+  const fvRow = fvv ? `<div class="bm-fvrow bm-m"><button type="button" class="chip-btn bm-sm" data-bm="fv-play" title="Play the whole video">\u25b6 ${r.fullVideo ? 'Play it whole' : 'Play the full-release video'}</button>${fvKeep ? ` ${fvKeep}` : ''}</div>` : '';          // (1.135.79)
+  return `<div class="bm-panel"><div class="bm-label">${bmName(kind)}</div><div class="bm-panel-row"><div class="bm-ct"><div class="bm-panel-t">${title}</div><div class="bm-m">${meta}</div></div>${ctl}${unall}</div>${fvRow}${paste}</div>`;
 }
 function bmAlignHtml(rel) {
   if (!rel.songs || !rel.songs.length) return '';
@@ -1810,6 +1821,7 @@ function bmClick(e) {
   else if (a === 'rule-unlive') { const r = bmSelRel(); let n = 0; bmShownKinds().forEach(k => (r.songs || []).forEach(s => { const id = r.pick[k][s.idx]; if (!id) return; const c = (r[k].byIdx[s.idx] || []).find(x => x.id === id); const extra = c ? [...smFlags(c.title)].filter(f => !smFlags(s.title).has(f)) : []; if (extra.length) { bmSetPick(r, s.idx, k, '', true); n++; } })); flashGlobalToast(n ? `Unticked ${bmPl(n, 'version')} your titles don’t name.` : 'Nothing ticked looks like a live version or a remix.'); bmRender(); }
   else if (a === 'rule-untick') { const r = bmSelRel(); bmShownKinds().forEach(k => (r.songs || []).forEach(s => { if (r.pick[k][s.idx]) bmSetPick(r, s.idx, k, '', true); })); bmRender(); }
   else if (a === 'yt-rest') bmSearchRestAsked(bmSelRel());
+  else if (a === 'fv-play') { const r = bmSelRel(), y = r && r.youtube, v = y && (y.fullVideo || y.fullVideoAside); if (v) openYoutubePlayer(v.link || `https://www.youtube.com/watch?v=${v.id}`, r.item.title, [], r.item); }
   else if (a === 'choose') { const r = relOf(), o = bm.open; bm.open = o && o.row === r.row && o.idx === idx && o.kind === kind ? null : { row: r.row, idx, kind }; bm.focus = { idx, kind }; bmRender(); }
   else if (a === 'why') { const r = relOf(), w = bm.why; bm.why = w && w.row === r.row && w.idx === idx && w.kind === kind && w.id === t.dataset.id ? null : { row: r.row, idx, kind, id: t.dataset.id }; bm.focus = { idx, kind }; if (bm.view !== 'rel') { bm.sel = r.row; bm.view = 'rel'; bm.scrollFocus = true; } bmRender(); }
   else if (a === 'why-close') { bm.why = null; bmRender(); }

@@ -478,6 +478,7 @@ async function fetchCatalogOnce(opts) {
           // after the column was found missing entirely — the field had
           // been silently failing to persist since it first shipped).
           descriptor: r.Descriptor ? String(r.Descriptor).trim() : '',
+          fullVideo: r.FullVideo ? String(r.FullVideo).trim() : '',          // (1.135.79) the release's full-album video, kept beside its songs' own links
           format: r.Format ? String(r.Format).trim() : '', formatSrc: r.FormatSrc ? String(r.FormatSrc).trim() : '',          // (1.135.39) the copy you have: Vinyl LP, CD… (62-format.js)
           // Scene (a local music community/geographic cultural moment —
           // "Madchester", "Seattle grunge scene") and Movement (a broader
