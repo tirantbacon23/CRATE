@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.127
+  CURRENT_VERSION: 1.135.128
 
+  1.135.128 — 2026-11-18 — Player: clicking the album's title under the song opens the release in the deck (for a release in your crate it did
+          nothing). Whichever of the player's lines you set to the album title does the same, and so does its extra line; a line
+          showing the artist still opens the artist's page.
   1.135.127 — 2026-11-18 — ⚙ › Look › Numbers: Last.fm's plays and listeners Short (1.2M) or Exact (1,234,567), everywhere they show: the
           search and its songs panels, the cover popup, Up next, the Tracks view's Last.fm columns, the artist page's More albums.
           Last.fm gives them exact; they were only ever shortened to fit.
