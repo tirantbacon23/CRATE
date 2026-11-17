@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.84
+  CURRENT_VERSION: 1.135.85
 
+  1.135.85 — 2026-11-18 — Crate Galaxy: "Physics" (beside 3D). On, the map is a live simulation: every link a spring, tighter the more
+          two releases share, crowded stars pushing apart, each family held loosely in its place. Grab a star and pull it: what it
+          shares the most with trails after it, and when you let go it's thrown and everything settles back. Works in 2D and 3D
+          (dragging empty space still moves or turns the galaxy; a click still picks a star). It rests once nothing moves, so it
+          costs nothing while still. Remembered. New file js/68-galaxy-physics.js.
   1.135.84 — 2026-11-18 — Match songs: going back from the full-release video to individual videos (V, or "Search song by song" in the
           YouTube menu) now switches every song that was on the full video over to its own best video, sure or likely (a weak one
           waits for you), and searches those with none. Before, songs that already had their own videos were left unticked, since

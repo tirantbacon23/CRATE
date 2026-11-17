@@ -68,7 +68,8 @@ function gxSetMode(m) {
   if (m === 'time') { if (gx.mode !== 'time') { gx.mapCam = Object.assign({}, gx.cam); gx.d3Was = gx.d3; } gx.mode = 'time'; gxtEnter(); }
   else { gx.mode = 'map'; gx.d3 = !!gx.d3Was; if (gx.layout) gx.pos = gx.layout.pos; gx.lineage = null; if (gx.mapCam) gx.cam = gx.mapCam; else gxFit(true); }
   const sel = gxEl('gxMode'); if (sel) sel.value = gx.mode;
-  ['gxMode3d', 'gxSpin'].forEach(id => { const b = gxEl(id); if (b) b.hidden = gx.mode === 'time' || (id === 'gxSpin' && !gx.d3); });
+  ['gxMode3d', 'gxSpin', 'gxPhysBtn'].forEach(id => { const b = gxEl(id); if (b) b.hidden = gx.mode === 'time' || (id === 'gxSpin' && !gx.d3); });
+  if (gx.mode === 'map' && gx.phys && typeof gxPhysWake === 'function') gxPhysWake();
   const pb = gxEl('gxPlayHist'); if (pb) pb.hidden = gx.mode !== 'time';
   gxRenderSide(); gxDraw();
 }

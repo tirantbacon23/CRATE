@@ -7,7 +7,7 @@ const GX_K = 8;                                                       // neighbo
 const GX_LEN = 30;                                                    // the layout's unit length
 const gx = { open: false, items: [], graph: null, pos: null, cam: { x: 0, y: 0, z: 1 }, hover: -1, sel: -1, from: -1, to: -1, path: [], color: 'family', decade: '', onlyShown: false, find: '',
   layoutTimer: 0, settling: 0, key: '', cache: new Map(), anim: 0, stars: null, drag: null, pointers: new Map(), pulse: 0,
-  d3: (() => { try { return localStorage.getItem('crate_gx_3d_v1') === '1'; } catch (e) { return false; } })(), rot: { yaw: 0.55, pitch: 0.42 }, mode: 'map', inf: null, tl: null, timePos: null, lineage: null, playYear: null, playT: 0, posZ: null, zFor: null, spin: false, spinT: 0 };
+  d3: (() => { try { return localStorage.getItem('crate_gx_3d_v1') === '1'; } catch (e) { return false; } })(), rot: { yaw: 0.55, pitch: 0.42 }, phys: (() => { try { return localStorage.getItem('crate_gx_phys_v1') === '1'; } catch (e) { return false; } })(), physT: 0, grab: null, pv: null, mode: 'map', inf: null, tl: null, timePos: null, lineage: null, playYear: null, playT: 0, posZ: null, zFor: null, spin: false, spinT: 0 };
 
 // ----- the graph -----
 const gxNorm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -211,12 +211,12 @@ function openGalaxy() {
       }, 30);
     }
   }
-  { const b = gxEl('gxMode3d'); if (b) { b.setAttribute('aria-pressed', String(gx.d3)); b.classList.toggle('on', gx.d3); } const sp = gxEl('gxSpin'); if (sp) sp.hidden = !gx.d3; }
+  { const b = gxEl('gxMode3d'); if (b) { b.setAttribute('aria-pressed', String(gx.d3)); b.classList.toggle('on', gx.d3); } const sp = gxEl('gxSpin'); if (sp) sp.hidden = !gx.d3; const pb = gxEl('gxPhysBtn'); if (pb) { pb.setAttribute('aria-pressed', String(gx.phys)); pb.classList.toggle('on', !!gx.phys); } }
   if (gx.d3 && gx.pos && hitOrSame) gxFit(true);
   gxResize(); gxRenderSide(); gxDraw();
   setTimeout(() => { const f = gxEl('gxFind'); if (f) f.focus(); }, 60);
 }
-function closeGalaxy() { gxSpin(false); if (typeof gxtStop === 'function') gxtStop(); gx.open = false; clearTimeout(gx.layoutTimer); cancelAnimationFrame(gx.anim); gx.anim = 0; const ov = gxEl('gxOverlay'); if (ov) ov.hidden = true; gxTip(-1); }
+function closeGalaxy() { gxSpin(false); cancelAnimationFrame(gx.physT); gx.physT = 0; gx.grab = null; if (typeof gxtStop === 'function') gxtStop(); gx.open = false; clearTimeout(gx.layoutTimer); cancelAnimationFrame(gx.anim); gx.anim = 0; const ov = gxEl('gxOverlay'); if (ov) ov.hidden = true; gxTip(-1); }
 function gxSettle() {                                                 // runs the layout a little at a time, drawing as it goes: you watch the galaxy form
   clearTimeout(gx.layoutTimer);
   const L = gx.layout; if (!L) return;
@@ -226,6 +226,7 @@ function gxSettle() {                                                 // runs th
   if (!gx.keepCam && gx.mode !== 'time' && (L.iter < 40 || L.iter % 30 < 3)) gxFit(true);          // (an update keeps the camera where you left it)
   gxDraw(); gxRenderSide();
   if (!done && gx.open) gx.layoutTimer = setTimeout(gxSettle, 0);
+  if (done && gx.phys && typeof gxPhysWake === 'function') setTimeout(gxPhysWake, 0);
   if (done) { gx.posZ = null; if (!gx.keepCam && gx.mode !== 'time') gxFit(true); gx.keepCam = false; gxLabels(); gx.cache.set(gx.key, { fams: gx.fams, graph: gx.graph, layout: gx.layout, pos: gx.layout.pos, labels: gx.labels, subLabels: gx.subLabels }); gxDraw(); }
 }
 function gxSetStatus(t) { const s = gxEl('gxStatus'); if (s) { s.textContent = t; s.hidden = !t; } }
@@ -274,7 +275,7 @@ function gxSet3d(on) {
   if (!gx.d3) gxSpin(false); else gxZBuild();
   const b = gxEl('gxMode3d'); if (b) { b.setAttribute('aria-pressed', String(gx.d3)); b.classList.toggle('on', gx.d3); }
   const sp = gxEl('gxSpin'); if (sp) sp.hidden = !gx.d3;
-  gxFit(true); gxRenderSide(); gxDraw();
+  gxFit(true); gxRenderSide(); gxDraw(); if (gx.phys && typeof gxPhysWake === 'function') gxPhysWake();
 }
 function gxSpin(on) {                                                 // a slow turn of the whole galaxy, until you take hold of it
   gx.spin = on == null ? !gx.spin : !!on; const sp = gxEl('gxSpin'); if (sp) { sp.setAttribute('aria-pressed', String(gx.spin)); sp.classList.toggle('on', gx.spin); }
@@ -444,6 +445,7 @@ function gxAct(kind) {
   if (kind === 'tplay') { gxtPlay(false); return; }
   if (kind === 'tplaysel') { gxtPlay(true); return; }
   if (kind === 'spin') { gxSpin(); return; }
+  if (kind === 'phys') { gxPhysSet(); return; }
   if (kind === 'open' && it) { closeGalaxy(); openDeck(it); }
   else if (kind === 'play' && it) { flashGlobalToast(`Playing “${it.title}”`); playAlbumReplacingQueue(it); }
   else if (kind === 'from' && gx.sel >= 0) { gx.from = gx.sel; gx.to = -1; gx.path = []; gxRenderSide(); gxDraw(); }
@@ -484,10 +486,11 @@ function gxFindGo() {                                                 // Enter i
     else if (e.target.id === 'gxOnlyShown') { gx.onlyShown = e.target.checked; gx.key = ''; openGalaxy(); }
   });
   const pt = (e) => { const r = c.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
-  c.addEventListener('pointerdown', (e) => { c.setPointerCapture(e.pointerId); gx.pointers.set(e.pointerId, pt(e)); if (gx.pointers.size === 1) { const [x, y] = pt(e); gx.drag = { x, y, cx: gx.cam.x, cy: gx.cam.y, cz: gx.cam.cz || 0, yaw: gx.rot.yaw, pitch: gx.rot.pitch, pan: e.shiftKey || e.button === 2 || e.button === 1, moved: false }; } else gx.drag = null; });
+  c.addEventListener('pointerdown', (e) => { c.setPointerCapture(e.pointerId); gx.pointers.set(e.pointerId, pt(e)); if (gx.pointers.size === 1) { const [x, y] = pt(e); if (gx.phys && typeof gxPhysGrab === 'function' && gxPhysGrab(gxNearest(x, y, 18), x, y)) { gx.drag = null; gxTip(-1); return; } gx.drag = { x, y, cx: gx.cam.x, cy: gx.cam.y, cz: gx.cam.cz || 0, yaw: gx.rot.yaw, pitch: gx.rot.pitch, pan: e.shiftKey || e.button === 2 || e.button === 1, moved: false }; } else gx.drag = null; });
   c.addEventListener('contextmenu', (e) => { if (gx.d3) e.preventDefault(); });
   c.addEventListener('pointermove', (e) => {
     const p = pt(e);
+    if (gx.grab) { gxPhysMove(p[0], p[1]); c.style.cursor = 'grabbing'; return; }          // (1.135.85) a star held, with Physics on
     if (gx.pointers.size === 2 && gx.pointers.has(e.pointerId)) {    // pinch
       const [a, b] = [...gx.pointers.values()], d0 = Math.hypot(a[0] - b[0], a[1] - b[1]); gx.pointers.set(e.pointerId, p);
       const [a2, b2] = [...gx.pointers.values()], d1 = Math.hypot(a2[0] - b2[0], a2[1] - b2[1]); if (d0 > 0) gxZoomAt((a2[0] + b2[0]) / 2, (a2[1] + b2[1]) / 2, d1 / d0); return;
@@ -501,7 +504,7 @@ function gxFindGo() {                                                 // Enter i
       gxTip(-1); gxDraw(); return; }
     const i = gxNearest(p[0], p[1]); if (i !== gx.hover) { gx.hover = i; gxDraw(); } gxTip(i, p[0], p[1]); c.style.cursor = i >= 0 ? 'pointer' : 'grab';
   });
-  const up = (e) => { const d = gx.drag; gx.pointers.delete(e.pointerId); gx.drag = null; if (d && !d.moved && e.type === 'pointerup') { const [x, y] = pt(e); gxSelect(gxNearest(x, y)); } };
+  const up = (e) => { if (gx.grab) { gx.pointers.delete(e.pointerId); const g = gxPhysRelease(); if (g && !g.moved && e.type === 'pointerup') gxSelect(g.i); return; } const d = gx.drag; gx.pointers.delete(e.pointerId); gx.drag = null; if (d && !d.moved && e.type === 'pointerup') { const [x, y] = pt(e); gxSelect(gxNearest(x, y)); } };
   c.addEventListener('pointerup', up); c.addEventListener('pointercancel', up);
   c.addEventListener('pointerleave', () => { if (!gx.drag) { gx.hover = -1; gxTip(-1); gxDraw(); } });
   c.addEventListener('wheel', (e) => { e.preventDefault(); const [x, y] = pt(e); gxZoomAt(x, y, Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
