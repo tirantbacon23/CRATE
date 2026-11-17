@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.118
+  CURRENT_VERSION: 1.135.119
 
+  1.135.119 — 2026-11-18 — Match songs: a release whose every song already has a link for a service isn't looked up on it any more when opened
+          by itself either (R looks it up again): a release with every song linked sat "working" behind Spotify's slow-downs. Spotify
+          refusing eight times in two minutes stops the Spotify part with a message and Resume, rather than waiting out each song;
+          "Skip Spotify for now" beside the slow-down note does it at once. One release opened by itself follows "Look songs up on
+          Spotify" being off.
   1.135.118 — 2026-11-18 — Search menu: no click in it did anything since 1.135.109. The search box carried a "set up once" mark named like the
           songs' Sort buttons, so every click in the menu was read as a sort click and dropped; renamed. Also: nothing in the menu is
           redrawn while a mouse button is held on it (online results arriving, the songs panels filling in): it waits until the button

@@ -635,7 +635,7 @@ function bmOpen(opts) {
 }
 function bmStartOne(item, focusTrackNum) {                          // one release: no Start screen, straight to its songs
   bm.sets.ticked = [item]; bm.scope = 'ticked'; bm.skipLinked = false; bm.songsMode = 'all';
-  bm.svc = { spotify: true, youtube: ytUseAddon() || !!loadYoutubeApiKey() };
+  bm.svc = { spotify: smPrefs().spotifyLookup !== false, youtube: ytUseAddon() || !!loadYoutubeApiKey() };          // (1.135.119) "Look songs up on Spotify" off: not for one release either
   bm.ytDefer = !ytUseAddon();                                       // the API route costs quota: YouTube waits for "Find on YouTube"
   bm.ytAddonLate = !ytUseAddon() && ytAddonWanted();                // ...unless that is only because the add-on hasn't answered yet: bmAddonArrived lets it run when it does
   bmStart();
@@ -1039,7 +1039,7 @@ async function bmRunLane(kind) {
           const broken = Object.keys(rel.broken[kind]);
           if (!broken.length) { rel[kind] = { status: 'done', byIdx: {} }; rel.st[kind] = 'done'; bmRedraw(); continue; }
           relinkOnly = broken.every(i => rel.broken[kind][i].newId);
-        } else if (b.songsMode === 'gaps' && songs.every(s => smHas(s, kind))) { rel.st[kind] = 'skip'; rel.err[kind] = 'All linked'; bmRelFinished(rel); bmRedraw(); continue; }
+        } else if ((b.songsMode === 'gaps' || (b.songsMode === 'all' && !(rel.force && rel.force[kind]))) && songs.every(s => smHas(s, kind))) { rel.st[kind] = 'skip'; rel.err[kind] = b.songsMode === 'all' ? 'All linked: R looks again' : 'All linked'; bmRelFinished(rel); bmRedraw(); continue; }          // (1.135.119) a release opened by itself too: nothing to look up when every song has a link (it sat "working" behind Spotify's slow-downs)
         if (kind === 'youtube') smSpotifyNamesToSongs(songs, rel.spotify);          // (1.95.12) Spotify's names, when it got there first
         const r = relinkOnly ? { status: 'done', byIdx: {} } : kind === 'spotify' ? await smSpotifyForRelease(rel.item, songs) : await smYoutubeForRelease(rel.item, songs);
         if (bm !== b) return;
@@ -1090,6 +1090,13 @@ async function bmRunLane(kind) {
   if (bm === b && lane.s === 'work') lane.s = 'done';
   if (bm === b) { bmRedraw(); bmCheckDone(); }
 }
+// (1.135.119) "Skip Spotify for now": that service stops where it is (what it found stays), the releases it hadn't reached wait for Resume
+function bmSkipLane(kind) {
+  if (!bm || !bm.lanes[kind]) return; const l = bm.lanes[kind];
+  l.halt = true; l.s = 'stopped'; l.msg = 'Skipped for now. Resume looks up the releases it hadn\u2019t reached.'; l.run = (l.run || 0) + 1;
+  bm.rels.forEach(r => { if (r.st[kind] === 'work') r.st[kind] = 'wait'; });
+  bmRedraw(); bmCheckDone();
+}
 function bmCheckDone() {
   if (!bm || !bm.running || !bmKinds().every(k => bm.lanes[k].s !== 'work')) return;
   bm.running = false;
@@ -1113,7 +1120,7 @@ function bmCheckDone() {
 }
 function bmResumeLane(kind) { if (!bm || bm.lanes[kind].s !== 'stopped') return; bm.stopped = false; bm.running = true; bmRunLane(kind); bmRender(); }
 function bmRerun(rels, kinds) {                                      // look these up again from scratch (picks you made for them are dropped)
-  (kinds || bmKinds()).forEach(k => rels.forEach(r => { r.st[k] = 'wait'; r[k] = null; r.pick[k] = {}; r.touched[k] = {}; r.broken[k] = {}; delete r.err[k]; }));
+  (kinds || bmKinds()).forEach(k => rels.forEach(r => { r.st[k] = 'wait'; r[k] = null; r.pick[k] = {}; r.touched[k] = {}; r.broken[k] = {}; delete r.err[k]; (r.force = r.force || {})[k] = true; }));          // (asked for again: looked up even when every song has a link)
   rels.forEach(r => { r.include = true; r.songsP = null; r.songs = null; });
   bmKickLanes(); bmRedraw();
 }
@@ -1341,7 +1348,7 @@ function bmLaneInfo(kind) {
   if (ytStopped) chip = ['look', 'needs you']; else if (slow) chip = ['look', 'slowed down'];
   const el_ = (Date.now() - (bm.t0 || Date.now())) / 1000, left = done && l.s === 'work' ? Math.round(el_ / done * (total - done)) : 0;
   const msg = ytStopped ? `<div class="bm-lane-msg" role="alert"><b>YouTube:</b> ${escapeHtml(ytAddonWhy(ytAddon.reason))} <button type="button" class="chip-btn bm-sm" data-bm="yt-continue">Continue</button></div>`
-    : slow ? `<div class="bm-lane-msg">Spotify asked CRATE to slow down: it carries on in ${slow} s.</div>`
+    : slow ? `<div class="bm-lane-msg">Spotify asked CRATE to slow down: it carries on in ${slow} s. <button type="button" class="chip-btn bm-sm" data-bm="lane-skip" data-kind="spotify">Skip Spotify for now</button></div>`
     : l.msg ? `<div class="bm-lane-msg" role="alert"><b>${bmName(kind)}:</b> ${escapeHtml(l.msg)} ${l.s === 'stopped' ? `<button type="button" class="chip-btn bm-sm" data-bm="lane-resume" data-kind="${kind}">Resume</button>` : ''}</div>` : '';
   return { kind, total, done, tone: chip[0], label: chip[1], left, msg };
 }
@@ -1823,7 +1830,7 @@ function bmClick(e) {
   else if (a === 'hide') bmHide(); else if (a === 'close') bmClose(); else if (a === 'cancel') bmClose(true); else if (a === 'start') bmStart(); else if (a === 'show-dialog') bmShow();
   else if (a === 'pause') { bm.paused = true; bmRender(); } else if (a === 'resume') { bm.paused = false; bmRender(); }
   else if (a === 'stop') { bm.stopped = true; ytAddonCancel(); bmRender(); }
-  else if (a === 'yt-continue') ytAddonContinue(); else if (a === 'lane-resume') bmResumeLane(kind);
+  else if (a === 'yt-continue') ytAddonContinue(); else if (a === 'lane-resume') bmResumeLane(kind); else if (a === 'lane-skip') bmSkipLane(kind);
   else if (a === 'rf-clear') { bm.rf = bmRf0(); }
   else if (a === 'resume-saved') bmResumeSaved(); else if (a === 'discard-saved') { if (confirm('Discard the saved run? Links already applied stay.')) { bmRunDel(); bm.savedRun = null; bmRender(); } }
   else if (a === 'health-retry') bmHealthRun(true);
@@ -2053,8 +2060,9 @@ async function smSpotifyGetter() {                                   // a JSON r
       if (res.status === 401) { spotifyToken = null; throw new Error('Spotify\u2019s session expired \u2014 try again'); }
       if (res.status === 429) {                                      // too many requests: the queue waits out Spotify's Retry-After before the next try; a wait of more than a minute is said instead
         const wait = spotifyRateLimitedUntil - Date.now();
-        if (tries < 4 && wait <= 60000) continue;
-        throw new Error(`Spotify says too many requests: wait ${wait > 90000 ? `about ${Math.ceil(wait / 60000)} minutes` : 'a minute'}, then press Resume`);
+        const recent = (smNet.spotify429At = (smNet.spotify429At || []).filter(t => Date.now() - t < 120000).concat(Date.now())).length;
+        if (tries < 4 && wait <= 60000 && recent < 8) continue;          // (1.135.119) eight in two minutes: Spotify is holding CRATE back, and every song waiting it out kept the run "working" for ages
+        throw new Error(`Spotify says too many requests: wait ${wait > 90000 ? `about ${Math.ceil(wait / 60000)} minutes` : 'a few minutes'}, then press Resume`);
       }
       if (!res.ok) throw new Error('Spotify answered ' + res.status);
       return res.json();
