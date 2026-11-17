@@ -17,8 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.44
+  CURRENT_VERSION: 1.135.45
 
+  1.135.45 — 2026-11-17 — A new search panel. As you type: your crate on the left and releases you don't have yet on the right (from the
+          sources Add a release uses: MusicBrainz, Apple Music, Spotify, Discogs), each with its cover; "+ Add" opens Add a release on
+          it. Refine chips across the top (Albums, EPs, Singles, ★ 4+, Not listened, Vinyl, CD, Decade) add or take off the same words
+          you could type, and the field filters in the box show as chips with ✕. With the box empty: recent searches, saved ones
+          (★ Save this search) and Jump to (Recently added, Not listened, Rated 4+, No RYM rating, Not updated from RYM, Random
+          release). ⌘K / Ctrl+K goes to the search box from anywhere. ⚙ Settings → "Search looks like": Dropdown, or Detail panel (a
+          big panel: tabs, filters down the side, a cover grid, then songs and artists); the switch is also at the bottom of the
+          panel. New search words: format: (vinyl, cd, digital, none) and listened: (yes / no).
   1.135.44 — 2026-11-17 — Add a release searches more than MusicBrainz: Apple Music (no account needed), Spotify (when connected) and Discogs
           (with a token) are asked at the same time, each in its own section as it answers, an album already listed above not
           repeated. "Search:" chips above the results pick which (kept on this device). MusicBrainz now tries again by itself when

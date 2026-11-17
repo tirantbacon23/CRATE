@@ -82,7 +82,6 @@ function bindEvents() {
 
   // 1. Search Logic
   el.searchInput.addEventListener('input', debounce(() => {
-    if (typeof ssScope !== 'undefined' && ssScope === 'online') return;          // (1.135.42) an online search doesn't filter your crate
     state.query = el.searchInput.value.trim().toLowerCase();
     el.searchWrap.classList.toggle('mobile-search-has-value', !!state.query); // keeps the mobile icon-collapsed search bar expanded while a query is active — see .search-wrap's mobile CSS
     buildLeftList();
