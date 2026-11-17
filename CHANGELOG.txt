@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.124
+  CURRENT_VERSION: 1.135.125
 
+  1.135.125 — 2026-11-18 — Cover wall: releases further down showed no cover. It only used covers already fetched, and the grid fetches a
+          release's cover when its card is drawn, so releases the grid had never shown were blank. The wall now fetches a cover as it
+          comes near the screen, and it fills in where it is when it arrives.
   1.135.124 — 2026-11-18 — Up next: ⚙ on its bar chooses what each song shows (artist, album, year, genre, length, your rating, the song's RYM
           rating) and how much it's played: your plays of the song, its Last.fm plays and listeners, your Last.fm plays of it. At once,
           remembered (the same choice as ⚙ › Panels configuration). Last.fm's numbers are looked up for the next 40 songs, kept two days.

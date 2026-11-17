@@ -50,9 +50,15 @@ function wallZoom(d) { const p = wallPrefs(); p.size = Math.max(80, Math.min(420
 function wallDraw() {
   const grid = wall.el.querySelector('.cw-grid'), n = wall.items.length;
   wall.el.querySelector('.cw-count').textContent = `${n.toLocaleString()} release${n === 1 ? '' : 's'}${wall.shuffled ? ' · shuffled' : ''}`;
-  grid.innerHTML = wall.items.map((it, i) => `<div class="cw-cell" data-i="${i}" title="${escapeHtml(it.title + ' · ' + it.artist)}"><div class="cw-art" data-src="${escapeHtml(srchItemCover(it))}"></div><div class="cw-cap"><b>${escapeHtml(it.title)}</b><span>${escapeHtml(it.artist)}</span></div></div>`).join('');
+  grid.innerHTML = wall.items.map((it, i) => `<div class="cw-cell" data-i="${i}" title="${escapeHtml(it.title + ' · ' + it.artist)}"><img class="cw-art art" data-key="${escapeHtml(artKey(it))}" src="${escapeHtml(srchItemCover(it))}" alt="" loading="lazy" decoding="async"><div class="cw-cap"><b>${escapeHtml(it.title)}</b><span>${escapeHtml(it.artist)}</span></div></div>`).join('');
   if (wall.io) wall.io.disconnect();
-  wall.io = new IntersectionObserver((ents) => ents.forEach(e => { if (!e.isIntersecting) return; const a = e.target, s = a.dataset.src; if (s) { a.style.backgroundImage = `url("${s.replace(/"/g, '%22')}")`; delete a.dataset.src; } wall.io.unobserve(a); }), { root: grid, rootMargin: '600px' });
+  // (1.135.125) a cover not fetched yet is fetched as it comes near the screen, as the grid's cards do (before, releases the grid had
+  // never shown had no cover here, so most of the wall below the first screens was blank); it fills in where it is when it arrives
+  wall.io = new IntersectionObserver((ents) => ents.forEach(e => { if (!e.isIntersecting) return; const a = e.target, it = wall.items[+a.parentNode.dataset.i]; wall.io.unobserve(a); if (!it) return;
+    const k = artKey(it), c = state.artCache[k], coverOk = it.cover && (typeof badArtUrls === 'undefined' || badArtUrls[k] !== it.cover);
+    if (c && c.art) { if (a.src !== c.art) a.src = c.art; return; }
+    if (!coverOk && typeof fetchArt === 'function' && typeof artFetchInFlight !== 'undefined' && !artFetchInFlight.has(k)) { artFetchInFlight.add(k); fetchArt(it); }
+  }), { root: grid, rootMargin: '800px' });
   grid.querySelectorAll('.cw-art').forEach(a => wall.io.observe(a));
   wallRing();
 }

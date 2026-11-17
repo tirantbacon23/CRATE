@@ -6374,7 +6374,7 @@ html.thm-fade body, html.thm-fade body * { transition: background-color .9s ease
 .cw-grid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--cw-size, 180px), 1fr)); gap: var(--cw-gap, 0px); padding: var(--cw-gap, 0px); align-content: start; outline: none; scrollbar-width: none; }
 .cw-grid::-webkit-scrollbar { display: none; }
 .cw-cell { position: relative; cursor: pointer; min-width: 0; }
-.cw-art { aspect-ratio: 1; background: #111 center / cover no-repeat; transition: filter .15s, transform .15s; }
+.cw-art { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; background: #111; transition: filter .15s, transform .15s; }
 .cw-cell:hover .cw-art { filter: brightness(1.12); }
 .cw-cell.cw-now .cw-art { box-shadow: inset 0 0 0 4px var(--accent); }
 .cw-cap { display: none; padding: 6px 8px 10px; background: #000; min-width: 0; }
