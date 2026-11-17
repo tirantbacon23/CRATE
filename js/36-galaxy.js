@@ -6,7 +6,8 @@ const GX_W = { g1: 3, g2: 2, gp: 1, d: 0.9, s: 2, l: 1.4, a: 2.6, y: 0.7 };     
 const GX_K = 8;                                                       // neighbours kept per star
 const GX_LEN = 30;                                                    // the layout's unit length
 const gx = { open: false, items: [], graph: null, pos: null, cam: { x: 0, y: 0, z: 1 }, hover: -1, sel: -1, from: -1, to: -1, path: [], color: 'family', decade: '', onlyShown: false, find: '',
-  layoutTimer: 0, settling: 0, key: '', cache: new Map(), anim: 0, stars: null, drag: null, pointers: new Map(), pulse: 0 };
+  layoutTimer: 0, settling: 0, key: '', cache: new Map(), anim: 0, stars: null, drag: null, pointers: new Map(), pulse: 0,
+  d3: (() => { try { return localStorage.getItem('crate_gx_3d_v1') === '1'; } catch (e) { return false; } })(), rot: { yaw: 0.55, pitch: 0.42 }, posZ: null, zFor: null, spin: false, spinT: 0 };
 
 // ----- the graph -----
 const gxNorm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -197,7 +198,7 @@ function gxRebuildKeep() {
 }
 function openGalaxy() {
   gx.open = true; gxEl('gxOverlay').hidden = false;
-  const pool = gxPool(), key = gxKey(pool);
+  const pool = gxPool(), key = gxKey(pool), hitOrSame = key === gx.key || gx.cache.has(key);
   if (key !== gx.key) {
     gx.key = key; gx.items = pool; gx.hover = gx.sel = gx.from = gx.to = -1; gx.path = [];
     const hit = gx.cache.get(key);
@@ -210,10 +211,12 @@ function openGalaxy() {
       }, 30);
     }
   }
+  { const b = gxEl('gxMode3d'); if (b) { b.setAttribute('aria-pressed', String(gx.d3)); b.classList.toggle('on', gx.d3); } const sp = gxEl('gxSpin'); if (sp) sp.hidden = !gx.d3; }
+  if (gx.d3 && gx.pos && hitOrSame) gxFit(true);
   gxResize(); gxRenderSide(); gxDraw();
   setTimeout(() => { const f = gxEl('gxFind'); if (f) f.focus(); }, 60);
 }
-function closeGalaxy() { gx.open = false; clearTimeout(gx.layoutTimer); cancelAnimationFrame(gx.anim); gx.anim = 0; const ov = gxEl('gxOverlay'); if (ov) ov.hidden = true; gxTip(-1); }
+function closeGalaxy() { gxSpin(false); gx.open = false; clearTimeout(gx.layoutTimer); cancelAnimationFrame(gx.anim); gx.anim = 0; const ov = gxEl('gxOverlay'); if (ov) ov.hidden = true; gxTip(-1); }
 function gxSettle() {                                                 // runs the layout a little at a time, drawing as it goes: you watch the galaxy form
   clearTimeout(gx.layoutTimer);
   const L = gx.layout; if (!L) return;
@@ -223,16 +226,69 @@ function gxSettle() {                                                 // runs th
   if (!gx.keepCam && (L.iter < 40 || L.iter % 30 < 3)) gxFit(true);          // (an update keeps the camera where you left it)
   gxDraw(); gxRenderSide();
   if (!done && gx.open) gx.layoutTimer = setTimeout(gxSettle, 0);
-  if (done) { if (!gx.keepCam) gxFit(true); gx.keepCam = false; gxLabels(); gx.cache.set(gx.key, { fams: gx.fams, graph: gx.graph, layout: gx.layout, pos: gx.pos, labels: gx.labels, subLabels: gx.subLabels }); gxDraw(); }
+  if (done) { gx.posZ = null; if (!gx.keepCam) gxFit(true); gx.keepCam = false; gxLabels(); gx.cache.set(gx.key, { fams: gx.fams, graph: gx.graph, layout: gx.layout, pos: gx.pos, labels: gx.labels, subLabels: gx.subLabels }); gxDraw(); }
 }
 function gxSetStatus(t) { const s = gxEl('gxStatus'); if (s) { s.textContent = t; s.hidden = !t; } }
 
 // ----- the camera -----
 function gxView() { const c = gxEl('gxCanvas'); return c ? { w: c.clientWidth || 1, h: c.clientHeight || 1 } : { w: 1, h: 1 }; }
-function gxToScreen(i) { const v = gxView(); return [(gx.pos[2 * i] - gx.cam.x) * gx.cam.z + v.w / 2, (gx.pos[2 * i + 1] - gx.cam.y) * gx.cam.z + v.h / 2]; }
+// (1.135.80) 3D: each star also has a depth (gxZBuild), and the camera turns round the point it looks at (yaw, pitch), with perspective.
+// A point comes back as [x, y, scale]; scale 0 is behind the camera (not drawn). In 2D the scale is always 1.
+function gxProj(x, y, z, v) {
+  v = v || gxView();
+  if (!gx.d3) return [(x - gx.cam.x) * gx.cam.z + v.w / 2, (y - gx.cam.y) * gx.cam.z + v.h / 2, 1];
+  const cy = Math.cos(gx.rot.yaw), sy = Math.sin(gx.rot.yaw), cp = Math.cos(gx.rot.pitch), sp = Math.sin(gx.rot.pitch);
+  const px = x - gx.cam.x, py = y - gx.cam.y, pz = z - (gx.cam.cz || 0);
+  const x1 = px * cy - pz * sy, z1 = px * sy + pz * cy, y2 = py * cp - z1 * sp, z2 = py * sp + z1 * cp;
+  const F = Math.max(v.w, v.h) * 1.1 / gx.cam.z, d = F + z2; if (d < F * 0.08) return [0, 0, 0];
+  const k = F / d; return [x1 * gx.cam.z * k + v.w / 2, y2 * gx.cam.z * k + v.h / 2, k];
+}
+function gxZOf(i) { return gx.d3 && gx.posZ ? gx.posZ[i] : 0; }
+function gxToScreen(i) { return gxProj(gx.pos[2 * i], gx.pos[2 * i + 1], gxZOf(i)); }
+// The depth of each star: the map as laid out stays as it is seen from straight above, and depth is worked out from the same
+// links: a star sits at the depth of what it shares the most with, each family round a depth of its own, crowded stars pushed apart.
+function gxZBuild() {
+  if (!gx.pos || !gx.graph) return; const N = gx.items.length;
+  if (gx.posZ && gx.zFor === gx.pos && gx.posZ.length === N) return;
+  const F = gx.fams, R0 = GX_LEN * Math.sqrt(N) * 0.55, z = new Float64Array(N), anc = new Map();
+  F.order.forEach(f => { const h = gxRand(gxHash('z|' + f)); anc.set(f, (h() - 0.5) * 2 * R0); });
+  for (let i = 0; i < N; i++) { const r = gxRand(gxHash('zz|' + i + '|' + gx.items[i].title)); z[i] = anc.get(F.fam[i]) + (r() - 0.5) * GX_LEN * 3; }
+  const cell = GX_LEN, grid = new Map(), key = (a, b) => (a + 32768) * 65536 + (b + 32768), close = [];
+  for (let i = 0; i < N; i++) { const k = key(Math.floor(gx.pos[2 * i] / cell), Math.floor(gx.pos[2 * i + 1] / cell)); let c = grid.get(k); if (!c) grid.set(k, c = []); c.push(i); }
+  for (let i = 0; i < N; i++) { const cx = Math.floor(gx.pos[2 * i] / cell), cy = Math.floor(gx.pos[2 * i + 1] / cell);
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) { const c = grid.get(key(cx + dx, cy + dy)); if (c) c.forEach(j => { if (j > i) close.push(i, j); }); } }
+  for (let it = 0; it < 90; it++) {
+    const nz = Float64Array.from(z), heat = 1 - it / 90;
+    gx.graph.nbr.forEach((l, i) => { if (!l.length) return; let sw = 0, sz = 0; l.forEach(({ j, s }) => { sw += s; sz += z[j] * s; }); if (sw) nz[i] += (sz / sw - z[i]) * 0.35; });
+    for (let i = 0; i < N; i++) nz[i] += (anc.get(F.fam[i]) - z[i]) * 0.03;
+    for (let q = 0; q < close.length; q += 2) { const i = close[q], j = close[q + 1], ex = gx.pos[2 * i] - gx.pos[2 * j], ey = gx.pos[2 * i + 1] - gx.pos[2 * j + 1], dz = z[i] - z[j], d = Math.sqrt(ex * ex + ey * ey + dz * dz) || 0.01;
+      if (d < GX_LEN) { const push = (GX_LEN - d) * 0.25 * (0.4 + heat) * (dz >= 0 ? 1 : -1); nz[i] += push; nz[j] -= push; } }
+    z.set(nz);
+  }
+  gx.posZ = z; gx.zFor = gx.pos;
+  const avg = (names) => { const m = new Map(); names.forEach((f, i) => { const a = m.get(f) || [0, 0]; a[0] += z[i]; a[1]++; m.set(f, a); }); return new Map([...m].map(([k, a]) => [k, a[0] / a[1]])); };
+  gx.famZ = avg(F.fam); gx.subZ = F.sub ? avg(F.sub) : new Map();
+}
+function gxSet3d(on) {
+  gx.d3 = !!on; try { localStorage.setItem('crate_gx_3d_v1', gx.d3 ? '1' : '0'); } catch (e) { /* this visit */ }
+  if (!gx.d3) gxSpin(false); else gxZBuild();
+  const b = gxEl('gxMode3d'); if (b) { b.setAttribute('aria-pressed', String(gx.d3)); b.classList.toggle('on', gx.d3); }
+  const sp = gxEl('gxSpin'); if (sp) sp.hidden = !gx.d3;
+  gxFit(true); gxRenderSide(); gxDraw();
+}
+function gxSpin(on) {                                                 // a slow turn of the whole galaxy, until you take hold of it
+  gx.spin = on == null ? !gx.spin : !!on; const sp = gxEl('gxSpin'); if (sp) { sp.setAttribute('aria-pressed', String(gx.spin)); sp.classList.toggle('on', gx.spin); }
+  cancelAnimationFrame(gx.spinT); gx.spinT = 0;
+  if (gx.spin) { let last = performance.now(); const tick = (t) => { if (!gx.spin || !gx.open || !gx.d3) { gx.spinT = 0; return; } gx.rot.yaw += Math.min(50, t - last) * 0.00012; last = t; if (!gx.drag) gxDraw(); gx.spinT = requestAnimationFrame(tick); }; gx.spinT = requestAnimationFrame(tick); }
+}
 function gxToWorld(sx, sy) { const v = gxView(); return [(sx - v.w / 2) / gx.cam.z + gx.cam.x, (sy - v.h / 2) / gx.cam.z + gx.cam.y]; }
 function gxFit(quiet) {
-  if (!gx.pos || !gx.pos.length) return; let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  if (!gx.pos || !gx.pos.length) return;
+  if (gx.d3) { gxZBuild(); const N = gx.pos.length / 2; let mx = 0, my = 0, mz = 0; for (let i = 0; i < N; i++) { mx += gx.pos[2 * i]; my += gx.pos[2 * i + 1]; mz += gxZOf(i); } mx /= N; my /= N; mz /= N;
+    let r = 0; for (let i = 0; i < N; i++) r = Math.max(r, Math.hypot(gx.pos[2 * i] - mx, gx.pos[2 * i + 1] - my, gxZOf(i) - mz));
+    const v = gxView(), to = { x: mx, y: my, cz: mz, z: Math.max(0.02, Math.min(6, Math.min(v.w, v.h) / (2 * (r || 1)) * 0.95)) };
+    if (quiet) gx.cam = to; else gxFly(to); return; }
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (let i = 0; i < gx.pos.length; i += 2) { x0 = Math.min(x0, gx.pos[i]); x1 = Math.max(x1, gx.pos[i]); y0 = Math.min(y0, gx.pos[i + 1]); y1 = Math.max(y1, gx.pos[i + 1]); }
   const v = gxView(), z = Math.min(v.w / ((x1 - x0) || 1), v.h / ((y1 - y0) || 1)) * 0.88;
   const to = { x: (x0 + x1) / 2, y: (y0 + y1) / 2, z: Math.max(0.02, Math.min(6, z)) };
@@ -242,12 +298,12 @@ function gxFly(to, ms) {                                              // eases t
   const from = Object.assign({}, gx.cam), t0 = performance.now(), dur = ms || 650;
   const step = () => {
     const t = Math.min(1, (performance.now() - t0) / dur), e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2, lz = Math.log(from.z) + (Math.log(to.z) - Math.log(from.z)) * e;
-    gx.cam = { x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e, z: Math.exp(lz) }; gxDraw();
+    gx.cam = { x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e, z: Math.exp(lz), cz: (from.cz || 0) + (((to.cz != null ? to.cz : from.cz) || 0) - (from.cz || 0)) * e }; gxDraw();
     if (t < 1 && gx.open) setTimeout(step, 16);
   };
   step();
 }
-function gxFlyTo(i, z) { if (i < 0 || !gx.pos) return; gxFly({ x: gx.pos[2 * i], y: gx.pos[2 * i + 1], z: Math.max(gx.cam.z, z || 2.2) }); }
+function gxFlyTo(i, z) { if (i < 0 || !gx.pos) return; gxFly({ x: gx.pos[2 * i], y: gx.pos[2 * i + 1], cz: gxZOf(i), z: Math.max(gx.cam.z, z || 2.2) }); }
 function gxResize() {
   const c = gxEl('gxCanvas'); if (!c) return; const d = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
   if (c.width !== Math.round(w * d) || c.height !== Math.round(h * d)) { c.width = Math.round(w * d); c.height = Math.round(h * d); }
@@ -276,11 +332,15 @@ function gxDraw() {
   const bg = ctx.createRadialGradient(v.w * 0.5, v.h * 0.45, 0, v.w * 0.5, v.h * 0.5, Math.max(v.w, v.h) * 0.75); bg.addColorStop(0, '#161C27'); bg.addColorStop(1, '#07090D');
   ctx.fillStyle = bg; ctx.fillRect(0, 0, v.w, v.h);
   if (!gx.stars) { const r = gxRand(7); gx.stars = Array.from({ length: 260 }, () => [r(), r(), r() * 0.9 + 0.2, r()]); }
-  gx.stars.forEach(([x, y, s, k]) => { const px = ((x * v.w * 1.3 - gx.cam.x * 0.03 * k) % v.w + v.w) % v.w, py = ((y * v.h * 1.3 - gx.cam.y * 0.03 * k) % v.h + v.h) % v.h; ctx.fillStyle = `rgba(200,210,235,${0.08 + k * 0.18})`; ctx.fillRect(px, py, s, s); });
+  const bx = gx.d3 ? gx.rot.yaw * 260 : gx.cam.x * 0.03, by = gx.d3 ? gx.rot.pitch * 260 : gx.cam.y * 0.03;
+  gx.stars.forEach(([x, y, s, k]) => { const px = ((x * v.w * 1.3 - bx * k) % v.w + v.w) % v.w, py = ((y * v.h * 1.3 - by * k) % v.h + v.h) % v.h; ctx.fillStyle = `rgba(200,210,235,${0.08 + k * 0.18})`; ctx.fillRect(px, py, s, s); });
   if (!gx.pos || !gx.graph) return;
-  const N = gx.items.length, sx = new Float32Array(N), sy = new Float32Array(N), lit = new Uint8Array(N), m = 40;
-  for (let i = 0; i < N; i++) { const p = gxToScreen(i); sx[i] = p[0]; sy[i] = p[1]; lit[i] = gxLit(i) ? 1 : 0; }
-  const on = (i) => sx[i] > -m && sx[i] < v.w + m && sy[i] > -m && sy[i] < v.h + m;
+  if (gx.d3) gxZBuild();
+  const N = gx.items.length, sx = new Float32Array(N), sy = new Float32Array(N), ps = new Float32Array(N), lit = new Uint8Array(N), m = 40;
+  for (let i = 0; i < N; i++) { const p = gxToScreen(i); sx[i] = p[0]; sy[i] = p[1]; ps[i] = p[2]; lit[i] = gxLit(i) ? 1 : 0; }
+  const on = (i) => ps[i] > 0 && sx[i] > -m && sx[i] < v.w + m && sy[i] > -m && sy[i] < v.h + m;
+  const order = gx.d3 ? Array.from({ length: N }, (_, i) => i).sort((a, b) => ps[a] - ps[b]) : null;          // (3D: the far ones first)
+  const fog = (i) => gx.d3 ? Math.max(0.25, Math.min(1, (ps[i] - 0.45) * 1.6)) : 1;
   // links: faint, and only once you are close enough to tell them apart
   const focus = gx.sel >= 0 ? gx.sel : gx.hover;
   if (z * GX_LEN > 14) {
@@ -290,9 +350,10 @@ function gxDraw() {
   if (focus >= 0) { gx.graph.nbr[focus].forEach(({ j, s }) => { ctx.strokeStyle = `rgba(240,194,106,${0.15 + s * 0.6})`; ctx.lineWidth = 0.6 + s * 2; ctx.beginPath(); ctx.moveTo(sx[focus], sy[focus]); ctx.lineTo(sx[j], sy[j]); ctx.stroke(); }); }
   // stars
   const sc = Math.max(0.55, Math.min(2.4, Math.sqrt(z) * 1.1)), bold = typeof rymReleaseIsBold === 'function';
-  for (let pass = 0; pass < 2; pass++) for (let i = 0; i < N; i++) {
+  for (let pass = 0; pass < 2; pass++) for (let q = 0; q < N; q++) {
+    const i = order ? order[q] : q;
     if (lit[i] !== pass || !on(i)) continue;                          // the dimmed ones first, so the lit ones sit on top
-    const r = gxRadius(i) * sc; ctx.globalAlpha = pass ? 0.95 : 0.13; ctx.fillStyle = gxColor(i);
+    const r = gxRadius(i) * sc * (gx.d3 ? Math.min(2.6, ps[i]) : 1); ctx.globalAlpha = (pass ? 0.95 : 0.13) * fog(i); ctx.fillStyle = gxColor(i);
     if (r < 1.6) ctx.fillRect(sx[i] - r, sy[i] - r, r * 2, r * 2); else { ctx.beginPath(); ctx.arc(sx[i], sy[i], r, 0, Math.PI * 2); ctx.fill(); }
     if (pass && bold && rymReleaseIsBold(gx.items[i])) { ctx.globalAlpha = 0.55; ctx.strokeStyle = '#F0C26A'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(sx[i], sy[i], r + 2.2, 0, Math.PI * 2); ctx.stroke(); }
   }
@@ -313,7 +374,7 @@ function gxDraw() {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const labs = gx.color === 'sub' ? (gx.subPick ? (gx.subLabels || []).filter(L => L.f === gx.subPick) : gx.subLabels) : gx.labels;
   if (labs && z * GX_LEN < 60) labs.forEach(L => {
-    const x = (L.x - gx.cam.x) * z + v.w / 2, y = (L.y - gx.cam.y) * z + v.h / 2, fs = Math.max(L.sub ? 10 : 11, Math.min(L.sub ? 18 : 22, (L.sub ? 8 : 9) + Math.sqrt(L.n) * 0.9));
+    const P = gxProj(L.x, L.y, gx.d3 ? ((L.sub ? gx.subZ : gx.famZ) || new Map()).get(L.f) || 0 : 0, v); if (!P[2]) return; const x = P[0], y = P[1], fs = Math.max(L.sub ? 10 : 11, Math.min(L.sub ? 18 : 22, (L.sub ? 8 : 9) + Math.sqrt(L.n) * 0.9));
     ctx.font = `${fs}px 'Bebas Neue', Inter, sans-serif`; ctx.fillStyle = L.sub ? gxSubColor(L.f, 0.9) : gx.color === 'family' ? `hsla(${gxHue(L.f)},70%,78%,0.85)` : 'rgba(237,231,220,0.75)';
     ctx.shadowColor = '#000'; ctx.shadowBlur = 6; ctx.fillText(L.f.toUpperCase(), x, y); ctx.shadowBlur = 0;
   });
@@ -349,7 +410,7 @@ function gxRenderSide() {
     h += `<div class="gx-card"><img src="${escapeHtml(gxCover(it))}" alt=""><div><b>${escapeHtml(it.title)}</b><i>${escapeHtml(it.artist)}${y ? ' · ' + y : ''}</i><em>${escapeHtml([it.genre, it.genre2].filter(Boolean).join(' · '))}</em></div></div>
       <div class="gx-acts"><button type="button" class="chip-btn" data-gx="open">Open</button><button type="button" class="chip-btn" data-gx="play">Play</button><button type="button" class="chip-btn" data-gx="from">Wormhole from here</button><button type="button" class="chip-btn" data-gx="to"${gx.from < 0 || gx.from === gx.sel ? ' disabled' : ''}>…to here</button></div>
       <div class="gx-h">Nearest stars</div>${nb.map(({ j, s }) => gxRow(j, `<em class="gx-sim">${Math.round(s * 100)}%</em>`)).join('') || '<p class="gx-dim">Nothing close: this one is out on its own.</p>'}`;
-  } else h += `<p class="gx-dim">Every release is a star, placed near what it shares the most with: genres and their parents in your taxonomy, descriptors, scene, label, artist and decade. Rare things in common pull harder than common ones.</p><p class="gx-dim">Click a star to see its neighbours. Pick two to open a <b>wormhole</b>: the smoothest chain of releases from one to the other, to play in order.</p><p class="gx-dim">Drag to move, scroll or pinch to zoom.</p>`;
+  } else h += `${gx.d3 ? '<p class="gx-dim"><b>3D:</b> drag to turn the galaxy, shift-drag (or the right button) to move it, scroll or pinch to come closer. Depth comes from the same links: what a release shares the most with is near it in every direction.</p>' : ''}<p class="gx-dim">Every release is a star, placed near what it shares the most with: genres and their parents in your taxonomy, descriptors, scene, label, artist and decade. Rare things in common pull harder than common ones.</p><p class="gx-dim">Click a star to see its neighbours. Pick two to open a <b>wormhole</b>: the smoothest chain of releases from one to the other, to play in order.</p><p class="gx-dim">Drag to move, scroll or pinch to zoom.</p>`;
   if (gx.color === 'sub' && gx.fams && gx.fams.subOrder && gx.sel < 0) h += gxSubKeyHtml();
   if (gx.from >= 0) {
     h += `<div class="gx-h gx-wh">Wormhole</div>`;
@@ -374,6 +435,8 @@ function gxSelect(i, fly) { gx.sel = i; gxRenderSide(); if (fly && i >= 0) gxFly
 function gxAct(kind) {
   const it = gx.items[gx.sel];
   if (kind === 'subclear') { gxSubPick(gx.subPick); return; }
+  if (kind === '3d') { gxSet3d(!gx.d3); return; }
+  if (kind === 'spin') { gxSpin(); return; }
   if (kind === 'open' && it) { closeGalaxy(); openDeck(it); }
   else if (kind === 'play' && it) { flashGlobalToast(`Playing “${it.title}”`); playAlbumReplacingQueue(it); }
   else if (kind === 'from' && gx.sel >= 0) { gx.from = gx.sel; gx.to = -1; gx.path = []; gxRenderSide(); gxDraw(); }
@@ -413,7 +476,8 @@ function gxFindGo() {                                                 // Enter i
     else if (e.target.id === 'gxOnlyShown') { gx.onlyShown = e.target.checked; gx.key = ''; openGalaxy(); }
   });
   const pt = (e) => { const r = c.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
-  c.addEventListener('pointerdown', (e) => { c.setPointerCapture(e.pointerId); gx.pointers.set(e.pointerId, pt(e)); if (gx.pointers.size === 1) { const [x, y] = pt(e); gx.drag = { x, y, cx: gx.cam.x, cy: gx.cam.y, moved: false }; } else gx.drag = null; });
+  c.addEventListener('pointerdown', (e) => { c.setPointerCapture(e.pointerId); gx.pointers.set(e.pointerId, pt(e)); if (gx.pointers.size === 1) { const [x, y] = pt(e); gx.drag = { x, y, cx: gx.cam.x, cy: gx.cam.y, cz: gx.cam.cz || 0, yaw: gx.rot.yaw, pitch: gx.rot.pitch, pan: e.shiftKey || e.button === 2 || e.button === 1, moved: false }; } else gx.drag = null; });
+  c.addEventListener('contextmenu', (e) => { if (gx.d3) e.preventDefault(); });
   c.addEventListener('pointermove', (e) => {
     const p = pt(e);
     if (gx.pointers.size === 2 && gx.pointers.has(e.pointerId)) {    // pinch
@@ -421,7 +485,12 @@ function gxFindGo() {                                                 // Enter i
       const [a2, b2] = [...gx.pointers.values()], d1 = Math.hypot(a2[0] - b2[0], a2[1] - b2[1]); if (d0 > 0) gxZoomAt((a2[0] + b2[0]) / 2, (a2[1] + b2[1]) / 2, d1 / d0); return;
     }
     if (gx.pointers.has(e.pointerId)) gx.pointers.set(e.pointerId, p);
-    if (gx.drag) { const dx = p[0] - gx.drag.x, dy = p[1] - gx.drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) gx.drag.moved = true; gx.cam.x = gx.drag.cx - dx / gx.cam.z; gx.cam.y = gx.drag.cy - dy / gx.cam.z; gxTip(-1); gxDraw(); return; }
+    if (gx.drag) { const D = gx.drag, dx = p[0] - D.x, dy = p[1] - D.y; if (Math.abs(dx) + Math.abs(dy) > 3) D.moved = true;
+      if (gx.d3 && !D.pan) { gx.rot.yaw = D.yaw + dx * 0.006; gx.rot.pitch = Math.max(-1.5, Math.min(1.5, D.pitch + dy * 0.006)); }          // (1.135.80) turn it
+      else if (gx.d3) { const cy = Math.cos(gx.rot.yaw), sy = Math.sin(gx.rot.yaw), cp = Math.cos(gx.rot.pitch), sp = Math.sin(gx.rot.pitch), k = 1 / gx.cam.z;
+        gx.cam.x = D.cx - (dx * cy - dy * sy * sp) * k; gx.cam.y = D.cy - dy * cp * k; gx.cam.cz = D.cz - (-dx * sy - dy * cy * sp) * k; }
+      else { gx.cam.x = D.cx - dx / gx.cam.z; gx.cam.y = D.cy - dy / gx.cam.z; }
+      gxTip(-1); gxDraw(); return; }
     const i = gxNearest(p[0], p[1]); if (i !== gx.hover) { gx.hover = i; gxDraw(); } gxTip(i, p[0], p[1]); c.style.cursor = i >= 0 ? 'pointer' : 'grab';
   });
   const up = (e) => { const d = gx.drag; gx.pointers.delete(e.pointerId); gx.drag = null; if (d && !d.moved && e.type === 'pointerup') { const [x, y] = pt(e); gxSelect(gxNearest(x, y)); } };
@@ -432,4 +501,4 @@ function gxFindGo() {                                                 // Enter i
   window.addEventListener('resize', () => { if (gx.open) gxDraw(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && gx.open) { e.stopPropagation(); closeGalaxy(); } }, true);
 })();
-function gxZoomAt(px, py, f) { const [wx, wy] = gxToWorld(px, py); gx.cam.z = Math.max(0.02, Math.min(12, gx.cam.z * f)); const [wx2, wy2] = gxToWorld(px, py); gx.cam.x += wx - wx2; gx.cam.y += wy - wy2; gxDraw(); }
+function gxZoomAt(px, py, f) { if (gx.d3) { gx.cam.z = Math.max(0.02, Math.min(12, gx.cam.z * f)); gxDraw(); return; } const [wx, wy] = gxToWorld(px, py); gx.cam.z = Math.max(0.02, Math.min(12, gx.cam.z * f)); const [wx2, wy2] = gxToWorld(px, py); gx.cam.x += wx - wx2; gx.cam.y += wy - wy2; gxDraw(); }

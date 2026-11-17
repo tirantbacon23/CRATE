@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.79
+  CURRENT_VERSION: 1.135.80
 
+  1.135.80 — 2026-11-18 — Crate Galaxy in 3D: the "3D" button beside Surprise me. Each star gets a depth worked out from the same
+          links (a release sits at the depth of what it shares the most with, each family round a depth of its own, crowded stars
+          pushed apart), drawn in perspective with the far stars smaller and fainter. Drag to turn the galaxy, shift-drag or the right
+          button to move it, scroll or pinch to come closer; "Spin" turns it slowly. Picking a star, wormholes, the colours, the
+          subgenre key, labels and flying to a star all work in 3D. The choice is remembered.
   1.135.79 — 2026-11-18 — A release can keep a full-album video of its own, beside its songs' links. Match songs keeps the
           full-release video it found (one it's sure of, or one you chose) with the release when you apply, even when you switched
           to individual videos (V); one the release already has is left alone. Its YouTube box says so and has ▶ to play the video
