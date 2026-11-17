@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.47
+  CURRENT_VERSION: 1.135.48
 
+  1.135.48 — 2026-11-17 — Retry one download: a song's "failed · retry" badge (in the tracklist, Up next or the quick peek) tries it again
+          when clicked, its line in Downloads has ↻ Retry, and its menus say "↻ Retry download" in place of Download. The search box
+          has a ⊞ button beside ▾ that turns the detailed search on and off (gold when on); on a phone it's there until you type.
   1.135.47 — 2026-11-17 — "⌕ Search RYM" beside the RYM Link box in Edit release (and Add release): opens Rate Your Music's release search
           for the artist and title in the form, in a new tab, so you can copy the release's link back.
   1.135.46 — 2026-11-17 — Search is simple again: the suggestions under the box as they were before (nothing shown until something matches).

@@ -39,6 +39,7 @@ async function dlRelease(item) {
   dlvAutoOpen(); await p2pSyncWindow(); p2pTick(); dlvRender();
 }
 // One song, fetched ahead of anything else from its sharer (kept until played, then as "After playing" says)
+function dlSongFailed(item, track) { try { if (!item || typeof p2pDl === 'undefined' || !p2pDl[artKey(item)]) return false; const so = p2pSongFor(item, track); return !!(so && so.st === 'fail'); } catch (e) { return false; } }          // (1.135.48) the menus say Retry
 async function dlSong(item, trackNum, trackName) {
   if (!item || !dlReady()) return;
   const key = artKey(item);
@@ -47,7 +48,7 @@ async function dlSong(item, trackNum, trackName) {
   const s = p2pSongFor(item, { trackName, trackNumber: trackNum });
   if (!s) { flashGlobalToast(`"${trackName}" isn’t in ${item.title}’s Soulseek folder: Change P2P source… to pick another.`); return; }
   if (s.st === 'done' && s.local) { flashGlobalToast(`"${trackName}" is already downloaded.`); return; }
-  if (s.st === 'fail') s.st = 'idle';
+  if (s.st === 'fail') { await p2pRetrySong(s); return; }          // (1.135.48) Download on a song that failed: tried again
   s.pri = Date.now(); s.asked = true; p2pDl[key].dlvHidden = false; p2pDlSave();
   flashGlobalToast(`Downloading "${trackName}".`);
   dlvAutoOpen(); await p2pSyncWindow(); p2pTick(); p2pPaintRows(); dlvRender();
@@ -116,7 +117,8 @@ function dlvSongLine(rec, s) {
   else if (s.st === 'gone') { st = s.played ? 'played, then deleted' : 'deleted'; bar = 100; cls = 'gone'; }
   else if (s.st === 'fail') { st = 'didn’t work' + (s.err ? ': ' + s.err : ''); bar = 100; cls = 'fail'; }
   else st = rec.keepAll ? 'not started' : 'not asked for';
-  return `<div class="dlv-song"><span class="dlv-sn">${escapeHtml(String(s.tn || ''))} · ${escapeHtml(s.name || '')}</span><span class="dlv-st ${cls}" title="${escapeHtml(st)}">${escapeHtml(st)}</span><span class="dlv-bar ${cls}"><i style="width:${Math.max(0, Math.min(100, bar)).toFixed(1)}%"></i></span></div>`;
+  const idx = rec.songs.indexOf(s), again = s.st === 'fail' || (s.st === 'done' && !s.local && s.missingAt) ? `<button type="button" class="dlv-retry" data-dlv="retrysong" data-key="${escapeHtml(rec.key)}" data-i="${idx}" title="Try this song again">\u21bb Retry</button>` : '';          // (1.135.48)
+  return `<div class="dlv-song"><span class="dlv-sn">${escapeHtml(String(s.tn || ''))} · ${escapeHtml(s.name || '')}</span><span class="dlv-st ${cls}" title="${escapeHtml(st)}">${escapeHtml(st)}</span>${again}<span class="dlv-bar ${cls}"><i style="width:${Math.max(0, Math.min(100, bar)).toFixed(1)}%"></i></span></div>`;
 }
 function dlvHtml() {
   const pr = dlvPrefs(), recs = dlvRecs(), ready = typeof p2p !== 'undefined' && p2p.ready && p2p.configured;
@@ -216,6 +218,7 @@ function dlvWire(root) {
     if (a === 'filter') { dlvSave({ filter: b.dataset.v }); dlvRender(); }
     else if (a === 'menu') dlvMenuOpen(b, b.dataset.key);
     else if (a === 'retry') { await p2pRetry(b.dataset.key); dlvRender(); }
+    else if (a === 'retrysong') { const rec = p2pDl[b.dataset.key], so = rec && rec.songs[Number(b.dataset.i)]; if (so) await p2pRetrySong(so); }
     else if (a === 'clear') { dlvRecs().filter(r => dlvKind(r) === 'done').forEach(r => { r.dlvHidden = true; }); p2pDlSave(); dlvRender(); }
     else if (a === 'allow') { await p2pDirAllow(); dlvRender(); }
     else if (a === 'pick') { await p2pDirPick(); dlvRender(); }

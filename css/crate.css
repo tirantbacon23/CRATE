@@ -5596,3 +5596,18 @@ select.srch-chip { padding: 0 6px; background: var(--bg-elevated); }
   #searchSuggest.srch-detail { top: 56px; width: calc(100vw - 16px); height: calc(100vh - 72px); }
   .srch-side { display: none; } .srch-foot > span { display: none; }
 }
+
+/* (1.135.48) trying a song again */
+.p2p-tr[data-st="fail"] { cursor: pointer; color: var(--danger, #d9776b); }
+.p2p-tr[data-st="fail"]:hover { text-decoration: underline; }
+.dlv-retry { flex: none; background: none; border: 1px solid var(--accent); color: var(--accent); border-radius: 4px; padding: 1px 8px; font: inherit; font-size: 11px; cursor: pointer; margin-left: 6px; }
+.dlv-song:has(.dlv-retry) { grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; }
+
+/* (1.135.48) ⊞ detailed search, beside ▾ in the box */
+.search-wrap .search-detail-btn { right: 27px; }
+.search-detail-btn.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+#searchInput { padding-right: 52px; }
+@media (max-width: 900px) {
+  .search-wrap .search-detail-btn { right: 37px; }
+  .search-wrap.mobile-search-has-value .search-detail-btn { display: none; }          /* phone: room for what's typed; the switch is at the foot of the suggestions */
+}

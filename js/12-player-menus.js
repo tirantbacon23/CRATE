@@ -96,7 +96,7 @@ function openTrackActionsMenu({ item, trackName, trackNum, spotifyTrack, x, y, q
     <button type="button" data-player-action="queuePlayNow">Play now</button>
     <button type="button" data-player-action="queuePlayNext" ${qIdx === crateQueueIndex + 1 ? 'disabled title="Already next"' : ''}>Play next</button>
     <button type="button" data-player-action="queueRemove">Remove from queue</button>
-    ${queueEntry.item && typeof dlSong === 'function' && typeof dlReady === 'function' && dlReady() ? '<button type="button" data-player-action="dlSong">Download</button>' : ''}
+    ${queueEntry.item && typeof dlSong === 'function' && typeof dlReady === 'function' && dlReady() ? `<button type="button" data-player-action="dlSong">${typeof dlSongFailed === 'function' && dlSongFailed(queueEntry.item, queueEntry.track) ? '\u21bb Retry download' : 'Download'}</button>` : ''}
     <div class="menu-divider"></div>` : ''}
     <button type="button" class="menu-parent-btn" data-player-action="playlist" ${item ? '' : needsCrate}>Add to playlist <span class="submenu-caret">\u25b8</span></button>
     ${queueEntry ? '' : `<button type="button" data-player-action="queue" ${item ? '' : needsCrate}>Add to queue</button>`}
@@ -233,7 +233,7 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
     <button type="button" data-track-menu-action="entry">Add to entry</button>
     <div class="menu-divider"></div>
     ${!isMultiSelect ? '<button type="button" data-track-menu-action="editProps">Edit track properties\u2026</button>' : ''}
-    ${!isMultiSelect && typeof dlSong === 'function' && typeof dlReady === 'function' && dlReady() ? '<button type="button" data-track-menu-action="dlSong" title="Download this song from Soulseek">Download</button>' : ''}
+    ${!isMultiSelect && typeof dlSong === 'function' && typeof dlReady === 'function' && dlReady() ? `<button type="button" data-track-menu-action="dlSong" title="Download this song from Soulseek">${typeof dlSongFailed === 'function' && dlSongFailed(item, { trackName, trackNumber: trackNum }) ? '\u21bb Retry download' : 'Download'}</button>` : ''}
     ${showMatchTools ? '<button type="button" data-track-menu-action="confirmMatch">\u2713 Confirm Spotify match</button>' : ''}
     ${showMatchTools ? '<button type="button" data-track-menu-action="nextMatch">\u21bb Try next Spotify match</button>' : ''}
     ${trackRymLink ? '<button type="button" data-track-menu-action="rym">View on RateYourMusic \u2197</button>' : ''}

@@ -209,6 +209,19 @@ async function p2pRetry(key) {
   for (const s of again) if (s.id) await p2pCall('dlremove', { user: rec.user, id: s.id });
   rec.dismissed = false; await p2pRequest(rec, again); p2pTick();
 }
+// (1.135.48) One song again: from its "failed" badge, its menu, or its line in Downloads. Its old transfer is let go and it's asked for anew.
+function p2pRecOfSong(s) { return Object.values(p2pDl).find(r => r.songs.includes(s)) || null; }
+async function p2pRetrySong(s) {
+  const rec = p2pRecOfSong(s); if (!rec || !s) return;
+  if (s.id) await p2pCall('dlremove', { user: rec.user, id: s.id });
+  s.st = 'idle'; s.id = ''; s.pct = 0; s.err = ''; s.missingAt = 0; s.asked = true; s.pri = s.pri || Date.now(); rec.dismissed = false; rec.dlvHidden = false; p2pDlSave();
+  flashGlobalToast(`Trying "${s.name}" again.`);
+  await p2pRequest(rec, [s]); p2pTick(); p2pPaintRows(); if (typeof dlvRender === 'function') dlvRender();
+}
+document.addEventListener('click', (e) => {          // a song's "failed" (or "not found") badge: try it again
+  const b = e.target.closest('.p2p-tr[data-st="fail"]'); if (!b || !b._s) return;
+  e.preventDefault(); e.stopPropagation(); p2pRetrySong(b._s);
+}, true);
 let p2pTicking = false, p2pTidiedOnce = false;
 async function p2pTick() {                                          // every 2 s while something is on its way: slskd's progress, and finished files found on disk
   if (p2pTicking) return; p2pTicking = true;
@@ -512,7 +525,7 @@ function p2pRowState(s) {                                            // -> [clas
   if (s.st === 'wait') return ['wait', f + (s.place ? `queue ${s.place}` : 'waiting'), 0];
   if (s.st === 'done' && !s.local && s.missingAt && Date.now() - s.missingAt > 6000) return ['fail', 'not found', 100];          // (1.109.0) slskd finished it, but it isn't in the folder CRATE was given
   if (s.st === 'done') return ['done', s.local ? 'downloaded' : 'saving', 100];
-  if (s.st === 'fail') return ['fail', 'failed', 0];
+  if (s.st === 'fail') return ['fail', 'failed \u00b7 retry', 0];
   if (s.st === 'gone' && s.played) return ['gone', 'played', 100];
   return null;
 }
@@ -520,8 +533,8 @@ function p2pRowBadge(row, s) {
   const st = p2pRowState(s); let b = row.querySelector(':scope > .p2p-tr');
   if (!st) { if (b) b.remove(); return; }
   if (!b) { b = document.createElement('span'); b.className = 'p2p-tr'; b.innerHTML = '<svg class="p2p-tr-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7M4.8 6.6 8 9.8l3.2-3.2M3 13.2h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><i><b></b></i><span></span>'; row.appendChild(b); }          // (1.110.0) the icon: a downloaded song
-  b.dataset.st = (st[0] === 'done' && !s.local) ? 'saving' : st[0]; b.querySelector('i b').style.width = Math.max(st[0] === 'wait' ? 0 : 4, Math.min(100, st[2])).toFixed(1) + '%'; b.lastChild.textContent = st[1];
-  b.title = `Soulseek (${s.name}): ${st[1] === 'downloaded' ? 'downloaded: the file is on this computer, ready to play' : st[1] === 'playing' ? 'playing from the file on this computer' : st[1]}`;
+  b._s = s; b.dataset.st = (st[0] === 'done' && !s.local) ? 'saving' : st[0]; b.querySelector('i b').style.width = Math.max(st[0] === 'wait' ? 0 : 4, Math.min(100, st[2])).toFixed(1) + '%'; b.lastChild.textContent = st[1];
+  b.title = st[0] === 'fail' ? `Soulseek (${s.name}): ${st[1]}${s.err ? ' (' + s.err + ')' : ''}. Click to try again.` : `Soulseek (${s.name}): ${st[1] === 'downloaded' ? 'downloaded: the file is on this computer, ready to play' : st[1] === 'playing' ? 'playing from the file on this computer' : st[1]}`;
 }
 const p2pRowItems = new Map();
 function p2pPaintRows() {

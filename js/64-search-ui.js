@@ -8,7 +8,8 @@ const SRCH_DETAIL_KEY = 'crate_search_detail_v1', SRCH_RECENT_KEY = 'crate_searc
 const srchLs = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v == null ? d : v; } catch (e) { return d; } };
 const srchLsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* this visit */ } };
 function srchDetail() { return srchLs(SRCH_DETAIL_KEY, false) === true; }
-function srchDetailSet(on) { srchLsSet(SRCH_DETAIL_KEY, !!on); document.querySelectorAll('[data-search-look]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.searchLook === 'detail') === !!on))); srch.tab = 'all'; ssUpdate(); }
+function srchDetailBtnPaint() { const b = document.getElementById('searchDetailBtn'); if (b) { const on = srchDetail(); b.setAttribute('aria-pressed', String(on)); b.classList.toggle('active', on); b.title = on ? 'Detailed search is on: press for the simple suggestions' : 'Detailed search: covers, filters, songs and artists, releases to add'; } }
+function srchDetailSet(on) { srchLsSet(SRCH_DETAIL_KEY, !!on); srchDetailBtnPaint(); document.querySelectorAll('[data-search-look]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.searchLook === 'detail') === !!on))); srch.tab = 'all'; ssUpdate(); }
 const srch = { online: [], onlineState: 'idle', onlineNote: '', onlineQ: '', seq: 0, timer: 0, tab: 'all' };
 
 // ----- covers -----
@@ -248,6 +249,9 @@ function initSearchSuggest() {
   box.addEventListener('change', (e) => { const s = e.target.closest('[data-srch-decade]'); if (s) srchDecade(s.value); });
   // ⌘K / Ctrl+K: to the search box from anywhere (not while typing elsewhere)
   document.addEventListener('keydown', (e) => { if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); if (state.activeTab !== 'albums' && typeof switchTab === 'function') switchTab('albums'); inp.focus(); inp.select(); } });
+  // (1.135.48) ⊞ in the box: detailed search on or off (lights up when on), straight into it
+  const db = document.getElementById('searchDetailBtn');
+  if (db) { srchDetailBtnPaint(); db.addEventListener('mousedown', (e) => e.preventDefault()); db.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); srchDetailSet(!srchDetail()); inp.focus(); ssUpdate(); }); }
   // ⚙ Settings → Search looks like
   document.querySelectorAll('[data-search-look]').forEach(b => { b.setAttribute('aria-pressed', String((b.dataset.searchLook === 'detail') === srchDetail())); b.addEventListener('click', (ev) => { ev.stopPropagation(); srchDetailSet(b.dataset.searchLook === 'detail'); }); });
 }
