@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.122
+  CURRENT_VERSION: 1.135.123
 
+  1.135.123 — 2026-11-18 — Player: the "Play from" button is an icon for each choice (Spotify, YouTube, SoundCloud, Soulseek, or any source)
+          instead of text ("YT only", "Spotify only"…, wider than the other buttons), with a dot when one source is chosen; the name
+          is on hover. The Play from menu shows the same icons.
   1.135.122 — 2026-11-18 — A cursor of CRATE's own (⚙ › Look › Cursor): System, Stylus (a record player's needle), Arrow or Ring, each with its
           own look over things you can click, in the theme's accent with a dark edge (drawn again when the theme changes). Text boxes
           keep the text cursor. The Look panel is wider (js/77-cursor.js).

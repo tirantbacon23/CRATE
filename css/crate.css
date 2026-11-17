@@ -418,7 +418,9 @@ html, body {
   .pb-pill-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .pb-pill-t b { color: var(--accent); font-weight: 600; margin-right: 4px; } .pb-pill-sub { color: var(--text-dim, #8a8f98); }
   .pb-pill-ico { color: var(--accent); } .pb-pill-go { white-space: nowrap; }
   .pb-pill-btn { background: none; border: 0; color: var(--text-dim, #8a8f98); cursor: pointer; font-size: 14px; padding: 2px 6px; } .pb-pill-btn:hover { color: var(--text); }
-  .ps-btn { font-size: 11px; white-space: nowrap; } .ps-btn.ps-on { color: var(--accent); }          /* "Play from" (44-play-source.js) */
+  .ps-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; } .ps-btn.ps-on { color: var(--accent); }
+  .ps-pip { position: absolute; right: 2px; top: 2px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+  .ps-menu .ps-ico { display: inline-flex; align-items: center; color: var(--text-dim); margin-right: 2px; } .ps-menu .active-option .ps-ico { color: var(--accent); }          /* "Play from" (44-play-source.js) */
   .ps-menu { width: 310px; max-width: calc(100vw - 32px); } .ps-menu button[data-ps] { display: flex; gap: 8px; align-items: flex-start; text-align: left; } .ps-menu button span:last-child { display: flex; flex-direction: column; } .ps-menu small { color: var(--text-dim, #8a8f98); font-size: 11px; } .ps-dot { color: var(--accent); }
   .pb-menu { width: 330px; max-width: calc(100vw - 32px); padding-bottom: 8px; }
   .pb-opt { display: flex; gap: 8px; align-items: flex-start; padding: 6px 12px; font-size: 12.5px; cursor: pointer; } .pb-opt small { color: var(--text-dim, #8a8f98); font-size: 11.5px; line-height: 1.35; }
