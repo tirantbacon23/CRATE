@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.51
+  CURRENT_VERSION: 1.135.52
 
+  1.135.52 — 2026-11-17 — ⊞ in the search box goes through three looks in turn: Simple (the suggestions as they always were) → Dropdown with
+          online results (your crate and releases to add side by side, covers, refine chips, recent and saved searches; ⊞ turns gold)
+          → Detailed panel (⊞ filled) → back to Simple. The same three are in ⚙ Settings → Search looks like, and each look has a
+          link at its foot to the next.
   1.135.51 — 2026-11-17 — Two looks for the album view, picked in ⚙ Settings → "Album view looks like": Column (cover and details side by
           side, the type and format tags, one row of actions with the links under "↗ Open on…" and Edit details / Edit tracks /
           Full-release video under ⋯, compact song rows) and Tabs (the same in a header band, then Songs, Details, Diary and Notes as

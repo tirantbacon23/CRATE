@@ -7,9 +7,14 @@
 const SRCH_DETAIL_KEY = 'crate_search_detail_v1', SRCH_RECENT_KEY = 'crate_search_recent_v1', SRCH_SAVED_KEY = 'crate_search_saved_v1';
 const srchLs = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v == null ? d : v; } catch (e) { return d; } };
 const srchLsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* this visit */ } };
-function srchDetail() { return srchLs(SRCH_DETAIL_KEY, false) === true; }
-function srchDetailBtnPaint() { const b = document.getElementById('searchDetailBtn'); if (b) { const on = srchDetail(); b.setAttribute('aria-pressed', String(on)); b.classList.toggle('active', on); b.title = on ? 'Detailed search is on: press for the simple suggestions' : 'Detailed search: covers, filters, songs and artists, releases to add'; } }
-function srchDetailSet(on) { srchLsSet(SRCH_DETAIL_KEY, !!on); srchDetailBtnPaint(); document.querySelectorAll('[data-search-look]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.searchLook === 'detail') === !!on))); srch.tab = 'all'; ssUpdate(); }
+// (1.135.52) Three looks, in turn with ⊞: Simple (the suggestions as they always were) → Dropdown (your crate and releases to add online side by
+// side, covers, refine chips, recent and saved searches) → Detailed (the big panel) → back to Simple. Also in ⚙ Settings → Search looks like.
+const SRCH_LOOK_KEY = 'crate_search_look_v1', SRCH_LOOKS = ['simple', 'drop', 'detail'];
+function srchLook() { const v = srchLs(SRCH_LOOK_KEY, null); if (SRCH_LOOKS.includes(v)) return v; return srchLs(SRCH_DETAIL_KEY, false) === true ? 'detail' : 'simple'; }
+function srchDetail() { return srchLook() === 'detail'; }
+function srchDetailBtnPaint() { const b = document.getElementById('searchDetailBtn'); if (!b) return; const lk = srchLook(), next = SRCH_LOOKS[(SRCH_LOOKS.indexOf(lk) + 1) % 3]; b.setAttribute('aria-pressed', String(lk !== 'simple')); b.classList.toggle('active', lk !== 'simple'); b.classList.toggle('srch-btn-detail', lk === 'detail'); b.title = `Search: ${({ simple: 'simple', drop: 'dropdown with online results', detail: 'detailed panel' })[lk]}. Press for the ${({ simple: 'simple suggestions', drop: 'dropdown with online results', detail: 'detailed panel' })[next]}.`; }
+function srchLookSet(v) { if (!SRCH_LOOKS.includes(v)) v = 'simple'; srchLsSet(SRCH_LOOK_KEY, v); srchDetailBtnPaint(); document.querySelectorAll('[data-search-look]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.searchLook === v))); srch.tab = 'all'; ssUpdate(); }
+function srchDetailSet(on) { srchLookSet(on ? 'detail' : 'simple'); }
 const srch = { online: [], onlineState: 'idle', onlineNote: '', onlineQ: '', seq: 0, timer: 0, tab: 'all' };
 
 // ----- covers -----
@@ -98,13 +103,13 @@ function srchCrateItems(q) {
 }
 function srchOnlineItems() { return srch.online.slice(0, 6).map(r => ({ kind: 'online', col: 'online', r, label: r.title, sub: [r.artist, String(r.date || '').slice(0, 4), r.type && r.type !== 'Album' ? r.type : '', srchSrcName(r.src)].filter(Boolean).join(' · '), cover: r.cover })); }
 
-function srchItems() { const q = el.searchInput.value; return srchDetail() ? srchDetailItems(q) : ssSuggest(q); }          // (1.135.46) simple: the suggestions as they always were
-function ssUpdate() { if (srchDetail()) srchOnlineSearch(); ssActive = -1; ssRender(); }
+function srchItems() { const q = el.searchInput.value, lk = srchLook(); return lk === 'detail' ? srchDetailItems(q) : lk === 'drop' ? srchCrateItems(q).concat(srchOnlineItems()) : ssSuggest(q); }          // (simple: the suggestions as they always were)
+function ssUpdate() { if (srchLook() !== 'simple') srchOnlineSearch(); ssActive = -1; ssRender(); }
 // (1.135.46) The simple list, as before 1.135.42: what in your crate matches what's typed, by kind. At its foot, the switch to the detailed panel.
 function srchSimpleHtml() {
   const kindName = { field: 'Field', artist: 'Artist', release: 'Release', track: 'Track', genre: 'Genre', descriptor: 'Descriptor', songdesc: 'Descriptor', label: 'Label', type: 'Type', title: 'Release' };
   return ssItems.map((s, i) => `<div class="ss-item ss-k-${s.kind}${i === ssActive ? ' on' : ''}" id="ss-${i}" role="option" aria-selected="${i === ssActive}" data-ss="${i}"><span class="ss-kind">${kindName[s.kind] || ''}</span><span class="ss-label">${escapeHtml(s.label)}</span><span class="ss-sub">${escapeHtml(String(s.sub || ''))}</span></div>`).join('')
-    + `<div class="srch-simple-foot"><button type="button" class="srch-link" data-srch-look="detail" title="Covers, filters, songs and artists, and releases to add from online">\u2922 Detailed search</button>${srchSongsBtn()}</div>`;
+    + `<div class="srch-simple-foot"><button type="button" class="srch-link" data-srch-look="drop" title="Your crate and releases to add from online, with covers, refine chips, recent and saved searches">\u2922 More search</button>${srchSongsBtn()}</div>`;
 }
 
 function srchRowHtml(s, i) {
@@ -126,7 +131,7 @@ function srchChipsHtml() {
 function srchSongsBtn() { const on = searchSongsOnly(); return `<button type="button" class="srch-link srch-songs${on ? ' on' : ''}" data-search-songs aria-pressed="${on}" title="Look for the words in song titles only, not whole releases">\u266a Songs only${on ? ': on' : ''}</button>`; }
 function srchFootHtml() {
   const q = el.searchInput.value.trim(), det = srchDetail();
-  return `<div class="srch-foot"><span>↑↓ move</span><span>⏎ open</span><span>Esc close</span>${srchSongsBtn()}${q ? `<button type="button" class="srch-link" data-srch-save>★ Save this search</button>` : ''}<button type="button" class="srch-link srch-look" data-srch-look="${det ? 'drop' : 'detail'}">${det ? '⤡ Simple search' : '⤢ Detailed search'}</button></div>`;
+  return `<div class="srch-foot"><span>↑↓ move</span><span>⏎ open</span><span>Esc close</span>${srchSongsBtn()}${q ? `<button type="button" class="srch-link" data-srch-save>★ Save this search</button>` : ''}<button type="button" class="srch-link srch-look" data-srch-look="${det ? 'simple' : 'detail'}">${det ? '⤡ Simple search' : '⤢ Detailed search'}</button></div>`;
 }
 function srchEmptyHtml() {
   const rec = srchLs(SRCH_RECENT_KEY, []), sav = srchLs(SRCH_SAVED_KEY, []);
@@ -196,12 +201,12 @@ function srchDetailHtml() {
 function ssRender() {
   const box = document.getElementById('searchSuggest'), inp = el.searchInput; if (!box || !inp) return;
   if (document.activeElement !== inp && !box.contains(document.activeElement)) { box.hidden = true; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); return; }
-  const det = srchDetail();
+  const lk = srchLook(), det = lk === 'detail';
   ssItems = srchItems(); if (ssActive >= ssItems.length) ssActive = -1;          // (made again each time: online results and the crate's filtering arrive after the typing)
-  if (!det && !ssItems.length) { box.hidden = true; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); return; }          // simple: nothing to suggest, nothing shown
+  if (lk === 'simple' && !ssItems.length) { box.hidden = true; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); return; }          // simple: nothing to suggest, nothing shown
   box.classList.toggle('srch-detail', det);
-  box.classList.toggle('srch-simple', !det);
-  box.innerHTML = det ? srchDetailHtml() : srchSimpleHtml();
+  box.classList.toggle('srch-simple', lk === 'simple');
+  box.innerHTML = det ? srchDetailHtml() : lk === 'drop' ? (inp.value.trim() ? srchDropdownHtml() : srchChipsHtml() + srchEmptyHtml() + srchFootHtml()) : srchSimpleHtml();
   box.hidden = false; inp.setAttribute('aria-expanded', 'true');
   if (ssActive >= 0) inp.setAttribute('aria-activedescendant', 'ss-' + ssActive); else inp.removeAttribute('aria-activedescendant');
 }
@@ -224,7 +229,7 @@ function srchClick(e) {
   if ((b = g('[data-srch-q]'))) return srchSetQuery(b.dataset.srchQ + ' ');
   if ((b = g('[data-srch-jump]'))) return srchJump(b.dataset.srchJump);
   if ((b = g('[data-srch-save]'))) return srchSave();
-  if ((b = g('[data-srch-look]'))) return srchDetailSet(b.dataset.srchLook === 'detail');
+  if ((b = g('[data-srch-look]'))) return srchLookSet(b.dataset.srchLook);
   if ((b = g('[data-search-songs]'))) return searchSongsOnlySet(!searchSongsOnly());
   if ((b = g('[data-srch-tab]'))) { srch.tab = b.dataset.srchTab; return ssUpdate(); }
   if ((b = g('[data-srch-all]'))) { srchRemember(inp.value); inp.blur(); return openAddModalSearch(b.dataset.srchAll); }
@@ -253,12 +258,12 @@ function initSearchSuggest() {
   document.addEventListener('keydown', (e) => { if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); if (state.activeTab !== 'albums' && typeof switchTab === 'function') switchTab('albums'); inp.focus(); inp.select(); } });
   // (1.135.48) ⊞ in the box: detailed search on or off (lights up when on), straight into it
   const db = document.getElementById('searchDetailBtn');
-  if (db) { srchDetailBtnPaint(); db.addEventListener('mousedown', (e) => e.preventDefault()); db.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); srchDetailSet(!srchDetail()); inp.focus(); ssUpdate(); }); }
+  if (db) { srchDetailBtnPaint(); db.addEventListener('mousedown', (e) => e.preventDefault()); db.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); srchLookSet(SRCH_LOOKS[(SRCH_LOOKS.indexOf(srchLook()) + 1) % 3]); inp.focus(); ssUpdate(); }); }
   if (searchSongsOnly()) { inp.placeholder = 'Search song titles\u2026'; wrap.classList.add('search-songs-only'); }
   // (1.135.51) ♪ in the box, always there: releases or song titles
   const sbt = document.getElementById('searchSongsBtn');
   if (sbt) { sbt.setAttribute('aria-pressed', String(searchSongsOnly())); sbt.classList.toggle('active', searchSongsOnly()); sbt.addEventListener('mousedown', (e) => e.preventDefault()); sbt.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); searchSongsOnlySet(!searchSongsOnly()); inp.focus(); }); }
   document.querySelectorAll('#layoutMenu [data-search-songs]').forEach(b => { b.setAttribute('aria-pressed', String(searchSongsOnly())); b.addEventListener('click', (ev) => { ev.stopPropagation(); searchSongsOnlySet(!searchSongsOnly()); }); });
   // ⚙ Settings → Search looks like
-  document.querySelectorAll('[data-search-look]').forEach(b => { b.setAttribute('aria-pressed', String((b.dataset.searchLook === 'detail') === srchDetail())); b.addEventListener('click', (ev) => { ev.stopPropagation(); srchDetailSet(b.dataset.searchLook === 'detail'); }); });
+  document.querySelectorAll('[data-search-look]').forEach(b => { b.setAttribute('aria-pressed', String(b.dataset.searchLook === srchLook())); b.addEventListener('click', (ev) => { ev.stopPropagation(); srchLookSet(b.dataset.searchLook); }); });
 }

@@ -5727,3 +5727,6 @@ select.srch-chip { padding: 0 6px; background: var(--bg-elevated); }
   /* (1.135.51) phone: while you type in the search, it has the header row to itself (the other buttons come back when you leave it) */
   .topbar.search-focus .controls > :not(.search-wrap) { display: none !important; }
 }
+
+/* (1.135.52) ⊞: gold in the dropdown look, filled in the detailed panel */
+.search-detail-btn.srch-btn-detail { background: var(--accent); color: #12161C; }
