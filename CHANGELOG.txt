@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.123
+  CURRENT_VERSION: 1.135.124
 
+  1.135.124 — 2026-11-18 — Up next: ⚙ on its bar chooses what each song shows (artist, album, year, genre, length, your rating, the song's RYM
+          rating) and how much it's played: your plays of the song, its Last.fm plays and listeners, your Last.fm plays of it. At once,
+          remembered (the same choice as ⚙ › Panels configuration). Last.fm's numbers are looked up for the next 40 songs, kept two days.
+          The line under a song wraps to two lines (js/78-queue-fields.js).
   1.135.123 — 2026-11-18 — Player: the "Play from" button is an icon for each choice (Spotify, YouTube, SoundCloud, Soulseek, or any source)
           instead of text ("YT only", "Spotify only"…, wider than the other buttons), with a dot when one source is chosen; the name
           is on hover. The Play from menu shows the same icons.

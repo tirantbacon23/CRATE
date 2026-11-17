@@ -6395,3 +6395,10 @@ html.cur-on input:not([type="range"]):not([type="checkbox"]):not([type="radio"])
 .cur-opt img { width: 22px; height: 22px; }
 .cur-sys { font-size: 15px; width: 22px; text-align: center; }
 .arrange-modal.thm-modal { width: min(820px, calc(100vw - 32px)); max-width: none; }
+
+/* (1.135.124) Up next: what each song shows */
+.qf-btn { margin-left: 6px; font-size: 13px; }
+.qf-menu { width: 260px; padding: 6px 4px 8px; }
+.qf-row { display: flex; align-items: center; gap: 8px; padding: 4px 10px; font-size: 12.5px; cursor: pointer; }
+.qf-note { margin: 6px 10px 0; font-size: 11.5px; color: var(--text-dim); line-height: 1.4; }
+.queue-row-thumb .queue-track-artist { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.35; }
