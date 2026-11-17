@@ -255,6 +255,9 @@ function initSearchSuggest() {
   const db = document.getElementById('searchDetailBtn');
   if (db) { srchDetailBtnPaint(); db.addEventListener('mousedown', (e) => e.preventDefault()); db.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); srchDetailSet(!srchDetail()); inp.focus(); ssUpdate(); }); }
   if (searchSongsOnly()) { inp.placeholder = 'Search song titles\u2026'; wrap.classList.add('search-songs-only'); }
+  // (1.135.51) ♪ in the box, always there: releases or song titles
+  const sbt = document.getElementById('searchSongsBtn');
+  if (sbt) { sbt.setAttribute('aria-pressed', String(searchSongsOnly())); sbt.classList.toggle('active', searchSongsOnly()); sbt.addEventListener('mousedown', (e) => e.preventDefault()); sbt.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); searchSongsOnlySet(!searchSongsOnly()); inp.focus(); }); }
   document.querySelectorAll('#layoutMenu [data-search-songs]').forEach(b => { b.setAttribute('aria-pressed', String(searchSongsOnly())); b.addEventListener('click', (ev) => { ev.stopPropagation(); searchSongsOnlySet(!searchSongsOnly()); }); });
   // ⚙ Settings → Search looks like
   document.querySelectorAll('[data-search-look]').forEach(b => { b.setAttribute('aria-pressed', String((b.dataset.searchLook === 'detail') === srchDetail())); b.addEventListener('click', (ev) => { ev.stopPropagation(); srchDetailSet(b.dataset.searchLook === 'detail'); }); });

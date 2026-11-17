@@ -17,8 +17,18 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.50
+  CURRENT_VERSION: 1.135.51
 
+  1.135.51 — 2026-11-17 — Two looks for the album view, picked in ⚙ Settings → "Album view looks like": Column (cover and details side by
+          side, the type and format tags, one row of actions with the links under "↗ Open on…" and Edit details / Edit tracks /
+          Full-release video under ⋯, compact song rows) and Tabs (the same in a header band, then Songs, Details, Diary and Notes as
+          tabs; Details lists release date, type, format, label, genres, descriptors, RYM and more). Two looks for Edit details, in
+          ⚙ Settings → "Edit details looks like": Sections (headings, two fields to a row, Songs and More folded until opened) and
+          One at a time (a list of sections down the side, one shown). Both count your changes at the foot, by Save, which stays in
+          view. The descriptor picker has two panes: categories and senses on the left (a gold count where you've picked), that
+          sense's descriptors on the right (most used first), and your picks at the foot (✕ to take one off); the filter still
+          searches all. The search box has a ♪ button, always there, to search song titles instead of releases. On a phone the
+          search box has the header row to itself while you type in it.
   1.135.50 — 2026-11-17 — Search "Songs only": the words you type are looked for in song titles only, not in whole releases (artist, title,
           genres…). A release shows when one of its songs has them, and the Tracks and Album+Tracks views show just those songs.
           Field filters (genre:, year:…) still apply as usual. Turned on with "♪ Songs only" under the suggestions, at the foot of

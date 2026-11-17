@@ -32,6 +32,7 @@ function openEditModal() {
   el.editToast.textContent = '';
   renderTracklistBuilderRows(el.editTracksRows, activeItem.manualTracks || []);
   tlResetTools('edit');
+  if (typeof editLayoutOnOpen === 'function') editLayoutOnOpen();          // (1.135.51) Sections or One at a time (65-layouts.js)
 }
 
 function closeEditModal() { el.editOverlay.hidden = true; }

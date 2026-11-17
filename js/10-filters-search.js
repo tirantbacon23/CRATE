@@ -403,6 +403,7 @@ function searchSongsOnlySet(on) {
   if (el.searchInput) el.searchInput.placeholder = on ? 'Search song titles\u2026' : 'Search artist, title, or catalog\u2026';
   if (el.searchWrap) el.searchWrap.classList.toggle('search-songs-only', !!on);
   document.querySelectorAll('[data-search-songs]').forEach(b => b.setAttribute('aria-pressed', String(!!on)));
+  const sb = document.getElementById('searchSongsBtn'); if (sb) { sb.classList.toggle('active', !!on); sb.title = on ? 'Searching song titles: press to search releases' : 'Searching releases: press to search song titles only'; }
   buildLeftList(); applyFiltersSort(); if (typeof ssRender === 'function') ssRender();
 }
 function searchTokenMatches(r, token) {

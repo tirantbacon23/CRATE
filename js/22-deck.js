@@ -94,6 +94,7 @@ function openDeck(item) {
     const deckElement = el.deckOverlay.querySelector('.deck');
     if (deckElement) deckElement.scrollTop = 0;
   });
+  if (typeof deckLayoutOnOpen === 'function') deckLayoutOnOpen(item);          // (1.135.51) Column or Tabs (65-layouts.js)
 }
 
 function closeDeck() {

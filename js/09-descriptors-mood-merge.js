@@ -190,11 +190,25 @@ function descBrowseRender() {
   });
   const yours = []; lib.forEach(e => { if (!known.has(e.key) && (!f || e.key.includes(f))) yours.push(e.key); });
   if (yours.length) html += `<div class="desc-group"><div class="desc-group-head">Other (yours)</div><div class="desc-chips">${yours.sort().map(chip).join('')}</div></div>`;
-  body.innerHTML = html || '<p class="left-empty">No descriptor matches.</p>';
+  // (1.135.51) Two panes: the categories and their senses down the left (a gold count where you've picked something), the chosen sense's
+  // descriptors on the right, most used first, and what you've picked at the foot. Typing in the filter shows every match on the right instead.
+  const byCount = (a, b) => ((lib.get(b) || {}).count || 0) - ((lib.get(a) || {}).count || 0);
+  const groupsAll = []; DESC_CATS.forEach(cat => cat.groups.forEach(g => groupsAll.push({ id: cat.id + '|' + g.head, cat, head: g.head, words: g.words })));
+  const allYours = []; lib.forEach(e => { if (!known.has(e.key)) allYours.push(e.key); });
+  if (allYours.length) groupsAll.push({ id: 'other|yours', cat: { id: 'other', label: 'Other' }, head: 'Yours', words: allYours });
+  if (!descBrowse.sel || !groupsAll.some(g => g.id === descBrowse.sel)) descBrowse.sel = (groupsAll.find(g => g.words.some(w => on.has(w))) || groupsAll[0] || {}).id;
+  let nav = '', lastCat = '';
+  groupsAll.forEach(g => { if (g.cat.id !== lastCat) { lastCat = g.cat.id; nav += `<div class="db2-cat">${escapeHtml(g.cat.label)}</div>`; } const n = g.words.filter(w => on.has(w)).length; nav += `<button type="button" class="db2-g${g.id === descBrowse.sel ? ' on' : ''}" data-db-g="${escapeHtml(g.id)}">${escapeHtml(g.head)}${n ? `<b>${n}</b>` : ''}</button>`; });
+  const cur = groupsAll.find(g => g.id === descBrowse.sel);
+  const right = f ? (html || '<p class="left-empty">No descriptor matches.</p>') : cur ? `<div class="db2-head">${escapeHtml(cur.head)} <span>${escapeHtml(cur.cat.label)}</span></div><div class="desc-chips">${cur.words.slice().sort(byCount).map(chip).join('')}</div>` : '';
+  const picked = [...on];
+  body.innerHTML = `<div class="db2"><nav class="db2-nav" aria-label="Senses">${nav}</nav><div class="db2-main"><div class="db2-scroll">${right}</div>
+    <div class="db2-picked"><div class="db2-head">Picked \u00b7 ${picked.length}</div><div class="desc-chips">${picked.length ? picked.map(w => `<button type="button" class="desc-chip on" data-d="${escapeHtml(w)}" aria-pressed="true" title="Take it off">${escapeHtml(w)} <span aria-hidden="true">\u2715</span></button>`).join('') : '<span class="db2-none">Nothing yet: pick from the left.</span>'}</div></div></div></div>`;
+  const onBtn = body.querySelector('.db2-g.on'); if (onBtn && descBrowse.navScroll !== descBrowse.sel) { descBrowse.navScroll = descBrowse.sel; onBtn.scrollIntoView({ block: 'nearest' }); }
 }
 function descBrowseOpen(inputId) {
   const input = document.getElementById(inputId), ov = document.getElementById('descBrowseOverlay'); if (!input || !ov) return;
-  descBrowse.input = input; const f = document.getElementById('descBrowseFilter'); if (f) f.value = ''; descBrowseRender(); ov.hidden = false; if (f) f.focus();
+  descBrowse.input = input; descBrowse.sel = ''; descBrowse.navScroll = ''; const f = document.getElementById('descBrowseFilter'); if (f) f.value = ''; descBrowseRender(); ov.hidden = false; if (f) f.focus();
 }
 function descBrowseClose() { const ov = document.getElementById('descBrowseOverlay'); if (ov) ov.hidden = true; if (descBrowse.input) { descBrowse.input.value = parseDescriptors(descBrowse.input.value).map(descKey).join(', '); descBrowse.input.dispatchEvent(new Event('input', { bubbles: true })); descSuggestHide(); } descBrowse.input = null; }
 (function wireDescriptors() {
@@ -205,6 +219,7 @@ function descBrowseClose() { const ov = document.getElementById('descBrowseOverl
   const ov = document.getElementById('descBrowseOverlay'); if (!ov) return;
   ov.addEventListener('click', (e) => {
     if (e.target === ov || e.target.id === 'descBrowseDone') { descBrowseClose(); return; }
+    const g = e.target.closest('[data-db-g]'); if (g) { descBrowse.sel = g.dataset.dbG; descBrowseRender(); return; }          // (1.135.51) a sense on the left
     const chip = e.target.closest('.desc-chip'); if (!chip || !descBrowse.input) return;
     const k = chip.dataset.d, list = parseDescriptors(descBrowse.input.value).map(descKey), at = list.indexOf(k);
     if (at >= 0) list.splice(at, 1); else list.push(k);
