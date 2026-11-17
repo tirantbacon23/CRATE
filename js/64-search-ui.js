@@ -271,6 +271,7 @@ function initSearchSuggest() {
   const box = document.createElement('div'); box.id = 'searchSuggest'; box.className = 'search-suggest'; box.setAttribute('role', 'listbox'); box.hidden = true; wrap.appendChild(box);
   inp.setAttribute('role', 'combobox'); inp.setAttribute('aria-autocomplete', 'list'); inp.setAttribute('aria-controls', 'searchSuggest'); inp.setAttribute('aria-expanded', 'false');
   inp.addEventListener('input', debounce(ssUpdate, 200));          // (after the crate's own filtering, 150 ms)
+  srchMirrorInit(inp);          // (1.135.90) the operators drawn as pills behind the text
   inp.addEventListener('focus', ssUpdate);
   inp.addEventListener('blur', () => { setTimeout(ssRender, 150); if (inp.value.trim().length >= 2) srchRemember(inp.value); });
   inp.addEventListener('keydown', (e) => {
@@ -299,3 +300,45 @@ function initSearchSuggest() {
 }
 // (1.135.59) A release opened from the search: the search waits behind it, and is back (with what you typed) when you close the release.
 function srchAfterDeckClose() { if (!srch.keep) return; srch.keep = false; const inp = el.searchInput; if (inp) { inp.focus({ preventScroll: true }); ssRender(); } }
+
+// ----- (1.135.90) Search operators drawn as pills: genre:indie rock, year:1980-1989, -format:cd… -----
+// A copy of the text sits exactly behind the box (same font, padding and scroll), with each operator in a pill and its field name in the
+// accent; the box's own text turns see-through while there are operators, so what you type, select and edit is the real text, as before.
+function srchMirrorInit(inp) {
+  if (!inp || inp.dataset.mirror) return; inp.dataset.mirror = '1';
+  const m = document.createElement('div'); m.className = 'search-mirror'; m.setAttribute('aria-hidden', 'true');
+  const clip = document.createElement('div'); clip.className = 'search-mirror-clip'; m.appendChild(clip);
+  const tx = document.createElement('div'); tx.className = 'search-mirror-tx'; clip.appendChild(tx);
+  inp.parentNode.insertBefore(m, inp);
+  const paint = () => srchMirrorPaint(inp, m, tx);
+  ['input', 'focus', 'blur', 'scroll', 'keyup', 'select', 'mouseup'].forEach(ev => inp.addEventListener(ev, () => requestAnimationFrame(paint)));
+  window.addEventListener('resize', () => requestAnimationFrame(paint));
+  if (typeof ResizeObserver === 'function') new ResizeObserver(() => requestAnimationFrame(paint)).observe(inp);
+  inp.addEventListener('transitionend', paint);
+  paint(); setTimeout(paint, 400);
+}
+// Where each operator is in the text: [start, end, negated, field, valueStart]; a genre runs on over the words the search reads as part of it
+function srchOpSpans(q) {
+  const out = []; let m, merged = []; SRCH_TOKEN_RE.lastIndex = 0;
+  try { merged = mergeGenrePhrases(tokenizeSearchQuery(String(q).toLowerCase())).filter(t => t.field && SEARCH_FIELD_ALIASES[t.field.toLowerCase()] === 'genre').map(t => String(t.value || '')); } catch (e) { merged = []; }
+  let gi = 0;
+  while ((m = SRCH_TOKEN_RE.exec(q))) {
+    const f = m[3].toLowerCase(), canon = SEARCH_FIELD_ALIASES[f]; if (!canon) continue;
+    const start = m.index + m[1].length, vs = start + m[2].length + m[3].length + 1; let end = vs + m[4].length;
+    if (canon === 'genre' && !m[4].startsWith('"')) { const v = merged[gi++] || ''; if (v.length > m[4].length && q.slice(vs, vs + v.length).toLowerCase() === v) { end = vs + v.length; SRCH_TOKEN_RE.lastIndex = end; } }
+    out.push([start, end, !!m[2], m[3], vs]);
+  }
+  return out;
+}
+function srchMirrorPaint(inp, m, tx) {
+  const q = inp.value || '', spans = q ? srchOpSpans(q) : [], on = spans.length > 0 && inp.offsetWidth > 60 && getComputedStyle(inp).opacity !== '0';
+  inp.classList.toggle('search-has-ops', on); m.hidden = !on; if (!on) return;
+  const cs = getComputedStyle(inp);
+  Object.assign(m.style, { left: inp.offsetLeft + 'px', top: inp.offsetTop + 'px', width: inp.offsetWidth + 'px', height: inp.offsetHeight + 'px', font: cs.font, letterSpacing: cs.letterSpacing });
+  Object.assign(m.firstChild.style, { left: (parseFloat(cs.paddingLeft) + parseFloat(cs.borderLeftWidth)) + 'px', right: (parseFloat(cs.paddingRight) + parseFloat(cs.borderRightWidth)) + 'px' });          // (the text area only: not under the buttons)
+  let h = '', at = 0;
+  spans.forEach(([a, b, neg, f, vs]) => { h += escapeHtml(q.slice(at, a)); h += `<span class="sm-op${neg ? ' sm-neg' : ''}"><span class="sm-f">${escapeHtml(q.slice(a, vs))}</span>${escapeHtml(q.slice(vs, b))}</span>`; at = b; });
+  h += escapeHtml(q.slice(at));
+  if (tx.innerHTML !== h) tx.innerHTML = h;
+  tx.style.transform = `translateX(${-inp.scrollLeft}px)`;
+}

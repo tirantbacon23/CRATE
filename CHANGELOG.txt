@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.89
+  CURRENT_VERSION: 1.135.90
 
+  1.135.90 — 2026-11-18 — Search: operators show as pills in the search box. genre:indie rock, year:1980-1989, format:vinyl and the rest
+          each sit in a soft amber pill with the field name in amber (a genre's pill runs over all its words, as the search reads it);
+          a minus one (-format:cd) is in red. Plain words stay as they are. The box is still plain text: type, select and edit as
+          before. (The genre search online, from 1.135.88, needs a refresh to show up.)
   1.135.89 — 2026-11-18 — Track info panel: clicking the song's title opens its release's deck (it showed the song in the catalogue);
           right-clicking it gives the song's menu as before, with Show in catalogue and the rest.
   1.135.88 — 2026-11-18 — Search: genre: looks online too. "genre:indie rock" fills "Not in your crate yet · online" with releases of

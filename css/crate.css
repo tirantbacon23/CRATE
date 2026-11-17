@@ -6060,3 +6060,15 @@ select.srch-chip { padding: 0 6px; background: var(--bg-elevated); }
 }
 /* (1.135.88) the diary's own scrollbar sits at its right edge: room for it, so it doesn't run over the side panel */
 .diary-wrap.diary-wrap-journal, .diary-wrap.diary-wrap-wide { padding-right: 14px; box-sizing: border-box; }
+/* (1.135.90) search operators as pills: a copy of the text behind the box (64-search-ui.js srchMirrorPaint) */
+.search-mirror { position: absolute; z-index: 0; box-sizing: border-box; pointer-events: none; color: var(--text); }
+.search-mirror-clip { position: absolute; top: 0; bottom: 0; overflow: hidden; display: flex; align-items: center; padding: 0 3px; margin: 0 -3px; }
+.search-mirror-tx { white-space: pre; }
+.search-wrap #searchInput { position: relative; z-index: 1; }
+.search-wrap #searchInput.search-has-ops { color: transparent; caret-color: var(--text); background: transparent; }
+.search-wrap #searchInput.search-has-ops ~ .search-mirror, .search-wrap .search-mirror { background: none; }
+.search-wrap:has(#searchInput.search-has-ops) { --sm-bg: var(--bg-elevated); }
+.sm-op { background: rgba(214,162,76,0.14); border-radius: 4px; box-shadow: 0 0 0 2px rgba(214,162,76,0.14); color: var(--text); }
+.sm-op .sm-f { color: var(--accent); }
+.sm-op.sm-neg { background: rgba(229,115,74,0.14); box-shadow: 0 0 0 2px rgba(229,115,74,0.14); }
+.sm-op.sm-neg .sm-f { color: #E5734A; }
