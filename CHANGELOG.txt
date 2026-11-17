@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.45
+  CURRENT_VERSION: 1.135.46
 
+  1.135.46 — 2026-11-17 — Search is simple again: the suggestions under the box as they were before (nothing shown until something matches).
+          The detailed search (tabs, filters down the side, a cover grid, songs and artists, releases to add from online, recent and
+          saved searches) is switched on with "⤢ Detailed search" under the suggestions or in ⚙ Settings → Search looks like, and off
+          again with "⤡ Simple search" at its foot. ⌘K / Ctrl+K and the format: and listened: search words stay.
   1.135.45 — 2026-11-17 — A new search panel. As you type: your crate on the left and releases you don't have yet on the right (from the
           sources Add a release uses: MusicBrainz, Apple Music, Spotify, Discogs), each with its cover; "+ Add" opens Add a release on
           it. Refine chips across the top (Albums, EPs, Singles, ★ 4+, Not listened, Vinyl, CD, Decade) add or take off the same words

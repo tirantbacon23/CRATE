@@ -97,8 +97,14 @@ function srchCrateItems(q) {
 }
 function srchOnlineItems() { return srch.online.slice(0, 6).map(r => ({ kind: 'online', col: 'online', r, label: r.title, sub: [r.artist, String(r.date || '').slice(0, 4), r.type && r.type !== 'Album' ? r.type : '', srchSrcName(r.src)].filter(Boolean).join(' · '), cover: r.cover })); }
 
-function srchItems() { const q = el.searchInput.value; return srchDetail() ? srchDetailItems(q) : srchCrateItems(q).concat(srchOnlineItems()); }
-function ssUpdate() { srchOnlineSearch(); ssActive = -1; ssRender(); }
+function srchItems() { const q = el.searchInput.value; return srchDetail() ? srchDetailItems(q) : ssSuggest(q); }          // (1.135.46) simple: the suggestions as they always were
+function ssUpdate() { if (srchDetail()) srchOnlineSearch(); ssActive = -1; ssRender(); }
+// (1.135.46) The simple list, as before 1.135.42: what in your crate matches what's typed, by kind. At its foot, the switch to the detailed panel.
+function srchSimpleHtml() {
+  const kindName = { field: 'Field', artist: 'Artist', release: 'Release', track: 'Track', genre: 'Genre', descriptor: 'Descriptor', songdesc: 'Descriptor', label: 'Label', type: 'Type', title: 'Release' };
+  return ssItems.map((s, i) => `<div class="ss-item ss-k-${s.kind}${i === ssActive ? ' on' : ''}" id="ss-${i}" role="option" aria-selected="${i === ssActive}" data-ss="${i}"><span class="ss-kind">${kindName[s.kind] || ''}</span><span class="ss-label">${escapeHtml(s.label)}</span><span class="ss-sub">${escapeHtml(String(s.sub || ''))}</span></div>`).join('')
+    + `<div class="srch-simple-foot"><button type="button" class="srch-link" data-srch-look="detail" title="Covers, filters, songs and artists, and releases to add from online">\u2922 Detailed search</button></div>`;
+}
 
 function srchRowHtml(s, i) {
   const on = i === ssActive ? ' on' : '';
@@ -118,7 +124,7 @@ function srchChipsHtml() {
 }
 function srchFootHtml() {
   const q = el.searchInput.value.trim(), det = srchDetail();
-  return `<div class="srch-foot"><span>↑↓ move</span><span>⏎ open</span><span>Esc close</span>${q ? `<button type="button" class="srch-link" data-srch-save>★ Save this search</button>` : ''}<button type="button" class="srch-link srch-look" data-srch-look="${det ? 'drop' : 'detail'}">${det ? '⤡ Compact dropdown' : '⤢ Detail panel'}</button></div>`;
+  return `<div class="srch-foot"><span>↑↓ move</span><span>⏎ open</span><span>Esc close</span>${q ? `<button type="button" class="srch-link" data-srch-save>★ Save this search</button>` : ''}<button type="button" class="srch-link srch-look" data-srch-look="${det ? 'drop' : 'detail'}">${det ? '⤡ Simple search' : '⤢ Detailed search'}</button></div>`;
 }
 function srchEmptyHtml() {
   const rec = srchLs(SRCH_RECENT_KEY, []), sav = srchLs(SRCH_SAVED_KEY, []);
@@ -190,8 +196,10 @@ function ssRender() {
   if (document.activeElement !== inp && !box.contains(document.activeElement)) { box.hidden = true; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); return; }
   const det = srchDetail();
   ssItems = srchItems(); if (ssActive >= ssItems.length) ssActive = -1;          // (made again each time: online results and the crate's filtering arrive after the typing)
+  if (!det && !ssItems.length) { box.hidden = true; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); return; }          // simple: nothing to suggest, nothing shown
   box.classList.toggle('srch-detail', det);
-  box.innerHTML = det ? srchDetailHtml() : (inp.value.trim() ? srchDropdownHtml() : srchChipsHtml() + srchEmptyHtml() + srchFootHtml());
+  box.classList.toggle('srch-simple', !det);
+  box.innerHTML = det ? srchDetailHtml() : srchSimpleHtml();
   box.hidden = false; inp.setAttribute('aria-expanded', 'true');
   if (ssActive >= 0) inp.setAttribute('aria-activedescendant', 'ss-' + ssActive); else inp.removeAttribute('aria-activedescendant');
 }

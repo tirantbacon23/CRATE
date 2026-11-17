@@ -5541,7 +5541,9 @@ body.tap-to-start-soundcloud .tap-to-start-hint { bottom: calc(var(--tts-bottom)
 .add-results-grid-mode .add-src-body { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
 
 /* (1.135.45) the search box's panel: covers, two columns (your crate | online), refine chips, recents; or the detail panel */
-#searchSuggest { left: auto; right: 0; width: min(780px, calc(100vw - 32px)); max-height: min(78vh, 640px); padding: 10px; }
+#searchSuggest:not(.srch-simple) { left: auto; right: 0; width: min(780px, calc(100vw - 32px)); max-height: min(78vh, 640px); padding: 10px; }
+.srch-simple-foot { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 2px; }
+.srch-simple-foot .srch-link { width: 100%; }
 #searchSuggest .srch-lbl { font: 500 10px 'IBM Plex Mono', monospace; letter-spacing: .1em; text-transform: uppercase; color: var(--text-dim); padding: 6px 8px 4px; }
 .srch-refine, .srch-active, .srch-jumps { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 2px 4px 8px; }
 .srch-refine .srch-lbl { padding: 0 4px 0 0; }
