@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.100
+  CURRENT_VERSION: 1.135.101
 
+  1.135.101 — 2026-11-18 — Search online: what Add a release finds shows in the search menu too.
+          · A catalogue number typed plainly (LIB-55838) asks only MusicBrainz and Discogs, as catalog: does: Apple Music and Spotify
+            only text-search it and their unrelated albums, ranked "popular", pushed the real one out of the six shown.
+          · A release whose catalogue number is exactly what you typed always comes first, whatever the order.
+          · The online column says how many it found ("· 10"), and "Show all 10 here" lists them all in the menu (up to 40),
+            without going into Add a release.
   1.135.100 — 2026-11-18 — Search online:
           · Discogs joins genre: and artist: searches (with your Discogs token, its source ticked): genre:"Proto-Punk" brings its
             releases of that style (else genre), artist:"…" that artist's releases, a release each, not every pressing. Without

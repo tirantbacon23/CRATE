@@ -132,14 +132,18 @@ function srchOnlineSearch() {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       return ((await res.json()).releases || []).map(h => { const rg = h['release-group'] || {}; return { src: 'mb', hit: h, title: h.title || '', artist: (h['artist-credit'] || []).map(a => a.name + (a.joinphrase || '')).join(''), date: h.date || '', type: rg['primary-type'] || 'Album', catalog: ((h['label-info'] || [])[0] || {})['catalog-number'] || '', cover: rg.id ? `https://coverartarchive.org/release-group/${rg.id}/front-250` : '' }; });
     };
-    const catOnly = parts.catalogs.length && !parts.artists.length && !parts.genres.length;          // (a catalogue number: only the sources that can look one up)
+    const catTyped = !parts.artists.length && !parts.genres.length && typeof looksLikeCatno === 'function' && looksLikeCatno(parts.text || srchFreeText(el.searchInput.value));
+    const catOnly = (parts.catalogs.length || catTyped) && !parts.artists.length && !parts.genres.length;          // (1.135.101) EKS 74013 typed plainly too: only the sources that can look a catalogue number up          // (a catalogue number: only the sources that can look one up)
     const jobs = catOnly ? (act.some(k => k === 'mb' || k === 'dg') ? act.filter(k => k === 'mb' || k === 'dg') : ['mb']).map(k => (k === 'mb' ? mb() : ADD_SRC_FN[k](q)).catch(() => null)) : parts.artists.length ? [srchArtistOnline(parts.artists, parts.genres, parts.text)] : parts.genres.length ? [srchGenreOnline(parts.genres, parts.text)] : act.map(k => (k === 'mb' ? mb() : ADD_SRC_FN[k](q)).catch(() => null));
     const lists = await Promise.all(jobs); if (seq !== srch.seq) return;
     const seen = new Set(), out = []; let owned = 0, failed = 0;
     lists.forEach(l => { if (!l) { failed++; return; } l.forEach(r => { const k = dupKey(r.artist, r.title); if (!k || seen.has(k)) return; seen.add(k);
       const v = dupVerdict(dupMatches({ artist: r.artist, title: r.title, catalog: r.catalog || '', releaseDate: r.date || '', descriptor: '' }));
       if (v === 'exact' || v === 'edition') { owned++; if (hide) return; r.owned = true; } out.push(r); }); });
-    srch.online = out.slice(0, 30); srch.onlineState = failed === lists.length ? 'error' : 'done';
+    const catQ = catOnly ? String(parts.catalogs[0] || parts.text || srchFreeText(el.searchInput.value)).toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+    if (catQ) out.forEach(r => { r.catExact = String(r.catalog || '').toLowerCase().replace(/[^a-z0-9]/g, '') === catQ; });
+    srch.onlineAll = false;
+    srch.online = out.slice(0, 40); srch.onlineState = failed === lists.length ? 'error' : 'done'; srchPopSort();
     srch.onlineNote = srch.onlineState === 'error' ? 'No source answered.' : !out.length ? 'Nothing more found online.' : owned ? `${owned} you have left out` : '';
     const lfKey = srchLfKey();
     if (lfKey && (parts.genres.length || parts.artists.length) && srchLfErr) srch.onlineNote = `Last.fm didn't answer (${srchLfErr})`;
@@ -167,7 +171,7 @@ function srchCrateItems(q) {
   if (q.trim() && have.size < 4) (state.filtered || []).filter(it => !have.has(String(it.row))).slice(0, 4 - have.size).forEach(it => items.push({ kind: 'release', col: 'crate', it, row: it.row, label: it.title, sub: [it.artist, String(it.releaseDate || '').slice(0, 4)].filter(Boolean).join(' \u00b7 '), cover: srchItemCover(it) }));
   return items;
 }
-function srchOnlineItems() { return srch.online.slice(0, 6).map(r => ({ kind: 'online', col: 'online', r, label: r.title, sub: [r.artist, String(r.date || '').slice(0, 4), r.type && r.type !== 'Album' ? r.type : '', srchPopFmt(r.listeners, r) || srchSrcName(r.src)].filter(Boolean).join(' · '), cover: r.cover })); }
+function srchOnlineItems() { return srch.online.slice(0, srch.onlineAll ? 40 : 6).map(r => ({ kind: 'online', col: 'online', r, label: r.title, sub: [r.artist, String(r.date || '').slice(0, 4), r.type && r.type !== 'Album' ? r.type : '', srchPopFmt(r.listeners, r) || srchSrcName(r.src)].filter(Boolean).join(' · '), cover: r.cover })); }
 
 // (1.135.100) The simple look looks online too when your crate has nothing for what's typed, or it reads as a catalogue number (LIB-55838):
 // up to four releases to add, under the suggestions (it showed nothing at all until you went into Add a release)
@@ -229,7 +233,7 @@ function srchDropdownHtml() {
   const n = state.filtered ? state.filtered.length : 0, free = srchFreeText(q);
   return srchChipsHtml() + `<div class="srch-cols">
     <div class="srch-col"><div class="srch-lbl">In your crate${q.trim() ? ` · ${n}` : ''}</div>${crate.join('') || `<div class="srch-note">${q.trim() ? 'No names match; the crate shows what fits.' : ''}</div>`}${q.trim() && n ? `<button type="button" class="srch-link" data-srch-close>Show all ${n} in the crate →</button>` : ''}</div>
-    <div class="srch-col srch-col-online"><div class="srch-lbl">Not in your crate yet · online <button type="button" class="srch-popsort" data-srch-pop title="Order the releases found online">${srchPopSortOn() ? 'Popular first' : 'Best match'}</button></div>${online.join('')}<div class="srch-note">${escapeHtml(srchOnlineStatus())}</div>${free.length >= 2 ? `<button type="button" class="srch-link" data-srch-all="${escapeHtml(free)}">More online results in Add a release →</button>` : ''}</div>
+    <div class="srch-col srch-col-online"><div class="srch-lbl">Not in your crate yet · online${srch.online.length ? ` · ${srch.online.length}` : ''} <button type="button" class="srch-popsort" data-srch-pop title="Order the releases found online">${srchPopSortOn() ? 'Popular first' : 'Best match'}</button></div>${online.join('')}${srch.online.length > 6 && !srch.onlineAll ? `<button type="button" class="srch-link" data-srch-online-all>Show all ${srch.online.length} here \u2193</button>` : ''}<div class="srch-note">${escapeHtml(srchOnlineStatus())}</div>${free.length >= 2 ? `<button type="button" class="srch-link" data-srch-all="${escapeHtml(free)}">More online results in Add a release →</button>` : ''}</div>
   </div>` + srchFootHtml();
 }
 
@@ -300,6 +304,7 @@ function srchClick(e) {
   const t = e.target, inp = el.searchInput, g = (sel) => t.closest(sel);
   let b;
   if ((b = g('[data-srch-untok]'))) return srchRemoveToken(+b.dataset.srchUntok);
+  if (g('[data-srch-online-all]')) { srch.onlineAll = true; ssRender(); return; }
   if (g('[data-srch-pop]')) { srchLsSet(SRCH_POP_SORT_KEY, srchPopSortOn() ? 'match' : 'pop'); srchPopSort(); ssRender(); return; }
   if ((b = g('[data-srch-chip]')) && b.tagName !== 'SELECT') { if (b.tagName === 'INPUT') e.preventDefault(); return srchToggle(b.dataset.srchChip); }
   if ((b = g('[data-srch-unsave]'))) return srchUnsave(b.dataset.srchUnsave);
@@ -400,11 +405,11 @@ function srchPopSave() { const a = srchPopAll(), ks = Object.keys(a); if (ks.len
 function srchPopSortOn() { return srchLs(SRCH_POP_SORT_KEY, 'pop') !== 'match'; }
 const srchPopK = (r) => (typeof dupKey === 'function' ? dupKey(r.artist, r.title) : (r.artist + '|' + r.title).toLowerCase());
 function srchPopSort() {
-  if (!srchPopSortOn()) { srch.online.sort((a, b) => (a._at || 0) - (b._at || 0)); return; }
   srch.online.forEach((r, i) => { if (r._at == null) r._at = i; });
+  if (!srchPopSortOn()) { srch.online.sort((a, b) => (b.catExact ? 1 : 0) - (a.catExact ? 1 : 0) || (a._at || 0) - (b._at || 0)); return; }
   const byL = srch.online.some(r => r.listeners);          // Last.fm listeners when there are some; else how many editions MusicBrainz knows (a reissued album is a known one)
   const pop = (r) => (r.editions || 0) * 400 + (r.have || 0);          // (no listeners: a MusicBrainz edition counts for about as much as 400 Discogs owners)
-  srch.online.sort((a, b) => byL ? ((b.listeners || -1) - (a.listeners || -1) || pop(b) - pop(a) || a._at - b._at) : (pop(b) - pop(a) || a._at - b._at));
+  srch.online.sort((a, b) => ((b.catExact ? 1 : 0) - (a.catExact ? 1 : 0)) || (byL ? ((b.listeners || -1) - (a.listeners || -1) || pop(b) - pop(a) || a._at - b._at) : (pop(b) - pop(a) || a._at - b._at)));
 }
 async function srchPopRank(seq, key) {
   const all = srchPopAll(), now = Date.now(), list = srch.online; list.forEach((r, i) => { r._at = i; });
