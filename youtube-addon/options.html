@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>CRATE for YouTube</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 680px; margin: 32px auto; padding: 0 20px; color: #1c1f24; background: #fafafa; }
+  h1 { font-size: 22px; margin: 0 0 4px; } h2 { font-size: 15px; margin: 26px 0 8px; } p { margin: 6px 0; } .dim { color: #5b626d; font-size: 13px; }
+  section { border-top: 1px solid #ddd; padding-top: 4px; } input[type=url] { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; margin: 6px 0; }
+  button { font: inherit; padding: 7px 14px; border-radius: 6px; border: 1px solid #1c1f24; background: #1c1f24; color: #fff; cursor: pointer; margin-right: 8px; } button.secondary { background: transparent; color: #1c1f24; }
+  .msg { min-height: 1.4em; font-size: 14px; } .msg.ok { color: #1a6b46; } .msg.bad { color: #a33; } .row { margin: 8px 0; }
+</style></head><body>
+<h1>CRATE for YouTube</h1>
+<p class="dim">Lets CRATE find YouTube videos and album playlists for your songs without using up YouTube&rsquo;s API quota.</p>
+<section><h2>What it does, and what to know</h2>
+  <p>When CRATE asks, this reads YouTube&rsquo;s own search and playlist pages <b>one at a time</b>, in the background: it asks for the page directly (no tab opens), with a pause of 1.5 to 3 seconds between pages. If a page can&rsquo;t be read that way it opens it in a background tab it closes again (pause 9 to 15 seconds). It remembers every answer, so the same question is never asked twice, and it stops if YouTube shows a cookie question or an &ldquo;unusual traffic&rdquo; page, leaving that page in front of you.</p>
+  <p class="dim">It reads pages that YouTube&rsquo;s terms say only the API may be used for. It uses no account and no password, but your browser&rsquo;s cookies come with every page it opens, so keep it to what you need. At most 250 pages a day.</p></section>
+<section><h2>1 &middot; Connect to your CRATE</h2>
+  <input id="crateUrl" type="url" placeholder="https://yourname.github.io/crate/" aria-label="Your CRATE's address" autocomplete="off">
+  <div class="row"><button id="connect" type="button">Connect</button><button id="disconnect" type="button" class="secondary" hidden>Disconnect</button></div>
+  <p id="connectMsg" class="msg" role="status"></p></section>
+<section><h2>Speed</h2>
+  <p><label><input id="viaTabs" type="checkbox"> Open a background tab for every page instead of asking for it directly (much slower: 9 to 15 seconds between pages, and one at a time)</label></p>
+  <p><label>Pages at once <select id="parallel"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label>
+    <span class="dim">when pages are asked for directly. More is faster, and makes it likelier that YouTube asks for a check (it then stops until you Continue). Only this page can change it.</span></p></section>
+<section><h2>2 &middot; Activity</h2>
+  <p id="statusLine" role="status"></p><p id="activityLine" class="dim"></p>
+  <div class="row"><button id="continue" type="button" hidden>Continue</button><button id="cancel" type="button" class="secondary" hidden>Cancel what is waiting</button><button id="forget" type="button" class="secondary">Forget the remembered answers</button> <span id="actMsg" class="msg"></span></div></section>
+<script src="options.js"></script></body></html>

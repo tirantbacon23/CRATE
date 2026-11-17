@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "CRATE for YouTube",
+  "version": "1.5.3",
+  "description": "Lets CRATE find YouTube videos and album playlists for your songs without using the YouTube API quota, by reading YouTube's own search, playlist and video pages in the background, a few at a time, and lets CRATE's visualizer hear its own tab.",
+  "permissions": [
+    "storage",
+    "scripting",
+    "tabCapture",
+    "offscreen"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.youtube.com/results*",
+        "https://www.youtube.com/playlist*",
+        "https://www.youtube.com/watch*",
+        "https://consent.youtube.com/*",
+        "https://www.google.com/sorry/*"
+      ],
+      "js": [
+        "core.js",
+        "content-youtube.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "CRATE for YouTube"
+  },
+  "host_permissions": [
+    "https://www.youtube.com/*"
+  ],
+  "commands": {
+    "crate-listen": {
+      "suggested_key": {
+        "default": "Alt+Shift+V"
+      },
+      "description": "Let CRATE's visualizer hear this tab"
+    }
+  }
+}
