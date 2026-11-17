@@ -6384,3 +6384,12 @@ html.thm-fade body, html.thm-fade body * { transition: background-color .9s ease
 .cw .album-card-menu { z-index: 5; }
 .cw-bar { pointer-events: none; } .cw-bar .cw-btn, .cw-bar .cw-size { pointer-events: auto; }
 .cw.cw-idle .cw-bar .cw-btn, .cw.cw-idle .cw-bar .cw-size { pointer-events: none; }
+
+/* (1.135.122) CRATE's own cursor */
+html.cur-on, html.cur-on body { cursor: var(--cur-arrow, auto); }
+html.cur-on a[href], html.cur-on button:not(:disabled), html.cur-on summary, html.cur-on label, html.cur-on select, html.cur-on [role="button"], html.cur-on [role="tab"], html.cur-on [role="option"], html.cur-on .card { cursor: var(--cur-hand, pointer); }
+html.cur-on input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="color"]), html.cur-on textarea, html.cur-on [contenteditable="true"] { cursor: text; }
+.cur-opt { display: inline-flex; align-items: center; gap: 6px; height: 34px; }
+.cur-opt img { width: 22px; height: 22px; }
+.cur-sys { font-size: 15px; width: 22px; text-align: center; }
+.arrange-modal.thm-modal { width: min(820px, calc(100vw - 32px)); max-width: none; }

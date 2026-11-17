@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.121
+  CURRENT_VERSION: 1.135.122
 
+  1.135.122 — 2026-11-18 — A cursor of CRATE's own (⚙ › Look › Cursor): System, Stylus (a record player's needle), Arrow or Ring, each with its
+          own look over things you can click, in the theme's accent with a dark edge (drawn again when the theme changes). Text boxes
+          keep the text cursor. The Look panel is wider (js/77-cursor.js).
   1.135.121 — 2026-11-18 — The cover wall: ⛶ beside the grid / list buttons (or W) shows every release the view shows (filters, search and sort as
           they are) as covers edge to edge, full screen. − / + / the slider / Ctrl+wheel size them; Names (T) under them; Gaps; Shuffle
           (S); the release playing has a ring. Click: its popup, over the wall; double-click: play; right-click: its menu. The bar fades
