@@ -17,8 +17,20 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.71
+  CURRENT_VERSION: 1.135.72
 
+  1.135.72 — 2026-11-18 — Match songs is a workbench now: the run's releases down the left (cover, artist, song count, and a dot
+          for its state: amber needs a look, red a problem, a ring ready, solid done, pulsing while it's looked up), with Needs a
+          look / Ready / Done / All and a find box above, and the chosen release on the right. The header holds each service's
+          progress on one line (with time left and a thin bar) where the two boxes were, and the views (Songs, Queue, Check links,
+          Analytics, History, ⚙) as small buttons. The release shows its cover, how well Spotify and YouTube fit, Open release,
+          and Apply only once something is ticked; Re-run, Skip, Edit tracks, Tick every match above a score, Untick live and
+          remixes, Untick all, Search YouTube for the rest and Undo the last apply wait under ⋯. Song rows are tighter, each pick
+          sits in its own box (amber edge: needs a look, dashed: no match), with ✓ ? ✕ • marks and a key to them, and the key
+          hints sit at the bottom. The bar at the foot only comes up once something is ticked. The full queue table (selecting
+          several, Move to top, Remove) is still there under Queue, or "Manage the queue…". Keys are as before.
+          Search: with "Songs only" on, descriptor: means the songs' own descriptors, so only the songs that have them show
+          (and the suggestions offer song descriptors).
   1.135.71 — 2026-11-18 — Match songs' keys work again (J K song, H L service, 1–5 pick, X none, Space play, W why, A apply, N next, [ ] release):
           they were heard only while something in the window had the focus, and each redraw took it away. Open from Match songs:
           "Open release" beside Re-run, a ↗ on each song (on hover, or the selected one) and the O key show the song in the

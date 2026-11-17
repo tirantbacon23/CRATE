@@ -738,7 +738,7 @@ function bmStart() {
   const { items } = bmScopeItems();
   if (!items.length) { flashGlobalToast(bm.skipLinked ? 'Every one of those releases is already fully linked.' : 'There are no releases to match.'); return; }
   bm.rels = items.map(bmMk); bm.started = true; bm.running = true; bm.stopped = false; bm.paused = false;
-  bm.view = bm.one ? 'rel' : bm.songsMode === 'check' ? 'links' : 'queue'; bm.sel = bm.rels[0].row; bm.t0 = Date.now(); bm.net0 = Object.assign({}, smNet);
+  bm.view = bm.songsMode === 'check' && !bm.one ? 'links' : 'rel';          // (1.135.72) a run opens on the workbench: the queue down the left, the release on the right bm.sel = bm.rels[0].row; bm.t0 = Date.now(); bm.net0 = Object.assign({}, smNet);
   bm.label = bm.one ? items[0].title : bm.songsMode === 'check' ? `Link check · ${bmPl(items.length, 'release')}` : bm.scope === 'genre' && bm.sets.genre ? `${bm.sets.genre.name} · ${bmPl(items.length, 'release')}` : bm.scope === 'queue' ? `Match queue · ${bmPl(items.length, 'release')}` : bm.scope === 'nolinks' ? `No links yet · ${bmPl(items.length, 'release')}` : bmPl(items.length, 'release');
   if (bm.scope === 'queue') mqRemove(items);                          // they are in this run now (which is saved), not waiting any more
   ['spotify', 'youtube'].forEach(k => { if (!bm.svc[k]) { bm.lanes[k] = { s: 'off', msg: '' }; bm.rels.forEach(r => { r.st[k] = 'skip'; r.err[k] = 'Not run'; }); } });
@@ -1262,22 +1262,52 @@ function bmTabsHtml() {
   const tabs = bm.started ? [['queue', 'Queue'], ['rel', 'Release'], ['links', 'Check links'], ['ana', 'Analytics'], ['hist', 'History'], ['prefs', 'Preferences']] : [['start', 'Start'], ['ana', 'Analytics'], ['hist', 'History'], ['prefs', 'Preferences']];
   return `<div class="bm-tabs" role="tablist">${tabs.map(([v, l]) => `<button type="button" role="tab" class="bm-tab${bm.view === v ? ' on' : ''}" aria-selected="${bm.view === v}" data-bm="tab" data-v="${v}">${l}</button>`).join('')}</div>`;
 }
-function bmLaneHtml(kind) {
-  const l = bm.lanes[kind]; if (!l || l.s === 'off') return '';
-  const rels = bm.rels.filter(r => r.include), total = rels.length, done = rels.filter(r => r.st[kind] !== 'wait' && r.st[kind] !== 'work').length, pct = total ? Math.round(done / total * 100) : 0;
+// (1.135.72) Each service's progress, for the line at the top of the window (it was a box per service)
+function bmLaneInfo(kind) {
+  const l = bm.lanes[kind]; if (!l || l.s === 'off') return null;
+  const rels = bm.rels.filter(r => r.include), total = rels.length, done = rels.filter(r => r.st[kind] !== 'wait' && r.st[kind] !== 'work').length;
   const ytStopped = kind === 'youtube' && ytAddon.state === 'stopped' && l.s === 'work';
   const slow = kind === 'spotify' && l.s === 'work' && spotifyRateLimitedUntil - Date.now() > 1500 ? Math.ceil((spotifyRateLimitedUntil - Date.now()) / 1000) : 0;
-  let chip = { idle: ['wait', 'Waiting'], work: ['work', bm.paused ? 'Paused' : 'Working'], done: ['ok', 'Done'], stopped: ['look', 'Stopped'] }[l.s] || ['wait', ''];
-  if (ytStopped) chip = ['look', 'YouTube needs you']; else if (slow) chip = ['look', 'Slowed down'];
+  let chip = { idle: ['wait', 'waiting'], work: ['work', bm.paused ? 'paused' : 'running'], done: ['ok', 'done'], stopped: ['look', 'stopped'] }[l.s] || ['wait', ''];
+  if (ytStopped) chip = ['look', 'needs you']; else if (slow) chip = ['look', 'slowed down'];
   const el_ = (Date.now() - (bm.t0 || Date.now())) / 1000, left = done && l.s === 'work' ? Math.round(el_ / done * (total - done)) : 0;
-  const par = kind === 'spotify' ? `${bm.par.spotify} at once` : ytUseAddon() ? `${Math.min(bm.par.youtube, ytAddon.parallel || 1) > 1 ? `${ytAddon.parallel} pages at once` : 'one page at a time'}` : `${bm.par.youtube} at once`;
-  const msg = ytStopped ? `<div class="bm-lane-msg" role="alert">${escapeHtml(ytAddonWhy(ytAddon.reason))} <button type="button" class="chip-btn" data-bm="yt-continue">Continue</button></div>`
+  const msg = ytStopped ? `<div class="bm-lane-msg" role="alert"><b>YouTube:</b> ${escapeHtml(ytAddonWhy(ytAddon.reason))} <button type="button" class="chip-btn bm-sm" data-bm="yt-continue">Continue</button></div>`
     : slow ? `<div class="bm-lane-msg">Spotify asked CRATE to slow down: it carries on in ${slow} s.</div>`
-    : l.msg ? `<div class="bm-lane-msg" role="alert">${escapeHtml(l.msg)} ${l.s === 'stopped' ? `<button type="button" class="chip-btn" data-bm="lane-resume" data-kind="${kind}">Resume</button>` : ''}</div>` : '';
-  return `<div class="bm-lane"><div class="bm-lane-top"><b>${bmName(kind)}</b><span class="bm-m">${par}</span>${bmChip(chip[0], chip[1])}</div><div class="bm-bar"><i style="width:${pct}%"></i></div><div class="bm-lane-meta"><span class="bm-m">${done} of ${bmPl(total, 'release')}</span><span class="bm-m">${left ? `about ${bmDur(left)} left` : ''}</span></div>${msg}</div>`;
+    : l.msg ? `<div class="bm-lane-msg" role="alert"><b>${bmName(kind)}:</b> ${escapeHtml(l.msg)} ${l.s === 'stopped' ? `<button type="button" class="chip-btn bm-sm" data-bm="lane-resume" data-kind="${kind}">Resume</button>` : ''}</div>` : '';
+  return { kind, total, done, tone: chip[0], label: chip[1], left, msg };
+}
+function bmProgHtml() {
+  const ls = bmKinds().map(bmLaneInfo).filter(Boolean); if (!ls.length) return '';
+  const tot = ls.reduce((n, l) => n + l.total, 0), dn = ls.reduce((n, l) => n + l.done, 0), left = Math.max(0, ...ls.map(l => l.left));
+  const pct = tot ? Math.round(dn / tot * 100) : 0, busy = ls.some(l => l.tone === 'work');
+  return `<div class="bm-prog">${ls.map(l => `<span class="bm-pg"><i class="bm-pdot ${l.tone}"></i>${bmName(l.kind)} ${l.done} of ${l.total}${l.label && l.label !== 'done' ? ` · ${escapeHtml(l.label)}` : ''}</span>`).join('')}${busy || pct < 100 ? `<div class="bm-bar bm-pbar" title="${pct}%"><i style="width:${pct}%"></i></div>` : ''}${left ? `<span class="bm-m">about ${bmDur(left)} left</span>` : ''}</div>`;
+}
+function bmLaneMsgs() { const m = bmKinds().map(bmLaneInfo).filter(l => l && l.msg).map(l => l.msg).join(''); return m ? `<div class="bm-msgs">${m}</div>` : ''; }
+// The views of a run, as small buttons in the header (they were a row of tabs)
+function bmViewBtns() {
+  const v = [['rel', 'Songs'], ['queue', 'Queue'], ['links', 'Check links'], ['ana', 'Analytics'], ['hist', 'History']];
+  return `<div class="bm-seg" role="tablist">${v.map(([k, l]) => `<button type="button" role="tab" class="bm-segb${bm.view === k ? ' on' : ''}" aria-selected="${bm.view === k}" data-bm="tab" data-v="${k}">${l}</button>`).join('')}</div><button type="button" class="chip-btn bm-ico${bm.view === 'prefs' ? ' on' : ''}" data-bm="tab" data-v="prefs" title="Preferences" aria-label="Preferences">⚙</button>`;
+}
+// A release's cover: the one CRATE has, or looked up and filled in when it comes (as the grid does)
+function bmCoverHtml(it, cls) {
+  if (!it) return `<span class="${cls}"></span>`;
+  const k = artKey(it), c = state.artCache[k], src = (c && c.art) || it.cover || '';
+  if (!src && typeof fetchArt === 'function' && !artFetchInFlight.has(k)) { artFetchInFlight.add(k); fetchArt(it); }
+  return `<span class="${cls}"><img class="art" data-key="${escapeHtml(k)}" src="${escapeHtml(src)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><b>${escapeHtml(bmInitials(it.title))}</b></span>`;
+}
+// The queue down the left of the workbench: one line per release, its state as a dot
+function bmWbQueueHtml() {
+  const all = bm.rels.map(bmRelStatus), cnt = (k) => all.filter(x => k === 'done' ? (x.key === 'done' || x.key === 'skip') : x.key === k).length;
+  const chip = (f, l, n) => `<button type="button" class="bm-fchip bm-fsm${bm.qfilter === f ? ' on' : ''}" data-bm="qfilter" data-f="${f}">${l} <span>${n}</span></button>`;
+  const rows = bmQueueRows().map(({ r, s }) => `<div class="bm-wq${r.row === bm.sel ? ' on' : ''}${r.include ? '' : ' off'}" data-bm="open-rel" data-row="${escapeHtml(r.row)}" role="button" tabindex="0" title="${escapeHtml(s.label)}">${bmCoverHtml(r.item, 'bm-wq-c')}<div class="bm-ct"><div class="bm-t">${escapeHtml(r.item.title)}</div><div class="bm-m">${escapeHtml(r.item.artist)}${r.songs ? ` · ${r.songs.length}` : ''}${s.key === 'work' || s.key === 'wait' || s.key === 'problem' ? ` · ${escapeHtml(s.label.toLowerCase())}` : ''}</div></div><i class="bm-qdot ${s.key}" aria-label="${escapeHtml(s.label)}"></i></div>`).join('');
+  const mq = mqAll().length;
+  return `<div class="bm-wq-tool"><div class="bm-fchips">${chip('look', 'Needs a look', cnt('look'))}${cnt('problem') ? chip('problem', 'Problems', cnt('problem')) : ''}${chip('ready', 'Ready', cnt('ready'))}${chip('done', 'Done', cnt('done'))}${chip('all', 'All', bm.rels.length)}</div><input type="search" class="bm-search" placeholder="Find a release" value="${escapeHtml(bm.qsearch || '')}" data-keep="qsearch" data-bm="qsearch" aria-label="Find a release"></div>
+  <div class="bm-wq-list" data-scroll="wbq">${rows || '<div class="bm-pad bm-dim">No releases under this filter.</div>'}</div>
+  <div class="bm-wq-foot">${mq ? `<button type="button" class="bm-linkbtn" data-bm="mq-add">Add ${mq} waiting</button> · ` : ''}<button type="button" class="bm-linkbtn" data-bm="tab" data-v="queue">Manage the queue…</button></div>`;
 }
 function bmFootHtml() {
-  const t = bmPickTotals(), a = [t.spotify ? `${t.spotify} Spotify` : '', t.youtube ? `${t.youtube} YouTube` : ''].filter(Boolean).join(' and ');
+  const t = bmPickTotals(); if (!t.n && !bm.diffOpen && !bm.applying) return '';          // (1.135.72) the bar only comes up once something is ticked
+  const a = [t.spotify ? `${t.spotify} Spotify` : '', t.youtube ? `${t.youtube} YouTube` : ''].filter(Boolean).join(' and ');
   let look = 0, none = 0, kept = 0; bm.rels.forEach(r => { if (!r.include || !r.songs) return; bmShownKinds().forEach(k => { r.songs.forEach(s => { if (relHas(r, s, k)) { kept++; return; } if (r.st[k] !== 'done' || r.pick[k][s.idx]) return; const c = bmCellOf(r, s, k); { if (c.s === 'look') look++; else if (c.s === 'none') none++; } }); }); });
   const diff = bm.diffOpen && t.n ? bmDiffHtml() : '';
   return `${diff}<div class="bm-foot"><div><b>${t.n ? `Will add ${bmPl(t.n, 'link')} (${a}) to ${bmPl(t.releases, 'release')}` : 'Nothing ticked yet'}</b><div class="bm-dim">${look} need a look · ${none} no match · ${kept} already linked and kept${bm.saved ? ` · ${bm.saved} saved so far` : ''}${t.n ? ` · <button type="button" class="bm-linkbtn" data-bm="diff-toggle">${bm.diffOpen ? 'hide changes' : 'see changes'}</button>` : ''}</div></div>
@@ -1412,15 +1442,15 @@ function bmCellInner(rel, s, kind) {
   const br = rel.broken[kind] && rel.broken[kind][s.idx], brNote = br ? `<div class="bm-m bm-warnc">${escapeHtml(br.reason)}</div>` : '';
   if (c.s === 'kept') { const yi = kind === 'youtube' ? ytInfoOf(s.youtubeLink) : null, seg = kind === 'youtube' ? youtubeSegmentFromUrl(s.youtubeLink) : null, twin = kind === 'youtube' ? bmSameVideoAs(rel, s) : null;
     const at = seg && (seg.start || seg.end) ? ` · from ${ytFormatTime(seg.start)}${seg.end ? '–' + ytFormatTime(seg.end) : ''}` : '', warn = twin ? ` · <span class="bm-warnc" title="Two songs can’t both be this video. Remove the link from the one it isn’t">same video as ${twin.trackNum ? 'song ' + escapeHtml(String(twin.trackNum)) : '“' + escapeHtml(twin.title) + '”'}</span>` : '';
-    return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct"><div class="bm-t${yi ? '' : ' bm-dim'}"${yi ? ` title="${escapeHtml(yi.t)}"` : ''}>${yi ? escapeHtml(yi.t) : 'Your link'}</div><div class="bm-m">${yi && yi.c ? escapeHtml(yi.c) + ' \u00b7 ' : ''}kept${at}${warn}${bm.songsMode === 'check' && rel.checked[kind] ? ' · checked: works' : ''}</div></div>${bmChip('have', 'Kept')}${kind === 'youtube' ? `<button type="button" class="chip-btn bm-sm" data-bm="unlink" ${da} title="Remove this YouTube link from the song" aria-label="Remove the YouTube link for ${escapeHtml(s.title)}">Remove</button>` : ''}</div>`; }
-  if (c.s === 'wait' && rel.st[kind] === 'error') return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct bm-warnc">${escapeHtml(rel.err[kind] || 'Could not look this up')}</div></div>`;          // the lookup failed before it had any answer: said, not "Queued"
-  if (c.s === 'wait') return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct bm-dim">${rel.st[kind] === 'skip' ? escapeHtml(rel.err[kind] || 'Not run') : rel.st[kind] === 'work' ? 'Looking…' : 'Queued'}${brNote}</div></div>`;
-  if (c.s === 'error') return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct bm-warnc">${escapeHtml(rel.err[kind] || 'Could not look this up')}</div></div>`;
-  if (c.s === 'none') return `<div class="bm-cell"><span class="bm-ts"></span><div class="bm-ct"><div class="bm-dim">No match</div>${brNote}</div>${kind === 'youtube' ? `<button type="button" class="chip-btn bm-sm" data-bm="yt-song" ${da}>Search</button>` : ''}<button type="button" class="chip-btn bm-sm" data-bm="choose" ${da}>Paste</button></div>`;
+    return `<div class="bm-cell st-kept"><span class="bm-ts"><i class="bm-si kept" aria-hidden="true">•</i></span><div class="bm-ct"><div class="bm-t${yi ? '' : ' bm-dim'}"${yi ? ` title="${escapeHtml(yi.t)}"` : ''}>${yi ? escapeHtml(yi.t) : 'Your link'}</div><div class="bm-m">${yi && yi.c ? escapeHtml(yi.c) + ' \u00b7 ' : ''}kept${at}${warn}${bm.songsMode === 'check' && rel.checked[kind] ? ' · checked: works' : ''}</div></div>${bmChip('have', 'Kept')}${kind === 'youtube' ? `<button type="button" class="chip-btn bm-sm" data-bm="unlink" ${da} title="Remove this YouTube link from the song" aria-label="Remove the YouTube link for ${escapeHtml(s.title)}">Remove</button>` : ''}</div>`; }
+  if (c.s === 'wait' && rel.st[kind] === 'error') return `<div class="bm-cell st-none"><span class="bm-ts"><i class="bm-si none" aria-hidden="true">✕</i></span><div class="bm-ct bm-warnc">${escapeHtml(rel.err[kind] || 'Could not look this up')}</div></div>`;          // the lookup failed before it had any answer: said, not "Queued"
+  if (c.s === 'wait') return `<div class="bm-cell st-wait"><span class="bm-ts"></span><div class="bm-ct bm-dim">${rel.st[kind] === 'skip' ? escapeHtml(rel.err[kind] || 'Not run') : rel.st[kind] === 'work' ? 'Looking…' : 'Queued'}${brNote}</div></div>`;
+  if (c.s === 'error') return `<div class="bm-cell st-none"><span class="bm-ts"><i class="bm-si none" aria-hidden="true">✕</i></span><div class="bm-ct bm-warnc">${escapeHtml(rel.err[kind] || 'Could not look this up')}</div></div>`;
+  if (c.s === 'none') return `<div class="bm-cell st-none"><span class="bm-ts"><i class="bm-si none" aria-hidden="true">✕</i></span><div class="bm-ct"><div class="bm-dim">No match</div>${brNote}</div>${kind === 'youtube' ? `<button type="button" class="chip-btn bm-sm" data-bm="yt-song" ${da}>Search</button>` : ''}<button type="button" class="chip-btn bm-sm" data-bm="choose" ${da}>Paste</button></div>`;
   const pickId = rel.pick[kind][s.idx], ch = c.cands.find(x => x.id === pickId) || c.top, ticked = !!pickId;
   const focus = bm.focus && bm.focus.idx === s.idx && bm.focus.kind === kind;
   const open = bm.open && bm.open.row === rel.row && bm.open.idx === s.idx && bm.open.kind === kind;
-  return `<div class="bm-cell${focus ? ' focus' : ''}"><label class="bm-tick"><input type="checkbox" data-bm="tick" ${da}${ticked ? ' checked' : ''} aria-label="Use this ${bmName(kind)} match for ${escapeHtml(s.title)}"></label><div class="bm-ct"><div class="bm-t" title="${escapeHtml(ch.title)}">${escapeHtml(ch.title)}</div><div class="bm-m">${escapeHtml(bmCandSub(kind, ch, s))}</div>${brNote}</div>${bmScorePill(rel, s, kind, ch)}<button type="button" class="chip-btn bm-sm" data-bm="choose" ${da}>${open ? 'Done' : c.cands.length > 1 ? `${c.cands.length - 1} more` : 'Other'}</button></div>`;
+  return `<div class="bm-cell st-${ticked ? 'on' : 'off'} st-${c.s}${focus ? ' focus' : ''}"><label class="bm-tick"><input type="checkbox" data-bm="tick" ${da}${ticked ? ' checked' : ''} aria-label="Use this ${bmName(kind)} match for ${escapeHtml(s.title)}"></label><div class="bm-ct"><div class="bm-t" title="${escapeHtml(ch.title)}">${escapeHtml(ch.title)}</div><div class="bm-m">${escapeHtml(bmCandSub(kind, ch, s))}</div>${brNote}</div>${bmScorePill(rel, s, kind, ch)}<button type="button" class="chip-btn bm-sm" data-bm="choose" ${da}>${open ? 'Done' : c.cands.length > 1 ? `${c.cands.length - 1} more` : 'Other'}</button></div>`;
 }
 async function bmSaveAltTitle(rel, idx, value, search) {            // (1.95.12) a song's Other title, from the drawer: saved with the song, its matches scored again, and on request a YouTube search under it
   const s = rel && rel.songs && rel.songs.find(x => x.idx === idx); if (!s) return;
@@ -1493,8 +1523,18 @@ function bmRelHtml() {
   if (bm.focusTrackNum != null && rel.songs) { const s = rel.songs.find(x => x.trackNum === bm.focusTrackNum); if (s) bm.focus = { idx: s.idx, kind: shown[0] }; bm.focusTrackNum = null; }
   if (rel.songs && rel.songs.length && (!bm.focus || !rel.songs.some(s => s.idx === bm.focus.idx))) bm.focus = { idx: rel.songs[0].idx, kind: shown[0] };
   const year = genreYear(it);
-  const head = `<div class="bm-rel-head"><button type="button" class="chip-btn bm-sm" data-bm="nav" data-d="-1"${i > 0 ? '' : ' disabled'} aria-label="Previous release">‹</button><span class="bm-tile bm-big">${escapeHtml(bmInitials(it.title))}</span><div class="bm-ct"><div class="bm-rt">${escapeHtml(it.title)}</div><div class="bm-dim">${escapeHtml(it.artist)}${year ? ` · ${year}` : ''} · ${rel.songs ? bmPl(rel.songs.length, 'song') : '…'} · ${i + 1} of ${bm.rels.length}</div></div><button type="button" class="chip-btn bm-sm" data-bm="nav" data-d="1"${i < bm.rels.length - 1 ? '' : ' disabled'} aria-label="Next release">›</button>
-    <span class="bm-foot-r bm-right"><button type="button" class="chip-btn" data-bm="rel-open" title="Open this release in CRATE (Match songs keeps working behind it)">Open release</button><button type="button" class="chip-btn" data-bm="rel-rerun">Re-run</button><button type="button" class="chip-btn" data-bm="rel-skip">${rel.include ? 'Skip' : 'Include'}</button><button type="button" class="chip-btn" data-bm="rel-edit">Edit tracks…</button><button type="button" class="config-btn" data-bm="rel-apply"${n ? '' : ' disabled'}>Apply ${bmPl(n, 'link')}</button></span></div>`;
+  const fits = shown.map(k => { const r = rel[k]; if (!r || rel.st[k] !== 'done' || !rel.songs) return ''; const n_ = rel.songs.length;
+    const list = k === 'spotify' ? (r.editions || []) : (r.lists || []), cur = k === 'spotify' ? r.albumId : r.playlistId, e = list.find(x => x.id === cur);
+    return e ? `${bmName(k)} fits ${e.matched || 0} of ${n_}` : k === 'youtube' && r.fullVideo ? 'YouTube: one full-release video' : `${bmName(k)}: song by song`; }).filter(Boolean).join(' · ');
+  const ytRest = shown.includes('youtube') && rel.st.youtube === 'done' && rel.songs && rel.songs.some(s => !relHas(rel, s, 'youtube') && !((rel.youtube.byIdx || {})[s.idx] || []).length);
+  const undo = bmHistAll().some(h => !h.undone && h.n);
+  // (1.135.72) the tools used now and then wait under ⋯, so the release reads first
+  const more = bm.relMore ? `<div class="bm-more-pop" role="menu">
+      <button type="button" role="menuitem" data-bm="rel-rerun">Re-run this release</button><button type="button" role="menuitem" data-bm="rel-skip">${rel.include ? 'Skip this release' : 'Include this release'}</button><button type="button" role="menuitem" data-bm="rel-edit">Edit tracks…</button><hr>
+      <div class="bm-more-row"><button type="button" role="menuitem" data-bm="rule-accept">Tick every match above</button><select data-bm="accept-min" aria-label="Tick every match above this score">${[60, 65, 70, 75, 80].map(v => `<option${(bm.acceptMin || 75) === v ? ' selected' : ''}>${v}</option>`).join('')}</select></div>
+      <button type="button" role="menuitem" data-bm="rule-unlive">Untick live and remixes</button><button type="button" role="menuitem" data-bm="rule-untick">Untick all</button>${ytRest ? `<button type="button" role="menuitem" data-bm="yt-rest"${rel.youtube.searching ? ' disabled' : ''}>${rel.youtube.searching ? 'Searching YouTube…' : 'Search YouTube for the rest'}</button>` : ''}${undo ? '<hr><button type="button" role="menuitem" data-bm="undo-last">Undo the last apply</button>' : ''}</div>` : '';
+  const head = `<div class="bm-rel-head">${bmCoverHtml(it, 'bm-rel-c')}<div class="bm-ct"><div class="bm-rt">${escapeHtml(it.title)}${rel.include ? '' : ' <span class="bm-chip bm-wait">skipped</span>'}</div><div class="bm-dim">${escapeHtml(it.artist)}${year ? ` · ${year}` : ''} · ${rel.songs ? bmPl(rel.songs.length, 'song') : '…'}${fits ? ` · ${fits}` : ''}</div></div>
+    <span class="bm-foot-r bm-right"><span class="bm-nav"><button type="button" class="chip-btn bm-sm" data-bm="nav" data-d="-1"${i > 0 ? '' : ' disabled'} aria-label="Previous release" title="Previous release ( [ )">‹</button><span class="bm-m">${i + 1} of ${bm.rels.length}</span><button type="button" class="chip-btn bm-sm" data-bm="nav" data-d="1"${i < bm.rels.length - 1 ? '' : ' disabled'} aria-label="Next release" title="Next release ( ] )">›</button></span><button type="button" class="chip-btn" data-bm="rel-open" title="Open this release in CRATE (Match songs keeps working behind it)">Open release</button><span class="bm-more"><button type="button" class="chip-btn bm-ico${bm.relMore ? ' on' : ''}" data-bm="rel-more" aria-haspopup="menu" aria-expanded="${!!bm.relMore}" aria-label="More for this release" title="More for this release">⋯</button>${more}</span>${n ? `<button type="button" class="config-btn" data-bm="rel-apply">Apply ${bmPl(n, 'link')}</button>` : ''}</span></div>`;
   const keys = `<div class="bm-keys bm-m"><kbd>J</kbd><kbd>K</kbd> song · <kbd>H</kbd><kbd>L</kbd> service · <kbd>1</kbd>–<kbd>5</kbd> pick · <kbd>X</kbd> none · <kbd>Space</kbd> play · <kbd>W</kbd> why · <kbd>A</kbd> apply · <kbd>O</kbd> open song · <kbd>N</kbd> next to check · <kbd>[</kbd><kbd>]</kbd> release</div>`;
   if (!rel.songs && (shown.some(k => rel.st[k] === 'work' || rel.st[k] === 'wait'))) return `${head}<div class="bm-body bm-pad bm-dim">Waiting for this release…</div>`;
   if (rel.songs && !rel.songs.length) return `${head}<div class="bm-body bm-pad"><p>This release has no tracklist yet, so there is nothing to match.</p><button type="button" class="config-btn" data-bm="rel-edit">Add its tracks…</button></div>`;
@@ -1502,9 +1542,8 @@ function bmRelHtml() {
   const songs = bmRelSongsShown(rel), cs = (k) => (rel.songs || []).filter(s => bmCellOf(rel, s, k).cands.length);
   const colOn = (k) => { const l = cs(k); return l.length > 0 && l.every(s => rel.pick[k][s.idx]); }, allOn = shown.some(k => cs(k).length) && shown.every(k => !cs(k).length || colOn(k));
   const chipf = (f, label) => `<button type="button" class="bm-fchip${bm.filter === f ? ' on' : ''}" data-bm="filter" data-f="${f}">${label}</button>`;
-  const ytRest = shown.includes('youtube') && rel.st.youtube === 'done' && rel.songs.some(s => !relHas(rel, s, 'youtube') && !((rel.youtube.byIdx || {})[s.idx] || []).length);
   const tools = `<div class="bm-tool bm-tool-rel"><div class="bm-fchips">${chipf('all', 'All')}${chipf('confident', 'Confident')}${chipf('look', 'Needs a look')}${chipf('none', 'No match')}${chipf('kept', 'Linked')}</div>
-    <div class="bm-tool-r"><button type="button" class="chip-btn" data-bm="rule-accept">Accept all above</button><select data-bm="accept-min" aria-label="Accept all above this score">${[60, 65, 70, 75, 80].map(v => `<option${(bm.acceptMin || 75) === v ? ' selected' : ''}>${v}</option>`).join('')}</select><button type="button" class="chip-btn" data-bm="rule-unlive">Untick live and remixes</button><button type="button" class="chip-btn" data-bm="rule-untick">Untick all</button>${ytRest ? `<button type="button" class="chip-btn" data-bm="yt-rest"${rel.youtube.searching ? ' disabled' : ''}>${rel.youtube.searching ? 'Searching YouTube…' : 'Search YouTube for the rest'}</button>` : ''}</div></div>`;
+    <div class="bm-legend bm-m"><span><i class="bm-si confident">✓</i>confident</span><span><i class="bm-si look">?</i>needs a look</span><span><i class="bm-si none">✕</i>no match</span><span><i class="bm-si kept">•</i>linked</span></div></div>`;
   const W = shown.length;
   const th = `<div class="bm-row bm-th bm-c${W}"><label class="bm-tick"><input type="checkbox" data-bm="tick-song-all"${allOn ? ' checked' : ''} aria-label="Tick every song"></label><span class="bm-label">#</span><span class="bm-label">Your song</span>${shown.map(k => `<span class="bm-label bm-colh"><label class="bm-tick"><input type="checkbox" data-bm="tick-col" data-kind="${k}"${colOn(k) ? ' checked' : ''} aria-label="Tick every ${bmName(k)} match"></label>${bmName(k)}</span>`).join('')}</div>`;
   const rows = songs.map(s => {
@@ -1514,7 +1553,7 @@ function bmRelHtml() {
     return `<div class="bm-song${bm.focus && bm.focus.idx === s.idx ? ' focus' : ''}" data-idx="${s.idx}"><div class="bm-row bm-c${W}"><label class="bm-tick"><input type="checkbox" data-bm="tick-song" data-row="${escapeHtml(rel.row)}" data-idx="${s.idx}"${sticks.length && sticks.every(Boolean) ? ' checked' : ''}${sticks.length ? '' : ' disabled'} aria-label="Match ${escapeHtml(s.title)}"></label><span class="bm-m">${s.trackNum}</span><div class="bm-ct"><div class="bm-t">${escapeHtml(s.title)}<button type="button" class="bm-open-song" data-bm="song-open" data-row="${escapeHtml(rel.row)}" data-idx="${s.idx}" title="Show this song in the catalogue (Match songs keeps working behind it)" aria-label="Show ${escapeHtml(s.title)} in the catalogue">\u2197</button></div><div class="bm-m">${escapeHtml(smLen(s.durationMs) || 'no length')}</div></div>${shown.map(k => bmCellHtml(rel, s, k)).join('')}</div>${drawers}${why}</div>`;
   }).join('');
   const empty = !rel.songs ? '<div class="bm-dim bm-pad">Waiting for this release…</div>' : !songs.length ? '<div class="bm-dim bm-pad">No songs under this filter.</div>' : '';
-  return `${head}${keys}${panels}${bmAlignHtml(rel)}${tools}<div class="bm-body" data-scroll="songs">${th}${rows}${empty}</div>`;
+  return `${head}${panels}${bmAlignHtml(rel)}${tools}<div class="bm-body" data-scroll="songs">${th}${rows}${empty}</div>${keys}`;
 }
 // ----- Check links -----
 function bmLinksHtml() {
@@ -1621,16 +1660,19 @@ function bmRender() {
   const pasteVals = {}; modal.querySelectorAll('[data-keep]').forEach(e => { pasteVals[e.dataset.keep] = e.value; });
   const ctl = bm.started && bm.running ? `<button type="button" class="chip-btn" data-bm="${bm.paused ? 'resume' : 'pause'}">${bm.paused ? 'Resume' : 'Pause'}</button><button type="button" class="chip-btn" data-bm="stop">Stop</button>` : '';
   const sub = bm.started ? `${escapeHtml(bm.label)} · ${bmKinds().map(bmName).join(' and ')} · ${bm.songsMode === 'check' ? 'checking saved links' : bm.mode === 'auto' ? 'confident matches are saved as they come' : 'nothing is saved until you apply it'} · saved as it goes` : 'Find Spotify and YouTube links for your songs: one release or many.';
-  const head = `<div class="arrange-header"><div><h2 id="bmTitle">Match songs</h2><p class="sm-sub">${sub}</p></div><div class="bm-hbtns">${ctl}${bm.started ? '<button type="button" class="chip-btn" data-bm="hide">Keep working</button>' : ''}<button type="button" class="modal-x" data-bm="close" aria-label="Close">✕</button></div></div>`;
+  // (1.135.72) a run's header: its progress on one line, and its views as small buttons beside the controls
+  const head = bm.started ? `<div class="arrange-header bm-wb-head"><h2 id="bmTitle" title="${escapeHtml(sub.replace(/<[^>]+>/g, ''))}">Match songs</h2>${bmProgHtml()}<div class="bm-hbtns">${ctl}${bmViewBtns()}<button type="button" class="chip-btn" data-bm="hide" title="Hide this window: matching carries on">Keep working</button><button type="button" class="modal-x" data-bm="close" aria-label="Close">✕</button></div></div>`
+    : `<div class="arrange-header"><div><h2 id="bmTitle">Match songs</h2><p class="sm-sub">${sub}</p></div><div class="bm-hbtns">${ctl}<button type="button" class="modal-x" data-bm="close" aria-label="Close">✕</button></div></div>`;
   const warn = bm.started && bmHealthBad() ? `<div class="bm-warnbar" role="alert">${bm.health.spotify === 'off' && bm.svc.spotify ? 'Spotify isn’t connected. ' : ''}${bm.health.test === 'zero' ? 'A test YouTube search read 0 videos: YouTube may have changed its page, so YouTube matches may be missing. ' : /^err:/.test(bm.health.test || '') ? `The YouTube test search failed: ${escapeHtml(bm.health.test.slice(4))} ` : ''}<button type="button" class="bm-linkbtn" data-bm="health-retry">Check again</button></div>` : '';
-  const lanes = bm.started && (['queue', 'links', 'ana'].includes(bm.view) || (bm.view === 'rel' && bm.running)) ? `<div class="bm-lanes">${bmKinds().map(bmLaneHtml).join('')}</div>` : '';
-  const body = bm.view === 'start' ? bmStartHtml() : bm.view === 'queue' ? bmQueueHtml() : bm.view === 'rel' ? bmRelHtml() : bm.view === 'links' ? bmLinksHtml() : bm.view === 'ana' ? bmAnaHtml() : bm.view === 'hist' ? bmHistHtml() : bmPrefsHtml();
+  const lanes = bm.started ? bmLaneMsgs() : '';
+  const body = bm.view === 'start' ? bmStartHtml() : bm.view === 'queue' ? bmQueueHtml() : bm.view === 'rel' ? `<div class="bm-wb"><aside class="bm-wb-q" aria-label="Releases in this run">${bmWbQueueHtml()}</aside><section class="bm-wb-r">${bmRelHtml()}</section></div>` : bm.view === 'links' ? bmLinksHtml() : bm.view === 'ana' ? bmAnaHtml() : bm.view === 'hist' ? bmHistHtml() : bmPrefsHtml();
   const foot = bm.started && ['queue', 'rel', 'links'].includes(bm.view) ? bmFootHtml() : '';
-  modal.innerHTML = head + warn + bmTabsHtml() + lanes + body + foot;
+  modal.innerHTML = head + warn + (bm.started ? '' : bmTabsHtml()) + lanes + body + foot;
+  modal.classList.toggle('bm-is-wb', bm.started && bm.view === 'rel');
   modal.querySelectorAll('[data-scroll]').forEach(e => { if (keep[e.dataset.scroll] != null) e.scrollTop = keep[e.dataset.scroll]; });
   modal.querySelectorAll('[data-keep]').forEach(e => { if (pasteVals[e.dataset.keep] != null && e.dataset.keep !== 'qsearch' && e.dataset.keep !== 'bm-rf-text') e.value = pasteVals[e.dataset.keep]; });
   if (keepKey) { const n = modal.querySelector(`[data-keep="${CSS.escape(keepKey)}"]`); if (n) { n.value = keepVal; n.focus(); if (keepSel) { try { n.setSelectionRange(keepSel[0], keepSel[1]); } catch (e) { /* not a text box */ } } } }
-  if (bm.scrollFocus) { bm.scrollFocus = false; const f = modal.querySelector('.bm-song.focus'); if (f) f.scrollIntoView({ block: 'nearest' }); }
+  if (bm.scrollFocus) { bm.scrollFocus = false; const f = modal.querySelector('.bm-song.focus'); if (f) f.scrollIntoView({ block: 'nearest' }); const q = modal.querySelector('.bm-wq.on'); if (q) q.scrollIntoView({ block: 'nearest' }); }
   if (bm.started && bm.running && !bm.ticker) bm.ticker = setInterval(() => { if (!bm || !bm.running) { if (bm) { clearInterval(bm.ticker); bm.ticker = 0; } return; } if (!bm.hidden && (bm.view === 'queue' || bm.view === 'ana') && !(document.activeElement && document.activeElement.dataset && document.activeElement.dataset.keep)) bmRedraw(); }, 1000);
 }
 
@@ -1680,9 +1722,13 @@ async function bmResumeSaved() {
   bmKickLanes(); bmKinds().forEach(k => { if (bm.lanes[k].s === 'idle') bm.lanes[k].s = 'done'; }); if (!bmKinds().some(k => bm.lanes[k].s === 'work')) bm.running = false; bmRender();
 }
 function bmClick(e) {
-  const t = e.target.closest('[data-bm]'); if (!t || !bm) return; const a = t.dataset.bm, relOf = () => bm.rels.find(r => r.row === t.dataset.row) || bmSelRel();
+  const t = e.target.closest('[data-bm]');
+  if (bm && bm.relMore && !e.target.closest('.bm-more')) { bm.relMore = false; if (!t) { bmRender(); return; } }          // (1.135.72) a click anywhere else closes the ⋯ menu
+  if (!t || !bm) return; const a = t.dataset.bm, relOf = () => bm.rels.find(r => r.row === t.dataset.row) || bmSelRel();
   if (['setup', 'tick', 'tick-song', 'tick-col', 'tick-song-all', 'inc', 'show', 'pick', 'qsel', 'qsel-all', 'qsort', 'src', 'accept-min', 'thresh', 'pref', 'qsearch', 'rf-text'].includes(a)) return;           // inputs: handled on 'change'
   const idx = t.dataset.idx != null ? +t.dataset.idx : null, kind = t.dataset.kind;
+  if (bm.relMore && t.closest('.bm-more-pop') && a !== 'accept-min') bm.relMore = false;          // a pick from the menu closes it
+  if (a === 'rel-more') { bm.relMore = !bm.relMore; bmRender(); return; }
   if (a === 'tab') { bm.view = t.dataset.v; if (bm.view === 'rel') bm.scrollFocus = true; bmRender(); }
   else if (a === 'hide') bmHide(); else if (a === 'close') bmClose(); else if (a === 'cancel') bmClose(true); else if (a === 'start') bmStart(); else if (a === 'show-dialog') bmShow();
   else if (a === 'pause') { bm.paused = true; bmRender(); } else if (a === 'resume') { bm.paused = false; bmRender(); }
