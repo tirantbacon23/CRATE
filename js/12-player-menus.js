@@ -461,11 +461,7 @@ async function addTracksToEntry(trackPlaylistItems) {
       total++;
     }
     if (activeItem === owner) renderTracklistBody(owner, currentTracklistTracks);
-    try {
-      await postUpdate({ row: owner.row, trackData: JSON.stringify(owner.trackData) });
-    } catch (err) {
-      flashGlobalToast('Couldn\u2019t save \u2014 try again');
-    }
+    postUpdate({ row: owner.row, trackData: JSON.stringify(owner.trackData) }).catch(() => flashGlobalToast('Couldn\u2019t save \u2014 try again'));          // (1.135.56) saved in the background: the form opens at once (it waited for the sheet)
   }
   flashGlobalToast(`Added ${total} track${total === 1 ? '' : 's'} to entry`);
   if (activeItem && !el.logForm.hidden) { renderLogTrackSummary(); deckRevealLog(); return; }
@@ -501,7 +497,7 @@ document.addEventListener('keydown', (e) => {
 // menu looked like nothing had happened.
 function deckRevealLog() {
   if (typeof deckTabShow === 'function' && typeof layoutPrefs === 'function' && layoutPrefs().deck === 'b') deckTabShow('diary');
-  requestAnimationFrame(() => { if (el.logForm && !el.logForm.hidden) el.logForm.scrollIntoView({ block: 'center', behavior: 'smooth' }); });
+  requestAnimationFrame(() => { if (el.logForm && !el.logForm.hidden) el.logForm.scrollIntoView({ block: 'center' }); });
 }
 
 // "Edit track properties…" — a real modal window (single-track only, see

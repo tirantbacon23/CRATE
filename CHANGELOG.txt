@@ -17,8 +17,10 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.55
+  CURRENT_VERSION: 1.135.56
 
+  1.135.56 — 2026-11-17 — "Add to entry" opens the diary form at once: it used to wait for the ticked songs to be saved to the sheet (a few
+          seconds) before showing it; they're now saved in the background.
   1.135.55 — 2026-11-17 — The album view's tracklist loses its "Select all" and "+ Add track" buttons. Ctrl+A (⌘A) there selects every song,
           so a right-click acts on all of them. "Add to entry" on songs now brings the diary form into view (in the Tabs look, it
           opens the Diary tab): it was working, but the form opened out of sight below the tracklist, so it looked like nothing
