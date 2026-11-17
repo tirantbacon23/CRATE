@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.87
+  CURRENT_VERSION: 1.135.88
 
+  1.135.88 — 2026-11-18 — Search: genre: looks online too. "genre:indie rock" fills "Not in your crate yet · online" with releases of
+          that genre you don't have: the most played albums with that tag on Last.fm first (with your Last.fm key), then albums tagged
+          with it on MusicBrainz; plain words beside it narrow both ("genre:indie rock pixies"). Releases you have are left out as
+          before; picking one opens Add with it filled in. Diary: the scrollbar no longer runs over the side panel.
   1.135.87 — 2026-11-18 — The Diary, redone as sketched, four tabs:
           · Journal (was Feed): each entry with its cover and day, by month ("11 listens · 4 new to the diary"); the entry's own
             title and note first; tags for a relisten (the release logged on an earlier day), the full release or which songs.

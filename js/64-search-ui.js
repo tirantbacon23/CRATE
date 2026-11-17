@@ -58,9 +58,35 @@ function srchJump(j) {
 }
 
 // ----- online: releases you don't have -----
+// (1.135.88) The genres asked for (genre:indie rock, as one phrase) and the plain words, as the crate's own search reads them
+function srchParts(raw) {
+  let terms = []; try { terms = mergeGenrePhrases(tokenizeSearchQuery(String(raw || '').toLowerCase())); } catch (e) { terms = []; }
+  const genres = terms.filter(t => !t.negate && t.value && t.field && SEARCH_FIELD_ALIASES[t.field.toLowerCase()] === 'genre').map(t => t.value.trim()).filter(Boolean);
+  const text = terms.filter(t => !t.field && !t.negate && t.value).map(t => t.value).join(' ').trim();
+  return { genres, text };
+}
+// Releases of a genre that aren't in the crate: Last.fm's most played albums with that tag (with your Last.fm key), then MusicBrainz's
+// albums tagged with it; the plain words, when there are some, narrow both.
+async function srchGenreOnline(genres, text) {
+  const out = [], g = genres[0], words = smFold(text).split(' ').filter(Boolean), fits = (r) => !words.length || words.every(w => smFold(r.artist + ' ' + r.title).includes(w));
+  const creds = typeof loadLastfmCreds === 'function' ? loadLastfmCreds() : {};
+  const lf = creds.apiKey ? (async () => {
+    const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=tag.gettopalbums&tag=${encodeURIComponent(g)}&api_key=${encodeURIComponent(creds.apiKey)}&format=json&limit=40`);
+    const j = await res.json(); if (j.error) throw new Error(j.message || 'Last.fm');
+    return (((j.albums || {}).album) || []).map(a => ({ src: 'lf', title: a.name || '', artist: (a.artist && (a.artist.name || a.artist['#text'])) || '', date: '', type: 'Album', genre: genres.join(', '),
+      cover: ((a.image || []).find(i => i.size === 'extralarge') || (a.image || []).slice(-1)[0] || {})['#text'] || '' })).filter(r => r.title && r.artist && fits(r));
+  })().catch(() => null) : Promise.resolve(null);
+  const mbq = genres.map(x => `tag:"${x.replace(/"/g, '')}"`).join(' AND ') + ' AND primarytype:album' + (text ? ` AND (${text.replace(/[()"]/g, ' ')})` : '');
+  const mb = mbFetch(`https://musicbrainz.org/ws/2/release-group/?query=${encodeURIComponent(mbq)}&fmt=json&limit=25`, { headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' }, timeoutMs: 9000, retryBusy: 1 })
+    .then(async res => { if (!res.ok) throw new Error('HTTP ' + res.status); return ((await res.json())['release-groups'] || []).map(h => ({ src: 'mbg', title: h.title || '', artist: (h['artist-credit'] || []).map(a => a.name + (a.joinphrase || '')).join(''), date: h['first-release-date'] || '', type: h['primary-type'] || 'Album', genre: genres.join(', ') })); })
+    .catch(() => null);
+  const [a, b] = await Promise.all([lf, mb]);
+  if (!a && !b) return null;
+  return out.concat(a || [], b || []);
+}
 function srchOnlineSearch() {
-  const q = srchFreeText(el.searchInput.value); clearTimeout(srch.timer);
-  if (q.length < 3) { srch.online = []; srch.onlineState = 'idle'; srch.onlineQ = ''; return; }
+  const parts = srchParts(el.searchInput.value), q = parts.genres.length ? `genre:${parts.genres.join('+')} ${parts.text}`.trim() : srchFreeText(el.searchInput.value); clearTimeout(srch.timer);
+  if (!parts.genres.length && q.length < 3) { srch.online = []; srch.onlineState = 'idle'; srch.onlineQ = ''; return; }
   if (q === srch.onlineQ && srch.onlineState !== 'error') return;
   srch.onlineState = 'loading'; const seq = ++srch.seq;
   srch.timer = setTimeout(async () => {
@@ -71,7 +97,7 @@ function srchOnlineSearch() {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       return ((await res.json()).releases || []).map(h => { const rg = h['release-group'] || {}; return { src: 'mb', hit: h, title: h.title || '', artist: (h['artist-credit'] || []).map(a => a.name + (a.joinphrase || '')).join(''), date: h.date || '', type: rg['primary-type'] || 'Album', catalog: ((h['label-info'] || [])[0] || {})['catalog-number'] || '', cover: rg.id ? `https://coverartarchive.org/release-group/${rg.id}/front-250` : '' }; });
     };
-    const jobs = act.map(k => (k === 'mb' ? mb() : ADD_SRC_FN[k](q)).catch(() => null));
+    const jobs = parts.genres.length ? [srchGenreOnline(parts.genres, parts.text)] : act.map(k => (k === 'mb' ? mb() : ADD_SRC_FN[k](q)).catch(() => null));
     const lists = await Promise.all(jobs); if (seq !== srch.seq) return;
     const seen = new Set(), out = []; let owned = 0, failed = 0;
     lists.forEach(l => { if (!l) { failed++; return; } l.forEach(r => { const k = dupKey(r.artist, r.title); if (!k || seen.has(k)) return; seen.add(k);
@@ -89,7 +115,7 @@ function srchAddOnline(r) {
 }
 
 // ----- what can be moved to with the arrows (ssItems), and the panel -----
-function srchSrcName(k) { return ((typeof ADD_SRC !== 'undefined' ? ADD_SRC : []).find(s => s[0] === k) || [])[1] || ''; }
+function srchSrcName(k) { if (k === 'lf') return 'Last.fm'; if (k === 'mbg') return 'MusicBrainz'; return ((typeof ADD_SRC !== 'undefined' ? ADD_SRC : []).find(s => s[0] === k) || [])[1] || ''; }
 function srchCrateItems(q) {
   const items = ssSuggest(q).map(s => {
     if (s.kind === 'release') { const it = state.raw.find(r => String(r.row) === String(s.row)); return Object.assign(s, { col: 'crate', it, cover: srchItemCover(it) }); }
@@ -144,7 +170,9 @@ function srchEmptyHtml() {
   </div>`;
 }
 function srchOnlineStatus() {
-  if (!srchFreeText(el.searchInput.value) || srchFreeText(el.searchInput.value).length < 3) return 'Type an artist or album to look online.';
+  const pp = srchParts(el.searchInput.value);
+  if (!pp.genres.length && (!srchFreeText(el.searchInput.value) || srchFreeText(el.searchInput.value).length < 3)) return 'Type an artist or album to look online.';
+  if (pp.genres.length && srch.onlineState === 'done' && !srch.onlineNote) return `Releases tagged ${pp.genres.join(' + ')}${typeof loadLastfmCreds === 'function' && (loadLastfmCreds() || {}).apiKey ? ', most played on Last.fm first' : ''}.`;
   if (srch.onlineState === 'loading') return 'Looking…';
   if (srch.onlineState === 'error') return 'No source answered.';
   return srch.onlineNote;

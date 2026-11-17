@@ -6058,3 +6058,5 @@ select.srch-chip { padding: 0 6px; background: var(--bg-elevated); }
   .dv-cvbtn, .dv-cv { width: 52px; height: 52px; }
   .dv-months { grid-template-columns: repeat(12, minmax(0, 1fr)); width: 100%; }
 }
+/* (1.135.88) the diary's own scrollbar sits at its right edge: room for it, so it doesn't run over the side panel */
+.diary-wrap.diary-wrap-journal, .diary-wrap.diary-wrap-wide { padding-right: 14px; box-sizing: border-box; }
