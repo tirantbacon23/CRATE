@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.103
+  CURRENT_VERSION: 1.135.104
 
+  1.135.104 — 2026-11-18 — Search: every release it shows (in your crate or not yet) can show its songs, each with its Last.fm listeners
+          and plays and your own plays. Simple look: ▸ on a release opens them under it (→ / ← too). Drop look: a panel beside
+          the list for the release you're on, with its cover, five headline numbers and the songs (on a narrow window, the ▸).
+          Detail look: a click on a release opens a card beside the grid (a second click or Enter opens the release) with eight
+          numbers and, per song, listeners, plays, plays per listener, its share of the release's plays, yours, when you last
+          played it and your rating, a ▶ each, sortable. Song numbers are Last.fm track.getInfo, kept two days (js/71-search-tracklist.js).
   1.135.103 — 2026-11-18 — Search online: a catalogue-number search shows only releases with that catalogue number. 1.135.102's MusicBrainz
           plain-word search (when it had nothing under the number) brought unrelated releases, a 2014 compilation among them; it's
           gone, and whatever a source sends whose number isn't the one you typed (written any way: LIB 55838, LIB-55838) is left out.
