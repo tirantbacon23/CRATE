@@ -17,8 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.65
+  CURRENT_VERSION: 1.135.66
 
+  1.135.66 — 2026-11-18 — A new Scrobbles view, three ways, switched at its top (Overview · Timeline · Charts) or in ⚙ Settings → "Scrobbles looks
+          like", kept on this device. Overview: a period (7 days, 30 days, this year, all time), its totals (plays, days listened,
+          releases, artists, songs), the top 10 releases as covers with a play bar, the chart for the period (Releases / Artists /
+          Songs, ranked, each with its move against the period before: ▲ ▼ = or NEW) and, beside it, day by day what you played.
+          Timeline: a year as a calendar of days (the brighter, the more you played; click a day to jump to it), then each day's
+          listening, release by release with its songs ("the whole album" when it was), and ▶ Play again / ✎ Log in diary.
+          Charts: the ranked chart on its own, for a period, with days played and the last time. A release opens the album view;
+          an artist shows their releases.
   1.135.65 — 2026-11-17 — A loading screen when CRATE opens or you refresh: CRATE in gold with a moving bar and "Opening your crate…" ("Still
           loading your crate…" after 4 s), shown at once, before anything else has loaded, and faded out as soon as the crate's
           covers (or songs, or a message such as an empty crate) are on screen; never longer than 25 s.

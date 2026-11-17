@@ -499,43 +499,7 @@ function trackScrobbleCountFor(artist, title, trackName) {
   return scrobIndex().track.get(artist + '\u0001' + title + '\u0001' + tn) || 0;
 }
 
-function renderScrobbles() {
-  el.scrobblesContainer.innerHTML = '';
-  if (!state.scrobbles.length) {
-    showState('emptyScrobbles', 'scrobbles');
-    return;
-  }
-  hideState('scrobbles');
-
-  const totals = scrobbleTotals().sort((a, b) => b.totalPlays - a.totalPlays);
-  const feed = document.createElement('div');
-  feed.className = 'diary-feed';
-
-  totals.forEach(g => {
-    const row = document.createElement('div');
-    row.className = 'diary-entry';
-    const lastPlayedLabel = dateVal(g.lastDay) !== -Infinity
-      ? dsDay(g.lastDay)
-      : g.lastDay;
-
-    row.innerHTML = `
-      <div class="diary-date">Last: ${lastPlayedLabel}</div>
-      <div class="diary-main">
-        <p class="diary-title">${escapeHtml(g.title)}</p>
-        <p class="diary-artist">${escapeHtml(g.artist)}</p>
-        <p class="diary-note">Listened on ${g.days} day${g.days === 1 ? '' : 's'}</p>
-      </div>
-      <div class="diary-rating">${g.totalPlays} play${g.totalPlays === 1 ? '' : 's'}</div>
-    `;
-    row.addEventListener('click', () => {
-      const match = state.raw.find(r => r.artist === g.artist && r.title === g.title);
-      if (match) { switchTab('albums'); openDeck(match); }
-    });
-    feed.appendChild(row);
-  });
-
-  el.scrobblesContainer.appendChild(feed);
-}
+// (1.135.66) renderScrobbles: the Scrobbles view's three looks, in 66-scrobbles-views.js
 
 /* ---------- Stats tab: albums listened to, by year ---------- */
 // Combines the Diary (dates you explicitly logged a listen) and Scrobbles
