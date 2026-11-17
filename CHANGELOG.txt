@@ -17,8 +17,9 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.42
+  CURRENT_VERSION: 1.135.43
 
+  1.135.43 — 2026-11-17 — The crate's suggestions no longer end with a "Search online" line: the Online tab at the top does that.
   1.135.42 — 2026-11-17 — Adding a release, from the search box: the suggestions open with two tabs, In your crate (filters your crate, as
           before) and Online · to add (MusicBrainz, one line per album, the ones you already have left out). Picking an online
           result opens Add a release on that album's pressings; Enter or "All results" opens the full search there. An online search

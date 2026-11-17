@@ -1072,9 +1072,7 @@ function ssSuggest(q) {                                              // q: the b
   ssRank(ix.genres, part, 3).forEach(e => out.push({ kind: 'genre', label: e.name, sub: `${e.n}`, insert: `genre:${ssQuote(e.name)} `, from }));
   ssRank(ix.descs, part, 3).forEach(e => out.push({ kind: 'descriptor', label: e.name, sub: `${e.n}`, insert: `descriptor:${ssQuote(e.name)} `, from }));          // (1.135.37)
   ssRank(ix.labels, part, 2).forEach(e => out.push({ kind: 'label', label: e.name, sub: `${e.n}`, insert: `label:${ssQuote(e.name)} `, from }));
-  const res = out.slice(0, 13);
-  if (tail.trim().length >= 2) res.push({ kind: 'addweb', label: `Search online for \u201c${tail.trim()}\u201d`, sub: 'releases you don\u2019t have', q: tail.trim() });          // (1.135.42) the add search, from here
-  return res;
+  return out.slice(0, 14);          // (online, to add: the tab at the top)
 }
 function ssRender() {
   const box = document.getElementById('searchSuggest'), inp = el.searchInput; if (!box || !inp) return;
