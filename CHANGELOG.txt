@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.131
+  CURRENT_VERSION: 1.135.133
 
+  1.135.133 — 2026-11-18 — Cover wall in playlists and Liked songs: it shows what's shown where you are: a playlist's releases (in its order and
+          narrowing), the releases of your liked songs (⛶ on the Liked songs page too), else the library; its bar says which.
+  1.135.132 — 2026-11-18 — Cover wall, faster: only the covers on screen (and a screen and a half either side) are made, and made again as it
+          scrolls. 6,000 releases: open in 0.13 s instead of 1.3 s, 570 elements instead of 30,000, scrolling at 60 frames a second
+          instead of 32. Covers arrive straight into their tiles; small tiles take a smaller copy of an iTunes cover; the group you're
+          in is pinned along the top.
   1.135.131 — 2026-11-18 — Start-up screen: closes when your crate is on screen, the sign-in screen is up, or an error is shown, and not before.
           The sign-in screen waited under it for 25 s with the bar in the high nineties (it looked stuck); and an empty grid's "your
           crate is empty", drawn before the crate came, closed it after a second while the crate was still loading.

@@ -6426,3 +6426,12 @@ html.cur-on input:not([type="range"]):not([type="checkbox"]):not([type="radio"])
 .cw-head span { font: 500 11px 'IBM Plex Mono', monospace; color: #9AA0AA; letter-spacing: .06em; }
 .cw-head-2 { font-size: 19px; color: var(--accent); padding-left: 28px; top: 44px; background: rgba(0,0,0,.78); }
 /* (1.135.129) no strip kept for the bar: the covers reach the top, and the bar floats over them while it shows (a black band stayed there when it faded) */
+/* (1.135.132) the cover wall, drawn as it scrolls */
+.cw-grid { display: block; position: relative; padding: 0 !important; overflow-y: auto; }
+.cw-space { position: relative; width: 100%; }
+.cw-space > .cw-cell { position: absolute; contain: strict; }
+.cw-space > .cw-head { position: absolute; left: 0; right: 0; box-sizing: border-box; display: flex; align-items: center; gap: 8px; }
+.cw-cell .cw-art { width: 100%; height: auto; aspect-ratio: 1; }
+.cw-stick { position: absolute; top: 0; left: 0; right: 0; z-index: 2; padding: 12px 16px 10px; background: linear-gradient(rgba(0,0,0,.88), rgba(0,0,0,.7)); font: 400 24px/1 'Bebas Neue', sans-serif; letter-spacing: .03em; color: #F2EEE6; pointer-events: none; }
+.cw-stick i { font-style: normal; color: var(--accent); margin: 0 6px; }
+.cw:not(.cw-idle) .cw-stick { top: 48px; }

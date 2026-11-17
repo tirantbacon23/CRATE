@@ -241,7 +241,7 @@ function renderLikedPage() {
       <div class="lkp-who"><h2 class="lkp-title">Liked songs</h2><span class="lkp-meta">${list.length !== all.length ? `${state.navFilter ? escapeHtml(likedFilterLabel()) + ' · ' : ''}${list.length.toLocaleString()} of ` : ''}${all.length.toLocaleString()} song${all.length === 1 ? '' : 's'} · ${rels.size.toLocaleString()} release${rels.size === 1 ? '' : 's'}${ms ? ` · ${hrs ? hrs + ' h ' : ''}${mins} m` : ''}</span></div>
       ${all.length ? `<div class="lkp-tools">
         <input id="lkpSearch" class="lkp-search" type="search" placeholder="Find in liked songs" value="${escapeHtml(likedUi.q)}" aria-label="Find in liked songs" autocomplete="off">
-        <div class="lkp-views" role="group" aria-label="Show as">${vbtn('list', 'List', '☰')}${vbtn('covers', 'Covers', '▦')}</div>
+        <div class="lkp-views" role="group" aria-label="Show as">${vbtn('list', 'List', '☰')}${vbtn('covers', 'Covers', '▦')}</div><button type="button" class="chip-btn" data-lkp-wall title="The releases of these songs, as covers full screen (W)" aria-label="Cover wall">\u26f6</button>
         <button type="button" class="chip-btn" data-lkp="shuffle"${list.length ? '' : ' disabled'}>Shuffle</button>
         <button type="button" class="chip-btn soc-acc" data-lkp="play"${list.length ? '' : ' disabled'}>▶ Play all</button></div>` : ''}</div>
     ${all.length ? (list.length ? (likedUi.view === 'covers' ? likedCoversHtml(list, now) : likedListHtml(list, now)) : '<div class="soc-empty">Nothing matches.</div>')

@@ -7,8 +7,17 @@
 const WALL_KEY = 'crate_wall_v1';
 function wallPrefs() { try { return Object.assign({ size: 180, names: false, gap: 0 }, JSON.parse(localStorage.getItem(WALL_KEY) || '{}') || {}); } catch (e) { return { size: 180, names: false, gap: 0 }; } }
 function wallSave(p) { try { localStorage.setItem(WALL_KEY, JSON.stringify(p)); } catch (e) { /* this visit */ } }
-const wall = { el: null, items: [], shuffled: false, io: null };
-function wallItems() { return (state.filtered && state.filtered.length ? state.filtered : state.raw || []).slice(); }
+const wall = { el: null, items: [], shuffled: false, io: null, nodes: new Map(), space: null, L: null };
+// (1.135.133) What's shown where you are: a playlist's releases (in its order and narrowing), the releases of your liked songs on Liked
+// songs (narrowed as that page is), else the library as the view shows it
+function wallSource() {
+  const uniq = (arr) => { const seen = new Set(), out = []; arr.forEach(a => { if (a && !seen.has(a)) { seen.add(a); out.push(a); } }); return out; };
+  if (state.activeTab === 'liked' && typeof likedShown === 'function') { try { return { items: uniq(likedShown().map(x => x.item)), label: 'Liked songs' }; } catch (e) { /* the library, then */ } }
+  const pl = state.activePlaylistId && typeof activePlaylist === 'function' ? activePlaylist() : null;
+  if (pl && typeof playlistViewOf === 'function' && typeof playlistAlbumFor === 'function') { try { return { items: uniq(playlistViewOf(pl).items.map(playlistAlbumFor)), label: pl.name || 'Playlist' }; } catch (e) { /* the library, then */ } }
+  return { items: (state.filtered && state.filtered.length ? state.filtered : state.raw || []).slice(), label: '' };
+}
+function wallItems() { const src = wallSource(); wall.label = src.label; return src.items; }
 function wallOpen() {
   if (wall.el) return;
   wall.items = wallItems(); wall.shuffled = false;
@@ -40,7 +49,7 @@ function wallFsChange() { if (wall.el && !document.fullscreenElement && wall.was
 function wallClose() {
   if (!wall.el) return;
   document.removeEventListener('keydown', wallKey, true); document.removeEventListener('fullscreenchange', wallFsChange);
-  clearInterval(wall.ring); if (wall.io) wall.io.disconnect();
+  clearInterval(wall.ring); if (wall.io) wall.io.disconnect(); if (wall.ro) wall.ro.disconnect(); wall.nodes.clear(); wall.space = null; wall.L = null; wall.stick = null; wall.ro = null;
   if (document.fullscreenElement === wall.el && document.exitFullscreen) document.exitFullscreen().catch(() => {});
   wall.el.remove(); wall.el = null; wall.wasFs = false;
 }
@@ -51,6 +60,7 @@ function wallStyle() {
   wall.el.querySelector('.cw-size').value = p.size;
   wall.el.querySelector('[data-cw="names"]').setAttribute('aria-pressed', String(!!p.names));
   wall.el.querySelector('[data-cw="gap"]').setAttribute('aria-pressed', String(!!p.gap));
+  if (wall.L) wallRelayout(true);
 }
 function wallZoom(d) { const p = wallPrefs(); p.size = Math.max(80, Math.min(420, p.size + d)); wallSave(p); wallStyle(); }
 // (1.135.126) the view's Group by / Then by as headings across the wall (not while shuffled)
@@ -61,29 +71,82 @@ function wallDisplay() {
   groupItems(wall.items, g1).forEach(g => { out.push({ head: g.label, n: g.items.length, lvl: 1 }); if (!g2) { g.items.forEach(it => out.push({ it })); return; } groupItems(g.items, g2).forEach(h => { out.push({ head: h.label, n: h.items.length, lvl: 2 }); h.items.forEach(it => out.push({ it })); }); });
   return out;
 }
+// (1.135.132) Only the covers on screen (and a screen and a half above and below) are made, and made again as the wall scrolls: before,
+// every release was made at once (6,000 releases: 30,000 elements, over a second to open, scrolling at half speed). Each row's place is
+// worked out from the cover size, so the scrollbar is right for the whole wall. A cover that arrives is put straight into its tile.
+const WALL_CAP = 44, WALL_H1 = 52, WALL_H2 = 40;
 function wallDraw() {
   const grid = wall.el.querySelector('.cw-grid'), n = wall.items.length;
-  wall.el.querySelector('.cw-count').textContent = `${n.toLocaleString()} release${n === 1 ? '' : 's'}${wall.shuffled ? ' · shuffled' : ''}`;
+  wall.el.querySelector('.cw-count').textContent = `${wall.label ? wall.label + ' · ' : ''}${n.toLocaleString()} release${n === 1 ? '' : 's'}${wall.shuffled ? ' · shuffled' : ''}`;
   wall.disp = wallDisplay();
-  grid.innerHTML = wall.disp.map((d, i) => d.head !== undefined ? `<div class="cw-head cw-head-${d.lvl}">${escapeHtml(String(d.head))}<span> · ${d.n.toLocaleString()}</span></div>` : `<div class="cw-cell" data-i="${i}" title="${escapeHtml(d.it.title + ' · ' + d.it.artist)}"><img class="cw-art art" data-key="${escapeHtml(artKey(d.it))}" src="${escapeHtml(srchItemCover(d.it))}" alt="" loading="lazy" decoding="async"><div class="cw-cap"><b>${escapeHtml(d.it.title)}</b><span>${escapeHtml(d.it.artist)}</span></div></div>`).join('');
-  if (wall.io) wall.io.disconnect();
-  // (1.135.125) a cover not fetched yet is fetched as it comes near the screen, as the grid's cards do (before, releases the grid had
-  // never shown had no cover here, so most of the wall below the first screens was blank); it fills in where it is when it arrives
-  wall.io = new IntersectionObserver((ents) => ents.forEach(e => { if (!e.isIntersecting) return; const a = e.target, it = (wall.disp[+a.parentNode.dataset.i] || {}).it; wall.io.unobserve(a); if (!it) return;
-    const k = artKey(it), c = state.artCache[k], coverOk = it.cover && (typeof badArtUrls === 'undefined' || badArtUrls[k] !== it.cover);
-    if (c && c.art) { if (a.src !== c.art) a.src = c.art; return; }
-    if (!coverOk && typeof fetchArt === 'function' && typeof artFetchInFlight !== 'undefined' && !artFetchInFlight.has(k)) { artFetchInFlight.add(k); fetchArt(it); }
-  }), { root: grid, rootMargin: '800px' });
-  grid.querySelectorAll('.cw-art').forEach(a => wall.io.observe(a));
-  wallRing();
+  if (!wall.space) {
+    grid.innerHTML = '<div class="cw-space"></div>'; wall.space = grid.firstChild;
+    wall.stick = document.createElement('div'); wall.stick.className = 'cw-stick'; wall.stick.hidden = true; wall.el.appendChild(wall.stick);
+    grid.addEventListener('scroll', () => { if (!wall.raf) wall.raf = requestAnimationFrame(() => { wall.raf = 0; wallPaint(); }); }, { passive: true });
+    if (typeof ResizeObserver === 'function') { wall.ro = new ResizeObserver(() => { if (wall.el) wallRelayout(true); }); wall.ro.observe(grid); }
+  }
+  wall.nodes.forEach(n2 => n2.remove()); wall.nodes.clear();
+  wallLayout(); wallPaint();
+}
+function wallLayout() {
+  const grid = wall.el.querySelector('.cw-grid'), p = wallPrefs(), gap = p.gap ? 6 : 0, inner = Math.max(80, grid.clientWidth - gap * 2);
+  const cols = Math.max(1, Math.floor((inner + gap) / (p.size + gap))), cw = (inner - (cols - 1) * gap) / cols, ch = cw + (p.names ? WALL_CAP : 0);
+  const rows = []; let y = gap, cur = null;
+  wall.disp.forEach((d, i) => {
+    if (d.head !== undefined) { cur = null; const h = d.lvl === 1 ? WALL_H1 : WALL_H2; rows.push({ head: i, y, h }); y += h; return; }
+    if (!cur || cur.items.length === cols) { cur = { items: [], y, h: ch }; rows.push(cur); y += ch + gap; }
+    cur.items.push(i);
+  });
+  wall.L = { cols, cw, ch, gap, rows, total: y + gap, px: Math.round(cw * (window.devicePixelRatio || 1)) };
+  wall.space.style.height = wall.L.total + 'px';
+}
+function wallRelayout(keep) {          // the size, gaps, names or window changed: laid out again, the same covers at the top
+  if (!wall.el || !wall.L) return;
+  const grid = wall.el.querySelector('.cw-grid'), first = keep ? wallFirstShown() : -1;
+  wall.nodes.forEach(n2 => n2.remove()); wall.nodes.clear(); wallLayout();
+  if (first >= 0) { const r = wall.L.rows.find(r2 => r2.head === first || (r2.items && r2.items.includes(first))); if (r) grid.scrollTop = r.y; }
+  wallPaint();
+}
+function wallFirstShown() { const g = wall.el.querySelector('.cw-grid'), r = wallRowAt(g.scrollTop); const row = wall.L.rows[r]; return row ? (row.head !== undefined ? row.head : row.items[0]) : -1; }
+function wallRowAt(y) { const R = wall.L.rows; let lo = 0, hi = R.length - 1, ans = 0; while (lo <= hi) { const m = (lo + hi) >> 1; if (R[m].y <= y) { ans = m; lo = m + 1; } else hi = m - 1; } return ans; }
+function wallImg(u) {          // a smaller copy of an iTunes cover for small tiles (its address says the size)
+  const px = wall.L ? wall.L.px : 600, want = px <= 200 ? 200 : px <= 400 ? 400 : 600;
+  return /mzstatic\.com/.test(u || '') ? String(u).replace(/\/(\d+)x(\d+)(bb|cc)?(\.[a-z]+)$/i, (m0, a, b, c, ext) => `/${want}x${want}${c || 'bb'}${ext}`) : u;
+}
+function wallCellNode(i) {
+  const d = wall.disp[i], L = wall.L;
+  if (d.head !== undefined) { const h = document.createElement('div'); h.className = `cw-head cw-head-${d.lvl}`; h.innerHTML = `${escapeHtml(String(d.head))}<span> · ${d.n.toLocaleString()}</span>`; return h; }
+  const it = d.it, k = artKey(it), c = state.artCache[k], c2 = document.createElement('div');
+  c2.className = 'cw-cell' + (typeof nowPlayingItem !== 'undefined' && nowPlayingItem === it ? ' cw-now' : ''); c2.dataset.i = i; c2.title = it.title + ' · ' + it.artist;
+  c2.innerHTML = `<img class="cw-art" alt="" decoding="async" draggable="false" src="${escapeHtml(wallImg(c && c.art ? c.art : srchItemCover(it)))}"><div class="cw-cap"><b>${escapeHtml(it.title)}</b><span>${escapeHtml(it.artist)}</span></div>`;
+  c2._key = k;
+  const coverOk = it.cover && (typeof badArtUrls === 'undefined' || badArtUrls[k] !== it.cover);
+  if (!(c && c.art) && !coverOk && typeof fetchArt === 'function' && typeof artFetchInFlight !== 'undefined' && !artFetchInFlight.has(k)) { artFetchInFlight.add(k); fetchArt(it); }          // (as the grid's cards do)
+  return c2;
+}
+function wallPaint() {
+  if (!wall.el || !wall.L) return;
+  const g = wall.el.querySelector('.cw-grid'), L = wall.L, H = g.clientHeight, top = g.scrollTop;
+  const a = wallRowAt(Math.max(0, top - H * 1.5)), want = new Set();
+  for (let r = a; r < L.rows.length && L.rows[r].y < top + H * 2.5; r++) {
+    const row = L.rows[r];
+    if (row.head !== undefined) { want.add(row.head); if (!wall.nodes.has(row.head)) { const n2 = wallCellNode(row.head); n2.style.cssText = `top:${row.y}px;height:${row.h}px`; wall.space.appendChild(n2); wall.nodes.set(row.head, n2); } continue; }
+    row.items.forEach((i, j) => { want.add(i); if (wall.nodes.has(i)) return; const n2 = wallCellNode(i); n2.style.cssText = `left:${L.gap + j * (L.cw + L.gap)}px;top:${row.y}px;width:${L.cw}px;height:${L.ch}px`; wall.space.appendChild(n2); wall.nodes.set(i, n2); });
+  }
+  wall.nodes.forEach((n2, i) => { if (!want.has(i)) { n2.remove(); wall.nodes.delete(i); } });
+  // the heading of the group you're in, pinned at the top
+  let h1 = null, h2 = null; for (let r = wallRowAt(top); r >= 0; r--) { const row = L.rows[r]; if (row.head === undefined) continue; const d = wall.disp[row.head]; if (d.lvl === 2 && !h2 && !h1) h2 = d; if (d.lvl === 1) { h1 = d; break; } }
+  let onHead = false; for (let r = wallRowAt(top); r < L.rows.length && L.rows[r].y < top + 70; r++) if (L.rows[r].head !== undefined && L.rows[r].y >= top - 4) { onHead = true; break; }          // (a heading coming up to the top: it shows itself)
+  if (h1 && !onHead) { wall.stick.hidden = false; const t = `${escapeHtml(String(h1.head))}${h2 ? ` <i>›</i> ${escapeHtml(String(h2.head))}` : ''}`; if (wall.stick._t !== t) { wall.stick.innerHTML = t; wall.stick._t = t; } } else wall.stick.hidden = true;
 }
 function wallRing() {
   if (!wall.el) return;
   if (el.deckOverlay && el.deckOverlay.classList.contains('open')) { wallClose(); return; }          // (the release's page opened from the wall: it steps aside)
   const it = typeof nowPlayingItem !== 'undefined' ? nowPlayingItem : null;
-  wall.el.querySelectorAll('.cw-cell.cw-now').forEach(c => c.classList.remove('cw-now'));
-  if (!it) return; (wall.disp || []).forEach((d, i) => { if (d.it === it) { const c = wall.el.querySelector(`.cw-cell[data-i="${i}"]`); if (c) c.classList.add('cw-now'); } });
+  wall.nodes.forEach((n2, i) => { const d = wall.disp[i]; if (d && d.it) n2.classList.toggle('cw-now', !!it && d.it === it); });
 }
+// a cover that arrives goes straight into its tile (the wall's covers aren't in the page-wide pass over every cover)
+if (typeof applyCachedArtFor === 'function') { const wallBaseArt = applyCachedArtFor; applyCachedArtFor = function (key) { const r = wallBaseArt.apply(this, arguments); if (wall.el && state.artCache[key] && state.artCache[key].art) wall.nodes.forEach(n2 => { if (n2._key === key) { const im = n2.querySelector('img'); const u = wallImg(state.artCache[key].art); if (im && im.src !== u) im.src = u; } }); return r; }; }
 const wallCellItem = (e) => { const c = e.target.closest('.cw-cell'); return c ? ((wall.disp || [])[+c.dataset.i] || {}).it || null : null; };
 let wallClickT = 0;
 function wallClick(e) {
@@ -93,7 +156,7 @@ function wallClick(e) {
     else if (a === 'listened') { if (el.listenedFilterBtn) el.listenedFilterBtn.click(); b.setAttribute('aria-pressed', String(!!state.listenedOnly)); }
     else if (a === 'clear') { const inp = el.searchInput; if (inp) { inp.value = ''; inp.dispatchEvent(new Event('input', { bubbles: true })); } wall.el.querySelector('.cw-q').value = ''; if (state.listenedOnly && el.listenedFilterBtn) el.listenedFilterBtn.click(); if (state.navFilter) { state.navFilter = null; if (typeof buildLeftList === 'function') buildLeftList(); } applyFiltersSort(); wall.el.querySelector('[data-cw="listened"]').setAttribute('aria-pressed', 'false'); }
     else if (a === 'names') { p.names = !p.names; wallSave(p); wallStyle(); } else if (a === 'gap') { p.gap = !p.gap; wallSave(p); wallStyle(); }
-    else if (a === 'shuffle') { for (let i = wall.items.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [wall.items[i], wall.items[j]] = [wall.items[j], wall.items[i]]; } wall.shuffled = true; wallDraw(); wall.el.querySelector('.cw-grid').scrollTop = 0; }
+    else if (a === 'shuffle') { for (let i = wall.items.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [wall.items[i], wall.items[j]] = [wall.items[j], wall.items[i]]; } wall.shuffled = true; wall.el.querySelector('.cw-grid').scrollTop = 0; wallDraw(); }
     return; }
   const it = wallCellItem(e), cell = e.target.closest('.cw-cell'); if (!it) return;
   clearTimeout(wallClickT); wallClickT = setTimeout(() => wallPeek(it, cell), 260);          // (a double-click plays it instead)
@@ -160,9 +223,14 @@ function wallRefresh() {
   wall.items = wallItems(); wall.shuffled = false; wallDraw();
   ['sort', 'group', 'group2'].forEach(k => { const s = wall.el.querySelector(`[data-cws="${k}"]`); if (s) s.innerHTML = wallOpts(k); });
   const lb = wall.el.querySelector('[data-cw="listened"]'); if (lb) lb.setAttribute('aria-pressed', String(!!state.listenedOnly));
-  g.scrollTop = Math.min(top, g.scrollHeight);
+  g.scrollTop = Math.min(top, g.scrollHeight); wallPaint();
 }
 const wallBaseAFS = applyFiltersSort;
 applyFiltersSort = function () { const r = wallBaseAFS.apply(this, arguments); if (wall.el) { clearTimeout(wallRefresh.t); wallRefresh.t = setTimeout(wallRefresh, 120); } return r; };
 const wallBaseRenderGrid = renderGrid;
 renderGrid = function () { const r = wallBaseRenderGrid.apply(this, arguments); if (wall.el) { clearTimeout(wallRefresh.t); wallRefresh.t = setTimeout(wallRefresh, 120); } return r; };          // (Group by and Then by redraw the grid without filtering again)
+
+// ⛶ on the Liked songs page too
+document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-lkp-wall]'); if (!b) return; e.stopPropagation(); wallOpen(); });
+// the liked page and a playlist redraw without the view's filtering: the wall follows them too
+if (typeof renderLikedPage === 'function') { const wallBaseLiked = renderLikedPage; renderLikedPage = function () { const r = wallBaseLiked.apply(this, arguments); if (wall.el) { clearTimeout(wallRefresh.t); wallRefresh.t = setTimeout(wallRefresh, 120); } return r; }; }
