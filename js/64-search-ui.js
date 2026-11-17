@@ -116,7 +116,7 @@ function srchOnlineSearch() {
     srch.onlineNote = srch.onlineState === 'error' ? 'No source answered.' : !out.length ? 'Nothing more found online.' : owned ? `${owned} you have left out` : '';
     const lfKey = srchLfKey();
     if (lfKey && parts.genres.length && srchLfErr) srch.onlineNote = `Last.fm didn't answer (${srchLfErr})`;
-    if (!lfKey && out.length) { srch.onlineNote = (srch.onlineNote ? srch.onlineNote + ' · ' : '') + 'No Last.fm key in this browser (⚙ › Last.fm): ranked by editions on MusicBrainz'; srchPopSort(); }
+    if (!lfKey && out.length) { srch.onlineNote = (srch.onlineNote ? srch.onlineNote + ' · ' : '') + 'No Last.fm API key in this browser (⚙ › Last.fm scrobbling, or the Last.fm import): ranked by editions on MusicBrainz'; srchPopSort(); }
     ssRender();
     if (lfKey && out.length) srchPopRank(seq, lfKey);
   }, 600);

@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.94
+  CURRENT_VERSION: 1.135.95
 
+  1.135.95 — 2026-11-18 — One Last.fm key for everything. Scrobbling (⚙ › Last.fm scrobbling) and the Last.fm import each kept their own
+          API key, and search, similar artists, the sound map and Scrobbles' "Not in crate" only read the import's: a key saved for
+          scrobbling left them saying there was none. They now use the import's key, else the scrobbling one (and its signed-in
+          username).
   1.135.94 — 2026-11-18 — Search online: Last.fm works for it. Search read your Last.fm key without trimming it, as everything else in
           CRATE does, so a key saved with a space or line break worked for scrobbles and sync but not here: no Last.fm genre lists,
           no listener counts, only MusicBrainz. And when Last.fm doesn't answer now, the online section says why ("Last.fm didn't

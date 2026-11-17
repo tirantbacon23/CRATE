@@ -30,8 +30,14 @@ let lastfmMatchedGroups = [];   // [{ row, artist, title, day, playCount, firstU
 let lastfmUnmatchedGroups = []; // [{ artist, title, playCount }]
 
 function loadLastfmCreds() {
-  try { return JSON.parse(localStorage.getItem(LASTFM_CREDS_KEY) || '{}'); }
-  catch { return {}; }
+  let c = {}; try { c = JSON.parse(localStorage.getItem(LASTFM_CREDS_KEY) || '{}') || {}; } catch { c = {}; }
+  // (1.135.95) One Last.fm key for everything that reads it (search, similar artists, the sound map, the sync): the import's, else the one
+  // saved for scrobbling (⚙ › Last.fm scrobbling keeps its own, with its secret), and its signed-in username. Saving one was not enough before.
+  if (!String(c.apiKey || '').trim() || !String(c.username || '').trim()) {
+    let sc = {}, ss = {}; try { sc = typeof loadLastfmScrobbleCreds === 'function' ? loadLastfmScrobbleCreds() || {} : {}; ss = typeof loadLastfmScrobbleSession === 'function' ? loadLastfmScrobbleSession() || {} : {}; } catch (e) { /* none */ }
+    c = Object.assign({}, c, { apiKey: String(c.apiKey || '').trim() || String(sc.apiKey || '').trim(), username: String(c.username || '').trim() || String(ss.username || '').trim() });
+  }
+  return c;
 }
 function saveLastfmCreds(username, apiKey) {
   localStorage.setItem(LASTFM_CREDS_KEY, JSON.stringify({ username, apiKey }));
