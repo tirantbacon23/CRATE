@@ -17,8 +17,22 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.86
+  CURRENT_VERSION: 1.135.87
 
+  1.135.87 — 2026-11-18 — The Diary, redone as sketched, four tabs:
+          · Journal (was Feed): each entry with its cover and day, by month ("11 listens · 4 new to the diary"); the entry's own
+            title and note first; tags for a relisten (the release logged on an earlier day), the full release or which songs.
+            Beside it, the month at a glance: the days you logged, listens, average rating, day streak, the genres you logged most,
+            and what you logged on this day in other years. The cover opens the release; the row opens the entry.
+          · Calendar: a month with each day's cover (a second listen in its corner, more as "+n") and its rating, the year's months
+            shaded by how much you logged (click one to go there), ‹ › and Today, and the day you pick opened beside it with Edit
+            entry, Open release and Play. Arrow keys move day by day.
+          · Covers (was Grid): a wall by month for the year you pick (or all years), listens per month as bars (click one to jump
+            there) and the year's listens, releases and average rating. Each cover shows its day, "again" for a relisten, and a mark
+            when the entry has a note.
+          · Songs (was By track): as before.
+          Filters at the top for all but Songs: All, 4★ and up, With notes, Relistens. Select (to delete) works in Journal and Covers
+          as before, shift-click for a range too. New file js/69-diary-views.js.
   1.135.86 — 2026-11-18 — Scrobbles: "Not in crate" (a tick at the top right). On, the overview, charts, timeline and day by day also show
           the releases you scrobbled that aren't in your crate, marked "not in crate", with covers looked up by name; click one to
           add it. Turning it on reads your Last.fm history once for them, and every sync adds what's new. They're kept in this
