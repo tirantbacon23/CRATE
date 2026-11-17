@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.74
+  CURRENT_VERSION: 1.135.75
 
+  1.135.75 — 2026-11-18 — Match songs: sort the releases by "Most to check" (the most songs still wanting a look, on either
+          service) or "Biggest % to check" (the largest share of the release), beside the find box down the left and in the Queue
+          table's sort. Each release in the list says how many of its songs want a look ("5/8 to check", with the % when sorting
+          by it). The sort you pick is remembered.
   1.135.74 — 2026-11-18 — Match songs: Space plays the song you clicked. Clicking a song (or its Spotify or YouTube box) now makes it
           the one the keys act on; before, only J K moved it, so Space played whichever song was highlighted (the first, often).
           Space also plays a song's own saved link when it has no new match (a "Kept" song played nothing), and says so when

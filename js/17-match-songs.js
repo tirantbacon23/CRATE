@@ -618,7 +618,7 @@ function bmOpen(opts) {
     sets: { ticked, view: opts.view || [], genre: opts.genre || null },
     scope: opts.nolinks ? 'nolinks' : opts.queue ? 'queue' : opts.genre ? 'genre' : ticked ? 'ticked' : 'view',
     songsMode: opts.check ? 'check' : 'gaps', skipLinked: true, rf: bmRf0(), rels: [], svc: { spotify: true, youtube: ytUseAddon() || !!loadYoutubeApiKey() }, show: { spotify: true, youtube: true },
-    ytSongs: ytUseAddon(), mode: 'review', filter: 'all', qfilter: 'all', qsearch: '', qsort: 'look', qsel: new Set(), sel: '', focus: null, open: null, why: null, pasteFor: null, diffOpen: false, anaScope: 'run',
+    ytSongs: ytUseAddon(), mode: 'review', filter: 'all', qfilter: 'all', qsearch: '', qsort: (() => { try { return localStorage.getItem('crate_bm_qsort_v1') || 'look'; } catch (e) { return 'look'; } })(), qsel: new Set(), sel: '', focus: null, open: null, why: null, pasteFor: null, diffOpen: false, anaScope: 'run',
     par: bmParLoad(), paused: false, stopped: false, running: false, lanes: { spotify: { s: 'idle', msg: '' }, youtube: { s: 'idle', msg: '' } }, saved: 0, chain: Promise.resolve(), histId: null,
     health: { spotify: 'checking', test: 'idle' }, savedRun: null, label: '' };
   ytAddonHello(); bmEl('batchMatchOverlay').hidden = false; updateAlbumSelBar(); bmRender();
@@ -1201,6 +1201,17 @@ function bmAfterMatcher() { }                                       // the old d
 // ----- what each release and song looks like now -----
 const bmChip = (cls, t) => `<span class="bm-chip bm-${cls}">${t}</span>`;
 function bmRelPicks(rel) { return Object.keys(rel.pick.spotify).length + Object.keys(rel.pick.youtube).length; }
+// (1.135.75) How much of a release still wants a look: the songs (once each, whichever service) and their share of its songs
+function bmNeedShare(rel) {
+  if (!rel.songs || !rel.songs.length) return { n: 0, pct: 0 };
+  const kinds = bmShownKinds().filter(k => rel.st[k] === 'done'); let n = 0;
+  rel.songs.forEach(s => { if (kinds.some(k => { if (bm.songsMode === 'check' && !(rel.broken[k] && rel.broken[k][s.idx])) return false; const c = bmCellOf(rel, s, k), t = rel.touched[k] && rel.touched[k][s.idx]; return (c.s === 'look' && !rel.pick[k][s.idx] && !t) || (c.s === 'none' && !t); })) n++; });
+  return { n, pct: Math.round(n / rel.songs.length * 100) };
+}
+function bmSortSel() {
+  const o = [['look', 'Needs a look first'], ['most', 'Most to check'], ['pct', 'Biggest % to check'], ['added', 'As added'], ['az', 'Artist A–Z']];
+  return `<select data-bm="qsort" class="bm-qsort" aria-label="Sort the releases">${o.map(([v, l]) => `<option value="${v}"${bm.qsort === v ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
+}
 function bmNeedCount(rel) {                                         // songs (per service) still waiting for your decision
   let n = 0; if (!rel.songs) return 0;
   bmShownKinds().forEach(k => { if (rel.st[k] !== 'done') return; rel.songs.forEach(s => {
@@ -1300,9 +1311,9 @@ function bmCoverHtml(it, cls) {
 function bmWbQueueHtml() {
   const all = bm.rels.map(bmRelStatus), cnt = (k) => all.filter(x => k === 'done' ? (x.key === 'done' || x.key === 'skip') : x.key === k).length;
   const chip = (f, l, n) => `<button type="button" class="bm-fchip bm-fsm${bm.qfilter === f ? ' on' : ''}" data-bm="qfilter" data-f="${f}">${l} <span>${n}</span></button>`;
-  const rows = bmQueueRows().map(({ r, s }) => `<div class="bm-wq${r.row === bm.sel ? ' on' : ''}${r.include ? '' : ' off'}" data-bm="open-rel" data-row="${escapeHtml(r.row)}" role="button" tabindex="0" title="${escapeHtml(s.label)}">${bmCoverHtml(r.item, 'bm-wq-c')}<div class="bm-ct"><div class="bm-t">${escapeHtml(r.item.title)}</div><div class="bm-m">${escapeHtml(r.item.artist)}${r.songs ? ` · ${r.songs.length}` : ''}${s.key === 'work' || s.key === 'wait' || s.key === 'problem' ? ` · ${escapeHtml(s.label.toLowerCase())}` : ''}</div></div><i class="bm-qdot ${s.key}" aria-label="${escapeHtml(s.label)}"></i></div>`).join('');
+  const rows = bmQueueRows().map(({ r, s }) => `<div class="bm-wq${r.row === bm.sel ? ' on' : ''}${r.include ? '' : ' off'}" data-bm="open-rel" data-row="${escapeHtml(r.row)}" role="button" tabindex="0" title="${escapeHtml(s.label)}">${bmCoverHtml(r.item, 'bm-wq-c')}<div class="bm-ct"><div class="bm-t">${escapeHtml(r.item.title)}</div><div class="bm-m">${escapeHtml(r.item.artist)}${(() => { const h = bmNeedShare(r); return h.n ? ` · <span class="bm-need" title="${h.n} of ${r.songs.length} songs (${h.pct}%) want a look">${h.n}/${r.songs.length} to check${bm.qsort === 'pct' ? ` · ${h.pct}%` : ''}</span>` : r.songs ? ` · ${r.songs.length}` : ''; })()}${s.key === 'work' || s.key === 'wait' || s.key === 'problem' ? ` · ${escapeHtml(s.label.toLowerCase())}` : ''}</div></div><i class="bm-qdot ${s.key}" aria-label="${escapeHtml(s.label)}"></i></div>`).join('');
   const mq = mqAll().length;
-  return `<div class="bm-wq-tool"><div class="bm-fchips">${chip('look', 'Needs a look', cnt('look'))}${cnt('problem') ? chip('problem', 'Problems', cnt('problem')) : ''}${chip('ready', 'Ready', cnt('ready'))}${chip('done', 'Done', cnt('done'))}${chip('all', 'All', bm.rels.length)}</div><input type="search" class="bm-search" placeholder="Find a release" value="${escapeHtml(bm.qsearch || '')}" data-keep="qsearch" data-bm="qsearch" aria-label="Find a release"></div>
+  return `<div class="bm-wq-tool"><div class="bm-fchips">${chip('look', 'Needs a look', cnt('look'))}${cnt('problem') ? chip('problem', 'Problems', cnt('problem')) : ''}${chip('ready', 'Ready', cnt('ready'))}${chip('done', 'Done', cnt('done'))}${chip('all', 'All', bm.rels.length)}</div><div class="bm-wq-find"><input type="search" class="bm-search" placeholder="Find a release" value="${escapeHtml(bm.qsearch || '')}" data-keep="qsearch" data-bm="qsearch" aria-label="Find a release">${bmSortSel()}</div></div>
   <div class="bm-wq-list" data-scroll="wbq">${rows || '<div class="bm-pad bm-dim">No releases under this filter.</div>'}</div>
   <div class="bm-wq-foot">${mq ? `<button type="button" class="bm-linkbtn" data-bm="mq-add">Add ${mq} waiting</button> · ` : ''}<button type="button" class="bm-linkbtn" data-bm="tab" data-v="queue">Manage the queue…</button></div>`;
 }
@@ -1390,6 +1401,8 @@ function bmQueueRows() {
   if (q) rows = rows.filter(x => smFold(x.r.item.artist + ' ' + x.r.item.title).includes(q));
   const rank = { problem: 0, look: 1, ready: 2, work: 3, wait: 4, done: 5, skip: 6 };
   if (bm.qsort === 'look') rows.sort((a, b) => rank[a.s.key] - rank[b.s.key] || a.i - b.i);
+  else if (bm.qsort === 'most' || bm.qsort === 'pct') { const m = new Map(rows.map(x => [x, bmNeedShare(x.r)]));          // (1.135.75) most songs to look at, or the biggest share of the release
+    rows.sort((a, b) => { const A = m.get(a), B = m.get(b); return bm.qsort === 'most' ? B.n - A.n || B.pct - A.pct || a.i - b.i : B.pct - A.pct || B.n - A.n || a.i - b.i; }); }
   else if (bm.qsort === 'az') rows.sort((a, b) => a.r.item.artist.localeCompare(b.r.item.artist) || a.r.item.title.localeCompare(b.r.item.title));
   return rows;
 }
@@ -1403,7 +1416,7 @@ function bmQueueHtml() {
   const mq = mqAll().length, why = mqWhyCounts();
   const later = mq ? `<div class="bm-later bm-dim">Waiting in the match queue: ${[why.skipped ? `${bmPl(why.skipped, 'release')} with songs the player skipped` : '', why.added ? `${bmPl(why.added, 'new release')}` : '', why.menu ? `${bmPl(why.menu, 'release')} you added` : ''].filter(Boolean).join(' · ')} <button type="button" class="chip-btn" data-bm="mq-add">Add them to this run</button> <button type="button" class="chip-btn" data-bm="mq-clear">Clear</button></div>` : '';
   return `<div class="bm-tool"><div class="bm-fchips">${chip('all', 'All', bm.rels.length)}${chip('look', 'Needs a look', cnt('look'))}${chip('problem', 'Problems', cnt('problem'))}${chip('ready', 'Ready', cnt('ready'))}${chip('done', 'Done', cnt('done'))}</div>
-    <div class="bm-tool-r"><input type="search" class="bm-search" placeholder="Find a release" value="${escapeHtml(bm.qsearch || '')}" data-keep="qsearch" data-bm="qsearch" aria-label="Find a release"><select data-bm="qsort" aria-label="Sort"><option value="look"${bm.qsort === 'look' ? ' selected' : ''}>Needs a look first</option><option value="added"${bm.qsort === 'added' ? ' selected' : ''}>As added</option><option value="az"${bm.qsort === 'az' ? ' selected' : ''}>Artist A–Z</option></select></div></div>
+    <div class="bm-tool-r"><input type="search" class="bm-search" placeholder="Find a release" value="${escapeHtml(bm.qsearch || '')}" data-keep="qsearch" data-bm="qsearch" aria-label="Find a release">${bmSortSel()}</div></div>
   <div class="bm-body" data-scroll="queue"><table class="bm-qtable"><thead><tr><th class="bm-tick"><input type="checkbox" data-bm="qsel-all"${allOn ? ' checked' : ''} aria-label="Select every release shown"></th><th>Release</th>${shown.map(k => `<th>${bmName(k)}</th>`).join('')}<th>Status</th><th class="bm-qx"></th></tr></thead><tbody>${body || `<tr><td colspan="${4 + shown.length}" class="bm-pad bm-dim">No releases under this filter.</td></tr>`}</tbody></table>${later}</div>
   <div class="bm-bulk"><span class="bm-m">${sel.size ? `${sel.size} selected` : 'Select releases for these:'}</span><button type="button" class="chip-btn" data-bm="bulk-tick">Tick confident</button><button type="button" class="chip-btn" data-bm="bulk-rerun">Re-run</button><button type="button" class="chip-btn" data-bm="bulk-skip">Skip</button><button type="button" class="chip-btn" data-bm="bulk-include">Include</button><button type="button" class="chip-btn" data-bm="bulk-top">Move to top</button><button type="button" class="chip-btn" data-bm="bulk-remove">Remove</button><span class="bm-sp"></span><button type="button" class="chip-btn" data-bm="export-csv">Export unmatched (CSV)</button></div>`;
 }
@@ -1823,7 +1836,7 @@ function bmChange(e) {
   }
   if (a === 'qsel') { if (t.checked) bm.qsel.add(t.dataset.row); else bm.qsel.delete(t.dataset.row); }
   else if (a === 'qsel-all') { bmQueueRows().forEach(x => { if (t.checked) bm.qsel.add(x.r.row); else bm.qsel.delete(x.r.row); }); }
-  else if (a === 'qsort') bm.qsort = t.value;
+  else if (a === 'qsort') { bm.qsort = t.value; try { localStorage.setItem('crate_bm_qsort_v1', bm.qsort); } catch (err) { /* this visit */ } }
   else if (a === 'accept-min') { bm.acceptMin = Number(t.value) || 75; return; }
   else if (a === 'src') {
     const r = bmSelRel(), k = t.dataset.kind, v = t.value;
