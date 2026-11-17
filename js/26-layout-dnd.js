@@ -237,7 +237,7 @@ function openAddModal() {
   hideAddSpotifyMatchBanner(); // also invalidates any in-flight Spotify tracklist lookup from a previous open
   el.addSearchInput.focus();
 }
-function closeAddModal() { el.addOverlay.hidden = true; addMatchSeq++; lfOnAddClosed(); hideAddSpotifyMatchBanner(); el.addSearchHelpPopover.hidden = true; }
+function closeAddModal() { el.addOverlay.hidden = true; if (typeof descSuggestHide === 'function') descSuggestHide(); addMatchSeq++; lfOnAddClosed(); hideAddSpotifyMatchBanner(); el.addSearchHelpPopover.hidden = true; }
 
 let addSearchSeq = 0; // race-condition guard: only the latest search may render its results
 

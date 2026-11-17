@@ -35,7 +35,7 @@ function openEditModal() {
   if (typeof editLayoutOnOpen === 'function') editLayoutOnOpen();          // (1.135.51) Sections or One at a time (65-layouts.js)
 }
 
-function closeEditModal() { el.editOverlay.hidden = true; }
+function closeEditModal() { el.editOverlay.hidden = true; if (typeof descSuggestHide === 'function') descSuggestHide(); }
 
 async function saveEditAlbum() {
   if (!activeItem) return;

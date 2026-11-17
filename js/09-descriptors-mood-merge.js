@@ -138,6 +138,9 @@ function descTokenAt(input) {                                    // the word bei
 function descSuggestHide() { const d = document.getElementById('descSuggest'); if (d) d.hidden = true; descSug.input = null; descSug.items = []; descSug.active = -1; }
 function descSuggestShow(input) {
   const d = document.getElementById('descSuggest'); if (!d) return;
+  // (1.135.57) only for the box you're typing in, while it's on screen: a value set from elsewhere (an input event without the focus, or a box
+  // in a dialog that has closed) left the list floating at the top left of the page
+  const ir = input.getBoundingClientRect(); if (document.activeElement !== input || !input.isConnected || (!ir.width && !ir.height)) { descSuggestHide(); return; }
   const t = descTokenAt(input), have = parseDescriptors(input.value.slice(0, t.start) + ',' + input.value.slice(t.end)).map(descKey);
   const cands = descCandidates(t.text, have); if (!cands.length) { descSuggestHide(); return; }
   const order = []; cands.forEach(c => { if (!order.includes(c.grp)) order.push(c.grp); });
@@ -213,6 +216,7 @@ function descBrowseOpen(inputId) {
 function descBrowseClose() { const ov = document.getElementById('descBrowseOverlay'); if (ov) ov.hidden = true; if (descBrowse.input) { descBrowse.input.value = parseDescriptors(descBrowse.input.value).map(descKey).join(', '); descBrowse.input.dispatchEvent(new Event('input', { bubbles: true })); descSuggestHide(); } descBrowse.input = null; }
 (function wireDescriptors() {
   ['addRymDescriptors', 'editRymDescriptors'].forEach(id => descAttach(document.getElementById(id)));
+  document.addEventListener('mousedown', (e) => { const d = document.getElementById('descSuggest'); if (d && !d.hidden && !e.target.closest('#descSuggest') && e.target !== descSug.input) descSuggestHide(); }, true);          // (1.135.57) a click anywhere else closes it
   const sug = document.getElementById('descSuggest');
   if (sug) { sug.addEventListener('mousedown', (e) => { const it = e.target.closest('.desc-sug'); if (!it) return; e.preventDefault(); if (descSug.input) { const c = descSug.items[Number(it.dataset.i)]; if (c) descInsert(descSug.input, c.key); } }); }
   document.addEventListener('click', (e) => { const b = e.target.closest('[data-desc-browse]'); if (b) { e.preventDefault(); descBrowseOpen(b.dataset.descBrowse); } });

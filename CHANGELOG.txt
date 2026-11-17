@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.56
+  CURRENT_VERSION: 1.135.57
 
+  1.135.57 — 2026-11-17 — The descriptor suggestions ("Similar to energetic…") no longer stay floating at the top left of the page: they show
+          only for the descriptor box you're typing in while it's on screen, and close when Edit or Add release closes or you click
+          anywhere else. A value filled in from elsewhere (the descriptor picker, a release picked on RYM) used to open them out of place.
   1.135.56 — 2026-11-17 — "Add to entry" opens the diary form at once: it used to wait for the ticked songs to be saved to the sheet (a few
           seconds) before showing it; they're now saved in the background.
   1.135.55 — 2026-11-17 — The album view's tracklist loses its "Select all" and "+ Add track" buttons. Ctrl+A (⌘A) there selects every song,
