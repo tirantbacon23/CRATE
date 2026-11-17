@@ -17,8 +17,26 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.90
+  CURRENT_VERSION: 1.135.91
 
+  1.135.91 — 2026-11-18 — Stats, redone as sketched (the more numbers the better), five tabs:
+          · Overview: a period (7 days, 30 days, this year, last year, all time) against the one before it (this year against the
+            same days last year): twenty numbers, each with its ▲/▼ (plays, hours ≈, plays a day, days listened, longest streak,
+            releases, songs and artists heard, first listens, share of the crate ever heard, added, diary entries, rating given, 5★,
+            relistens, words in notes, average release year and length, songs liked, genre families). Plays each day/week/month,
+            by weekday and by month; genre families with plays, share, releases, average ★ and the change in share; top 15
+            releases (plays, hours, days, rank change), top artists, top songs, and the decades you play against what you own.
+          · All the numbers: about seventy figures in nine groups (Listening, Variety, Your crate, Growing, Ratings, Diary, Songs,
+            Places, The crate done), each period figure with its change.
+          · Collection: the crate growing month by month with its total, what you own by genre family and decade (click a square
+            for those releases), the copy you have, types, labels, how complete it is (click to see what's missing), and the
+            releases you've never played, with "Play one at random".
+          · Insights: in plain words: the genre you rate highest, how you rate against RYM, your decade, the artist you come back
+            to, what's still to do, favourites gone quiet; how your listening has drifted by genre family year by year; and your
+            rating against RYM's for every release, a dot each.
+          · Map: as before.
+          Last.fm plays are kept per day, so there's no time of day; hours are worked out from song lengths (≈). Releases, artists,
+          genres, decades and labels click through. New file js/70-stats-views.js.
   1.135.90 — 2026-11-18 — Search: operators show as pills in the search box. genre:indie rock, year:1980-1989, format:vinyl and the rest
           each sit in a soft amber pill with the field name in amber (a genre's pill runs over all its words, as the search reads it);
           a minus one (-format:cd) is in red. Plain words stay as they are. The box is still plain text: type, select and edit as
