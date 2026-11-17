@@ -1314,11 +1314,13 @@ function bmViewBtns() {
 }
 // A release's cover: the one CRATE has, or looked up and filled in when it comes (as the grid does)
 const bmArtAsked = new Set();
-function bmCoverHtml(it, cls) {
+function bmCoverHtml(it, cls) {                                      // (1.135.77) the cover chosen as the deck and grid choose it, and a failed one isn't hidden for good
   if (!it) return `<span class="${cls}"></span>`;
-  const k = artKey(it), c = state.artCache[k], src = (c && c.art) || it.cover || (typeof placeholderArt === 'function' ? placeholderArt(it) : '');
-  if (!(c && c.art) && !it.cover && !bmArtAsked.has(k) && typeof fetchArt === 'function' && !artFetchInFlight.has(k)) { bmArtAsked.add(k); artFetchInFlight.add(k); fetchArt(it); }          // asked once a visit
-  return `<span class="${cls}"><img class="art" data-key="${escapeHtml(k)}" src="${escapeHtml(src)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><b>${escapeHtml(bmInitials(it.title))}</b></span>`;
+  const k = artKey(it), c = state.artCache[k], bad = badArtUrls[k], ph = typeof placeholderArt === 'function' ? placeholderArt(it) : '';
+  const cached = c && c.art && c.art !== bad ? c.art : '', cover = it.cover && it.cover !== bad ? it.cover : '', src = cover || cached || ph;
+  if (!cover && !cached && !bmArtAsked.has(k) && typeof fetchArt === 'function' && !artFetchInFlight.has(k)) { bmArtAsked.add(k); artFetchInFlight.add(k); fetchArt(it); }          // asked once a visit
+  // A cover that fails to load: CRATE's own recovery looks for another (and puts it in, by class art + data-key); meanwhile the drawn one shows
+  return `<span class="${cls}"><img class="art" data-key="${escapeHtml(k)}" src="${escapeHtml(src)}" data-ph="${escapeHtml(ph)}" alt="" loading="lazy" onerror="if(this.dataset.ph&&this.src!==this.dataset.ph)this.src=this.dataset.ph"><b>${escapeHtml(bmInitials(it.title))}</b></span>`;
 }
 // The queue down the left of the workbench: one line per release, its state as a dot
 function bmWbQueueHtml() {

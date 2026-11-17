@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.76
+  CURRENT_VERSION: 1.135.77
 
+  1.135.77 — 2026-11-18 — Match songs: release covers show again. A cover that failed to load once was hidden for good, even after
+          CRATE found another one, and the list took a remembered cover before the release's own (which the deck uses). It now
+          chooses as the deck does, skips a link already known to be broken, shows the drawn cover while another is looked for,
+          and puts the found cover in when it comes.
   1.135.76 — 2026-11-18 — Match songs: R re-runs the release (looks it up again from scratch; it asks first when it has ticks not
           applied yet), and V switches YouTube to individual videos: the full-release video is set aside (still in the YouTube
           menu to take back) and each song is searched on its own. Both are in the ⋯ menu with their keys, and in the key hints.
