@@ -6270,3 +6270,8 @@ select.srch-chip { padding: 0 6px; background: var(--bg-elevated); }
 .qp-lf-link { margin-left: auto; letter-spacing: 0; text-transform: none; font-family: Inter, sans-serif; font-size: 11.5px; }
 .stl-kpis.qp-lf-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .stl-a.qp-lf-tbl { margin: 0; padding: 0; border: 0; }
+/* (1.135.113) the cover popup's Tracks: Last.fm plays per song */
+.qp-lfp { order: 3; flex: 0 0 auto; width: 66px; display: inline-flex; align-items: center; gap: 5px; justify-content: flex-end; }
+.qp-lfp b { font: 500 10.5px 'IBM Plex Mono', monospace; color: var(--text-dim); font-variant-numeric: tabular-nums; min-width: 4ch; text-align: right; }
+.qp-lfp-bar { width: 24px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; display: block; }
+.qp-lfp-bar i { display: block; height: 100%; background: #7FD1B9; opacity: .8; }

@@ -161,6 +161,7 @@ function stlPanelHtml(subj, mode) {
 function stlPaint(key) {
   const id = stlId(key), d = stl.data.get(key); if (!d) return;
   document.querySelectorAll(`[data-stl="${id}"]`).forEach(n => { n.innerHTML = n.dataset.stlMode === 'a' ? stlAHtml(key) : n.dataset.stlMode === 'q' ? stlQpHtml(key) : stlPanelHtml(d.subj, n.dataset.stlMode); });
+  try { stlQpTracksPaint(key); } catch (e) { /* the popup's songs as they were */ }
 }
 
 // ----- A: ▸ in the list -----
@@ -539,3 +540,34 @@ const stlBaseQp = openAlbumQuickPeek;
 openAlbumQuickPeek = function (item) { const r = stlBaseQp.apply(this, arguments); try { stlQpMount(item); } catch (e) { /* the popup as before */ } return r; };
 const stlBaseQpTab = qpSetTab;
 qpSetTab = function (tab) { stlBaseQpTab.apply(this, arguments); try { if (tab === 'listens' && typeof quickPeekItem !== 'undefined' && quickPeekItem) stlQpMount(quickPeekItem, true); } catch (e) { /* as before */ } };
+
+
+// ----- (1.135.113) The cover popup's Tracks: each song's Last.fm plays on its row (hover: listeners, plays, yours), with a bar against
+// the release's most played song; looked up when the popup opens (kept two days) and filled in as they come -----
+const stlQpKey = (item) => 'c:' + item.row;
+function stlQpSong(item, name) { const d = stl.data.get(stlQpKey(item)); if (!d || !d.songs.length) return null; const n = stlNorm(name); return d.songs.find(s => stlNorm(s.name) === n) || null; }
+function stlQpCellHtml(item, name) {
+  const d = stl.data.get(stlQpKey(item)), s = stlQpSong(item, name);
+  if (!s || s.p == null) return d && d.state === 'nums' ? '<i class="qp-lfp-bar"></i><b>·</b>' : '';
+  const max = Math.max(1, ...d.songs.map(x => x.p || 0)), you = stlYou(s);
+  return `<i class="qp-lfp-bar"><i style="width:${s.p ? Math.max(3, Math.round(s.p / max * 100)) : 0}%"></i></i><b>${stlF(s.p)}</b>`;
+}
+function stlQpTitle(item, name) { const s = stlQpSong(item, name); return s && s.p != null ? `Last.fm: ${stlF(s.l)} listeners · ${stlF(s.p)} plays · yours ${stlF(stlYou(s))}` : 'Last.fm plays'; }
+const stlBaseQpRow = quickPeekTrackRowHtml;
+quickPeekTrackRowHtml = function (item, t) {
+  const h = stlBaseQpRow.apply(this, arguments);
+  if (!srchLfKey() || !item || !t) return h;
+  const cell = `<span class="qp-lfp" data-qp-lf title="${escapeHtml(stlQpTitle(item, t.trackName))}">${stlQpCellHtml(item, t.trackName)}</span>`;
+  return h.replace('<span class="album-quick-peek-track-time">', cell + '<span class="album-quick-peek-track-time">')
+    .replace('title="Last.fm plays">', 'title="Your plays (synced scrobbles)">');
+};
+function stlQpTracksPaint(key) {
+  if (typeof quickPeekItem === 'undefined' || !quickPeekItem || stlQpKey(quickPeekItem) !== key || !el.albumQuickPeekTracks) return;
+  el.albumQuickPeekTracks.querySelectorAll('.album-quick-peek-track').forEach(row => { const c = row.querySelector('[data-qp-lf]'); if (!c) return; const name = row.dataset.trackName || ''; c.innerHTML = stlQpCellHtml(quickPeekItem, name); c.title = stlQpTitle(quickPeekItem, name); });
+}
+const stlBaseQp2 = openAlbumQuickPeek;
+openAlbumQuickPeek = function (item) {
+  const r = stlBaseQp2.apply(this, arguments);
+  try { if (item && srchLfKey()) { stlWant({ key: stlQpKey(item), artist: item.artist, title: item.title, it: item, r: null, cover: srchItemCover(item) }, 0); stlQpTracksPaint(stlQpKey(item)); } } catch (e) { /* as before */ }
+  return r;
+};

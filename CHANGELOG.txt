@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.112
+  CURRENT_VERSION: 1.135.113
 
+  1.135.113 — 2026-11-18 — The cover view's popup › Tracks: each song's Last.fm plays on its row, with a bar against the release's most
+          played song (hover: listeners, plays and yours), filled in as they're looked up when the popup opens (kept two days).
+          The "N plays" on a song now says it's yours (your synced scrobbles), not Last.fm's.
   1.135.112 — 2026-11-18 — The cover view's popup › Listens: "On Last.fm", under your own plays: the release's Last.fm listeners, plays,
           plays per listener and your Last.fm count, its most played song, and every song with a listeners bar, plays and yours
           (click one to play it). Looked up when the tab is shown, as the search's songs are (kept two days).
