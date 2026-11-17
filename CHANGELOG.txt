@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.70
+  CURRENT_VERSION: 1.135.71
 
+  1.135.71 — 2026-11-18 — Match songs' keys work again (J K song, H L service, 1–5 pick, X none, Space play, W why, A apply, N next, [ ] release):
+          they were heard only while something in the window had the focus, and each redraw took it away. Open from Match songs:
+          "Open release" beside Re-run, a ↗ on each song (on hover, or the selected one) and the O key show the song in the
+          catalogue with its release; Match songs keeps working behind it.
   1.135.70 — 2026-11-18 — The dropdowns in Match songs work while its queue runs: the window was drawn again several times a second, which closed any
           dropdown you'd opened before you could pick. While one is open, the window now waits, and catches up as soon as you pick or
           leave it.
