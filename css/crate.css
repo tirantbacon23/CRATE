@@ -6299,3 +6299,37 @@ select.srch-chip { padding: 0 6px; background: var(--bg-elevated); }
 .tlf-btn.tlf-pri { border-color: var(--accent); color: var(--accent); }
 .tlf-dim { font-size: 11px; }
 .tlf-bar { width: 120px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; } .tlf-bar i { display: block; height: 100%; background: var(--accent); }
+
+/* (1.135.117) Themes */
+:root { --on-accent: #12161C; }
+html.thm-fade body, html.thm-fade body * { transition: background-color .9s ease, color .9s ease, border-color .9s ease, fill .9s ease !important; }
+.thm-menu-btn { display: flex; align-items: center; gap: 8px; }
+.thm-dot { width: 11px; height: 11px; border-radius: 3px; background: conic-gradient(var(--accent) 0 33%, #5FA8D3 0 66%, #E07A5F 0); flex: none; }
+.thm-overlay { z-index: 1300; }
+.thm-modal { width: min(880px, calc(100vw - 32px)); max-height: calc(100vh - 64px); overflow-y: auto; }
+.thm-body { display: flex; flex-direction: column; gap: 14px; padding: 6px 18px 18px; }
+.thm-lbl { font: 500 10px 'IBM Plex Mono', monospace; letter-spacing: .1em; text-transform: uppercase; color: var(--text-dim); margin-right: 6px; }
+.thm-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 700px) { .thm-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.thm-card { display: flex; flex-direction: column; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg-elevated); cursor: pointer; text-align: left; color: var(--text); font: inherit; }
+.thm-card.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.thm-card-rel { border-style: dashed; }
+.thm-mini { height: 110px; display: grid; grid-template-columns: 38px 1fr; position: relative; }
+.thm-mini-side { display: flex; flex-direction: column; gap: 6px; padding: 9px 7px; } .thm-mini-side i { display: block; height: 5px; border-radius: 3px; }
+.thm-mini-main { padding: 9px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; align-content: start; } .thm-mini-main i { display: block; height: 34px; border-radius: 3px; }
+.thm-mini-t { position: absolute; right: 9px; bottom: 6px; font: 600 15px Inter, sans-serif; }
+.thm-cap { display: flex; flex-direction: column; gap: 2px; padding: 9px 11px; } .thm-cap b { font-size: 13px; } .thm-cap span { font-size: 11.5px; color: var(--text-dim); }
+.thm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.thm-sw { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; box-shadow: 0 0 0 1px var(--line); }
+.thm-sw.on { border-color: var(--text); }
+.thm-pick { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); margin-left: 4px; } .thm-pick input { width: 30px; height: 26px; border: 0; padding: 0; background: none; cursor: pointer; }
+.thm-chk { font-size: 12.5px; color: var(--text); cursor: pointer; }
+.thm-seg { height: 28px; padding: 0 12px; border: 1px solid var(--line); border-radius: 14px; background: none; color: var(--text-dim); font: inherit; font-size: 12px; cursor: pointer; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thm-seg.on { border-color: var(--accent); color: var(--accent); } .thm-seg:disabled { opacity: .45; cursor: default; }
+.thm-rel { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.thm-chip { width: 30px; height: 30px; border-radius: 7px; border: 1px solid rgba(255, 255, 255, .15); cursor: pointer; padding: 0; }
+.thm-roles { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 12px; color: var(--text-dim); }
+.thm-role { display: inline-flex; align-items: center; gap: 6px; color: var(--text); } .thm-role i { width: 22px; height: 22px; border-radius: 5px; border: 1px solid var(--line); display: block; }
+.thm-recent { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px 0 3px; border: 1px solid var(--line); border-radius: 15px; background: none; color: var(--text); font: inherit; font-size: 12px; cursor: pointer; max-width: 200px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.thm-recent.on { border-color: var(--accent); } .thm-recent img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+.thm-note { font-size: 12px; color: var(--text-dim); margin: 0; }

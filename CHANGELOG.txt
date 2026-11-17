@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.116
+  CURRENT_VERSION: 1.135.117
 
+  1.135.117 — 2026-11-18 — Themes (⚙ › Settings › Look…): CRATE, Black, Paper (light), Night blue, High contrast, and From releases; your own
+          accent (six or any colour); Paper when the computer is in light mode. From releases: the colours of what's playing (fading
+          over a second as releases change) or of one you pin (right-click a release › Use as theme; the last six are kept to go back
+          to), accent only / tinted / full colour, the cover's colours to pick the accent from. Every pair is checked for contrast and
+          moved until it reads. The stylesheet's written-out CRATE colours are pointed at the theme's the first time one is used
+          (js/74-themes.js).
   1.135.116 — 2026-11-18 — Tracks view: Last.fm listens. Five columns (right-click a header, or "+ Last.fm columns"): the song's Last.fm plays
           and listeners, your Last.fm plays of it, the release's plays and listeners. A bar over the table pulls them for the songs
           shown ("Pull listens for N songs and M releases", progress, Stop), four at a time, kept in this browser (songs two days,
