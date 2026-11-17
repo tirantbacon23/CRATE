@@ -78,7 +78,7 @@ async function srchGenreOnline(genres, text) {
   })().catch(() => null) : Promise.resolve(null);
   const mbq = genres.map(x => `tag:"${x.replace(/"/g, '')}"`).join(' AND ') + ' AND primarytype:album' + (text ? ` AND (${text.replace(/[()"]/g, ' ')})` : '');
   const mb = mbFetch(`https://musicbrainz.org/ws/2/release-group/?query=${encodeURIComponent(mbq)}&fmt=json&limit=25`, { headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' }, timeoutMs: 9000, retryBusy: 1 })
-    .then(async res => { if (!res.ok) throw new Error('HTTP ' + res.status); return ((await res.json())['release-groups'] || []).map(h => ({ src: 'mbg', title: h.title || '', artist: (h['artist-credit'] || []).map(a => a.name + (a.joinphrase || '')).join(''), date: h['first-release-date'] || '', type: h['primary-type'] || 'Album', genre: genres.join(', ') })); })
+    .then(async res => { if (!res.ok) throw new Error('HTTP ' + res.status); return ((await res.json())['release-groups'] || []).map(h => ({ src: 'mbg', title: h.title || '', artist: (h['artist-credit'] || []).map(a => a.name + (a.joinphrase || '')).join(''), date: h['first-release-date'] || '', type: h['primary-type'] || 'Album', genre: genres.join(', '), cover: h.id ? `https://coverartarchive.org/release-group/${h.id}/front-250` : '' })); })
     .catch(() => null);
   const [a, b] = await Promise.all([lf, mb]);
   if (!a && !b) return null;
@@ -103,9 +103,12 @@ function srchOnlineSearch() {
     lists.forEach(l => { if (!l) { failed++; return; } l.forEach(r => { const k = dupKey(r.artist, r.title); if (!k || seen.has(k)) return; seen.add(k);
       const v = dupVerdict(dupMatches({ artist: r.artist, title: r.title, catalog: r.catalog || '', releaseDate: r.date || '', descriptor: '' }));
       if (v === 'exact' || v === 'edition') { owned++; if (hide) return; r.owned = true; } out.push(r); }); });
-    srch.online = out.slice(0, 24); srch.onlineState = failed === lists.length ? 'error' : 'done';
+    srch.online = out.slice(0, 30); srch.onlineState = failed === lists.length ? 'error' : 'done';
     srch.onlineNote = srch.onlineState === 'error' ? 'No source answered.' : !out.length ? 'Nothing more found online.' : owned ? `${owned} you have left out` : '';
+    const lfKey = typeof loadLastfmCreds === 'function' ? (loadLastfmCreds() || {}).apiKey : '';
+    if (!lfKey && out.length) srch.onlineNote = (srch.onlineNote ? srch.onlineNote + ' · ' : '') + 'Add your Last.fm key (⚙ › Last.fm) to rank these by popularity';
     ssRender();
+    if (lfKey && out.length) srchPopRank(seq, lfKey);
   }, 600);
 }
 function srchAddOnline(r) {
@@ -127,7 +130,7 @@ function srchCrateItems(q) {
   if (q.trim() && have.size < 4) (state.filtered || []).filter(it => !have.has(String(it.row))).slice(0, 4 - have.size).forEach(it => items.push({ kind: 'release', col: 'crate', it, row: it.row, label: it.title, sub: [it.artist, String(it.releaseDate || '').slice(0, 4)].filter(Boolean).join(' \u00b7 '), cover: srchItemCover(it) }));
   return items;
 }
-function srchOnlineItems() { return srch.online.slice(0, 6).map(r => ({ kind: 'online', col: 'online', r, label: r.title, sub: [r.artist, String(r.date || '').slice(0, 4), r.type && r.type !== 'Album' ? r.type : '', srchSrcName(r.src)].filter(Boolean).join(' · '), cover: r.cover })); }
+function srchOnlineItems() { return srch.online.slice(0, 6).map(r => ({ kind: 'online', col: 'online', r, label: r.title, sub: [r.artist, String(r.date || '').slice(0, 4), r.type && r.type !== 'Album' ? r.type : '', srchPopFmt(r.listeners) || srchSrcName(r.src)].filter(Boolean).join(' · '), cover: r.cover })); }
 
 function srchItems() { const q = el.searchInput.value, lk = srchLook(); return lk === 'detail' ? srchDetailItems(q) : lk === 'drop' ? srchCrateItems(q).concat(srchOnlineItems()) : ssSuggest(q); }          // (simple: the suggestions as they always were)
 function ssUpdate() { if (srchLook() !== 'simple') srchOnlineSearch(); ssActive = -1; ssRender(); }
@@ -183,7 +186,7 @@ function srchDropdownHtml() {
   const n = state.filtered ? state.filtered.length : 0, free = srchFreeText(q);
   return srchChipsHtml() + `<div class="srch-cols">
     <div class="srch-col"><div class="srch-lbl">In your crate${q.trim() ? ` · ${n}` : ''}</div>${crate.join('') || `<div class="srch-note">${q.trim() ? 'No names match; the crate shows what fits.' : ''}</div>`}${q.trim() && n ? `<button type="button" class="srch-link" data-srch-close>Show all ${n} in the crate →</button>` : ''}</div>
-    <div class="srch-col srch-col-online"><div class="srch-lbl">Not in your crate yet · online</div>${online.join('')}<div class="srch-note">${escapeHtml(srchOnlineStatus())}</div>${free.length >= 2 ? `<button type="button" class="srch-link" data-srch-all="${escapeHtml(free)}">More online results in Add a release →</button>` : ''}</div>
+    <div class="srch-col srch-col-online"><div class="srch-lbl">Not in your crate yet · online <button type="button" class="srch-popsort" data-srch-pop title="Order the releases found online">${srchPopSortOn() ? 'Popular first' : 'Best match'}</button></div>${online.join('')}<div class="srch-note">${escapeHtml(srchOnlineStatus())}</div>${free.length >= 2 ? `<button type="button" class="srch-link" data-srch-all="${escapeHtml(free)}">More online results in Add a release →</button>` : ''}</div>
   </div>` + srchFootHtml();
 }
 
@@ -193,7 +196,7 @@ function srchDetailItems(q) {
   const items = [], tab = srch.tab, has = q.trim();
   if (!has) return items;
   if (tab === 'all' || tab === 'crate') (state.filtered || []).slice(0, tab === 'crate' ? 48 : 18).forEach(it => items.push({ kind: 'release', col: 'grid', it, label: it.title, sub: it.artist, row: it.row, cover: srchItemCover(it) }));
-  if (tab === 'all' || tab === 'add') srch.online.slice(0, tab === 'add' ? 24 : 12).forEach(r => items.push({ kind: 'online', col: 'grid', r, label: r.title, sub: r.artist, cover: r.cover, add: true }));
+  if (tab === 'all' || tab === 'add') srch.online.slice(0, tab === 'add' ? 30 : 12).forEach(r => items.push({ kind: 'online', col: 'grid', r, label: r.title, sub: [r.artist, srchPopFmt(r.listeners)].filter(Boolean).join(' · '), cover: r.cover, add: true }));
   const sug = srchCrateItems(q);
   if (tab === 'all' || tab === 'songs') sug.filter(s => s.kind === 'track').forEach(s => items.push(Object.assign({}, s, { col: 'songs' })));
   if (tab === 'all' || tab === 'artists') sug.filter(s => s.kind === 'artist').forEach(s => items.push(Object.assign({}, s, { col: 'artists' })));
@@ -219,7 +222,7 @@ function srchDetailHtml() {
       else (s.col === 'songs' ? songs : artists).push(srchRowHtml(s, i));
     });
     const nC = (state.filtered || []).length, nA = srch.online.length;
-    main = `<div class="srch-lbl">Releases · ${nC} in your crate${srch.tab !== 'crate' ? ` · ${srch.onlineState === 'loading' ? 'looking online…' : nA + ' to add'}` : ''}</div>
+    main = `<div class="srch-lbl">Releases · ${nC} in your crate${srch.tab !== 'crate' ? ` · ${srch.onlineState === 'loading' ? 'looking online…' : nA + ' to add'}` : ''}${srch.tab !== 'crate' && nA ? ` <button type="button" class="srch-popsort" data-srch-pop title="Order the releases found online">${srchPopSortOn() ? 'Popular first' : 'Best match'}</button>` : ''}</div>
       <div class="srch-grid">${grid.join('') || `<div class="srch-note">${escapeHtml(srchOnlineStatus() || 'Nothing here.')}</div>`}</div>
       ${songs.length ? `<div class="srch-lbl">Songs</div>${songs.join('')}` : ''}${artists.length ? `<div class="srch-lbl">Artists</div>${artists.join('')}` : ''}`;
   }
@@ -254,6 +257,7 @@ function srchClick(e) {
   const t = e.target, inp = el.searchInput, g = (sel) => t.closest(sel);
   let b;
   if ((b = g('[data-srch-untok]'))) return srchRemoveToken(+b.dataset.srchUntok);
+  if (g('[data-srch-pop]')) { srchLsSet(SRCH_POP_SORT_KEY, srchPopSortOn() ? 'match' : 'pop'); srchPopSort(); ssRender(); return; }
   if ((b = g('[data-srch-chip]')) && b.tagName !== 'SELECT') { if (b.tagName === 'INPUT') e.preventDefault(); return srchToggle(b.dataset.srchChip); }
   if ((b = g('[data-srch-unsave]'))) return srchUnsave(b.dataset.srchUnsave);
   if ((b = g('[data-srch-q]'))) return srchSetQuery(b.dataset.srchQ + ' ');
@@ -342,3 +346,30 @@ function srchMirrorPaint(inp, m, tx) {
   if (tx.innerHTML !== h) tx.innerHTML = h;
   tx.style.transform = `translateX(${-inp.scrollLeft}px)`;
 }
+
+// ----- (1.135.92) The releases found online, most listened-to first: each one's Last.fm listener count (album.getInfo, for the first
+// 30 found, four at a time; kept in this browser for a month), then sorted by it unless you chose "Best match". -----
+const SRCH_POP_KEY = 'crate_search_pop_v1', SRCH_POP_SORT_KEY = 'crate_search_pop_sort_v1';
+let srchPopMem = null;
+function srchPopAll() { if (!srchPopMem) { srchPopMem = srchLs(SRCH_POP_KEY, {}) || {}; } return srchPopMem; }
+function srchPopSave() { const a = srchPopAll(), ks = Object.keys(a); if (ks.length > 3000) ks.slice(0, ks.length - 3000).forEach(k => delete a[k]); srchLsSet(SRCH_POP_KEY, a); }
+function srchPopSortOn() { return srchLs(SRCH_POP_SORT_KEY, 'pop') !== 'match'; }
+const srchPopK = (r) => (typeof dupKey === 'function' ? dupKey(r.artist, r.title) : (r.artist + '|' + r.title).toLowerCase());
+function srchPopSort() {
+  if (!srchPopSortOn()) { srch.online.sort((a, b) => (a._at || 0) - (b._at || 0)); return; }
+  srch.online.forEach((r, i) => { if (r._at == null) r._at = i; });
+  srch.online.sort((a, b) => (b.listeners || -1) - (a.listeners || -1) || a._at - b._at);
+}
+async function srchPopRank(seq, key) {
+  const all = srchPopAll(), now = Date.now(), list = srch.online; list.forEach((r, i) => { r._at = i; });
+  const need = list.filter(r => { const c = all[srchPopK(r)]; if (c && now - c.t < 30 * 864e5) { r.listeners = c.n; return false; } return true; });
+  if (!need.length) { srchPopSort(); ssRender(); return; }
+  let i = 0; const one = async () => { while (i < need.length) { const r = need[i++]; if (seq !== srch.seq) return;
+    try { const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=album.getinfo&artist=${encodeURIComponent(r.artist)}&album=${encodeURIComponent(r.title)}&autocorrect=1&api_key=${encodeURIComponent(key)}&format=json`);
+      const j = await res.json(), n = j && j.album ? Number(j.album.listeners) || 0 : 0; r.listeners = n; all[srchPopK(r)] = { n, t: now };
+      if (!r.cover && j && j.album && Array.isArray(j.album.image)) { const im = (j.album.image.find(x => x.size === 'extralarge') || j.album.image.slice(-1)[0] || {})['#text']; if (im) r.cover = im; }
+    } catch (e) { /* unknown: stays where it was found */ } } };
+  await Promise.all([one(), one(), one(), one()]); if (seq !== srch.seq) return;
+  srchPopSave(); srchPopSort(); ssRender();
+}
+function srchPopFmt(n) { return !n ? '' : n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'm listeners' : n >= 1e3 ? Math.round(n / 1e3) + 'k listeners' : n + ' listeners'; }

@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.91
+  CURRENT_VERSION: 1.135.92
 
+  1.135.92 — 2026-11-18 — Search online: the releases not in your crate come most popular first. Each one's Last.fm listener count is
+          looked up (with your Last.fm key; kept in this browser for a month), shown beside it ("2.5m listeners"), and the list is
+          sorted by it; "Popular first / Best match" beside the heading switches back to the sources' own order. MusicBrainz results
+          (the genre search's too) now have covers, from the Cover Art Archive, else Last.fm's. With no Last.fm key in this browser,
+          the online section says so: the genre search then only has MusicBrainz, which can't tell what's popular.
   1.135.91 — 2026-11-18 — Stats, redone as sketched (the more numbers the better), five tabs:
           · Overview: a period (7 days, 30 days, this year, last year, all time) against the one before it (this year against the
             same days last year): twenty numbers, each with its ▲/▼ (plays, hours ≈, plays a day, days listened, longest streak,

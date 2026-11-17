@@ -6165,3 +6165,5 @@ select.srch-chip { padding: 0 6px; background: var(--bg-elevated); }
 .st-ax { position: absolute; font-size: 11px; color: var(--text-dim); } .st-ay { left: -22px; top: 0; writing-mode: vertical-rl; transform: rotate(180deg); } .st-axx { right: 0; bottom: -20px; }
 @media (max-width: 1200px) { .st-kpis { grid-template-columns: repeat(5, minmax(0, 1fr)); } .st-grid3 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .st-cols4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .st-kpis, .st-kpis6 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .st-grid3, .st-grid2, .st-two, .st-cols4 { grid-template-columns: minmax(0, 1fr); } .st-fm, .st-meter { grid-template-columns: 100px minmax(0, 1fr) 44px 44px; } }
+.srch-popsort { margin-left: 8px; background: none; border: 1px solid var(--line); border-radius: 10px; padding: 1px 8px; font: 500 10px 'IBM Plex Mono', monospace; letter-spacing: .04em; text-transform: none; color: var(--text-dim); cursor: pointer; }
+.srch-popsort:hover { color: var(--accent); border-color: var(--accent); }
