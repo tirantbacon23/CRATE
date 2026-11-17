@@ -4554,6 +4554,9 @@ html, body {
 .gx-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; } .gx-acts .gx-primary { border-color: #F0C26A; color: #F0C26A; }
 .gx-h { font: 11px 'IBM Plex Mono', monospace; letter-spacing: .6px; text-transform: uppercase; color: var(--accent, #D6A24C); margin: 12px 0 6px; } .gx-wh { border-top: 1px solid var(--line, #2A313C); padding-top: 12px; }
 .chip-btn.gx-toggle.on { border-color: var(--accent, #D6A24C); color: var(--accent, #D6A24C); background: rgba(214,162,76,0.12); }
+.gxt-stats { margin: 10px 0 2px; font: 13px/1.45 Inter, sans-serif; color: var(--text, #EDE7DC); } .gxt-stats b { color: #7FD1B9; font-size: 15px; }
+.gxt-fams { margin-top: 4px; font: 11px 'IBM Plex Mono', monospace; } .gxt-fam { margin-right: 8px; white-space: nowrap; }
+.gx-h.gxt-on { color: #7FD1B9; }
 .gx-skey { display: flex; flex-direction: column; gap: 10px; }
 .gx-sk-fam b { display: block; font: 400 15px/1.1 'Bebas Neue', Inter, sans-serif; letter-spacing: .04em; margin-bottom: 3px; }
 .gx-sk-list { display: flex; flex-wrap: wrap; gap: 4px; }

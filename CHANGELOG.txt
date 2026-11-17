@@ -17,8 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.81
+  CURRENT_VERSION: 1.135.82
 
+  1.135.82 — 2026-11-18 — Crate Galaxy: "View: influence over time". Years run left to right, a lane for each genre family (oldest
+          first) with its subgenres in bands. Each release is joined to the few earlier releases in your crate it is most like
+          (genres and their parents, descriptors, scene, label; the same artist counts a little extra), and the bigger a star, the
+          more of what came after leans on it (credit passed back along those lines). Click a star for its line: what it drew from
+          in gold, everything after it that leans on it in green, how many and in which families; "Play its influence" spreads it
+          year by year. "Play history" lets the years go by with each release lighting up as it comes. The side panel lists the
+          most influential releases in your crate and its starting points. It is read from your crate alone (likeness and dates),
+          and says so. New file js/67-galaxy-time.js.
   1.135.81 — 2026-11-18 — Match songs › ⚙ Preferences: "Find both on YouTube". On, a release with no YouTube playlist gets each song's
           own video AND a full-release video: when the full video is found first, every song is still searched on its own (its own
           video goes ahead, its part of the full video stays as a choice behind it); when the songs are searched first and all found,

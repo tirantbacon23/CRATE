@@ -7,7 +7,7 @@ const GX_K = 8;                                                       // neighbo
 const GX_LEN = 30;                                                    // the layout's unit length
 const gx = { open: false, items: [], graph: null, pos: null, cam: { x: 0, y: 0, z: 1 }, hover: -1, sel: -1, from: -1, to: -1, path: [], color: 'family', decade: '', onlyShown: false, find: '',
   layoutTimer: 0, settling: 0, key: '', cache: new Map(), anim: 0, stars: null, drag: null, pointers: new Map(), pulse: 0,
-  d3: (() => { try { return localStorage.getItem('crate_gx_3d_v1') === '1'; } catch (e) { return false; } })(), rot: { yaw: 0.55, pitch: 0.42 }, posZ: null, zFor: null, spin: false, spinT: 0 };
+  d3: (() => { try { return localStorage.getItem('crate_gx_3d_v1') === '1'; } catch (e) { return false; } })(), rot: { yaw: 0.55, pitch: 0.42 }, mode: 'map', inf: null, tl: null, timePos: null, lineage: null, playYear: null, playT: 0, posZ: null, zFor: null, spin: false, spinT: 0 };
 
 // ----- the graph -----
 const gxNorm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -194,7 +194,7 @@ function gxRebuildKeep() {
   gx.sel = keepSel ? pool.findIndex(it => String(it.row) === keepSel) : -1;
   const added = pool.length - kept, gone = was.size - kept;
   gxSetStatus(added || gone ? `Updated: ${added ? `${added} new` : ''}${added && gone ? ', ' : ''}${gone ? `${gone} gone` : ''}` : '');
-  gx.keepCam = kept > 0; gxSettle();
+  gx.keepCam = kept > 0; gx.inf = null; if (gx.mode === 'time') gxtEnter(true); gxSettle();
 }
 function openGalaxy() {
   gx.open = true; gxEl('gxOverlay').hidden = false;
@@ -202,12 +202,12 @@ function openGalaxy() {
   if (key !== gx.key) {
     gx.key = key; gx.items = pool; gx.hover = gx.sel = gx.from = gx.to = -1; gx.path = [];
     const hit = gx.cache.get(key);
-    if (hit) Object.assign(gx, hit);
+    if (hit) { Object.assign(gx, hit); if (gx.mode === 'time') gxtEnter(); }
     else {
       gxSetStatus(`Reading ${pool.length.toLocaleString()} releases…`);
       setTimeout(() => {                                              // let the window open before the heavy part
         gx.fams = gxFamilies(pool, state.genreTaxonomy); gx.graph = gxBuild(pool, state.genreTaxonomy); gx.layout = gxLayoutInit(pool, gx.fams); gx.pos = gx.layout.pos;
-        gxFit(); gxSettle();
+        if (gx.mode === 'time') gxtEnter(); else gxFit(); gxSettle();
       }, 30);
     }
   }
@@ -216,17 +216,17 @@ function openGalaxy() {
   gxResize(); gxRenderSide(); gxDraw();
   setTimeout(() => { const f = gxEl('gxFind'); if (f) f.focus(); }, 60);
 }
-function closeGalaxy() { gxSpin(false); gx.open = false; clearTimeout(gx.layoutTimer); cancelAnimationFrame(gx.anim); gx.anim = 0; const ov = gxEl('gxOverlay'); if (ov) ov.hidden = true; gxTip(-1); }
+function closeGalaxy() { gxSpin(false); if (typeof gxtStop === 'function') gxtStop(); gx.open = false; clearTimeout(gx.layoutTimer); cancelAnimationFrame(gx.anim); gx.anim = 0; const ov = gxEl('gxOverlay'); if (ov) ov.hidden = true; gxTip(-1); }
 function gxSettle() {                                                 // runs the layout a little at a time, drawing as it goes: you watch the galaxy form
   clearTimeout(gx.layoutTimer);
   const L = gx.layout; if (!L) return;
   const t0 = performance.now(); let done = false;
   while (!done && performance.now() - t0 < 14) done = gxLayoutStep(L, gx.graph, 2);
   gxSetStatus(done ? '' : `Forming the galaxy… ${Math.round(L.iter / L.total * 100)}%`);
-  if (!gx.keepCam && (L.iter < 40 || L.iter % 30 < 3)) gxFit(true);          // (an update keeps the camera where you left it)
+  if (!gx.keepCam && gx.mode !== 'time' && (L.iter < 40 || L.iter % 30 < 3)) gxFit(true);          // (an update keeps the camera where you left it)
   gxDraw(); gxRenderSide();
   if (!done && gx.open) gx.layoutTimer = setTimeout(gxSettle, 0);
-  if (done) { gx.posZ = null; if (!gx.keepCam) gxFit(true); gx.keepCam = false; gxLabels(); gx.cache.set(gx.key, { fams: gx.fams, graph: gx.graph, layout: gx.layout, pos: gx.pos, labels: gx.labels, subLabels: gx.subLabels }); gxDraw(); }
+  if (done) { gx.posZ = null; if (!gx.keepCam && gx.mode !== 'time') gxFit(true); gx.keepCam = false; gxLabels(); gx.cache.set(gx.key, { fams: gx.fams, graph: gx.graph, layout: gx.layout, pos: gx.layout.pos, labels: gx.labels, subLabels: gx.subLabels }); gxDraw(); }
 }
 function gxSetStatus(t) { const s = gxEl('gxStatus'); if (s) { s.textContent = t; s.hidden = !t; } }
 
@@ -312,17 +312,18 @@ function gxResize() {
 // ----- drawing -----
 function gxLit(i) {                                                   // dimmed by the decade picked or the words typed
   const it = gx.items[i];
-  if (gx.subPick && gx.fams.sub && gx.fams.sub[i] !== gx.subPick) return false;          // (1.135.78) one subgenre picked in the key
+  if (gx.subPick && gx.fams.sub && gx.fams.sub[i] !== gx.subPick) return false;
+  if (gx.mode === 'time' && gx.sel >= 0 && gx.lineage && !gx.lineage.has(i)) return false;          // (1.135.82) the line of the release picked          // (1.135.78) one subgenre picked in the key
   if (gx.decade) { const y = gxYear(it); if (!y || String(Math.floor(y / 10) * 10) !== gx.decade) return false; }
   if (gx.find) { const q = gx.find; if (!(gxNorm(it.title).includes(q) || gxNorm(it.artist).includes(q) || gxNorm(it.genre).includes(q) || gxNorm(it.genre2).includes(q))) return false; }
   return true;
 }
 function gxRadius(i) { const it = gx.items[i], v = Number(it.rymVotes) || 0; return 1.5 + Math.min(3.2, Math.log10(1 + v) * 0.9) + ((Number(it.rating) || 0) >= 4.5 ? 0.8 : 0); }
 function gxLabels() {                                                 // a name for each big family, at the middle of its stars
-  const sum = new Map();
-  gx.fams.fam.forEach((f, i) => { const s = sum.get(f) || { x: 0, y: 0, n: 0 }; s.x += gx.pos[2 * i]; s.y += gx.pos[2 * i + 1]; s.n++; sum.set(f, s); });
+  const sum = new Map(), MP = (gx.layout && gx.layout.pos) || gx.pos;          // (the map's places, also while the timeline shows)
+  gx.fams.fam.forEach((f, i) => { const s = sum.get(f) || { x: 0, y: 0, n: 0 }; s.x += MP[2 * i]; s.y += MP[2 * i + 1]; s.n++; sum.set(f, s); });
   gx.labels = gx.fams.order.slice(0, 18).filter(f => sum.get(f).n >= Math.max(3, gx.items.length * 0.008)).map(f => { const s = sum.get(f); return { f, x: s.x / s.n, y: s.y / s.n, n: s.n }; });
-  const ss = new Map(); (gx.fams.sub || []).forEach((f, i) => { const s = ss.get(f) || { x: 0, y: 0, n: 0 }; s.x += gx.pos[2 * i]; s.y += gx.pos[2 * i + 1]; s.n++; ss.set(f, s); });
+  const ss = new Map(); (gx.fams.sub || []).forEach((f, i) => { const s = ss.get(f) || { x: 0, y: 0, n: 0 }; s.x += MP[2 * i]; s.y += MP[2 * i + 1]; s.n++; ss.set(f, s); });
   gx.subLabels = (gx.fams.subOrder || []).slice(0, 36).filter(f => ss.get(f).n >= Math.max(3, gx.items.length * 0.005)).map(f => { const s = ss.get(f); return { f, x: s.x / s.n, y: s.y / s.n, n: s.n, sub: true }; });
 }
 function gxDraw() {
@@ -335,6 +336,7 @@ function gxDraw() {
   const bx = gx.d3 ? gx.rot.yaw * 260 : gx.cam.x * 0.03, by = gx.d3 ? gx.rot.pitch * 260 : gx.cam.y * 0.03;
   gx.stars.forEach(([x, y, s, k]) => { const px = ((x * v.w * 1.3 - bx * k) % v.w + v.w) % v.w, py = ((y * v.h * 1.3 - by * k) % v.h + v.h) % v.h; ctx.fillStyle = `rgba(200,210,235,${0.08 + k * 0.18})`; ctx.fillRect(px, py, s, s); });
   if (!gx.pos || !gx.graph) return;
+  const T = typeof gxtReady === 'function' && gxtReady();          // (1.135.82) the Influence over time view
   if (gx.d3) gxZBuild();
   const N = gx.items.length, sx = new Float32Array(N), sy = new Float32Array(N), ps = new Float32Array(N), lit = new Uint8Array(N), m = 40;
   for (let i = 0; i < N; i++) { const p = gxToScreen(i); sx[i] = p[0]; sy[i] = p[1]; ps[i] = p[2]; lit[i] = gxLit(i) ? 1 : 0; }
@@ -343,21 +345,23 @@ function gxDraw() {
   const fog = (i) => gx.d3 ? Math.max(0.25, Math.min(1, (ps[i] - 0.45) * 1.6)) : 1;
   // links: faint, and only once you are close enough to tell them apart
   const focus = gx.sel >= 0 ? gx.sel : gx.hover;
-  if (z * GX_LEN > 14) {
+  if (T) gxtUnder(ctx, v, sx, sy, on);
+  if (!T && z * GX_LEN > 14) {
     ctx.lineWidth = 1; ctx.strokeStyle = `rgba(170,185,215,${Math.min(0.13, (z * GX_LEN - 14) / 300)})`; ctx.beginPath();
     gx.graph.nbr.forEach((l, i) => { if (!on(i)) return; l.forEach(({ j }) => { if (j > i) { ctx.moveTo(sx[i], sy[i]); ctx.lineTo(sx[j], sy[j]); } }); }); ctx.stroke();
   }
-  if (focus >= 0) { gx.graph.nbr[focus].forEach(({ j, s }) => { ctx.strokeStyle = `rgba(240,194,106,${0.15 + s * 0.6})`; ctx.lineWidth = 0.6 + s * 2; ctx.beginPath(); ctx.moveTo(sx[focus], sy[focus]); ctx.lineTo(sx[j], sy[j]); ctx.stroke(); }); }
+  if (!T && focus >= 0) { gx.graph.nbr[focus].forEach(({ j, s }) => { ctx.strokeStyle = `rgba(240,194,106,${0.15 + s * 0.6})`; ctx.lineWidth = 0.6 + s * 2; ctx.beginPath(); ctx.moveTo(sx[focus], sy[focus]); ctx.lineTo(sx[j], sy[j]); ctx.stroke(); }); }
   // stars
   const sc = Math.max(0.55, Math.min(2.4, Math.sqrt(z) * 1.1)), bold = typeof rymReleaseIsBold === 'function';
   for (let pass = 0; pass < 2; pass++) for (let q = 0; q < N; q++) {
     const i = order ? order[q] : q;
-    if (lit[i] !== pass || !on(i)) continue;                          // the dimmed ones first, so the lit ones sit on top
-    const r = gxRadius(i) * sc * (gx.d3 ? Math.min(2.6, ps[i]) : 1); ctx.globalAlpha = (pass ? 0.95 : 0.13) * fog(i); ctx.fillStyle = gxColor(i);
+    if (lit[i] !== pass || !on(i) || (T && gxtHidden(i))) continue;          // the dimmed ones first, so the lit ones sit on top
+    const r = (T ? gxtRadius(i) : gxRadius(i)) * sc * (gx.d3 ? Math.min(2.6, ps[i]) : 1); ctx.globalAlpha = (pass ? 0.95 : 0.13) * fog(i); ctx.fillStyle = gxColor(i);
     if (r < 1.6) ctx.fillRect(sx[i] - r, sy[i] - r, r * 2, r * 2); else { ctx.beginPath(); ctx.arc(sx[i], sy[i], r, 0, Math.PI * 2); ctx.fill(); }
     if (pass && bold && rymReleaseIsBold(gx.items[i])) { ctx.globalAlpha = 0.55; ctx.strokeStyle = '#F0C26A'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(sx[i], sy[i], r + 2.2, 0, Math.PI * 2); ctx.stroke(); }
   }
   ctx.globalAlpha = 1;
+  if (T) gxtOver(ctx, v, sx, sy);
   // the wormhole: a glowing line with a light running along it
   if (gx.path.length > 1) {
     ctx.save(); ctx.shadowColor = '#F0C26A'; ctx.shadowBlur = 14; ctx.strokeStyle = 'rgba(240,194,106,0.9)'; ctx.lineWidth = 2.4; ctx.lineJoin = 'round';
@@ -373,7 +377,7 @@ function gxDraw() {
   // names: the families from afar; release titles once you are close
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const labs = gx.color === 'sub' ? (gx.subPick ? (gx.subLabels || []).filter(L => L.f === gx.subPick) : gx.subLabels) : gx.labels;
-  if (labs && z * GX_LEN < 60) labs.forEach(L => {
+  if (!T && labs && z * GX_LEN < 60) labs.forEach(L => {
     const P = gxProj(L.x, L.y, gx.d3 ? ((L.sub ? gx.subZ : gx.famZ) || new Map()).get(L.f) || 0 : 0, v); if (!P[2]) return; const x = P[0], y = P[1], fs = Math.max(L.sub ? 10 : 11, Math.min(L.sub ? 18 : 22, (L.sub ? 8 : 9) + Math.sqrt(L.n) * 0.9));
     ctx.font = `${fs}px 'Bebas Neue', Inter, sans-serif`; ctx.fillStyle = L.sub ? gxSubColor(L.f, 0.9) : gx.color === 'family' ? `hsla(${gxHue(L.f)},70%,78%,0.85)` : 'rgba(237,231,220,0.75)';
     ctx.shadowColor = '#000'; ctx.shadowBlur = 6; ctx.fillText(L.f.toUpperCase(), x, y); ctx.shadowBlur = 0;
@@ -387,7 +391,7 @@ function gxDraw() {
 // ----- finding the star under the pointer -----
 function gxNearest(px, py, maxPx) {
   if (!gx.pos) return -1; let best = -1, bd = (maxPx || 14) ** 2;
-  for (let i = 0; i < gx.items.length; i++) { const [x, y] = gxToScreen(i), d = (x - px) ** 2 + (y - py) ** 2; if (d < bd && (gxLit(i) || !gx.find)) { bd = d; best = i; } }
+  for (let i = 0; i < gx.items.length; i++) { if (gx.mode === 'time' && gx.inf && gxtHidden(i)) continue; const [x, y] = gxToScreen(i), d = (x - px) ** 2 + (y - py) ** 2; if (d < bd && (gxLit(i) || !gx.find)) { bd = d; best = i; } }
   return best;
 }
 function gxTip(i, px, py) {
@@ -404,6 +408,7 @@ function gxRow(i, extra) { const it = gx.items[i]; return `<button type="button"
 function gxRenderSide() {
   const side = gxEl('gxSide'), sub = gxEl('gxSub'); if (!side) return;
   if (sub) sub.textContent = gx.graph ? `${gx.items.length.toLocaleString()} releases · ${Math.round(gx.graph.edges).toLocaleString()} links${gx.fams ? ` · ${gx.fams.order.length} families` : ''}` : 'Reading your crate…';
+  if (gx.mode === 'time' && typeof gxtSide === 'function') { side.innerHTML = gxtSide(); return; }          // (1.135.82)
   let h = '';
   if (gx.sel >= 0) {
     const it = gx.items[gx.sel], y = gxYear(it), nb = gx.graph.nbr[gx.sel].slice(0, 7);
@@ -429,13 +434,15 @@ function gxSubKeyHtml() {
 function gxSubPick(name) {
   gx.subPick = gx.subPick === name ? '' : name; gxRenderSide();
   const L = gx.subPick && (gx.subLabels || []).find(x => x.f === gx.subPick);
-  if (L) gxFly({ x: L.x, y: L.y, z: Math.max(gx.cam.z, 0.9) }); else if (gx.subPick) { const i = gx.fams.sub.indexOf(gx.subPick); if (i >= 0) gxFlyTo(i, gx.cam.z); else gxDraw(); } else gxDraw();
+  if (gx.mode === 'time') gxDraw(); else if (L) gxFly({ x: L.x, y: L.y, z: Math.max(gx.cam.z, 0.9) }); else if (gx.subPick) { const i = gx.fams.sub.indexOf(gx.subPick); if (i >= 0) gxFlyTo(i, gx.cam.z); else gxDraw(); } else gxDraw();
 }
-function gxSelect(i, fly) { gx.sel = i; gxRenderSide(); if (fly && i >= 0) gxFlyTo(i); else gxDraw(); }
+function gxSelect(i, fly) { gx.sel = i; if (gx.mode === 'time') { gxtStop(); gxtLineage(i); } gxRenderSide(); if (fly && i >= 0) gxFlyTo(i); else gxDraw(); }
 function gxAct(kind) {
   const it = gx.items[gx.sel];
   if (kind === 'subclear') { gxSubPick(gx.subPick); return; }
   if (kind === '3d') { gxSet3d(!gx.d3); return; }
+  if (kind === 'tplay') { gxtPlay(false); return; }
+  if (kind === 'tplaysel') { gxtPlay(true); return; }
   if (kind === 'spin') { gxSpin(); return; }
   if (kind === 'open' && it) { closeGalaxy(); openDeck(it); }
   else if (kind === 'play' && it) { flashGlobalToast(`Playing “${it.title}”`); playAlbumReplacingQueue(it); }
@@ -471,6 +478,7 @@ function gxFindGo() {                                                 // Enter i
   ov.addEventListener('input', (e) => { if (e.target.id === 'gxFind') { gx.find = gxNorm(e.target.value); gxDraw(); } });
   ov.addEventListener('keydown', (e) => { if (e.target.id === 'gxFind' && e.key === 'Enter') { e.preventDefault(); gxFindGo(); } });
   ov.addEventListener('change', (e) => {
+    if (e.target.id === 'gxMode') { gxSetMode(e.target.value); return; }
     if (e.target.id === 'gxColor') { gx.color = e.target.value; if (gx.color !== 'sub') gx.subPick = ''; if (gx.fams && !gx.subLabels && gx.pos) gxLabels(); gxRenderSide(); gxDraw(); }
     else if (e.target.id === 'gxDecade') { gx.decade = e.target.value; gxDraw(); }
     else if (e.target.id === 'gxOnlyShown') { gx.onlyShown = e.target.checked; gx.key = ''; openGalaxy(); }
