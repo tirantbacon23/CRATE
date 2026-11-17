@@ -190,8 +190,32 @@ document.addEventListener('click', (e) => {
   const pre = b.dataset.rymSearch, v = (id) => ((document.getElementById(pre + id) || {}).value || '').trim();
   const it = { artist: v('Artist') || (pre === 'edit' && activeItem ? activeItem.artist : ''), title: v('Title') || (pre === 'edit' && activeItem ? activeItem.title : '') };
   if (!it.artist && !it.title) { flashGlobalToast('Type the artist or title first.'); return; }
+  rymPick = { mode: pre, row: pre === 'edit' && activeItem ? activeItem.row : null, at: Date.now() };          // (1.135.53) the release you send back fills this form
   window.open(rymSearchUrl(it), '_blank', 'noopener');
+  flashGlobalToast('On Rate Your Music, open the right release and press \u201cSend to CRATE\u201d (or Update) on it: its details and link come back to this form.', { duration: 9000 });
 });
+// (1.135.53) "Search RYM" → pick the release on Rate Your Music → its details and link fill the Edit (or Add) form that asked, for you to check
+// and save. The add-on's "Send to CRATE" / "Update" on the release page sends it; the first one to arrive within 20 minutes is used here
+// rather than added or applied as usual. Fields RYM didn't give are left as they were.
+let rymPick = null;
+function rymPickTake(batches) {
+  if (!rymPick || Date.now() - rymPick.at > 20 * 60000) { rymPick = null; return batches; }
+  const ov = rymPick.mode === 'edit' ? el.editOverlay : el.addOverlay, formOpen = ov && !ov.hidden && (rymPick.mode !== 'edit' || (activeItem && activeItem.row === rymPick.row));
+  if (!formOpen) { rymPick = null; return batches; }
+  const b = batches.filter(x => (x.kind === 'release' || x.kind === 'update') && x.releases && x.releases.length === 1 && (x.t || 0) >= rymPick.at - 5000).sort((x, y) => (y.t || 0) - (x.t || 0))[0];
+  if (!b) return batches;
+  const r = b.releases[0], pre = rymPick.mode, set = (id, v) => { const n = document.getElementById(pre + id); if (n && v != null && String(v) !== '') { n.value = v; n.dispatchEvent(new Event('input', { bubbles: true })); } };
+  set('Artist', r.artist); set('Title', r.title); set('Type', r.type); set('Genre', r.genre); set('Genre2', r.secondaryGenre); set('Label', r.label); set('Catalog', r.catalog);
+  set('RymDescriptors', r.rymDescriptors); set('Scene', r.scene); set('Movement', r.movement); set('RymLink', r.rymLink); set('Cover', r.cover);
+  if (r.releaseDate) setReleaseDateFields(pre, r.releaseDate);
+  if (r.recordedDate && typeof setRecordedDateFields === 'function') setRecordedDateFields(pre, r.recordedDate);
+  if (r.tracks && r.tracks.length >= 2) renderTracklistBuilderRows(pre === 'edit' ? el.editTracksRows : el.addTracksRows, r.tracks.map(t => ({ title: t.title, durationMs: t.durationMs || 0 })));
+  if (pre === 'add' && el.addForm) el.addForm.hidden = false;
+  rymPick = null; rymBatchDone([b.id]);
+  flashGlobalToast(`Filled in from Rate Your Music: \u201c${r.title}\u201d. Check it, then Save.`);
+  if (pre === 'edit' && typeof edCountPaint === 'function') edCountPaint();
+  return batches.filter(x => x !== b);
+}
 
 /* ---- RYM release resolution via Wikidata ----
    RateYourMusic release IDs on Wikidata (P8392) look like

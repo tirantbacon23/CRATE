@@ -683,6 +683,7 @@ function rymCleanOutbox(list) {                                  // untrusted: o
 }
 function rymOutboxArrived(batches) {
   if (typeof rymCreditsArrived === 'function') rymCreditsArrived(batches);          // (1.135.33) the releases' credits, put on them once they're in the crate
+  if (typeof rymPickTake === 'function') batches = rymPickTake(batches);          // (1.135.53) a release picked for an open form goes there
   rymOutState.batches = batches; rymOutState.present = true; rymQIngestAll(); rymAutoImport(); renderRymInbox();          // (the import first: what it takes isn't shown as waiting for you)
   rymOutWaiters.splice(0).forEach(w => { clearTimeout(w.timer); w.resolve(batches); });
 }

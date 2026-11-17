@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.52
+  CURRENT_VERSION: 1.135.53
 
+  1.135.53 — 2026-11-17 — "⌕ Search RYM" in Edit (and Add) release now brings the release back: open the right one from RYM's search and
+          press "Send to CRATE" (or Update) on it, and its details fill the form that asked: artist, title, type, release and
+          recorded dates, genres, label, catalogue no., descriptors, scene, movement, cover, tracklist and the RYM link. Nothing is
+          saved until you press Save; fields RYM didn't give are left as they were. (The first release sent within 20 minutes, while
+          that form is still open, is used this way instead of being added or applied as usual.)
   1.135.52 — 2026-11-17 — ⊞ in the search box goes through three looks in turn: Simple (the suggestions as they always were) → Dropdown with
           online results (your crate and releases to add side by side, covers, refine chips, recent and saved searches; ⊞ turns gold)
           → Detailed panel (⊞ filled) → back to Simple. The same three are in ⚙ Settings → Search looks like, and each look has a
