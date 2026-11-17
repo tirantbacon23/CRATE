@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.110
+  CURRENT_VERSION: 1.135.111
 
+  1.135.111 — 2026-11-18 — Search froze: sorting by listeners (the default) looks up your crate's releases on Last.fm, and a lookup that
+          failed left nothing behind, so the menu drew itself again, asked again and failed again without end; redrawn that often, no
+          click on it landed (and with no network it hung the page). A failed lookup (numbers or a release date) now waits 10 minutes,
+          and redraws from lookups finishing come at most every 250 ms and never while the mouse is held down on the menu.
   1.135.110 — 2026-11-18 — Search online: releases from Last.fm had no release date (it gives none), and the same release from MusicBrainz,
           which has one, was dropped as a duplicate. Now a duplicate fills in what the first lacked (date, catalogue, label, cover, type),
           and any still without a date gets MusicBrainz's first release date, looked up one at a time for the first 24 shown (kept 90 days).

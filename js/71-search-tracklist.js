@@ -350,28 +350,32 @@ srchPopSort = function () {
 // album.getInfo for the releases found online (as before) and, sorting by listeners or plays, your crate's shown releases too: both numbers kept
 srchPopRank = async function (seq, key) {
   const all = srchPopAll(), now = Date.now(), list = srch.online, k = stlSortKey(); list.forEach((r, i) => { r._at = i; });
-  const need = list.filter(r => { const c = all[srchPopK(r)]; if (c && now - c.t < 30 * 864e5 && (k !== 'plays' || c.p != null)) { r.listeners = c.n; if (c.p != null) r.playcount = c.p; return false; } return true; });
-  if (!need.length) { srchPopSort(); ssRender(); return; }
+  const need = list.filter(r => { const c = all[srchPopK(r)]; if (c && now - c.t < 30 * 864e5 && (k !== 'plays' || c.p != null)) { r.listeners = c.n; if (c.p != null) r.playcount = c.p; return false; } return !stlPopCooling(r); });
+  if (!need.length) { srchPopSort(); stlRenderSoon(); return; }
   const r0 = await stlPopFetch(need.map(r => ({ r })), seq);
   if (seq !== srch.seq) return;
   if (r0.failed && !r0.ok) srch.onlineNote = `Last.fm didn't answer (${srchLfErr}): not ranked by listeners`; else if (r0.ok) srchLfErr = '';
-  srchPopSort(); ssRender();
+  srchPopSort(); stlRenderSoon();
 };
+// (1.135.111) A lookup that failed isn't asked again for 10 minutes. Before, a failure left nothing behind, so the search drew itself
+// again, asked again, failed again… without end: the menu was redrawn so often that clicks on it never landed.
+const stlPopFailed = new Map();
+const stlPopCooling = (o) => { const t = stlPopFailed.get(srchPopK(o)); return !!t && Date.now() - t < 10 * 60e3; };
 async function stlPopFetch(xs, seq) {          // xs: [{ r } | { it }]; fills the cache (and r.listeners / r.playcount)
   const all = srchPopAll(), now = Date.now(); let i = 0, ok = 0, failed = 0;
   const one = async () => { while (i < xs.length) { const x = xs[i++], o = x.r || x.it; if (seq != null && seq !== srch.seq) return;
     try { const j = await srchLf({ method: 'album.getinfo', artist: o.artist, album: o.title, autocorrect: '1' }), al = j && j.album, n = al ? Number(al.listeners) || 0 : 0, p = al ? Number(al.playcount) || 0 : 0;
       all[srchPopK(o)] = { n, p, t: now }; ok++; if (x.r) { x.r.listeners = n; x.r.playcount = p; if (!x.r.cover && al && Array.isArray(al.image)) { const im = (al.image.find(z => z.size === 'extralarge') || al.image.slice(-1)[0] || {})['#text']; if (im) x.r.cover = im; } }
-    } catch (e) { if (e && e.lfCode === 6) { all[srchPopK(o)] = { n: 0, p: 0, t: now }; ok++; } else { failed++; srchLfFail(e); } } } };
+    } catch (e) { if (e && e.lfCode === 6) { all[srchPopK(o)] = { n: 0, p: 0, t: now }; ok++; } else { failed++; stlPopFailed.set(srchPopK(o), Date.now()); srchLfFail(e); } } } };
   await Promise.all([one(), one(), one(), one()]); srchPopSave();
   return { ok, failed };
 }
 let stlCrateFetching = false;
 function stlCrateNums(its) {          // your crate's releases shown, sorted by listeners or plays: their numbers looked up once
   const k = stlSortKey(); if ((k !== 'listeners' && k !== 'plays') || stlCrateFetching || !srchLfKey()) return;
-  const all = srchPopAll(), now = Date.now(), need = its.filter(it => { const c = all[srchPopK(it)]; return !(c && now - c.t < 30 * 864e5 && c.p != null); }).slice(0, 40);
+  const all = srchPopAll(), now = Date.now(), need = its.filter(it => { const c = all[srchPopK(it)]; return !(c && now - c.t < 30 * 864e5 && c.p != null) && !stlPopCooling(it); }).slice(0, 40);
   if (!need.length) return;
-  stlCrateFetching = true; stlPopFetch(need.map(it => ({ it }))).then(() => { stlCrateFetching = false; ssRender(); }).catch(() => { stlCrateFetching = false; });
+  stlCrateFetching = true; stlPopFetch(need.map(it => ({ it }))).then((r) => { stlCrateFetching = false; if (r && r.ok) stlRenderSoon(); }).catch(() => { stlCrateFetching = false; });
 }
 // the crate's releases, sorted, before the detailed grid takes its first 18 / 48
 srchDetailItems = function (q) {
@@ -466,7 +470,7 @@ async function stlDatesFill() { stlDatesFill.busy = true; try { await stlDatesFi
 async function stlDatesFillRun() {
   const seq = srch.seq, run = ++stlDatesRun, all = stlDates(), now = Date.now();
   stlDatesApply();
-  const need = srch.online.slice(0, 24).filter(r => !r.date && !(all[srchPopK(r)] && now - all[srchPopK(r)].t < 90 * 864e5));
+  const need = srch.online.slice(0, 24).filter(r => !r.date && !stlDateCooling(r) && !(all[srchPopK(r)] && now - all[srchPopK(r)].t < 90 * 864e5));
   let last = 0;
   for (const r of need) {
     if (seq !== srch.seq || run !== stlDatesRun) return;
@@ -474,18 +478,27 @@ async function stlDatesFillRun() {
     try {
       const q = `releasegroup:"${String(r.title).replace(/"/g, '')}" AND artist:"${String(r.artist).replace(/"/g, '')}"`;
       const res = await mbFetch(`https://musicbrainz.org/ws/2/release-group/?query=${encodeURIComponent(q)}&fmt=json&limit=5`, { headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' }, timeoutMs: 9000, retryBusy: 1 });
-      if (!res.ok) continue;          // (not kept: asked again next time)
+      if (!res.ok) { stlPopFailed.set('d:' + srchPopK(r), Date.now()); continue; }          // (not kept: asked again in 10 minutes)
       const t = stlNorm(r.title), hits = ((await res.json())['release-groups'] || []).filter(h => h['first-release-date']);
       const h = hits.find(x => stlNorm(x.title) === t) || hits.find(x => { const y = stlNorm(x.title); return y && (y.startsWith(t) || t.startsWith(y)); });
       d = h ? h['first-release-date'] : '';
-    } catch (e) { continue; }
+    } catch (e) { stlPopFailed.set('d:' + srchPopK(r), Date.now()); continue; }
     all[srchPopK(r)] = { d, t: now }; if (d) r.date = d;
-    if (Date.now() - last > 700) { last = Date.now(); if (stlSortKey() === 'new' || stlSortKey() === 'old') srchPopSort(); ssRender(); }
+    if (Date.now() - last > 700) { last = Date.now(); if (stlSortKey() === 'new' || stlSortKey() === 'old') srchPopSort(); stlRenderSoon(); }
   }
   const ks = Object.keys(all); if (ks.length > 4000) ks.slice(0, ks.length - 4000).forEach(k => delete all[k]);
   srchLsSet(STL_DATES_KEY, all);
-  if (seq === srch.seq && run === stlDatesRun) { if (stlSortKey() === 'new' || stlSortKey() === 'old') srchPopSort(); ssRender(); }
+  if (seq === srch.seq && run === stlDatesRun) { if (stlSortKey() === 'new' || stlSortKey() === 'old') srchPopSort(); stlRenderSoon(); }
 }
 const stlBasePopSort = srchPopSort;
-function stlDatesNeeded() { const all = stlDates(), now = Date.now(); return srch.online.slice(0, 24).some(r => !r.date && !(all[srchPopK(r)] && now - all[srchPopK(r)].t < 90 * 864e5)); }
+const stlDateCooling = (r) => { const t = stlPopFailed.get('d:' + srchPopK(r)); return !!t && Date.now() - t < 10 * 60e3; };
+function stlDatesNeeded() { const all = stlDates(), now = Date.now(); return srch.online.slice(0, 24).some(r => !r.date && !stlDateCooling(r) && !(all[srchPopK(r)] && now - all[srchPopK(r)].t < 90 * 864e5)); }
 srchPopSort = function () { if (srch.online.some(r => !r.date)) { stlDatesApply(); if (stlDatesNeeded() && !stlDatesFill.busy) stlDatesSoon(); } return stlBasePopSort.apply(this, arguments); };
+
+
+// (1.135.111) Redraws from lookups finishing in the background wait while the mouse is down on the menu (a redraw between press and
+// release swallowed the click) and come at most every 250 ms.
+let stlMouseDown = false, stlRenderT = 0;
+function stlRenderSoon() { clearTimeout(stlRenderT); stlRenderT = setTimeout(() => { if (stlMouseDown) return stlRenderSoon(); ssRender(); }, 250); }
+document.addEventListener('mousedown', (e) => { if (e.target.closest && e.target.closest('#searchSuggest')) stlMouseDown = true; }, true);
+document.addEventListener('mouseup', () => { setTimeout(() => { stlMouseDown = false; }, 0); }, true);
