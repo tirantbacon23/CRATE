@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.130
+  CURRENT_VERSION: 1.135.131
 
+  1.135.131 — 2026-11-18 — Start-up screen: closes when your crate is on screen, the sign-in screen is up, or an error is shown, and not before.
+          The sign-in screen waited under it for 25 s with the bar in the high nineties (it looked stuck); and an empty grid's "your
+          crate is empty", drawn before the crate came, closed it after a second while the crate was still loading.
   1.135.130 — 2026-11-18 — The start-up screen's bar shows how far along it is, with a percentage: CRATE's own files loading (to 40%), your
           crate being fetched and read (to 74%), the releases laid out (to 100%), its words saying which. Between steps it creeps on
           towards the next, slower and slower, so it never sits still but never runs ahead of what's done.
