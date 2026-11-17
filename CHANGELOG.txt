@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.73
+  CURRENT_VERSION: 1.135.74
 
+  1.135.74 — 2026-11-18 — Match songs: Space plays the song you clicked. Clicking a song (or its Spotify or YouTube box) now makes it
+          the one the keys act on; before, only J K moved it, so Space played whichever song was highlighted (the first, often).
+          Space also plays a song's own saved link when it has no new match (a "Kept" song played nothing), and says so when
+          there's nothing to play.
   1.135.73 — 2026-11-18 — Match songs: the Queue table shows each release's cover beside its title, as the list down the left
           of the workbench does. A cover CRATE doesn't have yet is looked up once and fills in when it comes; until then the
           release's drawn placeholder shows instead of a blank square.

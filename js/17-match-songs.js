@@ -1437,7 +1437,7 @@ function bmScorePill(rel, s, kind, c) {
   const tone = c.band === 'confident' ? 'ok' : c.band === 'likely' ? 'work' : 'look';
   return `<button type="button" class="bm-score bm-${tone}" data-bm="why" data-row="${escapeHtml(rel.row)}" data-idx="${s.idx}" data-kind="${kind}" data-id="${escapeHtml(c.id)}" title="Why this score">${c.score}</button>`;
 }
-function bmCellHtml(rel, s, kind) { return `<div class="bm-cellw" data-k="${bmName(kind)}">${bmCellInner(rel, s, kind)}</div>`; }          // labelled with its service, for the narrow layout
+function bmCellHtml(rel, s, kind) { return `<div class="bm-cellw" data-k="${bmName(kind)}" data-kind="${kind}">${bmCellInner(rel, s, kind)}</div>`; }          // labelled with its service, for the narrow layout
 function bmCellInner(rel, s, kind) {
   const c = bmCellOf(rel, s, kind), da = `data-row="${escapeHtml(rel.row)}" data-idx="${s.idx}" data-kind="${kind}"`;
   const br = rel.broken[kind] && rel.broken[kind][s.idx], brNote = br ? `<div class="bm-m bm-warnc">${escapeHtml(br.reason)}</div>` : '';
@@ -1693,6 +1693,14 @@ function bmPreview(rel, s, kind, id) {
   if (kind === 'spotify') showMiniPlayer(`spotify:track:${id}`, beginPlayIntent());
   else openYoutubePlayer(c.link || `https://www.youtube.com/watch?v=${id}`, s.title, [], rel.item);
 }
+// (1.135.74) Space plays the ticked match, else the best one, else the link the song already has (a "Kept" song played nothing)
+function bmPlayCell(rel, s, kind) {
+  const c = bmCellOf(rel, s, kind), id = rel.pick[kind][s.idx] || (c.top && c.top.id);
+  if (id) return bmPreview(rel, s, kind, id);
+  const have = smLinkId(s, kind);
+  if (!have) { flashGlobalToast(`Nothing to play on ${bmName(kind)} for \u201c${s.title}\u201d yet.`); return; }
+  if (kind === 'spotify') showMiniPlayer(`spotify:track:${have}`, beginPlayIntent()); else openYoutubePlayer(s.youtubeLink, s.title, [], rel.item);
+}
 function bmCompare(rel, s, kind) {                                  // the same song on the other service: the ticked match, the best one, or the link you have
   const other = kind === 'spotify' ? 'youtube' : 'spotify', list = (rel[other] && rel[other].byIdx && rel[other].byIdx[s.idx]) || [];
   const c = list.find(x => x.id === rel.pick[other][s.idx]) || list[0];
@@ -1725,6 +1733,10 @@ async function bmResumeSaved() {
 function bmClick(e) {
   const t = e.target.closest('[data-bm]');
   if (bm && bm.relMore && !e.target.closest('.bm-more')) { bm.relMore = false; if (!t) { bmRender(); return; } }          // (1.135.72) a click anywhere else closes the ⋯ menu
+  const songEl = bm && bm.view === 'rel' && e.target.closest('.bm-song');          // (1.135.74) a click on a song makes it the one Space, 1–5, X and W act on
+  if (songEl) { const ci = e.target.closest('[data-kind]'), nf = { idx: +songEl.dataset.idx, kind: ci ? ci.dataset.kind : (bm.focus && bm.focus.kind) || bmShownKinds()[0] };
+    const moved = !bm.focus || bm.focus.idx !== nf.idx || bm.focus.kind !== nf.kind; bm.focus = nf;
+    if (!t && moved) { bmRender(); return; } }
   if (!t || !bm) return; const a = t.dataset.bm, relOf = () => bm.rels.find(r => r.row === t.dataset.row) || bmSelRel();
   if (['setup', 'tick', 'tick-song', 'tick-col', 'tick-song-all', 'inc', 'show', 'pick', 'qsel', 'qsel-all', 'qsort', 'src', 'accept-min', 'thresh', 'pref', 'qsearch', 'rf-text'].includes(a)) return;           // inputs: handled on 'change'
   const idx = t.dataset.idx != null ? +t.dataset.idx : null, kind = t.dataset.kind;
@@ -1850,7 +1862,7 @@ function bmKey(e) {
   else if (k === 'h' || e.key === 'ArrowLeft' || k === 'l' || e.key === 'ArrowRight') { const i = shown.indexOf(f.kind) + (k === 'h' || e.key === 'ArrowLeft' ? -1 : 1); if (shown[i]) bm.focus = { idx: f.idx, kind: shown[i] }; done(); }
   else if (/^[1-5]$/.test(k) && s) { const c = bmCellOf(rel, s, f.kind); const x = c.cands[Number(k) - 1]; if (x) bmSetPick(rel, s.idx, f.kind, x.id, true); done(); }
   else if (k === 'x' && s) { bmSetPick(rel, s.idx, f.kind, '', true); done(); }
-  else if (e.key === ' ' && s) { e.preventDefault(); const c = bmCellOf(rel, s, f.kind), id = rel.pick[f.kind][s.idx] || (c.top && c.top.id); if (id) bmPreview(rel, s, f.kind, id); }
+  else if (e.key === ' ' && s) { e.preventDefault(); bmPlayCell(rel, s, f.kind); }
   else if ((k === 'w' || e.key === 'Enter') && s) { const c = bmCellOf(rel, s, f.kind), id = rel.pick[f.kind][s.idx] || (c.top && c.top.id); bm.why = id && !(bm.why && bm.why.idx === s.idx && bm.why.kind === f.kind) ? { row: rel.row, idx: s.idx, kind: f.kind, id } : null; done(); }
   else if (k === 'a') { e.preventDefault(); if (bmRelPicks(rel)) bmApply([rel], rel.item.title); }
   else if (k === 'o' && s) { e.preventDefault(); bmHide(); if (typeof showSongInCatalogue === 'function') showSongInCatalogue(rel.item, s.title, s.trackNum); else openDeck(rel.item); }          // (1.135.71) the song (and its release) in the catalogue
