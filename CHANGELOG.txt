@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.93
+  CURRENT_VERSION: 1.135.94
 
+  1.135.94 — 2026-11-18 — Search online: Last.fm works for it. Search read your Last.fm key without trimming it, as everything else in
+          CRATE does, so a key saved with a space or line break worked for scrobbles and sync but not here: no Last.fm genre lists,
+          no listener counts, only MusicBrainz. And when Last.fm doesn't answer now, the online section says why ("Last.fm didn't
+          answer (…)", also in the browser console) instead of quietly showing MusicBrainz alone; the releases are then ranked by
+          editions. An album Last.fm doesn't know counts as no listeners rather than a failure.
   1.135.93 — 2026-11-18 — Fixes:
           · Search pills: the box's own text always shows now (the pills are tinted shapes behind it), and the search icon and
             buttons always sit on top; in some setups the box drew over them and the pills, and the text looked half gone. The box

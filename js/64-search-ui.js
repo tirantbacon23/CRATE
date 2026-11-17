@@ -58,6 +58,17 @@ function srchJump(j) {
 }
 
 // ----- online: releases you don't have -----
+// (1.135.94) Last.fm for search: the key trimmed (as the rest of CRATE reads it: a key saved with a space or line break worked everywhere
+// but here), and a failure kept with its reason, shown in the online section and in the console.
+function srchLfKey() { return typeof loadLastfmCreds === 'function' ? String((loadLastfmCreds() || {}).apiKey || '').trim() : ''; }
+let srchLfErr = '';
+async function srchLf(params) {
+  const res = await fetch('https://ws.audioscrobbler.com/2.0/?' + new URLSearchParams(Object.assign({ api_key: srchLfKey(), format: 'json' }, params)));
+  let j = null; try { j = await res.json(); } catch (e) { /* not JSON */ }
+  if (!res.ok || !j || j.error) { const why = (j && j.message) || `HTTP ${res.status}`; const err = new Error(why); err.lfCode = j && j.error; throw err; }
+  return j;
+}
+function srchLfFail(e) { const m = String((e && e.message) || e || 'no answer'); if (srchLfErr !== m) console.warn('CRATE search: Last.fm', m); srchLfErr = m; }
 // (1.135.88) The genres asked for (genre:indie rock, as one phrase) and the plain words, as the crate's own search reads them
 function srchParts(raw) {
   let terms = []; try { terms = mergeGenrePhrases(tokenizeSearchQuery(String(raw || '').toLowerCase())); } catch (e) { terms = []; }
@@ -69,13 +80,11 @@ function srchParts(raw) {
 // albums tagged with it; the plain words, when there are some, narrow both.
 async function srchGenreOnline(genres, text) {
   const out = [], g = genres[0], words = smFold(text).split(' ').filter(Boolean), fits = (r) => !words.length || words.every(w => smFold(r.artist + ' ' + r.title).includes(w));
-  const creds = typeof loadLastfmCreds === 'function' ? loadLastfmCreds() : {};
-  const lf = creds.apiKey ? (async () => {
-    const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=tag.gettopalbums&tag=${encodeURIComponent(g)}&api_key=${encodeURIComponent(creds.apiKey)}&format=json&limit=40`);
-    const j = await res.json(); if (j.error) throw new Error(j.message || 'Last.fm');
+  const lf = srchLfKey() ? (async () => {
+    const j = await srchLf({ method: 'tag.gettopalbums', tag: g, limit: '40' }); srchLfErr = '';
     return (((j.albums || {}).album) || []).map(a => ({ src: 'lf', title: a.name || '', artist: (a.artist && (a.artist.name || a.artist['#text'])) || '', date: '', type: 'Album', genre: genres.join(', '),
       cover: ((a.image || []).find(i => i.size === 'extralarge') || (a.image || []).slice(-1)[0] || {})['#text'] || '' })).filter(r => r.title && r.artist && fits(r));
-  })().catch(() => null) : Promise.resolve(null);
+  })().catch((e) => { srchLfFail(e); return null; }) : Promise.resolve(null);
   const mbq = genres.map(x => `tag:"${x.replace(/"/g, '')}"`).join(' AND ') + ' AND primarytype:album' + (text ? ` AND (${text.replace(/[()"]/g, ' ')})` : '');
   const mb = mbFetch(`https://musicbrainz.org/ws/2/release-group/?query=${encodeURIComponent(mbq)}&fmt=json&limit=25`, { headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' }, timeoutMs: 9000, retryBusy: 1 })
     .then(async res => { if (!res.ok) throw new Error('HTTP ' + res.status); return ((await res.json())['release-groups'] || []).map(h => ({ src: 'mbg', title: h.title || '', artist: (h['artist-credit'] || []).map(a => a.name + (a.joinphrase || '')).join(''), date: h['first-release-date'] || '', type: h['primary-type'] || 'Album', genre: genres.join(', '), cover: h.id ? `https://coverartarchive.org/release-group/${h.id}/front-250` : '', editions: Number(h.count) || (h.releases || []).length || 0 })); })
@@ -105,7 +114,8 @@ function srchOnlineSearch() {
       if (v === 'exact' || v === 'edition') { owned++; if (hide) return; r.owned = true; } out.push(r); }); });
     srch.online = out.slice(0, 30); srch.onlineState = failed === lists.length ? 'error' : 'done';
     srch.onlineNote = srch.onlineState === 'error' ? 'No source answered.' : !out.length ? 'Nothing more found online.' : owned ? `${owned} you have left out` : '';
-    const lfKey = typeof loadLastfmCreds === 'function' ? (loadLastfmCreds() || {}).apiKey : '';
+    const lfKey = srchLfKey();
+    if (lfKey && parts.genres.length && srchLfErr) srch.onlineNote = `Last.fm didn't answer (${srchLfErr})`;
     if (!lfKey && out.length) { srch.onlineNote = (srch.onlineNote ? srch.onlineNote + ' · ' : '') + 'No Last.fm key in this browser (⚙ › Last.fm): ranked by editions on MusicBrainz'; srchPopSort(); }
     ssRender();
     if (lfKey && out.length) srchPopRank(seq, lfKey);
@@ -175,6 +185,7 @@ function srchEmptyHtml() {
 function srchOnlineStatus() {
   const pp = srchParts(el.searchInput.value);
   if (!pp.genres.length && (!srchFreeText(el.searchInput.value) || srchFreeText(el.searchInput.value).length < 3)) return 'Type an artist or album to look online.';
+  if (pp.genres.length && srch.onlineState === 'done' && srchLfErr && srchLfKey()) return `Last.fm didn't answer (${srchLfErr}): only MusicBrainz here.`;
   if (pp.genres.length && srch.onlineState === 'done' && !srch.onlineNote) return `Releases tagged ${pp.genres.join(' + ')}${typeof loadLastfmCreds === 'function' && (loadLastfmCreds() || {}).apiKey ? ', most played on Last.fm first' : ''}.`;
   if (srch.onlineState === 'loading') return 'Looking…';
   if (srch.onlineState === 'error') return 'No source answered.';
@@ -366,12 +377,12 @@ async function srchPopRank(seq, key) {
   const all = srchPopAll(), now = Date.now(), list = srch.online; list.forEach((r, i) => { r._at = i; });
   const need = list.filter(r => { const c = all[srchPopK(r)]; if (c && now - c.t < 30 * 864e5) { r.listeners = c.n; return false; } return true; });
   if (!need.length) { srchPopSort(); ssRender(); return; }
-  let i = 0; const one = async () => { while (i < need.length) { const r = need[i++]; if (seq !== srch.seq) return;
-    try { const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=album.getinfo&artist=${encodeURIComponent(r.artist)}&album=${encodeURIComponent(r.title)}&autocorrect=1&api_key=${encodeURIComponent(key)}&format=json`);
-      const j = await res.json(), n = j && j.album ? Number(j.album.listeners) || 0 : 0; r.listeners = n; all[srchPopK(r)] = { n, t: now };
+  let i = 0, ok = 0, failed = 0; const one = async () => { while (i < need.length) { const r = need[i++]; if (seq !== srch.seq) return;
+    try { const j = await srchLf({ method: 'album.getinfo', artist: r.artist, album: r.title, autocorrect: '1' }), n = j && j.album ? Number(j.album.listeners) || 0 : 0; r.listeners = n; all[srchPopK(r)] = { n, t: now }; ok++;
       if (!r.cover && j && j.album && Array.isArray(j.album.image)) { const im = (j.album.image.find(x => x.size === 'extralarge') || j.album.image.slice(-1)[0] || {})['#text']; if (im) r.cover = im; }
-    } catch (e) { /* unknown: stays where it was found */ } } };
+    } catch (e) { if (e && e.lfCode === 6) { r.listeners = 0; all[srchPopK(r)] = { n: 0, t: now }; ok++; } else { failed++; srchLfFail(e); } } } };          // (6: Last.fm doesn't know the album: none)
   await Promise.all([one(), one(), one(), one()]); if (seq !== srch.seq) return;
+  if (failed && !ok) srch.onlineNote = `Last.fm didn't answer (${srchLfErr}): not ranked by listeners`; else if (ok) srchLfErr = '';
   srchPopSave(); srchPopSort(); ssRender();
 }
 function srchPopFmt(n, r) { if (!n && r && r.editions > 1) return `${r.editions} editions`; return !n ? '' : n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'm listeners' : n >= 1e3 ? Math.round(n / 1e3) + 'k listeners' : n + ' listeners'; }
