@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.80
+  CURRENT_VERSION: 1.135.81
 
+  1.135.81 — 2026-11-18 — Match songs › ⚙ Preferences: "Find both on YouTube". On, a release with no YouTube playlist gets each song's
+          own video AND a full-release video: when the full video is found first, every song is still searched on its own (its own
+          video goes ahead, its part of the full video stays as a choice behind it); when the songs are searched first and all found,
+          a full video is still looked for. The full video is then kept with the release as its full-album video when you apply.
+          One more YouTube search per release; off by default.
   1.135.80 — 2026-11-18 — Crate Galaxy in 3D: the "3D" button beside Surprise me. Each star gets a depth worked out from the same
           links (a release sits at the depth of what it shares the most with, each family round a depth of its own, crowded stars
           pushed apart), drawn in perspective with the far stars smaller and fainter. Drag to turn the galaxy, shift-drag or the right

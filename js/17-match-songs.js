@@ -238,7 +238,7 @@ function smIsoDuration(iso) {           // YouTube's "PT1H2M3S" -> milliseconds
 // applies to every match worked out after it.
 const smNet = { spotify: 0, spotify429: 0, youtube: 0, ytApi: 0 };          // requests made since the page opened, for the matcher's analytics (counted where they are made)
 const SM_PREFS_KEY = 'crate_match_prefs_v1';
-const SM_PREFS_DEFAULT = { spotifyLookup: true, confident: 85, lenTol: 'normal', edition: 'any', versionPenalty: true, topicBonus: true, channels: {}, rejected: [], remindCheck: true, queueNew: true, autoMatchNew: true, ytOrder: 'full', lastCheck: 0 };          // (1.135.8) ytOrder: 'full' a full-release video before songs one by one, 'songs' the other way round
+const SM_PREFS_DEFAULT = { spotifyLookup: true, confident: 85, lenTol: 'normal', edition: 'any', versionPenalty: true, topicBonus: true, channels: {}, rejected: [], remindCheck: true, queueNew: true, autoMatchNew: true, ytOrder: 'full', ytBoth: false, lastCheck: 0 };          // (1.135.8) ytOrder: 'full' a full-release video before songs one by one, 'songs' the other way round
 let smPrefsCache = null;
 function smPrefs() {
   if (smPrefsCache) return smPrefsCache;
@@ -890,6 +890,17 @@ function bmSongBySongKey(rel) {
   const had = !!(rel.youtube && rel.youtube.fullVideo);
   bmSearchRestAsked(rel); flashGlobalToast(had ? 'Full-release video set aside: searching YouTube song by song\u2026' : 'Searching YouTube song by song for the songs without a match\u2026');
 }
+// (1.135.81) "Find both", when the full-release video was found first: each song is still searched on its own; a song's own video found
+// goes ahead of its part of the full video (which stays as a choice), and the full video is kept with the release when you apply.
+async function bmSongsBesideFullVideo(rel) {
+  const y = rel.youtube; if (!y || !rel.songs) return;
+  const idxs = rel.songs.filter(s => !relHas(rel, s, 'youtube')).map(s => s.idx).slice(0, 40); if (!idxs.length) return;
+  y.searching = true; bmRedraw();
+  try { await smYoutubeSearchSongs(rel.item, rel.songs, idxs, (idx, top) => { if (!top.length) return; const parts = (y.byIdx[idx] || []).filter(c => c.source === 'fullvideo'), seen = new Set(top.map(c => c.id));
+      y.byIdx[idx] = top.concat(parts.filter(c => !seen.has(c.id))); if (rel.pick.youtube[idx] && parts.some(c => c.id === rel.pick.youtube[idx]) && !(rel.touched.youtube && rel.touched.youtube[idx])) delete rel.pick.youtube[idx];
+      bmFilterRejected(y, 'youtube'); bmSetPicks(rel, 'youtube'); bmRedraw(); }); }
+  finally { delete y.searching; bmRedraw(); }
+}
 function bmSearchRestAsked(rel) {                                    // the same, when you asked for it: a failure is said (a run's lane handles its own)
   if (!rel) return; bmFullVideoAside(rel); bmSearchRest(rel).catch(e => { const m = ytUseAddon() ? ytAddonErrText(e) : String((e && e.message) || e); rel.err.youtube = m; flashGlobalToast(/^quota$/.test(m) ? 'Today’s YouTube quota is used up: song-by-song search works again tomorrow (or through the YouTube add-on).' : m); bmRedraw(); });
 }
@@ -1035,7 +1046,10 @@ async function bmRunLane(kind) {
           } else {
             if (wantFull()) { try { fullVid = await bmFindFullVideo(rel) && rel.youtube.fullVideo.confident; } catch (e) { /* the song-by-song search below still runs */ } }
             if (kind === 'youtube' && !fullVid && bmYtSongsOn(b) && b.songsMode !== 'check') await songByS();
+            else if (kind === 'youtube' && fullVid && smPrefs().ytBoth && bmYtSongsOn(b) && b.songsMode !== 'check') { try { await bmSongsBesideFullVideo(rel); } catch (e) { rel.err.youtube = ytAddonErrText(e); if (/daily|quota|too many requests/i.test(String(e && e.message))) throw e; } }
           }
+          // (1.135.81) "Find both": every song's own video found, and still a full-release video for the release itself
+          if (kind === 'youtube' && songsFirst && smPrefs().ytBoth && b.songsMode !== 'check' && rel.youtube && !rel.youtube.fullVideo && !rel.youtube.fullVideoAside && !rel.youtube.fullNone && !rel.item.fullVideo && (ytUseAddon() || bmYtSongsOn(b))) { try { await bmFindFullVideo(rel, true); } catch (e) { /* the songs' own stay */ } }
           if (b.mode === 'auto') bmApplyRel(rel, kind);
         }
       } catch (e) {
@@ -1674,6 +1688,7 @@ function bmPrefsHtml() {
       <div class="bm-opt"><span class="bm-opt-t">Confident from<small>A match this good is ticked for you. Lower ticks more; higher asks you about more.</small></span><input type="range" min="60" max="98" step="1" value="${p.confident}" data-bm="pref" data-k="confident" aria-label="Confident from"><b class="bm-m" data-thresh-out>${p.confident}</b></div>
       <div class="bm-opt"><span class="bm-opt-t">Length tolerance<small>How far a recording’s length may be from yours before it counts against it.</small></span>${sel('lenTol', p.lenTol, [['strict', 'Strict'], ['normal', 'Normal'], ['loose', 'Loose']])}</div>
       <div class="bm-opt"><span class="bm-opt-t">On YouTube, look first for<small>When a release has no YouTube playlist. The other is still tried for whatever the first doesn’t find.</small></span>${sel('ytOrder', p.ytOrder, [['full', 'A full-release video'], ['songs', 'Each song’s own video']])}</div>
+      ${chk('ytBoth', 'Find both on YouTube', 'each song’s own video, and a full-release video kept with the release (one more search per release)')}
       <div class="bm-opt"><span class="bm-opt-t">Edition<small>Between equally good editions of an album.</small></span>${sel('edition', p.edition, [['any', 'No preference'], ['original', 'Prefer the original'], ['remaster', 'Prefer remastered or deluxe']])}</div>
       ${chk('versionPenalty', 'Mark down live, remix, cover, sped-up and similar versions', 'unless your song’s own title says it is one')}${chk('topicBonus', 'Prefer the artist’s “- Topic” channel on YouTube')}</div></section>
     <section><div class="bm-label">Services</div><div class="bm-opts">${chk('spotifyLookup', 'Look songs up on Spotify', 'Off: Match songs and the matching of new releases use YouTube only. You can still tick Spotify for one run on the Start screen.')}</div>
