@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.75
+  CURRENT_VERSION: 1.135.76
 
+  1.135.76 — 2026-11-18 — Match songs: R re-runs the release (looks it up again from scratch; it asks first when it has ticks not
+          applied yet), and V switches YouTube to individual videos: the full-release video is set aside (still in the YouTube
+          menu to take back) and each song is searched on its own. Both are in the ⋯ menu with their keys, and in the key hints.
+          New preference, Match songs › ⚙ › Services: "Look songs up on Spotify". Off, runs start with Spotify unticked, the
+          matching of new releases uses YouTube only, and the Add form and the add-a-release matcher don't search Spotify. A run
+          can still be given Spotify on the Start screen.
   1.135.75 — 2026-11-18 — Match songs: sort the releases by "Most to check" (the most songs still wanting a look, on either
           service) or "Biggest % to check" (the largest share of the release), beside the find box down the left and in the Queue
           table's sort. Each release in the list says how many of its songs want a look ("5/8 to check", with the % when sorting

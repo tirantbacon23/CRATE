@@ -238,7 +238,7 @@ function smIsoDuration(iso) {           // YouTube's "PT1H2M3S" -> milliseconds
 // applies to every match worked out after it.
 const smNet = { spotify: 0, spotify429: 0, youtube: 0, ytApi: 0 };          // requests made since the page opened, for the matcher's analytics (counted where they are made)
 const SM_PREFS_KEY = 'crate_match_prefs_v1';
-const SM_PREFS_DEFAULT = { confident: 85, lenTol: 'normal', edition: 'any', versionPenalty: true, topicBonus: true, channels: {}, rejected: [], remindCheck: true, queueNew: true, autoMatchNew: true, ytOrder: 'full', lastCheck: 0 };          // (1.135.8) ytOrder: 'full' a full-release video before songs one by one, 'songs' the other way round
+const SM_PREFS_DEFAULT = { spotifyLookup: true, confident: 85, lenTol: 'normal', edition: 'any', versionPenalty: true, topicBonus: true, channels: {}, rejected: [], remindCheck: true, queueNew: true, autoMatchNew: true, ytOrder: 'full', lastCheck: 0 };          // (1.135.8) ytOrder: 'full' a full-release video before songs one by one, 'songs' the other way round
 let smPrefsCache = null;
 function smPrefs() {
   if (smPrefsCache) return smPrefsCache;
@@ -617,7 +617,7 @@ function bmOpen(opts) {
   bm = { view: 'start', started: false, hidden: false, one: !!opts.one,
     sets: { ticked, view: opts.view || [], genre: opts.genre || null },
     scope: opts.nolinks ? 'nolinks' : opts.queue ? 'queue' : opts.genre ? 'genre' : ticked ? 'ticked' : 'view',
-    songsMode: opts.check ? 'check' : 'gaps', skipLinked: true, rf: bmRf0(), rels: [], svc: { spotify: true, youtube: ytUseAddon() || !!loadYoutubeApiKey() }, show: { spotify: true, youtube: true },
+    songsMode: opts.check ? 'check' : 'gaps', skipLinked: true, rf: bmRf0(), rels: [], svc: { spotify: smPrefs().spotifyLookup !== false, youtube: ytUseAddon() || !!loadYoutubeApiKey() }, show: { spotify: true, youtube: true },
     ytSongs: ytUseAddon(), mode: 'review', filter: 'all', qfilter: 'all', qsearch: '', qsort: (() => { try { return localStorage.getItem('crate_bm_qsort_v1') || 'look'; } catch (e) { return 'look'; } })(), qsel: new Set(), sel: '', focus: null, open: null, why: null, pasteFor: null, diffOpen: false, anaScope: 'run',
     par: bmParLoad(), paused: false, stopped: false, running: false, lanes: { spotify: { s: 'idle', msg: '' }, youtube: { s: 'idle', msg: '' } }, saved: 0, chain: Promise.resolve(), histId: null,
     health: { spotify: 'checking', test: 'idle' }, savedRun: null, label: '' };
@@ -777,7 +777,7 @@ function bmAutoRun() {
   if (all.length < bmAuto.pending.length && bmAuto.tries < 3) { later(10000); return; }          // the rest may not have reached the list yet
   const held = new Set(all.filter(it => rymAddHolding(it) || afPending(it)).map(it => mqKey(it.artist, it.title))), found = all.filter(it => !held.has(mqKey(it.artist, it.title)));          // (still to be updated from Rate Your Music, or its blanks filled: matched after that)
   bmAuto.pending = bmAuto.pending.filter(e => !byKey.has(e.k) || held.has(e.k));
-  const svc = { spotify: !!(loadSpotifyCreds() || {}).clientId, youtube: ytUseAddon() }, kinds = ['spotify', 'youtube'].filter(k => svc[k]);
+  const svc = { spotify: smPrefs().spotifyLookup !== false && !!(loadSpotifyCreds() || {}).clientId, youtube: ytUseAddon() }, kinds = ['spotify', 'youtube'].filter(k => svc[k]);
   bmAuto.noSvc = !kinds.length; if (typeof jobsRefresh === 'function') jobsRefresh();
   if (!kinds.length) { bmAuto.pending = []; return; }          // nothing to match with: they wait in the match queue, and Processing says why
   const done = found.filter(it => bmFullyLinked(it, kinds)); if (done.length) mqRemove(done);          // (1.126.0) every song already linked: nothing to wait for (it stayed "Queued · match" before)
@@ -876,6 +876,19 @@ async function bmSearchRest(rel) {                                  // YouTube, 
   rel.youtube.searching = true; bmRedraw();
   try { await smYoutubeSearchSongs(rel.item, rel.songs, idxs, (idx, top) => { if (top.length) rel.youtube.byIdx[idx] = top; bmFilterRejected(rel.youtube, 'youtube'); bmSetPicks(rel, 'youtube'); bmRedraw(); }); }
   finally { delete rel.youtube.searching; bmRedraw(); }
+}
+// (1.135.76) R and V. Re-running drops this release's ticks, so it asks first when there are any.
+function bmRerunAsked(rel) {
+  if (!rel) return; const n = bmRelPicks(rel);
+  if (n && !confirm(`Look \u201c${rel.item.title}\u201d up again from scratch? Its ${bmPl(n, 'ticked link')} not applied yet will be dropped.`)) return;
+  bmRerun([rel]); flashGlobalToast(`Looking \u201c${rel.item.title}\u201d up again\u2026`);
+}
+function bmSongBySongKey(rel) {
+  if (!rel || !bmShownKinds().includes('youtube')) return;
+  if (rel.st.youtube !== 'done' || !rel.songs) { flashGlobalToast('YouTube is still looking this release up: try again when it\u2019s done.'); return; }
+  if (rel.youtube && rel.youtube.searching) { flashGlobalToast('Already searching YouTube song by song\u2026'); return; }
+  const had = !!(rel.youtube && rel.youtube.fullVideo);
+  bmSearchRestAsked(rel); flashGlobalToast(had ? 'Full-release video set aside: searching YouTube song by song\u2026' : 'Searching YouTube song by song for the songs without a match\u2026');
 }
 function bmSearchRestAsked(rel) {                                    // the same, when you asked for it: a failure is said (a run's lane handles its own)
   if (!rel) return; bmFullVideoAside(rel); bmSearchRest(rel).catch(e => { const m = ytUseAddon() ? ytAddonErrText(e) : String((e && e.message) || e); rel.err.youtube = m; flashGlobalToast(/^quota$/.test(m) ? 'Today’s YouTube quota is used up: song-by-song search works again tomorrow (or through the YouTube add-on).' : m); bmRedraw(); });
@@ -1544,12 +1557,12 @@ function bmRelHtml() {
   const undo = bmHistAll().some(h => !h.undone && h.n);
   // (1.135.72) the tools used now and then wait under ⋯, so the release reads first
   const more = bm.relMore ? `<div class="bm-more-pop" role="menu">
-      <button type="button" role="menuitem" data-bm="rel-rerun">Re-run this release</button><button type="button" role="menuitem" data-bm="rel-skip">${rel.include ? 'Skip this release' : 'Include this release'}</button><button type="button" role="menuitem" data-bm="rel-edit">Edit tracks…</button><hr>
+      <button type="button" role="menuitem" data-bm="rel-rerun">Re-run this release <kbd>R</kbd></button>${rel.youtube && rel.youtube.fullVideo ? '<button type="button" role="menuitem" data-bm="yt-rest">Individual videos instead of the full one <kbd>V</kbd></button>' : ''}<button type="button" role="menuitem" data-bm="rel-skip">${rel.include ? 'Skip this release' : 'Include this release'}</button><button type="button" role="menuitem" data-bm="rel-edit">Edit tracks…</button><hr>
       <div class="bm-more-row"><button type="button" role="menuitem" data-bm="rule-accept">Tick every match above</button><select data-bm="accept-min" aria-label="Tick every match above this score">${[60, 65, 70, 75, 80].map(v => `<option${(bm.acceptMin || 75) === v ? ' selected' : ''}>${v}</option>`).join('')}</select></div>
       <button type="button" role="menuitem" data-bm="rule-unlive">Untick live and remixes</button><button type="button" role="menuitem" data-bm="rule-untick">Untick all</button>${ytRest ? `<button type="button" role="menuitem" data-bm="yt-rest"${rel.youtube.searching ? ' disabled' : ''}>${rel.youtube.searching ? 'Searching YouTube…' : 'Search YouTube for the rest'}</button>` : ''}${undo ? '<hr><button type="button" role="menuitem" data-bm="undo-last">Undo the last apply</button>' : ''}</div>` : '';
   const head = `<div class="bm-rel-head">${bmCoverHtml(it, 'bm-rel-c')}<div class="bm-ct"><div class="bm-rt">${escapeHtml(it.title)}${rel.include ? '' : ' <span class="bm-chip bm-wait">skipped</span>'}</div><div class="bm-dim">${escapeHtml(it.artist)}${year ? ` · ${year}` : ''} · ${rel.songs ? bmPl(rel.songs.length, 'song') : '…'}${fits ? ` · ${fits}` : ''}</div></div>
     <span class="bm-foot-r bm-right"><span class="bm-nav"><button type="button" class="chip-btn bm-sm" data-bm="nav" data-d="-1"${i > 0 ? '' : ' disabled'} aria-label="Previous release" title="Previous release ( [ )">‹</button><span class="bm-m">${i + 1} of ${bm.rels.length}</span><button type="button" class="chip-btn bm-sm" data-bm="nav" data-d="1"${i < bm.rels.length - 1 ? '' : ' disabled'} aria-label="Next release" title="Next release ( ] )">›</button></span><button type="button" class="chip-btn" data-bm="rel-open" title="Open this release in CRATE (Match songs keeps working behind it)">Open release</button><span class="bm-more"><button type="button" class="chip-btn bm-ico${bm.relMore ? ' on' : ''}" data-bm="rel-more" aria-haspopup="menu" aria-expanded="${!!bm.relMore}" aria-label="More for this release" title="More for this release">⋯</button>${more}</span>${n ? `<button type="button" class="config-btn" data-bm="rel-apply">Apply ${bmPl(n, 'link')}</button>` : ''}</span></div>`;
-  const keys = `<div class="bm-keys bm-m"><kbd>J</kbd><kbd>K</kbd> song · <kbd>H</kbd><kbd>L</kbd> service · <kbd>1</kbd>–<kbd>5</kbd> pick · <kbd>X</kbd> none · <kbd>Space</kbd> play · <kbd>W</kbd> why · <kbd>A</kbd> apply · <kbd>O</kbd> open song · <kbd>N</kbd> next to check · <kbd>[</kbd><kbd>]</kbd> release</div>`;
+  const keys = `<div class="bm-keys bm-m"><kbd>J</kbd><kbd>K</kbd> song · <kbd>H</kbd><kbd>L</kbd> service · <kbd>1</kbd>–<kbd>5</kbd> pick · <kbd>X</kbd> none · <kbd>Space</kbd> play · <kbd>W</kbd> why · <kbd>A</kbd> apply · <kbd>R</kbd> re-run · <kbd>V</kbd> YouTube song by song · <kbd>O</kbd> open song · <kbd>N</kbd> next to check · <kbd>[</kbd><kbd>]</kbd> release</div>`;
   if (!rel.songs && (shown.some(k => rel.st[k] === 'work' || rel.st[k] === 'wait'))) return `${head}<div class="bm-body bm-pad bm-dim">Waiting for this release…</div>`;
   if (rel.songs && !rel.songs.length) return `${head}<div class="bm-body bm-pad"><p>This release has no tracklist yet, so there is nothing to match.</p><button type="button" class="config-btn" data-bm="rel-edit">Add its tracks…</button></div>`;
   const panels = `<div class="bm-panels">${shown.map(k => bmSourcePanel(rel, k)).join('')}</div>`;
@@ -1650,7 +1663,8 @@ function bmPrefsHtml() {
       <div class="bm-opt"><span class="bm-opt-t">On YouTube, look first for<small>When a release has no YouTube playlist. The other is still tried for whatever the first doesn’t find.</small></span>${sel('ytOrder', p.ytOrder, [['full', 'A full-release video'], ['songs', 'Each song’s own video']])}</div>
       <div class="bm-opt"><span class="bm-opt-t">Edition<small>Between equally good editions of an album.</small></span>${sel('edition', p.edition, [['any', 'No preference'], ['original', 'Prefer the original'], ['remaster', 'Prefer remastered or deluxe']])}</div>
       ${chk('versionPenalty', 'Mark down live, remix, cover, sped-up and similar versions', 'unless your song’s own title says it is one')}${chk('topicBonus', 'Prefer the artist’s “- Topic” channel on YouTube')}</div></section>
-    <section><div class="bm-label">Queue and reminders</div><div class="bm-opts">${chk('autoMatchNew', 'Match new releases by themselves', 'in the background, as they are added: confident matches are saved, the rest wait here for you (Processing shows them)')}${chk('queueNew', 'Put new releases in the match queue', 'whatever adds them: the Add form, Rate Your Music, an import')}${chk('remindCheck', 'Remind me to check my saved links once a month', p.lastCheck ? `last checked ${bmAgo(p.lastCheck)}` : 'not checked yet')}</div>
+    <section><div class="bm-label">Services</div><div class="bm-opts">${chk('spotifyLookup', 'Look songs up on Spotify', 'Off: Match songs and the matching of new releases use YouTube only. You can still tick Spotify for one run on the Start screen.')}</div>
+    <div class="bm-label" style="margin-top:16px">Queue and reminders</div><div class="bm-opts">${chk('autoMatchNew', 'Match new releases by themselves', 'in the background, as they are added: confident matches are saved, the rest wait here for you (Processing shows them)')}${chk('queueNew', 'Put new releases in the match queue', 'whatever adds them: the Add form, Rate Your Music, an import')}${chk('remindCheck', 'Remind me to check my saved links once a month', p.lastCheck ? `last checked ${bmAgo(p.lastCheck)}` : 'not checked yet')}</div>
       <div class="bm-label" style="margin-top:16px">What CRATE has learned</div><div class="bm-opts">
       <div class="bm-opt"><span class="bm-opt-t">${bmPl(p.rejected.length, 'candidate')} you said never to offer again</span>${p.rejected.length ? '<button type="button" class="chip-btn bm-sm" data-bm="forget-rejected">Forget them</button>' : ''}</div>
       ${ch.length ? ch.map(([a, c]) => `<div class="bm-opt"><span class="bm-opt-t">${escapeHtml(a)}<small>prefers the YouTube channel “${escapeHtml(c)}”</small></span><button type="button" class="chip-btn bm-sm" data-bm="forget-channel" data-k="${escapeHtml(a)}">Forget</button></div>`).join('') : '<p class="bm-dim">When you choose a different YouTube channel for an artist, it is preferred for that artist from then on.</p>'}</div></section></div></div>`;
@@ -1776,7 +1790,7 @@ function bmClick(e) {
   else if (a === 'export-csv') bmExportCsv();
   else if (a === 'mq-add') { const items = mqItems().filter(it => !bm.rels.some(r => r.item === it)); items.forEach(it => { const r = bmMk(it); ['spotify', 'youtube'].filter(k => !bm.svc[k]).forEach(k => { r.st[k] = 'skip'; r.err[k] = 'Not run'; }); bm.rels.push(r); }); mqRemove(mqItems()); bmKickLanes(); flashGlobalToast(`Added ${bmPl(items.length, 'release')} to this run.`); bmRedraw(); }
   else if (a === 'nav') { const i = bm.rels.indexOf(bmSelRel()) + Number(t.dataset.d); if (bm.rels[i]) bmGoRel(bm.rels[i]); }
-  else if (a === 'rel-rerun') bmRerun([bmSelRel()]);
+  else if (a === 'rel-rerun') bmRerunAsked(bmSelRel());
   else if (a === 'rel-open') { const rel = bmSelRel(); if (rel && rel.item) { bmHide(); switchTab('albums'); openDeck(rel.item); } }          // (1.135.71) the release, and its song, opened from here
   else if (a === 'song-open') { const rel = bm.rels.find(r => String(r.row) === String(t.dataset.row)) || bmSelRel(), song = rel && (rel.songs || []).find(x => String(x.idx) === String(t.dataset.idx)); if (rel && rel.item && song) { bmHide(); if (typeof showSongInCatalogue === 'function') showSongInCatalogue(rel.item, song.title, song.trackNum); else openDeck(rel.item); } }
   else if (a === 'rel-skip') { const r = bmSelRel(); r.include = !r.include; if (r.include) bmKickLanes(); bmRedraw(); }
@@ -1854,7 +1868,7 @@ function bmChange(e) {
   else if (a === 'tick-col') { const r = bmSelRel(), k = t.dataset.kind; (r.songs || []).forEach(s => bmTickFor(r, s.idx, k, t.checked)); }
   else if (a === 'tick-song-all') { const r = bmSelRel(); (r.songs || []).forEach(s => bmShownKinds().forEach(k => bmTickFor(r, s.idx, k, t.checked))); }
   else if (a === 'thresh') { smPrefsSave({ confident: Number(t.value) }); bmRebandAll(); }
-  else if (a === 'pref') { const k = t.dataset.k, v = t.type === 'checkbox' ? t.checked : t.type === 'range' ? Number(t.value) : t.value; smPrefsSave({ [k]: v }); if (k === 'confident') bmRebandAll(); }
+  else if (a === 'pref') { const k = t.dataset.k, v = t.type === 'checkbox' ? t.checked : t.type === 'range' ? Number(t.value) : t.value; smPrefsSave({ [k]: v }); if (k === 'confident') bmRebandAll(); if (k === 'spotifyLookup' && !bm.started) { bm.svc.spotify = !!v; bmRender(); } }
   bmRender(); bmStripRender();
 }
 function bmInput(e) {
@@ -1878,6 +1892,8 @@ function bmKey(e) {
   else if (e.key === ' ' && s) { e.preventDefault(); bmPlayCell(rel, s, f.kind); }
   else if ((k === 'w' || e.key === 'Enter') && s) { const c = bmCellOf(rel, s, f.kind), id = rel.pick[f.kind][s.idx] || (c.top && c.top.id); bm.why = id && !(bm.why && bm.why.idx === s.idx && bm.why.kind === f.kind) ? { row: rel.row, idx: s.idx, kind: f.kind, id } : null; done(); }
   else if (k === 'a') { e.preventDefault(); if (bmRelPicks(rel)) bmApply([rel], rel.item.title); }
+  else if (k === 'r') { e.preventDefault(); bmRerunAsked(rel); }          // (1.135.76) look the release up again from scratch
+  else if (k === 'v') { e.preventDefault(); bmSongBySongKey(rel); }          // (1.135.76) YouTube: individual videos instead of the full-release video
   else if (k === 'o' && s) { e.preventDefault(); bmHide(); if (typeof showSongInCatalogue === 'function') showSongInCatalogue(rel.item, s.title, s.trackNum); else openDeck(rel.item); }          // (1.135.71) the song (and its release) in the catalogue
   else if (k === 'n') { const i = bm.rels.indexOf(rel), next = bm.rels.slice(i + 1).concat(bm.rels.slice(0, i)).find(r => bmRelStatus(r).key === 'look' || bmRelStatus(r).key === 'problem'); if (next) bmGoRel(next); else flashGlobalToast('No other release needs a look.'); e.preventDefault(); }
   else if (e.key === '[' || e.key === ']') { const i = bm.rels.indexOf(rel) + (e.key === ']' ? 1 : -1); if (bm.rels[i]) bmGoRel(bm.rels[i]); e.preventDefault(); }
@@ -2282,7 +2298,7 @@ async function openSongMatcher(item, opts) {
   const songs = opts.songs || await smBuildSongs(item);     // a release being ADDED supplies its own songs (draft mode)
   if (mySeq !== smLoadSeq) return;
   if (!songs.length) { flashGlobalToast('This release has no tracklist yet \u2014 add one first.'); return; }
-  smState = { item, songs, platform: opts.platform || 'spotify', open: null, saved: 0, touched: false, draft: !!opts.draft, onSave: opts.onSave || null,
+  smState = { item, songs, platform: opts.platform || (smPrefs().spotifyLookup === false ? 'youtube' : 'spotify'), open: null, saved: 0, touched: false, draft: !!opts.draft, onSave: opts.onSave || null,
     spotify: { status: 'idle', byIdx: {} }, youtube: { status: 'idle', byIdx: {} }, pick: { spotify: {}, youtube: {} }, custom: { spotify: {}, youtube: {} } };
   el.songMatchOverlay.hidden = false;
   smRender();
@@ -2290,7 +2306,7 @@ async function openSongMatcher(item, opts) {
   const pre = opts.prefetched || {};                          // answers already fetched for these songs (the Add form's own run) are reused, not asked for again
   if (pre.youtube && pre.youtube.status === 'done') { smState.youtube = pre.youtube; smState.pick.youtube = smDefaultPicks('youtube'); }
   if (pre.spotify && pre.spotify.status === 'done') { smState.spotify = pre.spotify; smState.pick.spotify = smDefaultPicks('spotify'); smRender(); }
-  else smRunSpotify();                                           // free, so it starts at once; YouTube costs quota and waits for a click
+  else if (smPrefs().spotifyLookup !== false) smRunSpotify();          // free, so it starts at once (unless Spotify lookups are off in Preferences); YouTube costs quota and waits for a click
   if (opts.focusTrackNum != null) setTimeout(() => { const row = el.songMatchList.querySelector(`.sm-row[data-track="${opts.focusTrackNum}"]`); if (row) row.scrollIntoView({ block: 'center' }); }, 60);
 }
 function closeSongMatcher(force) {
@@ -2612,10 +2628,10 @@ async function autoMatchAddForm(opts) {
   addMatchRun = (async () => {
     const songs = addFormSongs();
     if (!songs.length) { addMatchStatus(''); return null; }
-    const creds = loadSpotifyCreds(), spotifyOn = !!(creds.clientId && creds.clientSecret);
+    const creds = loadSpotifyCreds(), spotifyOff = smPrefs().spotifyLookup === false, spotifyOn = !spotifyOff && !!(creds.clientId && creds.clientSecret);
     const ytOn = (opts.youtube !== undefined ? opts.youtube : state.autoMatchYoutube) && !!loadYoutubeApiKey();
     const result = { songs, spotify: null, youtube: null, counts: { spotify: { filled: 0, suggested: 0 }, youtube: { filled: 0, suggested: 0 } }, errors: [] };
-    if (!spotifyOn && !ytOn) { addMatchStatus('Songs weren\u2019t matched: Spotify isn\u2019t set up (\u2699 \u203a Spotify API\u2026).'); addMatchLastSig = addFormSignature(); return result; }
+    if (!spotifyOn && !ytOn) { addMatchStatus(spotifyOff ? 'Songs weren\u2019t matched: Spotify lookups are off (Match songs \u203a \u2699 Preferences) and YouTube isn\u2019t set up.' : 'Songs weren\u2019t matched: Spotify isn\u2019t set up (\u2699 \u203a Spotify API\u2026).'); addMatchLastSig = addFormSignature(); return result; }
     const draft = addFormDraftItem();
     if (spotifyOn) {
       addMatchStatus('Matching songs on Spotify\u2026', true);
