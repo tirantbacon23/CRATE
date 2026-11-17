@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.82
+  CURRENT_VERSION: 1.135.83
 
+  1.135.83 — 2026-11-18 — Group by › Then by works: its list of choices opened but was cut off by the Group by list around it, so
+          nothing showed and nothing could be picked. It now shows beside it. Also, a release with two genres under one name (a
+          genre given twice, or both in one family) showed twice in that group; each group has it once now.
   1.135.82 — 2026-11-18 — Crate Galaxy: "View: influence over time". Years run left to right, a lane for each genre family (oldest
           first) with its subgenres in bands. Each release is joined to the few earlier releases in your crate it is most like
           (genres and their parents, descriptors, scene, label; the same artist counts a little extra), and the bigger a star, the

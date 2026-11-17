@@ -1012,8 +1012,9 @@ function groupItems(items, by) {
     const keys = groupKeysFor(item, by);
 
     // This loop ensures multi-genre albums appear in every relevant group
-    keys.forEach(key => {
-      const groupKey = key || 'Unknown';
+    // (1.135.83) each group once per release: two of its genres under one name (a genre given twice, or both under one family) showed it twice there
+    [...new Set((keys || []).map(key => key || 'Unknown'))].forEach(key => {
+      const groupKey = key;
       if (!map.has(groupKey)) map.set(groupKey, []);
       map.get(groupKey).push(item);
     });
