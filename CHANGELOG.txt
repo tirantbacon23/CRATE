@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.177
+  CURRENT_VERSION: 1.135.178
 
+  1.135.178 — 2026-11-18 — Add a release, the quicker way (a trial). Once you pick a release from the search, the search folds away
+          ("← Back to results" brings it back) and the long form folds into a summary: the cover, title, artist, type, date, label and
+          catalogue, genre, tracklist, where it's from and its RYM rating, each with Edit (which opens the full form at that field); a
+          tracklist found on MusicBrainz or Spotify can be taken with "Use it". "Then, by itself": its Rate Your Music update and matching
+          its songs, each a tick. Add to crate, or Add and add another (the search comes back with the same words); Enter adds. "All
+          fields" opens the whole form. ⚙ › "Add a release: quick (trial)" switches back to the classic form.
   1.135.177 — 2026-11-18 — Match songs no longer sits at "starting…": a release waiting for its Rate Your Music update has that update
           moved to the front of the RYM queue and started straight away (it could be stuck behind others), and matching waits 5 minutes
           at most for it (was 20). Processing says "after its RYM update" while that's what it's waiting for.

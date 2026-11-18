@@ -7072,3 +7072,28 @@ input.mcd-filled { border-color: rgba(127,209,185,.6) !important; }
 .ml-track { height: 5px; border-radius: 3px; background: #232A35; overflow: hidden; } .ml-track u { display: block; height: 100%; transition: width .4s; } .ml-track u.ml-spotify { background: #7FD1B9; } .ml-track u.ml-youtube { background: #D6A24C; }
 .ml-opt { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; font: 12.5px/1.4 Inter, sans-serif; color: #C9C3B8; cursor: pointer; }
 .qpt-roomy .album-quick-peek-track-name:has(> .ml-chips) { display: flex; flex-wrap: wrap; row-gap: 3px; } .qpt-roomy .album-quick-peek-track-name > .ml-chips { flex-basis: 100%; margin-left: 0; }
+
+/* (1.135.178) Add a release, quick (trial) (js/99-quick-add.js) */
+.add-form.qa-on:not(.qa-open) > :not(#qaCard):not(#addDupBanner):not(.toast) { display: none !important; }
+.add-form.qa-on.qa-open > .log-form-actions { display: none !important; }
+.qa-card { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid #2A313C; border-radius: 10px; background: #12161C; margin-bottom: 10px; }
+.qa-top { display: flex; gap: 14px; align-items: center; }
+.qa-cv { width: 88px; height: 88px; border-radius: 3px; object-fit: cover; flex: none; display: block; } .qa-nocv { background: #232A35; }
+.qa-t { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.qa-title { font: 400 28px/1 'Bebas Neue', Inter, sans-serif; letter-spacing: .02em; color: #EDE7DC; overflow-wrap: anywhere; }
+.qa-art { font: 13px Inter, sans-serif; color: #EDE7DC; } .qa-art span { color: #8B93A0; }
+.qa-sub { font: 12px Inter, sans-serif; color: #8B93A0; } .qa-sub em, .qa-kv em { font-style: normal; color: #5D6573; }
+.qa-kv { display: grid; grid-template-columns: 78px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 7px 0; border-top: 1px solid #1E242D; font: 13px Inter, sans-serif; color: #EDE7DC; }
+.qa-kv > span:first-child { font-size: 11.5px; color: #8B93A0; }
+.qa-kv button, .qa-all, .qa-found button { background: none; border: 0; color: #8B93A0; font: 12px Inter, sans-serif; cursor: pointer; padding: 2px 0; } .qa-kv button:hover, .qa-all:hover, .qa-found button:hover { color: #D6A24C; }
+.qa-found { font: 12px Inter, sans-serif; color: #7FD1B9; padding: 0 0 6px 88px; } .qa-found button { color: #D6A24C; margin-left: 6px; }
+.qa-all { padding-top: 8px; text-align: left; }
+.qa-then { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid #232A35; padding-top: 10px; font: 12.5px Inter, sans-serif; color: #C9C3B8; }
+.qa-then label { display: flex; gap: 8px; align-items: center; cursor: pointer; } .qa-then input { accent-color: #D6A24C; margin: 0; }
+.qa-lbl { font: 500 10px 'IBM Plex Mono', monospace; letter-spacing: .12em; color: #8B93A0; text-transform: uppercase; }
+.qa-acts { display: flex; gap: 8px; border-top: 1px solid #232A35; padding-top: 12px; }
+.qa-add { flex: 1; height: 40px; border-radius: 20px; border: 0; background: #D6A24C; color: #12161C; font: 600 13.5px Inter, sans-serif; cursor: pointer; }
+.qa-again { height: 40px; padding: 0 16px; border-radius: 20px; border: 1px solid #2A313C; background: none; color: #EDE7DC; font: 500 13px Inter, sans-serif; cursor: pointer; }
+.qa-add:focus-visible, .qa-again:focus-visible { outline: 2px solid #D6A24C; outline-offset: 2px; }
+#addOverlay.qa-picked .arrange-body > :not(#addForm) { display: none !important; }
+.qa-back { align-self: flex-start; background: none; border: 0; color: #8B93A0; font: 12.5px Inter, sans-serif; cursor: pointer; padding: 0; } .qa-back:hover { color: #D6A24C; }
