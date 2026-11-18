@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.150
+  CURRENT_VERSION: 1.135.151
 
+  1.135.151 — 2026-11-18 — The player's lines that don't fit (song, artist, release, extra line) scroll sideways, a marquee: a moment
+          still, then along at a reading pace and round again; they stop while the pointer is over them, and stay still
+          with "reduce motion". The cover wall fits the screen: each size is a whole number of rows filling its height
+          exactly, with as many columns as fit the width, so the covers line up with the screen's edges when you zoom
+          (near square, cropped a hair where they must be).
   1.135.150 — 2026-11-18 — "Release" instead of "album" across CRATE's own words: the browser's Releases list and "All Releases", the
           Releases / Release and Tracks / Release covers views, Release view settings, menus, buttons, hints and messages
           (about 125 places). "Album" stays where it is a release's type (Album, EP, Single), in RYM's descriptors

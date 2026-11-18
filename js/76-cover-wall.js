@@ -90,7 +90,12 @@ function wallDraw() {
 }
 function wallLayout() {
   const grid = wall.el.querySelector('.cw-grid'), p = wallPrefs(), gap = p.gap ? 6 : 0, inner = Math.max(80, grid.clientWidth - gap * 2);
-  const cols = Math.max(1, Math.floor((inner + gap) / (p.size + gap))), cw = (inner - (cols - 1) * gap) / cols, ch = cw + (p.names ? WALL_CAP : 0);
+  // (1.135.151) fitted to the screen: a whole number of rows fills its height exactly (the size slider picks how many), then as many
+  // columns as fit the width at that height, so the covers line up with the screen's edges at every size (near square: cropped a hair)
+  const cap = p.names ? WALL_CAP : 0, H = Math.max(120, grid.clientHeight || window.innerHeight);
+  const fitRows = Math.max(1, Math.round((H - gap) / (p.size + cap + gap))), ch = (H - gap) / fitRows - gap, ih = Math.max(40, ch - cap);
+  const cols = Math.max(1, Math.round((inner + gap) / (ih + gap))), cw = (inner - (cols - 1) * gap) / cols;
+  wall.space.style.setProperty('--cw-ih', ih + 'px');
   const rows = []; let y = gap, cur = null;
   wall.disp.forEach((d, i) => {
     if (d.head !== undefined) { cur = null; const h = d.lvl === 1 ? WALL_H1 : WALL_H2; rows.push({ head: i, y, h }); y += h; return; }

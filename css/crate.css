@@ -6736,3 +6736,13 @@ button.gs-chip { cursor: pointer; margin: 4px 4px 0 0; } button.gs-chip:hover { 
 .pp-box { width: 15px; height: 15px; flex: none; border: 1px solid var(--line, #3A4250); border-radius: 4px; font-size: 10px; line-height: 13px; text-align: center; color: transparent; }
 .pp-row[aria-pressed="true"] .pp-box { background: var(--accent, #D6A24C); border-color: var(--accent, #D6A24C); color: var(--on-accent, #12161C); }
 .pp-row[aria-pressed="false"] { color: var(--text-dim, #8B93A0); }
+
+/* (1.135.151) The player's lines that don't fit scroll sideways (js/91-marquee.js) */
+.mq-on { overflow: hidden !important; text-overflow: clip !important; white-space: nowrap !important; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 8px, #000 calc(100% - 14px), transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 8px, #000 calc(100% - 14px), transparent 100%); }
+.mq-on .mq { display: inline-flex; gap: 36px; padding-left: 4px; animation: mqRun var(--mq-s, 10s) linear infinite; will-change: transform; }
+.mq-on .mq-t { flex: none; white-space: nowrap; }
+.mq-on:hover .mq { animation-play-state: paused; }
+@keyframes mqRun { 0%, 18% { transform: translateX(0); } 100% { transform: translateX(calc(-1 * var(--mq-w, 0px))); } }
+@media (prefers-reduced-motion: reduce) { .mq-on .mq { animation: none; } }
+/* (1.135.151) wall covers fill their fitted tile (js/76 wallLayout) */
+.cw-space > .cw-cell .cw-art { aspect-ratio: auto; height: var(--cw-ih, auto); }
