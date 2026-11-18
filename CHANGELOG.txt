@@ -17,8 +17,15 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.170
+  CURRENT_VERSION: 1.135.171
 
+  1.135.171 — 2026-11-18 — Discover redesigned, with two views (Shelves | Chart, remembered). Shelves: today's pick (a different one of
+          your top few each day) with why it's for you in plain sentences, Last.fm's own words about it, its numbers and buttons; then
+          shelves headed by their reasons: "Because you rate <your 5★ release>", what your friends keep, under 50K listeners and rated
+          highly, your most played year, your top descriptor (See all opens a shelf). Chart: "Your chart of things you haven't heard",
+          numbered, with a one-line reason and RYM (and its ratings), listeners, friends and fit in columns, and each release's move
+          since last week (▲▼, NEW); filters for friends' crates, under 50K listeners, the commonest decade and the top two genres.
+          The old grid and its row of totals are gone.
   1.135.170 — 2026-11-18 — CRATE Radio: the Now playing / Stations / Discover tabs sit snug instead of stretching across the header.
   1.135.169 — 2026-11-18 — CRATE Radio and Discover work with an empty crate. With little or nothing in your crate, "Tell it what you
           like" sits at the top of Discover and Stations: tap genres from the music database (with how many releases it holds in each)

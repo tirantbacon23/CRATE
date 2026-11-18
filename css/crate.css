@@ -6991,3 +6991,55 @@ input.mcd-filled { border-color: rgba(127,209,185,.6) !important; }
 .rd-seed-a { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; } .rd-seed-a .rd-in { width: 300px; } .rd-sv button[disabled] { cursor: default; color: #EDE7DC; }
 @media (max-width: 900px) { .rd-seed-h { grid-template-columns: 1fr; gap: 6px; } .rd-seed-a .rd-in { width: 100%; } }
 .rd-head > .rd-tabs { flex: none; }
+
+/* (1.135.171) Discover: Shelves and Chart (js/99-discover.js) */
+.dv-gold { color: #D6A24C !important; } .dv-dim { color: #8B93A0 !important; }
+.dv-views { display: flex; align-items: baseline; gap: 20px; border-bottom: 1px solid #1A2028; margin-bottom: 10px; }
+.dv-v { background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 0; margin-bottom: -1px; font: 500 14px Inter, sans-serif; color: #8B93A0; cursor: pointer; }
+.dv-v.on { color: #EDE7DC; border-bottom-color: #D6A24C; } .dv-v:hover { color: #EDE7DC; } .dv-views .gs-s { margin-left: auto; }
+.dv-lead { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 34px; align-items: start; margin-bottom: 34px; }
+.dv-lcv { width: 300px; height: 300px; border-radius: 3px; object-fit: cover; display: block; }
+.dv-lt { display: flex; flex-direction: column; gap: 12px; max-width: 760px; padding-top: 4px; min-width: 0; }
+.dv-ltitle { all: unset; cursor: pointer; font: 400 60px/0.95 'Bebas Neue', Inter, sans-serif; letter-spacing: .01em; color: #EDE7DC; overflow-wrap: anywhere; } .dv-ltitle:hover { color: #D6A24C; } .dv-ltitle:focus-visible { outline: 2px solid #D6A24C; outline-offset: 3px; }
+.dv-lart { font: 17px Inter, sans-serif; color: #EDE7DC; } .dv-lart span { color: #8B93A0; }
+.dv-prose { margin: 0; font: 15.5px/1.6 Inter, sans-serif; color: #C9C3B8; } .dv-prose b { color: #EDE7DC; font-weight: 600; }
+.dv-wiki { margin: 0; font: italic 14px/1.6 Inter, sans-serif; color: #9AA2AE; } .dv-wiki span { font: normal 500 10px 'IBM Plex Mono', monospace; letter-spacing: .1em; text-transform: uppercase; color: #5D6573; margin-left: 6px; }
+.dv-lnums { display: flex; gap: 28px; flex-wrap: wrap; font: 500 12px 'IBM Plex Mono', monospace; color: #9AA2AE; align-items: baseline; }
+.dv-lnums b { font: 400 26px/1 'Bebas Neue', Inter, sans-serif; color: #EDE7DC; margin-right: 4px; }
+.dv-shelf { display: flex; flex-direction: column; gap: 14px; margin-bottom: 30px; }
+.dv-sh { display: flex; align-items: baseline; gap: 14px; border-bottom: 1px solid #232A35; padding-bottom: 8px; }
+.dv-sh b { font: 600 15px Inter, sans-serif; color: #EDE7DC; } .dv-sh span { font: 12px Inter, sans-serif; color: #8B93A0; }
+.dv-all { margin-left: auto; background: none; border: 0; font: 12px Inter, sans-serif; color: #8B93A0; cursor: pointer; padding: 4px 0; } .dv-all:hover { color: #D6A24C; }
+.dv-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 18px; }
+.dv-t { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.dv-tc { width: 100%; aspect-ratio: 1; border-radius: 3px; object-fit: cover; display: block; margin-bottom: 6px; }
+.dv-t b { font: 600 13px Inter, sans-serif; color: #EDE7DC; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dv-t em { font: normal 12px Inter, sans-serif; color: #8B93A0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dv-t small { font: 500 11px 'IBM Plex Mono', monospace; color: #9AA2AE; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dv-t:hover b { color: #D6A24C; } .dv-t:focus-visible { outline: 2px solid #D6A24C; outline-offset: 3px; border-radius: 3px; }
+.dv-chead { display: flex; align-items: flex-end; gap: 20px; margin-bottom: 16px; flex-wrap: wrap; }
+.dv-ctitle { font: 400 46px/1 'Bebas Neue', Inter, sans-serif; letter-spacing: .02em; color: #EDE7DC; }
+.dv-cnums { display: flex; gap: 28px; margin-left: auto; padding-bottom: 4px; } .dv-cnums div { display: flex; flex-direction: column; gap: 2px; }
+.dv-cnums b { font: 400 28px/1 'Bebas Neue', Inter, sans-serif; color: #EDE7DC; } .dv-cnums span { font: 11.5px Inter, sans-serif; color: #8B93A0; }
+.dv-filters { display: flex; gap: 22px; flex-wrap: wrap; border-bottom: 1px solid #1A2028; margin-bottom: 4px; }
+.dv-f { background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 7px 0; font: 13px Inter, sans-serif; color: #8B93A0; cursor: pointer; } .dv-f.on { color: #EDE7DC; border-bottom-color: #D6A24C; } .dv-f:hover { color: #EDE7DC; }
+.dv-table { display: flex; flex-direction: column; margin-bottom: 12px; }
+.dv-hd, .dv-r { display: grid; grid-template-columns: 44px 52px minmax(0, 1.5fr) minmax(0, 2fr) 64px 84px 64px 52px 40px; gap: 16px; align-items: center; }
+.dv-hd.nofit, .dv-r.nofit { grid-template-columns: 44px 52px minmax(0, 1.5fr) minmax(0, 2fr) 64px 84px 64px 40px; }
+.dv-hd { padding: 14px 0 8px; border-bottom: 1px solid #2A313C; } .dv-hd span { font: 500 10px 'IBM Plex Mono', monospace; letter-spacing: .1em; color: #8B93A0; text-transform: uppercase; } .dv-hd .n { text-align: right; }
+.dv-r { all: unset; display: grid; grid-template-columns: 44px 52px minmax(0, 1.5fr) minmax(0, 2fr) 64px 84px 64px 52px 40px; gap: 16px; align-items: center; padding: 9px 0; border-bottom: 1px solid #1A2028; cursor: pointer; }
+.dv-r.nofit { grid-template-columns: 44px 52px minmax(0, 1.5fr) minmax(0, 2fr) 64px 84px 64px 40px; }
+.dv-r:hover .dv-tt b { color: #D6A24C; } .dv-r:focus-visible { outline: 2px solid #D6A24C; outline-offset: -2px; }
+.dv-rk { font: 400 30px/1 'Bebas Neue', Inter, sans-serif; color: #5D6573; text-align: right; } .dv-r.top .dv-rk { color: #D6A24C; }
+.dv-rc { width: 52px; height: 52px; border-radius: 2px; object-fit: cover; display: block; }
+.dv-tt { display: flex; flex-direction: column; gap: 2px; min-width: 0; } .dv-tt b { font: 600 14px Inter, sans-serif; color: #EDE7DC; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .dv-tt em { font: normal 12px Inter, sans-serif; color: #8B93A0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dv-why { font: 12.5px/1.4 Inter, sans-serif; color: #C9C3B8; }
+.dv-num { font: 500 13px 'IBM Plex Mono', monospace; color: #EDE7DC; text-align: right; } .dv-num small { display: block; font-size: 10.5px; color: #8B93A0; }
+.dv-mv { font: 500 11px 'IBM Plex Mono', monospace; color: #8B93A0; text-align: center; } .dv-mv.dv-new { color: #7FD1B9; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+@media (max-width: 900px) {
+  .dv-lead { grid-template-columns: 1fr; } .dv-lcv { width: 100%; height: auto; aspect-ratio: 1; max-width: 320px; } .dv-ltitle { font-size: 44px; }
+  .dv-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dv-hd { display: none; } .dv-r, .dv-r.nofit { grid-template-columns: 34px 44px minmax(0, 1fr) 56px; } .dv-r .dv-why, .dv-r .dv-num ~ .dv-num, .dv-r .dv-mv { display: none; } .dv-rc { width: 44px; height: 44px; }
+  .dv-cnums { margin-left: 0; } .dv-views .gs-s { display: none; }
+}
