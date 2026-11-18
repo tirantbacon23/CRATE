@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.176
+  CURRENT_VERSION: 1.135.177
 
+  1.135.177 — 2026-11-18 — Match songs no longer sits at "starting…": a release waiting for its Rate Your Music update has that update
+          moved to the front of the RYM queue and started straight away (it could be stuck behind others), and matching waits 5 minutes
+          at most for it (was 20). Processing says "after its RYM update" while that's what it's waiting for.
   1.135.176 — 2026-11-18 — Match songs, seen as it happens. In the cover popup, while a release is being matched each song's red ! becomes a
           live dot (✓ linked, half for one service of two, ? to check, spinning while it's searched, dashed while it waits, × nothing
           found; click one to open Match songs at that song), and a bar under the buttons shows songs done, Spotify and YouTube found and

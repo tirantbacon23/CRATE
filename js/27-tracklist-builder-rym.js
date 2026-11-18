@@ -395,15 +395,21 @@ function rymUpdateAdded(added) {
 // The order for a new release: added, then updated from Rate Your Music, then its songs matched (bmAutoRun asks here first), so the matching
 // works on RYM's tracklist. A release is held while its first update is still to come: until it has had it, or nothing from RYM has been
 // running or waiting for a minute and a half (a run stopped for a check, updates left for you to review), or after three hours at most.
-const rymAddHold = new Map(), rymAddFreed = new Set(); let rymAddBusyAt = 0;
+const rymAddHold = new Map(), rymAddFreed = new Set(); let rymAddBusyAt = 0, rymAddKickAt = 0;
 function rymAddHolding(it, now) {
   now = now || Date.now(); const k = mqKey(it.artist, it.title);
   if (rymAddFreed.has(k) || !rymOutState.present || !rymUpdateAddedPick([it]).length) { rymAddHold.delete(k); return false; }
   if (!rymAddHold.has(k)) rymAddHold.set(k, now);
   // (1.135.174) held only while ITS update is running or waiting (not while any RYM update is), and 20 minutes at most
   const since = rymAddHold.get(k), row = String(it.row);
-  const inLine = (rymFetchState.active && (jobsState.runRows || []).includes(row)) || jobsState.waiting.some(w => (w.rows || []).includes(row));
-  if ((!inLine && now - since > 20000) || now - since > 20 * 60000) { rymAddHold.delete(k); rymAddFreed.add(k); return false; }
+  const running = rymFetchState.active && (jobsState.runRows || []).includes(row), wi = jobsState.waiting.findIndex(w => (w.rows || []).includes(row)), inLine = running || wi >= 0;
+  // (1.135.177) its update waiting behind others: moved to the front and started now, not left in line
+  if (wi > 0 || (wi === 0 && jobsState.waiting[0].rows.length > 1 && jobsState.waiting[0].rows[0] !== row)) {
+    const w = jobsState.waiting[wi]; w.rows = w.rows.filter(r => r !== row); if (!w.rows.length) jobsState.waiting.splice(wi, 1);
+    jobsState.waiting.unshift({ id: 'w' + now + '-new', kind: 'rym', rows: [row], t: now });
+  }
+  if (wi >= 0 && !rymFetchState.active && !jobsState.held && typeof jobsStartNextRym === 'function' && now - (rymAddKickAt || 0) > 10000) { rymAddKickAt = now; if (jobsState.waiting[0]) jobsState.waiting[0].paused = false; clearTimeout(jobsState.nextTimer); jobsStartNextRym(); }
+  if ((!inLine && now - since > 20000) || now - since > 5 * 60000) { rymAddHold.delete(k); rymAddFreed.add(k); return false; }          // (5 minutes at most, then matched anyway)
   return true;
 }
 function rymFetchCancel() { window.postMessage({ source: 'crate-app', type: 'rym-fetch-cancel' }, window.location.origin); }
@@ -861,7 +867,7 @@ function jobsCollect() {
   });
   if (bmAuto.noSvc && smPrefs().autoMatchNew && mqAll().length) need.push({ cat: 'match', icon: 'warn', tone: 'warn', title: 'Songs can\u2019t be matched yet', detail: `${jobsPl(mqAll().length, 'release')} waiting: connect Spotify (\u2699 \u2192 Connections \u2192 Spotify API) or install the CRATE for YouTube add-on.`, acts: [{ label: 'Spotify API\u2026', fn: () => { const b = document.getElementById('menuSpotifyApi'); if (b) b.click(); } }] });          // (1.126.0)
   const mq = mqAll().length;
-  if (mq && !(bm && bm.started && bm.scope === 'queue')) wait.push({ cat: 'match', icon: 'note', title: 'Match songs', sub: `${jobsPl(mq, 'release')} in the match queue`, right: smPrefs().autoMatchNew && !bmAuto.noSvc ? (bmAuto.pending.length || (bm && bm.started) ? 'starting\u2026' : 'starts by itself') : 'when you start it', acts: [{ icon: 'play', label: 'Start', fn: () => bmOpen({ queue: true }), opens: true }] });
+  if (mq && !(bm && bm.started && bm.scope === 'queue')) wait.push({ cat: 'match', icon: 'note', title: 'Match songs', sub: `${jobsPl(mq, 'release')} in the match queue`, right: smPrefs().autoMatchNew && !bmAuto.noSvc ? (bmAuto.heldN ? `after ${bmAuto.heldN === 1 ? 'its' : 'their'} RYM update${bmAuto.heldN > 1 ? 's' : ''}` : bmAuto.pending.length || (bm && bm.started) ? 'starting\u2026' : 'starts by itself') : 'when you start it', acts: [{ icon: 'play', label: 'Start', fn: () => bmOpen({ queue: true }), opens: true }] });
   const lf = loadLastfmCreds();
   if (lf.username && lf.apiKey && localStorage.getItem(LASTFM_SYNC_KEY + ':' + lf.username) && !lastfmBackgroundSyncRunning) {
     const at = Number(localStorage.getItem(JOBS_LF_AT_KEY) || 0);

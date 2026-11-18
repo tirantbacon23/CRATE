@@ -815,6 +815,7 @@ function bmAutoRun() {
     }
     jobsRefresh();
   }
+  bmAuto.heldN = held.size; if (typeof jobsRefresh === 'function') jobsRefresh();          // (1.135.177) Processing says it's waiting for RYM, not "starting…"
   if (held.size) { clearTimeout(bmAuto.timer); bmAuto.timer = setTimeout(bmAutoRun, 5000); }          // (waiting for RYM is not a failed try)
   else if (bmAuto.pending.length) later(20000);
 }

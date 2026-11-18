@@ -434,13 +434,13 @@ suite('New releases: added, then updated from Rate Your Music, then matched', ()
       st.rymUpdateOnAdd = false; eq(pick([rel()]).length, 0);
     } finally { st.rymUpdateOnAdd = was; }
   });
-  test('matching waits for the release\'s own RYM update (queued or running), 20 minutes at most, then goes ahead', () => {
+  test('matching waits for the release\'s own RYM update (queued or running), 5 minutes at most, then goes ahead', () => {
     const st = app('state'), out = app('rymOutState'), fs = app('rymFetchState'), js = app('jobsState'), held = app('rymAddHolding'), was = [st.rymUpdateOnAdd, out.present, fs.active, js.waiting.slice()];
     try {
       st.rymUpdateOnAdd = true; out.present = true; fs.active = true; const t0 = Date.now();
       const a = rel({ title: 'Hold test ' + t0 }); js.waiting.push({ id: 'wt', kind: 'rym', rows: [String(a.row)], t: t0 });
-      eq([held(a, t0), held(a, t0 + 600000)], [true, true], 'its update waiting');
-      eq(held(a, t0 + 20 * 60000 + 1), false, 'twenty minutes at most');
+      eq([held(a, t0), held(a, t0 + 240000)], [true, true], 'its update waiting');
+      eq(held(a, t0 + 5 * 60000 + 1), false, 'five minutes at most');
       eq(held(rel({ title: 'Hold test ' + t0, rymUpdated: 'now' }), t0 + 1), false, 'updated');
       const b = rel({ title: 'Idle test ' + t0, row: 11 });
       eq([held(b, t0 + 1000), held(b, t0 + 22000), held(b, t0 + 22001)], [true, false, false], 'other RYM updates running don\'t hold it: freed after 20 s, and stays freed');
