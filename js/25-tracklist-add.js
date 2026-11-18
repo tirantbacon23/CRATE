@@ -84,6 +84,9 @@ function renderTracklistBody(item, tracks) {
   let anyCredits = false;
 
   let lastSection = '';
+  // (1.135.140) every row keeps a place for each play button some song in the list has, so the names line up whether or not a song has that link
+  const tlManual = isManualAlbum(item), tlAnySp = tracks.some(t => !tlManual || t.spotifyLink), tlAnyYt = tracks.some(t => t.youtubeLink), tlAnySc = tracks.some(t => t.soundcloudLink);
+  const tlPh = (k) => `<span class="track-play-ph tp-${k}" aria-hidden="true"></span>`;
   let html = tracks.map((t, pos) => {
     const tNum = t.trackNumber || 0;
     const tData = (item.trackData && item.trackData[tNum]) ? item.trackData[tNum] : {};
@@ -116,9 +119,9 @@ function renderTracklistBody(item, tracks) {
         <div class="track-row">
           <span class="track-num">${trackNumHtml(t, pos)}</span>
           <div class="track-info-main">
-             ${(!manual || t.spotifyLink) ? `<button type="button" class="track-play-btn" data-track-name="${escapeHtml(t.trackName || '')}" title="Play on Spotify" aria-label="Play ${escapeHtml(t.trackName || '')} on Spotify">\u25b6</button>` : ''}
-             ${t.youtubeLink ? `<button type="button" class="track-play-yt-btn" data-youtube-link="${escapeHtml(t.youtubeLink)}" data-track-name="${escapeHtml(t.trackName || '')}" title="Play on YouTube" aria-label="Play ${escapeHtml(t.trackName || '')} on YouTube">▶ YT</button>` : ''}
-             ${t.soundcloudLink ? `<a class="track-play-sc-btn" href="${escapeHtml(t.soundcloudLink)}" target="_blank" rel="noopener noreferrer" title="Open on SoundCloud" aria-label="Open ${escapeHtml(t.trackName || '')} on SoundCloud">SC ↗</a>` : ''}
+             ${(!manual || t.spotifyLink) ? `<button type="button" class="track-play-btn" data-track-name="${escapeHtml(t.trackName || '')}" title="Play on Spotify" aria-label="Play ${escapeHtml(t.trackName || '')} on Spotify">\u25b6</button>` : tlAnySp ? tlPh('sp') : ''}
+             ${t.youtubeLink ? `<button type="button" class="track-play-yt-btn" data-youtube-link="${escapeHtml(t.youtubeLink)}" data-track-name="${escapeHtml(t.trackName || '')}" title="Play on YouTube" aria-label="Play ${escapeHtml(t.trackName || '')} on YouTube">▶ YT</button>` : tlAnyYt ? tlPh('yt') : ''}
+             ${t.soundcloudLink ? `<a class="track-play-sc-btn" href="${escapeHtml(t.soundcloudLink)}" target="_blank" rel="noopener noreferrer" title="Open on SoundCloud" aria-label="Open ${escapeHtml(t.trackName || '')} on SoundCloud">SC ↗</a>` : tlAnySc ? tlPh('sc') : ''}
              ${songFlagHtml(item, t)}<span class="track-name${rymBoldTrackClass(t, item)}">${escapeHtml(t.trackName || '')}</span>
              ${scrobbleCount > 0 ? `<span class="track-scrobble-count" title="Last.fm plays">${scrobbleCount} play${scrobbleCount === 1 ? '' : 's'}</span>` : ''}
              ${genre ? `<span class="track-genre-preview" title="Track genre">${escapeHtml(genre)}</span>` : ''}

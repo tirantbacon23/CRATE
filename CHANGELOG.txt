@@ -17,8 +17,17 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.139
+  CURRENT_VERSION: 1.135.140
 
+  1.135.140 — 2026-11-18 — Keyboard shortcuts across CRATE; press ? for the list. Playing: Space or K play/pause, Shift → ← next and
+          previous song, . and , forward and back 5 seconds, Shift ↑ ↓ volume, M mute, S shuffle, R repeat, L like, D the
+          deck of what's playing, C show it in the catalogue. Going places: / search, 1–5 Music, Diary, Scrobbles, Stats,
+          Artist, W cover wall, G Crate Galaxy, T Taste Engine, A Ask your crate, Q Up next, Y lyrics, V visualizer. In a
+          deck: E edit details, P play it. None fire while you type in a box. The left list picks several releases:
+          Ctrl/⌘-click adds or takes one away, Shift-click takes everything between; the catalogue shows just those and
+          they are selected, so the right-click menu and the selection bar act on all of them. A plain click goes back to
+          one. The deck's songs line up: a fixed column for the number and its side position (A, B1…), and every row keeps
+          a place for each play button some song has, so the names all start at the same point.
   1.135.139 — 2026-11-18 — The player's album title takes you to the release in the catalogue (its cover scrolled to and flashed), then
           opens its deck over it. The deck's RYM rating is part of the heading, next to your stars: "RYM 3.71 · 12,345
           ratings" as text; click it to change the numbers in a small box (Enter, Done or clicking away saves). Its row of

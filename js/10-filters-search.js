@@ -221,6 +221,7 @@ function updateMainLabel() {
   if (state.navFilter.mode === 'album') {
     const match = state.raw.find(r => r.row === state.navFilter.value);
     if (match) label = match.title;
+    if (state.navFilter.multi) { label = `${state.navFilter.multi.length} releases`; el.mainPanelLabel.textContent = `${label} · ${baseLabel}`; return; }
   }
   
   // Example output: "Artist: Daft Punk · Tracks"
@@ -620,7 +621,7 @@ function albumPassesBrowse(r, searchTerms) {          // does this album pass th
       state.navFilter.mode === 'genre' ? filterGenreTags(r).some(g => genreNavMatches(state.genreTaxonomy, g, state.navFilter.value)) : 
       state.navFilter.mode === 'descriptor' ? parseDescriptors(r.rymDescriptors).some(d => descKey(d) === state.navFilter.value) :
       state.navFilter.mode === 'label' ? labelKeysOf(r).includes(state.navFilter.value) :
-      r.row === state.navFilter.value
+      (state.navFilter.multi ? lmsHas(state.navFilter, r.row) : r.row === state.navFilter.value)          // (1.135.140) several releases picked on the left
     );
 
     const matchesListened = !state.listenedOnly || hasLoggedListen(r);

@@ -6556,3 +6556,27 @@ html.cur-on input:not([type="range"]):not([type="checkbox"]):not([type="radio"])
 .sm-yt svg { width: 14px; height: 14px; } .sm-yt:hover { color: #FF4E45; border-color: #FF4E45; }
 .bm-cellw.has-yt { display: flex; align-items: center; gap: 4px; } .bm-cellw.has-yt > .bm-cell { flex: 1; min-width: 0; }
 .bm-ytweb { margin-left: 0; padding: 0; width: 26px; justify-content: center; }
+
+/* (1.135.140) Keyboard shortcuts list (js/84-keys.js) */
+.keys-overlay { position: fixed; inset: 0; z-index: 3000; background: rgba(5,7,10,.7); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.keys-overlay[hidden] { display: none; }
+.keys-dialog { width: min(900px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: var(--bg-elevated, #161B22); border: 1px solid var(--line, #2A313C); border-radius: 14px; box-shadow: 0 24px 60px rgba(0,0,0,.6); }
+.keys-head { position: sticky; top: 0; display: flex; align-items: baseline; gap: 12px; padding: 18px 22px 12px; background: inherit; border-bottom: 1px solid var(--line, #2A313C); }
+.keys-head h2 { margin: 0; font: 400 28px/1 'Bebas Neue', Inter, sans-serif; letter-spacing: .03em; color: var(--accent, #D6A24C); }
+.keys-sub { flex: 1; font: 12px Inter, sans-serif; color: var(--text-dim, #8B93A0); }
+.keys-body { columns: 2 320px; column-gap: 28px; padding: 14px 22px 22px; }
+.keys-body section { break-inside: avoid; margin-bottom: 16px; }
+.keys-body h3 { margin: 0 0 6px; font: 500 10px 'IBM Plex Mono', monospace; letter-spacing: .12em; text-transform: uppercase; color: var(--text-dim, #8B93A0); }
+.keys-row { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px; align-items: center; padding: 4px 0; border-top: 1px solid rgba(255,255,255,.04); font: 13px Inter, sans-serif; color: var(--text, #EDE7DC); }
+.keys-k { display: flex; gap: 4px; flex-wrap: wrap; }
+.keys-k kbd { min-width: 22px; padding: 2px 6px; border: 1px solid var(--line, #2A313C); border-bottom-width: 2px; border-radius: 5px; background: var(--bg, #12161C); font: 500 11px 'IBM Plex Mono', monospace; color: var(--text, #EDE7DC); text-align: center; }
+
+/* (1.135.140) Deck songs line up: a fixed column for the number and its side position (A, B1…), and a fixed place for each play
+   button (a song without that link keeps an empty one), so every name starts at the same point */
+#deckTracklist .track-row { grid-template-columns: 52px minmax(0, 1fr) auto; }
+#deckTracklist .track-num { display: flex; align-items: baseline; gap: 5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#deckTracklist .track-num .track-pos { margin-left: 0; min-width: 0; }
+#deckTracklist .track-info-main > .track-play-btn, #deckTracklist .track-info-main > .tp-sp { flex: none; width: 24px; height: 22px; padding: 0; margin: 0; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; }
+#deckTracklist .track-info-main > .track-play-yt-btn, #deckTracklist .track-info-main > .tp-yt { flex: none; width: 46px; height: 22px; padding: 0; margin: 0; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; }
+#deckTracklist .track-info-main > .track-play-sc-btn, #deckTracklist .track-info-main > .tp-sc { flex: none; width: 46px; height: 22px; margin: 0; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; }
+#deckTracklist .track-play-ph { visibility: hidden; }
