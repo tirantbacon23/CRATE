@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.160
+  CURRENT_VERSION: 1.135.161
 
+  1.135.161 — 2026-11-18 — Add a release puts the earliest release first: the release the search is most likely after (the top result's
+          artist and title) is shown at the very top, in a box marked "Original · 1982 · Earliest release of N editions
+          found": of all its pressings and editions in the results, the one with the earliest date. Worked out again as
+          each source answers; the rest stay where they were.
   1.135.160 — 2026-11-18 — Update from Rate Your Music finds a release that has no RYM link yet (with the RYM add-on 1.23.0): the add-on
           reads RYM's search for its artist and title, takes the result that matches (same artist and title; the same type
           and year win a tie), then reads that release's page, and the update brings the RYM link with it. Works from the

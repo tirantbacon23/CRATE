@@ -6828,3 +6828,10 @@ button.gs-chip { cursor: pointer; margin: 4px 4px 0 0; } button.gs-chip:hover { 
 .stl-more-btn { margin-top: 4px; background: none; border: 0; padding: 0; color: var(--accent, #D6A24C); font: 12px Inter, sans-serif; cursor: pointer; }
 .stl-more-links { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; } .stl-more-links .stl-more-h { flex-basis: 100%; margin-bottom: 0; }
 .stl-more-links a { font: 12px Inter, sans-serif; color: var(--accent, #D6A24C); text-decoration: none; } .stl-more-links a:hover { text-decoration: underline; }
+
+/* (1.135.161) Add a release: the earliest release first (js/98-add-earliest.js) */
+.add-earliest { margin: 4px 0 12px; padding: 8px 10px 4px; border: 1px solid var(--accent, #D6A24C); border-radius: 10px; background: rgba(214,162,76,.07); }
+.add-earliest-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font: 500 10px 'IBM Plex Mono', monospace; letter-spacing: .1em; text-transform: uppercase; color: var(--text-dim, #8B93A0); }
+.add-earliest-badge { padding: 2px 8px; border-radius: 10px; background: var(--accent, #D6A24C); color: #12161C; font-weight: 600; letter-spacing: .06em; }
+.add-results-grid-mode .add-earliest { grid-column: 1 / -1; }
+.add-results-grid-mode .add-earliest .add-result-card { max-width: 180px; }
