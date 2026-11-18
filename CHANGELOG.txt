@@ -17,8 +17,18 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.140
+  CURRENT_VERSION: 1.135.141
 
+  1.135.141 — 2026-11-18 — Galaxy influence: a genre's story. Thread | Story in the header (or "<genre>: its story" on a picked release)
+          tells any genre with three or more releases in your crate in steps, worked out from the influence links: where
+          it starts (its first releases and the families what they drew from belong to, in %), the turning point (the
+          release the most later ones lean on), where it goes (the genres outside it that draw on it, and how its
+          descriptors moved), the longest gap and whether it came back (with a Rate Your Music chart for the missing
+          years), and where it is now. Beside it, its numbers: first and peak year, releases, artists, later releases
+          leaning on it and the share in other genres, median age when drawn on, how much you've listened to, your and
+          RYM's average, releases a year, top artists and labels, and its first five years against its last five. Each
+          step plays or lights just its releases on the galaxy; "Play it, in order" queues the whole genre oldest first.
+          ← → move between steps, Enter plays one, a cover follows its thread, Esc goes back to the galaxy.
   1.135.140 — 2026-11-18 — Keyboard shortcuts across CRATE; press ? for the list. Playing: Space or K play/pause, Shift → ← next and
           previous song, . and , forward and back 5 seconds, Shift ↑ ↓ volume, M mute, S shuffle, R repeat, L like, D the
           deck of what's playing, C show it in the catalogue. Going places: / search, 1–5 Music, Diary, Scrobbles, Stats,
