@@ -17,8 +17,19 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.161
+  CURRENT_VERSION: 1.135.162
 
+  1.135.162 — 2026-11-18 — The master crate, step 1: ⚙ › Master crate…. One catalog made every night from the crates of everyone on this
+          CRATE who joins (you and your friends): each release once (editions such as Deluxe or Remastered count as the
+          same), with the details their crates hold (genres, descriptors, label, cover, RYM link and rating, tracklist and
+          song links), how many crates have it, the ratings and plays pooled (plays from scrobbles and the diary, as
+          counts), the charts, and for each person a taste match with each other person and what crates like theirs love.
+          Switches for each thing you share; Join, Rebuild now, and Leave (taken out at once). Never shared: notes,
+          reviews, diary text, catalog numbers, dates added, releases marked "Hide from friends". A friend's name shows
+          only to friends they share ratings with. SETUP: add the new backend file Master.gs to the Apps Script project
+          (+ › Script, name it Master, paste backend/Master.gs), paste the updated main backend (one line routes
+          "master…" requests to it), and deploy a New version. The nightly build makes its own trigger the first time
+          anyone opens the window.
   1.135.161 — 2026-11-18 — Add a release puts the earliest release first: the release the search is most likely after (the top result's
           artist and title) is shown at the very top, in a box marked "Original · 1982 · Earliest release of N editions
           found": of all its pressings and editions in the results, the one with the earliest date. Worked out again as
