@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.175
+  CURRENT_VERSION: 1.135.176
 
+  1.135.176 — 2026-11-18 — Match songs, seen as it happens. In the cover popup, while a release is being matched each song's red ! becomes a
+          live dot (✓ linked, half for one service of two, ? to check, spinning while it's searched, dashed while it waits, × nothing
+          found; click one to open Match songs at that song), and a bar under the buttons shows songs done, Spotify and YouTube found and
+          how many to check, with Stop and Open. The popup's ⚙ has "While matching, show where each song was found": Spotify and YouTube
+          chips with how sure each match is. Covers in the grid say "Matching 5/10" (songs, not services), "Queued · waits for RYM" before
+          the release's RYM update, and "1 to check" afterwards.
   1.135.175 — 2026-11-18 — Match songs saves confident matches as they come in runs you open yourself too (from the deck, Processing or
           the queue), not only in the ones that run in the background: only the doubtful ones wait for you. Before, a run you opened
           started in "let me review everything", so even all-confident releases sat at "Apply 10 links". Choosing "Let me review

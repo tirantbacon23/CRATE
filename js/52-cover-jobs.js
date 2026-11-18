@@ -29,18 +29,22 @@ function cjStates() {
         if (!r.include || !r.st) return;
         const sts = ks.map(k => r.st[k]), left = sts.filter(s => s === 'wait' || s === 'work').length;
         if (!left) return;
-        const pct = ks.length ? (ks.length - left) / ks.length * 100 : 0;
-        put(r.row, { kind: 'match', phase: sts.includes('work') && !bm.paused ? 'work' : 'wait', pct: sts.includes('work') ? pct : null });
+        let pct = ks.length ? (ks.length - left) / ks.length * 100 : 0, n = 0, of = 0;
+        if (r.songs && typeof mlCounts === 'function') { const c = mlCounts(r); n = c.done; of = c.total; if (of) pct = n / of * 100; }          // (1.135.176) songs done, not services
+        put(r.row, { kind: 'match', phase: sts.includes('work') && !bm.paused ? 'work' : 'wait', pct: sts.includes('work') ? pct : null, n, of });
       });
     }
-    if (!(typeof bm !== 'undefined' && bm && bm.started && bm.scope === 'queue') && typeof mqItems === 'function') mqItems().forEach(it => put(it.row, { kind: 'match', phase: 'wait', pct: null }));
+    if (typeof bm !== 'undefined' && bm && bm.started && !bm.running && typeof mlCounts === 'function') bm.rels.forEach(r => { if (!r.include || !r.songs) return; const c = mlCounts(r); if (c.look) put(r.row, { kind: 'match', phase: 'check', pct: null, n: c.look }); });          // (afterwards: songs that want a check)
+    if (!(typeof bm !== 'undefined' && bm && bm.started && bm.scope === 'queue') && typeof mqItems === 'function') mqItems().forEach(it => put(it.row, { kind: 'match', phase: 'wait', pct: null, rym: typeof rymAddHolding === 'function' && rymAddHolding(it) }));
   } catch (e) { /* the matcher isn't there */ }
   return out;
 }
 
 function cjLabel(s) {
   if (s.kind === 'rym') return s.phase === 'work' ? 'Updating' : 'Queued · RYM';
-  return s.phase === 'work' ? 'Matching' : 'Queued · match';
+  if (s.phase === 'check') return `${s.n} to check`;
+  if (s.phase === 'work') return s.of ? `Matching ${s.n}/${s.of}` : 'Matching';
+  return s.rym ? 'Queued · waits for RYM' : 'Queued · match';
 }
 function cjClear(card) {
   card.classList.remove('cj-work', 'cj-wait');
@@ -58,7 +62,7 @@ function cjPaint() {
       const card = grid.querySelector(`.card[data-album-row="${CSS.escape(row)}"]:not(.card-shell)`); if (!card) return;
       const wrap = card.querySelector('.art-wrap'); if (!wrap) return;
       let b = wrap.querySelector(':scope > .cj-badge');
-      const key = [s.kind, s.phase, s.pct == null ? '' : Math.round(s.pct)].join('|');
+      const key = [s.kind, s.phase, s.pct == null ? '' : Math.round(s.pct), s.n || '', s.of || '', s.rym ? 1 : ''].join('|');
       if (b && b.dataset.k === key) return;
       if (!b) { b = document.createElement('div'); b.className = 'cj-badge'; b.setAttribute('aria-hidden', 'true'); wrap.appendChild(b); }
       b.dataset.k = key; b.className = `cj-badge cj-${s.kind} cj-${s.phase}`;
@@ -69,7 +73,7 @@ function cjPaint() {
       // (1.124.1) in list view the cover is 48 px: the label goes at the end of the row instead (the cover keeps its bar)
       let tag = card.querySelector(':scope > .cj-tag');
       if (!tag) { tag = document.createElement('span'); tag.className = 'cj-tag'; tag.setAttribute('aria-hidden', 'true'); card.appendChild(tag); }
-      tag.className = `cj-tag cj-${s.kind} cj-${s.phase}`; tag.textContent = cjLabel(s) + (s.phase === 'work' && s.pct != null ? ` ${Math.round(s.pct)}%` : '');
+      tag.className = `cj-tag cj-${s.kind} cj-${s.phase}`; tag.textContent = cjLabel(s) + (s.phase === 'work' && s.pct != null && !s.of ? ` ${Math.round(s.pct)}%` : '');
       b.innerHTML = `<span class="cj-pill">${s.phase === 'work' ? '<i class="cj-spin"></i>' : ''}${cjLabel(s)}</span>`
         + (s.phase === 'work' ? `<span class="cj-bar${s.pct == null ? ' cj-indef' : ''}"><b style="width:${s.pct == null ? 35 : Math.max(6, s.pct)}%"></b></span>` : '');
     });
