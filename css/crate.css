@@ -6689,3 +6689,50 @@ button.gs-chip { cursor: pointer; margin: 4px 4px 0 0; } button.gs-chip:hover { 
 .pt-mini img { width: 86px; height: 86px; border-radius: 4px; object-fit: cover; } .pt-mini:hover img { outline: 2px solid #D6A24C; }
 .pt-mini b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .pt-mini em { font: normal 10.5px 'IBM Plex Mono', monospace; color: var(--text-dim, #8B93A0); }
 @media (max-width: 600px) { .pt-row { grid-template-columns: 38px 36px minmax(0, 1fr); } .pt-via { grid-column: 3; } .pt-row img { width: 36px; height: 36px; } }
+
+/* (1.135.149) The full floating player, neatened. Top to bottom: the header; cover, song, artist, release, with like and download beside
+   the title; where you are in the song; where you are in the release; the controls, centred, with play the biggest; then a footer of
+   volume and the tools (float, fullscreen, lyrics, visualizer, devices, play from), quieter. Layout only: every control is the same one. */
+.mini-player.detached:not(.mp-min) { width: 320px; padding: 8px 14px 12px; gap: 0; border-radius: 14px; background: var(--bg-elevated, #161B22); }
+.mini-player.detached:not(.mp-min) .mini-player-row { display: contents; }
+.mini-player.detached:not(.mp-min) .mini-player-drag-handle { order: 0; padding: 0 30px 8px 0; margin: 0; border-bottom: 1px solid var(--line, #2A313C); }
+.mini-player.detached:not(.mp-min) .mini-player-close { top: 4px; right: 8px; }
+.mini-player.detached:not(.mp-min) .mini-player-track { order: 1; flex: none; width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 0 10px; min-width: 0; }
+.mini-player.detached:not(.mp-min) .mini-player-art, .mini-player.detached:not(.mp-min) .mini-player-video-wrap:not([hidden]) { width: 72px; height: 72px; border-radius: 6px; flex: none; }
+.mini-player.detached:not(.mp-min) .mini-player-video-wrap:not([hidden]) { width: 112px; height: 63px; }
+.mini-player.detached:not(.mp-min) .mini-player-meta { flex: 1; min-width: 0; gap: 3px; }
+.mini-player.detached:not(.mp-min) .mini-player-title { font-size: 15px; font-weight: 700; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-player.detached:not(.mp-min) .mini-player-artist { font-size: 12.5px; color: var(--text, #EDE7DC); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-player.detached:not(.mp-min) .mini-player-album { font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-player.detached:not(.mp-min) .mini-player-track .lk-heart, .mini-player.detached:not(.mp-min) .mini-player-track .dl-btn { flex: none; align-self: flex-start; margin-top: 2px; }
+.mini-player.detached:not(.mp-min) .mini-player-progress-row { order: 2; gap: 8px; padding: 0; }
+.mini-player.detached:not(.mp-min) .mini-player-progress-row .mini-player-time { font-size: 10.5px; min-width: 32px; }
+.mini-player.detached:not(.mp-min) .mini-player-progress-row .mini-player-time:last-child { text-align: right; }
+.mini-player.detached:not(.mp-min) .mini-player-release { order: 3; margin: 4px 0 0; opacity: .7; }
+.mini-player.detached:not(.mp-min) .mini-player-release .mini-player-time { font-size: 10px; min-width: 32px; }
+.mini-player.detached:not(.mp-min) .mini-player-release .mini-player-time:last-child { text-align: right; }
+.mini-player.detached:not(.mp-min) .mini-player-transport { order: 4; flex: none; width: 100%; display: flex; align-items: center; justify-content: center; gap: 14px; padding: 12px 0 10px; }
+.mini-player.detached:not(.mp-min) .mini-player-transport .mini-player-btn { width: 34px; height: 34px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; }
+.mini-player.detached:not(.mp-min) .mini-player-shuffle-btn:not([aria-pressed="true"]) { opacity: .6; }
+.mini-player.detached:not(.mp-min) .mini-player-btn-play { width: 46px; height: 46px; border: 0; background: var(--accent, #D6A24C); color: var(--on-accent, #12161C); }
+.mini-player.detached:not(.mp-min) .mini-player-btn-play:hover { filter: brightness(1.1); }
+.mini-player.detached:not(.mp-min) .mini-player-btn-play svg { width: 20px; height: 20px; }
+.mini-player.detached:not(.mp-min) .mini-player-options { order: 5; flex: none; width: 100%; display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-start; gap: 2px; padding-top: 10px; border-top: 1px solid var(--line, #2A313C); }
+.mini-player.detached:not(.mp-min) .mini-player-volume { flex: 1 1 auto; width: auto; min-width: 70px; display: flex; align-items: center; gap: 6px; margin-right: 6px; }
+.mini-player.detached:not(.mp-min) .mini-player-volume input { flex: 1; min-width: 0; }
+.mini-player.detached:not(.mp-min) .mini-player-volume-icon { font-size: 11px; opacity: .6; }
+.mini-player.detached:not(.mp-min) .mini-player-options > .mini-player-btn, .mini-player.detached:not(.mp-min) .mini-player-options > button:not([hidden]) { flex: none; width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; opacity: .7; font-size: 13px; }
+.mini-player.detached:not(.mp-min) .mini-player-options > button:hover { opacity: 1; background: var(--bg-card, #1F2530); }
+.mini-player.detached:not(.mp-min) .mini-player-options > button[hidden], .mini-player.detached:not(.mp-min) .mini-player-options > .mini-player-detach-btn { display: none !important; }
+.mini-player.detached:not(.mp-min) .mini-player-options svg { width: 15px; height: 15px; }
+/* (1.135.149) Player shows… (js/90-player-parts.js) */
+.pp-menu { position: fixed; z-index: 3200; width: 230px; max-height: calc(100vh - 16px); overflow-y: auto; padding: 8px; background: var(--bg-elevated, #161B22); border: 1px solid var(--line, #2A313C); border-radius: 10px; box-shadow: 0 16px 40px rgba(0,0,0,.55); }
+.pp-menu[hidden] { display: none; }
+.pp-head { display: flex; align-items: center; justify-content: space-between; padding: 2px 4px 6px; font: 600 13px Inter, sans-serif; color: var(--text, #EDE7DC); }
+.pp-reset { background: none; border: 0; color: var(--accent, #D6A24C); font: 12px Inter, sans-serif; cursor: pointer; }
+.pp-h { padding: 8px 4px 3px; font: 500 9.5px 'IBM Plex Mono', monospace; letter-spacing: .1em; text-transform: uppercase; color: var(--text-dim, #8B93A0); }
+.pp-row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 6px; border: 0; border-radius: 6px; background: none; color: var(--text, #EDE7DC); font: 13px Inter, sans-serif; text-align: left; cursor: pointer; }
+.pp-row:hover { background: var(--bg-card, #1F2530); }
+.pp-box { width: 15px; height: 15px; flex: none; border: 1px solid var(--line, #3A4250); border-radius: 4px; font-size: 10px; line-height: 13px; text-align: center; color: transparent; }
+.pp-row[aria-pressed="true"] .pp-box { background: var(--accent, #D6A24C); border-color: var(--accent, #D6A24C); color: var(--on-accent, #12161C); }
+.pp-row[aria-pressed="false"] { color: var(--text-dim, #8B93A0); }

@@ -17,8 +17,15 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.148
+  CURRENT_VERSION: 1.135.149
 
+  1.135.149 — 2026-11-18 — The floating player, neatened: the header; a bigger cover with the song, artist and release (like and
+          download beside the title); where you are in the song, then in the release; the controls centred, with play a
+          round gold button; and a quieter footer of volume and the tools. The "detach" button no longer shows while it
+          is already floating. Player shows…: ⚙ in the floating player's header (or ⚙ Settings › Player › Player
+          shows…) turns parts of the player on or off: cover/video, artist, release, extra line, like, download, song
+          and release progress, shuffle, repeat, previous/next, volume, and each tool button. It applies docked and
+          floating; a hidden video keeps playing, and keyboard shortcuts still work.
   1.135.148 — 2026-11-18 — Alt+Enter plays the release picked in the left list (or the several picked there, in the list's order): a
           click there makes the list again, so the row had no focus and nothing was found to play. "Under the mouse" also
           works after the page redraws: whatever is at the pointer now.
