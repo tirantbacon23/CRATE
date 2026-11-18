@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.155
+  CURRENT_VERSION: 1.135.156
 
+  1.135.156 — 2026-11-18 — The artist page's More Releases shows each release's genre (under its year, in gold): your own for a release
+          in your crate; else MusicBrainz's (the genres most agreed on, asked for with the discography itself), else
+          Discogs'; else Last.fm's tags for it, a few at a time after the list is drawn, kept when they look like genres
+          (one you use first; never "seen live", "albums I own", decades or countries). "+ Add" carries the genre into
+          the add form.
   1.135.155 — 2026-11-18 — Search: a field that takes words (artist:, genre:, label:, descriptor:, title:, track:, scene:…) gets its
           quotes as you type the colon, the cursor between them, so names with spaces just work; typing " at the end steps
           out, and Backspace straight after the colon takes both away. year:, rating:, listened: and the like are left as

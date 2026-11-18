@@ -6803,3 +6803,5 @@ button.gs-chip { cursor: pointer; margin: 4px 4px 0 0; } button.gs-chip:hover { 
 .pim-t { display: flex; flex-direction: column; min-width: 0; } .pim-t b { font: 600 13px Inter, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .pim-t em { font: normal 11.5px Inter, sans-serif; color: #8B93A0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 600px) { .pim-song { grid-template-columns: 18px 36px minmax(0, 1fr); } .pim-n { display: none; } .pim-song .pim-chip { grid-column: 3; justify-self: start; } }
 .pim-dialog input[type=checkbox] { accent-color: #D6A24C; }
+/* (1.135.156) More Releases: each release's genre */
+.ai-album-genre { margin-top: 1px; font-size: 11px; color: var(--accent, #D6A24C); opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 14px; }

@@ -206,7 +206,7 @@ function clearArtistMbidChoice(artistName) {
 // first-release year). Returns null on a failed request (vs. [] for a
 // real "this artist has nothing"), so callers can tell the two apart.
 async function fetchReleaseGroupsForMbid(mbid, headers, includeAll = false) {
-  const rgRes = await mbFetch(`https://musicbrainz.org/ws/2/release-group?artist=${mbid}&limit=100&fmt=json`, { headers });
+  const rgRes = await mbFetch(`https://musicbrainz.org/ws/2/release-group?artist=${mbid}&limit=100&inc=genres&fmt=json`, { headers });
   if (!rgRes.ok) return null;
   const rgData = await rgRes.json();
   return (rgData['release-groups'] || [])
@@ -223,7 +223,8 @@ async function fetchReleaseGroupsForMbid(mbid, headers, includeAll = false) {
       id: rg.id,
       title: rg.title,
       type: (rg['secondary-types'] || []).includes('Compilation') ? 'Compilation' : rg['primary-type'],
-      year: rg['first-release-date'] ? rg['first-release-date'].slice(0, 4) : null
+      year: rg['first-release-date'] ? rg['first-release-date'].slice(0, 4) : null,
+      genre: (rg.genres || []).slice().sort((a, b) => (b.count || 0) - (a.count || 0)).slice(0, 2).map(g => g.name.replace(/\b([a-z])/g, (m, c) => c.toUpperCase())).join(', ')          // (1.135.156) MusicBrainz's genres for it, the most agreed on first
     }));
 }
 

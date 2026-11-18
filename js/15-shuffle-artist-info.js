@@ -1163,10 +1163,43 @@ async function aiRenderAlbumsTab(artist, owned, token) {
       <div class="ai-cover">${cover}${match ? '<span class="ai-owned-badge" title="In your crate">●</span>' : ''}</div>
       <div class="ai-album-title">${escapeHtml(w.title)}</div>
       <div class="ai-album-year">${w.year || '—'}${w.type && w.type !== 'Album' ? ` · ${escapeHtml(w.type)}` : ''}</div>
+      <div class="ai-album-genre"${(match && match.genre) || w.genre ? '' : ` data-ai-genre-want="${i}"`}>${escapeHtml(String((match && [match.genre, match.genre2].filter(Boolean).join(', ')) || w.genre || '').split(/\s*,\s*/).slice(0, 2).join(' · '))}</div>
       <div class="ai-album-src">${w.plays ? `<b>${aiMoreN(w.plays)}</b> plays · ` : ''}${w.srcs.map(s => ({ MusicBrainz: 'MB', 'Last.fm': 'Last.fm', Discogs: 'Discogs' })[s] || s).join(' · ')}</div>
       ${match ? '' : '<button type="button" class="ai-add-btn" data-ai-action="addRg">+ Add</button>'}
     </div>`;
   }).join('');
+  aiMoreGenresSoon(artist, token);
+}
+// (1.135.156) A release with no genre from your crate, MusicBrainz or Discogs: Last.fm's tags for it, kept when they look like genres
+// (one you use in your crate or your taxonomy has, else Last.fm's top tag unless it's one of its usual non-genres). A few at a time.
+const aiGenreMem = new Map();
+const AI_NOT_GENRE = /^(seen live|albums? i own|favou?rites?|favou?rite albums?|\d{2,4}s?|[a-z]{2}|my .*|vinyl|cd|owned|under \d+.*|best .*|awesome|beautiful|love|cool|male vocalists?|female vocalists?|british|american|english|uk|usa|canadian|australian|german|french|swedish|japanese|classic)$/i;
+function aiKnownGenres() {
+  if (aiKnownGenres.n === (state.raw || []).length && aiKnownGenres.set) return aiKnownGenres.set;
+  const set = new Set(); (state.raw || []).forEach(r => [r.genre, r.genre2].forEach(v => String(v || '').split(/\s*,\s*/).forEach(g => { if (g) set.add(g.toLowerCase()); })));
+  Object.keys(state.genreTaxonomy || {}).forEach(g => set.add(g.toLowerCase()));
+  aiKnownGenres.set = set; aiKnownGenres.n = (state.raw || []).length; return set;
+}
+async function aiMoreGenresSoon(artist, token) {
+  const lfOk = typeof srchLf === 'function' && typeof srchLfKey === 'function' && srchLfKey(); if (!lfOk) return;
+  const nodes = [...document.querySelectorAll('#aiRgGrid [data-ai-genre-want]')].slice(0, 60), known = aiKnownGenres();
+  const nice = (t) => t.replace(/\b([a-z])/g, (m, c) => c.toUpperCase());
+  let k = 0;
+  const one = async () => {
+    while (k < nodes.length) {
+      const n = nodes[k++], w = aiMoreItems[+n.dataset.aiGenreWant]; if (!w || token !== aiBodyToken) return;
+      const key = (artist + '|' + w.title).toLowerCase(); let g = aiGenreMem.get(key);
+      if (g == null) {
+        try { const j = await srchLf({ method: 'album.gettoptags', artist, album: w.title, autocorrect: '1' }); const tags = (((j.toptags || {}).tag) || []).map(t => String(t.name || '').trim()).filter(t => t && !AI_NOT_GENRE.test(t));
+          const mine = tags.filter(t => known.has(t.toLowerCase())); g = (mine.length ? mine : tags).slice(0, 2).map(nice).join(' · '); } catch (e) { g = ''; }
+        aiGenreMem.set(key, g);
+      }
+      if (token !== aiBodyToken) return;
+      if (g) { n.textContent = g; n.title = 'From Last.fm\u2019s tags'; w.genre = g.replace(/ · /g, ', '); }
+      n.removeAttribute('data-ai-genre-want');
+    }
+  };
+  await Promise.all([one(), one(), one()]);
 }
 // ----- (1.135.109) MusicBrainz didn't answer: asked again by itself (5 s, then longer, up to a minute between tries) while the
 // More albums tab of that artist is open, and the tab fills in when it does -----
@@ -1213,11 +1246,11 @@ function aiMoreMerge(artist, mbItems, extra) {
   (extra || []).forEach(r => {
     const name = r.src === 'lf' ? 'Last.fm' : 'Discogs', k = lastfmNormKey(artist, r.title); if (!k || !r.title) return;
     const cur = map.get(k);
-    if (cur) { if (!cur.srcs.includes(name)) cur.srcs.push(name); if (r.playcount) cur.plays = Math.max(cur.plays, r.playcount); if (!cur.cover && r.cover) cur.cover = r.cover; if (!cur.year && r.date) cur.year = String(r.date).slice(0, 4); if (!cur.r) cur.r = r; return; }
+    if (cur) { if (!cur.srcs.includes(name)) cur.srcs.push(name); if (r.playcount) cur.plays = Math.max(cur.plays, r.playcount); if (!cur.cover && r.cover) cur.cover = r.cover; if (!cur.year && r.date) cur.year = String(r.date).slice(0, 4); if (!cur.genre && r.genre) cur.genre = r.genre; if (!cur.r) cur.r = r; return; }
     const type = r.type || 'Album';
     if (!all && /single|compil|mixtape|dj-mix|live|bootleg/i.test(type + ' ' + (r.format || ''))) return;          // (albums and EPs only, as MusicBrainz's list is, until "Show everything")
     if (r.src === 'lf' && !r.playcount) return;          // (Last.fm's never-played entries are mostly misspellings)
-    const x = { id: '', title: r.title, type, year: String(r.date || '').slice(0, 4), srcs: [name], plays: r.playcount || 0, cover: r.cover || '', r };
+    const x = { id: '', title: r.title, type, year: String(r.date || '').slice(0, 4), srcs: [name], plays: r.playcount || 0, cover: r.cover || '', genre: r.genre || '', r };
     map.set(k, x); list.push(x);
   });
   // MusicBrainz's order (by year) with the others by year too; the ones with no year last
@@ -1579,7 +1612,7 @@ function aiBodyClick(e) {
     if (match) { openDeck(match); return; }
     // (1.135.109) not in your crate: its songs and their numbers, in a card (Spotify search there before)
     if (typeof stlOpenCard === 'function') {
-      const w = aiMoreItems[+rg.dataset.i] || {}, r = Object.assign({ artist, title: rg.dataset.title, date: rg.dataset.year || '', type: rg.dataset.type || 'Album', src: w.id ? 'mbg' : (w.r && w.r.src) || 'mbg' }, w.r || {}, { artist: (w.r && w.r.artist) || artist });
+      const w = aiMoreItems[+rg.dataset.i] || {}, r = Object.assign({ artist, title: rg.dataset.title, date: rg.dataset.year || '', type: rg.dataset.type || 'Album', src: w.id ? 'mbg' : (w.r && w.r.src) || 'mbg' }, w.r || {}, { artist: (w.r && w.r.artist) || artist }); if (!r.genre && w.genre) r.genre = w.genre;          // (1.135.156) its genre, for the add form
       const cover = (rg.querySelector('img') || {}).src || w.cover || '';
       stlOpenCard({ artist: r.artist, title: rg.dataset.title, r: Object.assign(r, { cover: r.cover || cover }), cover,
         add: () => { if (w.id || !w.r) openAddModalForReleaseGroup({ artist, title: rg.dataset.title, type: rg.dataset.type, releaseDate: rg.dataset.year || '', rgId: rg.dataset.rg || '' }); else srchAddOnline(Object.assign({}, w.r, { artist: w.r.artist || artist })); } });
