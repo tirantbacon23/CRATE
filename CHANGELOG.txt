@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.138
+  CURRENT_VERSION: 1.135.139
 
+  1.135.139 — 2026-11-18 — The player's album title takes you to the release in the catalogue (its cover scrolled to and flashed), then
+          opens its deck over it. The deck's RYM rating is part of the heading, next to your stars: "RYM 3.71 · 12,345
+          ratings" as text; click it to change the numbers in a small box (Enter, Done or clicking away saves). Its row of
+          boxes is gone, with the "open ↗" link (Open on… › Rate Your Music does that) and "update ↻" (now ⋯ › Update from
+          RYM). Match songs: a YouTube button on every song's YouTube cell searches YouTube itself in a new tab, for when
+          the matches are wrong; paste the link you find.
   1.135.138 — 2026-11-18 — Galaxy influence: follow a thread. Hover a star on a picked release's line and the tip says why it is linked
           to the next one along: the genres, descriptors, scene and label they share, the same artist, how many years apart,
           and how strong the link is. A Links slider in the header keeps only the stronger links, on the drawing and on the line.

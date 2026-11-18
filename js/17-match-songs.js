@@ -1517,7 +1517,12 @@ function bmScorePill(rel, s, kind, c) {
   const tone = c.band === 'confident' ? 'ok' : c.band === 'likely' ? 'work' : 'look';
   return `<button type="button" class="bm-score bm-${tone}" data-bm="why" data-row="${escapeHtml(rel.row)}" data-idx="${s.idx}" data-kind="${kind}" data-id="${escapeHtml(c.id)}" title="Why this score">${c.score}</button>`;
 }
-function bmCellHtml(rel, s, kind) { return `<div class="bm-cellw" data-k="${bmName(kind)}" data-kind="${kind}">${bmCellInner(rel, s, kind)}</div>`; }          // labelled with its service, for the narrow layout
+function bmCellHtml(rel, s, kind) { return `<div class="bm-cellw${kind === 'youtube' ? ' has-yt' : ''}" data-k="${bmName(kind)}" data-kind="${kind}">${bmCellInner(rel, s, kind)}${kind === 'youtube' ? bmYtWebHtml(rel, s) : ''}</div>`; }
+// (1.135.139) search YouTube itself for the song, in a new tab: find it there, then paste its link here (Paste, or the drawer)
+function bmYtWebHtml(rel, s) {
+  const it = rel.item || {}, q = `${it.artist || ''} ${s.altTitle || s.title}`.trim();
+  return `<a class="sm-yt bm-ytweb" href="https://www.youtube.com/results?search_query=${encodeURIComponent(q)}" target="_blank" rel="noopener" title="Search YouTube for “${escapeHtml(q)}” in a new tab" aria-label="Search YouTube for ${escapeHtml(s.title)} in a new tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12 31 31 0 0 0 1 16.8a3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1 31 31 0 0 0 .5-4.8 31 31 0 0 0-.5-4.8zM9.8 15.1V8.9l5.4 3.1z"/></svg></a>`;
+}          // labelled with its service, for the narrow layout
 function bmCellInner(rel, s, kind) {
   const c = bmCellOf(rel, s, kind), da = `data-row="${escapeHtml(rel.row)}" data-idx="${s.idx}" data-kind="${kind}"`;
   const br = rel.broken[kind] && rel.broken[kind][s.idx], brNote = br ? `<div class="bm-m bm-warnc">${escapeHtml(br.reason)}</div>` : '';
@@ -2474,7 +2479,7 @@ function smRowHtml(s, kind) {
   }
   return `<div class="sm-row${picked ? ' picked' : ''}" data-idx="${s.idx}" data-track="${s.trackNum}"><div class="sm-check">${checkbox}</div>
     <div class="sm-song"><span class="sm-num">${s.trackNum}</span><span class="sm-title">${escapeHtml(s.title)}</span><span class="sm-len">${escapeHtml(smLen(s.durationMs))}</span>${have}</div>
-    <div class="sm-match">${match}${more}</div>${moreBlock}</div>`;
+    <div class="sm-match">${match}${more}<a class="sm-yt" href="https://www.youtube.com/results?search_query=${encodeURIComponent(st.item.artist + ' ' + (s.altTitle || s.title))}" target="_blank" rel="noopener" title="Search YouTube for “${escapeHtml(s.title)}” in a new tab (paste the link you find under ${cands.length > 1 ? 'Others' : 'Other…'})" aria-label="Search YouTube for ${escapeHtml(s.title)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12 31 31 0 0 0 1 16.8a3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1 31 31 0 0 0 .5-4.8 31 31 0 0 0-.5-4.8zM9.8 15.1V8.9l5.4 3.1z"/></svg><span>Search</span></a></div>${moreBlock}</div>`;
 }
 function smRender() {
   const st = smState; if (!st || el.songMatchOverlay.hidden) return;

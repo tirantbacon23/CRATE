@@ -6535,3 +6535,24 @@ html.cur-on input:not([type="range"]):not([type="checkbox"]):not([type="radio"])
 .gxh-year { font: 400 24px/1 'Bebas Neue', Inter, sans-serif; color: #D6A24C; min-width: 76px; text-align: right; }
 .gx-overlay .gx-stage:has(.gxh-scrub:not([hidden])) .gx-status { bottom: 72px; }
 @media (max-width: 700px) { .gxh-scrub { flex-wrap: wrap; } .gxh-track { flex-basis: 100%; order: 9; } }
+
+/* (1.135.139) The deck's RYM rating as part of the heading (js/83-deck-rym.js) */
+.deck-rym-block.drym-gone { display: none; }
+.drym { position: relative; display: inline-flex; margin-left: 6px; }
+.drym-stat { display: inline-flex; align-items: baseline; gap: 6px; height: 26px; padding: 0 10px; border: 1px solid var(--line, #2A313C); border-radius: 13px; background: none; color: var(--text, #EDE7DC); cursor: pointer; font: 12px Inter, sans-serif; line-height: 24px; }
+.drym-stat:hover, .drym-stat[aria-expanded="true"] { border-color: var(--accent, #D6A24C); }
+.drym-stat b { font: 500 9.5px 'IBM Plex Mono', monospace; letter-spacing: .1em; color: var(--text-dim, #8B93A0); }
+.drym-n { font: 600 13px 'IBM Plex Mono', monospace; color: var(--accent, #D6A24C); }
+.drym-v { font: 11px 'IBM Plex Mono', monospace; color: var(--text-dim, #8B93A0); }
+.drym-stat.none { border-style: dashed; } .drym-stat.none .drym-v { color: var(--text-dim, #8B93A0); }
+.drym-edit { position: absolute; left: 0; top: calc(100% + 6px); z-index: 30; display: flex; align-items: flex-end; gap: 8px; padding: 10px; background: var(--bg-elevated, #1C222B); border: 1px solid var(--line, #2A313C); border-radius: 10px; box-shadow: 0 12px 30px rgba(0,0,0,.5); }
+.drym-edit[hidden] { display: none; }
+.drym-edit label { display: flex; flex-direction: column; gap: 4px; font: 500 9.5px 'IBM Plex Mono', monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim, #8B93A0); }
+.drym-edit input { width: 76px; background: var(--bg, #12161C); color: var(--text, #EDE7DC); border: 1px solid var(--line, #2A313C); border-radius: 6px; padding: 5px 7px; font: 12px 'IBM Plex Mono', monospace; box-sizing: border-box; }
+.drym-edit #deckRymVotes { width: 92px; }
+.drym-done { height: 28px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--accent, #D6A24C); background: none; color: var(--accent, #D6A24C); font: 500 12px Inter, sans-serif; cursor: pointer; }
+/* (1.135.139) Match songs: search YouTube for a song in a new tab */
+.sm-yt { display: inline-flex; align-items: center; gap: 4px; flex: none; height: 24px; padding: 0 8px; margin-left: 6px; border: 1px solid var(--line, #2A313C); border-radius: 12px; color: var(--text-dim, #8B93A0); font: 500 11px Inter, sans-serif; text-decoration: none; }
+.sm-yt svg { width: 14px; height: 14px; } .sm-yt:hover { color: #FF4E45; border-color: #FF4E45; }
+.bm-cellw.has-yt { display: flex; align-items: center; gap: 4px; } .bm-cellw.has-yt > .bm-cell { flex: 1; min-width: 0; }
+.bm-ytweb { margin-left: 0; padding: 0; width: 26px; justify-content: center; }
