@@ -38,7 +38,7 @@ function auBar(why) {
   }
   if (AU.later) { b.hidden = true; return; }
   b.hidden = false;
-  b.innerHTML = `<span><b>CRATE ${escapeHtml(AU.latest)}</b> is ready. It refreshes by itself once ${escapeHtml(why || 'you’re done')}${why === 'music is playing' ? ' (pause it, or let the queue end)' : ''}.</span><button type="button" class="au-btn au-pri" data-au="now">Refresh now</button><button type="button" class="au-btn" data-au="later">Later</button>`;
+  b.innerHTML = `<span><b>CRATE ${escapeHtml(AU.latest)}</b> is ready. It refreshes by itself ${escapeHtml(({ 'music is playing': 'when the music stops (pause it, or let the queue end)', 'you\u2019re typing': 'when you leave the box you\u2019re typing in', 'a window is open': 'when you close the window that\u2019s open', 'Match songs is open': 'when you close Match songs' })[why] || 'in a moment')}.</span><button type="button" class="au-btn au-pri" data-au="now">Refresh now</button><button type="button" class="au-btn" data-au="later">Later</button>`;
 }
 (function () {
   setTimeout(auCheck, 15000);
