@@ -113,6 +113,8 @@ document.addEventListener('keydown', (e) => {
 // ----- (1.135.145) Alt+Enter: play the release or song you're on. Alt+Shift+Enter: add it to the queue. "On" is, in order: the row or card with the
 // keyboard focus, what's selected (several songs or releases play together, in their order on the page), what the mouse is over, the open deck. -----
 let keysHover = null;
+let keysMouse = null;
+document.addEventListener('mousemove', (e) => { keysMouse = [e.clientX, e.clientY]; }, { passive: true, capture: true });
 document.addEventListener('mouseover', (e) => { const t = e.target.closest && e.target.closest('[data-track-key], [data-album-row], .left-row[data-lrow], [data-gn-go], [data-gs-go], [data-pt-deck]'); keysHover = t || null; }, true);
 function keysItemByRow(row) { row = String(row); return (state.raw || []).find(r => String(r.row) === row) || null; }
 function keysTrackOf(node) {                                          // a song row -> { item, trackNum, trackName }
@@ -135,7 +137,13 @@ function keysTarget() {
   const f = one(pick(document.activeElement)); if (f) return f;
   if (state.selectedTracks && state.selectedTracks.size) { const tr = [...document.querySelectorAll('[data-track-key].selected')].filter(n => n.offsetParent !== null).map(keysTrackOf).filter(Boolean); if (tr.length) return { tracks: tr }; }
   if (state.selectedAlbums && state.selectedAlbums.size) { const order = [...document.querySelectorAll('[data-album-row]')].map(n => n.dataset.albumRow), sel = [...state.selectedAlbums]; sel.sort((a, b) => (order.indexOf(a) + 1 || 1e9) - (order.indexOf(b) + 1 || 1e9)); const rel = sel.map(keysItemByRow).filter(Boolean); if (rel.length) return { releases: rel }; }
-  const h = keysHover && keysHover.isConnected && keysHover.offsetParent !== null ? one(keysHover) : null; if (h) return h;
+  // (1.135.148) the release(s) picked in the left list (the browser column): a click there makes the list again, so its row has no focus
+  const nf = state.navFilter;
+  if (nf && nf.mode === 'album' && (!state.activePlaylistId || state.leftNavView === 'playlists')) { const order = [...document.querySelectorAll('#leftList .left-row[data-lrow]')].map(n => n.dataset.lrow), keys = (nf.multi ? nf.multi.slice() : [String(nf.value)]); keys.sort((a, b) => (order.indexOf(String(a)) + 1 || 1e9) - (order.indexOf(String(b)) + 1 || 1e9)); const rel = keys.map(keysItemByRow).filter(Boolean); if (rel.length) return { releases: rel }; }
+  // under the mouse: the element it was over, or (when that was made again since) whatever is at the same point now
+  let hv = keysHover && keysHover.isConnected && keysHover.offsetParent !== null ? keysHover : null;
+  if (!hv && keysMouse) hv = pick(document.elementFromPoint(keysMouse[0], keysMouse[1]));
+  const h = hv ? one(hv) : null; if (h) return h;
   if (keysDeckOpen() && activeItem) return { releases: [activeItem] };
   return null;
 }

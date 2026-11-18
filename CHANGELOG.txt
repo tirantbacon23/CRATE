@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.147
+  CURRENT_VERSION: 1.135.148
 
+  1.135.148 — 2026-11-18 — Alt+Enter plays the release picked in the left list (or the several picked there, in the list's order): a
+          click there makes the list again, so the row had no focus and nothing was found to play. "Under the mouse" also
+          works after the page redraws: whatever is at the pointer now.
   1.135.147 — 2026-11-18 — Match songs finds a song's plain version on YouTube more often. "Extended", "12-inch version", "long
           version" and similar count as a different version (marked down, like live or remix): "A Mirage (Extended
           Version)" scored 88 against the album's "A Mirage" and kept the real one out of sight. Through the add-on, the
