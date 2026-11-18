@@ -433,12 +433,17 @@ async function rfOpen(x) {
 }
 
 // ----- the player's radio button, ⚙ › CRATE Radio…, and the database's search results open the card -----
-function rBtnPaint() { const b = document.getElementById('miniPlayerRadioBtn'); if (b) { b.classList.toggle('on', radio.on); b.setAttribute('aria-pressed', String(radio.on)); b.title = radio.on ? 'CRATE Radio: ' + rStName(radio.st) : 'CRATE Radio'; } }
+function rBtnPaint() { ['miniPlayerRadioBtn', 'radioTopBtn'].forEach(id => { const b = document.getElementById(id); if (b) { b.classList.toggle('on', radio.on); b.setAttribute('aria-pressed', String(radio.on)); b.title = radio.on ? 'CRATE Radio: ' + rStName(radio.st) + ' (Shift R)' : 'CRATE Radio and Discover (Shift R)'; } }); }
 (function () {
   const q = document.getElementById('miniPlayerQueueBtn');
   if (q) { const b = document.createElement('button'); b.id = 'miniPlayerRadioBtn'; b.className = 'mini-player-btn rd-pbtn'; b.type = 'button'; b.setAttribute('aria-label', 'CRATE Radio'); b.setAttribute('aria-pressed', 'false'); b.title = 'CRATE Radio';
     b.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/></svg>';
     b.addEventListener('click', () => radioOpen()); q.parentNode.insertBefore(b, q); }
+  // (1.135.172) and one in the top bar, beside Friends: the player only shows once something plays, so a new crate had no way in but the ⚙ menu
+  const fb = document.getElementById('friendsBtn');
+  if (fb) { const t = document.createElement('button'); t.type = 'button'; t.id = 'radioTopBtn'; t.className = 'icon-btn rd-pbtn'; t.setAttribute('aria-label', 'CRATE Radio and Discover'); t.setAttribute('aria-pressed', 'false'); t.title = 'CRATE Radio and Discover (Shift R)';
+    t.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/></svg>';
+    t.addEventListener('click', () => radioOpen(radio.on ? 'now' : (state.raw || []).length ? undefined : 'discover')); fb.insertAdjacentElement('afterend', t); }
   const after = document.getElementById('menuMusicDb') || document.getElementById('menuMasterCrate'); if (after) { const m = document.createElement('button'); m.type = 'button'; m.id = 'menuRadio'; m.textContent = 'CRATE Radio…'; m.title = 'Play beyond your crate, from the music database'; m.addEventListener('click', () => radioOpen()); after.insertAdjacentElement('beforebegin', m); }
   // the player's title and release, for a release from the database: its card (it isn't in the catalogue to go to)
   document.addEventListener('click', (e) => {

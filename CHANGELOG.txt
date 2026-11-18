@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.171
+  CURRENT_VERSION: 1.135.172
 
+  1.135.172 — 2026-11-18 — CRATE Radio has a button in the top bar, beside Friends (it lights up teal while the radio plays). The
+          player's radio button only shows once something is playing, so a new or empty crate had no way in but ⚙ › CRATE Radio…
+          With an empty crate it opens on Discover.
   1.135.171 — 2026-11-18 — Discover redesigned, with two views (Shelves | Chart, remembered). Shelves: today's pick (a different one of
           your top few each day) with why it's for you in plain sentences, Last.fm's own words about it, its numbers and buttons; then
           shelves headed by their reasons: "Because you rate <your 5★ release>", what your friends keep, under 50K listeners and rated
