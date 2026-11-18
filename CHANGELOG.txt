@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.154
+  CURRENT_VERSION: 1.135.155
 
+  1.135.155 — 2026-11-18 — Search: a field that takes words (artist:, genre:, label:, descriptor:, title:, track:, scene:…) gets its
+          quotes as you type the colon, the cursor between them, so names with spaces just work; typing " at the end steps
+          out, and Backspace straight after the colon takes both away. year:, rating:, listened: and the like are left as
+          they are. The loading screen shows a tip, a new one every few seconds (twenty of them: shortcuts and features).
   1.135.154 — 2026-11-18 — Import a playlist (⤓ in the playlist list's header). Paste a Spotify or YouTube playlist link, a CSV export
           (Exportify; TuneMyMusic or Soundiiz for Apple Music, Tidal, Deezer…), or a list of songs ("Artist - Song" or
           "Song by Artist", one a line). Each song is matched to your crate: its release by artist and title, then the
