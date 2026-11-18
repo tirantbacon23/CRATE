@@ -291,7 +291,7 @@ function ssRender() {
   const box = document.getElementById('searchSuggest'), inp = el.searchInput; if (!box || !inp) return;
   const behind = srch.keep && el.deckOverlay && el.deckOverlay.classList.contains('open');
   box.classList.toggle('srch-behind', !!behind);
-  if (!behind && document.activeElement !== inp && !box.contains(document.activeElement)) { srch.keep = false; box.hidden = true; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); return; }
+  if (!behind && document.activeElement !== inp && !box.contains(document.activeElement) && !(typeof srchProxyIs === 'function' && srchProxyIs(document.activeElement))) { srch.keep = false; box.hidden = true; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); return; }
   const lk = srchLook(), det = lk === 'detail';
   ssItems = srchItems(); if (ssActive >= ssItems.length) ssActive = -1;          // (made again each time: online results and the crate's filtering arrive after the typing)
   if (lk === 'simple' && !ssItems.length && !(srchSimpleOnline(inp.value) && srch.onlineState === 'loading')) { box.hidden = true; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); return; }          // simple: nothing to suggest, nothing shown
