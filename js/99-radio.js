@@ -23,6 +23,7 @@ const rLs = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k) || 'n
 const rLsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* this visit */ } };
 function rFold(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/&/g, ' and ').replace(/\s*[([][^)\]]*(deluxe|remaster|edition|expanded|anniversary|bonus|version|reissue)[^)\]]*[)\]]/g, '').replace(/[^a-z0-9]+/g, ' ').replace(/^the /, '').trim(); }
 function rKey(a, t) { const x = rFold(a), y = rFold(t); return x && y ? x + '|' + y : ''; }
+const rGN = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();          // (1.135.174) genres compared as words: "post punk" = "Post-Punk"
 const rSplit = (s) => String(s || '').split(/\s*[,;]\s*/).map(x => x.trim().toLowerCase()).filter(Boolean);
 const rCap = (s) => String(s || '').replace(/(^|[\s-])([a-z])/g, (m, p, c) => p + c.toUpperCase());
 function rN(n) { n = Number(n) || 0; return n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M' : n >= 1e4 ? Math.round(n / 1e3) + 'K' : n.toLocaleString(); }
@@ -61,10 +62,10 @@ function rSeeds(st) {
   const fromItems = (its, w) => { const g = {}, d = {}; its.forEach(it => { rSplit(it.genre).concat(rSplit(it.genre2)).forEach(x => { g[x] = (g[x] || 0) + 1; }); rSplit(it.rymDescriptors).slice(0, 6).forEach(x => { d[x] = (d[x] || 0) + 1; }); });
     Object.keys(g).sort((x, y) => g[y] - g[x]).slice(0, 6).forEach(x => out.genres.push({ g: x, w })); Object.keys(d).sort((x, y) => d[y] - d[x]).slice(0, 8).forEach(x => out.descs.push({ d: x, w: w * 0.8 })); };
   const v = String(st.value || '').trim(), vl = v.toLowerCase();
-  if (st.kind === 'genre') { out.genres.push({ g: vl, w: 1 }); (state.raw || []).filter(it => rSplit(it.genre).includes(vl) && (Number(it.rating) || 0) >= 4).slice(0, 30).forEach(it => out.artists.push({ a: it.artist, w: 0.5 })); }
+  if (st.kind === 'genre') { const gn = rGN(v); out.genres.push({ g: gn, w: 1 }); (state.raw || []).filter(it => rSplit(it.genre).concat(rSplit(it.genre2)).some(x => rGN(x) === gn) && (Number(it.rating) || 0) >= 4).slice(0, 30).forEach(it => out.artists.push({ a: it.artist, w: 0.5 })); }
   else if (st.kind === 'artist') { out.artists.push({ a: v, w: 1 }); fromItems((state.raw || []).filter(it => rFold(it.artist) === rFold(v)), 0.4); }
   else if (st.kind === 'release') { const it = rOwned().get(rKey(st.artist, st.title)); out.artists.push({ a: st.artist, w: 0.8 }); if (it) fromItems([it], 1); else rSplit(st.genre).forEach(x => out.genres.push({ g: x, w: 1 })); }
-  else if (st.kind === 'desc') { out.descs.push({ d: vl, w: 1.5 }); fromItems((state.raw || []).filter(it => rSplit(it.rymDescriptors).includes(vl)).slice(0, 40), 0.5); }
+  else if (st.kind === 'desc') { out.descs.push({ d: rGN(v), w: 1.5 }); fromItems((state.raw || []).filter(it => rSplit(it.rymDescriptors).some(x => rGN(x) === rGN(v))).slice(0, 40), 0.5); }
   else { t.g.forEach(x => out.genres.push({ g: x.k, w: x.w })); t.d.forEach(x => out.descs.push({ d: x.k, w: x.w * 0.6 })); t.a.slice(0, 60).forEach(x => out.artists.push({ a: x.k, w: x.w })); }
   return out;
 }
@@ -74,7 +75,7 @@ function rYears(st) { if (st.kind === 'time' && st.value) { const y = Number(Str
 async function rLoadPool(st) {
   const seeds = rSeeds(st), [yFrom, yTo] = rYears(st);
   const skip = [...rOwned().keys()].concat(Object.keys(rLs(RADIO_NO_KEY, {}))).slice(0, 8000);
-  const r = await postUpdate({ action: 'masterMusicRadio', genres: seeds.genres, descs: seeds.descs, artists: seeds.artists, yFrom, yTo, strictYears: st.kind === 'time', deep: st.kind === 'deep', cold: rCold() || st.kind === 'time' || st.kind === 'deep', friends: st.kind === 'friends', skip, n: 400 });
+  const r = await postUpdate({ action: 'masterMusicRadio', genres: seeds.genres, descs: seeds.descs, artists: seeds.artists, yFrom, yTo, strictYears: st.kind === 'time', deep: st.kind === 'deep', cold: (rCold() && (st.kind === 'taste' || st.kind === 'friends')) || st.kind === 'time' || st.kind === 'deep', needGenre: st.kind === 'genre' || st.kind === 'desc', friends: st.kind === 'friends', skip, n: 400 });
   if (!r || r.music !== true) throw new Error(r && r.error ? r.error : 'Your backend doesn’t have CRATE Radio yet: paste the new Master.gs and deploy a new version.');
   if (r.joined === false) throw new Error('Join the master crate first (⚙ › Master crate…): the radio plays from its music database.');
   const no = rLs(RADIO_NO_KEY, {}), owned = rOwned();
@@ -84,7 +85,8 @@ async function rLoadPool(st) {
   const played = rLs(RADIO_PLAYED_KEY, {}), wk = Date.now() - 7 * 864e5;
   radio.mine = (state.raw || []).map(it => {
     const y = Number(String(it.releaseDate || '').slice(0, 4)) || 0; if (y && (y < yFrom || y > yTo)) return null; if (!y && st.kind === 'time') return null;
-    let s = 0; rSplit(it.genre).concat(rSplit(it.genre2)).forEach(x => { s += (gs[x] || 0) * 2; }); rSplit(it.rymDescriptors).forEach(x => { s += ds[x] || 0; }); s += (as[rFold(it.artist)] || 0) * 3;
+    let s = 0; rSplit(it.genre).concat(rSplit(it.genre2)).forEach(x => { s += (gs[x] || gs[rGN(x)] || 0) * 2; }); rSplit(it.rymDescriptors).forEach(x => { s += ds[x] || ds[rGN(x)] || 0; }); s += (as[rFold(it.artist)] || 0) * 3;
+    if ((st.kind === 'genre' || st.kind === 'desc') && !(rSplit(it.genre).concat(rSplit(it.genre2), rSplit(it.rymDescriptors)).some(x => seeds.genres.concat(seeds.descs).some(z => rGN(x) === (z.g || z.d))))) return null;          // (yours, on a genre station: only ones of that genre)
     if (!s) return null; const k = rKey(it.artist, it.title); if ((played[k] || 0) > wk) s *= 0.2;
     s += ((Number(it.rating) || 3) - 3) * 1.2; return { it, s, k };
   }).filter(Boolean).sort((a, b) => b.s - a.s).slice(0, 120);
@@ -203,7 +205,18 @@ async function radioStart(st) {
   rLsSet(RADIO_LAST_KEY, st);
   radio.tab = 'now'; radio.say = 'Tuning in…'; radio.err = ''; rPaint();
   try { await rLoadPool(st); } catch (e) { radio.say = ''; radio.err = e.message; radio.tab = 'stations'; rPaint(); return; }
-  if (!radio.pool.length && !radio.mine.length) { radio.say = ''; radio.err = 'Nothing near that station in the music database yet: try a wider one, or fill the database (⚙ › Music database…).'; radio.tab = 'stations'; rPaint(); return; }
+  // (1.135.174) a genre, descriptor or artist the database barely knows yet: more from Last.fm first, merged, then picked again
+  if (['genre', 'desc', 'artist'].includes(st.kind) && st.value && radio.pool.length < 40 && typeof mdbFill === 'function' && typeof srchLfKey === 'function' && srchLfKey()) {
+    radio.say = `Only ${radio.pool.length} release${radio.pool.length === 1 ? '' : 's'} for \u201c${st.value}\u201d in the music database so far: fetching more from Last.fm\u2026`; rPaint();
+    try {
+      if (st.kind === 'artist') { await mdbFillArtist(st.value); const j = await srchLf({ method: 'artist.getsimilar', artist: st.value, autocorrect: '1', limit: '10' }); const sim = (((j.similarartists || {}).artist) || []).map(x => ({ a: x.name, m: Number(x.match) || 0 })).filter(x => x.a); mdbSimilar(st.value, sim); for (const x of sim.slice(0, 6)) await mdbFillArtist(x.a); }
+      else await mdbFill({ tag: st.value });
+      await mdbFlush(); await postUpdate({ action: 'masterMusicState', fresh: true });
+      await rLoadPool(st);
+    } catch (e) { /* plays what there is */ }
+    radio.say = 'Tuning in\u2026'; rPaint();
+  }
+  if (!radio.pool.length && !radio.mine.length) { radio.say = ''; radio.err = ['genre', 'desc', 'artist'].includes(st.kind) ? `Nothing for \u201c${st.value}\u201d in the music database yet${typeof srchLfKey === 'function' && srchLfKey() ? ', and Last.fm had nothing to add: check the spelling' : ': save a Last.fm key (\u2699 \u203a Last.fm) and it fetches some'}.` : 'Nothing near that station in the music database yet: try a wider one, or fill the database (⚙ › Music database…).'; radio.tab = 'stations'; rPaint(); return; }
   radio.on = true; radio.qid = ++crateQueueId; crateQueueList = []; crateQueueIndex = -1; renderCrateQueuePanel();
   let first = []; for (let i = 0; i < 6 && !first.length; i++) { const p = await rNext(); if (!p) break; first = await rEntries(p); }
   if (!first.length || crateQueueId !== radio.qid) { radio.on = false; radio.say = ''; radio.err = 'Couldn’t find songs to play for that station.'; rPaint(); return; }
@@ -298,7 +311,8 @@ function rNowHtml() {
 function rStationsHtml() {
   const d = radio.draft, saved = rLs(RADIO_ST_KEY, []);
   const needs = { genre: ['Genre', 'e.g. Post-Punk', 'genres'], artist: ['Artist', 'e.g. Talk Talk', 'artists'], release: ['Release', 'the one playing, or Artist – Title', ''], desc: ['Descriptor', 'e.g. nocturnal', 'descs'], time: ['Year or decade', 'e.g. 1994 or 1980s', ''] }[d.kind];
-  const lists = { genres: rTaste().g.map(x => rCap(x.k)), artists: rTaste().a.slice(0, 60).map(x => x.k), descs: rTaste().d.map(x => x.k) };
+  if (d.kind === 'genre' && !radio.dbGenres) rDbGenres();
+  const lists = { genres: [...new Set(rTaste().g.map(x => rCap(x.k)).concat((radio.dbGenres || []).slice(0, 300).map(x => rCap(x.k))))], artists: rTaste().a.slice(0, 60).map(x => x.k), descs: rTaste().d.map(x => x.k) };
   const seg = (k, opts) => `<div class="rd-seg" role="radiogroup">${opts.map(([v, l]) => `<button type="button" role="radio" aria-checked="${d[k] === v}" class="${d[k] === v ? 'on' : ''}" data-rd-set="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
   return `<div class="rd-st">${rSeedHtml()}
     ${saved.length ? `<div class="rd-saved"><span class="gs-lbl">Saved</span>${saved.map((s, i) => `<span class="rd-sv"><button type="button" data-rd-saved="${i}">▶ ${escapeHtml(rStName(s))}</button><button type="button" data-rd-unsave="${i}" aria-label="Forget ${escapeHtml(rStName(s))}">×</button></span>`).join('')}</div>` : ''}

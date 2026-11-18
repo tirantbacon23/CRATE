@@ -420,7 +420,9 @@ function _music(email, action, payload) {
     if (action === 'musicRadio') {          // (1.135.168) CRATE Radio's candidates: releases near the station's genres, artists and years; CRATE does the final pick
       const id = _mProps().getProperty('MASTER_SS'), ss = id ? SpreadsheetApp.openById(id) : null, sh = ss ? ss.getSheetByName('Music') : null;
       if (!sh || sh.getLastRow() < 2) return _json({ ok: true, music: true, items: [], related: {} });
-      const fold = (x) => String(x || '').toLowerCase().trim();
+      const fold = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();          // (1.135.174) "post punk", "Post-Punk", "post-punk" all the same
+      const tokens = (x) => String(x || '').split(/\s*[,;]\s*/).map(fold).filter(Boolean).map(t => ' ' + t + ' ');
+      const has = (toks, w) => toks.some(t => t.indexOf(' ' + w + ' ') >= 0);          // a whole genre, or whole words in one ("punk" is in "post punk", "rock" isn't in "krautrock")
       const genres = (Array.isArray(payload.genres) ? payload.genres : []).slice(0, 40).map(g => ({ g: fold(g.g || g), w: Number(g.w) || 1 })).filter(g => g.g);
       const descs = (Array.isArray(payload.descs) ? payload.descs : []).slice(0, 30).map(d => ({ d: fold(d.d || d), w: Number(d.w) || 1 })).filter(d => d.d);
       const seeds = (Array.isArray(payload.artists) ? payload.artists : []).slice(0, 80).map(a => ({ k: _mFold(a.a || a), w: Number(a.w) || 1 })).filter(a => a.k);
@@ -437,10 +439,11 @@ function _music(email, action, payload) {
       v.forEach(r => {
         const key = String(r[I.Key] || ''); if (!key || skip[key]) return;
         const y = Number(String(r[I.Year] || '').slice(0, 4)) || 0; if (y && (y < yFrom || y > yTo)) return; if (!y && (yFrom > 0 || yTo < 9999) && payload.strictYears) return;
-        const g = fold(r[I.Genre]), d = fold(r[I.Descriptors]), ak = _mFold(r[I.Artist]);
+        const g = tokens(r[I.Genre]), d = tokens(r[I.Descriptors]), ak = _mFold(r[I.Artist]);
         let sc = 0, why = [];
-        genres.forEach(x => { if (g && g.indexOf(x.g) >= 0) { sc += 2 * x.w; if (why.length < 3) why.push('g:' + x.g); } });
-        descs.forEach(x => { if (d && d.indexOf(x.d) >= 0) sc += 1.2 * x.w; });
+        genres.forEach(x => { if (g.length && has(g, x.g)) { sc += 2 * x.w; if (why.length < 3) why.push('g:' + x.g); } });
+        descs.forEach(x => { if (d.length && has(d, x.d)) sc += 1.2 * x.w; });
+        if (payload.needGenre && !sc) return;          // (a named genre or descriptor station: only releases that have it)
         if (related[ak]) { sc += 4 * related[ak]; why.push('a'); }
         const li = Number(r[I.Listeners]) || 0, rr = Number(r[I.RymRating]) || 0, rv = Number(r[I.RymVotes]) || 0, cr = Number(r[I.Crates]) || 0;
         if (payload.friends) { if (!cr) return; sc += 1; }          // (the friends' station: only what's in their crates)

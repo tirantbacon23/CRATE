@@ -17,8 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.173
+  CURRENT_VERSION: 1.135.174
 
+  1.135.174 — 2026-11-18 — New releases: their Rate Your Music update goes to the front of the queue, and Match songs starts the
+          moment it lands (RYM's tracklist first, then the songs matched). It waits only for that release's own update, not for every
+          RYM update queued (that was what kept releases waiting for hours), 20 minutes at most; Fill in the blanks no longer holds it
+          up. A later tracklist change still has its new songs matched.
+          CRATE Radio: genre and descriptor stations match whole words ("post punk" = "Post-Punk"), play only releases that have that
+          genre, and no longer fall back to the whole database on an empty crate (that's how Kanye West got onto a post-punk station).
+          A genre, descriptor or artist the music database barely knows (under 40 releases) fetches more from Last.fm first. The genre
+          box suggests the database's genres too. Paste the new Master.gs and deploy a new version.
   1.135.173 — 2026-11-18 — Match songs starts as soon as a release is added. It used to wait for the release's Rate Your Music update
           and Fill in the blanks first, and while other RYM updates were queued or paused that could take hours, leaving releases in the
           match queue. Now it matches straight away, and if the RYM update or Fill in the blanks later changes the tracklist, the new

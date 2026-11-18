@@ -794,9 +794,9 @@ function bmAutoRun() {
   const byKey = new Map(); state.raw.forEach(r => { const k = mqKey(r.artist, r.title); if (!byKey.has(k)) byKey.set(k, r); });
   const all = bmAuto.pending.map(e => byKey.get(e.k)).filter(Boolean);
   if (all.length < bmAuto.pending.length && bmAuto.tries < 3) { later(10000); return; }          // the rest may not have reached the list yet
-  // (1.135.173) Matched straight away: no more waiting for the release's RYM update or Fill in the blanks (that wait could last hours
-  // while other RYM updates were queued or paused). If either later changes its tracklist, the new songs are matched then (bmRematchAfterEdit).
-  const held = new Set(), found = all;          // (still to be updated from Rate Your Music, or its blanks filled: matched after that)
+  // (1.135.174) Matched as soon as its own RYM update has run (RYM's tracklist), and no longer: not after Fill in the blanks, nor while
+  // other RYM updates run (that wait could last hours). If the tracklist changes later, the new songs are matched then (see the end of this file).
+  const held = new Set(all.filter(it => rymAddHolding(it)).map(it => mqKey(it.artist, it.title))), found = all.filter(it => !held.has(mqKey(it.artist, it.title)));          // (still to be updated from Rate Your Music, or its blanks filled: matched after that)
   bmAuto.pending = bmAuto.pending.filter(e => !byKey.has(e.k) || held.has(e.k));
   const svc = { spotify: smPrefs().spotifyLookup !== false && !!(loadSpotifyCreds() || {}).clientId, youtube: ytUseAddon() }, kinds = ['spotify', 'youtube'].filter(k => svc[k]);
   bmAuto.noSvc = !kinds.length; if (typeof jobsRefresh === 'function') jobsRefresh();
@@ -815,7 +815,7 @@ function bmAutoRun() {
     }
     jobsRefresh();
   }
-  if (held.size) { clearTimeout(bmAuto.timer); bmAuto.timer = setTimeout(bmAutoRun, 15000); }          // (waiting for RYM is not a failed try)
+  if (held.size) { clearTimeout(bmAuto.timer); bmAuto.timer = setTimeout(bmAutoRun, 5000); }          // (waiting for RYM is not a failed try)
   else if (bmAuto.pending.length) later(20000);
 }
 // ----- the lanes: each service works through the releases at its own pace -----
@@ -2799,10 +2799,10 @@ const bmRecentAdds = new Map();
   postUpdate = async function (payload) {
     const r = await baseP.apply(this, arguments);
     try {
-      if (payload && payload.action === 'editAlbum' && payload.ManualTracks && smPrefs().autoMatchNew) {
+      if (payload && payload.action === 'editAlbum' && (payload.ManualTracks || payload.RymUpdated || payload.RymLink) && smPrefs().autoMatchNew) {
         const it = payload.row != null ? (state.raw || []).find(r => String(r.row) === String(payload.row)) : null;
         const a = String(payload.Artist || (it && it.artist) || ''), ti = String(payload.Title || (it && it.title) || ''), t = a && ti ? bmRecentAdds.get(mqKey(a, ti)) : 0;
-        if (t && Date.now() - t < 6 * 3600e3) setTimeout(() => baseQ([{ artist: a, title: ti }]), 3000);
+        if (t && Date.now() - t < 6 * 3600e3) setTimeout(() => { baseQ([{ artist: a, title: ti }]); clearTimeout(bmAuto.timer); bmAuto.timer = setTimeout(bmAutoRun, 1500); }, 1500);          // (its RYM update just landed: matched now)
       }
     } catch (e) { /* matched at the next sweep */ }
     return r;

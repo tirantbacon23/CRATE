@@ -371,7 +371,7 @@ function rymFetchUpdates(items, opts) {
   const todo = items.filter(it => rymUpdateUrl(it) || (it.artist && it.title)), noLink = items.length - todo.length;
   rymFetchState.findSent = todo.filter(it => !rymUpdateUrl(it)).length;
   if (!todo.length) { flashGlobalToast(items.length === 1 ? 'This release has no Rate Your Music link to open. Add one in Edit, or open its page on RYM and use \u201cUpdate CRATE from this page\u201d.' : 'None of those has a Rate Your Music link to open.'); return; }
-  if (rymFetchState.active) { jobsQueueRym(todo); return; }          // one is running: this one waits its turn (Processing)
+  if (rymFetchState.active) { jobsQueueRym(todo, !!opts.front, !!opts.front); return; }          // one is running: this one waits its turn (Processing)
   const use = todo.slice(0, 25), over = todo.length - use.length;
   if (use.length > 1 && !opts.queued) {
     const mins = Math.max(1, Math.round(use.length * 14.5 / 60));
@@ -390,7 +390,7 @@ function rymUpdateAddedPick(added) { return state.rymUpdateOnAdd ? (added || [])
 function rymUpdateAdded(added) {
   const todo = rymUpdateAddedPick(added); if (!todo.length || !rymOutState.present) return;
   flashGlobalToast(`Updating ${todo.length === 1 ? `\u201c${todo[0].title}\u201d` : `${todo.length} new releases`} from Rate Your Music in the background${todo.length > 1 ? ' \u2014 one page every 8 to 15 seconds' : ''}.`);
-  rymFetchUpdates(todo, { queued: true });
+  rymFetchUpdates(todo, { queued: true, front: true });          // (1.135.174) a new release goes first: its songs are matched as soon as it's had it
 }
 // The order for a new release: added, then updated from Rate Your Music, then its songs matched (bmAutoRun asks here first), so the matching
 // works on RYM's tracklist. A release is held while its first update is still to come: until it has had it, or nothing from RYM has been
@@ -400,9 +400,10 @@ function rymAddHolding(it, now) {
   now = now || Date.now(); const k = mqKey(it.artist, it.title);
   if (rymAddFreed.has(k) || !rymOutState.present || !rymUpdateAddedPick([it]).length) { rymAddHold.delete(k); return false; }
   if (!rymAddHold.has(k)) rymAddHold.set(k, now);
-  if (rymFetchState.active || jobsState.waiting.length) rymAddBusyAt = now;
-  const since = rymAddHold.get(k);
-  if (now - Math.max(rymAddBusyAt, since) > 90000 || now - since > 3 * 3600000) { rymAddHold.delete(k); rymAddFreed.add(k); return false; }
+  // (1.135.174) held only while ITS update is running or waiting (not while any RYM update is), and 20 minutes at most
+  const since = rymAddHold.get(k), row = String(it.row);
+  const inLine = (rymFetchState.active && (jobsState.runRows || []).includes(row)) || jobsState.waiting.some(w => (w.rows || []).includes(row));
+  if ((!inLine && now - since > 20000) || now - since > 20 * 60000) { rymAddHold.delete(k); rymAddFreed.add(k); return false; }
   return true;
 }
 function rymFetchCancel() { window.postMessage({ source: 'crate-app', type: 'rym-fetch-cancel' }, window.location.origin); }
