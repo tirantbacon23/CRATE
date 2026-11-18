@@ -17,8 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.166
+  CURRENT_VERSION: 1.135.167
 
+  1.135.167 — 2026-11-18 — The music database (CRATE Radio, step 1): ⚙ › Music database… One shared catalog of music, kept with the
+          master crate, growing far beyond anyone's crate: from your friends' crates each night, from what CRATE sees as you use it
+          (More Releases, release cards, online searches, the RYM pages you browse with the add-on) and from a daily Last.fm fill (the
+          top releases of artists your crates love and of artists like them; you and your friends are handed different artists). The
+          page shows its size, where it came from, what came in lately, how well it covers the genres your crate leans on (with "Fill the
+          thin genres now"), and a search. Only once you've joined the master crate. Paste the new Master.gs and deploy a new version.
+          Tracks: songs on screen pull their Last.fm listens by themselves as you scroll (with a Last.fm column showing; "Pull what's
+          on screen" turns it off).
   1.135.166 — 2026-11-18 — The master crate, step 2. In a release's deck (once you've joined): a FRIENDS ★ chip beside the RYM rating,
           and "In the master crate" above the songs: how many crates have it, the friends' average (without you) and
           how your rating compares, plays across crates and its place in this month's most played, who has it (by name

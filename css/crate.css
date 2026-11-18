@@ -6890,3 +6890,20 @@ button.gs-chip { cursor: pointer; margin: 4px 4px 0 0; } button.gs-chip:hover { 
 input.mcd-filled { border-color: rgba(127,209,185,.6) !important; }
 @media (max-width: 700px) { .mcd-nums { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mcd-cols { grid-template-columns: 1fr; } }
 .mcd-anon { flex: 1; min-width: 0; }
+
+/* (1.135.167) The music database (js/99-music-db.js) */
+.mdb-dialog { width: min(1180px, 100%); }
+.mdb-q { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border: 1px solid #2A313C; border-radius: 17px; color: #8B93A0; font-size: 13px; width: 300px; margin-right: 8px; }
+.mdb-q input { background: none; border: 0; color: #EDE7DC; font: 13px Inter, sans-serif; outline: none; width: 100%; }
+.mdb-nums { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.mdb-nums div { display: flex; flex-direction: column; gap: 2px; } .mdb-nums b { font: 400 30px/1 'Bebas Neue', Inter, sans-serif; color: #EDE7DC; } .mdb-nums b.mdb-gold { color: #D6A24C; } .mdb-nums b.mdb-teal { color: #7FD1B9; } .mdb-nums span { font: 11.5px Inter, sans-serif; color: #8B93A0; }
+.mdb-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.mdb-src { display: grid; grid-template-columns: 150px minmax(0, 1fr) 60px; gap: 10px; align-items: center; padding: 5px 0; font: 13px Inter, sans-serif; color: #EDE7DC; }
+.mdb-src span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .mdb-src .gs-s { text-align: right; }
+.mdb-bar { height: 8px; border-radius: 4px; background: #232A35; overflow: hidden; } .mdb-bar u { display: block; height: 100%; background: #D6A24C; }
+.mdb-r { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid #1E242D; font: 12.5px Inter, sans-serif; }
+.mdb-r img, .mdb-r .mdb-cv { width: 36px; height: 36px; border-radius: 4px; object-fit: cover; display: block; }
+.mdb-r span:nth-child(2) { display: flex; flex-direction: column; min-width: 0; } .mdb-r b { font-weight: 600; color: #EDE7DC; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .mdb-r em { font-style: normal; color: #8B93A0; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mdb-tag { font: 500 10.5px 'IBM Plex Mono', monospace; color: #7FD1B9; text-align: right; white-space: nowrap; }
+@media (max-width: 900px) { .mdb-grid { grid-template-columns: 1fr; } .mdb-nums { grid-template-columns: repeat(3, minmax(0, 1fr)); } .mdb-q { width: auto; flex: 1; } }
+.tlf-btn.tlf-on { border-color: rgba(127,209,185,.6); color: #7FD1B9; }

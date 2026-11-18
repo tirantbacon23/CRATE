@@ -199,6 +199,7 @@ function masterBuild() {          // the nightly trigger, "Rebuild now", and lea
       members: members.map(m => ({ id: m.id, releases: taste[m.id] ? taste[m.id].n : 0, share: { details: m.share.details, have: m.share.have, ratings: m.share.ratings, plays: m.share.plays } })), charts: charts };
     const st = _mTab(ss, 'Status', ['Json']); st.getRange(2, 1).setValue(JSON.stringify(status));
     _mProps().setProperty('MASTER_BUILT', String(status.builtAt));
+    try { _muMerge(true, out.map(r => ({ a: r[1], t: r[2], ty: r[3], y: r[4], g: r[5], d: r[7], l: r[8], c: r[9], rr: r[11], rv: r[12], crates: r[14] }))); } catch (e) { /* the music database waits for the next build */ }
     CacheService.getScriptCache().remove('master:status');
     return { ok: true, status: status };
   } finally { lock.releaseLock(); }
@@ -234,6 +235,7 @@ function _mPeople(email, list) {      // the per-person entries of a release, as
 }
 
 function _master(email, action, payload) {
+  if (String(action).indexOf('masterMusic') === 0) return _music(email, 'music' + String(action).slice('masterMusic'.length), payload);          // (the music database: "masterMusicAdd" -> musicAdd, so the main backend's "master" line routes it here)
   try {
     if (action === 'masterState') {          // the switches, and the master crate as it is now
       try { _mEnsureTrigger(); } catch (e) { /* made by the next one to open it */ }
@@ -289,4 +291,132 @@ function _master(email, action, payload) {
   } catch (err) {
     return _json({ ok: false, master: true, error: String(err && err.message || err) });
   }
+}
+
+// =====================================================================================================================================
+// THE MUSIC DATABASE (CRATE 1.135.167): one shared catalog of music, far beyond anyone's crate, that CRATE Radio picks from.
+//   Music:   one row per release (Key, Artist, Title, Type, Year, Genre, Descriptors, Label, Cover, Listeners, LfPlays, RymRating, RymVotes,
+//            Mbid, Sources as JSON { source: times seen }, Crates (how many crates here have it), Added, Updated)
+//   Similar: one row per artist: the artists Last.fm calls similar (Key, Name, Json [{ a, m }], At)
+//   Inbox:   what CRATE sends (musicAdd) waits here, one JSON per row, and is merged into Music at the nightly build or when the
+//            database's page is opened (at most every 10 minutes)
+//   Fill:    which artists have had their Last.fm fill and when (musicFillPlan hands each out once a month, so friends never do the same)
+// What grows it: the friends' crates (each build), and what each person's CRATE sees as it's used (the artist page's More Releases,
+// release cards, online search, the RYM pages they browse with the add-on) and its daily Last.fm fill (top releases and similar artists).
+// Only people who have joined the master crate add to it or read it.
+const MU_COLS = ['Key', 'Artist', 'Title', 'Type', 'Year', 'Genre', 'Descriptors', 'Label', 'Cover', 'Listeners', 'LfPlays', 'RymRating', 'RymVotes', 'Mbid', 'Sources', 'Crates', 'Added', 'Updated'];
+const MU_SRC = ['crates', 'lastfm', 'rym', 'mb', 'dg', 'search', 'scrobbles', 'card'];
+const MU_ADD_MAX = 400, MU_MERGE_EVERY_MS = 10 * 60 * 1000, MU_FILL_DAYS = 30;
+function _muTab(ss, name, cols) {
+  let sh = ss.getSheetByName(name); if (sh) return sh;
+  sh = ss.insertSheet(name); sh.getRange(1, 1, 1, cols.length).setValues([cols]); sh.setFrozenRows(1); return sh;
+}
+const _muS = (v, n) => String(v == null ? '' : v).replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, n || 300);
+function _muClean(x) {           // one release as CRATE sent it, made safe
+  if (!x || typeof x !== 'object') return null;
+  const a = _muS(x.a, 200), t = _muS(x.t, 300), k = _mKey(a, t); if (!k) return null;
+  const src = MU_SRC.indexOf(String(x.src)) >= 0 ? String(x.src) : 'search';
+  const num = (v) => { const n = Number(v); return isFinite(n) && n > 0 ? n : 0; };
+  return { k: k, a: a, t: t, ty: _muS(x.ty, 30), y: _muS(x.y, 10).slice(0, 10), g: _muS(x.g, 200), d: _muS(x.d, 300), l: _muS(x.l, 120), c: /^https:\/\//.test(String(x.c || '')) ? _muS(x.c, 500) : '',
+    li: num(x.li), lp: num(x.lp), rr: Math.min(5, num(x.rr)), rv: num(x.rv), mb: /^[0-9a-f-]{36}$/i.test(String(x.mb || '')) ? String(x.mb) : '', src: src };
+}
+function _muRead(sh) {           // the Music tab, as a Map key -> row (an array in MU_COLS order)
+  const m = new Map(); if (!sh || sh.getLastRow() < 2) return m;
+  sh.getRange(2, 1, sh.getLastRow() - 1, MU_COLS.length).getValues().forEach(r => { if (r[0]) m.set(String(r[0]), r); });
+  return m;
+}
+function _muApply(m, x, now) {   // one release into the map: blanks filled, the biggest numbers kept, the source counted
+  const C = (n) => MU_COLS.indexOf(n);
+  let r = m.get(x.k);
+  if (!r) { r = MU_COLS.map(() => ''); r[0] = x.k; r[C('Sources')] = '{}'; r[C('Crates')] = 0; r[C('Added')] = now; m.set(x.k, r); }
+  const fill = (col, v) => { if (v && !r[C(col)]) r[C(col)] = v; };
+  fill('Artist', x.a); fill('Title', x.t); fill('Type', x.ty); fill('Genre', x.g); fill('Descriptors', x.d); fill('Label', x.l); fill('Cover', x.c); fill('Mbid', x.mb);
+  if (x.y && (!r[C('Year')] || String(x.y).slice(0, 4) < String(r[C('Year')]).slice(0, 4))) r[C('Year')] = x.y;          // the earliest year anyone has
+  ['Listeners:li', 'LfPlays:lp'].forEach(p => { const [col, f] = p.split(':'); if (x[f] > (Number(r[C(col)]) || 0)) r[C(col)] = x[f]; });
+  if (x.rv && x.rv >= (Number(r[C('RymVotes')]) || 0)) { r[C('RymRating')] = x.rr; r[C('RymVotes')] = x.rv; } else if (x.rr && !r[C('RymRating')]) r[C('RymRating')] = x.rr;
+  let s = {}; try { s = JSON.parse(String(r[C('Sources')] || '{}')) || {}; } catch (e) { s = {}; } s[x.src] = (s[x.src] || 0) + 1; r[C('Sources')] = JSON.stringify(s);
+  r[C('Updated')] = now;
+}
+function _muMerge(force, crateRows) {          // the inbox (and, from a build, the friends' crates) into Music; the totals worked out again
+  const p = _mProps(), last = Number(p.getProperty('MUSIC_MERGED') || 0);
+  if (!force && Date.now() - last < MU_MERGE_EVERY_MS) return false;
+  const lock = LockService.getScriptLock(); if (!lock.tryLock(30000)) return false;
+  try {
+    const ss = _mSS(), sh = _muTab(ss, 'Music', MU_COLS), inbox = _muTab(ss, 'Inbox', ['Json']), simSh = _muTab(ss, 'Similar', ['Key', 'Name', 'Json', 'At']);
+    const m = _muRead(sh), now = Date.now(), C = (n) => MU_COLS.indexOf(n);
+    const sims = new Map(); if (simSh.getLastRow() > 1) simSh.getRange(2, 1, simSh.getLastRow() - 1, 4).getValues().forEach(r => { if (r[0]) sims.set(String(r[0]), r); });
+    const n = inbox.getLastRow() - 1, rows = n > 0 ? inbox.getRange(2, 1, n, 1).getValues() : [];
+    rows.forEach(r => { let o; try { o = JSON.parse(String(r[0])); } catch (e) { return; }
+      (o.items || []).forEach(x => { const c = _muClean(x); if (c) _muApply(m, c, o.at || now); });
+      (o.similar || []).forEach(s => { const k = _mFold(s.a); if (!k || !Array.isArray(s.s)) return; sims.set(k, [k, _muS(s.a, 200), JSON.stringify(s.s.slice(0, 30).map(z => ({ a: _muS(z.a, 200), m: Math.round((Number(z.m) || 0) * 1000) / 1000 }))), o.at || now]); }); });
+    if (crateRows) {            // the friends' crates: each of their releases, and how many crates have it
+      m.forEach(r => { r[C('Crates')] = 0; });
+      crateRows.forEach(x => { const c = _muClean(Object.assign({ src: 'crates' }, x)); if (!c) return; _muApply(m, c, now); m.get(c.k)[C('Crates')] = x.crates || 1; });
+    }
+    const out = [...m.values()];
+    sh.getRange(2, 1, Math.max(1, sh.getLastRow() - 1), MU_COLS.length).clearContent();
+    if (out.length) sh.getRange(2, 1, out.length, MU_COLS.length).setValues(out);
+    if (n > 0) inbox.deleteRows(2, n);
+    const simOut = [...sims.values()]; simSh.getRange(2, 1, Math.max(1, simSh.getLastRow() - 1), 4).clearContent(); if (simOut.length) simSh.getRange(2, 1, simOut.length, 4).setValues(simOut);
+    // the totals, for the database's page
+    const week = now - 7 * 864e5, src = {}, genres = {}, artists = new Set(); let notIn = 0, added7 = 0, rated = 0;
+    out.forEach(r => { artists.add(_mFold(r[1])); if (!(Number(r[C('Crates')]) > 0)) notIn++; if (Number(r[C('Added')]) >= week) added7++; if (r[C('RymRating')] || r[C('Listeners')]) rated++;
+      let s = {}; try { s = JSON.parse(String(r[C('Sources')] || '{}')); } catch (e) { s = {}; } Object.keys(s).forEach(k => { src[k] = (src[k] || 0) + 1; });
+      String(r[C('Genre')] || '').toLowerCase().split(/\s*,\s*/).filter(Boolean).slice(0, 3).forEach(g => { genres[g] = (genres[g] || 0) + 1; }); });
+    const recent = out.filter(r => Number(r[C('Added')]) >= week).sort((a, b) => Number(b[C('Added')]) - Number(a[C('Added')])).slice(0, 24).map(r => {
+      let s = {}; try { s = JSON.parse(String(r[C('Sources')] || '{}')); } catch (e) { s = {}; } return { a: r[1], t: r[2], y: String(r[C('Year')] || '').slice(0, 4), c: r[C('Cover')], src: Object.keys(s)[0] || '' }; });
+    const topGenres = Object.keys(genres).sort((a, b) => genres[b] - genres[a]).slice(0, 400).reduce((o, g) => { o[g] = genres[g]; return o; }, {});
+    const st = { at: now, releases: out.length, artists: artists.size, notInCrates: notIn, added7: added7, withNumbers: rated, similar: simOut.length, sources: src, genres: topGenres, recent: recent };
+    const stSh = _muTab(ss, 'MusicStatus', ['Json']); stSh.getRange(2, 1).setValue(JSON.stringify(st));
+    p.setProperty('MUSIC_MERGED', String(now)); CacheService.getScriptCache().remove('music:status');
+    return true;
+  } finally { lock.releaseLock(); }
+}
+function _muStatus() {
+  const c = CacheService.getScriptCache(), hit = c.get('music:status'); if (hit) { try { return JSON.parse(hit); } catch (e) { /* read again */ } }
+  const id = _mProps().getProperty('MASTER_SS'); if (!id) return null;
+  let s = null; try { const sh = SpreadsheetApp.openById(id).getSheetByName('MusicStatus'); s = sh ? JSON.parse(String(sh.getRange(2, 1).getValue() || 'null')) : null; } catch (e) { s = null; }
+  if (s) { const t = JSON.stringify(s); if (t.length < 90000) c.put('music:status', t, 600); }
+  return s;
+}
+function _muRowObj(r) { const o = {}; MU_COLS.forEach((c, i) => { o[c] = r[i]; }); let s = {}; try { s = JSON.parse(String(o.Sources || '{}')); } catch (e) { s = {}; } o.Sources = s; return o; }
+function _music(email, action, payload) {
+  try {
+    if (!_mShare(email).joined) return _json({ ok: true, music: true, joined: false });
+    if (action === 'musicAdd') {          // what this CRATE has seen: waits in the inbox for the next merge
+      const items = Array.isArray(payload.items) ? payload.items.slice(0, MU_ADD_MAX) : [], similar = Array.isArray(payload.similar) ? payload.similar.slice(0, 60) : [];
+      if (!items.length && !similar.length) return _json({ ok: true, music: true, queued: 0 });
+      const text = JSON.stringify({ at: Date.now(), items: items, similar: similar }); if (text.length > 49000) return _json({ ok: false, music: true, error: 'Too much at once' });
+      const lock = LockService.getScriptLock(); lock.waitLock(20000);
+      try { _muTab(_mSS(), 'Inbox', ['Json']).appendRow([text]); } finally { lock.releaseLock(); }
+      return _json({ ok: true, music: true, queued: items.length });
+    }
+    if (action === 'musicState') {        // the database's page: merged first when it's been a while
+      try { _muMerge(!!payload.fresh); } catch (e) { /* the totals as they were */ }
+      return _json({ ok: true, music: true, joined: true, status: _muStatus() });
+    }
+    if (action === 'musicSearch') {
+      const q = _muS(payload.q, 80); if (q.length < 2) return _json({ ok: true, music: true, results: [] });
+      const id = _mProps().getProperty('MASTER_SS'), sh = id ? SpreadsheetApp.openById(id).getSheetByName('Music') : null; if (!sh || sh.getLastRow() < 2) return _json({ ok: true, music: true, results: [] });
+      const hits = sh.getRange(2, 2, sh.getLastRow() - 1, 2).createTextFinder(q).matchCase(false).findAll().slice(0, 300), rowsSeen = {}, out = [];
+      hits.forEach(h => { const row = h.getRow(); if (rowsSeen[row] || out.length >= 60) return; rowsSeen[row] = 1; out.push(_muRowObj(sh.getRange(row, 1, 1, MU_COLS.length).getValues()[0])); });
+      out.sort((a, b) => (Number(b.Listeners) || 0) - (Number(a.Listeners) || 0));
+      return _json({ ok: true, music: true, results: out });
+    }
+    if (action === 'musicFillPlan') {     // which artists this CRATE should fill from Last.fm today: loved in the friends' crates, not filled this month
+      const ss = _mSS(), fill = _muTab(ss, 'Fill', ['Key', 'Name', 'At']), done = {};
+      if (fill.getLastRow() > 1) fill.getRange(2, 1, fill.getLastRow() - 1, 3).getValues().forEach(r => { if (r[0]) done[String(r[0])] = Number(r[2]) || 0; });
+      const want = Math.max(1, Math.min(25, Number(payload.n) || 12)), cut = Date.now() - MU_FILL_DAYS * 864e5, score = {}, names = {};
+      const rel = ss.getSheetByName('Releases');
+      if (rel && rel.getLastRow() > 1) {
+        const v = rel.getRange(1, 1, rel.getLastRow(), MASTER_REL_COLS.length).getValues(), h = v[0].map(String), iA = h.indexOf('Artist'), iAvg = h.indexOf('AvgRating'), iP = h.indexOf('Plays'), iC = h.indexOf('Crates');
+        for (let i = 1; i < v.length; i++) { const k = _mFold(v[i][iA]); if (!k) continue; names[k] = names[k] || v[i][iA]; score[k] = (score[k] || 0) + (Number(v[i][iAvg]) || 2.5) * (Number(v[i][iC]) || 1) + Math.log(1 + (Number(v[i][iP]) || 0)); }
+      }
+      (Array.isArray(payload.mine) ? payload.mine.slice(0, 50) : []).forEach(a => { const k = _mFold(a); if (k) { names[k] = names[k] || _muS(a, 200); score[k] = (score[k] || 0) + 20; } });          // (this person's own loved artists first)
+      const pick = Object.keys(score).filter(k => !(done[k] >= cut)).sort((a, b) => score[b] - score[a]).slice(0, want);
+      if (pick.length) { const now = Date.now(); fill.getRange(fill.getLastRow() + 1, 1, pick.length, 3).setValues(pick.map(k => [k, names[k], now])); }          // handed out: nobody else gets them this month
+      return _json({ ok: true, music: true, artists: pick.map(k => names[k]) });
+    }
+    return _json({ ok: false, music: true, error: 'Unknown music action' });
+  } catch (err) { return _json({ ok: false, music: true, error: String(err && err.message || err) }); }
 }

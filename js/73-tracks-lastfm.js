@@ -44,9 +44,9 @@ function tlfMissing(rows) {
   });
   return { songs, rels: [...rels.values()] };
 }
-async function tlfPull() {
-  if (tlf.running) return; if (!srchLfKey()) { flashGlobalToast('Save a Last.fm API key first (⚙ › Last.fm).'); return; }
-  const { songs, rels } = tlfMissing(tlfRowsShown()); if (!songs.length && !rels.length) { flashGlobalToast('Every song shown already has its Last.fm numbers.'); return; }
+async function tlfPull(only, quiet) {
+  if (tlf.running) return; if (!srchLfKey()) { if (!quiet) flashGlobalToast('Save a Last.fm API key first (⚙ › Last.fm).'); return; }
+  const { songs, rels } = tlfMissing(only || tlfRowsShown()); if (!songs.length && !rels.length) { if (!quiet) flashGlobalToast('Every song shown already has its Last.fm numbers.'); return; }
   Object.assign(tlf, { running: true, stop: false, done: 0, total: songs.length + rels.length, failed: 0 }); tlfStrip();
   const user = stlUser(), all = stlCache(), pop = srchPopAll(), now = Date.now();
   const jobs = rels.map(it => ({ rel: it })).concat(songs.map(r => ({ song: r })));
@@ -66,6 +66,7 @@ async function tlfPull() {
   await Promise.all([one(), one(), one(), one()]);
   stlCacheSave(); srchPopSave();
   const stopped = tlf.stop; tlf.running = false; tlfRepaint();
+  if (quiet && !(tlf.failed && tlf.failed >= tlf.done)) return;
   flashGlobalToast(tlf.failed && tlf.failed >= tlf.done ? `Last.fm didn't answer (${srchLfErr || 'no answer'}).` : `Last.fm: ${stopped ? 'stopped after' : 'looked up'} ${tlf.done.toLocaleString()} of ${tlf.total.toLocaleString()}${tlf.failed ? ` (${tlf.failed} didn't answer)` : ''}.`);
 }
 function tlfRepaint() { if (state.mainViewMode === 'tracks' || state.mainViewMode === 'albumTracks') { try { renderFlatTrackTable(); } catch (e) { /* next time */ } } tlfStrip(); }
@@ -79,12 +80,13 @@ function tlfStrip() {
   const add = tlfActive() ? '' : `<button type="button" class="tlf-btn" data-tlf="cols">+ Last.fm columns</button>`;
   s.innerHTML = tlf.running
     ? `<span class="tlf-lbl">Last.fm</span><span>Looking up ${tlf.done.toLocaleString()} of ${tlf.total.toLocaleString()}…</span><span class="tlf-bar"><i style="width:${tlf.total ? Math.round(tlf.done / tlf.total * 100) : 0}%"></i></span><button type="button" class="tlf-btn" data-tlf="stop">Stop</button>`
-    : `<span class="tlf-lbl">Last.fm</span><span>${have.toLocaleString()} of ${songsShown.toLocaleString()} songs shown have their listens</span>${miss.songs.length || miss.rels.length ? `<button type="button" class="tlf-btn tlf-pri" data-tlf="pull">Pull listens for ${(miss.songs.length).toLocaleString()} song${miss.songs.length === 1 ? '' : 's'}${miss.rels.length ? ` and ${miss.rels.length.toLocaleString()} release${miss.rels.length === 1 ? '' : 's'}` : ''}</button>` : ''}${add}${miss.songs.length > 1500 ? '<span class="tlf-dim">(about ' + Math.ceil(miss.songs.length / 8 / 60) + ' min: narrow the view to pull fewer)</span>' : ''}`;
+    : `<span class="tlf-lbl">Last.fm</span><span>${have.toLocaleString()} of ${songsShown.toLocaleString()} songs shown have their listens</span><button type="button" class="tlf-btn${tlfAutoOn() ? ' tlf-on' : ''}" data-tlf="auto" aria-pressed="${tlfAutoOn()}" title="Look up the songs on screen by themselves as you scroll">${tlfAutoOn() ? '\u2713 ' : ''}Pull what's on screen</button>${miss.songs.length || miss.rels.length ? `<button type="button" class="tlf-btn tlf-pri" data-tlf="pull">Pull listens for ${(miss.songs.length).toLocaleString()} song${miss.songs.length === 1 ? '' : 's'}${miss.rels.length ? ` and ${miss.rels.length.toLocaleString()} release${miss.rels.length === 1 ? '' : 's'}` : ''}</button>` : ''}${add}${miss.songs.length > 1500 ? '<span class="tlf-dim">(about ' + Math.ceil(miss.songs.length / 8 / 60) + ' min: narrow the view to pull fewer)</span>' : ''}`;
 }
 document.addEventListener('click', (e) => {
   const b = e.target.closest && e.target.closest('[data-tlf]'); if (!b) return;
   const a = b.dataset.tlf;
   if (a === 'pull') tlfPull();
+  else if (a === 'auto') { tlfAutoSet(!tlfAutoOn()); tlfStrip(); if (tlfAutoOn()) tlfAutoSoon(); }
   else if (a === 'stop') { tlf.stop = true; }
   else if (a === 'cols') {          // the song's plays and listeners, before Plays (yours)
     const cols = (state.fields.tracks || []).filter(v => v && v !== 'none'); ['lfTrackPlays', 'lfTrackListeners'].forEach(k => { if (!cols.includes(k)) cols.push(k); });
@@ -94,3 +96,27 @@ document.addEventListener('click', (e) => {
 });
 const tlfBaseRender = renderFlatTrackTable;
 renderFlatTrackTable = function () { const r = tlfBaseRender.apply(this, arguments); try { tlfStrip(); } catch (e) { /* no bar */ } return r; };
+
+// (1.135.167) The songs on screen pull their Last.fm listens by themselves (with a Last.fm column showing): a moment after the table draws
+// or stops scrolling, the rows in view (and the next screenful) are looked up, quietly. "Pull listens for…" still does every song shown.
+const TLF_AUTO_KEY = 'crate_tlf_auto_v1';
+function tlfAutoOn() { try { return localStorage.getItem(TLF_AUTO_KEY) !== '0'; } catch (e) { return true; } }
+function tlfAutoSet(on) { try { localStorage.setItem(TLF_AUTO_KEY, on ? '1' : '0'); } catch (e) { /* this visit */ } }
+let tlfAutoT = 0; const tlfTried = new Set();
+function tlfAutoSoon() { clearTimeout(tlfAutoT); tlfAutoT = setTimeout(tlfAutoRun, 900); }
+function tlfAutoRun() {
+  if (!tlfAutoOn() || tlf.running || !tlfActive() || !srchLfKey() || /[?&]crate-test\b/.test(location.search) && !window.tlfAutoTest) return;
+  if (!(state.mainViewMode === 'tracks' || state.mainViewMode === 'albumTracks') || document.hidden) return;
+  const body = document.getElementById('trackTableBody'); if (!body || !body._rows || !body._rows.length) return;
+  const vh = window.innerHeight, els = [...body.querySelectorAll('.main-track-row[data-track-key]')].filter(r => { const b = r.getBoundingClientRect(); return b.bottom > 0 && b.top < vh * 2; });
+  if (!els.length) return;
+  const want = new Set(els.map(r => r.getAttribute('data-track-key')));
+  const rows = body._rows.filter(r => want.has(trackRowKey(r)) && !tlfTried.has(tlfSongKey(r.item, r.track.trackName || ''))).slice(0, 120);          // (each song tried once a visit: one Last.fm doesn't know isn't asked again and again)
+  rows.forEach(r => tlfTried.add(tlfSongKey(r.item, r.track.trackName || '')));
+  if (rows.length) tlfPull(rows, true);
+}
+(function () {
+  const base = renderFlatTrackTable;
+  renderFlatTrackTable = function () { const r = base.apply(this, arguments); if (!tlf.running) tlfAutoSoon(); return r; };
+  document.addEventListener('scroll', (e) => { const t = e.target; if (t && t.nodeType === 1 && t.querySelector && (t.id === 'trackTableBody' || t.querySelector('#trackTableBody'))) tlfAutoSoon(); }, true);
+})();
