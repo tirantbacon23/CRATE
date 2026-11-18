@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CRATE for RateYourMusic",
-  "version": "1.22.2",
+  "version": "1.23.0",
   "description": "Flags releases on RateYourMusic pages that are already in your CRATE collection, and lets CRATE show RYM ratings and genre descriptions.",
   "permissions": [
     "storage",
@@ -77,6 +77,17 @@
         "content-song.js"
       ],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://rateyourmusic.com/search*",
+        "https://www.rateyourmusic.com/search*"
+      ],
+      "js": [
+        "content-search.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
     }
   ],
   "action": {

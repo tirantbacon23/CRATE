@@ -365,7 +365,11 @@ function rymFetchWhy(reason, r) {
     closed: 'you closed the page while it was being read.', noanswer: 'The add-on didn\u2019t answer. Update it to 1.10 or later and check it is connected to this page.' })[reason] || `something went wrong (${reason || 'unknown'}).`;
 }
 function rymFetchUpdates(items, opts) {
-  opts = opts || {}; items = (items || []).filter(Boolean); const todo = items.filter(it => rymUpdateUrl(it)), noLink = items.length - todo.length;
+  opts = opts || {}; items = (items || []).filter(Boolean);
+  // (1.135.160) a release with no RYM link is found first: the add-on (1.23 or later) reads Rate Your Music's search for its artist and title,
+  // takes the release that matches, and reads that page; the update then brings the link with it
+  const todo = items.filter(it => rymUpdateUrl(it) || (it.artist && it.title)), noLink = items.length - todo.length;
+  rymFetchState.findSent = todo.filter(it => !rymUpdateUrl(it)).length;
   if (!todo.length) { flashGlobalToast(items.length === 1 ? 'This release has no Rate Your Music link to open. Add one in Edit, or open its page on RYM and use \u201cUpdate CRATE from this page\u201d.' : 'None of those has a Rate Your Music link to open.'); return; }
   if (rymFetchState.active) { jobsQueueRym(todo); return; }          // one is running: this one waits its turn (Processing)
   const use = todo.slice(0, 25), over = todo.length - use.length;
@@ -375,13 +379,14 @@ function rymFetchUpdates(items, opts) {
   }
   const qOpen = rymQ.open; if (state.rymQueueMode) { rymQBegin(use); if (opts.queued && !qOpen) { rymQ.open = false; rymQRender(); } }          // (a queued run starts quietly: its dialog doesn't jump in front of you)
   jobsState.runRows = use.map(it => String(it.row)); if (over) jobsQueueRym(todo.slice(25), true);
-  window.postMessage({ source: 'crate-app', type: 'rym-fetch-start', items: use.map(it => ({ id: it.row, url: rymUpdateUrl(it) })) }, window.location.origin);
+  window.postMessage({ source: 'crate-app', type: 'rym-fetch-start', items: use.map(it => { const u = rymUpdateUrl(it); return u ? { id: it.row, url: u } : { id: it.row, url: '', search: { artist: it.artist, title: it.title, type: String(it.type || '').toLowerCase() === 'ep' ? 'ep' : String(it.type || '').toLowerCase() === 'single' ? 'single' : String(it.type || '').toLowerCase() === 'compilation' ? 'comp' : 'album', year: String(it.releaseDate || '').slice(0, 4) } }; }) }, window.location.origin);
   clearTimeout(rymFetchState.ackTimer); rymFetchState.ackTimer = setTimeout(() => { if (!rymFetchState.active) { flashGlobalToast(rymFetchWhy('noanswer')); if (state.rymQueueMode) rymQAbort(); } }, 3000);
 }
 // Releases that just came into the crate (an add, an import, a batch from the add-on: they arrive with the quiet sync after it) get their first
 // "Update from Rate Your Music" on their own, as a queued run: no question first, and it waits its turn behind a run already going. Only those
 // with a RYM link that have never been updated, only when the add-on has been heard from on this page, and only with the setting on.
-function rymUpdateAddedPick(added) { return state.rymUpdateOnAdd ? (added || []).filter(it => it && !it.rymUpdated && rymUpdateUrl(it)) : []; }
+try { if (localStorage.getItem('crate_rym_finds_v1') === '1') rymOutState.finds = true; } catch (e) { /* not known yet */ }
+function rymUpdateAddedPick(added) { return state.rymUpdateOnAdd ? (added || []).filter(it => it && !it.rymUpdated && (rymUpdateUrl(it) || (rymOutState.finds && it.artist && it.title))) : []; }          // (1.135.160: with no link too, once the add-on can find them)
 function rymUpdateAdded(added) {
   const todo = rymUpdateAddedPick(added); if (!todo.length || !rymOutState.present) return;
   flashGlobalToast(`Updating ${todo.length === 1 ? `\u201c${todo[0].title}\u201d` : `${todo.length} new releases`} from Rate Your Music in the background${todo.length > 1 ? ' \u2014 one page every 8 to 15 seconds' : ''}.`);
@@ -403,6 +408,10 @@ function rymAddHolding(it, now) {
 function rymFetchCancel() { window.postMessage({ source: 'crate-app', type: 'rym-fetch-cancel' }, window.location.origin); }
 function rymFetchContinue() { window.postMessage({ source: 'crate-app', type: 'rym-fetch-continue' }, window.location.origin); }
 function rymFetchProgress(d) {
+  if ((d.state === 'done' || d.state === 'stopped' || d.state === 'cancelled') && d.notFound && d.notFound.length) {          // (1.135.160) the ones Rate Your Music's search didn't turn up
+    const names = d.notFound.map(id => (state.raw || []).find(r => String(r.row) === String(id))).filter(Boolean).map(r => `\u201c${r.title}\u201d`);
+    if (names.length) flashGlobalToast(`Not found on Rate Your Music by artist and title: ${names.slice(0, 4).join(', ')}${names.length > 4 ? ` and ${names.length - 4} more` : ''}. Open one there and use \u201cUpdate CRATE from this page\u201d, or paste its RYM link in Edit.`);
+  }
   if (state.rymQueueMode && rymQ.runEntries.length) { rymQProgress(d); return; }
   const n = d.total || 0, plural = n === 1 ? '' : 's';
   if (d.state === 'starting' || d.state === 'loading' || d.state === 'gap') {
@@ -418,6 +427,8 @@ window.addEventListener('message', (e) => {
   const d = e.data; if (!d || d.source !== 'crate-addon') return;
   if (d.type === 'rym-fetch-ack' && d.for === 'rym-fetch-start') {
     clearTimeout(rymFetchState.ackTimer); const r = d.resp || {};
+    if (r.ok && r.finds) { rymOutState.finds = true; try { localStorage.setItem('crate_rym_finds_v1', '1'); } catch (e) { /* this visit */ } }          // (1.135.160) this add-on finds releases with no link
+    if (r.ok && rymFetchState.findSent && !r.finds) flashGlobalToast(`${rymFetchState.findSent === 1 ? 'That release has' : rymFetchState.findSent + ' of those have'} no Rate Your Music link yet. To find ${rymFetchState.findSent === 1 ? 'it' : 'them'} on RYM by artist and title, update the CRATE for RYM add-on to 1.23 or later.`);
     if (r.ok) { rymFetchState.active = true; rymFetchState.total = r.accepted || 0; if (!state.rymQueueMode) bgStatus(`Reading Rate Your Music pages \u2014 0 of ${r.accepted}`, 0, { always: true, cancel: true }); } else { flashGlobalToast(rymFetchWhy(r.reason, r)); if (state.rymQueueMode) rymQAbort(); }
   } else if (d.type === 'rym-fetch-ack' && d.for === 'rym-fetch-continue') {
     const r = d.resp || {}; if (r.ok) { rymFetchState.active = true; if (rymQ.run) rymQ.run.state = 'starting'; rymQRender(); } else flashGlobalToast('There is nothing to continue: start the update again.');
@@ -453,11 +464,11 @@ function rymQProgress(d) {
   const run = rymQ.run = Object.assign(rymQ.run || {}, { state: d.state, total: d.total, done: d.done, ok: d.ok, skipped: d.skipped, reason: d.reason || '', nextAt: d.nextAt || 0, i: d.i || 0 });
   rymFetchState.active = d.state === 'starting' || d.state === 'loading' || d.state === 'gap';
   const E = rymQ.runEntries, open = ['queued', 'reading', 'waiting', 'check', 'error'];
-  if (Array.isArray(d.items)) d.items.forEach((st, i) => { const e = E[i]; if (!e) return; if (st === 'missing') { e.state = 'skipped'; e.note = 'no longer on Rate Your Music'; } else if (st === 'ok' && open.includes(e.state)) e.state = 'read'; });
+  if (Array.isArray(d.items)) d.items.forEach((st, i) => { const e = E[i]; if (!e) return; if (st === 'missing') { e.state = 'skipped'; e.note = 'no longer on Rate Your Music'; } else if (st === 'notfound') { e.state = 'skipped'; e.note = 'not found on Rate Your Music by its artist and title'; } else if (st === 'ok' && open.includes(e.state)) e.state = 'read'; });
   E.forEach((e, i) => { if (i >= (d.i || 0) && ['reading', 'waiting', 'check', 'error'].includes(e.state)) e.state = 'queued'; });
   const cur = E[d.i || 0];
   if (cur && open.includes(cur.state)) {
-    if (d.state === 'loading') cur.state = 'reading'; else if (d.state === 'gap') cur.state = 'waiting';
+    if (d.state === 'loading') { cur.state = 'reading'; if (d.finding) cur.note = 'finding it on Rate Your Music'; else if (cur.note === 'finding it on Rate Your Music') cur.note = ''; } else if (d.state === 'gap') cur.state = 'waiting';
     else if (d.state === 'stopped') { cur.state = d.reason === 'challenge' ? 'check' : 'error'; cur.note = rymFetchWhy(d.reason); }
   }
   if (d.state === 'cancelled') E.forEach(e => { if (open.includes(e.state)) { e.state = 'skipped'; e.note = 'not read: stopped'; } });
@@ -1154,7 +1165,7 @@ async function rymUpdateAllWaiting() {
 // "Fill tracklists from Rate Your Music": releases with no saved tracklist, for which the add-on has seen the tracklist on Rate Your Music while you browsed
 function rymUpdateNever() {                                      // every release with a Rate Your Music link that has never had its first update, 25 at a time
   el.layoutMenu.hidden = true;
-  const never = state.raw.filter(it => !it.rymUpdated && rymUpdateUrl(it)), noLink = state.raw.filter(it => !it.rymUpdated && !rymUpdateUrl(it)).length;
+  const find = !!rymOutState.finds, never = state.raw.filter(it => !it.rymUpdated && (rymUpdateUrl(it) || (find && it.artist && it.title))), noLink = find ? 0 : state.raw.filter(it => !it.rymUpdated && !rymUpdateUrl(it)).length;          // (1.135.160: and the ones with no link, found first, when the add-on can)
   if (!never.length) { flashGlobalToast(noLink ? `Every release with a Rate Your Music link has had its first update (${noLink} have no link to open).` : 'Every release has had its first update from Rate Your Music.'); return; }
   const use = never.slice(0, 25);
   flashGlobalToast(`${never.length} release${never.length === 1 ? '' : 's'} with a Rate Your Music link ${never.length === 1 ? 'has' : 'have'} not had a first update yet${noLink ? ` (and ${noLink} ${noLink === 1 ? 'has' : 'have'} no link to open)` : ''}${never.length > use.length ? `: starting with ${use.length}; run it again for the rest` : ''}.`);

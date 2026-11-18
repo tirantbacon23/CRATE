@@ -8,6 +8,10 @@ A small browser add-on that looks at an artist's discography, or a **genre's** d
 
 Everything happens inside your browser. The add-on makes **no network requests** and sends your data nowhere. It only *adds* markers to RYM's page; it never changes RYM's own text or links.
 
+## New in 1.23.0
+
+"Update from Rate Your Music" now works for releases that have no RYM link yet. The add-on reads Rate Your Music's search for the release's artist and title (in the same hidden page, with the same pause between pages), takes the result that matches (same artist and title; the same type and year win a tie), and reads that release's page. The update brings the RYM link with it. A release the search doesn't turn up is skipped and named in CRATE. Needs CRATE 1.135.160 or newer.
+
 ## New in 1.22.0
 
 - **Credits**: a release page's credits go to CRATE with its other details. Roles on given tracks land on those songs in CRATE; the rest on the release.

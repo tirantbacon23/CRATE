@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.159
+  CURRENT_VERSION: 1.135.160
 
+  1.135.160 — 2026-11-18 — Update from Rate Your Music finds a release that has no RYM link yet (with the RYM add-on 1.23.0): the add-on
+          reads RYM's search for its artist and title, takes the result that matches (same artist and title; the same type
+          and year win a tie), then reads that release's page, and the update brings the RYM link with it. Works from the
+          deck (⋯ › "Find on RYM & update"), the right-click menu, "Update releases never updated" and the automatic first
+          update of new releases. One the search doesn't turn up is skipped and named ("Not found on Rate Your Music…").
+          With an older add-on CRATE says to update it. The add-on: 1.23.0 (content-search.js, the fetcher's find step).
   1.135.159 — 2026-11-18 — The release card (a release from the artist page's More Releases, or one found online) shows more: Last.fm's
           tags for it; where it ranks among the artist's releases by Last.fm plays and its share of them; how many of its
           songs have plays and the average a song; its "About" text from Last.fm (a few lines, Read more for the rest);

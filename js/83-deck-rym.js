@@ -21,6 +21,7 @@ function drymPaint(item) {
   const s = document.getElementById('deckRymStat'); if (!s || !item) return;
   const upd = document.getElementById('deckRymUpdate'), more = document.querySelector('#deckMore .deck-drop-menu');          // (the ⋯ menu is made with the deck's look)
   if (upd && more && upd.parentNode !== more) { upd.textContent = '↻ Update from RYM'; upd.className = 'deck-btn drym-upd'; more.appendChild(upd); }
+  if (upd) { const has = typeof rymUpdateUrl === 'function' && !!rymUpdateUrl(item); upd.hidden = !has && !(item.artist && item.title); upd.textContent = has ? '\u21bb Update from RYM' : '\u21bb Find on RYM & update'; upd.title = has ? 'Read its Rate Your Music page and bring its details here' : 'Find it on Rate Your Music by artist and title (the add-on reads RYM\u2019s search), then read its page: its RYM link comes with the update'; }          // (1.135.160)
   const r = Number(item.rymRating) || 0, v = Number(item.rymVotes) || 0;
   s.classList.toggle('none', !r);
   s.innerHTML = r ? `<b>RYM</b><span class="drym-n">${r.toFixed(2)}</span>${v ? `<span class="drym-v">${v.toLocaleString()} rating${v === 1 ? '' : 's'}</span>` : ''}` : '<b>RYM</b><span class="drym-v">add rating</span>';
