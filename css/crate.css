@@ -6504,3 +6504,34 @@ html.cur-on input:not([type="range"]):not([type="checkbox"]):not([type="radio"])
 /* (1.135.137) the popup's settings scroll */
 .qp-custom { overflow-y: auto; overscroll-behavior: contain; }
 #albumQuickPeek:not(.album-quick-peek-inline) { max-height: calc(100vh - 16px); overflow-y: auto; overscroll-behavior: contain; }
+
+/* (1.135.138) Galaxy influence: follow a thread (js/82-galaxy-thread.js) */
+.gxh-why { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #2A313C; max-width: 260px; }
+.gxh-why span { white-space: normal; }
+.gxh-k { font: 500 9.5px 'IBM Plex Mono', monospace; letter-spacing: .1em; text-transform: uppercase; color: #F0C26A; }
+.gxh-d { font: 10.5px 'IBM Plex Mono', monospace; color: #8B93A0; }
+.gxh-rw { font: 10.5px 'IBM Plex Mono', monospace !important; color: #6E7684 !important; }
+.gxh-nums { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin: 12px 0 6px; }
+.gxh-nums div { display: flex; flex-direction: column; min-width: 0; }
+.gxh-nums b { font: 400 24px/1 'Bebas Neue', Inter, sans-serif; color: #EDE7DC; }
+.gxh-nums div:first-child b, .gxh-nums div:nth-child(2) b { color: #D6A24C; }
+.gxh-nums span { font: 11px Inter, sans-serif; color: var(--text-dim, #8B93A0); }
+.gxh-keys { margin-top: 12px; font-size: 11px; }
+.gxh-links { display: flex; align-items: center; gap: 6px; font: 12px Inter, sans-serif; color: var(--text-dim, #8B93A0); }
+.gxh-links input { width: 100px; accent-color: #D6A24C; }
+.gxh-links #gxLinksN { min-width: 84px; font: 10.5px 'IBM Plex Mono', monospace; }
+.gxh-scrub { position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: rgba(12,15,20,0.88); border: 1px solid #2A313C; border-radius: 12px; backdrop-filter: blur(6px); z-index: 2; }
+.gxh-scrub[hidden] { display: none; }
+.gxh-b { height: 28px; min-width: 28px; padding: 0 10px; border-radius: 14px; border: 1px solid #2A313C; background: none; color: #EDE7DC; font: 500 12px Inter, sans-serif; cursor: pointer; white-space: nowrap; }
+.gxh-b:hover { border-color: #3A4250; } .gxh-b.on { border-color: #D6A24C; color: #D6A24C; } .gxh-b[hidden] { display: none; }
+.gxh-track { position: relative; flex: 1; min-width: 80px; height: 30px; cursor: pointer; touch-action: none; outline: none; }
+.gxh-track::before { content: ''; position: absolute; left: 0; right: 0; top: 9px; height: 3px; border-radius: 2px; background: #232A35; }
+.gxh-span { position: absolute; top: 9px; height: 3px; background: #5D4A2A; border-radius: 2px; }
+.gxh-fill { position: absolute; left: 0; top: 9px; height: 3px; background: rgba(214,162,76,0.5); border-radius: 2px; }
+.gxh-knob { position: absolute; top: 2px; width: 4px; height: 17px; margin-left: -2px; background: #D6A24C; border-radius: 2px; }
+.gxh-knob[hidden] { display: none; }
+.gxh-track:focus-visible .gxh-knob { box-shadow: 0 0 0 3px rgba(214,162,76,.35); }
+.gxh-ticks span { position: absolute; top: 17px; transform: translateX(-50%); font: 9.5px 'IBM Plex Mono', monospace; color: #5D6573; pointer-events: none; }
+.gxh-year { font: 400 24px/1 'Bebas Neue', Inter, sans-serif; color: #D6A24C; min-width: 76px; text-align: right; }
+.gx-overlay .gx-stage:has(.gxh-scrub:not([hidden])) .gx-status { bottom: 72px; }
+@media (max-width: 700px) { .gxh-scrub { flex-wrap: wrap; } .gxh-track { flex-basis: 100%; order: 9; } }

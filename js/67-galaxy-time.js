@@ -85,8 +85,8 @@ function gxtEnter(keepCam) {                                          // (again 
 function gxtLineage(i) {
   if (i < 0 || !gx.inf) { gx.lineage = null; return; }
   const I = gx.inf, anc = new Map([[i, 0]]), desc = new Map([[i, 0]]);
-  let lvl = [i]; for (let g = 1; g <= 4 && lvl.length; g++) { const next = []; lvl.forEach(x => I.par[x].forEach(({ j }) => { if (!anc.has(j)) { anc.set(j, g); next.push(j); } })); lvl = next; }
-  lvl = [i]; for (let g = 1; lvl.length && g < 60; g++) { const next = []; lvl.forEach(x => I.kids[x].forEach(({ j }) => { if (!desc.has(j)) { desc.set(j, g); next.push(j); } })); lvl = next; }
+  let lvl = [i]; for (let g = 1; g <= 4 && lvl.length; g++) { const next = []; lvl.forEach(x => I.par[x].forEach(({ j, s }) => { if (s < (gx.linkMin || 0)) return; if (!anc.has(j)) { anc.set(j, g); next.push(j); } })); lvl = next; }
+  lvl = [i]; for (let g = 1; lvl.length && g < 60; g++) { const next = []; lvl.forEach(x => I.kids[x].forEach(({ j, s }) => { if (s < (gx.linkMin || 0)) return; if (!desc.has(j)) { desc.set(j, g); next.push(j); } })); lvl = next; }
   gx.lineage = new Set([...anc.keys(), ...desc.keys()]); gx.anc = anc; gx.desc = desc;
 }
 function gxtHidden(i) { return gx.playYear != null && (!gx.inf.yr[i] || gx.inf.yr[i] > gx.playYear); }
@@ -117,14 +117,15 @@ function gxtUnder(ctx, v, sx, sy, on) {
   const step = z * T.XW > 26 ? 1 : z * T.XW > 6 ? 5 : 10, first = Math.ceil(T.y0 / step) * step;
   ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.font = "11px 'IBM Plex Mono', monospace";
   for (let y = first; y <= T.y1 + 1; y += step) { const p = P((y - T.y0) * T.XW, 0); if (p[0] < -20 || p[0] > v.w + 20) continue; const dec = y % 10 === 0;
-    ctx.fillStyle = `rgba(200,210,235,${dec ? 0.1 : 0.05})`; ctx.fillRect(p[0], 0, 1, v.h); ctx.fillStyle = `rgba(200,210,235,${dec ? 0.7 : 0.4})`; ctx.fillText(dec || step === 1 ? String(y) : `'${String(y).slice(2)}`, p[0], v.h - 6); }
-  const nu = P(-5 * T.XW, 0); if (nu[0] > -40 && nu[0] < v.w) { ctx.fillStyle = 'rgba(200,210,235,0.45)'; ctx.fillText('no year', nu[0], v.h - 6); }
+    ctx.fillStyle = `rgba(200,210,235,${dec ? 0.1 : 0.05})`; ctx.fillRect(p[0], 0, 1, v.h); ctx.fillStyle = `rgba(200,210,235,${dec ? 0.7 : 0.4})`; ctx.fillText(dec || step === 1 ? String(y) : `'${String(y).slice(2)}`, p[0], v.h - 68); }
+  const nu = P(-5 * T.XW, 0); if (nu[0] > -40 && nu[0] < v.w) { ctx.fillStyle = 'rgba(200,210,235,0.45)'; ctx.fillText('no year', nu[0], v.h - 68); }
   // the lines: from what a release drew from, to it (curving forward in time)
   const N = gx.items.length, sel = gx.sel >= 0 && gx.lineage, many = N > 2500, now = gx.playYear;
   ctx.lineWidth = 1;
   for (let i = 0; i < N; i++) {
     const ps = I.par[i]; if (!ps.length || (now != null && gxtHidden(i))) continue;
     (many ? ps.slice(0, 1) : ps).forEach(({ j, s }) => {
+      if (s < (gx.linkMin || 0)) return;          // (1.135.138) the Links slider
       if (!on(i) && !on(j)) return;
       let col;
       if (sel) { const inA = gx.anc.has(i) && gx.anc.has(j), inD = gx.desc.has(i) && gx.desc.has(j); if (!inA && !inD) { if (gx.playFromSel) return; col = 'rgba(170,185,215,0.025)'; } else col = inA ? `rgba(240,194,106,${0.35 + s * 0.6})` : `rgba(127,209,185,${0.3 + s * 0.6})`; }

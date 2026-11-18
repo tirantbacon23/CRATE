@@ -17,8 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.137
+  CURRENT_VERSION: 1.135.138
 
+  1.135.138 — 2026-11-18 — Galaxy influence: follow a thread. Hover a star on a picked release's line and the tip says why it is linked
+          to the next one along: the genres, descriptors, scene and label they share, the same artist, how many years apart,
+          and how strong the link is. A Links slider in the header keeps only the stronger links, on the drawing and on the line.
+          A years bar under the stars: drag it to any year (later releases hide), play it at ½×, 1×, 2× or 4×, loop it; with a
+          release picked it runs over that release's line. The side panel gives its rank in your crate, how many lean on it,
+          how many came before it on its line, the share of what followed in other families, where its line starts and ends,
+          and a short "why" under each release it drew from or passed on to. Keys: ← → step along the line, ↑ to what it drew
+          from most, ↓ to what drew from it most, Esc lets go of the release (Esc again closes).
   1.135.137 — 2026-11-18 — The cover popup's ⚙ settings scroll: they ran off the bottom of the window with no way to reach the rest. The panel
           is as tall as the room below it and scrolls; the popup itself scrolls when it is taller than the window.
   1.135.136 — 2026-11-18 — The cover popup's songs, two looks. Roomy (the usual): the name, and under it a quieter line with your rating, note,
