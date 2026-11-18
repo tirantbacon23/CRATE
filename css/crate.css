@@ -6661,3 +6661,31 @@ button.gs-chip { cursor: pointer; margin: 4px 4px 0 0; } button.gs-chip:hover { 
 .gn-m { display: flex; justify-content: space-between; gap: 8px; width: 100%; padding: 6px 4px; border: 0; border-top: 1px solid #1E242D; background: none; color: #EDE7DC; font: 12.5px Inter, sans-serif; cursor: pointer; text-align: left; }
 .gn-m:hover { color: #D6A24C; } .gn-m i { font: normal 11px 'IBM Plex Mono', monospace; color: #8B93A0; }
 @media (max-width: 1100px) { .gn-grid { grid-template-columns: 1fr; } .gn-bar { width: 70px; } }
+
+/* (1.135.144) Play the thread, and the deck's Lineage in your crate (js/89-play-thread.js) */
+.pt-overlay { position: fixed; inset: 0; z-index: 2600; background: rgba(5,7,10,.7); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.pt-overlay[hidden] { display: none; }
+.pt-dialog { width: min(720px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; background: #12161C; border: 1px solid #2A313C; border-radius: 14px; box-shadow: 0 24px 60px rgba(0,0,0,.6); padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+.pt-head { display: flex; align-items: flex-start; gap: 12px; } .pt-head > div { flex: 1; min-width: 0; } .pt-head .gs-lbl { margin: 0 0 2px; }
+.pt-title { font: 400 32px/1 'Bebas Neue', Inter, sans-serif; letter-spacing: .02em; color: #EDE7DC; }
+.pt-opts { display: flex; gap: 8px; flex-wrap: wrap; }
+.pt-list { background: #161B22; border: 1px solid #2A313C; border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+.pt-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 4px 6px 8px; } .pt-bar .gs-lbl { margin: 0; }
+.pt-bar .gs-btn[disabled] { opacity: .4; cursor: default; }
+.pt-row { display: grid; grid-template-columns: 46px 42px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 6px 8px; border-radius: 8px; }
+.pt-row.now { background: #1C222B; box-shadow: inset 2px 0 0 #D6A24C; }
+.pt-row img { width: 42px; height: 42px; border-radius: 4px; object-fit: cover; }
+.pt-yr { font: 400 22px/1 'Bebas Neue', Inter, sans-serif; color: #D6A24C; text-align: right; }
+.pt-t { display: flex; flex-direction: column; min-width: 0; } .pt-t b { font: 600 13.5px Inter, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .pt-t em { font: normal 11.5px Inter, sans-serif; color: #8B93A0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pt-via { font: 500 10.5px 'IBM Plex Mono', monospace; color: #E8C27A; white-space: nowrap; } .pt-via.here { color: #D6A24C; } .pt-via.down { color: #7FD1B9; }
+.pt-none { padding: 10px; }
+.pt-strip { display: flex; flex-direction: column; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line, #2A313C); margin-top: 6px; }
+.pt-strip-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .pt-strip-h .gs-lbl { margin: 0; }
+.pt-strip-b { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; } .pt-strip-b .gs-lbl { margin: 0 0 6px; display: block; }
+.pt-up { color: #E8C27A !important; } .pt-down { color: #7FD1B9 !important; }
+.pt-sep { width: 1px; align-self: stretch; background: var(--line, #2A313C); }
+.pt-minis { display: flex; gap: 8px; flex-wrap: wrap; }
+.pt-mini { display: flex; flex-direction: column; gap: 3px; width: 86px; padding: 0; border: 0; background: none; color: var(--text, #EDE7DC); text-align: left; cursor: pointer; font: 11px Inter, sans-serif; }
+.pt-mini img { width: 86px; height: 86px; border-radius: 4px; object-fit: cover; } .pt-mini:hover img { outline: 2px solid #D6A24C; }
+.pt-mini b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .pt-mini em { font: normal 10.5px 'IBM Plex Mono', monospace; color: var(--text-dim, #8B93A0); }
+@media (max-width: 600px) { .pt-row { grid-template-columns: 38px 36px minmax(0, 1fr); } .pt-via { grid-column: 3; } .pt-row img { width: 36px; height: 36px; } }

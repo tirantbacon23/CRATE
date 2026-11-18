@@ -17,8 +17,17 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.143
+  CURRENT_VERSION: 1.135.144
 
+  1.135.144 — 2026-11-18 — Galaxy influence: play the thread. From a picked release (the Galaxy's side panel, or its deck) its line
+          in your crate as a queue, oldest to newest: back to its roots (up to three steps of what it drew from), forward
+          to now (two steps of what drew from it) or both; its best-known song from each release (most Last.fm listeners
+          when known, else your best-rated or liked song, else the first) or each release whole. Each row says where it
+          sits (root, drew from, here, passed on) and the total length. Play, add to the queue, or save it as a playlist
+          (named for you). While it plays with the Galaxy open on influence, the release playing is ringed and the link
+          to the next glows. The deck has "Lineage in your crate" under the songs: what the release drew from and passed
+          on to, with link strengths and years, its rank, ⤢ On the galaxy and ▶ Play the thread; worked out from your
+          whole crate the first time a deck asks, then kept until the crate changes.
   1.135.143 — 2026-11-18 — Galaxy influence: the numbers, a third view beside Thread and Story. Totals: influence links, links per
           release, average link strength, the share of links that cross families, starting points, the longest line,
           median age when drawn on, and releases with no year. Each family's pull, year by year: a stacked chart of the
