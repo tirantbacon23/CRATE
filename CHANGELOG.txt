@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.158
+  CURRENT_VERSION: 1.135.159
 
+  1.135.159 — 2026-11-18 — The release card (a release from the artist page's More Releases, or one found online) shows more: Last.fm's
+          tags for it; where it ranks among the artist's releases by Last.fm plays and its share of them; how many of its
+          songs have plays and the average a song; its "About" text from Last.fm (a few lines, Read more for the rest);
+          and links to look it up on Last.fm, MusicBrainz, Rate Your Music, Discogs, YouTube and Spotify.
   1.135.158 — 2026-11-18 — The "new version is ready" bar says plainly when it will refresh: when the music stops, when you leave the
           box you're typing in, or when you close the window that's open.
   1.135.157 — 2026-11-18 — CRATE refreshes itself when a new version is up. Every minute, and when you come back to the tab, it reads

@@ -6812,3 +6812,19 @@ button.gs-chip { cursor: pointer; margin: 4px 4px 0 0; } button.gs-chip:hover { 
 .au-bar b { color: var(--accent, #D6A24C); }
 .au-btn { height: 28px; padding: 0 12px; border-radius: 14px; border: 1px solid var(--line, #2A313C); background: none; color: var(--text, #EDE7DC); font: 500 12px Inter, sans-serif; cursor: pointer; }
 .au-btn.au-pri { background: var(--accent, #D6A24C); border-color: var(--accent, #D6A24C); color: #12161C; font-weight: 600; }
+
+/* (1.135.159) the release card shows more (js/97-release-card-more.js) */
+.stl-more { display: flex; flex-direction: column; gap: 12px; margin: 4px 0 12px; padding: 12px 0; border-top: 1px solid var(--line, #2A313C); border-bottom: 1px solid var(--line, #2A313C); }
+.stl-more-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.stl-more-tag { height: 22px; padding: 0 10px; display: inline-flex; align-items: center; border-radius: 11px; border: 1px solid rgba(214,162,76,.45); color: #E8C27A; font: 11.5px Inter, sans-serif; }
+.stl-more-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px 14px; }
+.stl-more-facts div { display: flex; flex-direction: column; min-width: 0; }
+.stl-more-facts b { font: 400 22px/1 'Bebas Neue', Inter, sans-serif; color: var(--text, #EDE7DC); }
+.stl-more-facts span { font: 11px Inter, sans-serif; color: var(--text-dim, #8B93A0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stl-more-h { display: block; font: 500 9.5px 'IBM Plex Mono', monospace; letter-spacing: .12em; text-transform: uppercase; color: var(--text-dim, #8B93A0); margin-bottom: 5px; }
+.stl-more-h em { font-style: normal; letter-spacing: 0; text-transform: none; }
+.stl-more-about p { margin: 0; font: 13px/1.55 Inter, sans-serif; color: var(--text, #EDE7DC); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
+.stl-more-about p.open { display: block; -webkit-line-clamp: unset; max-height: 40vh; overflow-y: auto; }
+.stl-more-btn { margin-top: 4px; background: none; border: 0; padding: 0; color: var(--accent, #D6A24C); font: 12px Inter, sans-serif; cursor: pointer; }
+.stl-more-links { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; } .stl-more-links .stl-more-h { flex-basis: 100%; margin-bottom: 0; }
+.stl-more-links a { font: 12px Inter, sans-serif; color: var(--accent, #D6A24C); text-decoration: none; } .stl-more-links a:hover { text-decoration: underline; }
