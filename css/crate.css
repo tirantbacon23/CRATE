@@ -6805,3 +6805,10 @@ button.gs-chip { cursor: pointer; margin: 4px 4px 0 0; } button.gs-chip:hover { 
 .pim-dialog input[type=checkbox] { accent-color: #D6A24C; }
 /* (1.135.156) More Releases: each release's genre */
 .ai-album-genre { margin-top: 1px; font-size: 11px; color: var(--accent, #D6A24C); opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 14px; }
+
+/* (1.135.157) a new version is ready (js/96-auto-update.js) */
+.au-bar { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 3500; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; max-width: calc(100vw - 32px); padding: 10px 12px 10px 16px; background: var(--bg-elevated, #161B22); border: 1px solid var(--accent, #D6A24C); border-radius: 12px; box-shadow: 0 14px 36px rgba(0,0,0,.55); font: 13px Inter, sans-serif; color: var(--text, #EDE7DC); }
+.au-bar[hidden] { display: none; }
+.au-bar b { color: var(--accent, #D6A24C); }
+.au-btn { height: 28px; padding: 0 12px; border-radius: 14px; border: 1px solid var(--line, #2A313C); background: none; color: var(--text, #EDE7DC); font: 500 12px Inter, sans-serif; cursor: pointer; }
+.au-btn.au-pri { background: var(--accent, #D6A24C); border-color: var(--accent, #D6A24C); color: #12161C; font-weight: 600; }

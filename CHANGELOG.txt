@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.156
+  CURRENT_VERSION: 1.135.157
 
+  1.135.157 — 2026-11-18 — CRATE refreshes itself when a new version is up. Every minute, and when you come back to the tab, it reads
+          the version at the top of the CHANGELOG.txt beside the page (past any cache); a newer one than the page's own
+          means the update is live. It refreshes straight away when nothing would be lost. While music plays, you're
+          typing in a box, or a window (Edit details, Match songs…) is open, a bar says the new version is ready, with
+          Refresh now and Later, and it refreshes by itself once you're done. What was playing carries on after.
   1.135.156 — 2026-11-18 — The artist page's More Releases shows each release's genre (under its year, in gold): your own for a release
           in your crate; else MusicBrainz's (the genres most agreed on, asked for with the discography itself), else
           Discogs'; else Last.fm's tags for it, a few at a time after the list is drawn, kept when they look like genres
