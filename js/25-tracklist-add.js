@@ -173,7 +173,7 @@ function renderTracklistBody(item, tracks) {
     </div>
     <div class="tracklist-listen-progress ${allListened ? 'complete' : ''}">
       <div class="tlp-bar"><div class="tlp-fill" style="width:${tracks.length ? (listenedCount / tracks.length * 100) : 0}%"></div></div>
-      <span class="tlp-label">${listenedCount}/${tracks.length} tracks selected${allListened ? ' \u2014 whole album \u2014 hit \u201cLog a listen\u201d to save it' : ''}</span>
+      <span class="tlp-label">${listenedCount}/${tracks.length} tracks selected${allListened ? ' \u2014 whole release \u2014 hit \u201cLog a listen\u201d to save it' : ''}</span>
     </div>
   `;
 
@@ -210,7 +210,7 @@ async function toggleTrackListened(item, trackNum) {
       const tNum = t.trackNumber || 0;
       return !!(item.trackData && item.trackData[tNum] && item.trackData[tNum].listened);
     });
-    if (allListened) flashToast(el.deckToast, 'Whole album selected \u2014 hit \u201cLog a listen\u201d to save it');
+    if (allListened) flashToast(el.deckToast, 'Whole release selected \u2014 hit \u201cLog a listen\u201d to save it');
   }
 
   try {
@@ -293,7 +293,7 @@ function renderLogTrackSummary() {
   if (!selected.length) {
     el.logTrackSummary.textContent = 'No tracks selected \u2014 check tracks off in the tracklist below, or log without track detail.';
   } else if (total && selected.length === total) {
-    el.logTrackSummary.textContent = `Logging the whole album \u2014 all ${total} tracks.`;
+    el.logTrackSummary.textContent = `Logging the whole release \u2014 all ${total} tracks.`;
   } else {
     el.logTrackSummary.textContent = `Logging ${selected.length} track${selected.length === 1 ? '' : 's'}: ${selected.map(t => t.name).join(', ')}`;
   }

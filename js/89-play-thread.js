@@ -170,7 +170,7 @@ document.addEventListener('click', (e) => {
   const b = e.target.closest && e.target.closest('[data-deck-lineage]'); if (!b) return;
   e.preventDefault(); e.stopPropagation();
   try { localStorage.setItem(PT_DECK_KEY, ptDeckOn() ? '0' : '1'); } catch (x) { /* this visit */ }
-  ptDeckPaintBtn(); flashGlobalToast(ptDeckOn() ? 'Lineage in your crate shows in the album view' : 'Lineage in your crate hidden from the album view');
+  ptDeckPaintBtn(); flashGlobalToast(ptDeckOn() ? 'Lineage in your crate shows in the release view' : 'Lineage in your crate hidden from the release view');
   if (typeof activeItem !== 'undefined' && activeItem && el.deckOverlay && el.deckOverlay.classList.contains('open')) ptStripPaint(activeItem);
 }, true);
 ptDeckPaintBtn();

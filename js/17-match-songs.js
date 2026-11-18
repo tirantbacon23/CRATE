@@ -322,7 +322,7 @@ function smScore(song, cand, opts) {
   const tol = pf.lenTol === 'strict' ? 0.6 : pf.lenTol === 'loose' ? 1.8 : 1;
   const dp = smDurationPoints(song.durationMs, cand.durationMs, tol);
   if (dp === null) score += add('length (unknown)', 10); else { score += add('length', dp); reasons.push(dp >= 16 ? 'same length' : dp >= 10 ? 'length within a few seconds' : dp >= 0 ? 'length a little off' : 'length is quite different'); }
-  if (song.album && cand.album) { const as = smSim(smCore(song.album), smCore(cand.album)); if (as >= 0.9) { score += add('same album', 10); reasons.push('same album'); } else if (as >= 0.6) score += add('similar album', 5); }
+  if (song.album && cand.album) { const as = smSim(smCore(song.album), smCore(cand.album)); if (as >= 0.9) { score += add('same release', 10); reasons.push('same release'); } else if (as >= 0.6) score += add('similar release', 5); }
   if (opts.position && song.trackNumber && cand.index && song.trackNumber === cand.index) { score += add('same position', 8); reasons.push('same position'); }
   const want = smFlags(song.title), got = smFlags(cand.title);
   const extra = [...got].filter(f => !want.has(f));
@@ -1724,7 +1724,7 @@ function bmPrefsHtml() {
       <div class="bm-opt"><span class="bm-opt-t">Length tolerance<small>How far a recording’s length may be from yours before it counts against it.</small></span>${sel('lenTol', p.lenTol, [['strict', 'Strict'], ['normal', 'Normal'], ['loose', 'Loose']])}</div>
       <div class="bm-opt"><span class="bm-opt-t">On YouTube, look first for<small>When a release has no YouTube playlist. The other is still tried for whatever the first doesn’t find.</small></span>${sel('ytOrder', p.ytOrder, [['full', 'A full-release video'], ['songs', 'Each song’s own video']])}</div>
       ${chk('ytBoth', 'Find both on YouTube', 'each song’s own video, and a full-release video kept with the release (one more search per release)')}
-      <div class="bm-opt"><span class="bm-opt-t">Edition<small>Between equally good editions of an album.</small></span>${sel('edition', p.edition, [['any', 'No preference'], ['original', 'Prefer the original'], ['remaster', 'Prefer remastered or deluxe']])}</div>
+      <div class="bm-opt"><span class="bm-opt-t">Edition<small>Between equally good editions of a release.</small></span>${sel('edition', p.edition, [['any', 'No preference'], ['original', 'Prefer the original'], ['remaster', 'Prefer remastered or deluxe']])}</div>
       ${chk('versionPenalty', 'Mark down live, remix, cover, sped-up and similar versions', 'unless your song’s own title says it is one')}${chk('topicBonus', 'Prefer the artist’s “- Topic” channel on YouTube')}</div></section>
     <section><div class="bm-label">Services</div><div class="bm-opts">${chk('spotifyLookup', 'Look songs up on Spotify', 'Off: Match songs and the matching of new releases use YouTube only. You can still tick Spotify for one run on the Start screen.')}</div>
     <div class="bm-label" style="margin-top:16px">Queue and reminders</div><div class="bm-opts">${chk('autoMatchNew', 'Match new releases by themselves', 'in the background, as they are added: confident matches are saved, the rest wait here for you (Processing shows them)')}${chk('queueNew', 'Put new releases in the match queue', 'whatever adds them: the Add form, Rate Your Music, an import')}${chk('remindCheck', 'Remind me to check my saved links once a month', p.lastCheck ? `last checked ${bmAgo(p.lastCheck)}` : 'not checked yet')}</div>
@@ -2042,7 +2042,7 @@ function ytCacheClear() { ytMem = {}; try { localStorage.removeItem(YT_CACHE_KEY
 function smRelKey(item) { return 'rel|' + ytCacheNorm(item.artist) + '|' + ytCacheNorm(String(item.title || '').replace(/\s*\[.*?\]|\s*\(.*?\)/g, '').trim()); }
 function ytPaintQuotaLine() {
   const e = document.getElementById('ytQuotaLine'); if (!e) return; const used = smYtQuotaUsed(), n = ytCacheCount();
-  e.textContent = `Today CRATE has used about ${used.toLocaleString()} of YouTube\u2019s 10,000 daily units (it resets at midnight Pacific; searches made outside CRATE with the same key aren\u2019t counted). ${n} album and song lookup${n === 1 ? ' is' : 's are'} remembered, so looking ${n === 1 ? 'it' : 'them'} up again costs nothing.`;
+  e.textContent = `Today CRATE has used about ${used.toLocaleString()} of YouTube\u2019s 10,000 daily units (it resets at midnight Pacific; searches made outside CRATE with the same key aren\u2019t counted). ${n} release and song lookup${n === 1 ? ' is' : 's are'} remembered, so looking ${n === 1 ? 'it' : 'them'} up again costs nothing.`;
 }
 let smState = null;
 let smLoadSeq = 0;
@@ -2278,7 +2278,7 @@ async function smYoutubeForRelease(item, songs) {
     // and with the word "album". Through the add-on only, where it costs nothing.
     if (!lists.length && viaAddon) {
       const bare = String(item.artist || '').replace(/^the\s+/i, ''), seen = new Set();
-      for (const q of [bare !== item.artist ? `${bare} ${clean}` : '', `${clean} ${bare} album`].filter(Boolean)) {
+      for (const q of [bare !== item.artist ? `${bare} ${clean}` : '', `${clean} ${bare} release`].filter(Boolean)) {
         let more; try { more = await smYtPlaylistSearchViaAddon(q); } catch (e) { more = { items: [] }; }
         (more.items || []).filter(it => it.id && it.id.playlistId && it.snippet && !seen.has(it.id.playlistId)).forEach(it => { seen.add(it.id.playlistId);
           const rank = smTitleSim(item.title, stripAlbum(it.snippet.title)) + (/ - topic$/i.test(it.snippet.channelTitle || '') ? 0.1 : 0) + (smArtistMatch(item.artist, it.snippet.channelTitle) === 1 ? 0.05 : 0);
@@ -2453,7 +2453,7 @@ function smStatusHtml(kind) {
       if (ytUseAddon()) return ytAddonIdleHtml();
       if (!loadYoutubeApiKey()) return `<div class="sm-status"><span>Matching on YouTube needs a free API key.</span><button type="button" class="config-btn" data-sm="setup-youtube">Set up YouTube API\u2026</button></div>`;
       const known = smState && smState.item ? ytCacheGet(smRelKey(smState.item)) : null;
-      return `<div class="sm-status"><span>This looks for the album\u2019s playlist on YouTube and matches every song in one go \u2014 ${known ? `this album was looked up on ${new Date(known.t).toLocaleDateString()} and is remembered, so it costs nothing now` : 'about 100 of YouTube\u2019s 10,000 daily quota units'} (${smYtQuotaUsed().toLocaleString()} used today by this app).</span><button type="button" class="config-btn" data-sm="run-youtube">Find on YouTube</button></div>`;
+      return `<div class="sm-status"><span>This looks for the album\u2019s playlist on YouTube and matches every song in one go \u2014 ${known ? `this release was looked up on ${new Date(known.t).toLocaleDateString()} and is remembered, so it costs nothing now` : 'about 100 of YouTube\u2019s 10,000 daily quota units'} (${smYtQuotaUsed().toLocaleString()} used today by this app).</span><button type="button" class="config-btn" data-sm="run-youtube">Find on YouTube</button></div>`;
     }
     if (kind === 'youtube' && ytUseAddon() && r.status === 'loading') return ytAddonLoadingHtml();
     return `<div class="sm-status" role="status" aria-live="polite"><span>Looking on ${label}\u2026</span><div class="gi-mb-bar"><i></i></div></div>`;
@@ -2464,8 +2464,8 @@ function smStatusHtml(kind) {
   // done
   const found = st.songs.length - c.none;
   let src;
-  if (kind === 'spotify') src = r.albumName ? `Matched against the album <a href="${escapeHtml(r.albumUrl)}" target="_blank" rel="noopener">\u201c${escapeHtml(r.albumName)}\u201d \u2197</a>${r.searched ? ` and searched for ${r.searched} song${r.searched === 1 ? '' : 's'} it doesn\u2019t explain` : ''}.` : 'No album on Spotify fits this tracklist, so each song was searched for on its own.';
-  else src = r.playlistTitle ? `Matched against the playlist <a href="${escapeHtml(r.playlistUrl)}" target="_blank" rel="noopener">\u201c${escapeHtml(r.playlistTitle)}\u201d \u2197</a> (${escapeHtml(r.playlistChannel || '')}).` : 'No album playlist on YouTube fits this tracklist.';
+  if (kind === 'spotify') src = r.albumName ? `Matched against the release <a href="${escapeHtml(r.albumUrl)}" target="_blank" rel="noopener">\u201c${escapeHtml(r.albumName)}\u201d \u2197</a>${r.searched ? ` and searched for ${r.searched} song${r.searched === 1 ? '' : 's'} it doesn\u2019t explain` : ''}.` : 'No album on Spotify fits this tracklist, so each song was searched for on its own.';
+  else src = r.playlistTitle ? `Matched against the playlist <a href="${escapeHtml(r.playlistUrl)}" target="_blank" rel="noopener">\u201c${escapeHtml(r.playlistTitle)}\u201d \u2197</a> (${escapeHtml(r.playlistChannel || '')}).` : 'No release playlist on YouTube fits this tracklist.';
   const left = st.songs.filter(s => !(r.byIdx[s.idx] && r.byIdx[s.idx].length)).length;
   let extra = '';
   if (kind === 'youtube' && left && !r.searching) extra = `<button type="button" class="config-btn" data-sm="search-youtube">Search individually for ${left} song${left === 1 ? '' : 's'} (${ytUseAddon() ? `through the add-on: no quota, about ${Math.max(1, Math.round(left * 12 / 60))} min` : `about ${(left * 100).toLocaleString()} quota units; ${smYtQuotaUsed().toLocaleString()} used today`})</button>`;

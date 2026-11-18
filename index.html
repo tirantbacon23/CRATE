@@ -119,7 +119,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <!-- CRATE's own styles, in the head so the page is never drawn without them (from 1.78.0 to 1.90.5 this sat at the very end
      of <body>, so a phone showed the bare, unstyled markup for a moment on every load). After Leaflet's, so ours win. -->
-<link rel="stylesheet" href="css/crate.css?v=1.135.149">
+<link rel="stylesheet" href="css/crate.css?v=1.135.150">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
@@ -239,12 +239,12 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
         <button type="button" id="searchDetailBtn" class="adv-search-btn search-detail-btn" title="Detailed search: covers, filters, songs and artists, releases to add" aria-label="Detailed search" aria-pressed="false">⊞</button>
         <button type="button" id="advancedSearchBtn" class="adv-search-btn" title="Advanced search" aria-label="Advanced search">▾</button>
       </div>
-      <button id="listenedFilterBtn" class="icon-btn" title="Show only albums you've logged a full listen for" aria-label="Toggle listened filter">✓</button>
+      <button id="listenedFilterBtn" class="icon-btn" title="Show only releases you've logged a full listen for" aria-label="Toggle listened filter">✓</button>
       <button id="addAlbumBtn" class="icon-btn" title="Add release" aria-label="Add release">+</button>
 	  <button id="refreshBtn" class="icon-btn" title="Refresh from sheet" aria-label="Refresh">⟳</button>
 	  <button id="timelineBtn" class="icon-btn" title="Timeline viewer — see what was released when" aria-label="Timeline viewer">◷</button>
 	  <button type="button" id="recentBtn" class="icon-btn" title="Recently added" aria-label="Recently added" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/><path d="M10 11v6M7 14h6"/></svg></button>
-	  <button id="mapBtn" class="icon-btn" title="Map viewer — see where albums were formed, recorded, or played" aria-label="Map viewer">🗺</button>
+	  <button id="mapBtn" class="icon-btn" title="Map viewer — see where releases were formed, recorded, or played" aria-label="Map viewer">🗺</button>
       <!-- (1.95.30) Processing, from the front: its progress while something runs, a count when something needs you. See jobsBtnRender(). -->
       <button type="button" id="processingBtn" class="icon-btn processing-btn" title="Processing" aria-label="Processing"><span id="processingBtnIco" class="processing-btn-ico"></span><span id="processingBtnPct" class="processing-btn-pct" hidden></span><i id="processingBtnBar" class="processing-btn-bar" hidden><b></b></i><span id="processingBtnBadge" class="processing-btn-badge" hidden></span></button>
       <!-- (1.114.0) Friends: a green count of friends playing now, a dot for requests waiting. See js/50-social.js. -->
@@ -318,10 +318,10 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
               <button type="button" class="menu-toggle-btn" data-scv-look="overview" aria-pressed="true" title="A period's totals, top releases as covers, the chart, and day by day"><span class="menu-check" aria-hidden="true">✓</span>Overview</button>
               <button type="button" class="menu-toggle-btn" data-scv-look="timeline" aria-pressed="false" title="A year as a calendar of days, then each day's listening"><span class="menu-check" aria-hidden="true">✓</span>Timeline</button>
               <button type="button" class="menu-toggle-btn" data-scv-look="charts" aria-pressed="false" title="The ranked chart of releases, artists or songs for a period"><span class="menu-check" aria-hidden="true">✓</span>Charts</button>
-              <div class="menu-sub-title">Album view looks like</div>
+              <div class="menu-sub-title">Release view looks like</div>
               <button type="button" class="menu-toggle-btn" data-layout-deck="a" aria-pressed="true" title="Cover and details side by side, one row of actions, links under Open on…, the rest under ⋯"><span class="menu-check" aria-hidden="true">✓</span>Column</button>
               <button type="button" class="menu-toggle-btn" data-layout-deck="b" aria-pressed="false" title="A header band, then tabs: Songs, Details, Diary, Notes"><span class="menu-check" aria-hidden="true">✓</span>Tabs</button>
-              <div class="menu-sub-title">Album view header</div>
+              <div class="menu-sub-title">Release view header</div>
               <button type="button" class="menu-toggle-btn" data-layout-hdr="side" aria-pressed="true" title="The cover on the left, the details beside it"><span class="menu-check" aria-hidden="true">✓</span>Beside the cover</button>
               <button type="button" class="menu-toggle-btn" data-layout-hdr="center" aria-pressed="false" title="A bigger cover with everything centred under it, like a record sleeve"><span class="menu-check" aria-hidden="true">✓</span>Centred</button>
               <button type="button" class="menu-toggle-btn" data-layout-hdr="big" aria-pressed="false" title="The cover takes half the width, the details fill the other half"><span class="menu-check" aria-hidden="true">✓</span>Bigger cover</button>
@@ -335,7 +335,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
               <button type="button" class="menu-toggle-btn" data-mood-layout="cloud" aria-pressed="false" title="Every descriptor in your crate, grouped by sense, sized by how often"><span class="menu-check" aria-hidden="true">✓</span>Cloud</button>
               <div class="menu-sub-title">Display and sharing</div>
               <button type="button" id="menuFlagMissingLinks" class="menu-toggle-btn" aria-pressed="true" title="Show a red ! on releases that have songs with no link, which are skipped when you play the release"><span class="menu-check" aria-hidden="true">✓</span>Flag releases with unlinked songs</button>
-              <button type="button" id="menuLastfmReview" class="menu-toggle-btn" aria-pressed="true" title="When CRATE opens, show a review of what you played on Last.fm and offer to add albums that aren't in your crate"><span class="menu-check" aria-hidden="true">✓</span>Review Last.fm listening at startup</button>
+              <button type="button" id="menuLastfmReview" class="menu-toggle-btn" aria-pressed="true" title="When CRATE opens, show a review of what you played on Last.fm and offer to add releases that aren't in your crate"><span class="menu-check" aria-hidden="true">✓</span>Review Last.fm listening at startup</button>
               <button type="button" id="menuShareAddon" class="menu-toggle-btn" aria-pressed="true" title="Lets the CRATE for RateYourMusic browser add-on (if you installed it) see a compact list of your releases, so it can flag the ones you already have. Nothing else is shared."><span class="menu-check" aria-hidden="true">✓</span>Share my crate with the RYM add-on</button>
             </div>
           </div>
@@ -394,7 +394,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
       <span class="anniversary-banner-title">⚠️ Duplicate rows found in your sheet</span>
       <button type="button" id="duplicateRowBannerClose" class="modal-x" aria-label="Dismiss">✕</button>
     </div>
-    <p class="arrange-hint duplicate-row-banner-hint">These rows share the same number in your spreadsheet — playlists (and anything else that looks an album up by its row) can end up showing the wrong one's title/artist next to a track that isn't really theirs. Fix by renumbering or removing the duplicate directly in the sheet.</p>
+    <p class="arrange-hint duplicate-row-banner-hint">These rows share the same number in your spreadsheet — playlists (and anything else that looks a release up by its row) can end up showing the wrong one's title/artist next to a track that isn't really theirs. Fix by renumbering or removing the duplicate directly in the sheet.</p>
     <div id="duplicateRowBannerList" class="anniversary-banner-list"></div>
   </div>
 
@@ -441,13 +441,13 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
         <div class="panel-bar">
           <div style="position: relative;">
             <button id="leftModeBtn" class="panel-mode-btn">
-              <span id="leftModeLabel">Albums</span> <span class="caret">▾</span>
+              <span id="leftModeLabel">Releases</span> <span class="caret">▾</span>
             </button>
 
             <!-- Expanded left panel menu -->
             <div id="leftModeMenu" class="panel-mode-menu nav-view-menu" hidden style="position: absolute; top: calc(100% + 4px); left: 0; margin: 0; width: max-content; box-shadow: 0 10px 24px rgba(0,0,0,0.4);">
               <div class="menu-section-title">Category</div>
-              <button type="button" data-mode="album">Albums</button>
+              <button type="button" data-mode="album">Releases</button>
               <button type="button" data-mode="artist">Artists</button>
               <button type="button" data-mode="genre">Genres</button>
               <button type="button" data-mode="descriptor">Descriptors</button>
@@ -527,7 +527,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
         <!-- The Main Label is now the dropdown button -->
         <div style="position: relative;">
           <button id="mainViewBtn" class="panel-mode-btn" title="Change layout view">
-            <span id="mainPanelLabel">Albums</span> <span class="caret">▾</span>
+            <span id="mainPanelLabel">Releases</span> <span class="caret">▾</span>
           </button>
           <!-- The menu is now attached to this button -->
 			<div id="albumsViewMenu" class="panel-mode-menu" hidden style="position: absolute; top: calc(100% + 4px); left: 0; margin: 0; box-shadow: 0 10px 24px rgba(0,0,0,0.4);">
@@ -540,8 +540,8 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
             <button type="button" data-view="list" id="playlistListViewBtn" hidden>List</button>
             <div class="menu-divider" id="playlistOnlyViewDivider" hidden></div>
             <button type="button" data-view="tracks">Tracks</button>
-			<button type="button" data-view="albumTracks">Album and Tracks</button>
-			<button type="button" data-view="covers">Album covers</button>           
+			<button type="button" data-view="albumTracks">Release and Tracks</button>
+			<button type="button" data-view="covers">Release covers</button>           
 			<button type="button" data-view="artists">Artists</button>
 			<div class="menu-divider"></div>
 			<div class="menu-item-submenu" id="groupByMenuItem">
@@ -714,8 +714,8 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
         <p id="aiNowPlaying" class="ai-now-playing"></p>
       </header>
       <nav id="aiSubtabs" class="ai-subtabs" role="tablist" aria-label="Artist information sections">
-        <button type="button" role="tab" data-aitab="stats">Albums &amp; Stats</button>
-        <button type="button" role="tab" data-aitab="albums">More Albums</button>
+        <button type="button" role="tab" data-aitab="stats">Releases &amp; Stats</button>
+        <button type="button" role="tab" data-aitab="albums">More Releases</button>
         <button type="button" role="tab" data-aitab="profile">Profile</button>
         <button type="button" role="tab" data-aitab="similar">Similar Artists</button>
         <span id="aiDecadeGenre" class="ai-decade-genre"></span>
@@ -846,8 +846,8 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
     </div>
     <div id="statsListeningWrap">
       <div class="stats-header">
-        <h2>Albums by year</h2>
-        <p class="stats-sub">Distinct albums logged in your Diary or scrobbled via Last.fm, grouped by the year you listened.</p>
+        <h2>Releases by year</h2>
+        <p class="stats-sub">Distinct releases logged in your Diary or scrobbled via Last.fm, grouped by the year you listened.</p>
       </div>
       <div id="statsYearList" class="stats-year-list"></div>
       <div id="statsDetail" class="stats-detail" hidden>
@@ -1066,9 +1066,9 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
            so the iframe stays live and keeps playing behind the scenes. -->
       <div id="scPlayerMount" class="sc-player-mount" aria-hidden="true"></div>
       <div class="mini-player-meta">
-        <span id="miniPlayerTitle" class="mini-player-title" title="Go to song / album page">—</span>
+        <span id="miniPlayerTitle" class="mini-player-title" title="Go to song / release page">—</span>
         <span id="miniPlayerArtist" class="mini-player-artist" title="View artist"></span>
-        <span id="miniPlayerAlbum" class="mini-player-album" title="Go to album page · right-click for more"></span>
+        <span id="miniPlayerAlbum" class="mini-player-album" title="Go to release page · right-click for more"></span>
         <span id="miniPlayerExtra" class="mini-player-album mini-player-extra"></span>
       </div>
     </div>
@@ -1264,7 +1264,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
       <a id="deckSpotifyLink" class="deck-link deck-link-spotify" target="_blank" rel="noopener noreferrer">Spotify ↗</a>
       <a id="deckSoundcloudLink" class="deck-link deck-link-soundcloud" target="_blank" rel="noopener noreferrer">SoundCloud ↗</a>
       <a id="deckRymLink" class="deck-link deck-link-rym" target="_blank" rel="noopener noreferrer">RYM ↗</a>
-      <button id="deckFullAlbumPlay" class="deck-link deck-link-fullvideo" type="button" hidden title="Play the whole release as one YouTube video">▶ Full album video</button>
+      <button id="deckFullAlbumPlay" class="deck-link deck-link-fullvideo" type="button" hidden title="Play the whole release as one YouTube video">▶ Full release video</button>
       <button id="deckEditBtn" class="deck-btn" type="button">Edit details</button>
       <button id="deckFullVideoBtn" class="deck-btn" type="button" title="One YouTube or Bilibili video that is the whole release: say where each song starts and ends in it">Full-release video…</button>
       <button id="deckTrackGridBtn" class="deck-btn" type="button" title="Every track of this release in one grid: titles, lengths, links, genre, rating and notes">Edit tracks…</button>
@@ -1352,7 +1352,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
 
     <div class="pane-config-group">
       <div class="arrange-row arrange-row-sub">
-        <label class="arrange-row-label" for="albumQuickPeekStyleSelect">Clicking an album cover opens</label>
+        <label class="arrange-row-label" for="albumQuickPeekStyleSelect">Clicking a release cover opens</label>
         <select id="albumQuickPeekStyleSelect" class="config-btn">
           <option value="floating">Popover next to the cover</option>
           <option value="inline">Inline, in the grid itself</option>
@@ -1491,7 +1491,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
         <div id="diaryEntryTracksWrap" class="diary-entry-tracks-wrap"></div>
       </div>
       <div class="log-form-actions">
-        <button id="diaryEntryOpenAlbumBtn" type="button" class="save-btn">Open album</button>
+        <button id="diaryEntryOpenAlbumBtn" type="button" class="save-btn">Open release</button>
         <button id="diaryEntryDeleteBtn" type="button" class="remove-btn">Delete entry</button>
       </div>
       <span id="diaryEntryToast" class="toast"></span>
@@ -1527,7 +1527,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
       </div>
       <div class="timeline-count" id="timelineCount"></div>
       <div class="timeline-album-list" id="timelineAlbumList"></div>
-      <p class="timeline-empty" id="timelineEmpty" hidden>No albums in your crate have a release date yet — add one from the Edit form to see it here.</p>
+      <p class="timeline-empty" id="timelineEmpty" hidden>No releases in your crate have a release date yet — add one from the Edit form to see it here.</p>
     </div>
   </div>
 </div>
@@ -1549,7 +1549,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
       </div>
 
       <div id="mapMain">
-        <p class="arrange-hint" id="mapIntroHint">Where it all happened — formed, recorded, played. Set a Location from the Add/Edit form to place an album here.</p>
+        <p class="arrange-hint" id="mapIntroHint">Where it all happened — formed, recorded, played. Set a Location from the Add/Edit form to place a release here.</p>
         <div class="map-toolbar">
           <label class="map-toolbar-field">Category
             <select id="mapCategorySelect">
@@ -1627,7 +1627,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
             <tbody id="mapAttrBody"></tbody>
           </table>
         </div>
-        <p class="timeline-empty" id="mapEmpty" hidden>No albums in your crate have a Location yet — add one from the Edit form (e.g. where the band formed, its studio, or a venue it played) to see it here.</p>
+        <p class="timeline-empty" id="mapEmpty" hidden>No releases in your crate have a Location yet — add one from the Edit form (e.g. where the band formed, its studio, or a venue it played) to see it here.</p>
       </div>
 
     </div>
@@ -1641,7 +1641,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
     <div class="arrange-body">
       <div id="addLastfmBar" class="tb-match-status" hidden role="status"></div>
       <div class="add-search-row">
-        <input type="text" id="addSearchInput" placeholder="Search artist or album…">
+        <input type="text" id="addSearchInput" placeholder="Search artist or release…">
         <button type="button" id="addSearchHelpBtn" class="icon-btn add-search-help-btn" title="Advanced search operators" aria-label="Advanced search operators">?</button>
       </div>
       <div id="addSearchHelpPopover" class="add-search-help-popover" hidden>
@@ -1890,7 +1890,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
         <label class="add-field">Scene <input type="text" id="editScene" placeholder="e.g. Madchester, Seattle grunge scene"></label>
         <label class="add-field">Movement <input type="text" id="editMovement" placeholder="e.g. Post-Punk, British Invasion"></label>
         <label class="add-field">Link <input type="text" id="editLink" placeholder="https://…"></label>
-        <label class="add-field">Full album video <input type="text" id="editFullVideo" placeholder="https://www.youtube.com/watch?v=… (the whole release as one video)"></label>
+        <label class="add-field">Full release video <input type="text" id="editFullVideo" placeholder="https://www.youtube.com/watch?v=… (the whole release as one video)"></label>
         <label class="add-field">RYM Link
           <div class="field-with-button">
             <input type="text" id="editRymLink" placeholder="https://rateyourmusic.com/release/…">
@@ -1909,7 +1909,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
           </div>
           <div id="editTlTools" class="tl-tools"></div>
           <div id="editTracksRows" class="tracklist-builder-rows"></div>
-          <p class="tracklist-builder-hint">Add a YouTube and/or Spotify link per track to play it accurately. Editing rows here (or using "Load current tracklist" to start from what's already showing) switches this album to a manually-maintained tracklist — it stops picking up future automatic tracklist lookups.</p>
+          <p class="tracklist-builder-hint">Add a YouTube and/or Spotify link per track to play it accurately. Editing rows here (or using "Load current tracklist" to start from what's already showing) switches this release to a manually-maintained tracklist — it stops picking up future automatic tracklist lookups.</p>
         </div>
         <div class="log-form-actions">
           <button id="editSaveBtn" class="save-btn">Save changes</button>
@@ -1928,7 +1928,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
     <div class="arrange-body">
 
       <div id="lastfmSetup">
-        <p class="arrange-hint">Reads your public scrobble history and logs listens against albums already in your crate. Needs a free Last.fm API key (from last.fm/api/account/create — you only need the "API key" value, not the secret). After this first import, CRATE will quietly check for new scrobbles each time you open it — no need to come back to this screen.</p>
+        <p class="arrange-hint">Reads your public scrobble history and logs listens against releases already in your crate. Needs a free Last.fm API key (from last.fm/api/account/create — you only need the "API key" value, not the secret). After this first import, CRATE will quietly check for new scrobbles each time you open it — no need to come back to this screen.</p>
         <label class="add-field">Last.fm username <input type="text" id="lastfmUsername" autocomplete="off"></label>
         <label class="add-field">API key <input type="text" id="lastfmApiKey" autocomplete="off"></label>
         <label class="add-field">Only import scrobbles since
@@ -1969,7 +1969,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
   <div class="arrange-modal add-modal">
     <div class="arrange-header"><h2>Spotify API</h2><button id="spotifyClose" class="modal-x" aria-label="Close">✕</button></div>
     <div class="arrange-body">
-      <p class="arrange-hint">Connect a free Spotify app so Spotify links go straight to the matched album instead of a search page. Create one at developer.spotify.com/dashboard (Web API, no redirect URI needed) and paste the Client ID and Client Secret below. Stored only in this browser.</p>
+      <p class="arrange-hint">Connect a free Spotify app so Spotify links go straight to the matched release instead of a search page. Create one at developer.spotify.com/dashboard (Web API, no redirect URI needed) and paste the Client ID and Client Secret below. Stored only in this browser.</p>
       <label class="add-field">Client ID <input type="text" id="spotifyClientId" autocomplete="off"></label>
       <label class="add-field">Client Secret <input type="text" id="spotifyClientSecret" autocomplete="off"></label>
       <div class="log-form-actions">
@@ -2126,7 +2126,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
   <div class="arrange-modal add-modal fv-modal" role="dialog" aria-modal="true" aria-labelledby="fullVideoTitle">
     <div class="arrange-header"><div><h2 id="fullVideoTitle">Full-release video</h2><p id="fullVideoSub" class="sm-sub"></p></div><button id="fullVideoClose" class="modal-x" aria-label="Close">✕</button></div>
     <div class="arrange-body fv-body">
-      <div class="fv-url"><input type="text" id="fullVideoUrl" placeholder="A YouTube or Bilibili link to the video that is the whole release" aria-label="Link to the full-release video" autocomplete="off"><button type="button" id="fullVideoOpenPlayer" class="chip-btn" title="Play it in CRATE's player, then press the clock beside a song as it begins">▶ Play it here</button><button type="button" id="fullVideoFind" class="chip-btn" title="Search YouTube for the whole release, ranked by how close each video's length is to your songs">Find videos</button><button type="button" id="fullVideoSearch" class="chip-btn" title="Look for the full album on YouTube">Search ↗</button></div><div id="fullVideoFound" class="fv-found" hidden></div><div id="fullVideoClash" class="fv-clash" hidden></div>
+      <div class="fv-url"><input type="text" id="fullVideoUrl" placeholder="A YouTube or Bilibili link to the video that is the whole release" aria-label="Link to the full-release video" autocomplete="off"><button type="button" id="fullVideoOpenPlayer" class="chip-btn" title="Play it in CRATE's player, then press the clock beside a song as it begins">▶ Play it here</button><button type="button" id="fullVideoFind" class="chip-btn" title="Search YouTube for the whole release, ranked by how close each video's length is to your songs">Find videos</button><button type="button" id="fullVideoSearch" class="chip-btn" title="Look for the full release on YouTube">Search ↗</button></div><div id="fullVideoFound" class="fv-found" hidden></div><div id="fullVideoClash" class="fv-clash" hidden></div>
       <p class="fv-note">Say where each song starts and ends in the video. Play it with the button above, and press ⏱ beside a song as it begins; or paste the times from the video's description.</p>
       <div class="fv-tools"><button type="button" id="fullVideoPasteBtn" class="chip-btn">Paste times…</button><label class="fv-intro" title="How long the video runs before the first song starts (it follows song 1's start). Typing a new one here moves every song by the same amount">Intro <input type="text" id="fullVideoIntro" value="0:00" aria-label="Intro before the first song" autocomplete="off"></label><label class="fv-intro" title="How long the whole video is. Known: From song lengths spreads any small difference between it and your song lengths across the songs, so the last one ends with the video. Filled in when CRATE knows it; type a Bilibili video's length.">Video length <input type="text" id="fullVideoLength" value="" placeholder="h:mm:ss" aria-label="The video's length" autocomplete="off"></label><label class="fv-intro fv-follow" title="On: a song that starts later or earlier takes its end and every song after it along by the same amount (a gap the uploader left between songs). Off: only that start moves (silence at the start of the song itself)."><input type="checkbox" id="fullVideoFollow"> Later songs move too</label><label class="fv-intro fv-follow" title="On: saving also sets each song's length to its part of the video (end minus start), so the tracklist, the release's total and the player all go by these times."><input type="checkbox" id="fullVideoLengths"> Lengths from times</label><button type="button" id="fullVideoFromLengths" class="chip-btn" title="Place every song back to back from the lengths you have, after the intro">From song lengths</button><button type="button" id="fullVideoEnds" class="chip-btn" title="Each song ends where the next one starts">Ends from next start</button><button type="button" id="fullVideoClear" class="chip-btn">Clear times</button><span id="fullVideoStatus" class="fv-note" role="status"></span></div>
       <div id="fullVideoPasteBox" class="fv-paste" hidden><textarea id="fullVideoPasteText" rows="5" placeholder="Paste the video's description, one song per line, for example:&#10;0:00 Drive My Car&#10;2:30 Norwegian Wood&#10;4:46 You Won't See Me" aria-label="Times pasted from the video's description"></textarea><div class="fv-paste-row"><button type="button" id="fullVideoPasteApply" class="config-btn">Use these times</button><span id="fullVideoPasteMsg" class="fv-note" role="status"></span></div></div>
@@ -2224,7 +2224,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
           <label class="snd-opt"><input type="checkbox" id="sndOpt_tags"><span><b>Last.fm tags</b><small>A rough mood from crowd tags (needs your Last.fm API key). Lowest priority.</small></span></label>
           <label class="snd-opt"><input type="checkbox" id="sndOpt_essentia"><span><b>Essentia.js</b> <em>(experimental)</em><small>Better tempo, key and danceability when analysing audio. Downloads a few MB from the web the first time.</small></span></label>
           <div class="snd-folder"><button type="button" id="sndPickFolder" class="config-btn">Choose music folder…</button><span id="sndFolderStatus" class="sm-dim"></span><input type="file" id="sndFolder" webkitdirectory multiple hidden></div>
-          <p class="sm-dim">A folder laid out as Artist / Album / track is matched to your releases by name, and those files are analysed instead of previews (full tracks, no limits).</p>
+          <p class="sm-dim">A folder laid out as Artist / Release / track is matched to your releases by name, and those files are analysed instead of previews (full tracks, no limits).</p>
         </fieldset>
         <div class="snd-row"><button type="button" id="sndProbe" class="config-btn">Test these sources</button><span id="sndProbeNote" class="sm-dim" role="status"></span></div>
         <ul id="sndProbeList" class="snd-probe" aria-live="polite"></ul>
@@ -2295,7 +2295,7 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
           <label><input type="checkbox" id="cxExpLinkSpotify"> Spotify</label>
           <label><input type="checkbox" id="cxExpLinkYoutube"> YouTube</label>
           <label><input type="checkbox" id="cxExpLinkSoundcloud"> SoundCloud</label>
-          <label><input type="checkbox" id="cxExpLinkOther"> Other (album and RYM links on any other site)</label>
+          <label><input type="checkbox" id="cxExpLinkOther"> Other (release and RYM links on any other site)</label>
         </fieldset>
         <div id="cxExportSummary" class="lfr-summary" role="status" aria-live="polite"></div>
         <details class="cx-preview"><summary id="cxListSummary">Which releases will be exported</summary><div id="cxExportList" class="cx-relist"></div></details>
@@ -2385,97 +2385,97 @@ document.addEventListener('contextmenu', function (e) { if (e.target && e.target
   </div>
 </div>
 
-<script src="js/01-core.js?v=1.135.149"></script>
-<script src="js/02-auth.js?v=1.135.149"></script>
-<script src="js/03-taxonomy-layout.js?v=1.135.149"></script>
-<script src="js/04-obsidian-export.js?v=1.135.149"></script>
-<script src="js/05-init-genres.js?v=1.135.149"></script>
-<script src="js/06-events.js?v=1.135.149"></script>
-<script src="js/07-prefs-fetch.js?v=1.135.149"></script>
-<script src="js/08-tabs-panels.js?v=1.135.149"></script>
-<script src="js/09-descriptors-mood-merge.js?v=1.135.149"></script>
-<script src="js/10-filters-search.js?v=1.135.149"></script>
-<script src="js/11-grid-player.js?v=1.135.149"></script>
-<script src="js/12-player-menus.js?v=1.135.149"></script>
-<script src="js/13-diary-scrobbles-stats.js?v=1.135.149"></script>
-<script src="js/14-artist-playlists.js?v=1.135.149"></script>
-<script src="js/15-shuffle-artist-info.js?v=1.135.149"></script>
-<script src="js/16-tabbar-updatelog.js?v=1.135.149"></script>
-<script src="js/17-match-songs.js?v=1.135.149"></script>
-<script src="js/18-exchange.js?v=1.135.149"></script>
-<script src="js/19-sound.js?v=1.135.149"></script>
-<script src="js/20-export-import.js?v=1.135.149"></script>
-<script src="js/21-addon-genre-page.js?v=1.135.149"></script>
-<script src="js/22-deck.js?v=1.135.149"></script>
-<script src="js/23-timeline-map.js?v=1.135.149"></script>
-<script src="js/24-diary-log.js?v=1.135.149"></script>
-<script src="js/25-tracklist-add.js?v=1.135.149"></script>
-<script src="js/26-layout-dnd.js?v=1.135.149"></script>
-<script src="js/27-tracklist-builder-rym.js?v=1.135.149"></script>
-<script src="js/28-edit-links-youtube.js?v=1.135.149"></script>
-<script src="js/29-lastfm-scrobbling.js?v=1.135.149"></script>
-<script src="js/30-new-releases.js?v=1.135.149"></script>
-<script src="js/31-lastfm-import.js?v=1.135.149"></script>
-<script src="js/32-utils.js?v=1.135.149"></script>
-<script src="js/33-pull-details.js?v=1.135.149"></script>
-<script src="js/34-fill-blanks.js?v=1.135.149"></script>
-<script src="js/35-catalogue-stats.js?v=1.135.149"></script>
-<script src="js/36-galaxy.js?v=1.135.149"></script>
-<script src="js/37-taste.js?v=1.135.149"></script>
-<script src="js/38-ask.js?v=1.135.149"></script>
-<script src="js/39-phone-playback.js?v=1.135.149"></script>
-<script src="js/40-recorded-at.js?v=1.135.149"></script>
-<script src="js/41-playback-sync.js?v=1.135.149"></script>
-<script src="js/42-floating-video.js?v=1.135.149"></script>
-<script src="js/43-map-kin.js?v=1.135.149"></script>
-<script src="js/44-play-source.js?v=1.135.149"></script>
-<script src="js/45-direct-link.js?v=1.135.149"></script>
-<script src="js/46-visualizer.js?v=1.135.149"></script>
-<script src="js/47-lyrics.js?v=1.135.149"></script>
-<script src="js/48-p2p.js?v=1.135.149"></script>
-<script src="js/49-p2p-local.js?v=1.135.149"></script>
-<script src="js/50-social.js?v=1.135.149"></script>
-<script src="js/51-friend-page.js?v=1.135.149"></script>
-<script src="js/52-cover-jobs.js?v=1.135.149"></script>
-<script src="js/53-settings-menu.js?v=1.135.149"></script>
-<script src="js/54-liked.js?v=1.135.149"></script>
-<script src="js/55-song-desc.js?v=1.135.149"></script>
-<script src="js/56-downloads.js?v=1.135.149"></script>
-<script src="js/57-header.js?v=1.135.149"></script>
-<script src="js/58-speed.js?v=1.135.149"></script>
-<script src="js/59-recent.js?v=1.135.149"></script>
-<script src="js/60-browser-rows.js?v=1.135.149"></script>
-<script src="js/61-rym-details.js?v=1.135.149"></script>
-<script src="js/62-format.js?v=1.135.149"></script>
-<script src="js/63-add-sources.js?v=1.135.149"></script>
-<script src="js/64-search-ui.js?v=1.135.149"></script>
-<script src="js/65-layouts.js?v=1.135.149"></script>
-<script src="js/66-scrobbles-views.js?v=1.135.149"></script>
-<script src="js/67-galaxy-time.js?v=1.135.149"></script>
-<script src="js/68-galaxy-physics.js?v=1.135.149"></script>
-<script src="js/69-diary-views.js?v=1.135.149"></script>
-<script src="js/70-stats-views.js?v=1.135.149"></script>
-<script src="js/71-search-tracklist.js?v=1.135.149"></script>
-<script src="js/72-quickpeek-custom.js?v=1.135.149"></script>
-<script src="js/73-tracks-lastfm.js?v=1.135.149"></script>
-<script src="js/74-themes.js?v=1.135.149"></script>
-<script src="js/75-player-min.js?v=1.135.149"></script>
-<script src="js/76-cover-wall.js?v=1.135.149"></script>
-<script src="js/77-cursor.js?v=1.135.149"></script>
-<script src="js/78-queue-fields.js?v=1.135.149"></script>
-<script src="js/79-heard.js?v=1.135.149"></script>
-<script src="js/80-album-like.js?v=1.135.149"></script>
-<script src="js/81-popup-tracks.js?v=1.135.149"></script>
-<script src="js/82-galaxy-thread.js?v=1.135.149"></script>
-<script src="js/83-deck-rym.js?v=1.135.149"></script>
-<script src="js/84-keys.js?v=1.135.149"></script>
-<script src="js/85-left-multi.js?v=1.135.149"></script>
-<script src="js/86-galaxy-story.js?v=1.135.149"></script>
-<script src="js/87-search-sync.js?v=1.135.149"></script>
-<script src="js/88-galaxy-numbers.js?v=1.135.149"></script>
-<script src="js/89-play-thread.js?v=1.135.149"></script>
-<script src="js/90-player-parts.js?v=1.135.149"></script>
-<script src="js/99-boot.js?v=1.135.149"></script>
+<script src="js/01-core.js?v=1.135.150"></script>
+<script src="js/02-auth.js?v=1.135.150"></script>
+<script src="js/03-taxonomy-layout.js?v=1.135.150"></script>
+<script src="js/04-obsidian-export.js?v=1.135.150"></script>
+<script src="js/05-init-genres.js?v=1.135.150"></script>
+<script src="js/06-events.js?v=1.135.150"></script>
+<script src="js/07-prefs-fetch.js?v=1.135.150"></script>
+<script src="js/08-tabs-panels.js?v=1.135.150"></script>
+<script src="js/09-descriptors-mood-merge.js?v=1.135.150"></script>
+<script src="js/10-filters-search.js?v=1.135.150"></script>
+<script src="js/11-grid-player.js?v=1.135.150"></script>
+<script src="js/12-player-menus.js?v=1.135.150"></script>
+<script src="js/13-diary-scrobbles-stats.js?v=1.135.150"></script>
+<script src="js/14-artist-playlists.js?v=1.135.150"></script>
+<script src="js/15-shuffle-artist-info.js?v=1.135.150"></script>
+<script src="js/16-tabbar-updatelog.js?v=1.135.150"></script>
+<script src="js/17-match-songs.js?v=1.135.150"></script>
+<script src="js/18-exchange.js?v=1.135.150"></script>
+<script src="js/19-sound.js?v=1.135.150"></script>
+<script src="js/20-export-import.js?v=1.135.150"></script>
+<script src="js/21-addon-genre-page.js?v=1.135.150"></script>
+<script src="js/22-deck.js?v=1.135.150"></script>
+<script src="js/23-timeline-map.js?v=1.135.150"></script>
+<script src="js/24-diary-log.js?v=1.135.150"></script>
+<script src="js/25-tracklist-add.js?v=1.135.150"></script>
+<script src="js/26-layout-dnd.js?v=1.135.150"></script>
+<script src="js/27-tracklist-builder-rym.js?v=1.135.150"></script>
+<script src="js/28-edit-links-youtube.js?v=1.135.150"></script>
+<script src="js/29-lastfm-scrobbling.js?v=1.135.150"></script>
+<script src="js/30-new-releases.js?v=1.135.150"></script>
+<script src="js/31-lastfm-import.js?v=1.135.150"></script>
+<script src="js/32-utils.js?v=1.135.150"></script>
+<script src="js/33-pull-details.js?v=1.135.150"></script>
+<script src="js/34-fill-blanks.js?v=1.135.150"></script>
+<script src="js/35-catalogue-stats.js?v=1.135.150"></script>
+<script src="js/36-galaxy.js?v=1.135.150"></script>
+<script src="js/37-taste.js?v=1.135.150"></script>
+<script src="js/38-ask.js?v=1.135.150"></script>
+<script src="js/39-phone-playback.js?v=1.135.150"></script>
+<script src="js/40-recorded-at.js?v=1.135.150"></script>
+<script src="js/41-playback-sync.js?v=1.135.150"></script>
+<script src="js/42-floating-video.js?v=1.135.150"></script>
+<script src="js/43-map-kin.js?v=1.135.150"></script>
+<script src="js/44-play-source.js?v=1.135.150"></script>
+<script src="js/45-direct-link.js?v=1.135.150"></script>
+<script src="js/46-visualizer.js?v=1.135.150"></script>
+<script src="js/47-lyrics.js?v=1.135.150"></script>
+<script src="js/48-p2p.js?v=1.135.150"></script>
+<script src="js/49-p2p-local.js?v=1.135.150"></script>
+<script src="js/50-social.js?v=1.135.150"></script>
+<script src="js/51-friend-page.js?v=1.135.150"></script>
+<script src="js/52-cover-jobs.js?v=1.135.150"></script>
+<script src="js/53-settings-menu.js?v=1.135.150"></script>
+<script src="js/54-liked.js?v=1.135.150"></script>
+<script src="js/55-song-desc.js?v=1.135.150"></script>
+<script src="js/56-downloads.js?v=1.135.150"></script>
+<script src="js/57-header.js?v=1.135.150"></script>
+<script src="js/58-speed.js?v=1.135.150"></script>
+<script src="js/59-recent.js?v=1.135.150"></script>
+<script src="js/60-browser-rows.js?v=1.135.150"></script>
+<script src="js/61-rym-details.js?v=1.135.150"></script>
+<script src="js/62-format.js?v=1.135.150"></script>
+<script src="js/63-add-sources.js?v=1.135.150"></script>
+<script src="js/64-search-ui.js?v=1.135.150"></script>
+<script src="js/65-layouts.js?v=1.135.150"></script>
+<script src="js/66-scrobbles-views.js?v=1.135.150"></script>
+<script src="js/67-galaxy-time.js?v=1.135.150"></script>
+<script src="js/68-galaxy-physics.js?v=1.135.150"></script>
+<script src="js/69-diary-views.js?v=1.135.150"></script>
+<script src="js/70-stats-views.js?v=1.135.150"></script>
+<script src="js/71-search-tracklist.js?v=1.135.150"></script>
+<script src="js/72-quickpeek-custom.js?v=1.135.150"></script>
+<script src="js/73-tracks-lastfm.js?v=1.135.150"></script>
+<script src="js/74-themes.js?v=1.135.150"></script>
+<script src="js/75-player-min.js?v=1.135.150"></script>
+<script src="js/76-cover-wall.js?v=1.135.150"></script>
+<script src="js/77-cursor.js?v=1.135.150"></script>
+<script src="js/78-queue-fields.js?v=1.135.150"></script>
+<script src="js/79-heard.js?v=1.135.150"></script>
+<script src="js/80-album-like.js?v=1.135.150"></script>
+<script src="js/81-popup-tracks.js?v=1.135.150"></script>
+<script src="js/82-galaxy-thread.js?v=1.135.150"></script>
+<script src="js/83-deck-rym.js?v=1.135.150"></script>
+<script src="js/84-keys.js?v=1.135.150"></script>
+<script src="js/85-left-multi.js?v=1.135.150"></script>
+<script src="js/86-galaxy-story.js?v=1.135.150"></script>
+<script src="js/87-search-sync.js?v=1.135.150"></script>
+<script src="js/88-galaxy-numbers.js?v=1.135.150"></script>
+<script src="js/89-play-thread.js?v=1.135.150"></script>
+<script src="js/90-player-parts.js?v=1.135.150"></script>
+<script src="js/99-boot.js?v=1.135.150"></script>
 
 </body>
 </html>

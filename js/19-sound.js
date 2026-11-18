@@ -866,7 +866,7 @@ function sndMapPaintSide() {
     const genres = getGenreList(combinedGenreStr(it)).filter(g => g !== 'Unknown'); if (genres.length) add('p', 'sm-dim', genres.join(', '));
     const lines = sndMapFeatureLines(p.i);
     if (lines.length) { const dl = add('dl', 'smap-feat'); lines.forEach(l => { const dt = document.createElement('dt'), dd = document.createElement('dd'); dt.textContent = l.f.label.replace(/ \(.*\)$/, ''); dd.textContent = (l.f.key === 'tempo' ? Math.round(l.v) + ' BPM' : l.f.key === 'loudness' ? Math.round(l.v) + ' dB' : l.v.toFixed(2)) + ` \u00b7 ${SND_SOURCE_LABELS[l.src]}`; dl.append(dt, dd); }); } else add('p', 'sm-dim', 'No sound data yet for this release.');
-    const row = add('div', 'smap-actions'); row.append(btn('Open album', () => openDeck(it), 'config-btn'), btn('Play', () => playAlbumReplacingQueue(it)), btn('Clear', () => sndMapSelect(-1)));
+    const row = add('div', 'smap-actions'); row.append(btn('Open release', () => openDeck(it), 'config-btn'), btn('Play', () => playAlbumReplacingQueue(it)), btn('Clear', () => sndMapSelect(-1)));
     if (sndMap.near.length) { add('h4', 'smap-side-sub', sndMap.nearKind === 'sound' ? 'Sounds most like' : 'Genres most like'); const ul = add('ul', 'smap-list smap-near'); sndMap.near.forEach(n => { const q = sndMapCache().items[n.i], li = document.createElement('li'), b = document.createElement('button'); b.type = 'button'; b.className = 'smap-near-btn'; b.textContent = `${q.artist} \u2014 ${q.title}`; const sp = document.createElement('span'); sp.className = 'sm-dim'; sp.textContent = ` ${Math.round(n.score * 100)}%`; b.appendChild(sp); b.addEventListener('click', () => { sndMapSelect(n.pi); }); li.appendChild(b); ul.appendChild(li); }); }
     return;
   }

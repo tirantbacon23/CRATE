@@ -26,7 +26,7 @@ function diaryDateLabel(entry) {
 
 function diaryEntryTracksLabel(entry) {
   const tracks = entry.tracks || [];
-  if (entry.full) return 'Full album';
+  if (entry.full) return 'Full release';
   if (tracks.length) return tracks.map(t => t.name).join(' \u00b7 ');
   return '';
 }
@@ -747,7 +747,7 @@ function renderStats() {
   el.statsYearList.innerHTML = statsRowsCache.map(r => `
     <div class="stats-year-row" data-year="${escapeHtml(r.year)}">
       <span class="stats-year-label">${escapeHtml(r.year)}</span>
-      <span class="stats-year-metric"><strong>${r.combinedCount}</strong> album${r.combinedCount === 1 ? '' : 's'}</span>
+      <span class="stats-year-metric"><strong>${r.combinedCount}</strong> release${r.combinedCount === 1 ? '' : 's'}</span>
       <span class="stats-year-sub">${r.diaryCount} diaried · ${r.scrobbleCount} scrobbled</span>
     </div>
   `).join('');

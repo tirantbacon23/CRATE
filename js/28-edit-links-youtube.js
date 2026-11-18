@@ -853,7 +853,7 @@ async function ytTimeVideos(list, titles, lengths) {                // each vide
 }
 async function ytFindFullVideos(item, knownMs) {                    // YouTube videos that may be the whole release, best first (at most six): through the add-on (free) or the API (100 units; remembered). Throws as the lookups do.
   const viaAddon = ytUseAddon();
-  const clean = String(item.title).replace(/\s*\[.*?\]|\s*\(.*?\)/g, '').trim(), q = `${item.artist} ${clean} full album`, ck = 'full|' + ytCacheNorm(q);
+  const clean = String(item.title).replace(/\s*\[.*?\]|\s*\(.*?\)/g, '').trim(), q = `${item.artist} ${clean} full release`, ck = 'full|' + ytCacheNorm(q);
   let vids = [];
   const known = ytCacheGet(ck), fromAddon = async (qq) => (await ytAddonRequest({ kind: 'search-video', q: qq })).slice(0, 12).map(v => ({ id: v.id, title: v.title || '', channel: v.channel || '', durationMs: v.durationMs || 0 }));
   if (known) vids = known.v.vids;
@@ -1146,7 +1146,7 @@ function fvTlNudge(key, d) {
 fvEl('fullVideoUrl').addEventListener('input', () => { fvValidate(); fvUrlChanged(); });
 fvEl('fullVideoLength').addEventListener('change', fvLengthChanged);
 fvEl('fullVideoOpenPlayer').addEventListener('click', () => { const u = fvEl('fullVideoUrl').value.trim(); if (!youtubeVideoIdFromUrl(u)) { flashGlobalToast('Paste the full-release video\u2019s link first.'); return; } openYoutubePlayer(youtubeLinkWithSegment(u, 0, 0), fv ? `${fv.item.artist} \u2014 ${fv.item.title}` : 'Full-release video', [], fv && fv.item); });
-fvEl('fullVideoSearch').addEventListener('click', () => { if (fv) window.open('https://www.youtube.com/results?search_query=' + encodeURIComponent(`${fv.item.artist} ${fv.item.title} full album`), '_blank', 'noopener'); });
+fvEl('fullVideoSearch').addEventListener('click', () => { if (fv) window.open('https://www.youtube.com/results?search_query=' + encodeURIComponent(`${fv.item.artist} ${fv.item.title} full release`), '_blank', 'noopener'); });
 fvEl('fullVideoPasteBtn').addEventListener('click', () => { const b = fvEl('fullVideoPasteBox'); b.hidden = !b.hidden; if (!b.hidden) fvEl('fullVideoPasteText').focus(); });
 fvEl('fullVideoPasteApply').addEventListener('click', fvApplyPaste);
 fvEl('fullVideoEnds').addEventListener('click', fvEndsFromNext);

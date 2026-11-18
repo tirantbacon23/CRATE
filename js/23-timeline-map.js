@@ -63,7 +63,7 @@ function setTimelineMode(mode) {
   el.timelineEmpty.hidden = !empty;
   el.timelineEmpty.textContent = mode === 'listen'
     ? 'No scrobbles logged yet — import your Last.fm history to see listening activity here.'
-    : 'No albums in your crate have a release date yet — add one from the Edit form to see it here.';
+    : 'No releases in your crate have a release date yet — add one from the Edit form to see it here.';
 
   if (empty) {
     el.timelineSlider.disabled = true;
@@ -137,7 +137,7 @@ function renderTimelineTicks() {
   el.timelineTicks.innerHTML = timelineYearCounts.map(({ year, count }) => {
     const leftPct = ((year - minYear) / span) * 100;
     const heightPct = Math.max(15, Math.round((count / maxCount) * 100));
-    return `<div class="timeline-tick" data-year="${year}" title="${year} \u00b7 ${count} album${count === 1 ? '' : 's'}" style="left:${leftPct}%; height:${heightPct}%;"></div>`;
+    return `<div class="timeline-tick" data-year="${year}" title="${year} \u00b7 ${count} release${count === 1 ? '' : 's'}" style="left:${leftPct}%; height:${heightPct}%;"></div>`;
   }).join('');
 
   [...el.timelineTicks.querySelectorAll('.timeline-tick')].forEach(tick => {
@@ -175,7 +175,7 @@ function renderTimelineAlbumList(year) {
   // then alphabetically by title as a stable tiebreaker.
   items.sort((a, b) => dateVal(a.releaseDate) - dateVal(b.releaseDate) || a.title.localeCompare(b.title));
 
-  el.timelineCount.textContent = items.length + ' album' + (items.length === 1 ? '' : 's') + ' released in ' + year;
+  el.timelineCount.textContent = items.length + ' release' + (items.length === 1 ? '' : 's') + ' released in ' + year;
 
   el.timelineAlbumList.innerHTML = items.map(item => `
     <button type="button" class="timeline-album-row" data-row="${escapeHtml(String(item.row))}">
@@ -216,7 +216,7 @@ function renderTimelineListenList(year) {
   });
   const items = [...byAlbum.values()].sort((a, b) => b.plays - a.plays || a.title.localeCompare(b.title));
 
-  el.timelineCount.textContent = items.length + ' album' + (items.length === 1 ? '' : 's') + ' played in ' + year;
+  el.timelineCount.textContent = items.length + ' release' + (items.length === 1 ? '' : 's') + ' played in ' + year;
 
   el.timelineAlbumList.innerHTML = items.map(it => {
     const match = state.raw.find(r => r.artist === it.artist && r.title === it.title);
@@ -646,7 +646,7 @@ function toggleMapTimeMode() {
   }
   const ok = refreshMapTimeScrubber();
   if (!ok) {
-    flashGlobalToast('No located albums have a release date yet — add one from the Edit form to scrub through the spread.');
+    flashGlobalToast('No located releases have a release date yet — add one from the Edit form to scrub through the spread.');
     return;
   }
   state.mapTimeEnabled = true;
@@ -771,7 +771,7 @@ async function renderMap() {
   const totalAlbums = groups.reduce((sum, g) => sum + g.items.length, 0);
   el.mapStatus.hidden = true;
   el.mapCount.textContent = placed + ' location' + (placed === 1 ? '' : 's')
-    + ' \u00b7 ' + totalAlbums + ' album' + (totalAlbums === 1 ? '' : 's')
+    + ' \u00b7 ' + totalAlbums + ' release' + (totalAlbums === 1 ? '' : 's')
     + (failed ? ' \u00b7 ' + failed + ' couldn\u2019t be found' : '');
 
   renderMapAttrTable(groups);
@@ -793,7 +793,7 @@ function renderMapAttrTable(groups) {
   items.sort((a, b) => mapSortComparator()(a.item, b.item));
 
   if (!items.length) {
-    el.mapAttrBody.innerHTML = '<tr class="map-attr-empty-row"><td colspan="100%">No albums match this filter.</td></tr>';
+    el.mapAttrBody.innerHTML = '<tr class="map-attr-empty-row"><td colspan="100%">No releases match this filter.</td></tr>';
     return;
   }
 

@@ -491,6 +491,18 @@ function toggleGenreCollapse(key) {
 // search terms, the Listened filter, the nav filter and the chosen sort order.
 // Shared by double-clicking "All ___" and double-clicking a genre row.
 function playFilteredReleases() {
+  // (1.135.150) what the view shows: on Liked songs, the liked songs (as listed: their order and narrowing); in a playlist, the playlist
+  // (narrowed as shown); else the library's releases. It used to play the whole crate from those views too.
+  if (state.activeTab === 'liked' && typeof likedShown === 'function') {
+    const songs = likedShown().map(x => ({ row: x.item.row, trackNum: x.num, trackName: x.name })).filter(x => x.trackName);
+    if (!songs.length) { flashGlobalToast('Nothing to play \u2014 no liked songs match.'); return; }
+    flashGlobalToast(`Playing ${songs.length} liked song${songs.length === 1 ? '' : 's'}`); playTracksNow(songs); return;
+  }
+  const pl = state.activePlaylistId && typeof activePlaylist === 'function' ? activePlaylist() : null;
+  if (pl && typeof playPlaylistFromStart === 'function') {
+    const view = typeof playlistViewOf === 'function' ? playlistViewOf(pl) : null;
+    playPlaylistFromStart(Object.assign({}, pl, { items: view && view.items ? view.items : pl.items })); return;
+  }
   if (!state.filtered.length) { flashGlobalToast('Nothing to play \u2014 no releases match.'); return; }
   playAlbumsReplacingQueue(state.filtered.slice());
 }

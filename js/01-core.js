@@ -5,7 +5,7 @@
    console and shown on-site (⚙ Layout menu). MUST match CURRENT_VERSION
    in the maintenance log comment at the very top of this file — see the
    instruction there. */
-const APP_VERSION = '1.135.149';
+const APP_VERSION = '1.135.150';
 // (1.93.4) With CRATE open in more than one window (a pop-out, a second tab), only ONE of them does the work done in the background: adding
 // and applying what the Rate Your Music add-on sends, the Last.fm sync, the new-release check, and the look-ups for newly added releases. Each
 // window used to do it all itself (a release sent from RYM was added once per window). The first CRATE window opened is that one (a pop-out
@@ -85,7 +85,7 @@ let fetchCatalogInFlight = false;
 const MOBILE_DRAWER_BREAKPOINT_QUERY = '(max-width: 900px)';
 const MOBILE_OVERFLOW_ACTIONS = [
   { id: 'listenedFilterBtn', label: 'Listened filter' },
-  { id: 'addAlbumBtn', label: 'Add album' },
+  { id: 'addAlbumBtn', label: 'Add release' },
   { id: 'refreshBtn', label: 'Refresh from sheet' },
   { id: 'timelineBtn', label: 'Timeline viewer' },
   { id: 'mapBtn', label: 'Map viewer' }
@@ -822,7 +822,7 @@ const FIELD_OPTIONS = {
 // In the Tracks table, "title" would otherwise read as "Title" right next to
 // the fixed Track-name column — relabel it "Album" for clarity there. The song's own Rate Your Music numbers (the ones in Edit track
 // properties) come first and say "Song"; the release's say "Release": both used to read "RYM rating", and the release's was picked by mistake.
-const TRACK_COLUMN_LABELS = Object.assign({ none: FIELD_OPTIONS.none, rymTrackRating: 'Song rating (RYM)', rymTrackVotes: 'Song rating count (RYM)', rymTrackWR: 'Song adjusted rating (RYM)', rymTrackPop: 'Song popularity (RYM)', rymTrackStand: 'Song vs album (RYM)', rymTrackBold: 'Bold song (RYM)' },
+const TRACK_COLUMN_LABELS = Object.assign({ none: FIELD_OPTIONS.none, rymTrackRating: 'Song rating (RYM)', rymTrackVotes: 'Song rating count (RYM)', rymTrackWR: 'Song adjusted rating (RYM)', rymTrackPop: 'Song popularity (RYM)', rymTrackStand: 'Song vs release (RYM)', rymTrackBold: 'Bold song (RYM)' },
   FIELD_OPTIONS, { title: 'Album', rymRating: 'Release rating (RYM)', rymVotes: 'Release rating count (RYM)', rymPop: 'Release popularity (RYM)' });
 
 // Field choices for the right panel's Last.fm History rows — mostly
@@ -1082,10 +1082,10 @@ fields: {
   artistShowAllTypes: false
 };
 
-const MAIN_VIEW_LABELS = { albums: 'Albums', tracks: 'Tracks', albumTracks: 'Album and Tracks', covers: 'Album covers' };
+const MAIN_VIEW_LABELS = { albums: 'Releases', tracks: 'Tracks', albumTracks: 'Release and Tracks', covers: 'Release covers' };
 // Suffix shown after "Playlist: <name>" in the main panel label — 'list' (the
 // default ordered/draggable view) gets no suffix since that's just "the playlist".
-const PLAYLIST_VIEW_LABELS = { tracks: 'Tracks', albumTracks: 'Album and Tracks', covers: 'Album covers', artists: 'Artists' };
+const PLAYLIST_VIEW_LABELS = { tracks: 'Tracks', albumTracks: 'Release and Tracks', covers: 'Release covers', artists: 'Artists' };
 
 const el = {};
 [

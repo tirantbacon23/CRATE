@@ -210,13 +210,13 @@ function updateMainLabel() {
     return;
   }
 
-  const baseLabel = MAIN_VIEW_LABELS[state.mainViewMode] || 'Albums';
+  const baseLabel = MAIN_VIEW_LABELS[state.mainViewMode] || 'Releases';
   if (!state.navFilter) { 
     el.mainPanelLabel.textContent = baseLabel; 
     return; 
   }
   
-  const prefixes = { artist: 'Artist: ', genre: 'Genre: ', album: 'Album: ', descriptor: 'Descriptor: ', label: 'Label: ' };
+  const prefixes = { artist: 'Artist: ', genre: 'Genre: ', album: 'Release: ', descriptor: 'Descriptor: ', label: 'Label: ' };
   let label = state.navFilter.mode === 'label' ? labelDisplayOf(state.navFilter.value) : state.navFilter.value;
   if (state.navFilter.mode === 'album') {
     const match = state.raw.find(r => r.row === state.navFilter.value);

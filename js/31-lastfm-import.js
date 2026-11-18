@@ -367,8 +367,8 @@ async function lfLogGroups(groups) {      // writes matched track-level groups t
 function lfSyncToast(user, sync) {          // used when the review isn't shown (switched off, or snoozed): the toast opens it
   const n = sync.newUnmatched, pl = sync.loggedPlays, open = () => openLastfmReview(user, sync);
   if (pl && !n) flashGlobalToast(`Last.fm: synced ${pl} new play${pl === 1 ? '' : 's'}.`);
-  else if (pl && n) flashGlobalToast(`Last.fm: synced ${pl} new play${pl === 1 ? '' : 's'} \u00b7 ${n} album${n === 1 ? '' : 's'} not in your crate \u2014 click to review`, { onClick: open, duration: 8000 });
-  else if (n) flashGlobalToast(`Last.fm: ${n} new album${n === 1 ? '' : 's'} scrobbled but not in your crate \u2014 click to review`, { onClick: open, duration: 8000 });
+  else if (pl && n) flashGlobalToast(`Last.fm: synced ${pl} new play${pl === 1 ? '' : 's'} \u00b7 ${n} release${n === 1 ? '' : 's'} not in your crate \u2014 click to review`, { onClick: open, duration: 8000 });
+  else if (n) flashGlobalToast(`Last.fm: ${n} new release${n === 1 ? '' : 's'} scrobbled but not in your crate \u2014 click to review`, { onClick: open, duration: 8000 });
 }
 async function maybeRunBackgroundLastfmSync() {
   if (!crateIsMain()) return;                                       // (1.93.4) one window syncs
@@ -434,7 +434,7 @@ function lfrRender() {
   if (s && s.totalTracks) parts.push(`You played <b>${lfrPlural(s.totalTracks, 'track')}</b> on Last.fm since your last visit.`);
   if (s && s.loggedPlays) parts.push(`<b>${lfrPlural(s.loggedPlays, 'play')}</b> from <b>${lfrPlural(s.loggedAlbums.length, 'album')}</b> in your crate ${s.loggedAlbums.length === 1 ? 'was' : 'were'} added to Scrobbles.`);
   parts.push(albums.length ? `<b>${lfrPlural(albums.length, 'album')}</b> (${lfrPlural(plays, 'play')}) ${albums.length === 1 ? 'isn\u2019t' : 'aren\u2019t'} in your crate yet.` : 'Everything you played is in your crate.');
-  if (s && s.noAlbum) parts.push(`${lfrPlural(s.noAlbum, 'play')} had no album on Last.fm, so ${s.noAlbum === 1 ? 'it' : 'they'} can\u2019t be matched.`);
+  if (s && s.noAlbum) parts.push(`${lfrPlural(s.noAlbum, 'play')} had no release on Last.fm, so ${s.noAlbum === 1 ? 'it' : 'they'} can\u2019t be matched.`);
   el.lfrSummary.innerHTML = parts.join(' ');
   el.lfrList.innerHTML = albums.map(a => {
     const names = a.tracks.map(t => t.name), shown = names.slice(0, 3).join(', ') + (names.length > 3 ? ` +${names.length - 3} more` : ''), on = st.selected.has(a.key);
@@ -519,7 +519,7 @@ async function lfAfterAdd() {
           if (lfAddQueue) lfAddQueue.added++;
         }
       }
-    } catch (e) { console.warn('Logging plays for the new album failed:', e); }
+    } catch (e) { console.warn('Logging plays for the new release failed:', e); }
   }
   if (lfAddQueue) { lfAddQueue.idx++; lfOpenNextAdd(); }
 }

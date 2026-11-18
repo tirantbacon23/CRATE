@@ -91,7 +91,7 @@ function openTrackActionsMenu({ item, trackName, trackNum, spotifyTrack, x, y, q
   menu.className = 'panel-mode-menu now-playing-add-menu';
   menu.innerHTML = `
     <div class="menu-section-title">${escapeHtml(trackName || (item && item.title) || 'Now playing')}</div>
-    ${!item && spotifyTrack ? '<button type="button" data-player-action="addToCrate">Add album to your crate\u2026</button><div class="menu-divider"></div>' : ''}
+    ${!item && spotifyTrack ? '<button type="button" data-player-action="addToCrate">Add release to your crate\u2026</button><div class="menu-divider"></div>' : ''}
     ${queueEntry && upcoming ? `
     <button type="button" data-player-action="queuePlayNow">Play now</button>
     <button type="button" data-player-action="queuePlayNext" ${qIdx === crateQueueIndex + 1 ? 'disabled title="Already next"' : ''}>Play next</button>
@@ -102,7 +102,7 @@ function openTrackActionsMenu({ item, trackName, trackNum, spotifyTrack, x, y, q
     ${queueEntry ? '' : `<button type="button" data-player-action="queue" ${item ? '' : needsCrate}>Add to queue</button>`}
     <div class="menu-divider"></div>
     <button type="button" data-player-action="artist" ${crateArtist ? '' : needsCrate}>Go to artist</button>
-    <button type="button" data-player-action="album" ${item ? '' : needsCrate}>Go to album</button>
+    <button type="button" data-player-action="album" ${item ? '' : needsCrate}>Go to release</button>
     <button type="button" data-player-action="showInCatalogue" ${item ? '' : needsCrate}>Show in catalogue</button>
     <button type="button" data-player-action="credits" ${item ? '' : needsCrate}>View credits</button>
     <div class="menu-divider"></div>
@@ -240,7 +240,7 @@ function openTrackContextMenu(item, trackName, x, y, trackNum, selectedItems) {
     ${trackRymLink ? '<button type="button" data-track-menu-action="rym">View on RateYourMusic \u2197</button>' : ''}
     ${trackSoundcloudLink ? '<button type="button" data-track-menu-action="soundcloud">Open on SoundCloud \u2197</button>' : ''}
     <button type="button" class="remove-menu-btn" data-track-menu-action="removeTrack">Remove from tracklist</button>
-    <button type="button" data-track-menu-action="view">View album</button>
+    <button type="button" data-track-menu-action="view">View release</button>
     <button type="button" data-track-menu-action="showInCatalogue">Show in catalogue</button>
     <button type="button" class="menu-parent-btn" data-track-menu-action="search">Search <span class="submenu-caret">▸</span></button>
     ${state.activePlaylistId ? '<div class="menu-divider"></div><button type="button" class="remove-menu-btn" data-track-menu-action="removeFromPlaylist">Remove from playlist</button>' : ''}
@@ -560,11 +560,11 @@ function openTrackPropertiesModal(item, trackNum, trackName) {
           <input type="text" id="trackPropsArtist" placeholder="${escapeHtml(item.artist || '')}" value="${escapeHtml(links.artist || '')}">
         </div>
         <div class="track-props-field">
-          <label for="trackPropsAlbumArtist">Album artist</label>
+          <label for="trackPropsAlbumArtist">Release artist</label>
           <input type="text" id="trackPropsAlbumArtist" placeholder="${escapeHtml(item.artist || '')}" value="${escapeHtml(links.albumArtist || '')}">
         </div>
         <div class="track-props-field">
-          <label for="trackPropsAlbum">Album</label>
+          <label for="trackPropsAlbum">Release</label>
           <input type="text" id="trackPropsAlbum" placeholder="${escapeHtml(item.title || '')}" value="${escapeHtml(links.album || '')}">
         </div>
         <div class="track-props-field">
@@ -1117,7 +1117,7 @@ async function queueAlbumTracks(item) {
   flashGlobalToast(`Queuing "${item.title}"\u2026`);
   const tracks = await getTracksFor(item);
   if (!tracks || !tracks.length) {
-    flashGlobalToast('No tracklist found for this album.');
+    flashGlobalToast('No tracklist found for this release.');
     return;
   }
   addToCrateQueue(tracks.map(t => ({ item, track: t })));
@@ -1136,7 +1136,7 @@ async function playAlbumReplacingQueue(item) {
   flashGlobalToast(`Queuing "${item.title}"\u2026`);
   const tracks = await getTracksFor(item);
   if (!tracks || !tracks.length) {
-    flashGlobalToast('No tracklist found for this album.');
+    flashGlobalToast('No tracklist found for this release.');
     return;
   }
   const myId = ++crateQueueId;
@@ -1886,8 +1886,8 @@ function showState(kind, which, detail) {
     // nothing in it yet (a brand-new spreadsheet, e.g. a friend's first
     // sign-in). Telling them apart matters because the search-flavored
     // message is actively misleading on a fresh, empty crate. See renderGrid().
-    emptyCatalog: 'Your crate is empty — add your first album with the + button up top to get started.',
-    emptyDiary: 'No listens logged yet. Open an album and hit \u201c+ Log a listen\u201d to start your diary.',
+    emptyCatalog: 'Your crate is empty — add your first release with the + button up top to get started.',
+    emptyDiary: 'No listens logged yet. Open a release and hit \u201c+ Log a listen\u201d to start your diary.',
     emptyScrobbles: 'No scrobbles imported yet. Use the Last.fm button up top to pull in your listening history.',
     setup: 'CRATE isn\u2019t connected yet. Open index.html, find CONFIG.SCRIPT_URL near the top of the &lt;script&gt;, and paste in your Apps Script Web App URL. See README.md for the full setup.'
   };

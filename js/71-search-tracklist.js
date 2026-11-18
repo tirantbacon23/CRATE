@@ -133,7 +133,7 @@ function stlFootHtml(d, mode) {
   if (mode === 'a') { if (sm.totP) bits.push(`${stlF(sm.totP)} plays in all`); if (sm.you) bits.push(`<span class="stl-you">you ${stlF(sm.you)}</span>`); }
   bits.push(`Songs from ${escapeHtml(d.src || '?')}${srchLfKey() ? ' · numbers from Last.fm' : ' · save a Last.fm key for the numbers'}`);
   if (d.state === 'nums') bits.push('looking up each song…');
-  if (mode === 'c') bits.push(`<span class="stl-sorts">Sort ${[['album', 'Album order'], ['listeners', 'Listeners'], ['plays', 'Plays'], ['yours', 'Yours']].map(([k, l]) => `<button type="button" class="${stl.sort === k ? 'on' : ''}" data-stl-sort="${k}">${l}</button>`).join('')}</span>`);
+  if (mode === 'c') bits.push(`<span class="stl-sorts">Sort ${[['album', 'Release order'], ['listeners', 'Listeners'], ['plays', 'Plays'], ['yours', 'Yours']].map(([k, l]) => `<button type="button" class="${stl.sort === k ? 'on' : ''}" data-stl-sort="${k}">${l}</button>`).join('')}</span>`);
   return `<div class="stl-foot">${bits.map(b => `<span>${b}</span>`).join('')}</div>`;
 }
 function stlAHtml(key) {

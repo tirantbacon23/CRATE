@@ -402,7 +402,7 @@ function bindEvents() {
     btn.addEventListener('click', () => {
       if (btn.dataset.mode) {
         state.leftMode = btn.dataset.mode;
-        el.leftModeLabel.textContent = capitalize(state.leftMode) + 's';
+        el.leftModeLabel.textContent = state.leftMode === 'album' ? 'Releases' : capitalize(state.leftMode) + 's';          // (1.135.150) "Releases", not "Albums"
         state.navFilter = null;
       } else if (btn.dataset.leftSort) {
         state.leftSort = btn.dataset.leftSort;
@@ -1572,12 +1572,12 @@ function renderConfigSlots(mode) {
     addRows(mode, labels[mode]);
   }
 
-  const titles = { grid: 'Albums Grid', tracks: 'Tracks View', covers: 'Album Covers', queue: 'Queue (Track with Thumbnail)', queueTrackDetail: 'Queue (Track Detail)', queueReleaseTracks: 'Queue (Release and Tracks)', miniPlayer: 'Now Playing Bar', playerControls: 'Player Controls', lastfmHistory: 'Last.fm History', trackInfo: 'Track Info' };
+  const titles = { grid: 'Releases Grid', tracks: 'Tracks View', covers: 'Release Covers', queue: 'Queue (Track with Thumbnail)', queueTrackDetail: 'Queue (Track Detail)', queueReleaseTracks: 'Queue (Release and Tracks)', miniPlayer: 'Now Playing Bar', playerControls: 'Player Controls', lastfmHistory: 'Last.fm History', trackInfo: 'Track Info' };
   document.getElementById('configModalTitle').textContent = `Configure ${titles[mode]}`;
   const hint = document.querySelector('#mainConfigModal .arrange-hint');
   if (hint) {
     hint.textContent = (mode === 'tracks')
-      ? '"#" and "Track" are always shown as columns — pick up to 5 more columns to add (e.g. Album, Genre, Year, Length).'
+      ? '"#" and "Track" are always shown as columns — pick up to 5 more columns to add (e.g. Release, Genre, Year, Length).'
       : (mode === 'queue')
       ? 'Shown on a second line under each queued track — lets tracks that share a release read as a group (e.g. Artist, Year).'
       : (mode === 'queueTrackDetail')

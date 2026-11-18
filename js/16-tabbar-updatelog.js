@@ -89,7 +89,7 @@ function openArtistQuickOpen() {
       .sort((a, b) => (b.toLowerCase().startsWith(q) - a.toLowerCase().startsWith(q))).slice(0, 12);
     active = Math.min(active, Math.max(0, shown.length - 1));
     list.innerHTML = shown.length
-      ? shown.map((n, i) => `<button type="button" role="option" class="tab-quick-open-item${i === active ? ' active' : ''}" data-artist="${escapeHtml(n)}"><span>${escapeHtml(n)}</span><small>${counts.get(n)} album${counts.get(n) === 1 ? '' : 's'}</small></button>`).join('')
+      ? shown.map((n, i) => `<button type="button" role="option" class="tab-quick-open-item${i === active ? ' active' : ''}" data-artist="${escapeHtml(n)}"><span>${escapeHtml(n)}</span><small>${counts.get(n)} release${counts.get(n) === 1 ? '' : 's'}</small></button>`).join('')
       : `<p class="tab-quick-open-empty">${names.length ? 'No artist matches.' : 'No artists in your crate yet.'}</p>`;
   };
   const open = (name) => { closeArtistQuickOpen(); openArtistInfoTab(name); };
@@ -373,7 +373,7 @@ function popApplyFromAddress() {                                      // in the 
 // a ⧉ beside its close / in the view menu. The new window is CRATE showing only that view, full-window; × there closes the window. A Music view
 // window never changes the view the main window remembers.
 const POP_VIEWS = { galaxy: 'Crate Galaxy', map: 'Map', timeline: 'Timeline' };
-const POP_MAIN_NAMES = { albums: 'Albums', tracks: 'Tracks', albumTracks: 'Album and Tracks', covers: 'Album covers', artists: 'Artists' };
+const POP_MAIN_NAMES = { albums: 'Releases', tracks: 'Tracks', albumTracks: 'Release and Tracks', covers: 'Release covers', artists: 'Artists' };
 let popSoloView = '';
 function popOutView(view) {
   if (view === 'main') { popOutTab({ view: 'main', mode: state.mainViewMode, q: (el.searchInput.value || '').slice(0, 500) }); return; }

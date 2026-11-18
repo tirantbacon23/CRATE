@@ -49,7 +49,7 @@ async function renderArtistDetail() {
   el.artistDetail.innerHTML = `
     <div class="artist-detail-header">
       <h2>${escapeHtml(name)}</h2>
-      <p class="artist-detail-sub">${owned.length} album${owned.length === 1 ? '' : 's'} in your crate</p>
+      <p class="artist-detail-sub">${owned.length} release${owned.length === 1 ? '' : 's'} in your crate</p>
       <button type="button" id="artistShowAllToggle" class="config-btn artist-show-all-toggle">${state.artistShowAllTypes ? 'Show Albums & EPs only' : 'Show everything (singles, comps…)'}</button>
     </div>
     <div id="artistWorksList" class="artist-works-list"><p class="tracklist-status">Looking up ${escapeHtml(name)}'s discography on MusicBrainz…</p></div>
@@ -778,7 +778,7 @@ function renderPlaylistListView(playlist, body) {
     const it = rw.it, idx = rw.idx;
     const album = playlistAlbumFor(it);
     const art = playlistItemArtUrl(album);
-    const albumTitle = album ? album.title : '(album removed from crate)';
+    const albumTitle = album ? album.title : '(release removed from crate)';
     const artist = album ? album.artist : '';
     return `
       <div class="playlist-item-row" draggable="${playlist.reorderable ? 'true' : 'false'}" data-idx="${idx}" data-id="${escapeHtml(it.id)}">
@@ -789,11 +789,11 @@ function renderPlaylistListView(playlist, body) {
           <span class="playlist-item-sub">${it.type === 'track' ? escapeHtml(albumTitle) + ' \u2014 ' + escapeHtml(artist) : escapeHtml(artist)}</span>
         </div>
         ${it.type === 'track' ? '<span class="playlist-item-type-badge">TRACK</span>' : ''}
-        <button type="button" class="playlist-item-view-btn" title="View album" aria-label="View album">\u2197</button>
+        <button type="button" class="playlist-item-view-btn" title="View release" aria-label="View release">\u2197</button>
         <button type="button" class="playlist-item-remove-btn" title="Remove from playlist" aria-label="Remove from playlist">\u2715</button>
       </div>
     `;
-  }).join('') : '<p class="playlist-empty">Nothing here yet \u2014 right-click an album or track and choose \u201cAdd to playlist\u201d.</p>';
+  }).join('') : '<p class="playlist-empty">Nothing here yet \u2014 right-click a release or track and choose \u201cAdd to playlist\u201d.</p>';
 
   body.innerHTML = `${!playlist.reorderable && playlist.total > 1 ? '<p class="playlist-order-note">This is a filtered, sorted or grouped view. To drag items into a new order, choose Sort &amp; filter \u2192 Playlist order and clear the filters and grouping.</p>' : ''}<div id="playlistItemsList" class="playlist-items-list">${itemsHtml}</div>`;
 
@@ -832,7 +832,7 @@ function renderPlaylistListView(playlist, body) {
 // column choices, widths and sort persist the same way in both places.
 function renderPlaylistTracksView(playlist, body) {
   if (!playlist.items || !playlist.items.length) {
-    body.innerHTML = '<p class="playlist-empty">Nothing here yet \u2014 right-click an album or track and choose \u201cAdd to playlist\u201d.</p>';
+    body.innerHTML = '<p class="playlist-empty">Nothing here yet \u2014 right-click a release or track and choose \u201cAdd to playlist\u201d.</p>';
     return;
   }
   body.innerHTML = '';
@@ -878,7 +878,7 @@ function loadPlaylistFlatTrackTable(playlist) {
   function showError() {
     if (stale()) return;
     const body = document.getElementById('trackTableBody');
-    if (body) body.innerHTML = '<p class="tracklist-status">Couldn\u2019t load tracks for this playlist \u2014 one of its entries looks corrupted. Try removing and re-adding the affected album or track.</p>';
+    if (body) body.innerHTML = '<p class="tracklist-status">Couldn\u2019t load tracks for this playlist \u2014 one of its entries looks corrupted. Try removing and re-adding the affected release or track.</p>';
   }
 
   let albums;
@@ -890,7 +890,7 @@ function loadPlaylistFlatTrackTable(playlist) {
         .map(a => [a.row, a])
     ).values()];
   } catch (e) {
-    console.warn('loadPlaylistFlatTrackTable: failed to compute album list', playlist, e);
+    console.warn('loadPlaylistFlatTrackTable: failed to compute release list', playlist, e);
     showError();
     return;
   }
@@ -901,7 +901,7 @@ function loadPlaylistFlatTrackTable(playlist) {
       const rows = [];
       (playlist.items || []).forEach((it, idx) => {
         if (!it) return; // corrupted entry — skip rather than throw
-        const album = playlistAlbumFor(it) || { row: it.row, artist: '', title: '(album removed from crate)' };
+        const album = playlistAlbumFor(it) || { row: it.row, artist: '', title: '(release removed from crate)' };
         if (it.type === 'track') {
           rows.push({ item: album, track: { trackNumber: it.trackNum, trackName: it.trackName, trackTimeMillis: null, ...trackLinkOverridesFor(album, it.trackNum, it.trackName) }, idx });
           return;
@@ -1453,7 +1453,7 @@ function loadCurrentTracklistIntoBuilder() {
 // to a manually-maintained tracklist as a side effect.
 async function quickRemoveTrackFromTracklist(item, trackNum, trackName) {
   const numTrackNum = trackNum === '' || trackNum === undefined ? null : Number(trackNum);
-  if (!confirm(`Remove "${trackName || 'this track'}" from the tracklist? This switches the album to a manually-maintained tracklist \u2014 it\u2019ll stop picking up future automatic tracklist lookups.`)) return;
+  if (!confirm(`Remove "${trackName || 'this track'}" from the tracklist? This switches the release to a manually-maintained tracklist \u2014 it\u2019ll stop picking up future automatic tracklist lookups.`)) return;
   const rows = currentTracklistAsManualRows(item).filter(t => !(numTrackNum !== null ? t.trackNumber === numTrackNum : t.title === trackName));
   await saveManualTracklist(item, rows);
 }
@@ -1474,8 +1474,8 @@ async function quickRemoveTracksFromTracklist(trackPlaylistItems) {
   }
   const albumCount = byRow.size;
   const trackCount = trackPlaylistItems.length;
-  const albumWord = albumCount === 1 ? 'the tracklist' : `${albumCount} albums' tracklists`;
-  const albumSubject = albumCount === 1 ? 'the album' : 'those albums';
+  const albumWord = albumCount === 1 ? 'the tracklist' : `${albumCount} releases' tracklists`;
+  const albumSubject = albumCount === 1 ? 'the release' : 'those releases';
   if (!confirm(`Remove ${trackCount} track${trackCount === 1 ? '' : 's'} from ${albumWord}? This switches ${albumSubject} to a manually-maintained tracklist \u2014 they\u2019ll stop picking up future automatic tracklist lookups.`)) return;
 
   let removed = 0;

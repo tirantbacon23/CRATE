@@ -230,7 +230,7 @@ function srchEmptyHtml() {
 }
 function srchOnlineStatus() {
   const pp = srchParts(el.searchInput.value);
-  if (!pp.genres.length && !pp.artists.length && !pp.catalogs.length && (!srchFreeText(el.searchInput.value) || srchFreeText(el.searchInput.value).length < 3)) return 'Type an artist or album to look online.';
+  if (!pp.genres.length && !pp.artists.length && !pp.catalogs.length && (!srchFreeText(el.searchInput.value) || srchFreeText(el.searchInput.value).length < 3)) return 'Type an artist or release to look online.';
   if (pp.artists.length && srch.onlineState === 'done' && !srch.onlineNote) return `${pp.artists[0]}'s releases not in your crate${srchLfKey() ? ', most played on Last.fm first' : ''}.`;
   if (pp.genres.length && srch.onlineState === 'done' && srchLfErr && srchLfKey()) return `Last.fm didn't answer (${srchLfErr}): only MusicBrainz here.`;
   if (pp.genres.length && srch.onlineState === 'done' && !srch.onlineNote) return `Releases tagged ${pp.genres.join(' + ')}${typeof loadLastfmCreds === 'function' && (loadLastfmCreds() || {}).apiKey ? ', most played on Last.fm first' : ''}.`;

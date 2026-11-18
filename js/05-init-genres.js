@@ -233,7 +233,7 @@ async function init() {
   setViewMode(state.viewMode);
   applyMainViewMode();
   el.gridContainer.style.setProperty('--card-min', state.cardSize + 'px');
-  el.leftModeLabel.textContent = capitalize(state.leftMode) + 's';
+  el.leftModeLabel.textContent = state.leftMode === 'album' ? 'Releases' : capitalize(state.leftMode) + 's';          // (1.135.150) "Releases", not "Albums"
   updateLeftMenuUI();
   el.toggleLeftPanel.checked = state.showLeft;
   el.toggleRightPanel.checked = state.showRight;
@@ -512,7 +512,7 @@ function renderGenreTaxonomyEditor() {
   const genres = getAllKnownGenres(state.genreTaxonomy);
   el.genreTaxonomyDatalist.innerHTML = genres.map(g => `<option value="${escapeHtml(g.label)}">`).join('');
   if (!genres.length) {
-    el.genreTaxonomyList.innerHTML = '<p class="tracklist-status">No genres yet \u2014 add one below, or tag an album with a genre first.</p>';
+    el.genreTaxonomyList.innerHTML = '<p class="tracklist-status">No genres yet \u2014 add one below, or tag a release with a genre first.</p>';
     return;
   }
   el.genreTaxonomyList.innerHTML = genres.map(g => `

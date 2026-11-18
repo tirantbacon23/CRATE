@@ -131,7 +131,7 @@ function cxRymFigures(it) {
 // The same figures as a spreadsheet: a row for each release, then a row for each of its rated tracks under it. Opens in Excel, Numbers, Google Sheets.
 function cxRatingsCsv(items) {
   const cell = (v) => { const x = v == null ? '' : String(v); return /[",\n\r]/.test(x) || /^[=+\-@]/.test(x) ? '"' + (/^[=+\-@]/.test(x) ? "'" : '') + x.replace(/"/g, '""') + '"' : x; };          // quoted, and never read as a formula
-  const lines = [['Row', 'Artist', 'Release', 'Year', 'Type', 'Track #', 'Track', 'RYM rating', 'Number of ratings', 'Popularity (0-100)', 'Adjusted rating', 'Vs album average'].join(',')];
+  const lines = [['Row', 'Artist', 'Release', 'Year', 'Type', 'Track #', 'Track', 'RYM rating', 'Number of ratings', 'Popularity (0-100)', 'Adjusted rating', 'Vs release average'].join(',')];
   items.forEach(it => {
     const f = cxRymFigures(it), y = cxItemYear(it);
     lines.push(['Release', it.artist, it.title, y === null ? '' : y, it.type === 'Unknown' ? '' : it.type, '', '', f.rymRating || '', f.rymVotes || '', f.rymPopularity != null ? f.rymPopularity : '', f.rymAdjusted != null ? f.rymAdjusted.toFixed(2) : '', ''].map(cell).join(','));

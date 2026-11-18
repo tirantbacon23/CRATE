@@ -351,7 +351,7 @@ function giRenderMb(genre) {
       a.href = 'https://musicbrainz.org/tag/' + encodeURIComponent(String(genre).toLowerCase());
       a.target = '_blank'; a.rel = 'noopener';
       a.textContent = st.count.toLocaleString() + ' on MusicBrainz \u2197';
-      a.title = `Release groups tagged \u201c${String(genre).toLowerCase()}\u201d on MusicBrainz \u2014 an album and its reissues count once. Tags are added by MusicBrainz users, and sub-genres aren\u2019t included.`;
+      a.title = `Release groups tagged \u201c${String(genre).toLowerCase()}\u201d on MusicBrainz \u2014 a release and its reissues count once. Tags are added by MusicBrainz users, and sub-genres aren\u2019t included.`;
       out.appendChild(a);
     } else out.append('not tagged on MusicBrainz');
   } else if (st.status === 'error') {
@@ -1727,7 +1727,7 @@ function renderPlaylistAlbumTracksView(playlist, body) {
     playlist.items.map(it => playlistAlbumFor(it)).filter(Boolean).map(a => [a.row, a])
   ).values()];
   if (!albums.length) {
-    body.innerHTML = '<p class="playlist-empty">Nothing here yet \u2014 right-click an album or track and choose \u201cAdd to playlist\u201d.</p>';
+    body.innerHTML = '<p class="playlist-empty">Nothing here yet \u2014 right-click a release or track and choose \u201cAdd to playlist\u201d.</p>';
     return;
   }
   const wrap = document.createElement('div');
@@ -1796,7 +1796,7 @@ function renderPlaylistCoversView(playlist, body) {
     playlist.items.map(it => playlistAlbumFor(it)).filter(Boolean).map(a => [a.row, a])
   ).values()];
   if (!albums.length) {
-    body.innerHTML = '<p class="playlist-empty">Nothing here yet \u2014 right-click an album or track and choose \u201cAdd to playlist\u201d.</p>';
+    body.innerHTML = '<p class="playlist-empty">Nothing here yet \u2014 right-click a release or track and choose \u201cAdd to playlist\u201d.</p>';
     return;
   }
   body.innerHTML = '';
@@ -1833,7 +1833,7 @@ function renderPlaylistArtistsView(playlist, body) {
     playlist.items.map(it => playlistAlbumFor(it)).filter(Boolean).map(a => [a.row, a])
   ).values()];
   if (!albums.length) {
-    body.innerHTML = '<p class="playlist-empty">Nothing here yet \u2014 right-click an album or track and choose \u201cAdd to playlist\u201d.</p>';
+    body.innerHTML = '<p class="playlist-empty">Nothing here yet \u2014 right-click a release or track and choose \u201cAdd to playlist\u201d.</p>';
     return;
   }
   body.innerHTML = '';

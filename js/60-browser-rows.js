@@ -100,7 +100,7 @@ function brGroupRight(mode, entry) { const c = brOf(mode); return c.right === 'c
 function brGroupHideCount(mode) { return brOf(mode).right === ''; }
 
 // ----- the settings window -----
-const BR_TABS = [['album', 'Albums'], ['artist', 'Artists'], ['label', 'Labels'], ['year', 'Years'], ['genre', 'Genres'], ['descriptor', 'Descriptors']];
+const BR_TABS = [['album', 'Releases'], ['artist', 'Artists'], ['label', 'Labels'], ['year', 'Years'], ['genre', 'Genres'], ['descriptor', 'Descriptors']];
 let brTab = 'album';
 function brSel(name, cur, opts, blank) {
   return `<select class="br-sel" data-br="${name}">${blank ? `<option value=""${cur ? '' : ' selected'}>${blank}</option>` : ''}${opts.map(([v, l]) => `<option value="${v}"${cur === v ? ' selected' : ''}>${escapeHtml(l)}</option>`).join('')}</select>`;

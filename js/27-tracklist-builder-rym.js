@@ -237,7 +237,7 @@ function tlApplyTracks(side, tracks, kind, mode) {
     note = `Using the list ${label}: ${rows.length} track${rows.length === 1 ? '' : 's'}.` + (a.matched ? ` ${a.matched} of them were already here, so their ratings, notes and links stay.` : '') + (lost.length ? ` ${lost.length} track${lost.length === 1 ? '' : 's'} that had ratings or notes ${lost.length === 1 ? 'is' : 'are'} not in the new list (${lost.slice(0, 3).map(r => r.title).join(', ')}${lost.length > 3 ? '\u2026' : ''}): their data stays saved but is no longer shown.` : '');
   }
   const ratedRows = rows.filter(r => r.rymRating > 0).length;
-  if (ratedRows) note += side === 'edit' ? ` Rate Your Music\u2019s ratings for ${ratedRows} of the tracks are added when you save (only where a track has none of its own yet).` : ` Rate Your Music rates ${ratedRows} of the tracks: add them from Edit once the album is saved.`;
+  if (ratedRows) note += side === 'edit' ? ` Rate Your Music\u2019s ratings for ${ratedRows} of the tracks are added when you save (only where a track has none of its own yet).` : ` Rate Your Music rates ${ratedRows} of the tracks: add them from Edit once the release is saved.`;
   renderTracklistBuilderRows(c, rows); tlStatus(side, escapeHtml(note));
 }
 async function tlItunesTracks(artist, title) {

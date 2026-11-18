@@ -582,7 +582,7 @@ async function openAddModalForTrackAlbum(track) {
     renderReleasePickerResults(releases, basic);
   } catch (err) {
     if (mySeq !== addSearchSeq) return;
-    console.error('MusicBrainz lookup failed for now-playing track album:', err);
+    console.error('MusicBrainz lookup failed for now-playing track release:', err);
     el.addResults.innerHTML = '<p class="tracklist-status">Couldn\u2019t look up pressings — using the info already on hand.</p>';
     showAddForm(basic);
   }

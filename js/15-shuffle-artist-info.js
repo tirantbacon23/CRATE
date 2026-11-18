@@ -159,7 +159,7 @@ function setShuffle(on) {
   if (!applyShuffleToCrateQueue(state.shuffle) && !applyShuffleToStandaloneQueue(state.shuffle)
       && activePlayerEngine === 'spotify' && spotifyPlayer && spotifyDeviceId) {
     setSpotifyShuffle(state.shuffle).then(ok => {
-      if (!ok) flashGlobalToast('Couldn\u2019t change Spotify\u2019s shuffle \u2014 it will apply the next time an album starts.');
+      if (!ok) flashGlobalToast('Couldn\u2019t change Spotify\u2019s shuffle \u2014 it will apply the next time a release starts.');
     });
   }
   flashGlobalToast(state.shuffle ? 'Shuffle on' : 'Shuffle off');
@@ -952,7 +952,7 @@ function aiDecadeGenreLabel(owned) {
 }
 function aiStatsText(artist) {
   const s = computeArtistStats(artist);
-  return `${s.totalPlays} play${s.totalPlays === 1 ? '' : 's'} \u00b7 ${s.albumCount} album${s.albumCount === 1 ? '' : 's'}/ ${s.trackCount} track${s.trackCount === 1 ? '' : 's'}`;
+  return `${s.totalPlays} play${s.totalPlays === 1 ? '' : 's'} \u00b7 ${s.albumCount} release${s.albumCount === 1 ? '' : 's'}/ ${s.trackCount} track${s.trackCount === 1 ? '' : 's'}`;
 }
 
 // ----- left list -----
@@ -1104,7 +1104,7 @@ function aiStatsBodyHtml(owned) {
     <div id="artistInfoGrid" class="ai-album-grid">${tiles}</div>
     <aside class="ai-top-tracks">
       <label class="ai-top-head"><select id="aiTrackSort" aria-label="Order of the track list">
-        <option value="rym">Top rated (RYM)</option><option value="votes">Most popular (RYM)</option><option value="plays">Most played</option><option value="album">Album order</option></select></label>
+        <option value="rym">Top rated (RYM)</option><option value="votes">Most popular (RYM)</option><option value="plays">Most played</option><option value="album">Release order</option></select></label>
       <div class="ai-track-cols" aria-hidden="true"><span></span><span></span><span title="RYM average">RYM</span><span title="How many rated it on RYM">ratings</span><span title="Your plays">plays</span></div>
       <div id="aiTopTracks" class="ai-track-list"></div>
       <div class="ai-total"><span>TOTAL PLAY COUNT</span><span id="aiTotalPlays"></span></div>
@@ -1114,7 +1114,7 @@ function aiStatsBodyHtml(owned) {
 
 // ----- More Albums (MusicBrainz discography) -----
 async function aiRenderAlbumsTab(artist, owned, token) {
-  el.aiBody.innerHTML = `<div class="ai-albums-head"><h3 class="ai-h3">${escapeHtml(artist)} Albums</h3>
+  el.aiBody.innerHTML = `<div class="ai-albums-head"><h3 class="ai-h3">${escapeHtml(artist)} Releases</h3>
       <div class="ai-albums-tools"><button type="button" class="ai-link-btn" data-ai-action="toggleAllTypes">${state.artistShowAllTypes ? 'Albums &amp; EPs only' : 'Show everything (singles, comps\u2026)'}</button><span id="aiMbLink"></span></div></div>
     <div id="aiRgGrid" class="ai-album-grid"><p class="ai-empty">Looking up ${escapeHtml(artist)}\u2019s discography on MusicBrainz\u2026</p></div>`;
   const ownedKeys = new Set(owned.map(r => lastfmNormKey(artist, r.title)));
@@ -1328,7 +1328,7 @@ function aiRenderProfileTab(artist, owned) {
   } else {
     const q = encodeURIComponent(artist);
     let msg, extra = '';
-    if (prof.status === 'ambiguous') { msg = `More than one artist named \u201c${escapeHtml(artist)}\u201d is on MusicBrainz, so there\u2019s no way to know whose biography to show.`; extra = '<button type="button" class="config-btn" data-ai-action="gotoAlbums">Choose the right one in More Albums</button>'; }
+    if (prof.status === 'ambiguous') { msg = `More than one artist named \u201c${escapeHtml(artist)}\u201d is on MusicBrainz, so there\u2019s no way to know whose biography to show.`; extra = '<button type="button" class="config-btn" data-ai-action="gotoAlbums">Choose the right one in More Releases</button>'; }
     else if (prof.status === 'error') { msg = 'Couldn\u2019t reach the biography sources right now.'; extra = '<button type="button" class="config-btn" data-ai-action="retryProfile">Retry</button>'; }
     else if (prof.status === 'unmatched') { msg = `${escapeHtml(artist)} isn\u2019t on MusicBrainz under this name, so there\u2019s no biography source to look in.`; extra = `<a class="ai-link-btn" href="https://en.wikipedia.org/w/index.php?search=${q}" target="_blank" rel="noopener noreferrer">Search Wikipedia \u2197</a>`; }
     else { msg = `No Wikipedia page is linked to ${escapeHtml(artist)} on MusicBrainz.`; extra = `<a class="ai-link-btn" href="https://en.wikipedia.org/w/index.php?search=${q}" target="_blank" rel="noopener noreferrer">Search Wikipedia \u2197</a>`; }

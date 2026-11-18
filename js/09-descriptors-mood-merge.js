@@ -506,7 +506,7 @@ function mgCompareHtml(g, keep) {
 function mgRender() {
   const body = document.getElementById('mgBody'), sub = document.getElementById('mgSub'); if (!body) return; const keepTop = body.scrollTop;
   sub.textContent = mg.groups.length ? `${mg.groups.length} group${mg.groups.length === 1 ? '' : 's'} of likely duplicates` : 'No duplicates found';
-  const TIER = { exact: ['Same album', 'exact'], rym: ['Same Rate Your Music page', 'rym'], edition: ['Different editions?', 'edition'] };
+  const TIER = { exact: ['Same release', 'exact'], rym: ['Same Rate Your Music page', 'rym'], edition: ['Different editions?', 'edition'] };
   let h = mg.msg ? `<p class="mg-msg" role="status">${escapeHtml(mg.msg)}</p>` : '';
   if (!mg.groups.length) h += '<div class="mg-empty"><b>No duplicates found.</b><p>Releases count as the same when the artist and title match (ignoring case, accents, \u201cThe\u201d, \u201c&\u201d and bracketed edition notes), or when they share one Rate Your Music page. Ones you marked \u201cnot duplicates\u201d are left out.</p></div>';
   mg.groups.forEach(g => {
@@ -672,7 +672,7 @@ if (mode === 'artist') {
   allRow.className = 'left-row left-row-all';
   allRow.tabIndex = 0;
   if (!state.navFilter && (!state.activePlaylistId || state.leftNavView === 'playlists')) allRow.classList.add('active');
-  const allLabel = mode === 'artist' ? 'All Artists' : mode === 'genre' ? 'All Genres' : mode === 'descriptor' ? 'All Descriptors' : mode === 'label' ? 'All Labels' : 'All Albums';
+  const allLabel = mode === 'artist' ? 'All Artists' : mode === 'genre' ? 'All Genres' : mode === 'descriptor' ? 'All Descriptors' : mode === 'label' ? 'All Labels' : 'All Releases';
   allRow.innerHTML = `
     <div class="left-row-text"><p class="left-row-title">${allLabel}</p></div>
     <span class="left-row-count">${sourceRaw.length}</span>`;

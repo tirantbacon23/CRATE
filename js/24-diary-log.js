@@ -23,7 +23,7 @@ function openDiaryEntryModal(entry) {
 
   const tracks = entry.tracks || [];
   if (entry.full) {
-    el.diaryEntryTracksWrap.innerHTML = '<p class="diary-entry-tracks-full">\ud83c\udfa7 The whole album, start to finish.</p>';
+    el.diaryEntryTracksWrap.innerHTML = '<p class="diary-entry-tracks-full">\ud83c\udfa7 The whole release, start to finish.</p>';
   } else if (tracks.length) {
     el.diaryEntryTracksWrap.innerHTML = `<ul class="diary-entry-tracks-list">${tracks.map(t => `<li>${escapeHtml(t.name)}</li>`).join('')}</ul>`;
   } else {
@@ -119,7 +119,7 @@ async function saveLogEntry() {
     });
     el.logForm.hidden = true;
     renderDeckDiaryList(activeItem);
-    flashToast(el.deckToast, isFull ? 'Full album logged to diary' : selectedTracks.length ? `Logged ${selectedTracks.length} track${selectedTracks.length === 1 ? '' : 's'} to diary` : 'Logged to diary');
+    flashToast(el.deckToast, isFull ? 'Full release logged to diary' : selectedTracks.length ? `Logged ${selectedTracks.length} track${selectedTracks.length === 1 ? '' : 's'} to diary` : 'Logged to diary');
     // Selection is "spent" once it's saved to an entry — clear the
     // checkmarks so the next listen (partial or full) starts at zero.
     if (selectedTracks.length) await clearTrackSelection(activeItem);
@@ -143,7 +143,7 @@ function openEditEntry(idx) {
   // fixed at save time, so show them read-only and lock the shortcuts.
   const tracks = entry.tracks || [];
   el.logTrackSummary.textContent = entry.full
-    ? 'Full album listen \u2014 tracks aren\u2019t editable, only date/rating/note.'
+    ? 'Full release listen \u2014 tracks aren\u2019t editable, only date/rating/note.'
     : tracks.length
       ? `Tracks logged: ${tracks.map(t => t.name).join(', ')} \u2014 not editable here.`
       : 'No tracks were recorded for this entry.';

@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.149
+  CURRENT_VERSION: 1.135.150
 
+  1.135.150 — 2026-11-18 — "Release" instead of "album" across CRATE's own words: the browser's Releases list and "All Releases", the
+          Releases / Release and Tracks / Release covers views, Release view settings, menus, buttons, hints and messages
+          (about 125 places). "Album" stays where it is a release's type (Album, EP, Single), in RYM's descriptors
+          ("concept album"), in searches sent to MusicBrainz, and in Spotify's own "album link". Double-clicking "All
+          Releases" plays what the view shows: on Liked songs, the liked songs as listed; beside a playlist, the playlist
+          as narrowed; it used to play the whole crate from both.
   1.135.149 — 2026-11-18 — The floating player, neatened: the header; a bigger cover with the song, artist and release (like and
           download beside the title); where you are in the song, then in the release; the controls centred, with play a
           round gold button; and a quieter footer of volume and the tools. The "detach" button no longer shows while it

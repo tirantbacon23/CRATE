@@ -517,7 +517,7 @@ function dupLabel(it) { const y = String(it.releaseDate || '').slice(0, 4); retu
 function dupChipHtml(artist, title, catalog, date) {      // for a search result: it is one specific pressing
   const v = dupVerdict(dupMatches({ artist, title, catalog, releaseDate: date, descriptor: '' }));
   if (v === 'exact') return ' <span class="add-result-owned" title="This release is already in your crate">In your crate</span>';
-  if (v === 'edition') return ' <span class="add-result-owned edition" title="You have this album, but a different edition of it">Another edition in your crate</span>';
+  if (v === 'edition') return ' <span class="add-result-owned edition" title="You have this release, but a different edition of it">Another edition in your crate</span>';
   return '';
 }
 function addDupCandidate() { return { artist: el.addArtist.value.trim(), title: el.addTitle.value.trim(), descriptor: el.addDescriptor.value.trim(), catalog: el.addCatalog.value.trim(), releaseDate: getReleaseDateFields('add') }; }
@@ -537,7 +537,7 @@ function addDupRefresh() {
     const best = matches[0], open = `<div class="add-dup-actions"><button type="button" class="ai-link-btn" data-dup="open" data-row="${escapeHtml(String(best.item.row))}">Open ${verdict === 'exact' ? 'it' : 'yours'}</button></div>`;
     bar.innerHTML = verdict === 'exact'
       ? `<div class="add-dup add-dup-exact"><b>Already in your crate</b> \u2014 ${escapeHtml(dupLabel(best.item))}. Adding it again would create a duplicate, so it can\u2019t be added.${open}</div>`
-      : `<div class="add-dup add-dup-edition"><b>You already have this album</b> \u2014 ${escapeHtml(dupLabel(best.item))}. This looks like a different edition: ${escapeHtml(best.diffs.join('; '))}. Add it only if you want both.<label class="add-dup-confirm"><input type="checkbox" id="addDupConfirm"${addDupState.confirmed ? ' checked' : ''}> Yes, add this as a separate edition</label>${open}</div>`;
+      : `<div class="add-dup add-dup-edition"><b>You already have this release</b> \u2014 ${escapeHtml(dupLabel(best.item))}. This looks like a different edition: ${escapeHtml(best.diffs.join('; '))}. Add it only if you want both.<label class="add-dup-confirm"><input type="checkbox" id="addDupConfirm"${addDupState.confirmed ? ' checked' : ''}> Yes, add this as a separate edition</label>${open}</div>`;
     bar.hidden = false;
   }
   addDupApplyButton();
