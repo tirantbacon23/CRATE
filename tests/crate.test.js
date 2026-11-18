@@ -434,17 +434,18 @@ suite('New releases: added, then updated from Rate Your Music, then matched', ()
       st.rymUpdateOnAdd = false; eq(pick([rel()]).length, 0);
     } finally { st.rymUpdateOnAdd = was; }
   });
-  test('matching waits for the RYM update, and goes ahead once it is done or nothing is running', () => {
-    const st = app('state'), out = app('rymOutState'), fs = app('rymFetchState'), held = app('rymAddHolding'), was = [st.rymUpdateOnAdd, out.present, fs.active];
+  test('matching waits for the release\'s own RYM update (queued or running), 20 minutes at most, then goes ahead', () => {
+    const st = app('state'), out = app('rymOutState'), fs = app('rymFetchState'), js = app('jobsState'), held = app('rymAddHolding'), was = [st.rymUpdateOnAdd, out.present, fs.active, js.waiting.slice()];
     try {
       st.rymUpdateOnAdd = true; out.present = true; fs.active = true; const t0 = Date.now();
-      const a = rel({ title: 'Hold test ' + t0 });
-      eq([held(a, t0), held(a, t0 + 600000)], [true, true], 'while RYM is running');
-      eq(held(rel({ title: 'Hold test ' + t0, rymUpdated: 'now' }), t0 + 600001), false, 'updated');
-      const b = rel({ title: 'Idle test ' + t0 }); fs.active = false;
-      eq([held(b, t0 + 600002), held(b, t0 + 700000), held(b, t0 + 700001)], [true, false, false], 'nothing running for 90 s: freed, and stays freed');
+      const a = rel({ title: 'Hold test ' + t0 }); js.waiting.push({ id: 'wt', kind: 'rym', rows: [String(a.row)], t: t0 });
+      eq([held(a, t0), held(a, t0 + 600000)], [true, true], 'its update waiting');
+      eq(held(a, t0 + 20 * 60000 + 1), false, 'twenty minutes at most');
+      eq(held(rel({ title: 'Hold test ' + t0, rymUpdated: 'now' }), t0 + 1), false, 'updated');
+      const b = rel({ title: 'Idle test ' + t0, row: 11 });
+      eq([held(b, t0 + 1000), held(b, t0 + 22000), held(b, t0 + 22001)], [true, false, false], 'other RYM updates running don\'t hold it: freed after 20 s, and stays freed');
       out.present = false; eq(held(rel({ title: 'No addon ' + t0 }), t0), false, 'no add-on');
-    } finally { st.rymUpdateOnAdd = was[0]; out.present = was[1]; fs.active = was[2]; }
+    } finally { st.rymUpdateOnAdd = was[0]; out.present = was[1]; fs.active = was[2]; js.waiting.length = 0; js.waiting.push(...was[3]); }
   });
 });
 
