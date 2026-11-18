@@ -6455,3 +6455,49 @@ html.cur-on input:not([type="range"]):not([type="checkbox"]):not([type="radio"])
 .alk-mark { position: absolute; right: 6px; bottom: 32px; width: 22px; height: 22px; border-radius: 50%; background: rgba(10, 12, 16, .78); color: var(--heart, #E8607A); display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 2; }
 .art-wrap:not(:has(.hd-mark)) > .alk-mark { bottom: 6px; }
 .alk-mark svg { width: 13px; height: 13px; }
+
+/* (1.135.136) the cover popup's songs: Roomy (default) or Compact */
+#albumQuickPeek .album-quick-peek-track { padding: 9px 16px; }
+#albumQuickPeek.qpt-compact .album-quick-peek-track { padding: 0 16px; min-height: 32px; }
+#albumQuickPeek.qpt-compact .album-quick-peek-track:not(.qp-head):nth-of-type(even) { background: rgba(255, 255, 255, .025); }
+#albumQuickPeek .album-quick-peek-track:not(.qp-head) + .album-quick-peek-track { border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent); }
+#albumQuickPeek.qpt-compact .album-quick-peek-track:not(.qp-head) + .album-quick-peek-track { border-top: 0; }
+#albumQuickPeek .album-quick-peek-track.now { background: color-mix(in srgb, var(--accent) 8%, transparent); box-shadow: inset 2px 0 0 var(--accent); }
+#albumQuickPeek .album-quick-peek-track-name { font-size: 13.5px; min-width: 0; }
+#albumQuickPeek.qpt-compact .album-quick-peek-track-name { font-size: 13px; }
+#albumQuickPeek .album-quick-peek-track-details { font-size: 11.5px; color: var(--text-dim); }
+#albumQuickPeek .album-quick-peek-track-num { width: auto; text-align: right; font: 500 11px 'IBM Plex Mono', monospace; color: var(--text-dim); }
+#albumQuickPeek .album-quick-peek-track-time { min-width: 0; text-align: right; }
+.qpt-you, .qpt-lfl { font: 500 11px 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; text-align: right; color: var(--text-dim); white-space: nowrap; }
+.qpt-you.has { color: #7FD1B9; }
+.qpt-lfl { color: var(--text); }
+#albumQuickPeek .qp-lfp { width: auto; justify-content: flex-end; }
+#albumQuickPeek .qp-lfp .qp-lfp-bar { display: none; }
+#albumQuickPeek .qp-lfp b { color: var(--text); min-width: 0; }
+.qpt-bar { display: block; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; margin-top: 5px; }
+.qpt-bar i { display: block; height: 100%; background: #7FD1B9; opacity: .8; }
+#albumQuickPeek .qp-head { padding-top: 6px; padding-bottom: 6px; }
+#albumQuickPeek .qp-head .qpt-you.qp-hcell, #albumQuickPeek .qp-head .qpt-lfl.qp-hcell { color: var(--text-dim); }
+.qpt-foot { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 10px 16px 12px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--text-dim); }
+.qpt-foot-you { color: #7FD1B9; }
+/* the controls */
+.qpt-panel { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; }
+.qpt-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.qpc-lbl { font: 500 9.5px 'IBM Plex Mono', monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); }
+.qpt-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.qpt-seg button { background: none; border: 0; color: var(--text-dim); font: inherit; font-size: 12px; padding: 6px 12px; cursor: pointer; }
+.qpt-seg button.on { background: var(--bg-card); color: var(--text); }
+.qpt-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; }
+.qpt-col { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 12px; }
+.qpt-col label { display: flex; align-items: center; gap: 6px; cursor: pointer; flex: 1; min-width: 0; }
+.qpt-col.off { color: var(--text-dim); }
+.qpt-mv { display: inline-flex; gap: 2px; }
+.qpt-mv button { width: 20px; height: 18px; padding: 0; border: 1px solid var(--line); border-radius: 4px; background: none; color: var(--text-dim); font-size: 8px; cursor: pointer; }
+.qpt-mv button:disabled { opacity: .3; cursor: default; }
+.qpc-note { font-size: 11.5px; color: var(--text-dim); margin: 4px 0 0; }
+.qpt-reset { align-self: flex-start; background: none; border: 0; color: var(--accent); font: inherit; font-size: 12px; padding: 0; cursor: pointer; }
+.qpt-config .qpt-panel { margin: 8px 0 4px; }
+#albumQuickPeek .album-quick-peek-track.qp-head > * { grid-row: 1 !important; align-self: center !important; }
+/* (1.135.136) the deck's tracklist ends at its total: no "Clear selection · Match songs… · N/M tracks selected" (Match songs is in the
+   release's right-click menu and its cover popup; ticks for the next diary entry still show on each song and in Log a listen) */
+#deckTracklist .tracklist-select-actions, #deckTracklist .tracklist-listen-progress { display: none !important; }

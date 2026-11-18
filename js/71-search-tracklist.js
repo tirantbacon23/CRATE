@@ -608,6 +608,7 @@ function stlQpHeadPut() {
   h.querySelectorAll('button, .lk-qp').forEach(n => { n.style.visibility = 'hidden'; n.tabIndex = -1; });
   set('.qp-rymbar', 'RYM', 'Rate Your Music rating'); set('.qp-links', 'S·Y', 'Spotify · YouTube link saved');
   set('.qp-lfp', 'Plays', 'Last.fm plays (hover a song for listeners and yours)'); set('.album-quick-peek-track-time', 'Len');
+  set('.qpt-you', 'You', 'Your plays (synced scrobbles)'); set('.qpt-lfl', 'Listeners', 'Last.fm listeners'); h.querySelectorAll('.qpt-bar, .hd-song, .lk-qp, .p2p-tr').forEach(n => { n.style.visibility = 'hidden'; });
   h.querySelectorAll('[data-qp-lf]').forEach(n => n.removeAttribute('data-qp-lf'));
   ['click', 'dblclick', 'mousedown', 'contextmenu'].forEach(t => h.addEventListener(t, (e) => { e.stopPropagation(); e.preventDefault(); }));
   const firstHead = box.firstElementChild && box.firstElementChild.classList.contains('album-quick-peek-disc') ? box.firstElementChild : first;

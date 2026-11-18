@@ -13,23 +13,7 @@ const QPC_PARTS = [
   ['Tabs', [
     ['tab-about', 'About', '[data-qp-tab="about"]'],
     ['tab-listens', 'Listens', '[data-qp-tab="listens"]'],
-  ]],
-  ['Song columns', [
-    ['heads', 'Column headers', '.qp-head'],
-    ['num', 'Number', '.album-quick-peek-track-num'],
-    ['like', 'Like (♥)', '.lk-qp'],
-    ['rym', 'RYM rating bar', '.qp-rymbar'],
-    ['links', 'Links saved (S · Y)', '.qp-links'],
-    ['lf', 'Last.fm plays', '.qp-lfp'],
-    ['len', 'Length', '.album-quick-peek-track-time'],
-  ]],
-  ['Under each song', [
-    ['d-rating', 'Your rating', '.qp-detail.qp-rating'],
-    ['d-plays', 'Your plays', '.qp-detail[title^="Your plays"], .qp-detail[title="Last.fm plays"]'],
-    ['d-genre', 'Song genre', '.qp-detail[title="Track genre"]'],
-    ['d-listened', '✓ listened', '.qp-detail.qp-listened'],
-    ['d-credits', 'Credits', '.qp-credits-btn'],
-    ['d-note', 'Your note', '.qp-detail.qp-note'],
+    ['foot', 'Totals under the songs', '.qpt-foot'],
   ]],
   ['Listens tab', [
     ['l-mine', 'Your plays (diary and scrobbles)', '#albumQuickPeekListens > :not(.qp-lf)'],
@@ -54,6 +38,7 @@ function qpcApply() {
 function qpcPanelHtml() {
   const off = qpcOff();
   return `<div class="qpc-head"><b>Show in this popup</b><button type="button" class="qpc-link" data-qpc="all">Show everything</button><button type="button" class="qpc-x" data-qpc="close" aria-label="Close">✕</button></div>
+    ${typeof qptControlsHtml === 'function' ? qptControlsHtml() : ''}
     <div class="qpc-groups">${QPC_PARTS.map(([g, ps]) => `<fieldset class="qpc-group"><legend>${escapeHtml(g)}</legend>${ps.map(([k, l]) => `<label class="qpc-row"><input type="checkbox" data-qpc-part="${k}"${off.has(k) ? '' : ' checked'}> ${escapeHtml(l)}</label>`).join('')}</fieldset>`).join('')}</div>`;
 }
 function qpcToggle(open) {
