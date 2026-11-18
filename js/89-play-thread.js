@@ -162,7 +162,20 @@ function ptStripHtml(item) {
   return `<div class="pt-strip-h"><span class="gs-lbl">Lineage in your crate</span><span class="gs-s">${d >= 1 ? `rank #${I.rank[i]} · ` : ''}${d ? `${d.toLocaleString()} later release${d === 1 ? '' : 's'} lean on it` : 'nothing later leans on it yet'}</span><span class="gs-fill"></span><button type="button" class="gs-btn" data-pt-galaxy>⤢ On the galaxy</button><button type="button" class="gs-btn gs-pri" data-pt-play>▶ Play the thread</button></div>
     <div class="pt-strip-b">${ps.length ? `<div><span class="gs-lbl pt-up">Drew from</span><div class="pt-minis">${ps.map(p => mini(p.j, p.s)).join('')}</div></div>` : ''}${ps.length && ks.length ? '<span class="pt-sep"></span>' : ''}${ks.length ? `<div><span class="gs-lbl pt-down">Passed on to · ${ks.length}</span><div class="pt-minis">${ks.slice(0, 6).map(k => mini(k.j, k.s)).join('')}</div></div>` : ''}</div>`;
 }
+// (1.135.146) only with ⚙ Settings › Album view header › Lineage in your crate turned on (off unless you turn it on)
+const PT_DECK_KEY = 'crate_deck_lineage_v1';
+function ptDeckOn() { try { return localStorage.getItem(PT_DECK_KEY) === '1'; } catch (e) { return false; } }
+function ptDeckPaintBtn() { document.querySelectorAll('[data-deck-lineage]').forEach(b => b.setAttribute('aria-pressed', String(ptDeckOn()))); }
+document.addEventListener('click', (e) => {
+  const b = e.target.closest && e.target.closest('[data-deck-lineage]'); if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  try { localStorage.setItem(PT_DECK_KEY, ptDeckOn() ? '0' : '1'); } catch (x) { /* this visit */ }
+  ptDeckPaintBtn(); flashGlobalToast(ptDeckOn() ? 'Lineage in your crate shows in the album view' : 'Lineage in your crate hidden from the album view');
+  if (typeof activeItem !== 'undefined' && activeItem && el.deckOverlay && el.deckOverlay.classList.contains('open')) ptStripPaint(activeItem);
+}, true);
+ptDeckPaintBtn();
 function ptStripPaint(item) {
+  if (!ptDeckOn()) { const old = document.getElementById('ptStrip'); if (old) old.remove(); return; }          // (removed, not hidden: the Tabs look shows and hides sections itself)
   const tl = document.getElementById('deckTracklist'); if (!tl || !item) return;
   let s = document.getElementById('ptStrip');
   if (!s) {

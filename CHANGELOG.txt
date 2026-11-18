@@ -17,8 +17,10 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.145
+  CURRENT_VERSION: 1.135.146
 
+  1.135.146 — 2026-11-18 — The album view's "Lineage in your crate" shows only when you turn it on: ⚙ Settings › Album view header ›
+          Lineage in your crate (off to start with). Play the thread is still in the Galaxy's side panel either way.
   1.135.145 — 2026-11-18 — Alt+Enter plays the release or song you're on; Alt+Shift+Enter adds it to the queue instead. "On" is, in
           order: the row or card with the keyboard focus, what's selected (several songs or releases play together, in
           their order on the page), what the mouse is over (a cover, a song row, a release in the left list, the Galaxy's
