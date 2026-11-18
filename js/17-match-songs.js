@@ -626,7 +626,7 @@ function bmOpen(opts) {
     sets: { ticked, view: opts.view || [], genre: opts.genre || null },
     scope: opts.nolinks ? 'nolinks' : opts.queue ? 'queue' : opts.genre ? 'genre' : ticked ? 'ticked' : 'view',
     songsMode: opts.check ? 'check' : 'gaps', skipLinked: true, rf: bmRf0(), rels: [], svc: { spotify: smPrefs().spotifyLookup !== false, youtube: ytUseAddon() || !!loadYoutubeApiKey() }, show: { spotify: true, youtube: true },
-    ytSongs: ytUseAddon(), mode: 'review', filter: 'all', qfilter: 'all', qsearch: '', qsort: (() => { try { return localStorage.getItem('crate_bm_qsort_v1') || 'look'; } catch (e) { return 'look'; } })(), qsel: new Set(), sel: '', focus: null, open: null, why: null, pasteFor: null, diffOpen: false, anaScope: 'run',
+    ytSongs: ytUseAddon(), mode: smPrefs().runMode === 'review' ? 'review' : 'auto', filter: 'all',          /* (1.135.175) confident matches saved as they come unless you chose to review everything (remembered) */ qfilter: 'all', qsearch: '', qsort: (() => { try { return localStorage.getItem('crate_bm_qsort_v1') || 'look'; } catch (e) { return 'look'; } })(), qsel: new Set(), sel: '', focus: null, open: null, why: null, pasteFor: null, diffOpen: false, anaScope: 'run',
     par: bmParLoad(), paused: false, stopped: false, running: false, lanes: { spotify: { s: 'idle', msg: '' }, youtube: { s: 'idle', msg: '' } }, saved: 0, chain: Promise.resolve(), histId: null,
     health: { spotify: 'checking', test: 'idle' }, savedRun: null, label: '' };
   ytAddonHello(); bmEl('batchMatchOverlay').hidden = false; updateAlbumSelBar(); bmRender();
@@ -1919,7 +1919,7 @@ function bmRebandAll() { bm.rels.forEach(r => ['spotify', 'youtube'].forEach(k =
 function bmChange(e) {
   const t = e.target.closest('[data-bm]'); if (!t || !bm) return; const a = t.dataset.bm, relOf = () => bm.rels.find(r => r.row === t.dataset.row) || bmSelRel();
   if (a === 'setup') {
-    if (t.name === 'bmScope') bm.scope = t.value; else if (t.name === 'bmSongsMode') bm.songsMode = t.value; else if (t.name === 'bmMode') bm.mode = t.value;
+    if (t.name === 'bmScope') bm.scope = t.value; else if (t.name === 'bmSongsMode') bm.songsMode = t.value; else if (t.name === 'bmMode') { bm.mode = t.value; smPrefsSave({ runMode: t.value }); }
     else if (t.name === 'bmRfType') { const v = t.value, ty = bm.rf.types.filter(x => x !== v); bm.rf.types = t.checked ? ty.concat(v) : ty; }
     else if (/^bmRf/.test(t.id)) bm.rf[{ bmRfFrom: 'from', bmRfTo: 'to', bmRfAdded: 'added', bmRfTl: 'tl', bmRfRated: 'rated', bmRfRym: 'rym' }[t.id]] = String(t.value || '').trim();
     else if (t.id === 'bmSkipLinked') bm.skipLinked = t.checked; else if (t.id === 'bmYtSongs') { bm.ytSongs = t.checked; bm.ytSongsSet = true; }

@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.174
+  CURRENT_VERSION: 1.135.175
 
+  1.135.175 — 2026-11-18 — Match songs saves confident matches as they come in runs you open yourself too (from the deck, Processing or
+          the queue), not only in the ones that run in the background: only the doubtful ones wait for you. Before, a run you opened
+          started in "let me review everything", so even all-confident releases sat at "Apply 10 links". Choosing "Let me review
+          everything" in a run's options is remembered for the next.
   1.135.174 — 2026-11-18 — New releases: their Rate Your Music update goes to the front of the queue, and Match songs starts the
           moment it lands (RYM's tracklist first, then the songs matched). It waits only for that release's own update, not for every
           RYM update queued (that was what kept releases waiting for hours), 20 minutes at most; Fill in the blanks no longer holds it
