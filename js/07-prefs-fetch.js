@@ -312,7 +312,7 @@ function catalogMarkArrived(items) {                 // releases that came in wi
 // (1.135.2) THE CRATE KEPT FROM LAST TIME. CRATE used to show "Cataloguing…" at every start until the Apps Script answered (often several
 // seconds, more after it's been idle). The last answer is now kept in this browser (IndexedDB 'crate-catalog', for the signed-in account
 // only, 30 days): the crate shows from it at once, and the real answer follows as a quiet sync, which changes only what differs.
-function catalogSnapWho() { const p = typeof decodeJwtPayload === 'function' ? decodeJwtPayload(getStoredIdToken() || '') : null; return (p && p.email) || ''; }
+function catalogSnapWho() { const p = typeof decodeJwtPayload === 'function' ? decodeJwtPayload(getStoredIdToken() || '') : null, prof = typeof crateProfile === 'function' ? crateProfile() : ''; return (p && p.email) ? p.email + (prof ? '#' + prof : '') : ''; }          // (1.135.165: each profile's copy its own)
 let catalogSnapDbP = null;
 function catalogSnapDb() { return catalogSnapDbP || (catalogSnapDbP = new Promise((res, rej) => { try { const r = indexedDB.open('crate-catalog', 1); r.onupgradeneeded = () => r.result.createObjectStore('snap'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); } catch (e) { rej(e); } })); }
 function catalogSnapSave(data) {
@@ -464,7 +464,7 @@ async function fetchCatalogOnce(opts) {
     const writeGen = catalogWrites.started, writing = catalogWrites.inFlight;          // (see catalogWrites)
     if (typeof window.crateBootProgress === 'function') window.crateBootProgress(snap ? 72 : 42, snap ? 'Laying out your crate…' : 'Fetching your crate…');          // (1.135.130) the start-up screen's bar
     const res = snap ? null : await fetchWithTimeout(
-      CONFIG.SCRIPT_URL + '?id_token=' + encodeURIComponent(idToken),
+      CONFIG.SCRIPT_URL + '?id_token=' + encodeURIComponent(idToken) + (typeof crateProfileQS === 'function' ? crateProfileQS() : ''),          // (1.135.165) the profile you're on
       { method: 'GET' },
       90000
     );

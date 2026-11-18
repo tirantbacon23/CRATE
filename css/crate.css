@@ -6855,3 +6855,18 @@ button.gs-chip { cursor: pointer; margin: 4px 4px 0 0; } button.gs-chip:hover { 
 .mc-dot { width: 20px; height: 20px; border-radius: 50%; background: #7FD1B9; flex: none; } .mc-dot.me { background: #D6A24C; }
 .mc-foot { margin-top: auto; padding-top: 10px; }
 @media (max-width: 820px) { .mc-grid { grid-template-columns: 1fr; } }
+
+/* (1.135.165) Profiles (js/99-profiles.js) */
+.prof-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 160px; margin-top: 1px; padding: 0; border: 0; background: none; color: var(--text-dim, #8B93A0); font: 500 10.5px 'IBM Plex Mono', monospace; letter-spacing: .06em; cursor: pointer; }
+.prof-chip:hover, .prof-chip.alt { color: var(--accent, #D6A24C); }
+.prof-chip .prof-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; }
+.brand .tagline + .prof-chip { display: flex; }
+.prof-menu { width: 270px; }
+.prof-h { padding: 2px 4px 6px; font: 600 13px Inter, sans-serif; color: var(--text, #EDE7DC); }
+.prof-row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 6px; border: 0; border-radius: 6px; background: none; color: var(--text, #EDE7DC); font: 13.5px Inter, sans-serif; text-align: left; cursor: pointer; }
+.prof-row:hover { background: var(--bg-card, #1F2530); } .prof-row.on { color: var(--accent, #D6A24C); }
+.prof-check { width: 14px; flex: none; color: var(--accent, #D6A24C); } .prof-rn { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prof-tag { font: 500 9.5px 'IBM Plex Mono', monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim, #8B93A0); }
+.prof-acts { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line, #2A313C); }
+.prof-act { padding: 7px 6px; border: 0; border-radius: 6px; background: none; color: var(--text, #EDE7DC); font: 13px Inter, sans-serif; text-align: left; cursor: pointer; } .prof-act:hover { background: var(--bg-card, #1F2530); } .prof-act.warn { color: #E8846B; }
+.prof-note { margin: 8px 4px 2px; }

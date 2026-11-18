@@ -17,8 +17,15 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.164
+  CURRENT_VERSION: 1.135.165
 
+  1.135.165 — 2026-11-18 — Profiles: more than one crate. The switcher under CRATE at the top left (also ⚙ › Profiles…) lists Main (the
+          crate you've always had) and every profile you make; pick one and CRATE opens it. Each profile is a crate of its
+          own, a spreadsheet of its own: its releases, diary, scrobbles, playlists and settings. New profile (optionally
+          starting with your settings: genre taxonomy, artist details and aliases), Rename (Main too), and Remove (it
+          comes off the list; its spreadsheet stays in Drive, renamed "(removed)"). Your preferences on this device,
+          Friends and the master crate stay with Main. SETUP: add backend/Profiles.gs as a new file in the Apps Script
+          project (+ › Script, name it Profiles), paste the updated main backend, deploy a New version.
   1.135.164 — 2026-11-18 — Match songs carries on by itself after Spotify's "too many requests": it waits as long as Spotify asked (a
           minute at least, twice as long each time it asks again in the run, at most 15 minutes) and then goes on, saying
           when ("It carries on by itself at 10:03"). Resume still goes sooner; Stop or Skip Spotify cancels it.
