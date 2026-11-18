@@ -122,6 +122,7 @@ function initLinkFlags() {
 const SM_FLAGS = [          // the English words need whole words; Japanese ones (no spaces between words) are found anywhere in the title
   ['live', /\b(live|in concert|unplugged|bbc session|peel session)\b|\u30e9\u30a4\u30d6|\u751f\u6f14\u594f/],
   ['remix', /\b(remix|remixed|rework|re ?edit|dub mix|club mix|extended mix|radio edit)\b|\u30ea\u30df\u30c3\u30af\u30b9/],
+  ['extended', /\b(extended|12 ?inch version|12 version|long version|maxi version|full length version)\b/],          // (1.135.147) "A Mirage (Extended Version)" isn't the album's "A Mirage"
   ['acoustic', /\b(acoustic|stripped)\b|\u30a2\u30b3\u30fc\u30b9\u30c6\u30a3\u30c3\u30af|\u5f3e\u304d\u8a9e\u308a/],
   ['instrumental', /\b(instrumental|karaoke|backing track|minus one|off vocal)\b|\u30a4\u30f3\u30b9\u30c8|\u30ab\u30e9\u30aa\u30b1|\u30aa\u30d5\u30dc\u30fc\u30ab\u30eb/],
   ['demo', /\b(demo|rough mix|alternate take|alt take|outtake|early version)\b|\u30c7\u30e2/],
@@ -2262,7 +2263,9 @@ async function smYoutubeForRelease(item, songs) {
   const viaAddon = ytUseAddon();
   if (!viaAddon && !loadYoutubeApiKey()) return { status: 'nokey' };
   const clean = item.title.replace(/\s*\[.*?\]|\s*\(.*?\)/g, '').trim();
-  const relKey = smRelKey(item), cached = ytCacheGet(relKey);          // an album looked up before, by either route (1.95.18: the add-on's finds are remembered too)
+  const relKey = smRelKey(item), hit = ytCacheGet(relKey);
+  // (1.135.147) "no playlist" from before the wider album search (no "The", "... album") is looked up again
+  const cached = hit && !(hit.v.playlists || []).length && hit.t < Date.UTC(2026, 10, 18, 3, 0) ? null : hit;          // an album looked up before, by either route (1.95.18: the add-on's finds are remembered too)
   const playlists = cached ? cached.v.playlists : [];
   if (!cached) {
     const found = viaAddon ? await smYtPlaylistSearchViaAddon(`${item.artist} ${clean}`) : await smYtApi('search', { part: 'snippet', type: 'playlist', maxResults: 5, q: `${item.artist} ${clean}` }, 100);
@@ -2271,6 +2274,19 @@ async function smYoutubeForRelease(item, songs) {
       id: it.id.playlistId, title: it.snippet.title, channel: it.snippet.channelTitle,
       rank: smTitleSim(item.title, stripAlbum(it.snippet.title)) + (/ - topic$/i.test(it.snippet.channelTitle || '') ? 0.1 : 0) + (smArtistMatch(item.artist, it.snippet.channelTitle) === 1 ? 0.05 : 0)
     })).filter(l => l.rank >= 0.6).sort((a, b) => b.rank - a.rank).slice(0, 2);
+    // (1.135.147) nothing close by that name: ask again without a leading "The" (YouTube's own album pages say "Essence", not "The Essence")
+    // and with the word "album". Through the add-on only, where it costs nothing.
+    if (!lists.length && viaAddon) {
+      const bare = String(item.artist || '').replace(/^the\s+/i, ''), seen = new Set();
+      for (const q of [bare !== item.artist ? `${bare} ${clean}` : '', `${clean} ${bare} album`].filter(Boolean)) {
+        let more; try { more = await smYtPlaylistSearchViaAddon(q); } catch (e) { more = { items: [] }; }
+        (more.items || []).filter(it => it.id && it.id.playlistId && it.snippet && !seen.has(it.id.playlistId)).forEach(it => { seen.add(it.id.playlistId);
+          const rank = smTitleSim(item.title, stripAlbum(it.snippet.title)) + (/ - topic$/i.test(it.snippet.channelTitle || '') ? 0.1 : 0) + (smArtistMatch(item.artist, it.snippet.channelTitle) === 1 ? 0.05 : 0);
+          if (rank >= 0.6) lists.push({ id: it.id.playlistId, title: it.snippet.title, channel: it.snippet.channelTitle, rank }); });
+        if (lists.length) break;
+      }
+      lists.sort((a, b) => b.rank - a.rank); lists.splice(2);
+    }
     for (const l of lists) playlists.push(await smYtReadPlaylist(l.id, l.title, l.channel));
     ytCachePut(relKey, { playlists }, playlists.length ? YT_REL_TTL : YT_NONE_TTL);
   }
@@ -2324,13 +2340,16 @@ async function smYoutubeSearchSongs(item, songs, idxs, onStep) {     // 100 quot
     // (1.135.69) Nothing good under "artist song"? Two more ways of asking: the song with its release's title, and the song's name in quotes
     // with the artist (a short, common title such as "Premonition" is lost among other songs called that). Through the add-on these cost
     // nothing; through the API (100 units each) only when the first search found nothing at all.
-    if (!smTopCands(s, cands, 65, 1).length && (ytUseAddon() || !cands.length)) {
+    // (1.135.147) through the add-on (free) they're also tried when the best so far is only likely, not confident: a fan's upload of the song
+    // ("The Essence - A Mirage (1988)") could otherwise keep the artist's own plain version out of sight
+    const enough = ytUseAddon() ? Math.max(65, smPrefs().confident || 85) : 65;
+    if (!smTopCands(s, cands, enough, 1).length && (ytUseAddon() || !cands.length)) {
       const album = String(item.title || '').replace(/\s*\[.*?\]|\s*\(.*?\)/g, '').trim();
       for (const q of [`${s.title} ${album}`, `"${s.title}" ${item.artist}`]) {
         let more = [];
         try { more = await smYoutubeSearchQ(q); } catch (e) { more = []; }
         more.forEach(c => { if (!seen.has(c.id)) { seen.add(c.id); cands.push(c); } });
-        if (smTopCands(s, cands, 65, 1).length) break;
+        if (smTopCands(s, cands, enough, 1).length) break;
       }
     }
     let top = smTopCands(s, cands, 35, 4).map(c => Object.assign(c, { source: 'search' }));

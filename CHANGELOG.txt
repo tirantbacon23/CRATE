@@ -17,8 +17,15 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.146
+  CURRENT_VERSION: 1.135.147
 
+  1.135.147 — 2026-11-18 — Match songs finds a song's plain version on YouTube more often. "Extended", "12-inch version", "long
+          version" and similar count as a different version (marked down, like live or remix): "A Mirage (Extended
+          Version)" scored 88 against the album's "A Mirage" and kept the real one out of sight. Through the add-on, the
+          extra searches (the song with the album's title, the song in quotes with the artist) now run whenever nothing
+          is confident yet, not only when nothing is even likely. The album playlist is also looked for without a leading
+          "The" ("Essence", as YouTube's own album pages have it) and with the word "album"; a release where no playlist
+          was found before is looked up again.
   1.135.146 — 2026-11-18 — The album view's "Lineage in your crate" shows only when you turn it on: ⚙ Settings › Album view header ›
           Lineage in your crate (off to start with). Play the thread is still in the Galaxy's side panel either way.
   1.135.145 — 2026-11-18 — Alt+Enter plays the release or song you're on; Alt+Shift+Enter adds it to the queue instead. "On" is, in
