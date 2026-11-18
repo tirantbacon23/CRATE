@@ -17,8 +17,9 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.169
+  CURRENT_VERSION: 1.135.170
 
+  1.135.170 — 2026-11-18 — CRATE Radio: the Now playing / Stations / Discover tabs sit snug instead of stretching across the header.
   1.135.169 — 2026-11-18 — CRATE Radio and Discover work with an empty crate. With little or nothing in your crate, "Tell it what you
           like" sits at the top of Discover and Stations: tap genres from the music database (with how many releases it holds in each)
           and add artists you like; Discover and the radio start from those. With nothing picked, they play the best of the database:

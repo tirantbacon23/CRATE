@@ -6990,3 +6990,4 @@ input.mcd-filled { border-color: rgba(127,209,185,.6) !important; }
 .rd-gchip.on { border-color: #D6A24C; background: rgba(214,162,76,.14); color: #D6A24C; } .rd-gchip.on i { color: #D6A24C; }
 .rd-seed-a { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; } .rd-seed-a .rd-in { width: 300px; } .rd-sv button[disabled] { cursor: default; color: #EDE7DC; }
 @media (max-width: 900px) { .rd-seed-h { grid-template-columns: 1fr; gap: 6px; } .rd-seed-a .rd-in { width: 100%; } }
+.rd-head > .rd-tabs { flex: none; }
