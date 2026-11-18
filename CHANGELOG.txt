@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.133
+  CURRENT_VERSION: 1.135.134
 
+  1.135.134 — 2026-11-18 — Heard, like Letterboxd's "watched": a release or a song marked as listened to with no date and no diary entry. The
+          eye: on a release's cover popup and the deck's buttons, in its right-click menu (several selected: all at once), and on each
+          song's row in the popup and the deck. A release marked heard has a small eye on its cover in the grid and counts as listened
+          everywhere (the Listened filter, listened:yes / no). Kept in the TrackData column the sheet already has: no backend change
+          (js/79-heard.js).
   1.135.133 — 2026-11-18 — Cover wall in playlists and Liked songs: it shows what's shown where you are: a playlist's releases (in its order and
           narrowing), the releases of your liked songs (⛶ on the Liked songs page too), else the library; its bar says which.
   1.135.132 — 2026-11-18 — Cover wall, faster: only the covers on screen (and a screen and a half either side) are made, and made again as it
