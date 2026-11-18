@@ -1079,7 +1079,7 @@ async function bmRunLane(kind) {
         if (bm !== b) return;
         const msg = kind === 'youtube' ? ytAddonErrText(e) : String((e && e.message) || e);
         rel.st[kind] = 'error'; rel.err[kind] = msg;
-        if (/session expired|daily|quota|too many requests/i.test(String((e && e.message) || e))) { rel.st[kind] = 'wait'; halt(msg); return; }          // (the release waits for Resume rather than failing, and so do the rest)
+        if (/session expired|daily|quota|too many requests/i.test(String((e && e.message) || e))) { rel.st[kind] = 'wait'; halt(msg); if (kind === 'spotify' && /too many requests/i.test(String((e && e.message) || e))) bmAutoResume(kind); return; }          // (the release waits for Resume rather than failing, and so do the rest)
       }
       bmRedraw();
       if (kind === 'spotify' && par === 1) await new Promise(r => setTimeout(r, 120));
@@ -1091,9 +1091,22 @@ async function bmRunLane(kind) {
   if (bm === b && lane.s === 'work') lane.s = 'done';
   if (bm === b) { bmRedraw(); bmCheckDone(); }
 }
+// (1.135.164) Spotify asked CRATE to slow down: the run waits as long as it asked (a minute at least, longer each time it asks again in
+// this run), then carries on by itself. Resume goes sooner; Stop, or skipping Spotify, cancels it.
+function bmAutoResume(kind) {
+  const b = bm; if (!b || !b.lanes[kind]) return;
+  b.autoN = (b.autoN || 0) + 1;
+  const until = typeof spotifyRateLimitedUntil !== 'undefined' ? spotifyRateLimitedUntil : 0;
+  const at = Math.max(Date.now() + Math.min(15 * 60e3, 60e3 * Math.pow(2, b.autoN - 1)), until + 3000);
+  clearTimeout(b.autoT); b.autoAt = at;
+  const hhmm = new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), mins = Math.max(1, Math.round((at - Date.now()) / 60000));
+  b.lanes[kind].msg = `Spotify asked CRATE to slow down. It carries on by itself at ${hhmm} (in about ${mins} min), or press Resume now.`;
+  b.autoT = setTimeout(() => { if (bm === b && !b.stopped && b.lanes[kind].s === 'stopped' && b.autoAt === at) bmResumeLane(kind); }, at - Date.now());
+  bmRedraw();
+}
 // (1.135.119) "Skip Spotify for now": that service stops where it is (what it found stays), the releases it hadn't reached wait for Resume
 function bmSkipLane(kind) {
-  if (!bm || !bm.lanes[kind]) return; const l = bm.lanes[kind];
+  if (!bm || !bm.lanes[kind]) return; const l = bm.lanes[kind]; clearTimeout(bm.autoT); bm.autoAt = 0;
   l.halt = true; l.s = 'stopped'; l.msg = 'Skipped for now. Resume looks up the releases it hadn\u2019t reached.'; l.run = (l.run || 0) + 1;
   bm.rels.forEach(r => { if (r.st[kind] === 'work') r.st[kind] = 'wait'; });
   bmRedraw(); bmCheckDone();
