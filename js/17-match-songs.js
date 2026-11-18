@@ -780,7 +780,7 @@ const bmAuto = { pending: [], timer: 0, tries: 0, since: 0, noSvc: false };
 const BM_AUTO_PATIENCE = 6 * 3600e3;          // (1.126.0) keeps waiting (an import, an open Match songs, RYM) this long, instead of giving up after ~10 minutes
 // (1.134.1) A sweep every 5 minutes: anything left waiting in the match queue (added while matching couldn't run, or before this version)
 // is matched without your having to open Match songs.
-setTimeout(() => { try { mqPrune(); } catch (e) { /* next sweep */ } }, 15000);          // (1.135.15) releases already linked or tried leave the queue
+setTimeout(() => { try { mqPrune(); if (typeof menuMatchWaiting === 'function') menuMatchWaiting(); } catch (e) { /* next sweep */ } }, 15000);          // (1.135.173) and what's left waiting starts now, not at the 5-minute sweep          // (1.135.15) releases already linked or tried leave the queue
 setInterval(() => { try { if (document.hidden || !(state.raw || []).length || bmAuto.pending.length || (bm && bm.running)) return; mqPrune(); if (typeof menuMatchWaiting === 'function') menuMatchWaiting(); } catch (e) { /* next time */ } }, 5 * 60e3);
 function bmAutoQueue(list) {
   if (!bmAuto.pending.length) bmAuto.since = Date.now();
@@ -794,7 +794,9 @@ function bmAutoRun() {
   const byKey = new Map(); state.raw.forEach(r => { const k = mqKey(r.artist, r.title); if (!byKey.has(k)) byKey.set(k, r); });
   const all = bmAuto.pending.map(e => byKey.get(e.k)).filter(Boolean);
   if (all.length < bmAuto.pending.length && bmAuto.tries < 3) { later(10000); return; }          // the rest may not have reached the list yet
-  const held = new Set(all.filter(it => rymAddHolding(it) || afPending(it)).map(it => mqKey(it.artist, it.title))), found = all.filter(it => !held.has(mqKey(it.artist, it.title)));          // (still to be updated from Rate Your Music, or its blanks filled: matched after that)
+  // (1.135.173) Matched straight away: no more waiting for the release's RYM update or Fill in the blanks (that wait could last hours
+  // while other RYM updates were queued or paused). If either later changes its tracklist, the new songs are matched then (bmRematchAfterEdit).
+  const held = new Set(), found = all;          // (still to be updated from Rate Your Music, or its blanks filled: matched after that)
   bmAuto.pending = bmAuto.pending.filter(e => !byKey.has(e.k) || held.has(e.k));
   const svc = { spotify: smPrefs().spotifyLookup !== false && !!(loadSpotifyCreds() || {}).clientId, youtube: ytUseAddon() }, kinds = ['spotify', 'youtube'].filter(k => svc[k]);
   bmAuto.noSvc = !kinds.length; if (typeof jobsRefresh === 'function') jobsRefresh();
@@ -2785,3 +2787,24 @@ function initAddMatch() {
     const badge = input.closest('.tracklist-builder-link-group').querySelector('.tb-score'); if (badge) badge.remove();
   });
 }
+
+// (1.135.173) A release added lately whose tracklist then changes (its RYM update, Fill in the blanks, an edit) has its new songs matched too:
+// matching no longer waits for those, so it follows them instead.
+const bmRecentAdds = new Map();
+(function () {
+  const baseQ = bmAutoQueue;
+  bmAutoQueue = function (list) { (list || []).forEach(x => { if (x && x.artist && x.title) bmRecentAdds.set(mqKey(x.artist, x.title), Date.now()); }); return baseQ.apply(this, arguments); };
+  // (postUpdate comes later, in js/22: wrapped once everything has loaded)
+  window.addEventListener('DOMContentLoaded', () => { if (typeof postUpdate !== 'function') return; const baseP = postUpdate;
+  postUpdate = async function (payload) {
+    const r = await baseP.apply(this, arguments);
+    try {
+      if (payload && payload.action === 'editAlbum' && payload.ManualTracks && smPrefs().autoMatchNew) {
+        const it = payload.row != null ? (state.raw || []).find(r => String(r.row) === String(payload.row)) : null;
+        const a = String(payload.Artist || (it && it.artist) || ''), ti = String(payload.Title || (it && it.title) || ''), t = a && ti ? bmRecentAdds.get(mqKey(a, ti)) : 0;
+        if (t && Date.now() - t < 6 * 3600e3) setTimeout(() => baseQ([{ artist: a, title: ti }]), 3000);
+      }
+    } catch (e) { /* matched at the next sweep */ }
+    return r;
+  }; });
+})();

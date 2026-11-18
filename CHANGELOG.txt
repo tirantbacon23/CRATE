@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.172
+  CURRENT_VERSION: 1.135.173
 
+  1.135.173 — 2026-11-18 — Match songs starts as soon as a release is added. It used to wait for the release's Rate Your Music update
+          and Fill in the blanks first, and while other RYM updates were queued or paused that could take hours, leaving releases in the
+          match queue. Now it matches straight away, and if the RYM update or Fill in the blanks later changes the tracklist, the new
+          songs are matched then. Releases already waiting start a few seconds after CRATE opens instead of at the 5-minute sweep, and
+          Processing says "starts by itself" (or "starting…") rather than "when you start it" when Match new releases by themselves is on.
   1.135.172 — 2026-11-18 — CRATE Radio has a button in the top bar, beside Friends (it lights up teal while the radio plays). The
           player's radio button only shows once something is playing, so a new or empty crate had no way in but ⚙ › CRATE Radio…
           With an empty crate it opens on Discover.
