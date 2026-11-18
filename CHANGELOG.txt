@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.134
+  CURRENT_VERSION: 1.135.135
 
+  1.135.135 — 2026-11-18 — Liking a whole release: a heart beside the Heard eye in its cover popup and the deck's buttons, in its right-click
+          menu (several selected: all at once), and a small heart on its cover in the grid. liked:yes finds liked releases too. Kept
+          apart from songs' hearts, so Liked songs is as it was; in the TrackData column, no backend change (js/80-album-like.js).
   1.135.134 — 2026-11-18 — Heard, like Letterboxd's "watched": a release or a song marked as listened to with no date and no diary entry. The
           eye: on a release's cover popup and the deck's buttons, in its right-click menu (several selected: all at once), and on each
           song's row in the popup and the deck. A release marked heard has a small eye on its cover in the grid and counts as listened

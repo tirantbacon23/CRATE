@@ -6447,3 +6447,11 @@ html.cur-on input:not([type="range"]):not([type="checkbox"]):not([type="radio"])
 .hd-menu-btn { display: flex; align-items: center; gap: 8px; }
 .hd-mark { position: absolute; right: 6px; bottom: 6px; width: 22px; height: 22px; border-radius: 50%; background: rgba(10, 12, 16, .78); color: #5fbf86; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 2; }
 .hd-mark svg { width: 14px; height: 14px; }
+
+/* (1.135.135) liking a whole release */
+.alk-btn { display: inline-flex; align-items: center; gap: 6px; }
+.alk-btn.on { color: var(--heart, #E8607A); border-color: color-mix(in srgb, var(--heart, #E8607A) 55%, transparent); }
+.alk-menu-btn { display: flex; align-items: center; gap: 8px; }
+.alk-mark { position: absolute; right: 6px; bottom: 32px; width: 22px; height: 22px; border-radius: 50%; background: rgba(10, 12, 16, .78); color: var(--heart, #E8607A); display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 2; }
+.art-wrap:not(:has(.hd-mark)) > .alk-mark { bottom: 6px; }
+.alk-mark svg { width: 13px; height: 13px; }

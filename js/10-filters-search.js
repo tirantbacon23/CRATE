@@ -437,7 +437,7 @@ function searchTokenMatches(r, token) {
   if (canonicalField === 'songdesc') { const v = descKey(value); return Object.values(r.trackData || {}).some(e => e && Array.isArray(e.desc) && e.desc.some(d => d.includes(v))); }          // (1.129.0)
   if (canonicalField === 'format') { const v = String(value).toLowerCase(), f = String(r.format || '').toLowerCase(); return v === 'none' ? !f : v === 'digital' ? /digital|flac|mp3/.test(f) : f.includes(v); }
   if (canonicalField === 'listened') { const no = /^(no|false|0|not|never)$/i.test(String(value)); const yes = typeof hasLoggedListen === 'function' && hasLoggedListen(r); return no ? !yes : yes; }
-  if (canonicalField === 'liked') { const no = /^(no|false|0)$/i.test(String(value)); const any = Object.values(r.trackData || {}).some(e => e && e.liked); return no ? !any : any; }
+  if (canonicalField === 'liked') { const no = /^(no|false|0)$/i.test(String(value)); const any = Object.values(r.trackData || {}).some(e => e && e.liked) || !!(r.trackData && r.trackData.rel && r.trackData.rel.fav); return no ? !any : any; }          // (1.135.135) a release liked as a whole too
   if (canonicalField === 'artist') { const v = value.toLowerCase(); return [r.artist, artistCanon(r.artist)].some(n => String(n || '').toLowerCase().includes(v)); }          // an alias's releases answer to its artist's name
   return String(r[canonicalField] || '').toLowerCase().includes(value.toLowerCase());
 }
