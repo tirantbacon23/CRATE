@@ -6870,3 +6870,23 @@ button.gs-chip { cursor: pointer; margin: 4px 4px 0 0; } button.gs-chip:hover { 
 .prof-acts { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line, #2A313C); }
 .prof-act { padding: 7px 6px; border: 0; border-radius: 6px; background: none; color: var(--text, #EDE7DC); font: 13px Inter, sans-serif; text-align: left; cursor: pointer; } .prof-act:hover { background: var(--bg-card, #1F2530); } .prof-act.warn { color: #E8846B; }
 .prof-note { margin: 8px 4px 2px; }
+
+/* (1.135.166) The master crate in the deck and when adding (js/99-master-deck.js) */
+.mcd-chip { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; margin-left: 6px; border: 1px solid rgba(127,209,185,.5); border-radius: 12px; font: 500 11px 'IBM Plex Mono', monospace; color: #7FD1B9; white-space: nowrap; }
+.mcd-chip[hidden] { display: none; }
+.mcd-strip { margin-top: 0; margin-bottom: 8px; }
+.mcd-lbl { color: #7FD1B9 !important; }
+.mcd-nums { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.mcd-k { display: flex; flex-direction: column; gap: 2px; min-width: 0; } .mcd-k b { font: 400 26px/1 'Bebas Neue', Inter, sans-serif; color: var(--text, #EDE7DC); } .mcd-k b.mcd-teal { color: #7FD1B9; } .mcd-k span { font: 11.5px Inter, sans-serif; color: var(--text-dim, #8B93A0); }
+.mcd-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 22px; } .mcd-cols .gs-lbl { margin: 0 0 6px; }
+.mcd-who { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--line, #2A313C); font: 13px Inter, sans-serif; }
+.mcd-wn { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .mcd-wr { color: var(--accent, #D6A24C); }
+.mc-dot.anon { background: #3A4250; }
+.mcd-nocv { display: block; width: 86px; height: 86px; border-radius: 4px; background: #232A35; }
+.mcd-ae { color: #7FD1B9 !important; }
+.mcd-add-banner { display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 12px; border: 1px solid rgba(127,209,185,.45); border-radius: 10px; background: rgba(127,209,185,.06); }
+.mcd-add-banner img { width: 48px; height: 48px; border-radius: 4px; object-fit: cover; flex: none; }
+.mcd-add-banner div { display: flex; flex-direction: column; gap: 2px; } .mcd-add-banner b { font: 600 13.5px Inter, sans-serif; color: var(--text, #EDE7DC); }
+input.mcd-filled { border-color: rgba(127,209,185,.6) !important; }
+@media (max-width: 700px) { .mcd-nums { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mcd-cols { grid-template-columns: 1fr; } }
+.mcd-anon { flex: 1; min-width: 0; }

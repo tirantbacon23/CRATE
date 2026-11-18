@@ -29,7 +29,7 @@ const MASTER_VERSION = 1;
 const MASTER_REBUILD_MIN_MS = 5 * 60 * 1000;          // "Rebuild now" at most every 5 minutes
 const MASTER_TRACKS_MAX = 40000;                      // a release's tracklist JSON, kept under a cell's 50,000 characters
 const MASTER_RECS = 40;
-const MASTER_REL_COLS = ['Key', 'Artist', 'Title', 'Type', 'Year', 'Genre', 'Genre2', 'Descriptors', 'Label', 'Cover', 'RymLink', 'RymRating', 'RymVotes', 'Tracks', 'Crates', 'Ratings', 'AvgRating', 'Plays', 'Plays30', 'Members', 'Agree'];
+const MASTER_REL_COLS = ['Key', 'Artist', 'Title', 'Type', 'Year', 'Genre', 'Genre2', 'Descriptors', 'Label', 'Cover', 'RymLink', 'RymRating', 'RymVotes', 'Tracks', 'Crates', 'Ratings', 'AvgRating', 'Plays', 'Plays30', 'Members', 'Agree', 'Also'];
 
 function _mProps() { return PropertiesService.getScriptProperties(); }
 function _mFold(s) {
@@ -133,6 +133,13 @@ function masterBuild() {          // the nightly trigger, "Rebuild now", and lea
         mine.keys[k] = o; mine.n++;
       });
     });
+    // (step 2) crates with this also love: for each person, the releases they love most (rated 4 or more, or played 10 times or more; their
+    // top 300), and for each of those, how often each other one is loved by the same people
+    const co = {};
+    Object.keys(taste).forEach(id => {
+      const K = taste[id].keys, liked = Object.keys(K).filter(k => (K[k].r || 0) >= 4 || (K[k].p || 0) >= 10).sort((a, b) => ((K[b].r || 0) * 10 + (K[b].p || 0)) - ((K[a].r || 0) * 10 + (K[a].p || 0))).slice(0, 300);
+      liked.forEach(k => { const m = co[k] = co[k] || {}; liked.forEach(j => { if (j !== k) m[j] = (m[j] || 0) + 1; }); });
+    });
     // releases
     const mode = (o) => { let b = '', n = 0; Object.keys(o).forEach(k => { if (o[k] > n) { n = o[k]; b = k; } }); return b; };
     const agreeOf = (o) => { const b = mode(o); return b ? o[b] : 0; };
@@ -143,7 +150,8 @@ function masterBuild() {          // the nightly trigger, "Rebuild now", and lea
       const yr = x.years.sort()[0] || '';
       let tracks = x.tracks ? JSON.stringify(x.tracks) : ''; if (tracks.length > MASTER_TRACKS_MAX) tracks = '';
       out.push([x.k, nm[0] || '', nm[1] || '', mode(x.types), yr, mode(x.genre), mode(x.genre2), mode(x.desc), mode(x.label), x.cover, mode(x.rym), x.rymR || '', x.rymV || '', tracks,
-        ms.length, rated.length, avg ? Math.round(avg * 100) / 100 : '', plays, p30, JSON.stringify(ms), JSON.stringify({ genre: agreeOf(x.genre), desc: agreeOf(x.desc) })]);
+        ms.length, rated.length, avg ? Math.round(avg * 100) / 100 : '', plays, p30, JSON.stringify(ms), JSON.stringify({ genre: agreeOf(x.genre), desc: agreeOf(x.desc) }),
+        JSON.stringify(Object.keys(co[x.k] || {}).map(j => ({ k: j, n: co[x.k][j] })).sort((a, b) => b.n - a.n).slice(0, 8))]);
       info[x.k] = { a: nm[0] || '', t: nm[1] || '', y: yr.slice(0, 4), g: mode(x.genre), d: mode(x.desc), crates: ms.length, n: rated.length, avg: avg, plays: plays, p30: p30 };
     });
     // taste: for each person, how alike each other person is, and what crates like theirs love that they don't have
@@ -256,7 +264,12 @@ function _master(email, action, payload) {
       let agree = {}; try { agree = JSON.parse(String(row.Agree || '{}')); } catch (e) { agree = {}; }
       const rel = { key: row.Key, artist: row.Artist, title: row.Title, type: row.Type, date: row.Year, genre: row.Genre, genre2: row.Genre2, descriptors: row.Descriptors, label: row.Label, cover: row.Cover, rymLink: row.RymLink, rymRating: row.RymRating, rymVotes: row.RymVotes, tracks: tracks,
         crates: row.Crates, ratings: row.Ratings, avg: row.AvgRating, plays: row.Plays, plays30: row.Plays30, agree: agree };
-      return _json({ ok: true, master: true, joined: true, found: true, release: rel, people: _mPeople(email, ms) });
+      const me = _mIdOf(email), others = ms.filter(e => e.id !== me), oR = others.filter(e => e.r);
+      rel.others = { crates: others.length, n: oR.length, avg: oR.length ? Math.round(oR.reduce((a, e) => a + e.r, 0) / oR.length * 100) / 100 : 0, plays: others.reduce((a, e) => a + (e.p || 0), 0) };
+      const st = _mStatus(), p30 = st && st.charts && st.charts.played30 ? st.charts.played30.indexOf(row.Key) : -1; rel.rank30 = p30 >= 0 ? p30 + 1 : 0; rel.totalCrates = st ? st.crates : 0;
+      let also = []; try { also = JSON.parse(String(row.Also || '[]')); } catch (e) { also = []; }
+      rel.also = also.slice(0, 6).map(a => { const r2 = _mFindRow('Releases', a.k); return r2 ? { artist: r2.Artist, title: r2.Title, year: String(r2.Year || '').slice(0, 4), cover: r2.Cover, n: a.n, avg: r2.AvgRating || 0, crates: r2.Crates } : null; }).filter(Boolean);
+      return _json({ ok: true, master: true, joined: true, found: true, release: rel, people: _mPeople(email, ms), fill: _mShare(email).fill });
     }
     if (action === 'masterDiscover') {       // this person's recommendations and taste matches, and the charts
       if (!_mShare(email).joined) return _json({ ok: true, master: true, joined: false });

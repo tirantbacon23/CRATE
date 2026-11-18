@@ -17,8 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.165
+  CURRENT_VERSION: 1.135.166
 
+  1.135.166 — 2026-11-18 — The master crate, step 2. In a release's deck (once you've joined): a FRIENDS ★ chip beside the RYM rating,
+          and "In the master crate" above the songs: how many crates have it, the friends' average (without you) and
+          how your rating compares, plays across crates and its place in this month's most played, who has it (by name
+          where they share their ratings with you), and what crates with it also love (open it if it's yours, else find
+          it to add). Add a release: with "Use it when adding" on, a release your friends have is filled from their
+          crates where the form is still empty (genres, descriptors, label, date, cover, RYM link and rating, its songs
+          with their links), the fields marked green and a note saying what came from where. Master.gs works out
+          "crates with this also love" in the nightly build: paste the new Master.gs and deploy a New version.
   1.135.165 — 2026-11-18 — Profiles: more than one crate. The switcher under CRATE at the top left (also ⚙ › Profiles…) lists Main (the
           crate you've always had) and every profile you make; pick one and CRATE opens it. Each profile is a crate of its
           own, a spreadsheet of its own: its releases, diary, scrobbles, playlists and settings. New profile (optionally
