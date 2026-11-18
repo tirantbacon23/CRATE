@@ -444,7 +444,7 @@ function _music(email, action, payload) {
         if (related[ak]) { sc += 4 * related[ak]; why.push('a'); }
         const li = Number(r[I.Listeners]) || 0, rr = Number(r[I.RymRating]) || 0, rv = Number(r[I.RymVotes]) || 0, cr = Number(r[I.Crates]) || 0;
         if (payload.friends) { if (!cr) return; sc += 1; }          // (the friends' station: only what's in their crates)
-        if (!sc) return;
+        if (!sc) { if (!payload.cold) return; sc = 0.3 + (rr || li || cr ? 0.5 : 0); }          // (1.135.169) a new crate, a time machine, deep cuts: the whole database counts, its best first
         if (rr) sc += (rr - 3) * 1.5 * Math.min(1, rv / 300);
         sc += cr * 0.6;
         sc += deep ? (li ? -Math.log10(1 + li) * 0.5 + 2 : 0.5) : Math.log10(1 + li) * 0.25;

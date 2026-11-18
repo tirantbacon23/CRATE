@@ -32,12 +32,25 @@ function rOwned() { if (!radio.owned || radio.ownedN !== state.raw.length) { rad
 // ----- your taste, as weights -----
 function rTaste() {
   if (radio.taste && radio.tasteN === state.raw.length) return radio.taste;
+  return rTasteBuild();
+}
+// (1.135.169) With little or nothing in your crate, the radio still has a taste to start from: the genres and artists you pick
+// ("Tell it what you like"), and what you Like and Add on the radio. They count for less as your crate grows.
+const RADIO_SEED_KEY = 'crate_radio_seed_v1';
+function rSeedGet() { const s = rLs(RADIO_SEED_KEY, {}); return { g: Array.isArray(s.g) ? s.g : [], a: Array.isArray(s.a) ? s.a : [] }; }
+function rSeedSet(s) { rLsSet(RADIO_SEED_KEY, s); radio.taste = null; radio.disc = null; }
+function rCold() { const t = rTaste(); return (radio.crateWeight || 0) < 20; }          // (a crate this small says little about you yet)
+function rTasteBuild() {
   const g = {}, d = {}, a = {}, add = (m, k, w) => { if (k) m[k] = (m[k] || 0) + w; };
   (state.raw || []).forEach(it => {
     const rt = Number(it.rating) || 0, w = (rt ? rt - 2.5 : 0.4) + Math.log(1 + rPlays(it)) * 0.35; if (w <= 0) return;
     rSplit(it.genre).forEach((x, i) => add(g, x, w * (i ? 0.7 : 1))); rSplit(it.genre2).forEach(x => add(g, x, w * 0.5));
     rSplit(it.rymDescriptors).slice(0, 6).forEach(x => add(d, x, w * 0.5)); add(a, it.artist, w);
   });
+  let cw = 0; Object.keys(a).forEach(k => { cw += a[k]; }); radio.crateWeight = cw;
+  const mx = Math.max(3, ...Object.values(g)), seed = rSeedGet();
+  seed.g.forEach(x => add(g, String(x).toLowerCase(), mx * 0.7)); seed.a.forEach(x => add(a, x, Math.max(3, ...Object.values(a)) * 0.7));
+  rLs(RADIO_LIKE_KEY, []).slice(0, 200).forEach(l => { rSplit(l.g).forEach((x, i) => add(g, x, mx * (i ? 0.15 : 0.3))); add(a, l.a, mx * 0.3); });
   const top = (m, n) => { const ks = Object.keys(m).sort((x, y) => m[y] - m[x]).slice(0, n), mx = ks.length ? m[ks[0]] : 1; return ks.map(k => ({ k, w: Math.round(m[k] / mx * 100) / 100 })); };
   radio.taste = { g: top(g, 30), d: top(d, 30), a: top(a, 80) }; radio.tasteN = state.raw.length;
   return radio.taste;
@@ -61,7 +74,7 @@ function rYears(st) { if (st.kind === 'time' && st.value) { const y = Number(Str
 async function rLoadPool(st) {
   const seeds = rSeeds(st), [yFrom, yTo] = rYears(st);
   const skip = [...rOwned().keys()].concat(Object.keys(rLs(RADIO_NO_KEY, {}))).slice(0, 8000);
-  const r = await postUpdate({ action: 'masterMusicRadio', genres: seeds.genres, descs: seeds.descs, artists: seeds.artists, yFrom, yTo, strictYears: st.kind === 'time', deep: st.kind === 'deep', friends: st.kind === 'friends', skip, n: 400 });
+  const r = await postUpdate({ action: 'masterMusicRadio', genres: seeds.genres, descs: seeds.descs, artists: seeds.artists, yFrom, yTo, strictYears: st.kind === 'time', deep: st.kind === 'deep', cold: rCold() || st.kind === 'time' || st.kind === 'deep', friends: st.kind === 'friends', skip, n: 400 });
   if (!r || r.music !== true) throw new Error(r && r.error ? r.error : 'Your backend doesn’t have CRATE Radio yet: paste the new Master.gs and deploy a new version.');
   if (r.joined === false) throw new Error('Join the master crate first (⚙ › Master crate…): the radio plays from its music database.');
   const no = rLs(RADIO_NO_KEY, {}), owned = rOwned();
@@ -148,6 +161,7 @@ function rWhy(x, item) {
   const ak = rFold(item.artist), mine = (state.raw || []).filter(it => rFold(it.artist) === ak).length;
   if (mine) out.push(['Artist', mine === 1 ? 'one of their releases is in your crate' : `${mine} of their releases are in your crate`]);
   else if (radio.related[ak]) out.push(['Last.fm', `${item.artist} is similar to artists you play (${Math.round(radio.related[ak] * 100)}% close)`]);
+  if (x && rCold() && !gs.length && !radio.related[ak]) out.push(['Start', 'your crate is new, so it starts from the best of the database: what your friends keep, and what\u2019s rated and played most']);
   if (x && x.cr) out.push(['Friends', `in ${x.cr} of your friends’ crates`]);
   if (x && (x.rr || x.li)) out.push(['Quality', [x.rr ? `RYM ${Number(x.rr).toFixed(2)}${x.rv ? ` from ${Number(x.rv).toLocaleString()} ratings` : ''}` : '', x.li ? `${rN(x.li)} listeners on Last.fm` : ''].filter(Boolean).join(' · ')]);
   else if (!x && item.rating) out.push(['Yours', `you rate it ★ ${item.rating}${rPlays(item) ? ` · ${rPlays(item)} plays` : ''}`]);
@@ -217,7 +231,7 @@ function rCur() { return radio.on && crateQueueId === radio.qid && crateQueueInd
 function rSkip() { if (!radio.on || crateQueueId !== radio.qid) return; playCrateQueueIndex(radio.qid, crateQueueIndex + 1); }
 function rLearn(e, w) { if (!e || !e.item) return; rSplit(e.item.genre).forEach(g => { radio.boost.g[g] = (radio.boost.g[g] || 0) + w; }); const a = rFold(e.item.artist); radio.boost.a[a] = (radio.boost.a[a] || 0) + w; }
 function rLike() { const e = rCur(); if (!e || e.radioLiked) return; e.radioLiked = true; rLearn(e, 1); if (e.radio.kind === 'new') radio.sess.newLiked++;
-  const l = rLs(RADIO_LIKE_KEY, []); l.unshift({ k: e.radio.key, a: e.item.artist, t: e.item.title, s: e.track.trackName, at: Date.now() }); rLsSet(RADIO_LIKE_KEY, l.slice(0, 500)); rPaint(); flashGlobalToast(`Liked: more like ${e.item.artist} on this station.`); }
+  const l = rLs(RADIO_LIKE_KEY, []); l.unshift({ k: e.radio.key, a: e.item.artist, t: e.item.title, g: e.item.genre || '', s: e.track.trackName, at: Date.now() }); rLsSet(RADIO_LIKE_KEY, l.slice(0, 500)); radio.taste = null; rPaint(); flashGlobalToast(`Liked: more like ${e.item.artist} on this station.`); }
 function rNotForMe(x) {
   const e = x ? null : rCur(), k = x ? x.k : e && e.radio.key; if (!k) return;
   const no = rLs(RADIO_NO_KEY, {}); no[k] = Date.now(); rLsSet(RADIO_NO_KEY, no);
@@ -238,6 +252,8 @@ function radioOpen(tab) {
   if (!ov) {
     ov = document.createElement('div'); ov.id = 'radioOv'; ov.className = 'pt-overlay rd-overlay'; document.body.appendChild(ov);
     ov.addEventListener('click', rClick); ov.addEventListener('input', rInput); ov.addEventListener('change', rInput);
+    ov.addEventListener('keydown', (e) => { const t = e.target; if (e.key !== 'Enter' || !t.matches('[data-rd-seed-artist]')) return; e.preventDefault(); const v = t.value.trim(); if (!v) return;
+      const seed = rSeedGet(); if (!seed.a.some(a => rFold(a) === rFold(v))) seed.a.push(v); rSeedSet(seed); rSeedChanged(); setTimeout(() => { const n = document.querySelector('#radioOv [data-rd-seed-artist]'); if (n) n.focus(); }, 0); });
     document.addEventListener('keydown', (e) => { const o = document.getElementById('radioOv'); if (e.key === 'Escape' && o && !o.hidden && !document.getElementById('rfOv')) { e.stopImmediatePropagation(); o.hidden = true; } }, true);
   }
   radio.tab = tab || (radio.on ? 'now' : radio.tab === 'now' ? 'stations' : radio.tab || 'stations');
@@ -271,7 +287,7 @@ function rNowHtml() {
       <div class="rd-acts"><button type="button" class="gs-btn rd-tealbtn${e.radioLiked ? ' on' : ''}" data-rd="like" aria-pressed="${!!e.radioLiked}">♥ ${e.radioLiked ? 'Liked' : 'Like'}</button><button type="button" class="gs-btn" data-rd="skip">Skip</button><button type="button" class="gs-btn" data-rd="no">Not for me</button>${isNew ? '<button type="button" class="gs-btn gs-pri" data-rd="add">+ Add to crate</button>' : ''}</div>
       <div class="rd-why"><div class="gs-lbl">Why this</div>${e.radio.why.map(([k, v]) => `<div class="rd-wl"><span>${escapeHtml(k)}</span><span>${escapeHtml(v)}</span></div>`).join('') || '<p class="gs-s">One of your own.</p>'}</div>
     </div></div>
-    <div class="rd-slider"><span class="gs-lbl">Familiar</span><input type="range" min="0" max="100" step="5" value="${newPct}" data-rd-new aria-label="How much is new"><span class="gs-lbl rd-teal">New</span><span class="gs-s rd-sl-say">${newPct}% new: ${newPct >= 50 ? `about ${Math.round(newPct / 10)} in every 10 songs come from beyond your crate` : `mostly yours, ${newPct}% from beyond`}</span></div>
+    ${state.raw.length ? '' : '<!--'}<div class="rd-slider"><span class="gs-lbl">Familiar</span><input type="range" min="0" max="100" step="5" value="${newPct}" data-rd-new aria-label="How much is new"><span class="gs-lbl rd-teal">New</span><span class="gs-s rd-sl-say">${newPct}% new: ${newPct >= 50 ? `about ${Math.round(newPct / 10)} in every 10 songs come from beyond your crate` : `mostly yours, ${newPct}% from beyond`}</span></div>${state.raw.length ? '' : '-->'}
   </div><aside class="rd-side"><div class="gs-lbl">Up next on the radio</div>
     ${up.map((u, i) => `<div class="rd-q" data-rd-q="${crateQueueIndex + 1 + i}"><span class="rd-qn">${i + 1}</span>${rCoverHtml(u.item, 'rd-qcv')}<span><b>${escapeHtml(u.track.trackName || '')}</b><em>${escapeHtml(u.item.artist)} · ${escapeHtml(u.item.title)}</em></span><span class="rd-chip ${u.radio && u.radio.kind === 'new' ? 'rd-new' : 'rd-mine'}">${u.radio && u.radio.kind === 'new' ? 'NEW' : 'YOURS'}</span></div>`).join('') || '<p class="gs-s">Finding the next ones…</p>'}
     <div class="gs-lbl rd-sess-l">This session</div>
@@ -284,7 +300,7 @@ function rStationsHtml() {
   const needs = { genre: ['Genre', 'e.g. Post-Punk', 'genres'], artist: ['Artist', 'e.g. Talk Talk', 'artists'], release: ['Release', 'the one playing, or Artist – Title', ''], desc: ['Descriptor', 'e.g. nocturnal', 'descs'], time: ['Year or decade', 'e.g. 1994 or 1980s', ''] }[d.kind];
   const lists = { genres: rTaste().g.map(x => rCap(x.k)), artists: rTaste().a.slice(0, 60).map(x => x.k), descs: rTaste().d.map(x => x.k) };
   const seg = (k, opts) => `<div class="rd-seg" role="radiogroup">${opts.map(([v, l]) => `<button type="button" role="radio" aria-checked="${d[k] === v}" class="${d[k] === v ? 'on' : ''}" data-rd-set="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
-  return `<div class="rd-st">
+  return `<div class="rd-st">${rSeedHtml()}
     ${saved.length ? `<div class="rd-saved"><span class="gs-lbl">Saved</span>${saved.map((s, i) => `<span class="rd-sv"><button type="button" data-rd-saved="${i}">▶ ${escapeHtml(rStName(s))}</button><button type="button" data-rd-unsave="${i}" aria-label="Forget ${escapeHtml(rStName(s))}">×</button></span>`).join('')}</div>` : ''}
     <div class="rd-kinds">${RADIO_KINDS.map(([k, l, s]) => `<button type="button" class="rd-kind${d.kind === k ? ' on' : ''}" data-rd-kind="${k}" aria-pressed="${d.kind === k}"><b>${l}</b><span>${s}</span></button>`).join('')}</div>
     <div class="rd-opts">
@@ -314,6 +330,8 @@ function rInput(e) {
 async function rClick(e) {
   const ov = document.getElementById('radioOv'); if (e.target === ov || e.target.closest('[data-rd="x"]')) { ov.hidden = true; return; }
   const tb = e.target.closest('[data-rd-tab]'); if (tb) { radio.tab = tb.dataset.rdTab; radio.err = ''; rPaint(); if (radio.tab === 'discover') rDiscoverLoad(); return; }
+  const sg = e.target.closest('[data-rd-seedg]'); if (sg) { const seed = rSeedGet(), g = sg.dataset.rdSeedg, i = seed.g.map(x => String(x).toLowerCase()).indexOf(g); if (i >= 0) seed.g.splice(i, 1); else seed.g.push(g); rSeedSet(seed); rSeedChanged(); return; }
+  const sx = e.target.closest('[data-rd-seeda-x]'); if (sx) { const seed = rSeedGet(); seed.a.splice(Number(sx.dataset.rdSeedaX), 1); rSeedSet(seed); rSeedChanged(); return; }
   const kd = e.target.closest('[data-rd-kind]'); if (kd) { radio.draft.kind = kd.dataset.rdKind; radio.draft.value = ''; rPaint(); return; }
   const sb = e.target.closest('[data-rd-set]'); if (sb) { radio.draft[sb.dataset.rdSet] = sb.dataset.v; rPaint(); return; }
   const sv = e.target.closest('[data-rd-saved]'); if (sv) { radioStart(rLs(RADIO_ST_KEY, [])[Number(sv.dataset.rdSaved)]); return; }
@@ -332,6 +350,27 @@ async function rClick(e) {
   else if (k === 'disc-more') { radio.discN = (radio.discN || 24) + 24; rPaint(); }
 }
 
+// ----- "Tell it what you like": for a new crate, a few genres and artists to start from -----
+async function rDbGenres() {
+  if (radio.dbGenres) return radio.dbGenres;
+  radio.dbGenres = [];
+  try { const r = await postUpdate({ action: 'masterMusicState' }); const g = (r && r.status && r.status.genres) || {}; radio.dbGenres = Object.keys(g).sort((x, y) => g[y] - g[x]).map(k => ({ k, n: g[k] })); }
+  catch (e) { radio.dbGenres = []; }
+  radio.dbGenresDone = true; rPaint(); return radio.dbGenres;
+}
+function rSeedHtml() {
+  if (!rCold()) return '';
+  const seed = rSeedGet(), on = new Set(seed.g.map(x => String(x).toLowerCase()));
+  if (!radio.dbGenres) rDbGenres();
+  const gl = (radio.dbGenres || []).slice(0, 40);
+  seed.g.forEach(x => { if (!gl.some(z => z.k === String(x).toLowerCase())) gl.unshift({ k: String(x).toLowerCase(), n: 0 }); });
+  return `<div class="rd-seed"><div class="rd-seed-h"><div><div class="gs-lbl rd-teal">Your crate is ${state.raw.length ? 'still small' : 'empty'}</div><b>Tell it what you like</b></div><span class="gs-s">Pick genres and artists to start from. Everything you Like and Add on the radio teaches it too, and your crate takes over as it grows.${seed.g.length || seed.a.length ? '' : ' With nothing picked, it plays the best of the database: what your friends keep, and what’s rated and played most.'}</span></div>
+    <div class="rd-seed-g">${gl.length ? gl.map(g => `<button type="button" class="rd-gchip${on.has(g.k) ? ' on' : ''}" data-rd-seedg="${escapeHtml(g.k)}" aria-pressed="${on.has(g.k)}">${escapeHtml(rCap(g.k))}${g.n ? `<i>${rN(g.n)}</i>` : ''}</button>`).join('') : `<span class="gs-s">${radio.dbGenresDone ? 'No genres in the database yet: add artists instead.' : 'Reading the database’s genres…'}</span>`}</div>
+    <div class="rd-seed-a"><input type="text" class="rd-in" data-rd-seed-artist placeholder="Add an artist you like, then Enter" aria-label="Add an artist you like">${seed.a.map((a, i) => `<span class="rd-sv"><button type="button" disabled>${escapeHtml(a)}</button><button type="button" data-rd-seeda-x="${i}" aria-label="Remove ${escapeHtml(a)}">×</button></span>`).join('')}</div></div>`;
+}
+let rSeedT = 0;
+function rSeedChanged() { radio.disc = null; rPaint(); clearTimeout(rSeedT); rSeedT = setTimeout(() => { if (radio.tab === 'discover') rDiscoverLoad(true); }, 700); }
+
 // ----- Discover: the database's best for you, not in your crate -----
 async function rDiscoverLoad(force) {
   if (radio.discLoading || (radio.disc && !force && Date.now() - radio.discAt < 10 * 60e3)) { rPaint(); return; }
@@ -339,18 +378,20 @@ async function rDiscoverLoad(force) {
   try {
     const keep = { pool: radio.pool, related: radio.related, mine: radio.mine, seeds: radio.seeds };
     await rLoadPool({ kind: 'taste' });
-    const list = radio.pool.map(x => Object.assign({}, x, { m: rMatch(x) })); radio.discRelated = radio.related;
+    const blank = rCold() && !rSeedGet().g.length && !rSeedGet().a.length;          // (nothing to match against yet: the database's own order, its best first)
+    const list = radio.pool.map(x => Object.assign({}, x, { m: blank ? null : rMatch(x) })); radio.discRelated = radio.related;
     if (radio.on) Object.assign(radio, keep); else radio.pool = [];
-    radio.disc = list.sort((a, b) => b.m - a.m || (b.rr || 0) - (a.rr || 0)); radio.discAt = Date.now();
+    radio.disc = blank ? list : list.sort((a, b) => b.m - a.m || (b.rr || 0) - (a.rr || 0)); radio.discAt = Date.now();
   } catch (e) { radio.err = e.message; }
   radio.discLoading = false; rPaint();
 }
 function rDiscoverHtml() {
-  if (radio.discLoading && !radio.disc) return '<p class="gs-s">Reading the music database for you…</p>';
-  const l = radio.disc || []; if (!l.length) return '<p class="gs-s">Nothing yet: the music database fills as you and your friends use CRATE (⚙ › Music database…).</p>';
-  const n = radio.discN || 24, avg = Math.round(l.slice(0, 50).reduce((s, x) => s + x.m, 0) / Math.min(50, l.length));
-  return `<div class="rd-dnums"><div><b>${l.length.toLocaleString()}</b><span>releases near your taste, not in your crate</span></div><div><b class="rd-teal">${avg}%</b><span>average match, top 50</span></div><div><b>${l.filter(x => x.cr).length.toLocaleString()}</b><span>in friends’ crates</span></div><div><b>${l.filter(x => x.rr >= 3.7).length.toLocaleString()}</b><span>rated 3.7+ on RYM</span></div></div>
-  <div class="rd-grid">${l.slice(0, n).map((x, i) => `<button type="button" class="rd-dc" data-rd-disc="${i}">${x.c ? `<img src="${escapeHtml(x.c)}" alt="" loading="lazy">` : '<span class="rd-nocv"></span>'}<b>${escapeHtml(x.t)}</b><em>${escapeHtml(x.a)}${x.y ? ' · ' + escapeHtml(x.y) : ''}</em><span class="rd-dm"><i class="rd-teal">${x.m}%</i>${x.rr ? ` · RYM ${Number(x.rr).toFixed(2)}` : ''}${x.li ? ` · ${rN(x.li)}` : ''}${x.cr ? ` · ${x.cr}★` : ''}</span></button>`).join('')}</div>
+  const seed = rSeedHtml();
+  if (radio.discLoading && !radio.disc) return seed + '<p class="gs-s">Reading the music database for you…</p>';
+  const l = radio.disc || []; if (!l.length) return seed + '<p class="gs-s">Nothing yet: the music database fills as you and your friends use CRATE (⚙ › Music database…).</p>';
+  const n = radio.discN || 24, avg = l[0].m == null ? null : Math.round(l.slice(0, 50).reduce((s, x) => s + x.m, 0) / Math.min(50, l.length));
+  return `${seed}<div class="rd-dnums"><div><b>${l.length.toLocaleString()}</b><span>${rCold() && !rSeedGet().g.length && !rSeedGet().a.length ? 'of the database’s best' : 'releases near your taste'}, not in your crate</span></div>${avg == null ? '' : `<div><b class="rd-teal">${avg}%</b><span>average match, top 50</span></div>`}<div><b>${l.filter(x => x.cr).length.toLocaleString()}</b><span>in friends’ crates</span></div><div><b>${l.filter(x => x.rr >= 3.7).length.toLocaleString()}</b><span>rated 3.7+ on RYM</span></div></div>
+  <div class="rd-grid">${l.slice(0, n).map((x, i) => `<button type="button" class="rd-dc" data-rd-disc="${i}">${x.c ? `<img src="${escapeHtml(x.c)}" alt="" loading="lazy">` : '<span class="rd-nocv"></span>'}<b>${escapeHtml(x.t)}</b><em>${escapeHtml(x.a)}${x.y ? ' · ' + escapeHtml(x.y) : ''}</em><span class="rd-dm">${x.m != null ? `<i class="rd-teal">${x.m}%</i> · ` : ''}${x.rr ? `RYM ${Number(x.rr).toFixed(2)}` : ''}${x.li ? ` · ${rN(x.li)}` : ''}${x.cr ? ` · ${x.cr}★` : ''}</span></button>`).join('')}</div>
   ${l.length > n ? '<div class="rd-go"><button type="button" class="gs-btn" data-rd="disc-more">Show more</button></div>' : ''}`;
 }
 

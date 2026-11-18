@@ -6981,3 +6981,12 @@ input.mcd-filled { border-color: rgba(127,209,185,.6) !important; }
   .rd-now, .rf-body { grid-template-columns: 1fr; } .rd-side { border-left: 0; padding-left: 0; } .rd-np { flex-direction: column; } .rd-cv { width: 100%; height: auto; aspect-ratio: 1; max-width: 320px; }
   .rd-kinds { grid-template-columns: repeat(2, minmax(0, 1fr)); } .rd-row { grid-template-columns: 1fr; gap: 8px; } .rf-nums { grid-template-columns: repeat(3, minmax(0, 1fr)); } .rd-sl-say { width: auto; } .rd-head { flex-wrap: wrap; } .rd-tabs { margin-left: 0; }
 }
+/* (1.135.169) "Tell it what you like" */
+.rd-seed { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border: 1px solid rgba(127,209,185,.35); border-radius: 12px; background: rgba(127,209,185,.04); margin-bottom: 16px; }
+.rd-seed-h { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 16px; align-items: center; } .rd-seed-h b { font: 400 24px/1 'Bebas Neue', Inter, sans-serif; color: #EDE7DC; letter-spacing: .02em; }
+.rd-seed-g { display: flex; flex-wrap: wrap; gap: 6px; }
+.rd-gchip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 14px; border: 1px solid #2A313C; background: none; color: #C9C3B8; font: 12.5px Inter, sans-serif; cursor: pointer; }
+.rd-gchip i { font: normal 500 10px 'IBM Plex Mono', monospace; color: #5D6573; } .rd-gchip:hover { border-color: #5D6573; }
+.rd-gchip.on { border-color: #D6A24C; background: rgba(214,162,76,.14); color: #D6A24C; } .rd-gchip.on i { color: #D6A24C; }
+.rd-seed-a { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; } .rd-seed-a .rd-in { width: 300px; } .rd-sv button[disabled] { cursor: default; color: #EDE7DC; }
+@media (max-width: 900px) { .rd-seed-h { grid-template-columns: 1fr; gap: 6px; } .rd-seed-a .rd-in { width: 100%; } }
