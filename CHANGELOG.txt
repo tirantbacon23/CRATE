@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.151
+  CURRENT_VERSION: 1.135.152
 
+  1.135.152 — 2026-11-18 — The playlist list, nicer: each playlist with a mosaic of its first four covers, its name and what's in it
+          ("14 songs · 3 releases"), the open one marked in gold; Liked songs on a tile of its own; drawn icons for new
+          folder and new playlist, and for folders. The search menu's "To add" tab is now "Online" (and its count says
+          "N online, not in your crate").
   1.135.151 — 2026-11-18 — The player's lines that don't fit (song, artist, release, extra line) scroll sideways, a marquee: a moment
           still, then along at a reading pace and round again; they stop while the pointer is over them, and stay still
           with "reduce motion". The cover wall fits the screen: each size is a whole number of rows filling its height

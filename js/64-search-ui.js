@@ -249,7 +249,7 @@ function srchDropdownHtml() {
 }
 
 // ----- the detail panel -----
-const SRCH_TABS = [['all', 'Everything'], ['crate', 'My crate'], ['add', 'To add'], ['songs', 'Songs'], ['artists', 'Artists']];
+const SRCH_TABS = [['all', 'Everything'], ['crate', 'My crate'], ['add', 'Online'], ['songs', 'Songs'], ['artists', 'Artists']];
 function srchDetailItems(q) {
   const items = [], tab = srch.tab, has = q.trim();
   if (!has) return items;
@@ -280,7 +280,7 @@ function srchDetailHtml() {
       else (s.col === 'songs' ? songs : artists).push(srchRowHtml(s, i));
     });
     const nC = (state.filtered || []).length, nA = srch.online.length;
-    main = `<div class="srch-lbl">Releases · ${nC} in your crate${srch.tab !== 'crate' ? ` · ${srch.onlineState === 'loading' ? 'looking online…' : nA + ' to add'}` : ''}${srch.tab !== 'crate' && nA ? ` <button type="button" class="srch-popsort" data-srch-pop title="Order the releases found online">${srchPopSortOn() ? 'Popular first' : 'Best match'}</button>${srch.onlineNote ? ` <span class="srch-popnote">${escapeHtml(srch.onlineNote)}</span>` : ''}` : ''}</div>
+    main = `<div class="srch-lbl">Releases · ${nC} in your crate${srch.tab !== 'crate' ? ` · ${srch.onlineState === 'loading' ? 'looking online…' : nA + ' online, not in your crate'}` : ''}${srch.tab !== 'crate' && nA ? ` <button type="button" class="srch-popsort" data-srch-pop title="Order the releases found online">${srchPopSortOn() ? 'Popular first' : 'Best match'}</button>${srch.onlineNote ? ` <span class="srch-popnote">${escapeHtml(srch.onlineNote)}</span>` : ''}` : ''}</div>
       <div class="srch-grid">${grid.join('') || `<div class="srch-note">${escapeHtml(srchOnlineStatus() || 'Nothing here.')}</div>`}</div>
       ${songs.length ? `<div class="srch-lbl">Songs</div>${songs.join('')}` : ''}${artists.length ? `<div class="srch-lbl">Artists</div>${artists.join('')}` : ''}`;
   }
