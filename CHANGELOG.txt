@@ -17,8 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.153
+  CURRENT_VERSION: 1.135.154
 
+  1.135.154 — 2026-11-18 — Import a playlist (⤓ in the playlist list's header). Paste a Spotify or YouTube playlist link, a CSV export
+          (Exportify; TuneMyMusic or Soundiiz for Apple Music, Tidal, Deezer…), or a list of songs ("Artist - Song" or
+          "Song by Artist", one a line). Each song is matched to your crate: its release by artist and title, then the
+          song in the release's tracklist (or anywhere in that artist's releases when the source names no release). A
+          review shows each song as in your crate, by name, release not in your crate, or not found, with a tick to leave
+          any out; the releases that aren't in your crate can be added with it (artist, title, date, cover and link from
+          the source). Then one new playlist in the source's order. Spotify's own mixes (Discover Weekly…) can't be read
+          by apps; a private Spotify playlist needs you signed in to Spotify in CRATE.
   1.135.153 — 2026-11-18 — The search panel always has a box to type in: when the top bar's search box is covered (the player docked
           along the top of the window sits over it) or out of sight, a box of the panel's own appears across its top. It is
           the same search: typing, ↑ ↓, Enter and Esc go to the real box.
