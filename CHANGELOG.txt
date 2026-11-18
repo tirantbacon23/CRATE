@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.141
+  CURRENT_VERSION: 1.135.142
 
+  1.135.142 — 2026-11-18 — Recent and saved searches on every device. They go to your sheet's Settings tab (a "Searches" entry) a few
+          seconds after they change and come back with the crate, each with when it was last searched or saved, so devices
+          merge instead of overwriting each other: the newest 8 recent and newest 20 saved, and a saved search taken away
+          on one device goes on the others too. Needs the backend from this version (paste and deploy a New version); with
+          an older backend they stay on each device as before.
   1.135.141 — 2026-11-18 — Galaxy influence: a genre's story. Thread | Story in the header (or "<genre>: its story" on a picked release)
           tells any genre with three or more releases in your crate in steps, worked out from the influence links: where
           it starts (its first releases and the families what they drew from belong to, in %), the turning point (the
