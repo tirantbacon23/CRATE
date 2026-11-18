@@ -6501,3 +6501,6 @@ html.cur-on input:not([type="range"]):not([type="checkbox"]):not([type="radio"])
 /* (1.135.136) the deck's tracklist ends at its total: no "Clear selection · Match songs… · N/M tracks selected" (Match songs is in the
    release's right-click menu and its cover popup; ticks for the next diary entry still show on each song and in Log a listen) */
 #deckTracklist .tracklist-select-actions, #deckTracklist .tracklist-listen-progress { display: none !important; }
+/* (1.135.137) the popup's settings scroll */
+.qp-custom { overflow-y: auto; overscroll-behavior: contain; }
+#albumQuickPeek:not(.album-quick-peek-inline) { max-height: calc(100vh - 16px); overflow-y: auto; overscroll-behavior: contain; }

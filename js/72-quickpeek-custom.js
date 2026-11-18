@@ -46,9 +46,17 @@ function qpcToggle(open) {
   let panel = document.getElementById('qpCustom');
   if (!panel) { panel = document.createElement('div'); panel.id = 'qpCustom'; panel.className = 'qp-custom'; panel.hidden = true; const tabs = el.albumQuickPeekTabs; tabs.parentNode.insertBefore(panel, tabs.nextSibling); }
   const show = open == null ? panel.hidden : open;
-  panel.hidden = !show; if (show) panel.innerHTML = qpcPanelHtml();
+  panel.hidden = !show; if (show) { panel.innerHTML = qpcPanelHtml(); qpcFit(); }
   const b = document.getElementById('qpCustomBtn'); if (b) b.setAttribute('aria-expanded', String(show));
 }
+// (1.135.137) The panel scrolls by itself, as tall as the window leaves room for below where it starts (it ran off the bottom of the
+// window with no way to reach the rest). The popup's own box scrolls too when it is taller than the window.
+function qpcFit() {
+  const panel = document.getElementById('qpCustom'); if (!panel || panel.hidden) return;
+  const top = panel.getBoundingClientRect().top, room = Math.max(160, window.innerHeight - Math.max(0, top) - 16);
+  panel.style.maxHeight = room + 'px';
+}
+window.addEventListener('resize', () => { try { qpcFit(); } catch (e) { /* closed */ } });
 function qpcInit() {
   const p = el && el.albumQuickPeek, tabs = el && el.albumQuickPeekTabs; if (!p || !tabs || document.getElementById('qpCustomBtn')) return;
   const b = document.createElement('button'); b.type = 'button'; b.id = 'qpCustomBtn'; b.className = 'qp-tab qp-custom-btn'; b.textContent = '⚙'; b.title = 'Choose what this popup shows'; b.setAttribute('aria-label', 'Choose what this popup shows'); b.setAttribute('aria-expanded', 'false');

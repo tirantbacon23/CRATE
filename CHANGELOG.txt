@@ -17,8 +17,10 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.136
+  CURRENT_VERSION: 1.135.137
 
+  1.135.137 — 2026-11-18 — The cover popup's ⚙ settings scroll: they ran off the bottom of the window with no way to reach the rest. The panel
+          is as tall as the room below it and scrolls; the popup itself scrolls when it is taller than the window.
   1.135.136 — 2026-11-18 — The cover popup's songs, two looks. Roomy (the usual): the name, and under it a quieter line with your rating, note,
           genre, credits… and a thin Last.fm bar; the numbers in columns at the right that line up, headed once; more space between
           songs; the like and Heard at the end of the second line. Compact: one line a song, every other row shaded. Which columns
