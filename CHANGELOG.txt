@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.144
+  CURRENT_VERSION: 1.135.145
 
+  1.135.145 — 2026-11-18 — Alt+Enter plays the release or song you're on; Alt+Shift+Enter adds it to the queue instead. "On" is, in
+          order: the row or card with the keyboard focus, what's selected (several songs or releases play together, in
+          their order on the page), what the mouse is over (a cover, a song row, a release in the left list, the Galaxy's
+          lists, the deck's lineage), or the open deck. In the ? list.
   1.135.144 — 2026-11-18 — Galaxy influence: play the thread. From a picked release (the Galaxy's side panel, or its deck) its line
           in your crate as a queue, oldest to newest: back to its roots (up to three steps of what it drew from), forward
           to now (two steps of what drew from it) or both; its best-known song from each release (most Last.fm listeners

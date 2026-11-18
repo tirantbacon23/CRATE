@@ -11,6 +11,9 @@ const KEYS_LIST = [
     ['L', 'Like or unlike the song playing'],
     ['D', 'Open the deck of what’s playing'], ['C', 'Show what’s playing in the catalogue'],
   ]],
+  ['Playing what you\u2019re on', [
+    ['Alt Enter', 'Play the release or song you\u2019re on (focused, selected, under the mouse, or the open deck)'], ['Alt Shift Enter', 'Add it to the queue instead'],
+  ]],
   ['Going places', [
     ['/', 'Search'], ['Ctrl K', 'Search, from anywhere'],
     ['1', 'Music'], ['2', 'Diary'], ['3', 'Scrobbles'], ['4', 'Stats'], ['5', 'Artist'],
@@ -106,3 +109,51 @@ document.addEventListener('keydown', (e) => {
   if (low === 't' && typeof openTaste === 'function') return go(openTaste);
   if (low === 'a' && typeof openAsk === 'function') return go(() => openAsk());
 });
+
+// ----- (1.135.145) Alt+Enter: play the release or song you're on. Alt+Shift+Enter: add it to the queue. "On" is, in order: the row or card with the
+// keyboard focus, what's selected (several songs or releases play together, in their order on the page), what the mouse is over, the open deck. -----
+let keysHover = null;
+document.addEventListener('mouseover', (e) => { const t = e.target.closest && e.target.closest('[data-track-key], [data-album-row], .left-row[data-lrow], [data-gn-go], [data-gs-go], [data-pt-deck]'); keysHover = t || null; }, true);
+function keysItemByRow(row) { row = String(row); return (state.raw || []).find(r => String(r.row) === row) || null; }
+function keysTrackOf(node) {                                          // a song row -> { item, trackNum, trackName }
+  const key = node.dataset.trackKey || '', m = /^(.+?)::(@?)(.+)$/.exec(key); if (!m) return null;
+  const item = keysItemByRow(m[1]); if (!item) return null;
+  const list = (activeItem === item && typeof currentTracklistTracks !== 'undefined' && currentTracklistTracks && currentTracklistTracks.length ? currentTracklistTracks : null) || (state.trackCache && state.trackCache[artKey(item)]) || [];
+  const t = m[2] ? list[Number(m[3])] : list.find(x => String(x.trackNumber) === m[3]);
+  const nameEl = node.querySelector('.trk-title, .mt-title, .track-name');
+  const name = (t && t.trackName) || (nameEl ? (() => { const c = nameEl.cloneNode(true); c.querySelectorAll('button, a, .sd-chips').forEach(x => x.remove()); return c.textContent.trim(); })() : '');
+  return name ? { item, row: item.row, trackNum: t ? t.trackNumber : (m[2] ? '' : m[3]), trackName: name } : null;
+}
+function keysReleaseOf(node) {
+  const r = node.dataset.albumRow || node.dataset.lrow || node.dataset.ptDeck; if (r != null) return keysItemByRow(r);
+  const g = node.dataset.gnGo || node.dataset.gsGo; if (g != null && typeof gx !== 'undefined' && gx.items) return gx.items[Number(g)] || null;
+  return null;
+}
+function keysTarget() {
+  const pick = (n) => n && n.closest ? n.closest('[data-track-key], [data-album-row], .left-row[data-lrow], [data-gn-go], [data-gs-go], [data-pt-deck]') : null;
+  const one = (n) => { if (!n) return null; if (n.dataset.trackKey) { const t = keysTrackOf(n); return t ? { tracks: [t] } : null; } const it = keysReleaseOf(n); return it ? { releases: [it] } : null; };
+  const f = one(pick(document.activeElement)); if (f) return f;
+  if (state.selectedTracks && state.selectedTracks.size) { const tr = [...document.querySelectorAll('[data-track-key].selected')].filter(n => n.offsetParent !== null).map(keysTrackOf).filter(Boolean); if (tr.length) return { tracks: tr }; }
+  if (state.selectedAlbums && state.selectedAlbums.size) { const order = [...document.querySelectorAll('[data-album-row]')].map(n => n.dataset.albumRow), sel = [...state.selectedAlbums]; sel.sort((a, b) => (order.indexOf(a) + 1 || 1e9) - (order.indexOf(b) + 1 || 1e9)); const rel = sel.map(keysItemByRow).filter(Boolean); if (rel.length) return { releases: rel }; }
+  const h = keysHover && keysHover.isConnected && keysHover.offsetParent !== null ? one(keysHover) : null; if (h) return h;
+  if (keysDeckOpen() && activeItem) return { releases: [activeItem] };
+  return null;
+}
+document.addEventListener('keydown', (e) => {
+  if (!e.altKey || e.ctrlKey || e.metaKey || e.key !== 'Enter') return;
+  if (keysTyping(e.target) && !(e.target.closest && e.target.closest('[data-track-key]'))) return;
+  const t = keysTarget(); if (!t) { flashGlobalToast('Nothing to play: focus, select or point at a release or song.'); e.preventDefault(); return; }
+  e.preventDefault(); e.stopPropagation();
+  const queue = e.shiftKey;
+  if (t.tracks) {
+    const list = t.tracks.map(x => ({ row: x.row, trackNum: x.trackNum, trackName: x.trackName }));
+    if (queue) { queueTracksNow(list); flashGlobalToast(list.length === 1 ? `Queued \u201c${list[0].trackName}\u201d` : `Queued ${list.length} songs`); }
+    else if (list.length === 1) { const x = t.tracks[0]; flashGlobalToast(`Playing \u201c${x.trackName}\u201d`); playTrackNow(x.item, x.trackName, x.trackNum); }
+    else { flashGlobalToast(`Playing ${list.length} songs`); playTracksNow(list); }
+    return;
+  }
+  const rel = t.releases;
+  if (queue) { (async () => { for (const it of rel) await queueAlbumTracks(it); flashGlobalToast(rel.length === 1 ? `Queued \u201c${rel[0].title}\u201d` : `Queued ${rel.length} releases`); })(); }
+  else if (rel.length === 1) { flashGlobalToast(`Playing \u201c${rel[0].title}\u201d`); playAlbumReplacingQueue(rel[0]); }
+  else playAlbumsReplacingQueue(rel);
+}, true);
