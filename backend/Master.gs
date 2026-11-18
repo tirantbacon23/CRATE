@@ -417,6 +417,54 @@ function _music(email, action, payload) {
       if (pick.length) { const now = Date.now(); fill.getRange(fill.getLastRow() + 1, 1, pick.length, 3).setValues(pick.map(k => [k, names[k], now])); }          // handed out: nobody else gets them this month
       return _json({ ok: true, music: true, artists: pick.map(k => names[k]) });
     }
+    if (action === 'musicRadio') {          // (1.135.168) CRATE Radio's candidates: releases near the station's genres, artists and years; CRATE does the final pick
+      const id = _mProps().getProperty('MASTER_SS'), ss = id ? SpreadsheetApp.openById(id) : null, sh = ss ? ss.getSheetByName('Music') : null;
+      if (!sh || sh.getLastRow() < 2) return _json({ ok: true, music: true, items: [], related: {} });
+      const fold = (x) => String(x || '').toLowerCase().trim();
+      const genres = (Array.isArray(payload.genres) ? payload.genres : []).slice(0, 40).map(g => ({ g: fold(g.g || g), w: Number(g.w) || 1 })).filter(g => g.g);
+      const descs = (Array.isArray(payload.descs) ? payload.descs : []).slice(0, 30).map(d => ({ d: fold(d.d || d), w: Number(d.w) || 1 })).filter(d => d.d);
+      const seeds = (Array.isArray(payload.artists) ? payload.artists : []).slice(0, 80).map(a => ({ k: _mFold(a.a || a), w: Number(a.w) || 1 })).filter(a => a.k);
+      const yFrom = Number(payload.yFrom) || 0, yTo = Number(payload.yTo) || 9999, deep = !!payload.deep, want = Math.max(20, Math.min(500, Number(payload.n) || 300));
+      const skip = {}; (Array.isArray(payload.skip) ? payload.skip.slice(0, 8000) : []).forEach(k => { skip[String(k)] = 1; });
+      // the artists near the seeds: the seeds themselves, then who Last.fm calls similar to them (and to those, a little)
+      const related = {}; seeds.forEach(a => { related[a.k] = Math.max(related[a.k] || 0, a.w); });
+      const simSh = ss.getSheetByName('Similar'); const simMap = {};
+      if (simSh && simSh.getLastRow() > 1) simSh.getRange(2, 1, simSh.getLastRow() - 1, 3).getValues().forEach(r => { if (r[0]) simMap[String(r[0])] = r[2]; });
+      const spread = (k, w, depth) => { let l = []; try { l = JSON.parse(String(simMap[k] || '[]')); } catch (e) { l = []; } l.slice(0, 20).forEach(z => { const kk = _mFold(z.a); if (!kk) return; const ww = w * (Number(z.m) || 0.3) * (depth ? 0.4 : 0.8); if (ww > (related[kk] || 0)) related[kk] = ww; }); };
+      seeds.forEach(a => spread(a.k, a.w, 0)); Object.keys(related).slice(0, 200).forEach(k => { if (!seeds.some(a => a.k === k)) spread(k, related[k], 1); });
+      const v = sh.getRange(2, 1, sh.getLastRow() - 1, MU_COLS.length).getValues(), I = {}; MU_COLS.forEach((c, i) => { I[c] = i; });
+      const out = [];
+      v.forEach(r => {
+        const key = String(r[I.Key] || ''); if (!key || skip[key]) return;
+        const y = Number(String(r[I.Year] || '').slice(0, 4)) || 0; if (y && (y < yFrom || y > yTo)) return; if (!y && (yFrom > 0 || yTo < 9999) && payload.strictYears) return;
+        const g = fold(r[I.Genre]), d = fold(r[I.Descriptors]), ak = _mFold(r[I.Artist]);
+        let sc = 0, why = [];
+        genres.forEach(x => { if (g && g.indexOf(x.g) >= 0) { sc += 2 * x.w; if (why.length < 3) why.push('g:' + x.g); } });
+        descs.forEach(x => { if (d && d.indexOf(x.d) >= 0) sc += 1.2 * x.w; });
+        if (related[ak]) { sc += 4 * related[ak]; why.push('a'); }
+        const li = Number(r[I.Listeners]) || 0, rr = Number(r[I.RymRating]) || 0, rv = Number(r[I.RymVotes]) || 0, cr = Number(r[I.Crates]) || 0;
+        if (payload.friends) { if (!cr) return; sc += 1; }          // (the friends' station: only what's in their crates)
+        if (!sc) return;
+        if (rr) sc += (rr - 3) * 1.5 * Math.min(1, rv / 300);
+        sc += cr * 0.6;
+        sc += deep ? (li ? -Math.log10(1 + li) * 0.5 + 2 : 0.5) : Math.log10(1 + li) * 0.25;
+        out.push([sc, r]);
+      });
+      out.sort((a, b) => b[0] - a[0]);
+      return _json({ ok: true, music: true, related: related, items: out.slice(0, want).map(x => { const r = x[1]; return { k: String(r[I.Key]), a: r[I.Artist], t: r[I.Title], ty: r[I.Type], y: String(r[I.Year] || '').slice(0, 4), g: r[I.Genre], d: r[I.Descriptors], l: r[I.Label], c: r[I.Cover], li: Number(r[I.Listeners]) || 0, lp: Number(r[I.LfPlays]) || 0, rr: Number(r[I.RymRating]) || 0, rv: Number(r[I.RymVotes]) || 0, cr: Number(r[I.Crates]) || 0, s: Math.round(x[0] * 100) / 100 }; }) });
+    }
+    if (action === 'musicLinks') {          // (1.135.168) song links found once, kept for everyone: get (keys) and/or put (links)
+      const ss = _mSS(), sh = _muTab(ss, 'Links', ['Key', 'Song', 'Youtube', 'Spotify', 'At']);
+      const put = Array.isArray(payload.put) ? payload.put.slice(0, 200) : [];
+      if (put.length) {
+        const lock = LockService.getScriptLock(); lock.waitLock(20000);
+        try { const now = Date.now(); sh.getRange(sh.getLastRow() + 1, 1, put.length, 5).setValues(put.map(x => [_muS(x.k, 400), _muS(x.s, 300), _muS(x.yt, 200), _muS(x.sp, 200), now])); } finally { lock.releaseLock(); }
+      }
+      const keys = {}; (Array.isArray(payload.keys) ? payload.keys.slice(0, 200) : []).forEach(k => { keys[String(k)] = 1; });
+      const links = {};
+      if (Object.keys(keys).length && sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, 4).getValues().forEach(r => { const k = String(r[0]); if (!keys[k]) return; (links[k] = links[k] || {})[_mFold(r[1])] = { s: r[1], yt: r[2], sp: r[3] }; });
+      return _json({ ok: true, music: true, links: links });
+    }
     return _json({ ok: false, music: true, error: 'Unknown music action' });
   } catch (err) { return _json({ ok: false, music: true, error: String(err && err.message || err) }); }
 }

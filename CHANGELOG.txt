@@ -17,8 +17,19 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.167
+  CURRENT_VERSION: 1.135.168
 
+  1.135.168 — 2026-11-18 — CRATE Radio (steps 2 and 3): plays beyond your crate, from the music database. The player's new radio
+          button (or ⚙ › CRATE Radio…, or Shift R) opens it. Stations: your taste, a genre, an artist, a release, a descriptor, friends'
+          favourites, deep cuts, a time machine; with How new (how much comes from beyond your crate), How far (close / nearby /
+          adventurous), years, and one song / a few / whole releases. Save stations for one click. Now playing shows why each song
+          was picked (your releases it's like, its sound against your top genres, Last.fm's similar artists, friends' crates, RYM and
+          Last.fm numbers), up next, and this session's numbers; Like, Skip and Not for me teach it as it plays, + Add to crate opens
+          Add a release filled in. Song links found once are kept in the database for everyone. Discover: the database's best
+          releases for your taste, not in your crate, each with its match. A release from the database opens its own card: match,
+          RYM, listeners, friends' crates, songs with a link, times the radio played it, why it's for you, and its songs with their
+          Last.fm listeners; Play, Start a station from it, Add, Not for me. The music database's search results open it too.
+          Paste the new Master.gs and deploy a new version.
   1.135.167 — 2026-11-18 — The music database (CRATE Radio, step 1): ⚙ › Music database… One shared catalog of music, kept with the
           master crate, growing far beyond anyone's crate: from your friends' crates each night, from what CRATE sees as you use it
           (More Releases, release cards, online searches, the RYM pages you browse with the add-on) and from a daily Last.fm fill (the

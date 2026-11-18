@@ -1,0 +1,418 @@
+// (1.135.168) CRATE Radio, step 2 and 3: plays beyond your crate, from the music database (js/99-music-db.js, Master.gs's musicRadio).
+//   Stations: your taste, a genre, an artist, a release, a descriptor, friends' favourites, deep cuts, a time machine. Each has
+//   "How new" (how much comes from beyond your crate), "How far" (close / nearby / adventurous), years, and one song / a few / whole releases.
+//   The database hands back releases near the station (its genres, its artists and the artists Last.fm calls similar to them); CRATE picks
+//   from those with your taste and what you've done this session (Like, Skip, Not for me), and mixes in your own releases.
+//   Songs play through the usual queue: a link someone found before (kept in the database for everyone), else YouTube through the add-on
+//   when that's your source, else Spotify's search.
+//   The radio window: Now playing (why this, up next, this session's numbers), Stations, and Discover (the database's best for you).
+//   A release from the database opens its own card: numbers, why it's for you, its songs with their Last.fm listeners.
+const RADIO_ST_KEY = 'crate_radio_stations_v1', RADIO_NO_KEY = 'crate_radio_no_v1', RADIO_LIKE_KEY = 'crate_radio_likes_v1', RADIO_PLAYED_KEY = 'crate_radio_played_v1', RADIO_LAST_KEY = 'crate_radio_last_v1';
+const RADIO_KINDS = [
+  ['taste', 'Your taste', 'everything your ratings, plays and likes say about you'],
+  ['genre', 'A genre', 'e.g. Post-Punk, and what sits around it'],
+  ['artist', 'An artist', 'them, and who Last.fm says sounds like them'],
+  ['release', 'A release', 'its sound: the one playing, or any you name'],
+  ['desc', 'A descriptor', 'e.g. “nocturnal”, “lush”, “angular”'],
+  ['friends', 'Friends’ favourites', 'what’s in your friends’ crates, through your ears'],
+  ['deep', 'Deep cuts', 'loved but little known: few listeners, high ratings'],
+  ['time', 'Time machine', 'a year or a decade, from the database and your crate']
+];
+const radio = { on: false, st: null, qid: 0, pool: [], related: {}, mine: [], busy: false, boost: { g: {}, a: {} }, sess: { played: 0, newLiked: 0, added: 0, newPlayed: 0 }, tab: 'stations', draft: null, recentA: [], topTr: new Map(), links: new Map() };
+const rLs = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v == null ? d : v; } catch (e) { return d; } };
+const rLsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* this visit */ } };
+function rFold(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/&/g, ' and ').replace(/\s*[([][^)\]]*(deluxe|remaster|edition|expanded|anniversary|bonus|version|reissue)[^)\]]*[)\]]/g, '').replace(/[^a-z0-9]+/g, ' ').replace(/^the /, '').trim(); }
+function rKey(a, t) { const x = rFold(a), y = rFold(t); return x && y ? x + '|' + y : ''; }
+const rSplit = (s) => String(s || '').split(/\s*[,;]\s*/).map(x => x.trim().toLowerCase()).filter(Boolean);
+const rCap = (s) => String(s || '').replace(/(^|[\s-])([a-z])/g, (m, p, c) => p + c.toUpperCase());
+function rN(n) { n = Number(n) || 0; return n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M' : n >= 1e4 ? Math.round(n / 1e3) + 'K' : n.toLocaleString(); }
+function rPlays(it) { try { return typeof scrobbleCountFor === 'function' ? Number(scrobbleCountFor(it.artist, it.title)) || 0 : 0; } catch (e) { return 0; } }
+function rOwned() { if (!radio.owned || radio.ownedN !== state.raw.length) { radio.owned = new Map(); (state.raw || []).forEach(it => { const k = rKey(it.artist, it.title); if (k) radio.owned.set(k, it); }); radio.ownedN = state.raw.length; } return radio.owned; }
+
+// ----- your taste, as weights -----
+function rTaste() {
+  if (radio.taste && radio.tasteN === state.raw.length) return radio.taste;
+  const g = {}, d = {}, a = {}, add = (m, k, w) => { if (k) m[k] = (m[k] || 0) + w; };
+  (state.raw || []).forEach(it => {
+    const rt = Number(it.rating) || 0, w = (rt ? rt - 2.5 : 0.4) + Math.log(1 + rPlays(it)) * 0.35; if (w <= 0) return;
+    rSplit(it.genre).forEach((x, i) => add(g, x, w * (i ? 0.7 : 1))); rSplit(it.genre2).forEach(x => add(g, x, w * 0.5));
+    rSplit(it.rymDescriptors).slice(0, 6).forEach(x => add(d, x, w * 0.5)); add(a, it.artist, w);
+  });
+  const top = (m, n) => { const ks = Object.keys(m).sort((x, y) => m[y] - m[x]).slice(0, n), mx = ks.length ? m[ks[0]] : 1; return ks.map(k => ({ k, w: Math.round(m[k] / mx * 100) / 100 })); };
+  radio.taste = { g: top(g, 30), d: top(d, 30), a: top(a, 80) }; radio.tasteN = state.raw.length;
+  return radio.taste;
+}
+// what a station asks the database for
+function rSeeds(st) {
+  const t = rTaste(), out = { genres: [], descs: [], artists: [] };
+  const fromItems = (its, w) => { const g = {}, d = {}; its.forEach(it => { rSplit(it.genre).concat(rSplit(it.genre2)).forEach(x => { g[x] = (g[x] || 0) + 1; }); rSplit(it.rymDescriptors).slice(0, 6).forEach(x => { d[x] = (d[x] || 0) + 1; }); });
+    Object.keys(g).sort((x, y) => g[y] - g[x]).slice(0, 6).forEach(x => out.genres.push({ g: x, w })); Object.keys(d).sort((x, y) => d[y] - d[x]).slice(0, 8).forEach(x => out.descs.push({ d: x, w: w * 0.8 })); };
+  const v = String(st.value || '').trim(), vl = v.toLowerCase();
+  if (st.kind === 'genre') { out.genres.push({ g: vl, w: 1 }); (state.raw || []).filter(it => rSplit(it.genre).includes(vl) && (Number(it.rating) || 0) >= 4).slice(0, 30).forEach(it => out.artists.push({ a: it.artist, w: 0.5 })); }
+  else if (st.kind === 'artist') { out.artists.push({ a: v, w: 1 }); fromItems((state.raw || []).filter(it => rFold(it.artist) === rFold(v)), 0.4); }
+  else if (st.kind === 'release') { const it = rOwned().get(rKey(st.artist, st.title)); out.artists.push({ a: st.artist, w: 0.8 }); if (it) fromItems([it], 1); else rSplit(st.genre).forEach(x => out.genres.push({ g: x, w: 1 })); }
+  else if (st.kind === 'desc') { out.descs.push({ d: vl, w: 1.5 }); fromItems((state.raw || []).filter(it => rSplit(it.rymDescriptors).includes(vl)).slice(0, 40), 0.5); }
+  else { t.g.forEach(x => out.genres.push({ g: x.k, w: x.w })); t.d.forEach(x => out.descs.push({ d: x.k, w: x.w * 0.6 })); t.a.slice(0, 60).forEach(x => out.artists.push({ a: x.k, w: x.w })); }
+  return out;
+}
+function rYears(st) { if (st.kind === 'time' && st.value) { const y = Number(String(st.value).slice(0, 4)) || 0; return /0s$/.test(st.value) ? [y, y + 9] : [y, y]; } return [Number(st.yFrom) || 0, Number(st.yTo) || 9999]; }
+
+// ----- the pool: the database's candidates, and your own releases -----
+async function rLoadPool(st) {
+  const seeds = rSeeds(st), [yFrom, yTo] = rYears(st);
+  const skip = [...rOwned().keys()].concat(Object.keys(rLs(RADIO_NO_KEY, {}))).slice(0, 8000);
+  const r = await postUpdate({ action: 'masterMusicRadio', genres: seeds.genres, descs: seeds.descs, artists: seeds.artists, yFrom, yTo, strictYears: st.kind === 'time', deep: st.kind === 'deep', friends: st.kind === 'friends', skip, n: 400 });
+  if (!r || r.music !== true) throw new Error(r && r.error ? r.error : 'Your backend doesn’t have CRATE Radio yet: paste the new Master.gs and deploy a new version.');
+  if (r.joined === false) throw new Error('Join the master crate first (⚙ › Master crate…): the radio plays from its music database.');
+  const no = rLs(RADIO_NO_KEY, {}), owned = rOwned();
+  radio.pool = (r.items || []).filter(x => x && x.k && !no[x.k] && !owned.has(x.k)); radio.related = r.related || {}; radio.seeds = seeds;
+  // your own releases near the station
+  const gs = {}; seeds.genres.forEach(x => { gs[x.g] = x.w; }); const ds = {}; seeds.descs.forEach(x => { ds[x.d] = x.w; }); const as = {}; seeds.artists.forEach(x => { as[rFold(x.a)] = x.w; });
+  const played = rLs(RADIO_PLAYED_KEY, {}), wk = Date.now() - 7 * 864e5;
+  radio.mine = (state.raw || []).map(it => {
+    const y = Number(String(it.releaseDate || '').slice(0, 4)) || 0; if (y && (y < yFrom || y > yTo)) return null; if (!y && st.kind === 'time') return null;
+    let s = 0; rSplit(it.genre).concat(rSplit(it.genre2)).forEach(x => { s += (gs[x] || 0) * 2; }); rSplit(it.rymDescriptors).forEach(x => { s += ds[x] || 0; }); s += (as[rFold(it.artist)] || 0) * 3;
+    if (!s) return null; const k = rKey(it.artist, it.title); if ((played[k] || 0) > wk) s *= 0.2;
+    s += ((Number(it.rating) || 3) - 3) * 1.2; return { it, s, k };
+  }).filter(Boolean).sort((a, b) => b.s - a.s).slice(0, 120);
+}
+function rScore(x) {          // a database release, for this station now: its fit, its quality, what this session taught it, and a little chance
+  const far = (radio.st && radio.st.far) || 'near', jit = far === 'close' ? 0.15 : far === 'far' ? 0.8 : 0.4;
+  const max = radio.pool.length ? radio.pool[0].s || 1 : 1; let s = (x.s || 0) / max;
+  const rel = radio.related[rFold(x.a)] || 0; if (far === 'close') s += rel * 0.5; if (far === 'far' && rel >= 0.99) s -= 0.3;
+  rSplit(x.g).forEach(g => { s += (radio.boost.g[g] || 0) * 0.15; }); s += (radio.boost.a[rFold(x.a)] || 0) * 0.3;
+  if (radio.recentA.includes(rFold(x.a))) s -= 2;
+  return s + Math.random() * jit;
+}
+function rPickNew() { let best = null, bs = -1e9; radio.pool.forEach(x => { if (x.used) return; const s = rScore(x); if (s > bs) { bs = s; best = x; } }); if (best) best.used = true; return best; }
+function rPickMine() {
+  const far = (radio.st && radio.st.far) || 'near', top = radio.mine.filter(m => !m.used && !radio.recentA.includes(rFold(m.it.artist))).slice(0, far === 'close' ? 15 : far === 'far' ? 80 : 40);
+  if (!top.length) return null; const m = top[Math.floor(Math.random() * top.length)]; m.used = true; return m;
+}
+// a release from the database as an item the player knows
+function rItem(x) { return { artist: x.a, title: x.t, type: x.ty || 'Album', releaseDate: x.y || '', genre: x.g || '', rymDescriptors: x.d || '', label: x.l || '', cover: x.c || '', id: 'radio:' + x.k, radio: true, radioKey: x.k }; }
+
+// ----- songs -----
+async function rTopTracks(artist) {          // Last.fm's most-listened songs by an artist: which songs of a release to play, and their listeners
+  const k = rFold(artist); if (radio.topTr.has(k)) return radio.topTr.get(k);
+  const m = new Map();
+  try { if (typeof srchLfKey === 'function' && srchLfKey()) { const j = await srchLf({ method: 'artist.gettoptracks', artist, autocorrect: '1', limit: '100' }); (((j.toptracks || {}).track) || []).forEach(t => { if (t && t.name) m.set(rFold(t.name), { l: Number(t.listeners) || 0, p: Number(t.playcount) || 0 }); }); } } catch (e) { /* first songs then */ }
+  radio.topTr.set(k, m); return m;
+}
+async function rLinksFor(keys) {          // song links found before, kept in the database for everyone
+  const want = keys.filter(k => !radio.links.has(k)); if (want.length) { try { const r = await postUpdate({ action: 'masterMusicLinks', keys: want }); want.forEach(k => radio.links.set(k, (r && r.links && r.links[k]) || {})); } catch (e) { want.forEach(k => radio.links.set(k, {})); } }
+  const o = {}; keys.forEach(k => { o[k] = radio.links.get(k) || {}; }); return o;
+}
+async function rSongs(item, mode) {
+  let tl = null; try { tl = await getTracksFor(item); } catch (e) { tl = null; }
+  const ok = (tl || []).filter(t => t && t.trackName); if (!ok.length) return [];
+  if (mode === 'whole') return ok;
+  const top = await rTopTracks(item.artist), n = mode === 'few' ? 3 : 1;
+  const ranked = ok.map((t, i) => ({ t, l: (top.get(rFold(t.trackName)) || {}).l || 0, i })).sort((a, b) => b.l - a.l || a.i - b.i).slice(0, n);
+  if (!ranked[0].l && !item.radio && typeof ptBestSong === 'function') { const b = ptBestSong(item, ok); if (b) return [b.t]; }
+  return ranked.sort((a, b) => a.i - b.i).map(x => x.t);
+}
+async function rEntries(pick) {          // one pick → queue entries (a song, a few, or the whole release)
+  const mode = (radio.st && radio.st.play) || 'one', item = pick.x ? rItem(pick.x) : pick.it;
+  const songs = await rSongs(item, mode); if (!songs.length) return [];
+  const key = pick.x ? pick.x.k : rKey(item.artist, item.title);
+  const known = pick.x ? (await rLinksFor([key]))[key] : {};
+  const out = [];
+  for (const t of songs) {
+    const track = Object.assign({}, t, typeof trackLinkOverridesFor === 'function' && !item.radio ? trackLinkOverridesFor(item, t.trackNumber, t.trackName) : {});
+    if (item.radio) {
+      const k = known[rFold(t.trackName)];
+      if (k && (k.yt || k.sp)) { if (k.yt) track.youtubeLink = k.yt; if (k.sp) track.spotifyLink = k.sp; track.radioLinkSrc = 'shared'; }
+      else if (typeof playSource === 'function' && playSource() === 'youtube' && typeof youtubeSearchCandidates === 'function') {
+        try { const c = await youtubeSearchCandidates(item.artist, t.trackName); if (c && c[0]) { track.youtubeLink = 'https://www.youtube.com/watch?v=' + c[0].id; track.radioLinkSrc = 'found';
+          postUpdate({ action: 'masterMusicLinks', put: [{ k: key, s: t.trackName, yt: track.youtubeLink, sp: '' }] }).catch(() => { /* found again next time */ });
+          (radio.links.get(key) || {})[rFold(t.trackName)] = { s: t.trackName, yt: track.youtubeLink }; } } catch (e) { /* Spotify's search then */ }
+      }
+    }
+    out.push({ item, track, radio: { kind: pick.x ? 'new' : 'mine', x: pick.x || null, key, why: rWhy(pick.x || null, item) } });
+  }
+  return out;
+}
+
+// ----- why this -----
+function rLikeYours(item) {          // your releases closest to it: shared genres and descriptors, your best rated first
+  const g = new Set(rSplit(item.genre).concat(rSplit(item.genre2))), d = new Set(rSplit(item.rymDescriptors)), self = rKey(item.artist, item.title);
+  return (state.raw || []).map(it => { if (rKey(it.artist, it.title) === self || (it.rating && Number(it.rating) < 3.5)) return null; let s = 0; rSplit(it.genre).concat(rSplit(it.genre2)).forEach(x => { if (g.has(x)) s += 2; }); rSplit(it.rymDescriptors).forEach(x => { if (d.has(x)) s += 1; }); if (rFold(it.artist) === rFold(item.artist)) s += 1; return s ? { it, s: s + (Number(it.rating) || 0) * 0.4 } : null; })
+    .filter(Boolean).sort((a, b) => b.s - a.s).slice(0, 2).map(o => o.it);
+}
+function rWhy(x, item) {
+  const out = [], t = rTaste(), like = rLikeYours(item);
+  if (like.length) out.push(['Like yours', 'close to ' + like.map(it => `${it.title}${it.rating ? ` (★ ${it.rating})` : ''}`).join(' and ')]);
+  const tg = new Map(t.g.map((g, i) => [g.k, i])), gs = rSplit(item.genre).concat(rSplit(item.genre2)).filter(g => tg.has(g)), ds = rSplit(item.rymDescriptors).filter(d => t.d.some(z => z.k === d)).slice(0, 3);
+  if (gs.length || ds.length) out.push(['Sound', [gs.map(rCap).join(', '), ds.map(d => `“${d}”`).join(', ')].filter(Boolean).join(', ') + (gs.length ? `: ${gs.length > 1 ? 'among' : ''} your ${gs.map(g => '#' + (tg.get(g) + 1)).join(', ')} genre${gs.length > 1 ? 's' : ''}` : '')]);
+  const ak = rFold(item.artist), mine = (state.raw || []).filter(it => rFold(it.artist) === ak).length;
+  if (mine) out.push(['Artist', mine === 1 ? 'one of their releases is in your crate' : `${mine} of their releases are in your crate`]);
+  else if (radio.related[ak]) out.push(['Last.fm', `${item.artist} is similar to artists you play (${Math.round(radio.related[ak] * 100)}% close)`]);
+  if (x && x.cr) out.push(['Friends', `in ${x.cr} of your friends’ crates`]);
+  if (x && (x.rr || x.li)) out.push(['Quality', [x.rr ? `RYM ${Number(x.rr).toFixed(2)}${x.rv ? ` from ${Number(x.rv).toLocaleString()} ratings` : ''}` : '', x.li ? `${rN(x.li)} listeners on Last.fm` : ''].filter(Boolean).join(' · ')]);
+  else if (!x && item.rating) out.push(['Yours', `you rate it ★ ${item.rating}${rPlays(item) ? ` · ${rPlays(item)} plays` : ''}`]);
+  return out;
+}
+function rMatch(x) {          // how well a database release fits your taste, 0–100
+  const t = rTaste(), gw = {}; t.g.forEach(g => { gw[g.k] = g.w; }); const dw = {}; t.d.forEach(d => { dw[d.k] = d.w; });
+  const g = Math.min(1, rSplit(x.g).reduce((s, k) => s + (gw[k] || 0), 0)), d = Math.min(1, rSplit(x.d).reduce((s, k) => s + (dw[k] || 0), 0) * 0.7), a = Math.min(1, (radio.related[rFold(x.a)] || 0) * 1.2);
+  const q = x.rr ? Math.max(0, Math.min(1, (x.rr - 3) / 1)) : 0.4;
+  return Math.round(Math.min(99, (g * 0.45 + d * 0.15 + a * 0.25 + q * 0.15) * 100));
+}
+
+// ----- the radio in the queue -----
+async function rNext() {          // the next pick: from beyond your crate "How new" of the time, else one of yours
+  const newPct = radio.st && radio.st.newPct != null ? radio.st.newPct : 65;
+  let pick = null;
+  if (Math.random() * 100 < newPct) { const x = rPickNew(); if (x) pick = { x }; }
+  if (!pick) { const m = rPickMine(); if (m) pick = { it: m.it }; }
+  if (!pick) { const x = rPickNew(); if (x) pick = { x }; }
+  if (!pick) return null;
+  radio.recentA.push(rFold(pick.x ? pick.x.a : pick.it.artist)); if (radio.recentA.length > 8) radio.recentA.shift();
+  return pick;
+}
+async function rTopUp(min) {
+  if (!radio.on || radio.busy) return; if (crateQueueId !== radio.qid) { rStopped(); return; }
+  radio.busy = true;
+  try {
+    let tries = 0;
+    while (radio.on && crateQueueId === radio.qid && crateQueueList.length - Math.max(0, crateQueueIndex) < (min || 5) && tries++ < 12) {
+      const pick = await rNext(); if (!pick) break;
+      const es = await rEntries(pick); if (crateQueueId !== radio.qid) break;
+      if (es.length) { crateQueueList.push(...es); renderCrateQueuePanel(); rPaint(); }
+    }
+  } finally { radio.busy = false; }
+}
+async function radioStart(st) {
+  st = Object.assign({ kind: 'taste', newPct: 65, far: 'near', play: 'one' }, st || {});
+  radio.st = st; radio.boost = { g: {}, a: {} }; radio.recentA = []; radio.sess = { played: 0, newLiked: 0, added: 0, newPlayed: 0 };
+  rLsSet(RADIO_LAST_KEY, st);
+  radio.tab = 'now'; radio.say = 'Tuning in…'; radio.err = ''; rPaint();
+  try { await rLoadPool(st); } catch (e) { radio.say = ''; radio.err = e.message; radio.tab = 'stations'; rPaint(); return; }
+  if (!radio.pool.length && !radio.mine.length) { radio.say = ''; radio.err = 'Nothing near that station in the music database yet: try a wider one, or fill the database (⚙ › Music database…).'; radio.tab = 'stations'; rPaint(); return; }
+  radio.on = true; radio.qid = ++crateQueueId; crateQueueList = []; crateQueueIndex = -1; renderCrateQueuePanel();
+  let first = []; for (let i = 0; i < 6 && !first.length; i++) { const p = await rNext(); if (!p) break; first = await rEntries(p); }
+  if (!first.length || crateQueueId !== radio.qid) { radio.on = false; radio.say = ''; radio.err = 'Couldn’t find songs to play for that station.'; rPaint(); return; }
+  crateQueueList.push(...first); radio.say = ''; rPaint(); rBtnPaint();
+  playCrateQueueIndex(radio.qid, 0);
+  rTopUp(4);
+}
+function radioStop() { radio.on = false; rBtnPaint(); rPaint(); try { if (typeof playerPlayingNow === 'function' && playerPlayingNow()) el.miniPlayerPlayPause.click(); } catch (e) { /* fine */ } }
+function rStopped() { if (!radio.on) return; radio.on = false; rBtnPaint(); rPaint(); }
+function rCur() { return radio.on && crateQueueId === radio.qid && crateQueueIndex >= 0 ? crateQueueList[crateQueueIndex] : null; }
+(function () {
+  const base = playCrateQueueIndex;
+  playCrateQueueIndex = function (myId, index) {
+    if (radio.on && myId !== radio.qid) rStopped();
+    const out = base.apply(this, arguments);
+    if (radio.on && myId === radio.qid) {
+      const e = crateQueueList[crateQueueIndex];
+      if (e && e.radio && !e.radioCounted) { e.radioCounted = true; radio.sess.played++; if (e.radio.kind === 'new') radio.sess.newPlayed++; const p = rLs(RADIO_PLAYED_KEY, {}); p[e.radio.key] = Date.now(); const ks = Object.keys(p); if (ks.length > 3000) ks.sort((a, b) => p[a] - p[b]).slice(0, 500).forEach(k => delete p[k]); rLsSet(RADIO_PLAYED_KEY, p);
+        const n = rLs('crate_radio_times_v1', {}); n[e.radio.key] = (n[e.radio.key] || 0) + 1; rLsSet('crate_radio_times_v1', n); }
+      setTimeout(() => { rTopUp(4); rPaint(); }, 50);
+    }
+    return out;
+  };
+})();
+function rSkip() { if (!radio.on || crateQueueId !== radio.qid) return; playCrateQueueIndex(radio.qid, crateQueueIndex + 1); }
+function rLearn(e, w) { if (!e || !e.item) return; rSplit(e.item.genre).forEach(g => { radio.boost.g[g] = (radio.boost.g[g] || 0) + w; }); const a = rFold(e.item.artist); radio.boost.a[a] = (radio.boost.a[a] || 0) + w; }
+function rLike() { const e = rCur(); if (!e || e.radioLiked) return; e.radioLiked = true; rLearn(e, 1); if (e.radio.kind === 'new') radio.sess.newLiked++;
+  const l = rLs(RADIO_LIKE_KEY, []); l.unshift({ k: e.radio.key, a: e.item.artist, t: e.item.title, s: e.track.trackName, at: Date.now() }); rLsSet(RADIO_LIKE_KEY, l.slice(0, 500)); rPaint(); flashGlobalToast(`Liked: more like ${e.item.artist} on this station.`); }
+function rNotForMe(x) {
+  const e = x ? null : rCur(), k = x ? x.k : e && e.radio.key; if (!k) return;
+  const no = rLs(RADIO_NO_KEY, {}); no[k] = Date.now(); rLsSet(RADIO_NO_KEY, no);
+  radio.pool = radio.pool.filter(p => p.k !== k);
+  if (e) { rLearn(e, -1); for (let i = crateQueueList.length - 1; i > crateQueueIndex; i--) if (crateQueueList[i].radio && crateQueueList[i].radio.key === k) crateQueueList.splice(i, 1); rSkip(); }
+  flashGlobalToast('Not for you: it won’t come up again.');
+}
+function rAdd(item) {
+  if (!item) return; radio.sess.added++;
+  showAddForm({ artist: item.artist, title: item.title, type: item.type, releaseDate: item.releaseDate, genre: rSplit(item.genre).slice(0, 1).map(rCap).join('') });
+  rPaint();
+}
+
+// ----- the radio window -----
+function radioOpen(tab) {
+  if (el.layoutMenu) el.layoutMenu.hidden = true;
+  let ov = document.getElementById('radioOv');
+  if (!ov) {
+    ov = document.createElement('div'); ov.id = 'radioOv'; ov.className = 'pt-overlay rd-overlay'; document.body.appendChild(ov);
+    ov.addEventListener('click', rClick); ov.addEventListener('input', rInput); ov.addEventListener('change', rInput);
+    document.addEventListener('keydown', (e) => { const o = document.getElementById('radioOv'); if (e.key === 'Escape' && o && !o.hidden && !document.getElementById('rfOv')) { e.stopImmediatePropagation(); o.hidden = true; } }, true);
+  }
+  radio.tab = tab || (radio.on ? 'now' : radio.tab === 'now' ? 'stations' : radio.tab || 'stations');
+  if (!radio.draft) radio.draft = Object.assign({ kind: 'taste', value: '', newPct: 65, far: 'near', play: 'one', yFrom: 0, yTo: 0 }, rLs(RADIO_LAST_KEY, {}));
+  ov.hidden = false; rPaint();
+  if (radio.tab === 'discover') rDiscoverLoad();
+}
+function rPaint() {
+  const ov = document.getElementById('radioOv'); if (!ov || ov.hidden) return;
+  const tabs = [['now', 'Now playing'], ['stations', 'Stations'], ['discover', 'Discover']];
+  const head = `<div class="pt-head rd-head"><div><div class="gs-lbl rd-teal">CRATE Radio${radio.on && radio.st ? ' · station: ' + escapeHtml(rStName(radio.st)) : ''}</div><div class="pt-title">${radio.tab === 'stations' ? 'Start a station' : radio.tab === 'discover' ? 'Discover' : radio.on ? 'Playing beyond your crate' : 'The radio is off'}</div></div>
+    <div class="gs-tabs rd-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" class="gs-tab${radio.tab === k ? ' on' : ''}" aria-selected="${radio.tab === k}" data-rd-tab="${k}">${l}</button>`).join('')}</div>
+    ${radio.on ? '<button type="button" class="gs-btn" data-rd="stop">Stop radio</button>' : ''}<button type="button" class="mood-x" data-rd="x" aria-label="Close">×</button></div>`;
+  const msg = `${radio.err ? `<p class="pim-err" role="alert">${escapeHtml(radio.err)}</p>` : ''}${radio.say ? `<p class="gs-s" role="status">${escapeHtml(radio.say)}</p>` : ''}`;
+  ov.innerHTML = `<div class="pt-dialog rd-dialog" role="dialog" aria-modal="true" aria-label="CRATE Radio">${head}${msg}${radio.tab === 'stations' ? rStationsHtml() : radio.tab === 'discover' ? rDiscoverHtml() : rNowHtml()}</div>`;
+}
+function rStName(st) { const k = RADIO_KINDS.find(x => x[0] === st.kind); return st.name || (k ? k[1] : 'Your taste') + (st.value ? ': ' + st.value : st.kind === 'release' && st.title ? ': ' + st.title : ''); }
+function rCoverHtml(item, cls) { const c = item && item.cover; return c ? `<img class="${cls}" src="${escapeHtml(c)}" alt="" loading="lazy">` : `<span class="${cls} rd-nocv"></span>`; }
+function rNowHtml() {
+  const e = rCur();
+  if (!e) return `<div class="rd-empty"><p class="gs-s">${radio.on ? 'Lining up the first song…' : 'Pick a station to start: it plays from your friends’ shared music database, mixed with your own releases.'}</p>${radio.on ? '' : '<button type="button" class="gs-btn gs-pri" data-rd-tab="stations">Pick a station</button>'}</div>`;
+  const it = e.item, isNew = e.radio.kind === 'new', x = e.radio.x || {}, src = e.track.youtubeLink ? 'YouTube' + (e.track.radioLinkSrc === 'shared' ? ' · a friend’s link' : '') : e.track.spotifyLink ? 'Spotify' : 'Spotify search';
+  const up = crateQueueList.slice(crateQueueIndex + 1, crateQueueIndex + 8);
+  const newPct = radio.st && radio.st.newPct != null ? radio.st.newPct : 65;
+  return `<div class="rd-now"><div class="rd-main">
+    <div class="rd-np">${rCoverHtml(it, 'rd-cv')}<div class="rd-np-t">
+      <div class="rd-chips"><span class="rd-chip ${isNew ? 'rd-new' : 'rd-mine'}">${isNew ? 'NOT IN YOUR CRATE' : 'YOURS'}</span><span class="rd-chip">${escapeHtml(src)}</span>${isNew && x.cr ? `<span class="rd-chip">${x.cr} FRIEND${x.cr > 1 ? 'S' : ''}</span>` : ''}</div>
+      <button type="button" class="rd-big" data-rd="card" title="Open its card">${escapeHtml(it.title)}</button>
+      <div class="rd-art">${escapeHtml(it.artist)} <span>${[String(it.releaseDate || '').slice(0, 4), rSplit(it.genre).slice(0, 2).map(rCap).join(', ')].filter(Boolean).map(s => '· ' + escapeHtml(s)).join(' ')}</span></div>
+      <div class="rd-song">Now: <b>${escapeHtml(e.track.trackName || '')}</b></div>
+      <div class="rd-acts"><button type="button" class="gs-btn rd-tealbtn${e.radioLiked ? ' on' : ''}" data-rd="like" aria-pressed="${!!e.radioLiked}">♥ ${e.radioLiked ? 'Liked' : 'Like'}</button><button type="button" class="gs-btn" data-rd="skip">Skip</button><button type="button" class="gs-btn" data-rd="no">Not for me</button>${isNew ? '<button type="button" class="gs-btn gs-pri" data-rd="add">+ Add to crate</button>' : ''}</div>
+      <div class="rd-why"><div class="gs-lbl">Why this</div>${e.radio.why.map(([k, v]) => `<div class="rd-wl"><span>${escapeHtml(k)}</span><span>${escapeHtml(v)}</span></div>`).join('') || '<p class="gs-s">One of your own.</p>'}</div>
+    </div></div>
+    <div class="rd-slider"><span class="gs-lbl">Familiar</span><input type="range" min="0" max="100" step="5" value="${newPct}" data-rd-new aria-label="How much is new"><span class="gs-lbl rd-teal">New</span><span class="gs-s rd-sl-say">${newPct}% new: ${newPct >= 50 ? `about ${Math.round(newPct / 10)} in every 10 songs come from beyond your crate` : `mostly yours, ${newPct}% from beyond`}</span></div>
+  </div><aside class="rd-side"><div class="gs-lbl">Up next on the radio</div>
+    ${up.map((u, i) => `<div class="rd-q" data-rd-q="${crateQueueIndex + 1 + i}"><span class="rd-qn">${i + 1}</span>${rCoverHtml(u.item, 'rd-qcv')}<span><b>${escapeHtml(u.track.trackName || '')}</b><em>${escapeHtml(u.item.artist)} · ${escapeHtml(u.item.title)}</em></span><span class="rd-chip ${u.radio && u.radio.kind === 'new' ? 'rd-new' : 'rd-mine'}">${u.radio && u.radio.kind === 'new' ? 'NEW' : 'YOURS'}</span></div>`).join('') || '<p class="gs-s">Finding the next ones…</p>'}
+    <div class="gs-lbl rd-sess-l">This session</div>
+    <div class="rd-sess"><div><b>${radio.sess.played}</b><span>played</span></div><div><b>${radio.sess.newPlayed}</b><span>from beyond</span></div><div><b class="rd-teal">${radio.sess.newLiked}</b><span>new ones liked</span></div><div><b class="rd-gold">${radio.sess.added}</b><span>added to crate</span></div></div>
+    <p class="gs-s rd-foot">Each Like, Skip and Not for me teaches it. ${(radio.pool || []).filter(x => !x.used).length.toLocaleString()} releases left in this station’s pick.</p>
+  </aside></div>`;
+}
+function rStationsHtml() {
+  const d = radio.draft, saved = rLs(RADIO_ST_KEY, []);
+  const needs = { genre: ['Genre', 'e.g. Post-Punk', 'genres'], artist: ['Artist', 'e.g. Talk Talk', 'artists'], release: ['Release', 'the one playing, or Artist – Title', ''], desc: ['Descriptor', 'e.g. nocturnal', 'descs'], time: ['Year or decade', 'e.g. 1994 or 1980s', ''] }[d.kind];
+  const lists = { genres: rTaste().g.map(x => rCap(x.k)), artists: rTaste().a.slice(0, 60).map(x => x.k), descs: rTaste().d.map(x => x.k) };
+  const seg = (k, opts) => `<div class="rd-seg" role="radiogroup">${opts.map(([v, l]) => `<button type="button" role="radio" aria-checked="${d[k] === v}" class="${d[k] === v ? 'on' : ''}" data-rd-set="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
+  return `<div class="rd-st">
+    ${saved.length ? `<div class="rd-saved"><span class="gs-lbl">Saved</span>${saved.map((s, i) => `<span class="rd-sv"><button type="button" data-rd-saved="${i}">▶ ${escapeHtml(rStName(s))}</button><button type="button" data-rd-unsave="${i}" aria-label="Forget ${escapeHtml(rStName(s))}">×</button></span>`).join('')}</div>` : ''}
+    <div class="rd-kinds">${RADIO_KINDS.map(([k, l, s]) => `<button type="button" class="rd-kind${d.kind === k ? ' on' : ''}" data-rd-kind="${k}" aria-pressed="${d.kind === k}"><b>${l}</b><span>${s}</span></button>`).join('')}</div>
+    <div class="rd-opts">
+      ${needs ? `<div class="rd-row"><div><b>${needs[0]}</b></div><div><input type="text" class="rd-in" data-rd-value value="${escapeHtml(d.value || (d.kind === 'release' && nowPlayingItem ? nowPlayingItem.artist + ' – ' + nowPlayingItem.title : ''))}" placeholder="${escapeHtml(needs[1])}" list="rdList" aria-label="${needs[0]}"><datalist id="rdList">${(lists[needs[2]] || []).map(v => `<option value="${escapeHtml(v)}">`).join('')}</datalist></div></div>` : ''}
+      <div class="rd-row"><div><b>How new</b><span class="gs-s">beyond your crate</span></div><div class="rd-sl"><span class="gs-lbl">Familiar</span><input type="range" min="0" max="100" step="5" value="${d.newPct}" data-rd-set-range="newPct" aria-label="How much is new"><span class="gs-lbl rd-teal">New</span><span class="gs-s rd-w">${d.newPct}% new</span></div></div>
+      <div class="rd-row"><div><b>How far</b><span class="gs-s">from what you know</span></div>${seg('far', [['close', 'Close'], ['near', 'Nearby'], ['far', 'Adventurous']])}</div>
+      ${d.kind === 'time' ? '' : `<div class="rd-row"><div><b>Years</b></div><div class="rd-sl"><input type="number" class="rd-in rd-yr" data-rd-set-num="yFrom" value="${d.yFrom || ''}" placeholder="from" aria-label="From year" min="1900" max="2030"><span class="gs-s">to</span><input type="number" class="rd-in rd-yr" data-rd-set-num="yTo" value="${d.yTo || ''}" placeholder="to" aria-label="To year" min="1900" max="2030"><span class="gs-s">${d.yFrom || d.yTo ? '' : 'any year'}</span></div></div>`}
+      <div class="rd-row"><div><b>Play</b></div>${seg('play', [['one', 'One song a release'], ['few', 'A few songs'], ['whole', 'Whole releases']])}</div>
+      <div class="rd-row"><div><b>Skip</b></div><div class="gs-s">releases you’ve marked Not for me (${Object.keys(rLs(RADIO_NO_KEY, {})).length.toLocaleString()}) · what the radio played in the last week · everything in your crate counts as yours</div></div>
+    </div>
+    <div class="rd-go"><button type="button" class="gs-btn gs-pri rd-gobtn" data-rd="start">▶ Start radio</button><button type="button" class="gs-btn" data-rd="save">Save as a station</button><span class="gs-s">Saved stations sit at the top here and in the player’s radio button, one click to start.</span></div>
+  </div>`;
+}
+function rDraftStation() {
+  const d = Object.assign({}, radio.draft);
+  if (d.kind === 'release') { const v = String(d.value || '').trim(); const m = v.split(/\s+[–—-]\s+/); if (m.length >= 2) { d.artist = m[0]; d.title = m.slice(1).join(' - '); } else if (nowPlayingItem) { d.artist = nowPlayingItem.artist; d.title = nowPlayingItem.title; d.genre = nowPlayingItem.genre; } d.value = ''; }
+  d.yFrom = Number(d.yFrom) || 0; d.yTo = Number(d.yTo) || 0; if (!d.yTo) d.yTo = 9999;
+  return d;
+}
+function rInput(e) {
+  const t = e.target, d = radio.draft;
+  if (t.matches('[data-rd-value]')) d.value = t.value;
+  else if (t.matches('[data-rd-set-num]')) d[t.dataset.rdSetNum] = Number(t.value) || 0;
+  else if (t.matches('[data-rd-set-range]')) { d[t.dataset.rdSetRange] = Number(t.value); const w = t.closest('.rd-sl').querySelector('.rd-w'); if (w) w.textContent = t.value + '% new'; }
+  else if (t.matches('[data-rd-new]') && radio.st) { radio.st.newPct = Number(t.value); const s = t.closest('.rd-slider').querySelector('.rd-sl-say'); if (s) s.textContent = t.value + '% new'; if (e.type === 'change') rLsSet(RADIO_LAST_KEY, radio.st); }
+}
+async function rClick(e) {
+  const ov = document.getElementById('radioOv'); if (e.target === ov || e.target.closest('[data-rd="x"]')) { ov.hidden = true; return; }
+  const tb = e.target.closest('[data-rd-tab]'); if (tb) { radio.tab = tb.dataset.rdTab; radio.err = ''; rPaint(); if (radio.tab === 'discover') rDiscoverLoad(); return; }
+  const kd = e.target.closest('[data-rd-kind]'); if (kd) { radio.draft.kind = kd.dataset.rdKind; radio.draft.value = ''; rPaint(); return; }
+  const sb = e.target.closest('[data-rd-set]'); if (sb) { radio.draft[sb.dataset.rdSet] = sb.dataset.v; rPaint(); return; }
+  const sv = e.target.closest('[data-rd-saved]'); if (sv) { radioStart(rLs(RADIO_ST_KEY, [])[Number(sv.dataset.rdSaved)]); return; }
+  const us = e.target.closest('[data-rd-unsave]'); if (us) { const l = rLs(RADIO_ST_KEY, []); l.splice(Number(us.dataset.rdUnsave), 1); rLsSet(RADIO_ST_KEY, l); rPaint(); return; }
+  const q = e.target.closest('[data-rd-q]'); if (q) { if (radio.on && crateQueueId === radio.qid) playCrateQueueIndex(radio.qid, Number(q.dataset.rdQ)); return; }
+  const dc = e.target.closest('[data-rd-disc]'); if (dc) { const x = (radio.disc || [])[Number(dc.dataset.rdDisc)]; if (x) rfOpen(x); return; }
+  const b = e.target.closest('[data-rd]'); if (!b) return; const k = b.dataset.rd;
+  if (k === 'stop') radioStop();
+  else if (k === 'start') { const st = rDraftStation(); if (['genre', 'artist', 'desc', 'time'].includes(st.kind) && !st.value) { radio.err = 'Name the ' + (RADIO_KINDS.find(x => x[0] === st.kind) || [0, 'station'])[1].replace(/^An? /, '').toLowerCase() + ' first.'; rPaint(); return; } radioStart(st); }
+  else if (k === 'save') { const st = rDraftStation(); const l = rLs(RADIO_ST_KEY, []); l.unshift(st); rLsSet(RADIO_ST_KEY, l.slice(0, 12)); rPaint(); rBtnPaint(); flashGlobalToast(`Saved “${rStName(st)}”.`); }
+  else if (k === 'like') rLike();
+  else if (k === 'skip') rSkip();
+  else if (k === 'no') rNotForMe();
+  else if (k === 'add') { const c = rCur(); if (c) { document.getElementById('radioOv').hidden = true; rAdd(c.item); } }
+  else if (k === 'card') { const c = rCur(); if (c) { if (c.radio.x) rfOpen(c.radio.x); else { document.getElementById('radioOv').hidden = true; openDeck(c.item); } } }
+  else if (k === 'disc-more') { radio.discN = (radio.discN || 24) + 24; rPaint(); }
+}
+
+// ----- Discover: the database's best for you, not in your crate -----
+async function rDiscoverLoad(force) {
+  if (radio.discLoading || (radio.disc && !force && Date.now() - radio.discAt < 10 * 60e3)) { rPaint(); return; }
+  radio.discLoading = true; radio.err = ''; rPaint();
+  try {
+    const keep = { pool: radio.pool, related: radio.related, mine: radio.mine, seeds: radio.seeds };
+    await rLoadPool({ kind: 'taste' });
+    const list = radio.pool.map(x => Object.assign({}, x, { m: rMatch(x) })); radio.discRelated = radio.related;
+    if (radio.on) Object.assign(radio, keep); else radio.pool = [];
+    radio.disc = list.sort((a, b) => b.m - a.m || (b.rr || 0) - (a.rr || 0)); radio.discAt = Date.now();
+  } catch (e) { radio.err = e.message; }
+  radio.discLoading = false; rPaint();
+}
+function rDiscoverHtml() {
+  if (radio.discLoading && !radio.disc) return '<p class="gs-s">Reading the music database for you…</p>';
+  const l = radio.disc || []; if (!l.length) return '<p class="gs-s">Nothing yet: the music database fills as you and your friends use CRATE (⚙ › Music database…).</p>';
+  const n = radio.discN || 24, avg = Math.round(l.slice(0, 50).reduce((s, x) => s + x.m, 0) / Math.min(50, l.length));
+  return `<div class="rd-dnums"><div><b>${l.length.toLocaleString()}</b><span>releases near your taste, not in your crate</span></div><div><b class="rd-teal">${avg}%</b><span>average match, top 50</span></div><div><b>${l.filter(x => x.cr).length.toLocaleString()}</b><span>in friends’ crates</span></div><div><b>${l.filter(x => x.rr >= 3.7).length.toLocaleString()}</b><span>rated 3.7+ on RYM</span></div></div>
+  <div class="rd-grid">${l.slice(0, n).map((x, i) => `<button type="button" class="rd-dc" data-rd-disc="${i}">${x.c ? `<img src="${escapeHtml(x.c)}" alt="" loading="lazy">` : '<span class="rd-nocv"></span>'}<b>${escapeHtml(x.t)}</b><em>${escapeHtml(x.a)}${x.y ? ' · ' + escapeHtml(x.y) : ''}</em><span class="rd-dm"><i class="rd-teal">${x.m}%</i>${x.rr ? ` · RYM ${Number(x.rr).toFixed(2)}` : ''}${x.li ? ` · ${rN(x.li)}` : ''}${x.cr ? ` · ${x.cr}★` : ''}</span></button>`).join('')}</div>
+  ${l.length > n ? '<div class="rd-go"><button type="button" class="gs-btn" data-rd="disc-more">Show more</button></div>' : ''}`;
+}
+
+// ----- a release from the database: its card -----
+async function rfOpen(x) {
+  let ov = document.getElementById('rfOv'); if (ov) ov.remove();
+  ov = document.createElement('div'); ov.id = 'rfOv'; ov.className = 'pt-overlay rf-overlay'; document.body.appendChild(ov);
+  const close = () => { ov.remove(); document.removeEventListener('keydown', key, true); };
+  const key = (e) => { if (e.key === 'Escape') { e.stopImmediatePropagation(); close(); } }; document.addEventListener('keydown', key, true);
+  if (!radio.related || !Object.keys(radio.related).length) radio.related = radio.discRelated || {};
+  const item = rItem(x), owned = rOwned().has(x.k), times = rLs('crate_radio_times_v1', {})[x.k] || 0, m = x.m != null ? x.m : rMatch(x);
+  const paint = (songs, note) => {
+    const mx = Math.max(1, ...(songs || []).map(s => s.l || 0));
+    ov.innerHTML = `<div class="pt-dialog rf-dialog" role="dialog" aria-modal="true" aria-label="${escapeHtml(x.t)}">
+      <div class="rf-top">${rCoverHtml(item, 'rf-cv')}<div class="rf-t"><div class="gs-lbl rd-teal">From the music database · ${owned ? 'in your crate' : 'not in your crate'}</div>
+        <div class="rf-title">${escapeHtml(x.t)}</div><div class="rf-art">${escapeHtml(x.a)} <span>${[x.y, x.l, rSplit(x.g).slice(0, 3).map(rCap).join(', ')].filter(Boolean).map(s => '· ' + escapeHtml(s)).join(' ')}</span></div>
+        ${x.d ? `<div class="gs-s">${rSplit(x.d).slice(0, 6).map(d => `“${escapeHtml(d)}”`).join(', ')}</div>` : ''}
+        <div class="rd-acts"><button type="button" class="gs-btn gs-pri" data-rf="play">▶ Play</button><button type="button" class="gs-btn" data-rf="station">Start a station from it</button>${owned ? '' : '<button type="button" class="gs-btn" data-rf="add">+ Add to crate</button><button type="button" class="gs-btn" data-rf="no">Not for me</button>'}</div></div>
+        <button type="button" class="mood-x" data-rf="x" aria-label="Close">×</button></div>
+      <div class="rf-nums">${[[m + '%', 'like your taste', 'teal'], [x.rr ? Number(x.rr).toFixed(2) : '—', x.rr ? `RYM, ${Number(x.rv || 0).toLocaleString()} ratings` : 'no RYM rating yet'], [x.li ? rN(x.li) : '—', 'Last.fm listeners'], [String(x.cr || 0), `friend${x.cr === 1 ? '’s crate' : 's’ crates'}`], [songs ? `${songs.filter(s => s.src).length}/${songs.length}` : '…', 'songs with a link'], [String(times), `time${times === 1 ? '' : 's'} the radio played it`]].map(([n, l, c]) => `<div><b${c ? ` class="rd-${c}"` : ''}>${escapeHtml(n)}</b><span>${escapeHtml(l)}</span></div>`).join('')}</div>
+      <div class="rf-body"><div><div class="gs-lbl">Why it’s for you</div>${rWhy(x, item).map(([k, v]) => `<div class="rd-wl"><span>${escapeHtml(k)}</span><span>${escapeHtml(v)}</span></div>`).join('') || '<p class="gs-s">Near your station.</p>'}</div>
+        <div><div class="gs-lbl">Songs · Last.fm listeners</div>${songs ? songs.map((s, i) => `<div class="rf-song"><span class="rd-qn">${i + 1}</span><span class="rf-sn">${escapeHtml(s.t.trackName)}</span><span class="mdb-bar"><u style="width:${Math.max(2, (s.l || 0) / mx * 100).toFixed(1)}%"></u></span><span class="gs-s">${s.l ? rN(s.l) : '—'}</span><span class="rf-src${s.src ? ' on' : ''}">${s.src || '—'}</span></div>`).join('') || '<p class="gs-s">No tracklist found.</p>' : `<p class="gs-s">${escapeHtml(note || 'Finding its songs…')}</p>`}
+        ${songs && songs.length ? '<p class="gs-s">YT / SP: where it plays from. Links found once are kept in the database for everyone; the rest play through Spotify’s search.</p>' : ''}</div></div></div>`;
+  };
+  paint(null);
+  ov.addEventListener('click', async (e) => {
+    if (e.target === ov || e.target.closest('[data-rf="x"]')) { close(); return; }
+    const b = e.target.closest('[data-rf]'); if (!b) return; const k = b.dataset.rf;
+    if (k === 'play') { close(); radio.on = false; rBtnPaint(); playAlbumReplacingQueue(item); }
+    else if (k === 'station') { close(); radioOpen('now'); radioStart(Object.assign({}, radio.draft || {}, { kind: 'release', artist: x.a, title: x.t, genre: x.g, value: '' })); }
+    else if (k === 'add') { close(); const o = document.getElementById('radioOv'); if (o) o.hidden = true; rAdd(item); }
+    else if (k === 'no') { rNotForMe(x); if (radio.disc) radio.disc = radio.disc.filter(d => d.k !== x.k); close(); rPaint(); }
+  });
+  let tl = null; try { tl = await getTracksFor(item); } catch (e) { tl = null; }
+  const ok = (tl || []).filter(t => t && t.trackName);
+  const [top, links] = await Promise.all([rTopTracks(x.a), rLinksFor([x.k]).then(o => o[x.k] || {})]);
+  if (!document.body.contains(ov)) return;
+  paint(ok.map(t => { const lk = links[rFold(t.trackName)] || {}; return { t, l: (top.get(rFold(t.trackName)) || {}).l || 0, src: lk.yt ? 'YT' : lk.sp ? 'SP' : (t.youtubeLink ? 'YT' : t.spotifyLink ? 'SP' : '') }; }), 'No tracklist found.');
+}
+
+// ----- the player's radio button, ⚙ › CRATE Radio…, and the database's search results open the card -----
+function rBtnPaint() { const b = document.getElementById('miniPlayerRadioBtn'); if (b) { b.classList.toggle('on', radio.on); b.setAttribute('aria-pressed', String(radio.on)); b.title = radio.on ? 'CRATE Radio: ' + rStName(radio.st) : 'CRATE Radio'; } }
+(function () {
+  const q = document.getElementById('miniPlayerQueueBtn');
+  if (q) { const b = document.createElement('button'); b.id = 'miniPlayerRadioBtn'; b.className = 'mini-player-btn rd-pbtn'; b.type = 'button'; b.setAttribute('aria-label', 'CRATE Radio'); b.setAttribute('aria-pressed', 'false'); b.title = 'CRATE Radio';
+    b.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/></svg>';
+    b.addEventListener('click', () => radioOpen()); q.parentNode.insertBefore(b, q); }
+  const after = document.getElementById('menuMusicDb') || document.getElementById('menuMasterCrate'); if (after) { const m = document.createElement('button'); m.type = 'button'; m.id = 'menuRadio'; m.textContent = 'CRATE Radio…'; m.title = 'Play beyond your crate, from the music database'; m.addEventListener('click', () => radioOpen()); after.insertAdjacentElement('beforebegin', m); }
+  // the player's title and release, for a release from the database: its card (it isn't in the catalogue to go to)
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest && e.target.closest('#miniPlayerTitle, #miniPlayerAlbum'); if (!t || !nowPlayingItem || !nowPlayingItem.radio) return;
+    e.preventDefault(); e.stopImmediatePropagation(); const c = rCur(); if (c && c.radio.x) rfOpen(c.radio.x); else radioOpen('now');
+  }, true);
+  // the music database page's search results open the card too
+  document.addEventListener('click', (e) => {
+    const r = e.target.closest && e.target.closest('#mdbOverlay .mdb-r[data-mdb-i]'); if (!r || !mdb.view || !mdb.view.res) return;
+    const o = mdb.view.res[Number(r.dataset.mdbI)]; if (!o) return;
+    rfOpen({ k: o.Key, a: o.Artist, t: o.Title, ty: o.Type, y: String(o.Year || '').slice(0, 4), g: o.Genre, d: o.Descriptors, l: o.Label, c: o.Cover, li: Number(o.Listeners) || 0, rr: Number(o.RymRating) || 0, rv: Number(o.RymVotes) || 0, cr: Number(o.Crates) || 0 });
+  });
+  window.addEventListener('keydown', (e) => {          // Shift+R: the radio window
+    if (e.key !== 'R' || !e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return; const t = e.target; if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    e.preventDefault(); e.stopImmediatePropagation(); const o = document.getElementById('radioOv'); if (o && !o.hidden) o.hidden = true; else radioOpen();
+  }, true);
+  if (typeof KEYS_LIST !== 'undefined' && Array.isArray(KEYS_LIST)) { try { KEYS_LIST[0][1].push(['Shift R', 'CRATE Radio']); } catch (e) { /* listed or not */ } }
+})();
