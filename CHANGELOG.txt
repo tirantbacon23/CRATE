@@ -17,8 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.142
+  CURRENT_VERSION: 1.135.143
 
+  1.135.143 — 2026-11-18 — Galaxy influence: the numbers, a third view beside Thread and Story. Totals: influence links, links per
+          release, average link strength, the share of links that cross families, starting points, the longest line,
+          median age when drawn on, and releases with no year. Each family's pull, year by year: a stacked chart of the
+          share of each year's links going back to each family (hover for that year's figures; click a family for its
+          story). Most influential releases, artists or labels, with bars. Bridges between families, lines started in
+          each subgenre, the longest line (play it or show it on the galaxy), orphans (nothing earlier they draw on),
+          dead ends (subgenres with nothing for 8+ years) and you against the crate (influential here, but no listen
+          logged and no plays). Click a release to follow its thread.
   1.135.142 — 2026-11-18 — Recent and saved searches on every device. They go to your sheet's Settings tab (a "Searches" entry) a few
           seconds after they change and come back with the crate, each with when it was last searched or saved, so devices
           merge instead of overwriting each other: the newest 8 recent and newest 20 saved, and a saved search taken away

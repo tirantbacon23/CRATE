@@ -136,7 +136,7 @@ function gsOpen(k) {
 function gsClose() { gs.open = false; const p = gsEl('gsPanel'); if (p) p.hidden = true; gsTabs(); }
 function gsPick(k) { gs.genre = k; gs.focus = 0; gs.data = k ? gsBuild(k) : null; gsRender(); }
 function gsFromText(v) { const q = gxNorm(v); if (!q) return; const L = gsGenres(), hit = L.find(g => g.k === q) || L.find(g => g.k.startsWith(q)) || L.find(g => g.k.includes(q)); if (hit) gsPick(hit.k); }
-function gsLight(ix) { gx.hl = new Set(ix); gsClose(); gxSelect(-1); gxRenderSide(); gxDraw(); }
+function gsLight(ix) { gx.hl = new Set(ix); gx.hlName = ''; gsClose(); gxSelect(-1); gxRenderSide(); gxDraw(); }
 function gsTabs() { document.querySelectorAll('[data-gx-view]').forEach(b => { const on = (b.dataset.gxView === 'story') === gs.open; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); }); }
 
 // the galaxy lights only the story's releases after "Show on the galaxy", until cleared
@@ -147,7 +147,7 @@ function gsTabs() { document.querySelectorAll('[data-gx-view]').forEach(b => { c
   gxtSide = function () {
     const h = bs.apply(this, arguments);
     if (!gx.hl) return h + (gx.sel >= 0 && gsFirstGenre(gx.sel) ? `<div class="gx-acts"><button type="button" class="chip-btn" data-gs-open="${escapeHtml(gxNorm(gsFirstGenre(gx.sel)))}">${escapeHtml(gsFirstGenre(gx.sel))}: its story</button></div>` : '');
-    return `<div class="gs-hl">Showing ${gx.hl.size} release${gx.hl.size === 1 ? '' : 's'} from the ${escapeHtml(gs.data ? gs.data.name : '')} story <button type="button" class="chip-btn" data-gs-clear>Show all</button><button type="button" class="chip-btn" data-gs-open="${escapeHtml(gs.genre)}">Back to the story</button></div>` + h;
+    return `<div class="gs-hl">Showing ${gx.hl.size} release${gx.hl.size === 1 ? '' : 's'} from ${gx.hlName ? escapeHtml(gx.hlName) : `the ${escapeHtml(gs.data ? gs.data.name : '')} story`} <button type="button" class="chip-btn" data-gs-clear>Show all</button>${gx.hlName ? '' : `<button type="button" class="chip-btn" data-gs-open="${escapeHtml(gs.genre)}">Back to the story</button>`}</div>` + h;
   };
   const bm = gxSetMode;
   gxSetMode = function (m) { bm(m); if (gx.mode !== 'time') gsClose(); const t = gsEl('gxViewTabs'); if (t) t.hidden = gx.mode !== 'time'; };

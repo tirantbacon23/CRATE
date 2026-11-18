@@ -6633,3 +6633,31 @@ button.gs-chip { cursor: pointer; margin: 4px 4px 0 0; } button.gs-chip:hover { 
 .gs-tab.on { background: rgba(214,162,76,.14); color: #D6A24C; }
 .gs-hl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; margin-bottom: 10px; border: 1px solid #5D4A2A; border-radius: 8px; font: 12px Inter, sans-serif; color: #E8C27A; }
 @media (max-width: 900px) { .gs-body { grid-template-columns: 1fr; } .gs-side { border-left: 0; border-top: 1px solid #1E242D; } .gs-main { overflow: visible; } .gs-body { overflow-y: auto; } .gs-pick { width: 100%; } }
+
+/* (1.135.143) Galaxy influence: the numbers (js/88-galaxy-numbers.js) */
+.gn-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 24px 24px; display: flex; flex-direction: column; gap: 14px; }
+.gn-nums { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px 16px; }
+.gn-nums div { display: flex; flex-direction: column; min-width: 0; }
+.gn-nums b { font: 400 30px/1 'Bebas Neue', Inter, sans-serif; color: #EDE7DC; } .gn-nums div:first-child b, .gn-nums div:nth-child(6) b { color: #D6A24C; }
+.gn-nums span { font: 11.5px Inter, sans-serif; color: #8B93A0; }
+.gn-h { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; } .gn-h .gs-lbl { margin: 0; }
+.gn-chart { position: relative; height: 190px; } .gn-chart svg { width: 100%; height: 100%; display: block; }
+.gn-hair { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(237,231,220,.7); pointer-events: none; }
+.gn-read { position: absolute; top: 6px; width: 180px; padding: 8px 10px; background: rgba(12,15,20,.94); border: 1px solid #2A313C; border-radius: 8px; pointer-events: none; display: flex; flex-direction: column; gap: 2px; font: 11.5px Inter, sans-serif; color: #EDE7DC; }
+.gn-read[hidden], .gn-hair[hidden] { display: none; }
+.gn-read b { font: 400 20px/1 'Bebas Neue', Inter, sans-serif; color: #D6A24C; } .gn-read span { display: flex; align-items: center; gap: 6px; } .gn-read em { margin-left: auto; font: normal 11px 'IBM Plex Mono', monospace; color: #C9C3B8; }
+.gn-read i, .gn-legend i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; flex: none; }
+.gn-ticks { position: relative; height: 16px; } .gn-ticks span { position: absolute; transform: translateX(-50%); font: 10px 'IBM Plex Mono', monospace; color: #5D6573; }
+.gn-legend { display: flex; gap: 6px 14px; flex-wrap: wrap; font: 12px Inter, sans-serif; color: #C9C3B8; }
+.gn-legend span, .gn-legend button { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 2px 0; color: inherit; font: inherit; cursor: pointer; } .gn-legend button:hover { color: #D6A24C; } .gn-legend span { cursor: default; }
+.gn-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.gn-grid .gs-card { gap: 4px; } .gn-grid .gs-lbl { margin-top: 10px; } .gn-grid .gs-card > .gs-lbl:first-child, .gn-grid .gn-h .gs-lbl { margin-top: 0; }
+.gn-r { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; width: 100%; padding: 5px 4px; border: 0; border-top: 1px solid #1E242D; background: none; color: #EDE7DC; text-align: left; cursor: pointer; border-radius: 0; }
+.gn-r:hover { background: rgba(255,255,255,.04); }
+.gn-r img { width: 34px; height: 34px; border-radius: 3px; object-fit: cover; }
+.gn-r span:first-of-type { display: flex; flex-direction: column; min-width: 0; } .gn-r b { font: 600 12.5px Inter, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .gn-r em { font: normal 11px Inter, sans-serif; color: #8B93A0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gn-bar { width: 110px; height: 6px; border-radius: 3px; background: #232A35; overflow: hidden; } .gn-bar u { display: block; height: 100%; background: #D6A24C; }
+.gn-v { font: 500 11.5px 'IBM Plex Mono', monospace; color: #C9C3B8; text-align: right; min-width: 34px; grid-column: -2; }
+.gn-m { display: flex; justify-content: space-between; gap: 8px; width: 100%; padding: 6px 4px; border: 0; border-top: 1px solid #1E242D; background: none; color: #EDE7DC; font: 12.5px Inter, sans-serif; cursor: pointer; text-align: left; }
+.gn-m:hover { color: #D6A24C; } .gn-m i { font: normal 11px 'IBM Plex Mono', monospace; color: #8B93A0; }
+@media (max-width: 1100px) { .gn-grid { grid-template-columns: 1fr; } .gn-bar { width: 70px; } }
