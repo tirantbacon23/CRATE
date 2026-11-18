@@ -175,10 +175,11 @@ function masterBuild() {          // the nightly trigger, "Rebuild now", and lea
     // charts
     const keys = Object.keys(info), I = (k) => info[k];
     const prior = 3.5, C = 2, bayes = (k) => (I(k).avg * I(k).n + prior * C) / (I(k).n + C);
+    // gems: loved, and in few crates (only one, in a small group)
     const charts = {
       played30: keys.filter(k => I(k).p30 > 0).sort((a, b) => I(b).p30 - I(a).p30).slice(0, 30),
       consensus: keys.filter(k => I(k).n >= 2).sort((a, b) => bayes(b) - bayes(a)).slice(0, 30),
-      gems: keys.filter(k => I(k).n >= 1 && I(k).avg >= 4.2 && I(k).crates <= Math.max(1, Math.floor(members.length / 3)))          // (loved, and in few crates: one in a small group).sort((a, b) => I(b).avg - I(a).avg || I(b).plays - I(a).plays).slice(0, 30),
+      gems: keys.filter(k => I(k).n >= 1 && I(k).avg >= 4.2 && I(k).crates <= Math.max(1, Math.floor(members.length / 3))).sort((a, b) => I(b).avg - I(a).avg || I(b).plays - I(a).plays).slice(0, 30),
       shared: keys.filter(k => I(k).crates >= 2).sort((a, b) => I(b).crates - I(a).crates || I(b).plays - I(a).plays).slice(0, 30)
     };
     const ss = _mSS();

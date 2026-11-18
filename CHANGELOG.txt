@@ -17,8 +17,10 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.162
+  CURRENT_VERSION: 1.135.163
 
+  1.135.163 — 2026-11-18 — Master.gs: a line the hidden-gems change broke is mended (paste this version, not 1.135.162's). Hidden gems
+          are releases loved in few crates: only one, in a small group.
   1.135.162 — 2026-11-18 — The master crate, step 1: ⚙ › Master crate…. One catalog made every night from the crates of everyone on this
           CRATE who joins (you and your friends): each release once (editions such as Deluxe or Remastered count as the
           same), with the details their crates hold (genres, descriptors, label, cover, RYM link and rating, tracklist and
