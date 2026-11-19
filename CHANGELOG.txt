@@ -17,8 +17,10 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.206
+  CURRENT_VERSION: 1.135.207
 
+  1.135.207 — 2026-11-19 — The radio (and similar music) keeps about 50 songs lined up ahead in the queue (it was ten releases),
+          filled in the background six releases at a time, and topped back up as each song plays.
   1.135.206 — 2026-11-19 — "Keep playing similar music" lines songs up early: when the last song of the queue starts, similar
           music is added after it (Up next shows it), instead of only once the queue has run out; the end of the queue still
           tries again if that failed. When it can't, it says why (an old backend: "paste the new Master.gs and deploy").

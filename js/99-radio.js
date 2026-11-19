@@ -221,7 +221,7 @@ async function rNext() {          // the next pick: from beyond your crate "How 
   radio.recentA.push(rFold(pick.x ? pick.x.a : pick.it.artist)); if (radio.recentA.length > 8) radio.recentA.shift();
   return pick;
 }
-const RADIO_AHEAD = 10;
+const RADIO_AHEAD = 50;          // songs
 async function rTopUp(min) {
   if (!radio.on || radio.busy) return; if (crateQueueId !== radio.qid) { rStopped(); return; }
   radio.busy = true;
@@ -229,9 +229,9 @@ async function rTopUp(min) {
     // (1.135.194) several releases at once: their song links asked for in one call, and their tracklists and top songs looked up side by
     // side (one after another, each waited for the last: a few seconds a song)
     let tries = 0;
-    while (radio.on && crateQueueId === radio.qid && tries++ < 8) {
-      // (1.135.200) counted in releases, not songs: ten releases lined up ahead (a station playing whole releases had only one or two)
-      const ahead = new Set(crateQueueList.slice(Math.max(0, crateQueueIndex) + 1).map(e => e && e.item ? rKey(e.item.artist, e.item.title) : '')).size, need = (min || RADIO_AHEAD) - ahead; if (need <= 0) break;
+    while (radio.on && crateQueueId === radio.qid && tries++ < 14) {
+      // (1.135.207) about 50 songs lined up ahead (1.135.200 counted ten releases), six releases asked at a time
+      const ahead = crateQueueList.length - Math.max(0, crateQueueIndex) - 1, need = (min || RADIO_AHEAD) - ahead; if (need <= 0) break;
       const picks = []; for (let i = 0; i < Math.min(need + 1, 6); i++) { const p = await rNext(); if (!p) break; picks.push(p); }
       if (!picks.length) break;
       const keys = picks.filter(p => p.x).map(p => p.x.k); if (keys.length) await rLinksFor(keys);
