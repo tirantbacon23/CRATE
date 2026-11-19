@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.201
+  CURRENT_VERSION: 1.135.202
 
+  1.135.202 — 2026-11-19 — "Keep playing similar music" (and the player's radio button) stays closer to what was playing: the
+          release's own genres and descriptors are the station (its main genre counting most, then its mood and texture),
+          releases from the database must share one of its genres (or be by an artist close to it) when there are enough,
+          your own releases are picked from the 12 closest, and it always plays "near", whatever the last station was set to.
+          A genre the database barely has (fewer than 30 releases) is filled from Last.fm first, once per visit.
   1.135.201 — 2026-11-19 — Fix: "Add to crate" from the radio (and from a release card it opens) now opens Add a release with the
           release filled in, cover included; it used to fill the form in behind a closed window, so nothing was added.
   1.135.200 — 2026-11-19 — The radio lines up more: ten releases ahead in the queue (it was four songs), filled in the background

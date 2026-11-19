@@ -64,7 +64,8 @@ function rSeeds(st) {
   const v = String(st.value || '').trim(), vl = v.toLowerCase();
   if (st.kind === 'genre') { const gn = rGN(v); out.genres.push({ g: gn, w: 1 }); (state.raw || []).filter(it => rSplit(it.genre).concat(rSplit(it.genre2)).some(x => rGN(x) === gn) && (Number(it.rating) || 0) >= 4).slice(0, 30).forEach(it => out.artists.push({ a: it.artist, w: 0.5 })); }
   else if (st.kind === 'artist') { out.artists.push({ a: v, w: 1 }); fromItems((state.raw || []).filter(it => rFold(it.artist) === rFold(v)), 0.4); }
-  else if (st.kind === 'release') { const it = rOwned().get(rKey(st.artist, st.title)) || (typeof nowPlayingItem !== 'undefined' && nowPlayingItem && rKey(nowPlayingItem.artist, nowPlayingItem.title) === rKey(st.artist, st.title) ? nowPlayingItem : null); out.artists.push({ a: st.artist, w: 0.8 }); if (it) fromItems([it], 1); else rSplit(st.genre).forEach(x => out.genres.push({ g: x, w: 1 })); out.descs.forEach(d => { d.w *= 1.6; }); }          // (1.135.193: mood and texture count more)
+  else if (st.kind === 'release') { const it = rOwned().get(rKey(st.artist, st.title)) || (typeof nowPlayingItem !== 'undefined' && nowPlayingItem && rKey(nowPlayingItem.artist, nowPlayingItem.title) === rKey(st.artist, st.title) ? nowPlayingItem : null); out.artists.push({ a: st.artist, w: 0.8 }); if (it) fromItems([it], 1); else { rSplit(st.genre).forEach((x, i) => out.genres.push({ g: x, w: 1 })); rSplit(st.descs).slice(0, 8).forEach(x => out.descs.push({ d: x, w: 0.8 })); }
+    if (st.similar && out.genres[0]) out.genres[0].w *= 1.5; out.descs.forEach(d => { d.w *= 1.6; }); }          // (1.135.193: mood and texture count more; 1.135.202: its main genre most)          // (1.135.193: mood and texture count more)
   else if (st.kind === 'desc') { out.descs.push({ d: rGN(v), w: 1.5 }); fromItems((state.raw || []).filter(it => rSplit(it.rymDescriptors).some(x => rGN(x) === rGN(v))).slice(0, 40), 0.5); }
   else { t.g.forEach(x => out.genres.push({ g: x.k, w: x.w })); t.d.forEach(x => out.descs.push({ d: x.k, w: x.w * 0.6 })); t.a.slice(0, 60).forEach(x => out.artists.push({ a: x.k, w: x.w })); }
   return out;
@@ -82,6 +83,10 @@ async function rLoadPool(st) {
   // (1.135.191) yours however its title is written ("Chrometrails" / "Chrome Trails"), and never the release playing when the radio started
   const tight = (k) => String(k || '').replace(/[^a-z0-9|]+/g, ''), ownedT = new Set([...owned.keys()].map(tight)), startK = radio.startKey ? tight(radio.startKey) : '';
   radio.pool = (r.items || []).filter(x => x && x.k && !no[x.k] && !owned.has(x.k) && !ownedT.has(tight(x.k)) && tight(x.k) !== startK); radio.related = r.related || {}; radio.seeds = seeds;
+  if (st.similar) {          // (1.135.202) "similar to what's playing": its genres first, then its mood and texture; a release of none of its genres only from an artist close to it
+    const sg = new Set(seeds.genres.map(x => rGN(x.g))), strict = radio.pool.filter(x => rSplit(x.g).some(g => sg.has(rGN(g))) || (radio.related[rFold(x.a)] || 0) >= 0.6);
+    radio.simThin = strict.length < 30; if (strict.length >= 12) radio.pool = strict;
+  }
   // your own releases near the station
   const gs = {}; seeds.genres.forEach(x => { gs[x.g] = x.w; }); const ds = {}; seeds.descs.forEach(x => { ds[x.d] = x.w; }); const as = {}; seeds.artists.forEach(x => { as[rFold(x.a)] = x.w; });
   const played = rLs(RADIO_PLAYED_KEY, {}), wk = Date.now() - 7 * 864e5;
@@ -100,12 +105,17 @@ function rScore(x) {          // a database release, for this station now: its f
   const max = radio.pool.length ? radio.pool[0].s || 1 : 1; let s = (x.s || 0) / max;
   const rel = radio.related[rFold(x.a)] || 0; if (far === 'close') s += rel * 0.5; if (far === 'far' && rel >= 0.99) s -= 0.3;
   rSplit(x.g).forEach(g => { s += (radio.boost.g[g] || 0) * 0.15; }); s += (radio.boost.a[rFold(x.a)] || 0) * 0.3;
+  if (radio.st && radio.st.similar && radio.seeds) {
+    const sg = radio.seeds.genres.map(z => rGN(z.g)), sd = new Set(radio.seeds.descs.map(z => rGN(z.d))), xg = rSplit(x.g).map(rGN);
+    xg.forEach((g, i) => { const j = sg.indexOf(g); if (j >= 0) s += (j === 0 ? 0.6 : 0.3) * (i === 0 ? 1 : 0.6); });
+    s += Math.min(0.6, rSplit(x.d).filter(d => sd.has(rGN(d))).length * 0.12);
+  }
   if (radio.recentA.includes(rFold(x.a))) s -= 2;
   return s + Math.random() * jit;
 }
 function rPickNew() { let best = null, bs = -1e9; radio.pool.forEach(x => { if (x.used) return; const s = rScore(x); if (s > bs) { bs = s; best = x; } }); if (best) best.used = true; return best; }
 function rPickMine() {
-  const far = (radio.st && radio.st.far) || 'near', top = radio.mine.filter(m => !m.used && !radio.recentA.includes(rFold(m.it.artist))).slice(0, far === 'close' ? 12 : far === 'far' ? 80 : 25);
+  const far = (radio.st && radio.st.far) || 'near', top = radio.mine.filter(m => !m.used && !radio.recentA.includes(rFold(m.it.artist))).slice(0, far === 'close' || (radio.st && radio.st.similar) ? 12 : far === 'far' ? 80 : 25);
   if (!top.length) return null; const m = top[Math.floor(Math.random() * top.length)]; m.used = true; return m;
 }
 // a release from the database as an item the player knows
@@ -241,11 +251,12 @@ async function radioStart(st, keep) {          // keep (1.135.193): { mode: 'cur
   radio.tab = 'now'; radio.say = 'Tuning in…'; radio.err = ''; rPaint();
   try { await rLoadPool(st); } catch (e) { radio.say = ''; radio.err = e.message; radio.tab = 'stations'; rPaint(); if (keep) flashGlobalToast('Radio: ' + e.message); return false; }
   // (1.135.174) a genre, descriptor or artist the database barely knows yet: more from Last.fm first, merged, then picked again
-  if (['genre', 'desc', 'artist'].includes(st.kind) && st.value && radio.pool.length < 40 && typeof mdbFill === 'function' && typeof srchLfKey === 'function' && srchLfKey()) {
-    radio.say = `Only ${radio.pool.length} release${radio.pool.length === 1 ? '' : 's'} for \u201c${st.value}\u201d in the music database so far: fetching more from Last.fm\u2026`; rPaint();
+  const simTag = st.similar && radio.simThin && !(radio.filled || (radio.filled = new Set())).has(rGN(rSplit(st.genre)[0])) ? rSplit(st.genre)[0] : ''; if (simTag) radio.filled.add(rGN(simTag));          // (1.135.202) similar to a release whose genre the database barely has: more of that genre first
+  if (((['genre', 'desc', 'artist'].includes(st.kind) && st.value && radio.pool.length < 40) || simTag) && typeof mdbFill === 'function' && typeof srchLfKey === 'function' && srchLfKey()) {
+    radio.say = `Only ${radio.pool.length} release${radio.pool.length === 1 ? '' : 's'} for \u201c${simTag || st.value}\u201d in the music database so far: fetching more from Last.fm\u2026`; rPaint();
     try {
       if (st.kind === 'artist') { await mdbFillArtist(st.value); const j = await srchLf({ method: 'artist.getsimilar', artist: st.value, autocorrect: '1', limit: '10' }); const sim = (((j.similarartists || {}).artist) || []).map(x => ({ a: x.name, m: Number(x.match) || 0 })).filter(x => x.a); mdbSimilar(st.value, sim); for (const x of sim.slice(0, 6)) await mdbFillArtist(x.a); }
-      else await mdbFill({ tag: st.value });
+      else await mdbFill({ tag: simTag || st.value });
       await mdbFlush(); await postUpdate({ action: 'masterMusicState', fresh: true });
       await rLoadPool(st);
     } catch (e) { /* plays what there is */ }
@@ -276,7 +287,7 @@ function rAutoSet(on) { try { localStorage.setItem(RADIO_AUTO_KEY, on ? '1' : '0
 async function radioFromItem(it, keep) {
   if (!it || !it.artist || !it.title) return false;
   const last = rLs(RADIO_LAST_KEY, {});
-  const st = { kind: 'release', artist: it.artist, title: it.title, genre: it.genre || '', value: '', newPct: last.newPct != null ? last.newPct : 65, far: last.far === 'far' ? 'far' : last.far || 'near', play: last.play || 'one', yFrom: 0, yTo: 9999, similar: true };
+  const st = { kind: 'release', artist: it.artist, title: it.title, genre: [it.genre, it.genre2].filter(Boolean).join(', '), descs: it.rymDescriptors || '', value: '', newPct: last.newPct != null ? last.newPct : 65, far: last.far === 'close' ? 'close' : 'near',          /* (1.135.202: similar music stays near) */ play: last.play || 'one', yFrom: 0, yTo: 9999, similar: true };
   return radioStart(st, keep);
 }
 function radioStop() { radio.on = false; rBtnPaint(); rPaint(); try { if (typeof playerPlayingNow === 'function' && playerPlayingNow()) el.miniPlayerPlayPause.click(); } catch (e) { /* fine */ } }
