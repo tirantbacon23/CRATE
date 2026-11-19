@@ -368,9 +368,19 @@ function rymFetchWhy(reason, r) {
 // accents dropped, apostrophes and full stops taken out, "&" kept as "and", anything else between words a hyphen). The add-on (1.25+)
 // reads that page, and if there's no such page it searches RYM instead; an older add-on reads the guess, or skips it when it's wrong.
 function rymSlug(s) { return String(s || '').toLowerCase().replace(/[\u00e6]/g, 'ae').replace(/[\u0153]/g, 'oe').replace(/[\u00f8]/g, 'o').replace(/[\u00df]/g, 'ss').replace(/[\u00f0]/g, 'd').replace(/[\u00fe]/g, 'th').replace(/[\u0142]/g, 'l').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/['\u2019.]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
+// (1.135.190) Artists who share a name are told apart on RYM by a suffix (coda, coda-5, coda-6, coda_f10), which can't be worked out from
+// the name. So the guess is made only with the artist's address as RYM has it, taken from another of their releases in your crate that
+// has a RYM link (and only when those agree on one); for any other artist, RYM's search is used, which lists each of them separately.
+function rymArtistSlugs() {
+  if (rymArtistSlugs.m && rymArtistSlugs.n === state.raw.length) return rymArtistSlugs.m;
+  const m = new Map(); (state.raw || []).forEach(r => { const x = /rateyourmusic\.com\/release\/[a-z]+\/([^/]+)\//i.exec(String(r.rymLink || '')); if (!x) return; const k = rymSlug(r.artist); if (!m.has(k)) m.set(k, new Set()); m.get(k).add(x[1].toLowerCase()); });
+  rymArtistSlugs.m = m; rymArtistSlugs.n = state.raw.length; return m;
+}
 function rymGuessUrl(it) {
   const ty = { album: 'album', live: 'album', ep: 'ep', single: 'single', compilation: 'comp', comp: 'comp', mixtape: 'mixtape', 'dj mix': 'djmix', video: 'video' }[String(it.type || 'album').toLowerCase()] || 'album';
-  const a = rymSlug(it.artist), t = rymSlug(it.title); return a && t ? `https://rateyourmusic.com/release/${ty}/${a}/${t}/` : '';
+  const known = rymArtistSlugs().get(rymSlug(it.artist)), t = rymSlug(it.title);
+  if (!known || known.size !== 1 || !t) return '';          // not known (or more than one of that name in your crate): searched for instead
+  return `https://rateyourmusic.com/release/${ty}/${[...known][0]}/${t}/`;
 }
 function rymFetchUpdates(items, opts) {
   opts = opts || {}; items = (items || []).filter(Boolean);

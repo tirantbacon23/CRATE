@@ -8,6 +8,10 @@ A small browser add-on that looks at an artist's discography, or a **genre's** d
 
 Everything happens inside your browser. The add-on makes **no network requests** and sends your data nowhere. It only *adds* markers to RYM's page; it never changes RYM's own text or links.
 
+## New in 1.26.0
+
+When RYM's search has two equally good answers for a release (artists who share a name, with the same title), it's skipped rather than the first one taken.
+
 ## New in 1.25.0
 
 A release CRATE has no RYM link for is read at its guessed address first (`/release/<type>/<artist>/<title>/`, the pattern RYM uses); only if RYM has no such page does it search. Usually one page read instead of a search and a page.

@@ -106,15 +106,15 @@ async function onDone(sender, msg) {
 function searchUrl(q) { return 'https://rateyourmusic.com/search?searchtype=l&searchterm=' + encodeURIComponent((q.artist + ' ' + q.title).trim()); }
 const fold = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').replace(/^the /, '').trim();
 function pick(q, list) {
-  const qa = fold(q.artist), qt = fold(q.title), qty = String(q.type || '').toLowerCase(); let best = null, bs = 0;
+  const qa = fold(q.artist), qt = fold(q.title), qty = String(q.type || '').toLowerCase(); let best = null, bs = 0, tie = false;
   (list || []).forEach(r => {
     const as = Math.max(0, ...(r.artists || []).map(a => { const f = fold(a); return f === qa ? 2 : f && qa && (f.includes(qa) || qa.includes(f)) ? 1 : 0; }));
     const ft = fold(r.title), ts = ft === qt ? 3 : ft && qt && (ft.includes(qt) || qt.includes(ft)) ? 1.5 : 0;
     if (!ts || (r.artists && r.artists.length && !as)) return;
     const s = ts + as + (qty && r.type === qty ? 0.5 : 0) + (q.year && r.year === q.year ? 0.5 : 0);
-    if (s > bs) { bs = s; best = r; }
+    if (s > bs) { bs = s; best = r; tie = false; } else if (s === bs && best && r.href !== best.href) tie = true;
   });
-  return bs >= 3 ? best : null;
+  return bs >= 3 && !tie ? best : null;          // (1.26.0) two equally good answers (artists who share a name, and the same title): skipped, not guessed
 }
 async function onFound(sender, msg) {
   await loadJob(); if (!job || job.state !== 'loading') return;

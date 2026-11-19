@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.189
+  CURRENT_VERSION: 1.135.190
 
+  1.135.190 — 2026-11-19 — RYM pages for releases with no link, when artists share a name: RYM tells them apart with a suffix (coda, coda-5,
+          coda_f10), which can't be worked out from the name, so a guess could open another artist's page. The address is now guessed only
+          with the artist's address as RYM has it, taken from another of their releases in your crate that has a RYM link (and only when
+          those agree); otherwise RYM's search is used, which lists each of them separately, with the year to tell them apart. The RYM
+          add-on 1.26.0 skips a search with two equally good answers instead of taking the first.
   1.135.189 — 2026-11-19 — Release types read properly. MusicBrainz's extra types are used: a live album comes in as Live, a compilation
           as Compilation, a mixtape or DJ mix as Mixtape (only its main type was read, so all of them came in as Album). Discogs: Mixtape
           in its format notes, and "Live at / in / from" in its title, as well as Single, EP and Compilation. In Add a release, its
