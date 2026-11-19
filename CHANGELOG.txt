@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.196
+  CURRENT_VERSION: 1.135.197
 
+  1.135.197 — 2026-11-19 — Finding a release on Rate Your Music: an artist with no RYM link in your crate yet is now guessed from
+          their name as RYM writes it (Tennyson → /release/album/tennyson/title/), then the other types (EP, single,
+          compilation), and only then RYM's search. Artists your crate already knows keep their RYM address; a name with
+          more than one address in your crate (coda, coda-6) still goes to the search.
   1.135.196 — 2026-11-19 — The radio's songs from the music database: their tracklist and cover now come from Last.fm's album info, one quick
           call, where the usual iTunes and MusicBrainz lookups (MusicBrainz at one a second) made the radio slow, often found nothing, and
           left the covers as initials; the usual lookup is the fallback, and isn't waited on for ever. A song with no link is found on
