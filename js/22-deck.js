@@ -642,7 +642,7 @@ function postUpdate(payload, retried) {
       return postUpdate({ action: 'masterDiag', profile: payload.profile }, true).then(d => {
         const c = (d && d.diag && d.checks) || [], bad = c.filter(x => x.ok === false);
         throw new Error(msg + (bad.length ? ' Refused: ' + bad.map(x => `${x.what} (${x.note})`).join('; ') + '.' : c.length ? ' Every sheet opened fine just now (' + c.map(x => `${x.what}: ${x.note}`).join('; ') + '), so it was this save itself: try it again.' : ' It usually passes in a minute: try again.'));
-      }, () => { throw new Error(msg + ' It usually passes in a minute: try again. (Deploy the latest Master.gs and CRATE will say which sheet was refused.)'); });
+      }, (e2) => { const m2 = String((e2 && e2.message) || e2 || ''); throw new Error(msg + (/unknown|not a master action|masterDiag/i.test(m2) ? ' (The Master.gs deployed is older than the one that can say which sheet: paste the newest and deploy a new version.)' : ` The check of each sheet failed too: \u201c${m2.slice(0, 300)}\u201d.`)); });          // (1.135.222: the check's own error, not a guess)
     }
     if (data && data.error) { throw new Error(data.error); }
     try {                                         // a release just added: into the match queue (Match songs → Preferences can switch this off)

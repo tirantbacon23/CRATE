@@ -17,8 +17,10 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.221
+  CURRENT_VERSION: 1.135.222
 
+  1.135.222 — 2026-11-20 — A refused save whose sheet check can't run now says why: an older Master.gs ("paste the newest and
+          deploy a new version"), or the check's own error, word for word.
   1.135.221 — 2026-11-20 — A save Google Sheets refuses twice now says which sheet: CRATE asks the backend (Master.gs: deploy a
           new version) to open each sheet a save touches (your crate's, the profile's, the master crate's) and write one cell
           back unchanged, and names the one refused with Google's own error and where it came from; or, when every one opens,
