@@ -2,9 +2,9 @@
 // sources you put in order (⚙ → RYM ratings → "Fill blanks from other sources"): song lengths (RYM has none), the release date (or a year made
 // a full date), the label, the cover. Only blanks are filled; nothing you have is replaced. Each source is asked at most once per release, and
 // only when a blank needs it. What none of them had waits for you in Processing → Needs you, where "Pull details" opens the side-by-side window. ----
-const AF_DETAILS = [['lengths', 'Song lengths'], ['date', 'Release date'], ['label', 'Label'], ['cover', 'Cover']];
+const AF_DETAILS = [['tracks', 'Tracklist (none yet)'], ['lengths', 'Song lengths'], ['date', 'Release date'], ['label', 'Label'], ['catalog', 'Catalogue no.'], ['genre', 'Genre'], ['cover', 'Cover']];          // (1.135.212: tracklist, catalogue no., genre)
 const AF_SOURCES = ['mb', 'sp', 'it', 'dc'];                          // (RYM is the step before; these are the others Pull details knows)
-const AF_DEFAULT = { lengths: ['mb', 'sp', 'it'], date: ['mb', 'sp'], label: ['mb', 'dc'], cover: ['mb', 'sp', 'it'] };
+const AF_DEFAULT = { tracks: ['mb', 'sp', 'it'], lengths: ['mb', 'sp', 'it'], date: ['mb', 'sp'], label: ['mb', 'dc'], catalog: ['mb', 'dc'], genre: ['dc'], cover: ['mb', 'sp', 'it'] };
 const AF_LEFT_KEY = 'crate_fill_left_v1';
 const af = { pending: [], running: null, timer: 0, done: new Set() };
 const afKey = (it) => mqKey(it.artist, it.title);
@@ -59,17 +59,27 @@ async function afFill(item) {
     lengths: manual && order.lengths.length ? rows.map((r, i) => (r.durationMs > 0 ? -1 : i)).filter(i => i >= 0) : [],
     date: order.date.length && (!item.releaseDate || /^\d{4}$/.test(String(item.releaseDate))),
     label: order.label.length && !String(item.label || '').trim(),
-    cover: order.cover.length && !String(item.cover || '').trim()
+    cover: order.cover.length && !String(item.cover || '').trim(),
+    catalog: order.catalog.length && !(typeof dgCatKey === 'function' ? dgCatKey(item.catalog) : String(item.catalog || '').trim()),          // (1.135.212) ("CRT-12", CRATE's own stand-in, counts as blank)
+    genre: order.genre.length && !String(item.genre || '').trim(),
+    tracks: order.tracks.length && !rows.length
   };
   const payload = { action: 'editAlbum', row: item.row }, got = [];
-  for (const d of ['date', 'label', 'cover']) {
+  // (1.135.212) no tracklist at all: the first source in your order that has one (MusicBrainz first: it has lengths), saved as the release's own
+  let newRows = null;
+  if (want.tracks) for (const k of order.tracks) {
+    const s = await ask(k); if (!s || s.err || !(s.tracks || []).length) continue;
+    newRows = s.tracks.filter(t => t && t.title).map(t => ({ title: t.title, durationMs: t.durationMs || 0, section: t.section || '', s: PD_TL_SRC[k] || 'lookup' }));
+    if (newRows.length) { got.push(`the tracklist (${newRows.length} songs) from ${afSrcName(k)}`); want.tracks = false; want.lengths = []; break; }
+  }
+  for (const d of ['date', 'label', 'catalog', 'genre', 'cover']) {
     if (!want[d]) continue;
     for (const k of order[d]) {
       const s = await ask(k), v = s && !s.err ? String(s[d] || '').trim() : '';
       if (!v) continue;
       if (d === 'date' && !afDateFits(String(item.releaseDate || ''), v)) continue;
       if (d === 'cover' && !(await cxProbe(v))) continue;          // saved only if it loads from here
-      payload[{ date: 'ReleaseDate', label: 'Label', cover: 'Cover' }[d]] = v; got.push(`${d === 'date' ? 'release date' : d} from ${afSrcName(k)}`); want[d] = false; break;
+      payload[{ date: 'ReleaseDate', label: 'Label', cover: 'Cover', catalog: 'Catalog', genre: 'Genre' }[d]] = v; got.push(`${d === 'date' ? 'release date' : d === 'catalog' ? 'catalogue no.' : d} from ${afSrcName(k)}`); want[d] = false; break;
     }
   }
   let lens = 0; const by = {};
@@ -85,15 +95,16 @@ async function afFill(item) {
   }
   if (Object.keys(payload).length > 2) {
     await postUpdate(payload);
-    if (payload.ReleaseDate) item.releaseDate = payload.ReleaseDate; if (payload.Label) item.label = payload.Label; if (payload.Cover) item.cover = payload.Cover;
+    if (payload.ReleaseDate) item.releaseDate = payload.ReleaseDate; if (payload.Label) item.label = payload.Label; if (payload.Cover) item.cover = payload.Cover; if (payload.Catalog) item.catalog = payload.Catalog; if (payload.Genre) item.genre = payload.Genre;
   }
-  if (lens) await saveManualTracklist(item, rows, true);
+  if (newRows && newRows.length) await saveManualTracklist(item, newRows, true);
+  else if (lens) await saveManualTracklist(item, rows, true);
   if (got.length) { rymRefreshViews(); scheduleCatalogSync(); jobsDone('fill', `Filled blanks of “${item.title}”: ${got.join(', ')}`, { k: afKey(item) }); }
   // what none of your sources had: for you, in Processing
   const missing = [];
-  if (!rows.length && order.lengths.length) missing.push('a tracklist');
+  if (!rows.length && !(newRows && newRows.length) && (order.lengths.length || order.tracks.length)) missing.push('a tracklist');
   if (want.lengths.length) missing.push(`${want.lengths.length} song length${want.lengths.length === 1 ? '' : 's'}`);
-  if (want.date) missing.push('the release date'); if (want.label) missing.push('the label'); if (want.cover) missing.push('the cover');
+  if (want.date) missing.push('the release date'); if (want.label) missing.push('the label'); if (want.catalog) missing.push('the catalogue no.'); if (want.genre) missing.push('a genre'); if (want.cover) missing.push('the cover');
   const k = afKey(item), list = afLeftAll().filter(e => e.k !== k);
   if (missing.length) list.push({ k, row: String(item.row), artist: item.artist, title: item.title, missing, t: Date.now() });
   afLeftSave(list);

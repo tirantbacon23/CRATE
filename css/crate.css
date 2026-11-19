@@ -7313,3 +7313,11 @@ input.mcd-filled { border-color: rgba(127,209,185,.6) !important; }
 #addOverlay.aan-out > * { animation: aanOut .2s ease-in both; }
 @keyframes aanOut { to { opacity: 0; transform: scale(.96) translateY(6px); } }
 @media (prefers-reduced-motion: reduce) { #qaCard.aan-adding .qa-cv, #qaCard.aan-done .qa-cv, #addOverlay.aan-out > *, #qaCard [data-qa-add]::before { animation: none !important; } }
+
+/* (1.135.212) Add a release: details pulled as it is picked */
+.apl-line { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; padding: 8px 0 10px; border-bottom: 1px solid #262D38; font-size: 12px; color: #8B93A0; }
+.apl-h { display: inline-flex; align-items: center; gap: 6px; font: 500 11px 'IBM Plex Mono', monospace; letter-spacing: 1px; text-transform: uppercase; color: #D6A24C; }
+.apl-spin { width: 10px; height: 10px; border-radius: 50%; border: 2px solid #2A313C; border-top-color: #D6A24C; animation: mlspin .8s linear infinite; display: inline-block; }
+.apl-s { font-family: 'IBM Plex Mono', monospace; } .apl-s.apl-ok { color: #7FD1B9; } .apl-s.apl-ask { color: #C9C3B8; }
+.apl-s em { font-style: normal; color: #EDE7DC; font-family: Inter, sans-serif; }
+@media (prefers-reduced-motion: reduce) { .apl-spin { animation: none; } }

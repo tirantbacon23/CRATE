@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.211
+  CURRENT_VERSION: 1.135.212
 
+  1.135.212 — 2026-11-19 — Add a release pulls the details as soon as a release is picked, before you add it: MusicBrainz,
+          Discogs, Spotify and iTunes are asked at once and what is blank is filled in as they answer (label, catalogue
+          number, the full date for a bare year, cover, genre, tracklist), a better source taking over from a weaker one
+          unless you changed it. A line in the summary shows each source asked and what it gave. Only blanks: what you
+          typed, or what came with the release you picked, stays. After adding, "Fill blanks from other sources" (now also
+          ticked on the summary) fills a tracklist, catalogue number and genre too, besides song lengths, date, label, cover.
   1.135.211 — 2026-11-19 — A song played from the search (▶, double-click, Shift+Enter, or ▶ on a song under a release there) now
           plays on its own, with its saved links: the rest of its release doesn't follow. With "keep playing similar music"
           on, similar songs are lined up after it as it starts; otherwise it stops when it ends.

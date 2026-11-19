@@ -39,6 +39,7 @@ function qaPaint() {
     </div>
     <div class="qa-then"><span class="qa-lbl">Then, by itself</span>
       <label><input type="checkbox" data-qa-then="rym"${rymOn ? ' checked' : ''}> Update from Rate Your Music</label>
+      <label><input type="checkbox" data-qa-then="fill"${state.afOn ? ' checked' : ''}> Fill what\u2019s still blank from MusicBrainz, Discogs, Spotify, iTunes</label>
       <label><input type="checkbox" data-qa-then="match"${matchOn ? ' checked' : ''}> Match songs on Spotify and YouTube</label></div>
     <div class="qa-acts"><button type="button" class="qa-add" data-qa-add>Add to crate</button><button type="button" class="qa-again" data-qa-add="again">Add, and add another</button></div>`;
   if (c.dataset.h !== html) { c.dataset.h = html; c.innerHTML = html; }
@@ -57,6 +58,7 @@ function qaPaint() {
   document.addEventListener('change', (e) => {
     const t = e.target.closest && e.target.closest('[data-qa-then]'); if (!t) return;
     if (t.dataset.qaThen === 'rym') { state.rymUpdateOnAdd = t.checked; try { savePrefs(); } catch (er) { /* this visit */ } }
+    else if (t.dataset.qaThen === 'fill') { state.afOn = t.checked; try { savePrefs(); } catch (er) { /* this visit */ } if (typeof afRenderSettings === 'function') afRenderSettings(); }          // (1.135.212)
     else if (typeof smPrefsSave === 'function') smPrefsSave({ autoMatchNew: t.checked });
   });
   // Enter adds (from the summary, or any one-line field of the form), unless a list or a suggestion is open
