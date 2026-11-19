@@ -8,6 +8,10 @@ A small browser add-on that looks at an artist's discography, or a **genre's** d
 
 Everything happens inside your browser. The add-on makes **no network requests** and sends your data nowhere. It only *adds* markers to RYM's page; it never changes RYM's own text or links.
 
+## New in 1.24.0
+
+Tells CRATE as soon as it opens that it can find a release's RYM page by its artist and title, so releases you add without a RYM link are looked up straight away (CRATE used to learn that only from a finished update).
+
 ## New in 1.23.0
 
 "Update from Rate Your Music" now works for releases that have no RYM link yet. The add-on reads Rate Your Music's search for the release's artist and title (in the same hidden page, with the same pause between pages), takes the result that matches (same artist and title; the same type and year win a tie), and reads that release's page. The update brings the RYM link with it. A release the search doesn't turn up is skipped and named in CRATE. Needs CRATE 1.135.160 or newer.
@@ -304,5 +308,3 @@ Rate Your Music lists the parts of some tracks under them, with no position of t
 ## Artists' details for CRATE (version 1.21.0)
 
 On an artist's page on Rate Your Music, the add-on notes what the page lists beside the name: born or formed, died or disbanded, members (with their roles), member of, and also known as. CRATE asks for these (as it does tracklists), and its artist page's "Fill from RYM" adds them: the artist's type, the dates, members, the bands it was in, and its other names as aliases. Kept in this browser (`rymArtists`, up to 3,000 artists); the same Options switch as genre descriptions turns it off.
-
-**1.24.0** — tells CRATE on arrival that it can find a release's RYM page by its artist and title, so releases you add without a RYM link get looked up straight away (CRATE used to wait to learn that from a finished update).

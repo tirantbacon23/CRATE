@@ -426,11 +426,14 @@ suite('Syncing the crate quietly', () => {
 
 suite('New releases: added, then updated from Rate Your Music, then matched', () => {
   const rel = (o) => Object.assign({ artist: 'Wckr Spgt', title: 'Dance Til You Stop', row: 9, rymLink: 'https://rateyourmusic.com/release/album/wckr-spgt/dance-til-you-stop/', rymUpdated: '' }, o);
-  test('only new releases with a RYM link that have never been updated, and only with the setting on', () => {
+  test('only new releases never updated (with a RYM link, or found on RYM when the add-on can), and only with the setting on', () => {
     const st = app('state'), was = st.rymUpdateOnAdd, pick = app('rymUpdateAddedPick');
     try {
       st.rymUpdateOnAdd = true;
-      eq(pick([rel(), rel({ rymLink: '' }), rel({ rymUpdated: '2026-01-01' })]).length, 1);
+      const out = app('rymOutState'), had = out.finds;
+      out.finds = undefined; eq(pick([rel(), rel({ rymLink: '' }), rel({ rymUpdated: '2026-01-01' })]).length, 2, 'no link: found on RYM unless the add-on is known not to');
+      out.finds = false; eq(pick([rel(), rel({ rymLink: '' }), rel({ rymUpdated: '2026-01-01' })]).length, 1, 'an add-on that can\'t find pages: only ones with a link');
+      out.finds = had;
       st.rymUpdateOnAdd = false; eq(pick([rel()]).length, 0);
     } finally { st.rymUpdateOnAdd = was; }
   });
