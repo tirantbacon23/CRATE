@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.182
+  CURRENT_VERSION: 1.135.183
 
+  1.135.183 — 2026-11-19 — The artist page: a release you already have (in "In your crate" or More Releases) opens its Last.fm card, as
+          ones you don't have do: its songs with their listeners and plays, your plays and when you last played it, with Play all and
+          Open the deck. A double-click on a cover still plays it. In that card (and the one search's covers open), Play all, a song's
+          ▶ and Open the deck now work; they did nothing there before.
   1.135.182 — 2026-11-19 — Add a release: paste a link. A link in the search box is read instead of searched for: MusicBrainz (the
           release itself, or a release group's pressings), Spotify and Apple Music (their album, filled in whole), and Rate Your Music,
           Bandcamp, Discogs and Last.fm (artist and title read from the link and searched; the link itself is kept on the release you pick,
