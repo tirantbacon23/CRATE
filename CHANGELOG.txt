@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.186
+  CURRENT_VERSION: 1.135.187
 
+  1.135.187 — 2026-11-19 — Covers: a release that came without one (from a friend's crate with no cover saved, or the music database),
+          or whose cover link doesn't load, has one looked up on Last.fm, a few at a time, kept in this browser and given to the music
+          database. In Discover, the radio, its songs in Up next, the release card, and anywhere in CRATE a release fell back to its
+          initials. Years from the music database read "Tue", "Sun" and so on: Google Sheets had turned the stored dates into real dates;
+          the backend now reads the year out of either. Paste the new Master.gs and deploy a new version.
   1.135.186 — 2026-11-19 — Add a release: "Already in your crate" as you type. When the words in the search box match a release you have
           (its artist and title, or just its title), it's named under the box with its year and your rating, with Open (its deck) and
           "Add another edition" (which puts the warning away for those words). Words that only match an artist say quietly how many of

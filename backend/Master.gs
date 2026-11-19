@@ -37,6 +37,9 @@ function _mFold(s) {
     .replace(/\s*[\(\[][^)\]]*(deluxe|remaster|edition|expanded|anniversary|bonus|version|reissue)[^)\]]*[\)\]]/g, '')
     .replace(/[^a-z0-9]+/g, ' ').replace(/^the /, '').trim();
 }
+// (1.135.187) a year from whatever the sheet holds: Sheets turns "1966-08-05" into a date, which read as text was "Fri Aug 05 1966…" (and
+// sliced to four letters, the year showed as "Fri")
+function _mYear(v) { if (v instanceof Date) return isNaN(v.getTime()) ? '' : String(v.getFullYear()); const s = String(v == null ? '' : v); const m = s.match(/^\d{4}/) || s.match(/\b(1[89]\d\d|20\d\d)\b/); return m ? (m[1] || m[0]) : ''; }
 function _mKey(artist, title) { const a = _mFold(artist), t = _mFold(title); return a && t ? a + '|' + t : ''; }
 function _mShare(email) {
   let s = null; try { s = JSON.parse(_mProps().getProperty('MASTER_SHARE_' + email) || 'null'); } catch (e) { s = null; }
@@ -121,7 +124,7 @@ function masterBuild() {          // the nightly trigger, "Rebuild now", and lea
         if (m.share.details) {
           const tally = (o, v) => { v = String(v || '').trim(); if (v) o[v] = (o[v] || 0) + 1; };
           tally(x.types, r.Type); tally(x.genre, r.Genre); tally(x.genre2, r.SecondaryGenre); tally(x.desc, r.RymDescriptors || r.Descriptor); tally(x.label, r.Label); tally(x.rym, r.RymLink);
-          const y = parseInt(String(r.ReleaseDate || '').slice(0, 4), 10); if (y > 1000) x.years.push(String(r.ReleaseDate).slice(0, 10));
+          const rd = r.ReleaseDate instanceof Date ? (isNaN(r.ReleaseDate.getTime()) ? '' : r.ReleaseDate.toISOString().slice(0, 10)) : String(r.ReleaseDate || ''), y = parseInt(_mYear(rd), 10); if (y > 1000) x.years.push(/^\d{4}/.test(rd) ? rd.slice(0, 10) : String(y));
           if (!x.cover && /^https:\/\//.test(String(r.Cover || ''))) x.cover = String(r.Cover);
           const rv = Number(r.RymVotes) || 0; if (Number(r.RymRating) && rv >= x.rymV) { x.rymR = Number(r.RymRating); x.rymV = rv; }
           const tr = _mCleanTracks(r); if (tr.length && (!x.tracks || tr.length > x.tracks.length || tr.filter(t => t.sp || t.yt).length > x.tracks.filter(t => t.sp || t.yt).length)) x.tracks = tr;
@@ -270,7 +273,7 @@ function _master(email, action, payload) {
       rel.others = { crates: others.length, n: oR.length, avg: oR.length ? Math.round(oR.reduce((a, e) => a + e.r, 0) / oR.length * 100) / 100 : 0, plays: others.reduce((a, e) => a + (e.p || 0), 0) };
       const st = _mStatus(), p30 = st && st.charts && st.charts.played30 ? st.charts.played30.indexOf(row.Key) : -1; rel.rank30 = p30 >= 0 ? p30 + 1 : 0; rel.totalCrates = st ? st.crates : 0;
       let also = []; try { also = JSON.parse(String(row.Also || '[]')); } catch (e) { also = []; }
-      rel.also = also.slice(0, 6).map(a => { const r2 = _mFindRow('Releases', a.k); return r2 ? { artist: r2.Artist, title: r2.Title, year: String(r2.Year || '').slice(0, 4), cover: r2.Cover, n: a.n, avg: r2.AvgRating || 0, crates: r2.Crates } : null; }).filter(Boolean);
+      rel.also = also.slice(0, 6).map(a => { const r2 = _mFindRow('Releases', a.k); return r2 ? { artist: r2.Artist, title: r2.Title, year: _mYear(r2.Year), cover: r2.Cover, n: a.n, avg: r2.AvgRating || 0, crates: r2.Crates } : null; }).filter(Boolean);
       return _json({ ok: true, master: true, joined: true, found: true, release: rel, people: _mPeople(email, ms), fill: _mShare(email).fill });
     }
     if (action === 'masterDiscover') {       // this person's recommendations and taste matches, and the charts
@@ -282,7 +285,7 @@ function _master(email, action, payload) {
       if (sh && sh.getLastRow() > 1) {
         const v = sh.getRange(1, 1, sh.getLastRow(), MASTER_REL_COLS.length).getValues(), h = v[0].map(String), ix = (n) => h.indexOf(n);
         for (let i = 1; i < v.length; i++) { const k = v[i][0]; if (!want.has(k)) continue;
-          rels[k] = { artist: v[i][ix('Artist')], title: v[i][ix('Title')], year: String(v[i][ix('Year')] || '').slice(0, 4), genre: v[i][ix('Genre')], cover: v[i][ix('Cover')], crates: v[i][ix('Crates')], ratings: v[i][ix('Ratings')], avg: v[i][ix('AvgRating')], plays: v[i][ix('Plays')], plays30: v[i][ix('Plays30')] }; }
+          rels[k] = { artist: v[i][ix('Artist')], title: v[i][ix('Title')], year: _mYear(v[i][ix('Year')]), genre: v[i][ix('Genre')], cover: v[i][ix('Cover')], crates: v[i][ix('Crates')], ratings: v[i][ix('Ratings')], avg: v[i][ix('AvgRating')], plays: v[i][ix('Plays')], plays30: v[i][ix('Plays30')] }; }
       }
       const match = (fy.match || []).map(m => { const w = _mWho(email, me, m.id); return { name: w.name || '', friend: !!w.friend, pct: m.pct, shared: m.shared }; });
       return _json({ ok: true, master: true, joined: true, builtAt: st ? st.builtAt : 0, recs: fy.recs || [], match: match, charts: ch, releases: rels });
@@ -331,7 +334,7 @@ function _muApply(m, x, now) {   // one release into the map: blanks filled, the
   if (!r) { r = MU_COLS.map(() => ''); r[0] = x.k; r[C('Sources')] = '{}'; r[C('Crates')] = 0; r[C('Added')] = now; m.set(x.k, r); }
   const fill = (col, v) => { if (v && !r[C(col)]) r[C(col)] = v; };
   fill('Artist', x.a); fill('Title', x.t); fill('Type', x.ty); fill('Genre', x.g); fill('Descriptors', x.d); fill('Label', x.l); fill('Cover', x.c); fill('Mbid', x.mb);
-  if (x.y && (!r[C('Year')] || String(x.y).slice(0, 4) < String(r[C('Year')]).slice(0, 4))) r[C('Year')] = x.y;          // the earliest year anyone has
+  if (x.y && (!_mYear(r[C('Year')]) || _mYear(x.y) < _mYear(r[C('Year')]))) r[C('Year')] = x.y;          // the earliest year anyone has
   ['Listeners:li', 'LfPlays:lp'].forEach(p => { const [col, f] = p.split(':'); if (x[f] > (Number(r[C(col)]) || 0)) r[C(col)] = x[f]; });
   if (x.rv && x.rv >= (Number(r[C('RymVotes')]) || 0)) { r[C('RymRating')] = x.rr; r[C('RymVotes')] = x.rv; } else if (x.rr && !r[C('RymRating')]) r[C('RymRating')] = x.rr;
   let s = {}; try { s = JSON.parse(String(r[C('Sources')] || '{}')) || {}; } catch (e) { s = {}; } s[x.src] = (s[x.src] || 0) + 1; r[C('Sources')] = JSON.stringify(s);
@@ -364,7 +367,7 @@ function _muMerge(force, crateRows) {          // the inbox (and, from a build, 
       let s = {}; try { s = JSON.parse(String(r[C('Sources')] || '{}')); } catch (e) { s = {}; } Object.keys(s).forEach(k => { src[k] = (src[k] || 0) + 1; });
       String(r[C('Genre')] || '').toLowerCase().split(/\s*,\s*/).filter(Boolean).slice(0, 3).forEach(g => { genres[g] = (genres[g] || 0) + 1; }); });
     const recent = out.filter(r => Number(r[C('Added')]) >= week).sort((a, b) => Number(b[C('Added')]) - Number(a[C('Added')])).slice(0, 24).map(r => {
-      let s = {}; try { s = JSON.parse(String(r[C('Sources')] || '{}')); } catch (e) { s = {}; } return { a: r[1], t: r[2], y: String(r[C('Year')] || '').slice(0, 4), c: r[C('Cover')], src: Object.keys(s)[0] || '' }; });
+      let s = {}; try { s = JSON.parse(String(r[C('Sources')] || '{}')); } catch (e) { s = {}; } return { a: r[1], t: r[2], y: _mYear(r[C('Year')]), c: r[C('Cover')], src: Object.keys(s)[0] || '' }; });
     const topGenres = Object.keys(genres).sort((a, b) => genres[b] - genres[a]).slice(0, 400).reduce((o, g) => { o[g] = genres[g]; return o; }, {});
     const st = { at: now, releases: out.length, artists: artists.size, notInCrates: notIn, added7: added7, withNumbers: rated, similar: simOut.length, sources: src, genres: topGenres, recent: recent };
     const stSh = _muTab(ss, 'MusicStatus', ['Json']); stSh.getRange(2, 1).setValue(JSON.stringify(st));
@@ -438,7 +441,7 @@ function _music(email, action, payload) {
       const out = [];
       v.forEach(r => {
         const key = String(r[I.Key] || ''); if (!key || skip[key]) return;
-        const y = Number(String(r[I.Year] || '').slice(0, 4)) || 0; if (y && (y < yFrom || y > yTo)) return; if (!y && (yFrom > 0 || yTo < 9999) && payload.strictYears) return;
+        const y = Number(_mYear(r[I.Year])) || 0; if (y && (y < yFrom || y > yTo)) return; if (!y && (yFrom > 0 || yTo < 9999) && payload.strictYears) return;
         const g = tokens(r[I.Genre]), d = tokens(r[I.Descriptors]), ak = _mFold(r[I.Artist]);
         let sc = 0, why = [];
         genres.forEach(x => { if (g.length && has(g, x.g)) { sc += 2 * x.w; if (why.length < 3) why.push('g:' + x.g); } });
@@ -454,7 +457,7 @@ function _music(email, action, payload) {
         out.push([sc, r]);
       });
       out.sort((a, b) => b[0] - a[0]);
-      return _json({ ok: true, music: true, related: related, items: out.slice(0, want).map(x => { const r = x[1]; return { k: String(r[I.Key]), a: r[I.Artist], t: r[I.Title], ty: r[I.Type], y: String(r[I.Year] || '').slice(0, 4), g: r[I.Genre], d: r[I.Descriptors], l: r[I.Label], c: r[I.Cover], li: Number(r[I.Listeners]) || 0, lp: Number(r[I.LfPlays]) || 0, rr: Number(r[I.RymRating]) || 0, rv: Number(r[I.RymVotes]) || 0, cr: Number(r[I.Crates]) || 0, s: Math.round(x[0] * 100) / 100 }; }) });
+      return _json({ ok: true, music: true, related: related, items: out.slice(0, want).map(x => { const r = x[1]; return { k: String(r[I.Key]), a: r[I.Artist], t: r[I.Title], ty: r[I.Type], y: _mYear(r[I.Year]), g: r[I.Genre], d: r[I.Descriptors], l: r[I.Label], c: r[I.Cover], li: Number(r[I.Listeners]) || 0, lp: Number(r[I.LfPlays]) || 0, rr: Number(r[I.RymRating]) || 0, rv: Number(r[I.RymVotes]) || 0, cr: Number(r[I.Crates]) || 0, s: Math.round(x[0] * 100) / 100 }; }) });
     }
     if (action === 'musicLinks') {          // (1.135.168) song links found once, kept for everyone: get (keys) and/or put (links)
       const ss = _mSS(), sh = _muTab(ss, 'Links', ['Key', 'Song', 'Youtube', 'Spotify', 'At']);
