@@ -321,7 +321,10 @@ function rNotForMe(x) {
 }
 function rAdd(item) {
   if (!item) return; radio.sess.added++;
-  showAddForm({ artist: item.artist, title: item.title, type: item.type, releaseDate: item.releaseDate, genre: rSplit(item.genre).slice(0, 1).map(rCap).join('') });
+  // (1.135.201) Add a release opened first: the form was filled in behind a closed window, so nothing could be added
+  if (typeof openAddModal === 'function') openAddModal();
+  const ty = String(item.type || '').trim(), type = ty ? ty.charAt(0).toUpperCase() + ty.slice(1).toLowerCase() : '';
+  showAddForm({ artist: item.artist, title: item.title, type: type === 'Ep' ? 'EP' : type, releaseDate: String(item.releaseDate || ''), cover: item.cover || '', genre: rSplit(item.genre).slice(0, 1).map(rCap).join('') });
   rPaint();
 }
 

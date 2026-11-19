@@ -17,8 +17,10 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.200
+  CURRENT_VERSION: 1.135.201
 
+  1.135.201 — 2026-11-19 — Fix: "Add to crate" from the radio (and from a release card it opens) now opens Add a release with the
+          release filled in, cover included; it used to fill the form in behind a closed window, so nothing was added.
   1.135.200 — 2026-11-19 — The radio lines up more: ten releases ahead in the queue (it was four songs), filled in the background
           six at a time after the first song starts, and topped back up to ten as each one plays.
   1.135.199 — 2026-11-19 — Fix: opening the radio while it played a song it hadn't picked itself (the one playing when the station
