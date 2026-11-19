@@ -77,7 +77,7 @@ async function rLoadPool(st) {
   const seeds = rSeeds(st), [yFrom, yTo] = rYears(st);
   const skip = [...rOwned().keys()].concat(Object.keys(rLs(RADIO_NO_KEY, {}))).slice(0, 8000);
   const r = await postUpdate({ action: 'masterMusicRadio', genres: seeds.genres, descs: seeds.descs, artists: seeds.artists, yFrom, yTo, strictYears: st.kind === 'time', deep: st.kind === 'deep', cold: (rCold() && (st.kind === 'taste' || st.kind === 'friends')) || st.kind === 'time' || st.kind === 'deep', needGenre: st.kind === 'genre' || st.kind === 'desc', needMatch: (st.far || 'near') !== 'far', friends: st.kind === 'friends', skip, n: 400 });
-  if (!r || r.music !== true) throw new Error(r && r.error ? r.error : 'Your backend doesn’t have CRATE Radio yet: paste the new Master.gs and deploy a new version.');
+  if (!r || r.music !== true) throw new Error(r && r.error && !/unknown (music )?action/i.test(r.error) ? r.error : 'Your backend doesn’t have CRATE Radio yet: paste the new Master.gs in Apps Script and deploy a new version.');          // (1.135.206: an old backend says "Unknown music action")
   if (r.joined === false) throw new Error('Join the master crate first (⚙ › Master crate…): the radio plays from its music database.');
   const no = rLs(RADIO_NO_KEY, {}), owned = rOwned();
   // (1.135.191) yours however its title is written ("Chrometrails" / "Chrome Trails"), and never the release playing when the radio started
@@ -597,7 +597,23 @@ function rBtnPaint() { ['miniPlayerRadioBtn', 'radioTopBtn'].forEach(id => { con
         }
       }
     } catch (e) { /* stops as before */ }
-    return base.apply(this, arguments);
+    const res = base.apply(this, arguments);
+    // (1.135.206) lined up early: when the last song of the queue starts, similar music is added after it straight away (Up next shows
+    // it), not only once the queue has run out; if that fails, the queue running out tries again, and says why it couldn't
+    try {
+      if (rAutoOn() && !radio.on && !radio.autoBusy && myId === crateQueueId && crateQueueList.length && index === crateQueueList.length - 1 && !state.loop
+        && !(typeof crateQueuePendingCount === 'function' && crateQueuePendingCount())) {
+        const e = crateQueueList[index], it = e && e.item;
+        if (it && it.artist && it.title && !it.radio) {
+          radio.autoBusy = true;
+          setTimeout(() => {
+            if (myId !== crateQueueId || crateQueueIndex !== index || radio.on) { radio.autoBusy = false; return; }
+            radioFromItem(it, { mode: 'current', quiet: true }).catch(() => false).finally(() => { radio.autoBusy = false; });
+          }, 1500);
+        }
+      }
+    } catch (e) { /* the end of the queue still tries */ }
+    return res;
   };
   // the switch: ⚙ menu, beside CRATE Radio…
   const m = document.getElementById('menuRadio'); if (m) {

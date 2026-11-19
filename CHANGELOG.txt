@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.205
+  CURRENT_VERSION: 1.135.206
 
+  1.135.206 — 2026-11-19 — "Keep playing similar music" lines songs up early: when the last song of the queue starts, similar
+          music is added after it (Up next shows it), instead of only once the queue has run out; the end of the queue still
+          tries again if that failed. When it can't, it says why (an old backend: "paste the new Master.gs and deploy").
   1.135.205 — 2026-11-19 — Fix: with "YouTube only", a song with a YouTube link went looking on Soulseek. Songs queued by a
           double-click (and from the release bar) now carry their saved links, as the rest of the queue does. And with one
           source chosen (YouTube, Spotify or SoundCloud only), nothing comes from P2P: no Soulseek search before skipping,
