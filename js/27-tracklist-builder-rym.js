@@ -441,7 +441,8 @@ function rymAddHolding(it, now) {
     jobsState.waiting.unshift({ id: 'w' + now + '-new', kind: 'rym', rows: [row], t: now });
   }
   if (wi >= 0 && !rymFetchState.active && !jobsState.held && typeof jobsStartNextRym === 'function' && now - (rymAddKickAt || 0) > 10000) { rymAddKickAt = now; if (jobsState.waiting[0]) jobsState.waiting[0].paused = false; clearTimeout(jobsState.nextTimer); jobsStartNextRym(); }
-  if ((!inLine && now - since > 20000) || now - since > 5 * 60000) { rymAddHold.delete(k); rymAddFreed.add(k); return false; }          // (5 minutes at most, then matched anyway)
+  if (it.rymUpdated || (!inLine && now - since > 20000) || now - since > 5 * 60000) {          // (1.135.215: updated: let go at once)
+    rymAddHold.delete(k); rymAddFreed.add(k); return false; }          // (5 minutes at most, then matched anyway)
   return true;
 }
 function rymFetchCancel() { window.postMessage({ source: 'crate-app', type: 'rym-fetch-cancel' }, window.location.origin); }

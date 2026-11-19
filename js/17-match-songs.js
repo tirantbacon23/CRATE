@@ -785,7 +785,7 @@ setInterval(() => { try { if (document.hidden || !(state.raw || []).length || bm
 function bmAutoQueue(list) {
   if (!bmAuto.pending.length) bmAuto.since = Date.now();
   (list || []).forEach(x => { const k = mqKey(x.artist, x.title); if (!bmAuto.pending.some(e => e.k === k)) bmAuto.pending.push({ k }); });
-  bmAuto.tries = 0; clearTimeout(bmAuto.timer); bmAuto.timer = setTimeout(bmAutoRun, 5000);          // (a few seconds: an import adds one after another, and a new release reaches the list after its save)
+  bmAuto.tries = 0; clearTimeout(bmAuto.timer); bmAuto.timer = setTimeout(bmAutoRun, (list || []).length > 1 ? 5000 : 1500);          // (1.135.215: one release, 1.5 s)          // (a few seconds: an import adds one after another, and a new release reaches the list after its save)
 }
 function bmAutoRun() {
   bmAuto.timer = 0; if (!bmAuto.pending.length) return;
@@ -816,7 +816,7 @@ function bmAutoRun() {
     jobsRefresh();
   }
   bmAuto.heldN = held.size; if (typeof jobsRefresh === 'function') jobsRefresh();          // (1.135.177) Processing says it's waiting for RYM, not "starting…"
-  if (held.size) { clearTimeout(bmAuto.timer); bmAuto.timer = setTimeout(bmAutoRun, 5000); }          // (waiting for RYM is not a failed try)
+  if (held.size) { clearTimeout(bmAuto.timer); bmAuto.timer = setTimeout(bmAutoRun, 2000); }          // (waiting for RYM is not a failed try; 1.135.215: looked at every 2 s)
   else if (bmAuto.pending.length) later(20000);
 }
 // ----- the lanes: each service works through the releases at its own pace -----
@@ -2803,7 +2803,14 @@ const bmRecentAdds = new Map();
       if (payload && payload.action === 'editAlbum' && (payload.ManualTracks || payload.RymUpdated || payload.RymLink) && smPrefs().autoMatchNew) {
         const it = payload.row != null ? (state.raw || []).find(r => String(r.row) === String(payload.row)) : null;
         const a = String(payload.Artist || (it && it.artist) || ''), ti = String(payload.Title || (it && it.title) || ''), t = a && ti ? bmRecentAdds.get(mqKey(a, ti)) : 0;
-        if (t && Date.now() - t < 6 * 3600e3) setTimeout(() => { baseQ([{ artist: a, title: ti }]); clearTimeout(bmAuto.timer); bmAuto.timer = setTimeout(bmAutoRun, 1500); }, 1500);          // (its RYM update just landed: matched now)
+        // (1.135.215) its RYM update just landed: matched straight away. It is let go at once (it used to stay held while the rest of the
+        // same RYM run carried on, a page every 8 to 15 seconds, and was then picked up by a check every few seconds)
+        if (t && Date.now() - t < 6 * 3600e3) {
+          const k = mqKey(a, ti); if ((payload.RymUpdated || (payload.ManualTracks && it && it.rymUpdated)) && typeof rymAddFreed !== 'undefined') { rymAddFreed.add(k); if (typeof rymAddHold !== 'undefined') rymAddHold.delete(k); }
+          if (it && payload.RymUpdated) it.rymUpdated = it.rymUpdated || payload.RymUpdated;
+          // (the update saves "updated" first and its tracklist a moment later: matched when the tracklist lands, or after 4 s if it brought none)
+          baseQ([{ artist: a, title: ti }]); clearTimeout(bmAuto.timer); bmAuto.timer = setTimeout(bmAutoRun, payload.ManualTracks ? 200 : 4000);
+        }
       }
     } catch (e) { /* matched at the next sweep */ }
     return r;

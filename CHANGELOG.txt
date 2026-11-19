@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.214
+  CURRENT_VERSION: 1.135.215
 
+  1.135.215 — 2026-11-19 — Match songs starts straight after a new release's RYM update: the moment its tracklist is saved
+          (or 4 s after the update, if it brought none). Before, the release stayed held while the rest of the same RYM
+          run carried on (a page every 8–15 s), then waited 1.5 + 1.5 s, then for a check that ran every 5 s. Released at
+          once when it's marked updated; a single new release is looked at after 1.5 s (5 s for several, as before).
   1.135.214 — 2026-11-19 — Add a release pulls the release type too (Album, EP, Single, Compilation, Live, Mixtape): from
           MusicBrainz first, then Discogs, Spotify, iTunes, when the release you picked didn't say (the form's "Album" is
           only its default). A type that came with the pick, or one you choose, is kept.
