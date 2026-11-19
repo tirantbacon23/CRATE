@@ -637,7 +637,12 @@ function postUpdate(payload, retried) {
     // document", "Service Spreadsheets failed…"): sent again once, two seconds later, before it counts as a failure; still refused, it says so plainly
     if (data && data.error && /permission to access the requested document|service spreadsheets|service error|timed out|try again/i.test(String(data.error))) {
       if (!payload.__again) return new Promise(r => setTimeout(r, 2000)).then(() => postUpdate(Object.assign({}, payload, { __again: 1 }), true));
-      throw new Error('Google Sheets refused the backend twice (\u201c' + String(data.error).replace(/^Exception:\s*/, '') + '\u201d). It usually passes in a minute: try again. If it keeps happening, the sheet behind this crate may have lost its sharing with the account the Apps Script runs as.');
+      // (1.135.221) refused twice: the backend opens each sheet a save touches and says which one Google refuses (Master.gs 1.135.221+)
+      const msg = 'Google Sheets refused the backend twice (\u201c' + String(data.error).replace(/^Exception:\s*/, '') + '\u201d).';
+      return postUpdate({ action: 'masterDiag', profile: payload.profile }, true).then(d => {
+        const c = (d && d.diag && d.checks) || [], bad = c.filter(x => x.ok === false);
+        throw new Error(msg + (bad.length ? ' Refused: ' + bad.map(x => `${x.what} (${x.note})`).join('; ') + '.' : c.length ? ' Every sheet opened fine just now (' + c.map(x => `${x.what}: ${x.note}`).join('; ') + '), so it was this save itself: try it again.' : ' It usually passes in a minute: try again.'));
+      }, () => { throw new Error(msg + ' It usually passes in a minute: try again. (Deploy the latest Master.gs and CRATE will say which sheet was refused.)'); });
     }
     if (data && data.error) { throw new Error(data.error); }
     try {                                         // a release just added: into the match queue (Match songs → Preferences can switch this off)

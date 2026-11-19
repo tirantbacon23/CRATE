@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.220
+  CURRENT_VERSION: 1.135.221
 
+  1.135.221 — 2026-11-20 — A save Google Sheets refuses twice now says which sheet: CRATE asks the backend (Master.gs: deploy a
+          new version) to open each sheet a save touches (your crate's, the profile's, the master crate's) and write one cell
+          back unchanged, and names the one refused with Google's own error and where it came from; or, when every one opens,
+          says it was that save alone.
   1.135.220 — 2026-11-19 — Saves no longer wait for the music database (Master.gs: deploy a new version). Its merges (reading and
           writing the whole Music sheet, thousands of rows) held the script's one lock, which every add and edit to everyone's
           crate waits for: saves were held up to 30 s, or failed as busy. The database now has a lock of its own; a release

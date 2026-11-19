@@ -239,6 +239,22 @@ function _mPeople(email, list) {      // the per-person entries of a release, as
 
 function _master(email, action, payload) {
   if (String(action).indexOf('masterMusic') === 0) return _music(email, 'music' + String(action).slice('masterMusic'.length), payload);          // (the music database: "masterMusicAdd" -> musicAdd, so the main backend's "master" line routes it here)
+  // (1.135.221) What a save touches, opened one by one, so a save Google refuses can say which sheet it was: your crate's own sheet, the
+  // profile's, the master crate's. Each open is tried on its own, the error kept with where it came from. Nothing is changed.
+  if (action === 'masterDiag') {
+    const props = PropertiesService.getScriptProperties(), out = { ok: true, diag: true, checks: [] };          // (no new permissions: only what the backend already uses)
+    const tryOpen = (label, id) => {
+      if (!id) { out.checks.push({ what: label, ok: null, note: 'none saved' }); return; }
+      try { const ss = SpreadsheetApp.openById(id); const sh = ss.getSheets()[0]; const n = sh ? sh.getLastRow() : 0; out.checks.push({ what: label, ok: true, note: n + ' rows in the first tab' }); }
+      catch (e) { out.checks.push({ what: label, ok: false, note: String(e) + (e && e.stack ? ' | ' + String(e.stack).split('\n').slice(0, 3).join(' ') : '') }); }
+    };
+    tryOpen('your crate sheet', props.getProperty('CRATE_SS_' + email));
+    const prof = String((payload && payload.profile) || ''); if (prof && prof !== 'main') tryOpen('profile "' + prof + '" sheet', props.getProperty('CRATE_PSS_' + email + '#' + prof));
+    tryOpen('master crate sheet', props.getProperty('MASTER_SS'));
+    try { const u = props.getProperty('CRATE_SS_' + email); if (u) { const sh = SpreadsheetApp.openById(u).getSheets()[0]; const c = sh.getRange(1, 1).getValue(); sh.getRange(1, 1).setValue(c); out.checks.push({ what: 'writing to your crate sheet', ok: true, note: 'a cell written back unchanged' }); } }
+    catch (e) { out.checks.push({ what: 'writing to your crate sheet', ok: false, note: String(e) + (e && e.stack ? ' | ' + String(e.stack).split('\n').slice(0, 3).join(' ') : '') }); }
+    return _json(out);
+  }
   try {
     if (action === 'masterState') {          // the switches, and the master crate as it is now
       try { _mEnsureTrigger(); } catch (e) { /* made by the next one to open it */ }
