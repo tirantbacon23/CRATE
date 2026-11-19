@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.180
+  CURRENT_VERSION: 1.135.181
 
+  1.135.181 — 2026-11-19 — The card after adding no longer sticks at "Tracklist": nothing loaded a new release's tracklist until it was
+          opened, so the card waited for ever. It now looks the tracklist up itself once the release's RYM update has had its turn, and if
+          there's none to be found it says so ("no tracklist found: add one in its Edit › Tracklist") and finishes.
   1.135.180 — 2026-11-19 — Add a release: editions grouped under their release. A search used to list one album several times (a
           reissue, a Japanese edition, a US one…); now each release is one row, its earliest official pressing in bold, which a click
           picks straight away, and "N more editions ▾" opens every pressing of it underneath (all of them from MusicBrainz, earliest

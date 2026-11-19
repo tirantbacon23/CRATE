@@ -14,16 +14,24 @@ function apSteps(e) {
   const tl = (state.trackCache && state.trackCache[artKey(it)]) || null, rel = typeof mlRel === 'function' ? mlRel(it) : null;
   st.songs = rel && rel.songs ? rel.songs.length : tl ? tl.filter(t => t && t.trackName).length : 0;
   st.tl = st.songs ? 'done' : st.rym === 'done' || st.rym === 'skip' ? 'now' : 'next';
+  // (1.135.181) nothing loads a new release's tracklist until it's opened: fetched here once (its RYM update has had its turn), and if
+  // there's none to be found the card moves on instead of spinning at "Tracklist"
+  if (!st.songs && st.tl === 'now' && typeof getTracksFor === 'function') {
+    if (!e.tlAsked) { e.tlAsked = Date.now(); getTracksFor(it).then(tl => { e.tlN = (tl || []).filter(t => t && t.trackName).length; e.tlDone = true; }).catch(() => { e.tlDone = true; e.tlN = 0; }); }
+    if (e.tlDone && e.tlN) { st.songs = e.tlN; st.tl = 'done'; }
+    else if (e.tlDone || Date.now() - e.tlAsked > 45000) { st.tl = 'skip'; st.tlNone = true; if (st.match === 'next') st.match = 'skip'; }
+  }
   const inQueue = typeof mqAll === 'function' && mqAll().some(x => mqKey(x.a, x.t) === mqKey(it.artist, it.title)), pend = typeof bmAuto !== 'undefined' && bmAuto.pending.some(p => p.k === mqKey(it.artist, it.title));
   if (rel && rel.songs) { const c = mlCounts(rel); st.n = c.done; st.of = c.total; st.look = c.look; st.match = c.done < c.total && bm.running && !bm.stopped ? 'now' : 'done'; }
   else if (inQueue || pend) st.match = 'wait';
   else { const ls = typeof bmLinkState === 'function' ? bmLinkState(it) : null; if (ls && ls.length) { st.linked = ls.filter(x => x.sp || x.yt).length; st.of = ls.length; if (!st.songs) { st.songs = ls.length; st.tl = 'done'; } if (st.linked === ls.length || !(typeof smPrefs === 'function' && smPrefs().autoMatchNew)) st.match = 'done'; } }
   if (rel && rel.songs) { const ls = typeof bmLinkState === 'function' ? bmLinkState(it) : null; st.linked = Math.max(st.n - st.look, ls ? ls.filter(x => x.sp || x.yt).length : 0); }
-  if (st.match === 'done' && st.rym !== 'now' && st.rym !== 'wait') st.ready = 'done';
+  if ((st.match === 'done' || st.match === 'skip') && st.rym !== 'now' && st.rym !== 'wait') st.ready = 'done';
   else if (st.match === 'done' || (st.songs && !(typeof smPrefs === 'function' && smPrefs().autoMatchNew) && st.rym !== 'wait' && st.rym !== 'now')) st.ready = 'done';
   return st;
 }
 function apPill(s) {
+  if (s.ready === 'done' && s.tlNone) return ['NO TRACKLIST FOUND', 'look'];
   if (s.ready === 'done') return s.look ? [`READY · ${s.look} TO CHECK`, 'look'] : [`READY${s.of ? ` · ${s.linked}/${s.of}` : ''}`, 'ok'];
   if (s.match === 'now') return [`MATCHING ${s.n}/${s.of}`, 'now'];
   if (s.match === 'wait') return [s.rym === 'wait' || s.rym === 'now' ? 'WAITS FOR RYM' : 'MATCH QUEUED', 'wait'];
@@ -44,8 +52,8 @@ function apPaint() {
     const { e, it, s } = rows[0], k = escapeHtml(mqKey(e.a, e.t));
     const step = (key, label, sub) => `<div class="ap-st ap-${s[key] === 'skip' ? 'done ap-skip' : s[key]}"><i>${s[key] === 'done' ? '✓' : s[key] === 'skip' ? '–' : ''}</i><span>${label}${sub ? `<br>${sub}` : ''}</span></div>`;
     const pct = [s.added, s.rym, s.tl, s.match, s.ready].filter(x => x === 'done' || x === 'skip').length / 5 * 100 + (s.match === 'now' && s.of ? s.n / s.of * 20 : 0);
-    html = `<div class="ap-top">${cv(it)}<div class="ap-t"><b>${escapeHtml(e.t)}${s.ready === 'done' ? ' is ready' : ''}</b><span>${escapeHtml(e.a)} · ${s.ready === 'done' ? `${s.songs || s.of} songs · ${s.linked} linked${s.look ? ` · <em>${s.look} to check</em>` : ''}` : 'added just now'}</span></div><button type="button" class="ap-x" data-ap="x" aria-label="Hide">×</button></div>
-      ${s.ready === 'done' ? '' : `<div class="ap-steps">${step('added', 'Added')}${step('rym', 'Rate Your Music', s.rym === 'skip' ? 'skipped' : '')}${step('tl', 'Tracklist', s.songs ? `${s.songs} songs` : '')}${step('match', 'Matching', s.match === 'now' && s.of ? `${s.n}/${s.of}` : s.match === 'wait' ? 'queued' : '')}${step('ready', 'Ready')}</div>
+    html = `<div class="ap-top">${cv(it)}<div class="ap-t"><b>${escapeHtml(e.t)}${s.ready === 'done' ? ' is ready' : ''}</b><span>${escapeHtml(e.a)} · ${s.ready === 'done' && s.tlNone ? 'no tracklist found: add one in its Edit \u203a Tracklist' : s.ready === 'done' ? `${s.songs || s.of} songs · ${s.linked} linked${s.look ? ` · <em>${s.look} to check</em>` : ''}` : 'added just now'}</span></div><button type="button" class="ap-x" data-ap="x" aria-label="Hide">×</button></div>
+      ${s.ready === 'done' ? '' : `<div class="ap-steps">${step('added', 'Added')}${step('rym', 'Rate Your Music', s.rym === 'skip' ? 'skipped' : '')}${step('tl', 'Tracklist', s.songs ? `${s.songs} songs` : s.tlNone ? 'none found' : '')}${step('match', 'Matching', s.match === 'now' && s.of ? `${s.n}/${s.of}` : s.match === 'wait' ? 'queued' : '')}${step('ready', 'Ready')}</div>
       <div class="ap-bar"><u style="width:${Math.min(100, pct).toFixed(0)}%"></u></div>`}
       <div class="ap-acts"><button type="button" class="${s.ready === 'done' ? 'ap-pri' : ''}" data-ap="play" data-k="${k}">▶ ${s.ready === 'done' ? 'Play' : 'Play what’s ready'}</button>${s.look ? `<button type="button" data-ap="check" data-k="${k}">Check ${s.look} song${s.look === 1 ? '' : 's'}</button>` : `<button type="button" data-ap="open" data-k="${k}">Open</button>`}<span></span><button type="button" data-ap="another">Add another</button></div>`;
   } else {
