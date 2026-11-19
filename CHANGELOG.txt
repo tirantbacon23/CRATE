@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.203
+  CURRENT_VERSION: 1.135.204
 
+  1.135.204 — 2026-11-19 — Every way of playing one song now plays on through the rest of its release, queued: double-click in
+          the deck, the quick peek popup (missed in .203) and the Songs list, the ▶ buttons, Play in a song's menu, a song
+          from search. The release's tracklist already loaded is used, so it starts straight away; then "keep playing
+          similar music" carries on. Several songs selected and Play still plays just those.
   1.135.203 — 2026-11-19 — Double-clicking a song plays from it through the rest of its release, queued (in the deck, the quick
           peek, and the Songs list, where the songs listed after it follow), so "keep playing similar music" carries on
           when they run out. It used to play that one song and stop. Play in a song's menu still plays just that song.

@@ -306,17 +306,19 @@ function playYtSongQueued(item, link, trackName, trackNum) {
 // follow; when they run out, "keep playing similar music" carries on from there. (Play in a song's menu still plays that one song.)
 async function playFromTrackInList(item, trackName, trackNum, list) {
   if (!item || !trackName) return;
-  let tracks = list && list.length ? list : null;
-  if (!tracks) { try { tracks = await getTracksFor(item); } catch (e) { tracks = null; } }
+  let tracks = list && list.length ? list : (activeItem === item && currentTracklistTracks && currentTracklistTracks.length ? currentTracklistTracks.slice() : (state.trackCache[artKey(item)] || []).length ? state.trackCache[artKey(item)].slice() : null);
+  if (!tracks) { try { tracks = await Promise.race([getTracksFor(item), new Promise(r => setTimeout(() => r(null), 4000))]); } catch (e) { tracks = null; } }          // (not waited on for ever: that one song then)
   const ents = (tracks || []).filter(x => x && (x.track ? x.track.trackName : x.trackName)).map(x => x.track ? { item: x.item || item, track: x.track } : { item, track: x });
   const same = (e) => e.item === item && String(e.track.trackNumber || '') === String(trackNum || '') && (e.track.trackName || '') === trackName;
   let i = ents.findIndex(same); if (i < 0) i = ents.findIndex(e => e.item === item && (e.track.trackName || '') === trackName);
-  if (i < 0 || ents.length < 2) return playTrackNow(item, trackName, trackNum);
+  if (i < 0 || ents.length < 2) return playTrackOnly(item, trackName, trackNum);
   nowPlayingItem = item; const myId = ++crateQueueId;
   crateQueueList = ents.map(e => ({ item: e.item, track: Object.assign({}, e.track) })); crateQueueIndex = -1; renderCrateQueuePanel();
   playCrateQueueIndex(myId, i);
 }
-async function playTrackNow(item, trackName, trackNum) {
+// (1.135.204) every "play this song" (double-click, ▶, Play in its menu, wherever it is) plays on through the rest of its release
+async function playTrackNow(item, trackName, trackNum) { return playFromTrackInList(item, trackName, trackNum); }
+async function playTrackOnly(item, trackName, trackNum) {
   if (!trackName) return;
   nowPlayingItem = item;
 
