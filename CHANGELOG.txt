@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.184
+  CURRENT_VERSION: 1.135.185
 
+  1.135.185 — 2026-11-19 — The card after adding: drag it anywhere by its top (it stays where you left it; double-click its top to send
+          it back to the corner), make it small with – (one line: the release, where it's got to, and the bar; ▴ makes it big again,
+          remembered), hide it with × (until the next add), or turn it off in ⚙ › "Card after adding".
   1.135.184 — 2026-11-19 — Adding a release with no RYM link: its Rate Your Music page is found and fetched (by artist and title, through
           the add-on) instead of the update being skipped. CRATE only learned the add-on could do that from a finished update, so on a
           new computer, or before any update had run, new releases got "Rate Your Music: skipped". Now it's tried unless the add-on is

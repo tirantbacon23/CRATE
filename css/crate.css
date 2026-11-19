@@ -7147,3 +7147,8 @@ input.mcd-filled { border-color: rgba(127,209,185,.6) !important; }
 .ab-pill { font: 500 10px 'IBM Plex Mono', monospace; color: #E8C27A; border: 1px solid rgba(232,194,122,.5); border-radius: 9px; padding: 2px 7px; }
 .ab-find { background: none; border: 1px solid #2A313C; border-radius: 12px; color: #C9C3B8; font: 12px Inter, sans-serif; padding: 3px 10px; cursor: pointer; }
 @media (max-width: 760px) { .ab-dialog { grid-template-columns: 1fr; } #abText { height: 160px; } }
+/* (1.135.185) the card after adding: dragged, small */
+#apCard .ap-top { cursor: grab; touch-action: none; user-select: none; } #apCard.ap-dragging { opacity: .92; } #apCard.ap-dragging .ap-top { cursor: grabbing; }
+#apCard .ap-top .ap-x + .ap-x { margin-left: -6px; }
+#apCard.ap-small { width: 300px; padding: 10px 12px; gap: 8px; } #apCard .ap-mini .ap-cv { width: 32px; height: 32px; }
+#apCard .ap-mini .ap-t { gap: 4px; } #apCard .ap-mini .ap-pill { align-self: flex-start; }

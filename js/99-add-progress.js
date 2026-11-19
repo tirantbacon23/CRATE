@@ -3,7 +3,16 @@
 // it happens (it reads what's already going on: the RYM queue, the tracklist, Match songs). One release: the steps in a line, with Play
 // what's ready, Open, and Add another. Several: a row each, with where it's got to. When everything is ready it says what came of it (songs
 // linked, any to check) and hides itself a little later, unless a song wants a check.
-const ap = { list: [], hideAt: 0, closed: false };
+const ap = { list: [], hideAt: 0, closed: false, min: (() => { try { return localStorage.getItem('crate_ap_min_v1') === '1'; } catch (e) { return false; } })() };
+// (1.135.185) the card can be dragged (by its top; where it's left is kept), made small (–), hidden (×, until the next add), or turned off
+const AP_POS_KEY = 'crate_ap_pos_v1', AP_ON_KEY = 'crate_ap_on_v1';
+function apOn() { try { return localStorage.getItem(AP_ON_KEY) !== '0'; } catch (e) { return true; } }
+function apPlace(card) {
+  let p = null; try { p = JSON.parse(localStorage.getItem(AP_POS_KEY) || 'null'); } catch (e) { p = null; }
+  if (!p) { card.style.left = card.style.top = ''; card.style.right = '20px'; card.style.bottom = '120px'; return; }
+  const w = card.offsetWidth || 380, h = card.offsetHeight || 120, x = Math.max(8, Math.min(window.innerWidth - w - 8, p.x)), y = Math.max(8, Math.min(window.innerHeight - h - 8, p.y));
+  card.style.right = card.style.bottom = 'auto'; card.style.left = x + 'px'; card.style.top = y + 'px';
+}
 function apItem(e) { const k = mqKey(e.a, e.t); return (state.raw || []).find(r => mqKey(r.artist, r.title) === k) || null; }
 function apSteps(e) {
   const it = apItem(e), st = { added: it ? 'done' : 'now', rym: 'next', tl: 'next', match: 'next', ready: 'next', n: 0, of: 0, look: 0, songs: 0, linked: 0 };
@@ -43,26 +52,32 @@ function apPill(s) {
 }
 function apPaint() {
   let card = document.getElementById('apCard');
-  const list = ap.list.slice(-6); if (!list.length || ap.closed) { if (card) card.remove(); return; }
+  const list = ap.list.slice(-6); if (!list.length || ap.closed || !apOn()) { if (card) card.remove(); return; }
   const rows = list.map(e => ({ e, it: apItem(e), s: apSteps(e) })), allReady = rows.every(r => r.s.ready === 'done'), anyLook = rows.some(r => r.s.look);
   if (allReady && !anyLook) { if (!ap.hideAt) ap.hideAt = Date.now() + 9000; if (Date.now() > ap.hideAt) { ap.list = []; ap.hideAt = 0; if (card) card.remove(); return; } } else ap.hideAt = 0;
-  if (!card) { card = document.createElement('section'); card.id = 'apCard'; card.className = 'ap-card'; card.setAttribute('role', 'status'); card.setAttribute('aria-live', 'polite'); document.body.appendChild(card); }
+  if (!card) { card = document.createElement('section'); card.id = 'apCard'; card.className = 'ap-card'; card.setAttribute('role', 'status'); card.setAttribute('aria-live', 'polite'); document.body.appendChild(card); requestAnimationFrame(() => apPlace(card)); }
   const cv = (it) => it && it.cover ? `<img src="${escapeHtml(it.cover)}" alt="" class="ap-cv">` : '<span class="ap-cv ap-nocv"></span>';
   let html;
   if (rows.length === 1) {
     const { e, it, s } = rows[0], k = escapeHtml(mqKey(e.a, e.t));
     const step = (key, label, sub) => `<div class="ap-st ap-${s[key] === 'skip' ? 'done ap-skip' : s[key]}"><i>${s[key] === 'done' ? '✓' : s[key] === 'skip' ? '–' : ''}</i><span>${label}${sub ? `<br>${sub}` : ''}</span></div>`;
     const pct = [s.added, s.rym, s.tl, s.match, s.ready].filter(x => x === 'done' || x === 'skip').length / 5 * 100 + (s.match === 'now' && s.of ? s.n / s.of * 20 : 0);
-    html = `<div class="ap-top">${cv(it)}<div class="ap-t"><b>${escapeHtml(e.t)}${s.ready === 'done' ? ' is ready' : ''}</b><span>${escapeHtml(e.a)} · ${s.ready === 'done' && s.tlNone ? 'no tracklist found: add one in its Edit \u203a Tracklist' : s.ready === 'done' ? `${s.songs || s.of} songs · ${s.linked} linked${s.look ? ` · <em>${s.look} to check</em>` : ''}` : 'added just now'}</span></div><button type="button" class="ap-x" data-ap="x" aria-label="Hide">×</button></div>
+    html = `<div class="ap-top">${cv(it)}<div class="ap-t"><b>${escapeHtml(e.t)}${s.ready === 'done' ? ' is ready' : ''}</b><span>${escapeHtml(e.a)} · ${s.ready === 'done' && s.tlNone ? 'no tracklist found: add one in its Edit \u203a Tracklist' : s.ready === 'done' ? `${s.songs || s.of} songs · ${s.linked} linked${s.look ? ` · <em>${s.look} to check</em>` : ''}` : 'added just now'}</span></div><button type="button" class="ap-x" data-ap="min" aria-label="Make small" title="Make small">\u2013</button><button type="button" class="ap-x" data-ap="x" aria-label="Hide">×</button></div>
       ${s.ready === 'done' ? '' : `<div class="ap-steps">${step('added', 'Added')}${step('rym', 'Rate Your Music', s.rym === 'skip' ? 'skipped' : (s.rym === 'now' || s.rym === 'wait') && s.noLink ? 'finding its page' : '')}${step('tl', 'Tracklist', s.songs ? `${s.songs} songs` : s.tlNone ? 'none found' : '')}${step('match', 'Matching', s.match === 'now' && s.of ? `${s.n}/${s.of}` : s.match === 'wait' ? 'queued' : '')}${step('ready', 'Ready')}</div>
       <div class="ap-bar"><u style="width:${Math.min(100, pct).toFixed(0)}%"></u></div>`}
       <div class="ap-acts"><button type="button" class="${s.ready === 'done' ? 'ap-pri' : ''}" data-ap="play" data-k="${k}">▶ ${s.ready === 'done' ? 'Play' : 'Play what’s ready'}</button>${s.look ? `<button type="button" data-ap="check" data-k="${k}">Check ${s.look} song${s.look === 1 ? '' : 's'}</button>` : `<button type="button" data-ap="open" data-k="${k}">Open</button>`}<span></span><button type="button" data-ap="another">Add another</button></div>`;
   } else {
     const nReady = rows.filter(r => r.s.ready === 'done').length, nMatch = rows.filter(r => r.s.match === 'now').length, nRym = rows.filter(r => r.s.rym === 'wait' || r.s.rym === 'now').length;
-    html = `<div class="ap-top"><div class="ap-t"><b>Adding ${rows.length} releases</b><span>${[nReady ? `${nReady} ready` : '', nMatch ? `${nMatch} matching` : '', nRym ? `${nRym} waiting for RYM` : ''].filter(Boolean).join(' · ')}</span></div><button type="button" class="ap-x" data-ap="x" aria-label="Hide">×</button></div>
+    html = `<div class="ap-top"><div class="ap-t"><b>Adding ${rows.length} releases</b><span>${[nReady ? `${nReady} ready` : '', nMatch ? `${nMatch} matching` : '', nRym ? `${nRym} waiting for RYM` : ''].filter(Boolean).join(' · ')}</span></div><button type="button" class="ap-x" data-ap="min" aria-label="Make small" title="Make small">\u2013</button><button type="button" class="ap-x" data-ap="x" aria-label="Hide">×</button></div>
       ${rows.slice().reverse().map(({ e, it, s }) => { const [p, tone] = apPill(s); return `<button type="button" class="ap-row" data-ap="${s.look ? 'check' : 'open'}" data-k="${escapeHtml(mqKey(e.a, e.t))}">${cv(it)}<span class="ap-rt"><b>${escapeHtml(e.t)}</b><em>${escapeHtml(e.a)}</em></span><span class="ap-pill ap-${tone}">${p}</span></button>`; }).join('')}`;
   }
-  if (card.dataset.h !== html) { card.dataset.h = html; card.innerHTML = html; }
+  if (ap.min) {          // small: one line, how far it's got, and the bar
+    const one = rows.length === 1 ? rows[0] : null, [p, tone] = one ? apPill(one.s) : [`${rows.filter(r => r.s.ready === 'done').length}/${rows.length} READY`, 'wait'];
+    const pct = rows.reduce((a, r) => a + [r.s.added, r.s.rym, r.s.tl, r.s.match, r.s.ready].filter(x => x === 'done' || x === 'skip').length, 0) / (rows.length * 5) * 100;
+    html = `<div class="ap-top ap-mini">${one ? cv(one.it) : ''}<div class="ap-t"><b>${escapeHtml(one ? one.e.t : `Adding ${rows.length} releases`)}</b><span class="ap-pill ap-${tone}">${p}</span></div><button type="button" class="ap-x" data-ap="max" aria-label="Make big" title="Make big">\u25b4</button><button type="button" class="ap-x" data-ap="x" aria-label="Hide">\u00d7</button></div><div class="ap-bar"><u style="width:${pct.toFixed(0)}%"></u></div>`;
+  }
+  card.classList.toggle('ap-small', ap.min);
+  if (card.dataset.h !== html) { card.dataset.h = html; card.innerHTML = html; requestAnimationFrame(() => apPlace(card)); }
 }
 (function () {
   // what's been added: from the save itself (Add a release, Add several, imports)
@@ -84,10 +99,34 @@ function apPaint() {
     const b = e.target.closest && e.target.closest('#apCard [data-ap]'); if (!b) return;
     const k = b.dataset.k, entry = k ? ap.list.find(x => mqKey(x.a, x.t) === k) : null, it = entry ? apItem(entry) : null, a = b.dataset.ap;
     if (a === 'x') { ap.closed = true; apPaint(); return; }
+    if (a === 'min' || a === 'max') { ap.min = a === 'min'; try { localStorage.setItem('crate_ap_min_v1', ap.min ? '1' : '0'); } catch (er) { /* this visit */ } apPaint(); return; }
     if (a === 'another') { if (typeof openAddModal === 'function') openAddModal(); return; }
     if (!it) { flashGlobalToast('It’s still being saved: a moment.'); return; }
     if (a === 'play') { if (typeof playAlbumReplacingQueue === 'function') playAlbumReplacingQueue(it); }
     else if (a === 'check') { const rel = typeof mlRel === 'function' ? mlRel(it) : null; if (rel && typeof bmShow === 'function') { bm.sel = rel.row; bmShow(); } else if (typeof openSongMatcher === 'function') openSongMatcher(it, {}); }
     else if (a === 'open') { if (typeof openDeck === 'function') openDeck(it); }
   });
+})();
+
+// dragging it by its top
+(function () {
+  let drag = null;
+  document.addEventListener('pointerdown', (e) => {
+    const top = e.target.closest && e.target.closest('#apCard .ap-top'); if (!top || e.target.closest('button') || e.button !== 0) return;
+    const card = document.getElementById('apCard'), r = card.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, card, id: e.pointerId };
+    card.classList.add('ap-dragging'); try { top.setPointerCapture(e.pointerId); } catch (er) { /* fine */ } e.preventDefault();
+  });
+  document.addEventListener('pointermove', (e) => { if (!drag || e.pointerId !== drag.id) return; const c = drag.card, x = Math.max(8, Math.min(window.innerWidth - c.offsetWidth - 8, e.clientX - drag.dx)), y = Math.max(8, Math.min(window.innerHeight - c.offsetHeight - 8, e.clientY - drag.dy)); c.style.right = c.style.bottom = 'auto'; c.style.left = x + 'px'; c.style.top = y + 'px'; });
+  document.addEventListener('pointerup', (e) => { if (!drag || e.pointerId !== drag.id) return; const c = drag.card; c.classList.remove('ap-dragging'); try { localStorage.setItem(AP_POS_KEY, JSON.stringify({ x: parseFloat(c.style.left) || 0, y: parseFloat(c.style.top) || 0 })); } catch (er) { /* this visit */ } drag = null; });
+  window.addEventListener('resize', () => { const c = document.getElementById('apCard'); if (c) apPlace(c); });
+  // double-click its top: back to the corner
+  document.addEventListener('dblclick', (e) => { const top = e.target.closest && e.target.closest('#apCard .ap-top'); if (!top || e.target.closest('button')) return; try { localStorage.removeItem(AP_POS_KEY); } catch (er) { /* fine */ } apPlace(document.getElementById('apCard')); });
+  // ⚙: the card after adding, on or off
+  const after = document.getElementById('menuQuickAdd'); if (after) {
+    const b = document.createElement('button'); b.type = 'button'; b.id = 'menuAddCard';
+    const paint = () => { b.textContent = apOn() ? 'Card after adding: on \u2713' : 'Card after adding: off'; b.setAttribute('aria-pressed', String(apOn())); };
+    b.title = 'The card that follows a new release from added to matched'; paint();
+    b.addEventListener('click', () => { try { localStorage.setItem(AP_ON_KEY, apOn() ? '0' : '1'); } catch (er) { /* fine */ } paint(); apPaint(); });
+    after.insertAdjacentElement('afterend', b);
+  }
 })();
