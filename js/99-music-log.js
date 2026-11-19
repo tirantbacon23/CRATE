@@ -47,7 +47,7 @@ function mdlItemsHtml(items) { return items && items.length ? `<ul class="mdl-it
 async function mdlLoadDb() {
   if (mdl.dbBusy) return; mdl.dbBusy = true; mdl.dbErr = ''; mdbRender();
   try { const r = await postUpdate({ action: 'masterMusicLog' }); if (!r || r.music !== true || r.ok === false) throw new Error(r && r.error && !/unknown music action/i.test(r.error) ? r.error : 'Your Apps Script still has an older Master.gs, without this report: paste the latest Master.gs into its Master file, then Deploy \u203a Manage deployments \u203a New version.'); mdl.db = r; }
-  catch (e) { mdl.dbErr = e.message; }
+  catch (e) { const m = String((e && e.message) || e || ''); mdl.dbErr = /unknown (music )?action/i.test(m) ? 'Your Apps Script still has an older Master.gs, without this report: paste the latest Master.gs into its Master file, then Deploy \u203a Manage deployments \u203a New version.' : m; }          // (1.135.216: the backend's error arrives thrown, not as an answer)
   mdl.dbBusy = false; mdbRender();
 }
 function mdlHtml() {

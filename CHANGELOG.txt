@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.215
+  CURRENT_VERSION: 1.135.216
 
+  1.135.216 — 2026-11-19 — An older Master.gs in Apps Script now says so plainly in the music database's Activity tab and when
+          the radio (or similar music) starts, instead of the bare "Unknown music action": the backend's error arrived as a
+          thrown error, past the check that turned it into "paste the latest Master.gs and deploy a new version".
   1.135.215 — 2026-11-19 — Match songs starts straight after a new release's RYM update: the moment its tracklist is saved
           (or 4 s after the update, if it brought none). Before, the release stayed held while the rest of the same RYM
           run carried on (a page every 8–15 s), then waited 1.5 + 1.5 s, then for a check that ran every 5 s. Released at
