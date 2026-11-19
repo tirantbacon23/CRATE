@@ -17,8 +17,16 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.191
+  CURRENT_VERSION: 1.135.192
 
+  1.135.192 — 2026-11-19 — Watching what goes into the music database: ⚙ › Music database… › Activity. This browser: what CRATE has seen
+          this visit by source, how much it queued and how much it left out (sent in the last two weeks, or already waiting), what's
+          waiting to be sent (with Send now), and every batch it sent, newest first: when, how many, from which sources, the releases
+          themselves, and whether the backend took it; each Last.fm fill and the artists it was handed. "Also log to the browser console"
+          writes each one there too. The database: batches waiting in its inbox to be merged (when, who sent them, from where, what's in
+          them), with Merge them now; when it last merged; what was added and what changed in the last 7 days, with where each came from,
+          and a filter. "Changed" now means a detail changed, not that a merge passed over it. Paste the new Master.gs and deploy a new
+          version.
   1.135.191 — 2026-11-19 — CRATE Radio stays nearer. With something playing, the radio window starts from it ("A release", filled in with
           what's playing) unless you've picked another station this visit; before, it started from your whole taste, so "nearby" could be
           anything you like (Neil Young after Vanilla). Close and Nearby now need a genre in common or an artist near the station's: a

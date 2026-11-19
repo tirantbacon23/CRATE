@@ -332,13 +332,14 @@ function _muApply(m, x, now) {   // one release into the map: blanks filled, the
   const C = (n) => MU_COLS.indexOf(n);
   let r = m.get(x.k);
   if (!r) { r = MU_COLS.map(() => ''); r[0] = x.k; r[C('Sources')] = '{}'; r[C('Crates')] = 0; r[C('Added')] = now; m.set(x.k, r); }
+  const before = r.slice(0, C('Sources')).join('\u0001');          // (1.135.192) "Updated" only when a detail changed, not each time a merge passes
   const fill = (col, v) => { if (v && !r[C(col)]) r[C(col)] = v; };
   fill('Artist', x.a); fill('Title', x.t); fill('Type', x.ty); fill('Genre', x.g); fill('Descriptors', x.d); fill('Label', x.l); fill('Cover', x.c); fill('Mbid', x.mb);
   if (x.y && (!_mYear(r[C('Year')]) || _mYear(x.y) < _mYear(r[C('Year')]))) r[C('Year')] = x.y;          // the earliest year anyone has
   ['Listeners:li', 'LfPlays:lp'].forEach(p => { const [col, f] = p.split(':'); if (x[f] > (Number(r[C(col)]) || 0)) r[C(col)] = x[f]; });
   if (x.rv && x.rv >= (Number(r[C('RymVotes')]) || 0)) { r[C('RymRating')] = x.rr; r[C('RymVotes')] = x.rv; } else if (x.rr && !r[C('RymRating')]) r[C('RymRating')] = x.rr;
   let s = {}; try { s = JSON.parse(String(r[C('Sources')] || '{}')) || {}; } catch (e) { s = {}; } s[x.src] = (s[x.src] || 0) + 1; r[C('Sources')] = JSON.stringify(s);
-  r[C('Updated')] = now;
+  if (r.slice(0, C('Sources')).join('\u0001') !== before || !r[C('Updated')]) r[C('Updated')] = now;
 }
 function _muMerge(force, crateRows) {          // the inbox (and, from a build, the friends' crates) into Music; the totals worked out again
   const p = _mProps(), last = Number(p.getProperty('MUSIC_MERGED') || 0);
@@ -389,10 +390,28 @@ function _music(email, action, payload) {
     if (action === 'musicAdd') {          // what this CRATE has seen: waits in the inbox for the next merge
       const items = Array.isArray(payload.items) ? payload.items.slice(0, MU_ADD_MAX) : [], similar = Array.isArray(payload.similar) ? payload.similar.slice(0, 60) : [];
       if (!items.length && !similar.length) return _json({ ok: true, music: true, queued: 0 });
-      const text = JSON.stringify({ at: Date.now(), items: items, similar: similar }); if (text.length > 49000) return _json({ ok: false, music: true, error: 'Too much at once' });
+      const text = JSON.stringify({ at: Date.now(), by: _mNameOf(email) || 'a friend', items: items, similar: similar });          // (1.135.192: who sent it, by their CRATE name) if (text.length > 49000) return _json({ ok: false, music: true, error: 'Too much at once' });
       const lock = LockService.getScriptLock(); lock.waitLock(20000);
       try { _muTab(_mSS(), 'Inbox', ['Json']).appendRow([text]); } finally { lock.releaseLock(); }
       return _json({ ok: true, music: true, queued: items.length });
+    }
+    if (action === 'musicLog') {          // (1.135.192) what's come in: waiting in the inbox, and what the last merges added or changed
+      const id = _mProps().getProperty('MASTER_SS'), ss = id ? SpreadsheetApp.openById(id) : null; if (!ss) return _json({ ok: true, music: true, inbox: [], added: [], updated: [] });
+      const me = _mNameOf(email) || 'a friend', inbox = [], ib = ss.getSheetByName('Inbox');
+      if (ib && ib.getLastRow() > 1) { const n = ib.getLastRow() - 1, from = Math.max(2, ib.getLastRow() - 59);
+        ib.getRange(from, 1, ib.getLastRow() - from + 1, 1).getValues().forEach(r => { let o = null; try { o = JSON.parse(String(r[0] || '')); } catch (e) { o = null; } if (!o) return;
+          const src = {}; (o.items || []).forEach(x => { src[x.src || '?'] = (src[x.src || '?'] || 0) + 1; });
+          inbox.push({ at: o.at || 0, by: o.by || '', you: (o.by || '') === me, n: (o.items || []).length, similar: (o.similar || []).length, src: src, items: (o.items || []).slice(0, 40).map(x => ({ a: x.a, t: x.t, src: x.src, y: x.y || '', li: x.li || 0, rr: x.rr || 0, c: !!x.c })) }); });
+        inbox.reverse(); inbox.waiting = n; }
+      const mu = ss.getSheetByName('Music'), added = [], updated = [], wk = Date.now() - 7 * 864e5;
+      if (mu && mu.getLastRow() > 1) {
+        const v = mu.getRange(2, 1, mu.getLastRow() - 1, MU_COLS.length).getValues(), I = {}; MU_COLS.forEach((c, i) => { I[c] = i; });
+        const row = (r) => { let src = {}; try { src = JSON.parse(String(r[I.Sources] || '{}')); } catch (e) { src = {}; } return { a: r[I.Artist], t: r[I.Title], y: _mYear(r[I.Year]), g: String(r[I.Genre] || '').slice(0, 60), src: src, c: !!r[I.Cover], li: Number(r[I.Listeners]) || 0, rr: Number(r[I.RymRating]) || 0, cr: Number(r[I.Crates]) || 0, added: Number(r[I.Added]) || 0, updated: Number(r[I.Updated]) || 0 }; };
+        v.forEach(r => { const ad = Number(r[I.Added]) || 0, up = Number(r[I.Updated]) || 0; if (ad >= wk) added.push(row(r)); else if (up >= wk && up > ad + 60000) updated.push(row(r)); });
+        added.sort((a, b) => b.added - a.added); updated.sort((a, b) => b.updated - a.updated);
+      }
+      const st = _muStatus();
+      return _json({ ok: true, music: true, joined: true, me: me, waiting: inbox.waiting || 0, inbox: inbox.slice(0, 40), added: added.slice(0, 150), addedN: added.length, updated: updated.slice(0, 80), updatedN: updated.length, mergedAt: st ? st.at : 0, releases: st ? st.releases : 0 });
     }
     if (action === 'musicState') {        // the database's page: merged first when it's been a while
       try { _muMerge(!!payload.fresh); } catch (e) { /* the totals as they were */ }

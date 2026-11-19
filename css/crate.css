@@ -7162,3 +7162,28 @@ input.mcd-filled { border-color: rgba(127,209,185,.6) !important; }
 .ahv-rel { display: inline; } .ahv-rel + .ahv-rel::before { content: " · "; color: #5D6573; }
 .ahv button { background: none; border: 0; padding: 0; font: inherit; cursor: pointer; color: #E8C27A; text-decoration: underline; text-underline-offset: 2px; }
 .ahv-again { flex: none; color: #8B93A0 !important; white-space: nowrap; }
+
+/* (1.135.192) The music database's Activity tab (js/99-music-log.js) */
+.mdl-nav { display: flex; gap: 20px; border-bottom: 1px solid #1A2028; }
+.mdl-nav button { background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 6px 0; font: 500 13.5px Inter, sans-serif; color: #8B93A0; cursor: pointer; } .mdl-nav button.on { color: #EDE7DC; border-bottom-color: #D6A24C; }
+.mdl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.mdl-h { display: flex; align-items: center; gap: 10px; justify-content: space-between; flex-wrap: wrap; }
+.mdl-nums { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 6px 0; }
+.mdl-nums div { display: flex; flex-direction: column; gap: 2px; min-width: 0; } .mdl-nums b { font: 400 24px/1 'Bebas Neue', Inter, sans-serif; color: #EDE7DC; } .mdl-nums span { font: 11px Inter, sans-serif; color: #8B93A0; }
+.mdl-dbg { font: 12px Inter, sans-serif; color: #9AA2AE; display: flex; gap: 6px; align-items: center; cursor: pointer; } .mdl-dbg input { accent-color: #D6A24C; margin: 0; }
+.mdl-sub { margin-top: 12px; } .mdl-by { margin: 0; }
+.mdl-ev { border-top: 1px solid #1E242D; padding: 6px 0; font: 12.5px Inter, sans-serif; color: #EDE7DC; }
+.mdl-ev summary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; cursor: pointer; list-style: none; } .mdl-ev summary::-webkit-details-marker { display: none; }
+.mdl-ev summary::before { content: "\25b8"; color: #5D6573; font-size: 10px; } .mdl-ev[open] summary::before { content: "\25be"; }
+.mdl-t { font: 500 10.5px 'IBM Plex Mono', monospace; color: #8B93A0; white-space: nowrap; } .mdl-what { flex: 1; min-width: 160px; }
+.mdl-st { font: 500 11px 'IBM Plex Mono', monospace; color: #7FD1B9; } .mdl-bad .mdl-st { color: #E89A8A; }
+.mdl-chip { font: 500 10px 'IBM Plex Mono', monospace; color: #9AA2AE; border: 1px solid #2A313C; border-radius: 9px; padding: 1px 7px; white-space: nowrap; margin-right: 3px; }
+.mdl-tag { font: 500 10px 'IBM Plex Mono', monospace; color: #7FD1B9; margin-left: 4px; }
+.mdl-items { list-style: none; margin: 6px 0 2px 16px; padding: 0; display: flex; flex-direction: column; gap: 3px; } .mdl-items em, .mdl-row em { font-style: normal; color: #8B93A0; }
+.mdl-now { height: 26px; padding: 0 10px; margin-left: auto; }
+.mdl-tabs { display: inline-flex; border: 1px solid #2A313C; border-radius: 8px; overflow: hidden; } .mdl-tabs button { background: none; border: 0; padding: 5px 10px; font: 12px Inter, sans-serif; color: #8B93A0; cursor: pointer; } .mdl-tabs button.on { background: rgba(214,162,76,.14); color: #D6A24C; }
+.mdl-f { height: 28px; padding: 0 10px; border: 1px solid #2A313C; border-radius: 7px; background: #0B0E12; color: #EDE7DC; font: 12.5px Inter, sans-serif; width: 180px; }
+.mdl-table { max-height: 420px; overflow-y: auto; margin-top: 6px; }
+.mdl-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid #1E242D; font: 12.5px Inter, sans-serif; color: #EDE7DC; }
+.mdl-row > span:first-child { display: flex; flex-direction: column; min-width: 0; } .mdl-row b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .mdl-row em { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 900px) { .mdl { grid-template-columns: 1fr; } .mdl-nums { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
