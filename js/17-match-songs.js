@@ -695,11 +695,12 @@ const BM_TEST_QUERIES = ['Radiohead Karma Police', 'Fleetwood Mac Dreams', 'Talk
 async function bmHealthRun(force) {
   if (!bm) return; const h = bm.health;
   h.spotify = 'checking'; bmRedraw();
-  try { h.spotify = (await getSpotifyToken()) ? 'ok' : 'off'; } catch (e) { h.spotify = 'off'; }
+  if (!bm.svc.spotify || (typeof spotifyOn === 'function' && !spotifyOn())) h.spotify = 'unused';          // (1.135.218) not connected: not asked
+  else { try { h.spotify = (await getSpotifyToken()) ? 'ok' : 'off'; } catch (e) { h.spotify = 'off'; } }
   h.key = !!loadYoutubeApiKey(); h.addon = ytAddon.ready; h.addonVersion = ytAddon.version; h.parallel = ytAddon.parallel;
   if (ytUseAddon() && (force || h.test === 'idle')) {                // one YouTube search, read by the add-on: does it still understand YouTube's pages?
     h.test = 'running'; bmRedraw();
-    try { const r = await withHardTimeout(ytAddonRequest({ kind: 'search-video', q: BM_TEST_QUERIES[Math.floor(Math.random() * BM_TEST_QUERIES.length)] }), 60000, null); h.test = r === null ? 'err:it took too long to answer' : r.length ? 'ok:' + r.length : 'zero'; }
+    try { const r = await withHardTimeout(ytAddonRequest({ kind: 'search-video', q: BM_TEST_QUERIES[Math.floor(Math.random() * BM_TEST_QUERIES.length)] }), 20000, null); h.test = r === null ? 'err:it took too long to answer' : r.length ? 'ok:' + r.length : 'zero'; }
     catch (e) { h.test = 'err:' + ytAddonErrText(e); }
   }
   bmRedraw();
@@ -1770,7 +1771,8 @@ function bmRender() {
   // (1.135.72) a run's header: its progress on one line, and its views as small buttons beside the controls
   const head = bm.started ? `<div class="arrange-header bm-wb-head"><h2 id="bmTitle" title="${escapeHtml(sub.replace(/<[^>]+>/g, ''))}">Match songs</h2>${bmProgHtml()}<div class="bm-hbtns">${ctl}${bmViewBtns()}<button type="button" class="chip-btn" data-bm="hide" title="Hide this window: matching carries on">Keep working</button><button type="button" class="modal-x" data-bm="close" aria-label="Close">✕</button></div></div>`
     : `<div class="arrange-header"><div><h2 id="bmTitle">Match songs</h2><p class="sm-sub">${sub}</p></div><div class="bm-hbtns">${ctl}<button type="button" class="modal-x" data-bm="close" aria-label="Close">✕</button></div></div>`;
-  const warn = bm.started && bmHealthBad() ? `<div class="bm-warnbar" role="alert">${bm.health.spotify === 'off' && bm.svc.spotify ? 'Spotify isn’t connected. ' : ''}${bm.health.test === 'zero' ? 'A test YouTube search read 0 videos: YouTube may have changed its page, so YouTube matches may be missing. ' : /^err:/.test(bm.health.test || '') ? `The YouTube test search failed: ${escapeHtml(bm.health.test.slice(4))} ` : ''}<button type="button" class="bm-linkbtn" data-bm="health-retry">Check again</button></div>` : '';
+  const checking = bm.started && (bm.health.spotify === 'checking' || bm.health.test === 'running');          // (1.135.218) Check again says it is checking, at once
+  const warn = checking ? `<div class="bm-warnbar bm-checking" role="status"><i class="apl-spin" aria-hidden="true"></i> Checking ${bm.svc.spotify ? 'Spotify' : ''}${bm.svc.spotify && ytUseAddon() ? ' and ' : ''}${ytUseAddon() ? 'YouTube (a test search through the add-on)' : ''}\u2026</div>` : bm.started && bmHealthBad() ? `<div class="bm-warnbar" role="alert">${bm.health.spotify === 'off' && bm.svc.spotify ? 'Spotify isn’t connected. ' : ''}${bm.health.test === 'zero' ? 'A test YouTube search read 0 videos: YouTube may have changed its page, so YouTube matches may be missing. ' : /^err:/.test(bm.health.test || '') ? `The YouTube test search failed: ${escapeHtml(bm.health.test.slice(4))} ` : ''}<button type="button" class="bm-linkbtn" data-bm="health-retry">Check again</button></div>` : '';
   const lanes = bm.started ? bmLaneMsgs() : '';
   const body = bm.view === 'start' ? bmStartHtml() : bm.view === 'queue' ? bmQueueHtml() : bm.view === 'rel' ? `<div class="bm-wb"><aside class="bm-wb-q" aria-label="Releases in this run">${bmWbQueueHtml()}</aside><section class="bm-wb-r">${bmRelHtml()}</section></div>` : bm.view === 'links' ? bmLinksHtml() : bm.view === 'ana' ? bmAnaHtml() : bm.view === 'hist' ? bmHistHtml() : bmPrefsHtml();
   const foot = bm.started && ['queue', 'rel', 'links'].includes(bm.view) ? bmFootHtml() : '';
@@ -1855,7 +1857,7 @@ function bmClick(e) {
   else if (a === 'yt-continue') ytAddonContinue(); else if (a === 'lane-resume') bmResumeLane(kind); else if (a === 'lane-skip') bmSkipLane(kind);
   else if (a === 'rf-clear') { bm.rf = bmRf0(); }
   else if (a === 'resume-saved') bmResumeSaved(); else if (a === 'discard-saved') { if (confirm('Discard the saved run? Links already applied stay.')) { bmRunDel(); bm.savedRun = null; bmRender(); } }
-  else if (a === 'health-retry') bmHealthRun(true);
+  else if (a === 'health-retry') { bm.health.spotify = 'checking'; bmRender(); bmHealthRun(true); }          // (drawn as checking straight away)
   else if (a === 'setup-spotify') { bmHide(); el.menuSpotifyApi.click(); } else if (a === 'setup-youtube') { bmHide(); el.menuYoutubeApi.click(); }
   else if (a === 'qfilter') { bm.qfilter = t.dataset.f; bmRender(); }
   else if (a === 'open-rel') { if (e.target.closest('input,label,button:not([data-bm="open-rel"])')) return; bmGoRel(relOf()); }

@@ -266,12 +266,13 @@ function ytScrobbleNowPlaying(r) {
   lastfmApiCall('track.updateNowPlaying', { artist: r.artist, track: r.track, album: r.album || '' }, true);
 }
 
+function spotifyOn() { return !!(loadSpotifyCreds() || {}).clientId; }          // (1.135.218) Spotify connected at all: without it, CRATE never uses Spotify
 function loadSpotifyCreds() {
   try { return JSON.parse(localStorage.getItem(SPOTIFY_CREDS_KEY) || '{}'); }
   catch (e) { return {}; }
 }
 function saveSpotifyCreds(clientId, clientSecret) {
-  try { localStorage.setItem(SPOTIFY_CREDS_KEY, JSON.stringify({ clientId, clientSecret })); }
+  try { localStorage.setItem(SPOTIFY_CREDS_KEY, JSON.stringify({ clientId, clientSecret })); if (clientId && window.crateLoadSpotifySdk) window.crateLoadSpotifySdk(); }          // (1.135.218: the player, now that there is Spotify)
   catch (e) { /* localStorage unavailable — safe to ignore */ }
 }
 

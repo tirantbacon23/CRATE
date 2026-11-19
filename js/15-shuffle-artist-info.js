@@ -204,7 +204,7 @@ const PLAY_SOURCE_NAMES = { '': 'Any source', spotify: 'Spotify', youtube: 'YouT
 function playSourceOnlyOther() { const v = playSource(); return v === 'youtube' || v === 'spotify' || v === 'soundcloud'; }          // (1.135.205) one source chosen, not Soulseek: nothing from P2P
 function playSource() { try { const v = localStorage.getItem(PLAY_SOURCE_KEY) || ''; return PLAY_SOURCE_NAMES[v] && v ? v : ''; } catch (e) { return ''; } }
 function playSourceSkip(item, trackName, myId, index) {          // a song the chosen source can't play: on to the next
-  flashGlobalToast(`Skipping \u201c${trackName}\u201d \u2014 no ${PLAY_SOURCE_NAMES[playSource()]} link (playing from ${PLAY_SOURCE_NAMES[playSource()]} only).`);
+  flashGlobalToast(typeof spotifyOn === 'function' && !spotifyOn() && (!playSource() || playSource() === 'spotify' || playSource() === 'p2p') ? `Skipping \u201c${trackName}\u201d \u2014 it has no YouTube link, and Spotify isn\u2019t connected (Match songs finds YouTube links).` : `Skipping \u201c${trackName}\u201d \u2014 no ${PLAY_SOURCE_NAMES[playSource()]} link (playing from ${PLAY_SOURCE_NAMES[playSource()]} only).`);
   mqAdd([item], 'skipped', trackName);
   playCrateQueueIndex(myId, index + 1);
 }
@@ -253,7 +253,8 @@ async function playCrateQueueIndex(myId, index) {
   if (typeof p2pQueueTake === 'function' && !track.__noP2P && !playSourceOnlyOther() && p2pQueueTake(myId, index, item, track)) { crateQueueExpectedSpotifyTrackId = null; return; }
   if (playSource() === 'p2p' && !track.__noP2P && typeof p2pAutoTake === 'function' && p2pAutoTake(myId, index, item, track, { force: true, onMiss: () => { track.__noP2P = true; playCrateQueueIndex(myId, index); } })) { crateQueueExpectedSpotifyTrackId = null; return; }          // (1.105.0) Play from Soulseek: found there first; not there, the other sources          // (1.98.0) downloaded from P2P (or arriving): plays from the file, before any other source
 
-  const only = playSource() === 'p2p' ? '' : playSource();          // (Soulseek didn't have it: any other source)
+  let only = playSource() === 'p2p' ? '' : playSource();          // (Soulseek didn't have it: any other source)
+  if ((!only || only === 'spotify') && typeof spotifyOn === 'function' && !spotifyOn()) only = 'youtube';          // (1.135.218) no Spotify connected: never Spotify, so YouTube (a song without a YouTube link goes to Soulseek if that's on, else is skipped)
   if (only === 'youtube' || only === 'soundcloud') {               // one source only, and not Spotify: its link, or the next song
     const link = only === 'youtube' ? track.youtubeLink : track.soundcloudLink;
     crateQueueExpectedSpotifyTrackId = null;

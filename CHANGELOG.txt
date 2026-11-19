@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.217
+  CURRENT_VERSION: 1.135.218
 
+  1.135.218 — 2026-11-19 — Without Spotify connected, CRATE never uses Spotify: its player isn't loaded (it is once you connect),
+          songs play from their YouTube link (one without goes to Soulseek if that's on, else is skipped, saying why), and
+          Match songs doesn't check Spotify. A save Google Sheets refuses for a moment ("You do not have permission to access
+          the requested document") is sent again once after two seconds, and says plainly if it's refused again. Match songs'
+          "Check again" shows "Checking Spotify and YouTube…" at once, and its test search gives up after 20 s (was 60).
   1.135.217 — 2026-11-19 — A release with one song (most singles) gets its tracklist from Rate Your Music (with the add-on 1.28.0):
           fewer than two songs used to be taken for a misreading, so nothing was kept. The add-on reads the one song only
           from under the page's "Track listing" heading, as a whole row, never the "Total length" line; CRATE accepts a

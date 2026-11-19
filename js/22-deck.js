@@ -633,6 +633,12 @@ function postUpdate(payload, retried) {
     // fix in spirit as fetchCatalog's own data.error check (1.29.23),
     // just on the write side instead of the read side.
     if (data && (data.moved || data.notFound || data.missed > 0)) postRowsChanged();          // (1.115.0) rows have shifted under this page
+    // (1.135.218) Google Sheets now and then refuses the backend for a moment ("You do not have permission to access the requested
+    // document", "Service Spreadsheets failed…"): sent again once, two seconds later, before it counts as a failure; still refused, it says so plainly
+    if (data && data.error && /permission to access the requested document|service spreadsheets|service error|timed out|try again/i.test(String(data.error))) {
+      if (!payload.__again) return new Promise(r => setTimeout(r, 2000)).then(() => postUpdate(Object.assign({}, payload, { __again: 1 }), true));
+      throw new Error('Google Sheets refused the backend twice (\u201c' + String(data.error).replace(/^Exception:\s*/, '') + '\u201d). It usually passes in a minute: try again. If it keeps happening, the sheet behind this crate may have lost its sharing with the account the Apps Script runs as.');
+    }
     if (data && data.error) { throw new Error(data.error); }
     try {                                         // a release just added: into the match queue (Match songs → Preferences can switch this off)
       if (smPrefs().queueNew && payload.action === 'addAlbum' && payload.Artist && payload.Title) mqAdd([{ artist: String(payload.Artist), title: String(payload.Title) }], 'added');
