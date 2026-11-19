@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.195
+  CURRENT_VERSION: 1.135.196
 
+  1.135.196 — 2026-11-19 — The radio's songs from the music database: their tracklist and cover now come from Last.fm's album info, one quick
+          call, where the usual iTunes and MusicBrainz lookups (MusicBrainz at one a second) made the radio slow, often found nothing, and
+          left the covers as initials; the usual lookup is the fallback, and isn't waited on for ever. A song with no link is found on
+          YouTube (through the add-on or a YouTube key) when YouTube is your source or Spotify can't play here: it used to be left to
+          Spotify's search, and then nothing played. In Up next and Track Info, a release from the database opens its card instead of
+          trying to go to a release that isn't in your crate.
   1.135.195 — 2026-11-19 — RYM: a release's guessed address is tried under its other types as well (an Album also as an EP, a single and a
           compilation; an EP also as a single and an album…) before searching, since the type CRATE has isn't always the one RYM files it
           under (needs the RYM add-on 1.27.0). Releases on several discs, numbered 1.1, 1.2… 2.1 on RYM: the add-on 1.27.0 reads that as

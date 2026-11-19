@@ -122,8 +122,26 @@ async function rLinksFor(keys) {          // song links found before, kept in th
   const want = keys.filter(k => !radio.links.has(k)); if (want.length) { try { const r = await postUpdate({ action: 'masterMusicLinks', keys: want }); want.forEach(k => radio.links.set(k, (r && r.links && r.links[k]) || {})); } catch (e) { want.forEach(k => radio.links.set(k, {})); } }
   const o = {}; keys.forEach(k => { o[k] = radio.links.get(k) || {}; }); return o;
 }
+// (1.135.196) A release from the database: its tracklist and cover from Last.fm's album info, one quick call (the usual iTunes and MusicBrainz
+// lookups, MusicBrainz at one a second, made the radio slow and often found nothing), kept where the deck and Up next look for them; the
+// usual lookup only when Last.fm has no tracklist, and not waited on for ever.
+const rWait = (ms) => new Promise(r => setTimeout(() => r(null), ms));
+async function rRadioTracks(item) {
+  const key = artKey(item); if (state.trackCache[key] && state.trackCache[key].length) return state.trackCache[key];
+  let al = null; try { if (typeof stlAlbum === 'function') al = await Promise.race([stlAlbum(item.artist, item.title), rWait(7000)]); } catch (e) { al = null; }
+  if (al) {
+    const im = Array.isArray(al.image) ? ((al.image.find(x => x.size === 'extralarge') || al.image.slice(-1)[0] || {})['#text'] || '') : '';
+    if (im && !/2a96cbd8b46e442fc41c2b86b821562f/.test(im) && !item.cover) { item.cover = im; state.artCache[key] = { art: im, collectionId: null }; try { cvAll()[cvK(item.artist, item.title)] = im; cvSave(); } catch (e) { /* fine */ } }
+    let tr = al.tracks && al.tracks.track; tr = Array.isArray(tr) ? tr : tr ? [tr] : [];
+    const tl = tr.filter(t => t && t.name).map((t, i) => ({ trackName: String(t.name), trackNumber: Number(t['@attr'] && t['@attr'].rank) || i + 1, trackTimeMillis: (Number(t.duration) || 0) * 1000 || null }));
+    if (tl.length) { state.trackCache[key] = tl; return tl; }
+  }
+  if (item.cover && !(state.artCache[key] && state.artCache[key].art)) state.artCache[key] = { art: item.cover, collectionId: null };
+  try { return await Promise.race([getTracksFor(item), rWait(15000)]); } catch (e) { return null; }
+}
+function rSpotifyCanPlay() { try { return !!(typeof loadSpotifyCreds === 'function' && (loadSpotifyCreds() || {}).clientId && typeof loadSpotifyUserTokens === 'function' && loadSpotifyUserTokens()); } catch (e) { return false; } }
 async function rSongs(item, mode) {
-  let tl = null; try { tl = await getTracksFor(item); } catch (e) { tl = null; }
+  let tl = null; try { tl = item.radio ? await rRadioTracks(item) : await getTracksFor(item); } catch (e) { tl = null; }
   const ok = (tl || []).filter(t => t && t.trackName); if (!ok.length) return [];
   if (mode === 'whole') return ok;
   const top = await rTopTracks(item.artist), n = mode === 'few' ? 3 : 1;
@@ -142,7 +160,9 @@ async function rEntries(pick) {          // one pick → queue entries (a song, 
     if (item.radio) {
       const k = known[rFold(t.trackName)];
       if (k && (k.yt || k.sp)) { if (k.yt) track.youtubeLink = k.yt; if (k.sp) track.spotifyLink = k.sp; track.radioLinkSrc = 'shared'; }
-      else if (typeof playSource === 'function' && playSource() === 'youtube' && typeof youtubeSearchCandidates === 'function') {
+      // (1.135.196) found on YouTube when that's your source, or when Spotify can't play here (it was left to Spotify's search, which then
+      // couldn't play it: nothing played)
+      else if (typeof youtubeSearchCandidates === 'function' && ((typeof playSource === 'function' && playSource() === 'youtube') || !rSpotifyCanPlay()) && ((typeof ytUseAddon === 'function' && ytUseAddon()) || (typeof loadYoutubeApiKey === 'function' && loadYoutubeApiKey()))) {
         try { const c = await youtubeSearchCandidates(item.artist, t.trackName); if (c && c[0]) { track.youtubeLink = 'https://www.youtube.com/watch?v=' + c[0].id; track.radioLinkSrc = 'found';
           postUpdate({ action: 'masterMusicLinks', put: [{ k: key, s: t.trackName, yt: track.youtubeLink, sp: '' }] }).catch(() => { /* found again next time */ });
           (radio.links.get(key) || {})[rFold(t.trackName)] = { s: t.trackName, yt: track.youtubeLink }; } } catch (e) { /* Spotify's search then */ }
@@ -513,6 +533,14 @@ function rBtnPaint() { ['miniPlayerRadioBtn', 'radioTopBtn'].forEach(id => { con
     t.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/></svg>';
     t.addEventListener('click', () => radioOpen(radio.on ? 'now' : (state.raw || []).length ? undefined : 'discover')); fb.insertAdjacentElement('afterend', t); }
   const after = document.getElementById('menuMusicDb') || document.getElementById('menuMasterCrate'); if (after) { const m = document.createElement('button'); m.type = 'button'; m.id = 'menuRadio'; m.textContent = 'CRATE Radio…'; m.title = 'Play beyond your crate, from the music database'; m.addEventListener('click', () => radioOpen()); after.insertAdjacentElement('beforebegin', m); }
+  // (1.135.196) Up next and Track Info, for a release from the database: its card, not the catalogue it isn't in
+  document.addEventListener('click', (e) => {
+    const go = e.target.closest && e.target.closest('[data-go-key], #trackInfoTitle'); if (!go) return;
+    const k = go.dataset && go.dataset.goKey, e2 = (crateQueueList || []).find(x => x && x.item && x.item.radio && (k ? artKey(x.item) === k : x.item === nowPlayingItem));
+    if (!e2 && !(go.id === 'trackInfoTitle' && nowPlayingItem && nowPlayingItem.radio)) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    const x = e2 && e2.radio && e2.radio.x; if (x) rfOpen(x); else radioOpen('now');
+  }, true);
   // the player's title and release, for a release from the database: its card (it isn't in the catalogue to go to)
   document.addEventListener('click', (e) => {
     const t = e.target.closest && e.target.closest('#miniPlayerTitle, #miniPlayerAlbum'); if (!t || !nowPlayingItem || !nowPlayingItem.radio) return;
