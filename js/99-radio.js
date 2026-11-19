@@ -211,6 +211,7 @@ async function rNext() {          // the next pick: from beyond your crate "How 
   radio.recentA.push(rFold(pick.x ? pick.x.a : pick.it.artist)); if (radio.recentA.length > 8) radio.recentA.shift();
   return pick;
 }
+const RADIO_AHEAD = 10;
 async function rTopUp(min) {
   if (!radio.on || radio.busy) return; if (crateQueueId !== radio.qid) { rStopped(); return; }
   radio.busy = true;
@@ -218,8 +219,9 @@ async function rTopUp(min) {
     // (1.135.194) several releases at once: their song links asked for in one call, and their tracklists and top songs looked up side by
     // side (one after another, each waited for the last: a few seconds a song)
     let tries = 0;
-    while (radio.on && crateQueueId === radio.qid && tries++ < 6) {
-      const ahead = crateQueueList.length - Math.max(0, crateQueueIndex) - 1, need = (min || 5) - ahead; if (need <= 0) break;
+    while (radio.on && crateQueueId === radio.qid && tries++ < 8) {
+      // (1.135.200) counted in releases, not songs: ten releases lined up ahead (a station playing whole releases had only one or two)
+      const ahead = new Set(crateQueueList.slice(Math.max(0, crateQueueIndex) + 1).map(e => e && e.item ? rKey(e.item.artist, e.item.title) : '')).size, need = (min || RADIO_AHEAD) - ahead; if (need <= 0) break;
       const picks = []; for (let i = 0; i < Math.min(need + 1, 6); i++) { const p = await rNext(); if (!p) break; picks.push(p); }
       if (!picks.length) break;
       const keys = picks.filter(p => p.x).map(p => p.x.k); if (keys.length) await rLinksFor(keys);
@@ -257,14 +259,14 @@ async function radioStart(st, keep) {          // keep (1.135.193): { mode: 'cur
     if (!next.length || crateQueueId !== radio.qid) { radio.on = false; radio.say = ''; rBtnPaint(); if (!next.length) flashGlobalToast('Radio: nothing similar found in the music database yet.'); return false; }
     crateQueueList.push(...next); renderCrateQueuePanel(); radio.say = ''; rPaint(); rBtnPaint();
     if (keep.mode === 'end') rPlayAt(radio.qid, keep.index);
-    rTopUp(4); return true;
+    rTopUp(); return true;
   }
   radio.on = true; radio.qid = ++crateQueueId; crateQueueList = []; crateQueueIndex = -1; renderCrateQueuePanel();
   let first = []; for (let i = 0; i < 3 && !first.length; i++) { const ps = []; for (let k = 0; k < 2; k++) { const p = await rNext(); if (p) ps.push(p); } if (!ps.length) break; const ks = ps.filter(p => p.x).map(p => p.x.k); if (ks.length) await rLinksFor(ks); first = [].concat(...(await Promise.all(ps.map(p => rEntries(p).catch(() => []))))); }
   if (!first.length || crateQueueId !== radio.qid) { radio.on = false; radio.say = ''; radio.err = 'Couldn’t find songs to play for that station.'; rPaint(); return false; }
   crateQueueList.push(...first); radio.say = ''; rPaint(); rBtnPaint();
   playCrateQueueIndex(radio.qid, 0);
-  rTopUp(4); return true;
+  rTopUp(); return true;
 }
 // (1.135.193) A station from one release, straight away: its genres, its descriptors (mood and texture: weighed more here), its artist and
 // the artists like them; the How new, How far and Play settings you used last.
@@ -294,7 +296,7 @@ function rCur() {
       const e = crateQueueList[crateQueueIndex];
       if (e && e.radio && !e.radioCounted) { e.radioCounted = true; radio.sess.played++; if (e.radio.kind === 'new') radio.sess.newPlayed++; const p = rLs(RADIO_PLAYED_KEY, {}); p[e.radio.key] = Date.now(); const ks = Object.keys(p); if (ks.length > 3000) ks.sort((a, b) => p[a] - p[b]).slice(0, 500).forEach(k => delete p[k]); rLsSet(RADIO_PLAYED_KEY, p);
         const n = rLs('crate_radio_times_v1', {}); n[e.radio.key] = (n[e.radio.key] || 0) + 1; rLsSet('crate_radio_times_v1', n); }
-      setTimeout(() => { rTopUp(4); rPaint(); }, 50);
+      setTimeout(() => { rTopUp(); rPaint(); }, 50);
     }
     return out;
   };
@@ -304,7 +306,7 @@ function rCur() {
 function rRequeue() {
   if (!radio.on || crateQueueId !== radio.qid) return;
   for (let i = crateQueueList.length - 1; i > crateQueueIndex; i--) { const e = crateQueueList[i]; if (e && e.radio && !e.radioCounted) { const back = e.radio.kind === 'new' ? radio.pool.find(x => x.k === e.radio.key) : radio.mine.find(m => m.k === e.radio.key); if (back) back.used = false; crateQueueList.splice(i, 1); } }
-  renderCrateQueuePanel(); rTopUp(4); rPaint();
+  renderCrateQueuePanel(); rTopUp(); rPaint();
 }
 function rSkip() { if (!radio.on || crateQueueId !== radio.qid) return; playCrateQueueIndex(radio.qid, crateQueueIndex + 1); }
 function rLearn(e, w) { if (!e || !e.item) return; rSplit(e.item.genre).forEach(g => { radio.boost.g[g] = (radio.boost.g[g] || 0) + w; }); const a = rFold(e.item.artist); radio.boost.a[a] = (radio.boost.a[a] || 0) + w; }

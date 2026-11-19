@@ -17,8 +17,10 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.199
+  CURRENT_VERSION: 1.135.200
 
+  1.135.200 — 2026-11-19 — The radio lines up more: ten releases ahead in the queue (it was four songs), filled in the background
+          six at a time after the first song starts, and topped back up to ten as each one plays.
   1.135.199 — 2026-11-19 — Fix: opening the radio while it played a song it hadn't picked itself (the one playing when the station
           started, or one you added) failed with "Cannot read properties of undefined (reading 'kind')". Such a song now
           counts as one of yours.
