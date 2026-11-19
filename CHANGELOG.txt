@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.207
+  CURRENT_VERSION: 1.135.208
 
+  1.135.208 — 2026-11-19 — Adding a release, seen: when the add goes through, its cover lifts off the summary and arcs (with a
+          short trail of sparks) onto its cover in the grid, or its row in the left list, or else the "All Releases" count,
+          which pulses. It lands with a pop, a gold ring and a NEW tag for six seconds, in the list and on its card (marked
+          when you scroll to it, too). With "reduce motion" set nothing flies: it is only marked.
   1.135.207 — 2026-11-19 — The radio (and similar music) keeps about 50 songs lined up ahead in the queue (it was ten releases),
           filled in the background six releases at a time, and topped back up as each song plays.
   1.135.206 — 2026-11-19 — "Keep playing similar music" lines songs up early: when the last song of the queue starts, similar
