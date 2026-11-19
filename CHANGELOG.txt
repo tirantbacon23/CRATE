@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.198
+  CURRENT_VERSION: 1.135.199
 
+  1.135.199 — 2026-11-19 — Fix: opening the radio while it played a song it hadn't picked itself (the one playing when the station
+          started, or one you added) failed with "Cannot read properties of undefined (reading 'kind')". Such a song now
+          counts as one of yours.
   1.135.198 — 2026-11-19 — Pull details for many releases at once (canvas: CRATE batch pull details). From the selection bar
           ("Pull details…"), a release's menu with several selected ("Pull details for N…"), or ⚙ ("Pull details for many
           releases…"): pick the releases (selected, this view, or every release missing something), the details (type,

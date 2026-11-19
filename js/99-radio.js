@@ -279,7 +279,12 @@ async function radioFromItem(it, keep) {
 }
 function radioStop() { radio.on = false; rBtnPaint(); rPaint(); try { if (typeof playerPlayingNow === 'function' && playerPlayingNow()) el.miniPlayerPlayPause.click(); } catch (e) { /* fine */ } }
 function rStopped() { if (!radio.on) return; radio.on = false; rBtnPaint(); rPaint(); }
-function rCur() { return radio.on && crateQueueId === radio.qid && crateQueueIndex >= 0 ? crateQueueList[crateQueueIndex] : null; }
+function rCur() {
+  const e = radio.on && crateQueueId === radio.qid && crateQueueIndex >= 0 ? crateQueueList[crateQueueIndex] : null;
+  // (1.135.199) a song in the station's queue that the radio didn't pick (the one playing when it started, or one you added) is one of yours
+  if (e && e.item && !e.radio) e.radio = { kind: 'mine', x: null, key: rKey(e.item.artist, e.item.title), why: [] };
+  return e && e.item && e.track ? e : null;
+}
 (function () {
   const base = playCrateQueueIndex;
   playCrateQueueIndex = function (myId, index) {
