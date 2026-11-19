@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.193
+  CURRENT_VERSION: 1.135.194
 
+  1.135.194 — 2026-11-19 — Fixed: covers twitching and lists jumping. A cover found on Last.fm for a release with none was set again each
+          time its tile was drawn, which drew Up next again, which asked again: a loop. Now a cover already found is simply used, and Up
+          next is drawn again only for a cover of something in it, at most once a second (80 redraws in 4 seconds before, 2 now).
+          The radio lines songs up much faster: several releases at a time, their song links asked for in one call, their tracklists and
+          top songs looked up side by side (five songs ahead in about 2 seconds, where it took half a minute).
+          The music database's Activity says plainly when Apps Script still has an older Master.gs.
   1.135.193 — 2026-11-19 — The player's radio button, with a song playing, starts a station from it straight away: the song carries on, and
           what was up next is replaced by similar songs from the music database (its genres, its mood and texture from its descriptors,
           weighed more here, its artist and artists like them; with the How new, How far and Play settings you used last). Click again, or

@@ -195,11 +195,17 @@ async function rTopUp(min) {
   if (!radio.on || radio.busy) return; if (crateQueueId !== radio.qid) { rStopped(); return; }
   radio.busy = true;
   try {
+    // (1.135.194) several releases at once: their song links asked for in one call, and their tracklists and top songs looked up side by
+    // side (one after another, each waited for the last: a few seconds a song)
     let tries = 0;
-    while (radio.on && crateQueueId === radio.qid && crateQueueList.length - Math.max(0, crateQueueIndex) < (min || 5) && tries++ < 12) {
-      const pick = await rNext(); if (!pick) break;
-      const es = await rEntries(pick); if (crateQueueId !== radio.qid) break;
-      if (es.length) { crateQueueList.push(...es); renderCrateQueuePanel(); rPaint(); }
+    while (radio.on && crateQueueId === radio.qid && tries++ < 6) {
+      const ahead = crateQueueList.length - Math.max(0, crateQueueIndex) - 1, need = (min || 5) - ahead; if (need <= 0) break;
+      const picks = []; for (let i = 0; i < Math.min(need + 1, 6); i++) { const p = await rNext(); if (!p) break; picks.push(p); }
+      if (!picks.length) break;
+      const keys = picks.filter(p => p.x).map(p => p.x.k); if (keys.length) await rLinksFor(keys);
+      const ents = await Promise.all(picks.map(p => rEntries(p).catch(() => [])));
+      if (crateQueueId !== radio.qid) break;
+      const add = [].concat(...ents); if (add.length) { crateQueueList.push(...add); renderCrateQueuePanel(); rPaint(); }
     }
   } finally { radio.busy = false; }
 }
@@ -227,14 +233,14 @@ async function radioStart(st, keep) {          // keep (1.135.193): { mode: 'cur
   if (keep && crateQueueList.length && (keep.mode === 'end' || (crateQueueIndex >= 0 && crateQueueList[crateQueueIndex]))) {
     // (1.135.193) the song playing carries on (or the queue that just ran out stays as it was): similar songs are lined up after it
     radio.on = true; radio.qid = crateQueueId; if (keep.mode === 'current') { crateQueueList.splice(crateQueueIndex + 1); renderCrateQueuePanel(); }
-    let next = []; for (let i = 0; i < 6 && !next.length; i++) { const p = await rNext(); if (!p) break; next = await rEntries(p); }
+    let next = []; for (let i = 0; i < 3 && !next.length; i++) { const ps = []; for (let k = 0; k < 2; k++) { const p = await rNext(); if (p) ps.push(p); } if (!ps.length) break; const ks = ps.filter(p => p.x).map(p => p.x.k); if (ks.length) await rLinksFor(ks); next = [].concat(...(await Promise.all(ps.map(p => rEntries(p).catch(() => []))))); }
     if (!next.length || crateQueueId !== radio.qid) { radio.on = false; radio.say = ''; rBtnPaint(); if (!next.length) flashGlobalToast('Radio: nothing similar found in the music database yet.'); return false; }
     crateQueueList.push(...next); renderCrateQueuePanel(); radio.say = ''; rPaint(); rBtnPaint();
     if (keep.mode === 'end') rPlayAt(radio.qid, keep.index);
     rTopUp(4); return true;
   }
   radio.on = true; radio.qid = ++crateQueueId; crateQueueList = []; crateQueueIndex = -1; renderCrateQueuePanel();
-  let first = []; for (let i = 0; i < 6 && !first.length; i++) { const p = await rNext(); if (!p) break; first = await rEntries(p); }
+  let first = []; for (let i = 0; i < 3 && !first.length; i++) { const ps = []; for (let k = 0; k < 2; k++) { const p = await rNext(); if (p) ps.push(p); } if (!ps.length) break; const ks = ps.filter(p => p.x).map(p => p.x.k); if (ks.length) await rLinksFor(ks); first = [].concat(...(await Promise.all(ps.map(p => rEntries(p).catch(() => []))))); }
   if (!first.length || crateQueueId !== radio.qid) { radio.on = false; radio.say = ''; radio.err = 'Couldn’t find songs to play for that station.'; rPaint(); return false; }
   crateQueueList.push(...first); radio.say = ''; rPaint(); rBtnPaint();
   playCrateQueueIndex(radio.qid, 0);
