@@ -3,7 +3,7 @@
 // lengths come from MusicBrainz. A first version, to see whether it helps: nothing changes until Apply, and only what you picked differently
 // from your crate is written. Each source is asked once, all at the same time; one that has nothing (or isn't set up) just says so. ----
 const PD_SRC = [['crate', 'Your crate'], ['rym', 'RYM'], ['mb', 'MusicBrainz'], ['sp', 'Spotify'], ['it', 'iTunes'], ['dc', 'Discogs']];
-const PD_FIELDS = [['cover', 'Cover'], ['date', 'Release date'], ['label', 'Label'], ['catalog', 'Catalogue no.'], ['genre', 'Genres'], ['tracks', 'Tracklist']];
+const PD_FIELDS = [['cover', 'Cover'], ['type', 'Type'], ['date', 'Release date'], ['label', 'Label'], ['catalog', 'Catalogue no.'], ['genre', 'Genres'], ['tracks', 'Tracklist']];
 const PD_TL_SRC = { rym: 'rym', mb: 'musicbrainz', sp: 'spotify', it: 'itunes' };          // what each source is called in a saved song's "where it came from"
 let pd = null;
 const pdNorm = (t) => String(t || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/\s*[([].*?[)\]]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
@@ -14,14 +14,14 @@ const pdTracks = (list) => (list || []).filter(t => t && t.title).map(t => ({ ti
 async function pdFromCrate(item) {
   try { await getTracksFor(item); } catch (e) { /* the list you have may be empty */ }
   const rows = currentTracklistAsManualRows(item);
-  return { cover: item.cover || '', date: item.releaseDate || '', label: item.label || '', catalog: dgCatKey(item.catalog) ? String(item.catalog).trim() : '', genre: item.genre || '', tracks: rows.filter(t => t.title), rows };
+  return { cover: item.cover || '', type: item.type || '', date: item.releaseDate || '', label: item.label || '', catalog: dgCatKey(item.catalog) ? String(item.catalog).trim() : '', genre: item.genre || '', tracks: rows.filter(t => t.title), rows };
 }
 async function pdFromRym(item) {
   const list = await rymAskTracklists(3000);
   if (list === null) return { err: 'The add-on didn’t answer' };
   const e = tlRymPick(list, item), tracks = e && !rymTracklistLooksWrong(e.tracks) ? pdTracks(e.tracks) : [], d = (e && e.d) || {};          // d: the release's details, from add-on 1.18.0 (open the RYM page again for one seen before)
   if (!tracks.length && !d.label && !d.date && !d.genre && !d.cover) return { err: 'Not seen yet: open its RYM page once' };
-  return { tracks, label: d.label || '', catalog: d.catalog || '', date: d.date || '', genre: d.genre || '', cover: d.cover || '' };
+  return { tracks, type: typeof rymUrlType === 'function' ? rymUrlType(rymUpdateUrl(item) || item.rymLink) : '', label: d.label || '', catalog: d.catalog || '', date: d.date || '', genre: d.genre || '', cover: d.cover || '' };
 }
 // (1.135.40) MusicBrainz's release has to be this one: its title (and artist) are checked against yours, so a near miss from a loose search
 // (another album by the artist, a single of the same name) is turned down rather than its details offered. A release you linked yourself is
@@ -47,14 +47,14 @@ async function pdFromMb(item) {
   const linked = (String(item.link || '').match(/musicbrainz\.org\/release\/([a-f0-9-]{36})/i) || [])[1];
   const found = linked ? { id: linked } : await pdMbFind(item), id = found.id;
   if (!id) return { err: found.closest ? `Closest is \u201c${found.closest}\u201d: not this release` : 'Not found' };
-  const res = await mbFetch(`https://musicbrainz.org/ws/2/release/${id}?inc=recordings+labels+artist-credits&fmt=json`, { headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' } });
+  const res = await mbFetch(`https://musicbrainz.org/ws/2/release/${id}?inc=recordings+labels+artist-credits+release-groups&fmt=json`, { headers: { 'Accept': 'application/json', 'User-Agent': 'CRATEMusicLog/1.0' } });
   if (!res.ok) return { err: 'MusicBrainz answered ' + res.status };
   const d = await res.json(), media = d.media || [], tracks = [];
   if (!linked && !(pdSameTitle(d.title, item.title) && pdSameArtist(d['artist-credit'], item.artist))) return { err: `Found \u201c${d.title || '?'}\u201d: not this release` };
   const matchText = `\u201c${d.title || ''}\u201d${d.date ? ' \u00b7 ' + String(d.date).slice(0, 4) : ''}${d.country ? ' \u00b7 ' + d.country : ''}${linked ? ' \u00b7 your link' : ''}`;
   media.forEach((m, mi) => (m.tracks || []).forEach(t => tracks.push({ title: t.title || (t.recording && t.recording.title) || '', durationMs: t.length || (t.recording && t.recording.length) || 0, section: media.length > 1 ? 'Disc ' + (mi + 1) : '' })));
   const li = (d['label-info'] || []).find(x => x && x.label && x.label.name);
-  return { matchText, date: d.date || '', label: li ? li.label.name : '', catalog: (li && li['catalog-number']) || '', cover: d['cover-art-archive'] && d['cover-art-archive'].front ? `https://coverartarchive.org/release/${id}/front-500` : '', tracks: pdTracks(tracks) };
+  return { matchText, type: d['release-group'] && typeof mbReleaseType === 'function' ? mbReleaseType(d['release-group'], '') : '', date: d.date || '', label: li ? li.label.name : '', catalog: (li && li['catalog-number']) || '', cover: d['cover-art-archive'] && d['cover-art-archive'].front ? `https://coverartarchive.org/release/${id}/front-500` : '', tracks: pdTracks(tracks) };
 }
 async function pdFromSpotify(item) {
   const token = await getSpotifyToken(); if (!token) return { err: 'Spotify isn’t connected' };
@@ -67,12 +67,12 @@ async function pdFromSpotify(item) {
   const a = await res.json(); let items = (a.tracks && a.tracks.items) || [], next = a.tracks && a.tracks.next;
   while (next && items.length < 400) { const r = await fetch(next, head); if (!r.ok) break; const j = await r.json(); items = items.concat(j.items || []); next = j.next; }
   const discs = new Set(items.map(t => t.disc_number || 1)).size;
-  return { date: a.release_date || '', label: a.label || '', genre: (a.genres || []).join(', '), cover: (a.images && a.images[0] && a.images[0].url) || '',
+  return { type: typeof spReleaseType === 'function' ? spReleaseType(a) : '', date: a.release_date || '', label: a.label || '', genre: (a.genres || []).join(', '), cover: (a.images && a.images[0] && a.images[0].url) || '',
     tracks: pdTracks(items.map(t => ({ title: t.name, durationMs: t.duration_ms, section: discs > 1 ? 'Disc ' + (t.disc_number || 1) : '' }))) };
 }
 async function pdFromItunes(item) {
   const hit = await findItunesAlbum(item, (u) => fetchWithTimeout(u)); if (!hit || !hit.collectionId) return { err: 'Not found' };
-  return { date: String(hit.releaseDate || '').slice(0, 10), genre: hit.primaryGenreName || '', cover: String(hit.artworkUrl100 || '').replace(/100x100bb/, '600x600bb'), tracks: pdTracks(await tlItunesTracks(item.artist, item.title)) };
+  return { type: typeof itReleaseType === 'function' ? itReleaseType(hit.collectionName) : '', date: String(hit.releaseDate || '').slice(0, 10), genre: hit.primaryGenreName || '', cover: String(hit.artworkUrl100 || '').replace(/100x100bb/, '600x600bb'), tracks: pdTracks(await tlItunesTracks(item.artist, item.title)) };
 }
 // (1.95.4) Discogs has a release once per pressing. Every pressing found is kept (d.choices), the one with your catalogue number first,
 // and the Discogs column says which one it shows and lets you choose another; picking a catalogue number (yours, RYM's, MusicBrainz's)
@@ -94,7 +94,7 @@ async function pdFromDiscogs(item, chosenId, known) {               // known: th
   const lab = rel && (rel.labels || []).find(l => l && l.name);
   const tracks = rel ? (rel.tracklist || []).filter(t => !t.type_ || t.type_ === 'track').map(t => ({ title: t.title, durationMs: pdMs(t.duration) })) : [];
   const img = rel && (rel.images || []).find(i => i && i.type === 'primary') || (rel && (rel.images || [])[0]), cover = (img && img.uri) || hit.cover_image || '';
-  return { choices, chosenId: hit.id, choiceText: pdDgChoiceText(hit),
+  return { choices, chosenId: hit.id, choiceText: pdDgChoiceText(hit), type: typeof dgReleaseType === 'function' ? dgReleaseType(rel ? rel.formats : hit.format, rel ? rel.title : hit.title) : '',
     date: pdDgDate(rel && rel.released) || (hit.year ? String(hit.year) : ''), label: pdDgName(lab ? lab.name : (hit.label || [])[0]), catalog: (lab && lab.catno && !/^none$/i.test(lab.catno) ? lab.catno : (hit.catno && !/^none$/i.test(hit.catno) ? hit.catno : '')),
     genre: [...new Set([].concat((rel && rel.genres) || hit.genre || [], (rel && rel.styles) || hit.style || []))].join(', '), cover: cover && !/spacer\.gif/.test(cover) ? cover : '', tracks: pdTracks(tracks) };
 }
@@ -185,7 +185,7 @@ function pdClick(e) {
 function pdChanges() {                                                    // what Apply would write: only what differs from your crate
   const out = { fields: {}, rows: null, parts: [], n: 0, text: '' }; if (!pd) return out;
   const crate = pd.data.crate || {}, nameOf = (k) => (PD_SRC.find(s => s[0] === k) || [k, k])[1];
-  [['cover', 'Cover', 'cover'], ['date', 'ReleaseDate', 'release date'], ['label', 'Label', 'label'], ['catalog', 'Catalog', 'catalogue no.'], ['genre', 'Genre', 'genres']].forEach(([f, col, word]) => {
+  [['cover', 'Cover', 'cover'], ['type', 'Type', 'type'], ['date', 'ReleaseDate', 'release date'], ['label', 'Label', 'label'], ['catalog', 'Catalog', 'catalogue no.'], ['genre', 'Genre', 'genres']].forEach(([f, col, word]) => {
     const k = pd.pick[f], v = k && k !== 'crate' ? pdVal(k, f) : null;
     if (v != null && v !== String(crate[f] || '')) { out.fields[f] = { col, v, k }; out.parts.push(`${word} from ${nameOf(k)}`); out.n++; }
   });
@@ -216,7 +216,7 @@ async function pdApply() {
     }
     if (Object.keys(payload).length > 2) {
       await postUpdate(payload);
-      if (payload.Cover) item.cover = payload.Cover; if (payload.ReleaseDate) item.releaseDate = payload.ReleaseDate; if (payload.Label) item.label = payload.Label; if (payload.Catalog) item.catalog = payload.Catalog; if (payload.Genre) item.genre = payload.Genre;
+      if (payload.Cover) item.cover = payload.Cover; if (payload.ReleaseDate) item.releaseDate = payload.ReleaseDate; if (payload.Label) item.label = payload.Label; if (payload.Catalog) item.catalog = payload.Catalog; if (payload.Genre) item.genre = payload.Genre; if (payload.Type) item.type = payload.Type;
     }
     if (ch.rows) await saveManualTracklist(item, ch.rows, true);
     pdClose(); rymRefreshViews(); scheduleCatalogSync();

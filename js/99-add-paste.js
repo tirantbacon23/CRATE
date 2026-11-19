@@ -82,7 +82,7 @@ async function abFind(x) {          // a line → the release on MusicBrainz (it
     const j = await res.json(), g = (j['release-groups'] || []).filter(r => (r.score || 0) >= 70).sort((a, b) => (b.score || 0) - (a.score || 0) || (a['primary-type'] === 'Album' ? -1 : 1))[0];
     if (!g) return { st: 'none', why: 'not found on MusicBrainz' };
     const artist = (g['artist-credit'] || []).map(a => a.name + (a.joinphrase || '')).join('') || x.artist || '';
-    return { st: 'ok', p: Object.assign({ artist, title: g.title, type: g['primary-type'] === 'Album' || !g['primary-type'] ? 'Album' : g['primary-type'], releaseDate: g['first-release-date'] || '', cover: `https://coverartarchive.org/release-group/${g.id}/front-250`, link: `https://musicbrainz.org/release-group/${g.id}`, genre: ((g.tags || []).sort((a, b) => (b.count || 0) - (a.count || 0))[0] || {}).name || '' }, keep.rymLink ? { rymLink: keep.rymLink } : {}, keep.link ? { link: keep.link } : {}) };
+    return { st: 'ok', p: Object.assign({ artist, title: g.title, type: mbReleaseType(g), releaseDate: g['first-release-date'] || '', cover: `https://coverartarchive.org/release-group/${g.id}/front-250`, link: `https://musicbrainz.org/release-group/${g.id}`, genre: ((g.tags || []).sort((a, b) => (b.count || 0) - (a.count || 0))[0] || {}).name || '' }, keep.rymLink ? { rymLink: keep.rymLink } : {}, keep.link ? { link: keep.link } : {}) };
   } catch (e) { return { st: 'err', why: 'MusicBrainz didn\u2019t answer' }; }
 }
 function abOwned(p) { try { const v = dupVerdict(dupMatches({ artist: p.artist, title: p.title, descriptor: '', catalog: '', releaseDate: p.releaseDate || '' })); return v === 'exact' || v === 'edition'; } catch (e) { return false; } }

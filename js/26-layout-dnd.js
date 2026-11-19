@@ -334,7 +334,7 @@ function buildReleaseResultRow(hit, opts = {}) {
   const prefillData = {
     artist: artistName,
     title: hit.title || (opts.fallbackTitle || ''),
-    type: hit['release-group']?.['primary-type'] === 'Album' ? 'Album' : (hit['release-group']?.['primary-type'] || opts.fallbackType || 'Album'),
+    type: hit['release-group'] && typeof mbReleaseType === 'function' ? mbReleaseType(hit['release-group'], opts.fallbackType) : (opts.fallbackType || 'Album'),          // (1.135.189: Live, Compilation, Mixtape too)
     releaseDate: hit.date ? hit.date.slice(0, 10) : (opts.fallbackReleaseDate || ''),
     genre: genreStr,
     label: labelName,
