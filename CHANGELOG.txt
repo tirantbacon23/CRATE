@@ -17,8 +17,15 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.181
+  CURRENT_VERSION: 1.135.182
 
+  1.135.182 — 2026-11-19 — Add a release: paste a link. A link in the search box is read instead of searched for: MusicBrainz (the
+          release itself, or a release group's pressings), Spotify and Apple Music (their album, filled in whole), and Rate Your Music,
+          Bandcamp, Discogs and Last.fm (artist and title read from the link and searched; the link itself is kept on the release you pick,
+          a RYM link as its RYM link). Add several at once: "add several at once" under the search box, or paste several lines into it. One
+          release a line (Artist – Title, Title by Artist, or a link), each looked up on MusicBrainz (its first release), ones you already
+          have marked HAVE IT and left unticked, ones not found with "Search it". Add N adds them all; each then gets its RYM update and
+          its songs matched, and the card shows how far each has got.
   1.135.181 — 2026-11-19 — The card after adding no longer sticks at "Tracklist": nothing loaded a new release's tracklist until it was
           opened, so the card waited for ever. It now looks the tracklist up itself once the release's RYM update has had its turn, and if
           there's none to be found it says so ("no tracklist found: add one in its Edit › Tracklist") and finishes.
