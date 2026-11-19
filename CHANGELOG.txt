@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.194
+  CURRENT_VERSION: 1.135.195
 
+  1.135.195 — 2026-11-19 — RYM: a release's guessed address is tried under its other types as well (an Album also as an EP, a single and a
+          compilation; an EP also as a single and an album…) before searching, since the type CRATE has isn't always the one RYM files it
+          under (needs the RYM add-on 1.27.0). Releases on several discs, numbered 1.1, 1.2… 2.1 on RYM: the add-on 1.27.0 reads that as
+          the track's position and its disc (each disc a section), where it took it for a rating and lost the number.
+          The music database's Activity says plainly when Apps Script still has an older Master.gs ("Unknown music action").
   1.135.194 — 2026-11-19 — Fixed: covers twitching and lists jumping. A cover found on Last.fm for a release with none was set again each
           time its tile was drawn, which drew Up next again, which asked again: a loop. Now a cover already found is simply used, and Up
           next is drawn again only for a cover of something in it, at most once a second (80 redraws in 4 seconds before, 2 now).

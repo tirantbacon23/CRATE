@@ -92,6 +92,10 @@ async function onDone(sender, msg) {
     if (!(msg && (msg.ok || msg.reason === 'missing'))) { toTab(it, !!(msg && msg.reason === 'challenge')); await saveJob(); progress(); schedule(1500); return; }   // a check, or unreadable here: this page in a tab
   }
   if (msg && msg.ok) { it.state = 'ok'; job.ok++; }
+  else if (msg && msg.reason === 'missing' && it.alts && it.alts.length) {          // (1.27.0) no such page under this type: the next type, then the search
+    it.url = it.alts.shift(); it.state = 'wait'; it.inTab = false; job.tabId = 0; job.via = ''; if (tabId) await closeTab(tabId);
+    job.state = 'gap'; job.nextAt = Date.now() + Math.min(gap(), 4000); await saveJob(); progress(); schedule(job.nextAt - Date.now()); return;
+  }
   else if (msg && msg.reason === 'missing' && it.fallback) {          // (1.25.0) the guessed page doesn't exist: RYM's search for it next, in its place
     const q = it.fallback; it.fallback = null; it.search = q; it.url = searchUrl(q); it.state = 'wait'; it.inTab = false; job.tabId = 0; job.via = ''; if (tabId) await closeTab(tabId);
     job.state = 'gap'; job.nextAt = Date.now() + Math.min(gap(), 4000); await saveJob(); progress(); schedule(job.nextAt - Date.now()); return;
@@ -139,7 +143,8 @@ async function start(sender, msg) {
     // (1.25.0) a guessed address with its search behind it: the guess is read first, and if RYM has no such page, its search
     let fallback = null; if (url && x && x.search && x.search.artist && x.search.title) fallback = { artist: String(x.search.artist), title: String(x.search.title), type: String(x.search.type || ''), year: String(x.search.year || '') };
     if (!url && x && x.search && x.search.artist && x.search.title) { search = { artist: String(x.search.artist), title: String(x.search.title), type: String(x.search.type || ''), year: String(x.search.year || '') }; url = searchUrl(search); }          // (1.23.0) no link yet: found first
-    if (!url || seen.has(url)) continue; seen.add(url); items.push({ id: String((x && x.id) || ''), url, search, fallback, state: 'wait' }); if (items.length >= CAP_JOB) break;
+    if (!url || seen.has(url)) continue; seen.add(url); const alts = url && Array.isArray(x && x.alts) ? x.alts.slice(0, 4).map(cleanUrl).filter(u => u && u !== url) : [];          // (1.27.0) the same release under other types
+    items.push({ id: String((x && x.id) || ''), url, alts, search, fallback, state: 'wait' }); if (items.length >= CAP_JOB) break;
   }
   if (!items.length) return { ok: false, reason: 'nothing' };
   let lo = Number(msg.opts && msg.opts.gapMin) || DEF_LO, hi = Number(msg.opts && msg.opts.gapMax) || DEF_HI;

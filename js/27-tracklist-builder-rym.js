@@ -382,6 +382,14 @@ function rymGuessUrl(it) {
   if (!known || known.size !== 1 || !t) return '';          // not known (or more than one of that name in your crate): searched for instead
   return `https://rateyourmusic.com/release/${ty}/${[...known][0]}/${t}/`;
 }
+// (1.135.195) the type in the address is often not the one CRATE has (MusicBrainz says Album, RYM files it as an EP or a single): the
+// other types to try, in order, before searching (the add-on 1.27+ tries each one RYM has no page for)
+function rymGuessAlts(it) {
+  const main = rymGuessUrl(it); if (!main) return [];
+  const m = /\/release\/([a-z]+)\//.exec(main), ty = m ? m[1] : 'album';
+  const order = { album: ['ep', 'single', 'comp'], ep: ['single', 'album'], single: ['ep', 'album'], comp: ['album'], mixtape: ['album'], djmix: ['mixtape', 'album'], video: ['album'] }[ty] || ['album'];
+  return order.map(t => main.replace(`/release/${ty}/`, `/release/${t}/`));
+}
 function rymFetchUpdates(items, opts) {
   opts = opts || {}; items = (items || []).filter(Boolean);
   // (1.135.160) a release with no RYM link is found first: the add-on (1.23 or later) reads Rate Your Music's search for its artist and title,
@@ -397,7 +405,7 @@ function rymFetchUpdates(items, opts) {
   }
   const qOpen = rymQ.open; if (state.rymQueueMode) { rymQBegin(use); if (opts.queued && !qOpen) { rymQ.open = false; rymQRender(); } }          // (a queued run starts quietly: its dialog doesn't jump in front of you)
   jobsState.runRows = use.map(it => String(it.row)); if (over) jobsQueueRym(todo.slice(25), true);
-  window.postMessage({ source: 'crate-app', type: 'rym-fetch-start', items: use.map(it => { const u = rymUpdateUrl(it); return u ? { id: it.row, url: u } : { id: it.row, url: rymGuessUrl(it), search: { artist: it.artist, title: it.title, type: String(it.type || '').toLowerCase() === 'ep' ? 'ep' : String(it.type || '').toLowerCase() === 'single' ? 'single' : String(it.type || '').toLowerCase() === 'compilation' ? 'comp' : 'album', year: String(it.releaseDate || '').slice(0, 4) } }; }) }, window.location.origin);
+  window.postMessage({ source: 'crate-app', type: 'rym-fetch-start', items: use.map(it => { const u = rymUpdateUrl(it); return u ? { id: it.row, url: u } : { id: it.row, url: rymGuessUrl(it), alts: rymGuessAlts(it), search: { artist: it.artist, title: it.title, type: String(it.type || '').toLowerCase() === 'ep' ? 'ep' : String(it.type || '').toLowerCase() === 'single' ? 'single' : String(it.type || '').toLowerCase() === 'compilation' ? 'comp' : 'album', year: String(it.releaseDate || '').slice(0, 4) } }; }) }, window.location.origin);
   clearTimeout(rymFetchState.ackTimer); rymFetchState.ackTimer = setTimeout(() => { if (!rymFetchState.active) { flashGlobalToast(rymFetchWhy('noanswer')); if (state.rymQueueMode) rymQAbort(); } }, 3000);
 }
 // Releases that just came into the crate (an add, an import, a batch from the add-on: they arrive with the quiet sync after it) get their first

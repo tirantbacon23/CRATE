@@ -8,6 +8,11 @@ A small browser add-on that looks at an artist's discography, or a **genre's** d
 
 Everything happens inside your browser. The add-on makes **no network requests** and sends your data nowhere. It only *adds* markers to RYM's page; it never changes RYM's own text or links.
 
+## New in 1.27.0
+
+- A release's guessed address is tried under its other types too (album, EP, single, compilation) before RYM's search, since the type CRATE has isn't always RYM's.
+- Releases on several discs, numbered 1.1, 1.2… 2.1 on RYM: the number is read as the track's position and its disc (each disc a section), not as a rating.
+
 ## New in 1.26.0
 
 When RYM's search has two equally good answers for a release (artists who share a name, with the same title), it's skipped rather than the first one taken.

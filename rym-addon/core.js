@@ -322,6 +322,10 @@ function tlMove(arr, from, to) {                              // a copy with the
     // another after them. The title is the first piece with a letter in it that is not a track number (A1), a rating or a time, and (when the row has a length) comes before the length.
     const raw = (leaves || []).map(t => String(t == null ? '' : t).replace(/\s+/g, ' ').trim()).filter(Boolean);
     const P = raw.map((t, i) => ({ t, i })).filter(x => !TL_NOISE.test(x.t));
+    // (1.27.0) a release on several discs numbers its tracks disc.track ("1.1", "1.2", "2.1"): read as a rating before. A piece like that first
+    // in the row, not followed by "|" or a count (as a rating's would be), is the track's position and its disc.
+    let discPos = '', disc = 0;
+    if (P.length > 1 && /^\d{1,2}\.\d{1,3}$/.test(P[0].t) && !(P[1] && (P[1].t === '|' || /^\d[\d,]*$/.test(P[1].t) || /^\d{1,3}(?:\.\d)?\s?[kKmM]$/.test(P[1].t)))) { discPos = P[0].t; disc = Number(P[0].t.split('.')[0]) || 0; P.shift(); }
     let durationMs = 0, timeAt = -1;
     P.forEach((x, k) => { if (timeAt < 0) { const ms = tlParseTime(x.t); if (ms) { durationMs = ms; timeAt = k; } } });
     const ratingShaped = (t) => TL_RATING.test(t) && !TL_NUM.test(t), bar = (x) => raw[x.i + 1] === '|', lone = (t) => /^[-\u2013\u2014\u2022]$/.test(t);
@@ -359,7 +363,8 @@ function tlMove(arr, from, to) {                              // a copy with the
     if (TL_BULLET.test(title) && title.replace(TL_BULLET, '')) { sub = true; title = title.replace(TL_BULLET, ''); }
     let pos = '';                                           // its position as the page writes it ("A", "B2", "3"): the first track-number piece before the title (a vote count is never one)
     for (let k = 0; k < P.length && (chosen < 0 || k < chosen); k++) if (k !== timeAt && !afterRating(k) && !ratingShaped(P[k].t) && (TL_NUM.test(P[k].t) || isSideNum(k))) { pos = P[k].t.replace(/[.)]$/, ''); break; }
-    return Object.assign({ title: title.slice(0, 200), durationMs, rating }, rating && votes ? { votes } : {}, sub ? { sub: true } : {}, pos ? { pos } : {});
+    if (discPos) pos = discPos;
+    return Object.assign({ title: title.slice(0, 200), durationMs, rating }, rating && votes ? { votes } : {}, sub ? { sub: true } : {}, pos ? { pos } : {}, disc ? { disc } : {});
   }
   function tracksFromRow(pieces) {                          // one row's pieces -> [the track, ...its sub-items]: a row can hold its own "- Piece One 3:58" lines
     const L = (pieces || []).map(t => String(t == null ? '' : t).replace(/\s+/g, ' ').trim()).filter(Boolean);       // (the separators stay: trackFromLeaves uses a "|" to tell a rating from a title)

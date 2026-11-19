@@ -46,7 +46,7 @@ function mdlChips(o) { return Object.keys(o || {}).sort((a, b) => o[b] - o[a]).m
 function mdlItemsHtml(items) { return items && items.length ? `<ul class="mdl-items">${items.map(x => `<li><b>${escapeHtml(x.t || '')}</b> <em>${escapeHtml(x.a || '')}${x.y ? ' · ' + escapeHtml(String(x.y).slice(0, 4)) : ''}</em> <span class="mdl-chip">${escapeHtml(MDL_SRC[x.src] || x.src || '')}</span>${x.c ? '<span class="mdl-tag">cover</span>' : ''}${x.li ? `<span class="mdl-tag">${rN(x.li)} listeners</span>` : ''}${x.rr ? `<span class="mdl-tag">RYM ${Number(x.rr).toFixed(2)}</span>` : ''}</li>`).join('')}</ul>` : ''; }
 async function mdlLoadDb() {
   if (mdl.dbBusy) return; mdl.dbBusy = true; mdl.dbErr = ''; mdbRender();
-  try { const r = await postUpdate({ action: 'masterMusicLog' }); if (!r || r.music !== true) throw new Error(r && r.error ? r.error : 'Your backend doesn’t have the activity log yet: paste the new Master.gs and deploy a new version.'); mdl.db = r; }
+  try { const r = await postUpdate({ action: 'masterMusicLog' }); if (!r || r.music !== true || r.ok === false) throw new Error(r && r.error && !/unknown music action/i.test(r.error) ? r.error : 'Your Apps Script still has an older Master.gs, without this report: paste the latest Master.gs into its Master file, then Deploy \u203a Manage deployments \u203a New version.'); mdl.db = r; }
   catch (e) { mdl.dbErr = e.message; }
   mdl.dbBusy = false; mdbRender();
 }

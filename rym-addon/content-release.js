@@ -134,7 +134,7 @@
       if (ex && (!got[0].rating || Math.abs(got[0].rating - ex.a) <= 0.051)) { got[0].rating = ex.a; if (ex.n) got[0].votes = ex.n; }
       if (got.length === 1) { const a = row.querySelector('a[href*="/song/"]'), h = a && a.getAttribute('href'); if (h) { try { const u = new URL(h, location.origin); if (/^\/song\//.test(u.pathname)) got[0].url = u.origin + u.pathname.replace(/\/?$/, '/'); } catch (e) { /* not a link */ } } }          // the song's own RYM page, for CRATE's per-track RYM link
       if (got.length === 1) got[0].w = titleWeight(row);
-      got.forEach(t => { if (!skipExtras) tracks.push(Object.assign(t, section ? { section } : {})); });
+      got.forEach(t => { if (!skipExtras) tracks.push(Object.assign(t, section ? { section } : t.disc ? { section: 'Disc ' + t.disc } : {})); });          // (1.27.0: "2.3" puts it on Disc 2 when the page has no heading for it)
     };
     if (rowEls.length && scope) {                                                  // in page order, noting the headings (Disc 2, Side B, Enhanced Content…) that stand between rows
       const set = new Set(rowEls);
