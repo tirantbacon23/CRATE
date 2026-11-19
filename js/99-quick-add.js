@@ -74,3 +74,7 @@ function qaPaint() {
     after.insertAdjacentElement('afterend', b);
   }
 })();
+// (1.135.180) opening Add a release again starts with the search showing (the results stayed folded away after an add, leaving it empty)
+(function () {
+  ['openAddModal', 'openAddModalForReleaseGroup'].forEach(n => { if (typeof window[n] !== 'function') return; const base = window[n]; window[n] = function () { el.addOverlay.classList.remove('qa-picked'); qa.open = false; const c = document.getElementById('qaCard'); if (c) c.remove(); if (el.addForm) el.addForm.classList.remove('qa-on', 'qa-open'); return base.apply(this, arguments); }; });
+})();

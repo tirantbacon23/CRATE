@@ -17,8 +17,17 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.179
+  CURRENT_VERSION: 1.135.180
 
+  1.135.180 — 2026-11-19 — Add a release: editions grouped under their release. A search used to list one album several times (a
+          reissue, a Japanese edition, a US one…); now each release is one row, its earliest official pressing in bold, which a click
+          picks straight away, and "N more editions ▾" opens every pressing of it underneath (all of them from MusicBrainz, earliest
+          first), any of which a click picks instead. List view only.
+          After adding: one card, bottom right, from Added → Rate Your Music → Tracklist → Matching → Ready, filled in as it happens, with
+          Play what's ready, Open and Add another; several added at once get a row each with where it's got to. When it's done it says
+          how many songs were linked and any to check, and hides itself shortly after unless a song wants a check.
+          Fixed: opening Add a release again after an add showed an empty panel (the quick add's folded results stayed folded).
+          Search, the Songs and Artists tabs: no stray "didn't answer" box where the releases would be.
   1.135.179 — 2026-11-19 — Add a release (quick): "All fields" and Edit open the full form again (the button changed to "Fold the form
           away" but nothing opened).
   1.135.178 — 2026-11-18 — Add a release, the quicker way (a trial). Once you pick a release from the search, the search folds away
