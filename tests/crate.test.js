@@ -624,7 +624,7 @@ suite('Fill blanks from other sources', () => {
     try {
       it.label = ''; it.releaseDate = '1990'; it.cover = 'https://example.com/have.jpg';
       it.manualTracks = [{ trackNumber: 1, title: 'Mi vida rosa' }, { trackNumber: 2, title: 'Otra' }]; it.hasManualTracklist = true; delete st.trackCache[app('artKey')(it)];
-      st.afOrder = { lengths: ['sp', 'mb'], date: ['mb'], label: ['dc', 'mb'], cover: ['mb'] };
+      st.afOrder = { lengths: ['sp', 'mb'], date: ['mb'], label: ['dc', 'mb'], cover: ['mb'], catalog: [], genre: [], tracks: [] };          // (1.135.212: the newer details off here; their own test below)
       fetchers.mb = async () => { asked.push('mb'); return { date: '1990-05-14', label: 'Hispavox', cover: 'https://example.com/mb.jpg', tracks: [{ title: 'Mi vida rosa', durationMs: 201000 }, { title: 'Otra', durationMs: 0 }] }; };
       fetchers.sp = async () => { asked.push('sp'); return { err: 'Spotify isn’t connected' }; };
       fetchers.dc = async () => { asked.push('dc'); return { err: 'Not found' }; };
@@ -635,6 +635,23 @@ suite('Fill blanks from other sources', () => {
     } finally {
       Object.assign(fetchers, keep); st.afOrder = was[0];
       Object.assign(it, { label: saved.label, releaseDate: saved.releaseDate, cover: saved.cover, manualTracks: saved.mt, hasManualTracklist: saved.hm });
+      if (was[1] === null) app(`localStorage.removeItem('crate_fill_left_v1')`); else app(`localStorage.setItem('crate_fill_left_v1', ${JSON.stringify(was[1])})`);
+    }
+  });
+  test('a release with no tracklist, catalogue number or genre gets them, from the first source in your order that has them', async () => {
+    const st = app('state'), fetchers = app('PD_FETCH'), keep = Object.assign({}, fetchers), was = [st.afOrder, app(`localStorage.getItem('crate_fill_left_v1')`)];
+    const it = st.raw.find(x => !x.manualTracks || !x.manualTracks.length), saved = { catalog: it.catalog, genre: it.genre, mt: it.manualTracks, hm: it.hasManualTracklist, label: it.label, releaseDate: it.releaseDate, cover: it.cover };
+    try {
+      it.catalog = ''; it.genre = ''; it.manualTracks = []; it.hasManualTracklist = false; it.label = 'Have'; it.releaseDate = '1990-01-01'; it.cover = 'https://example.com/have.jpg'; delete st.trackCache[app('artKey')(it)];
+      st.afOrder = { lengths: [], date: [], label: [], cover: [], catalog: ['dc', 'mb'], genre: ['dc'], tracks: ['mb'] };
+      fetchers.mb = async () => ({ catalog: 'MB-1', tracks: [{ title: 'Uno', durationMs: 100000 }, { title: 'Dos', durationMs: 120000 }] });
+      fetchers.dc = async () => ({ catalog: 'DC 2', genre: 'Synth-pop' });
+      app(`window.__sm = saveManualTracklist; window.__gt = getTracksFor; window.__rows = null; saveManualTracklist = async (i, rows) => { window.__rows = rows; }; getTracksFor = async () => []`);
+      const r = await app('afFill')(it);
+      eq([it.catalog, it.genre, (app('window.__rows') || []).map(t => t.title), r.missing], ['DC 2', 'Synth-pop', ['Uno', 'Dos'], []]);
+    } finally {
+      app(`saveManualTracklist = window.__sm; getTracksFor = window.__gt`); Object.assign(fetchers, keep); st.afOrder = was[0];
+      Object.assign(it, { catalog: saved.catalog, genre: saved.genre, manualTracks: saved.mt, hasManualTracklist: saved.hm, label: saved.label, releaseDate: saved.releaseDate, cover: saved.cover });
       if (was[1] === null) app(`localStorage.removeItem('crate_fill_left_v1')`); else app(`localStorage.setItem('crate_fill_left_v1', ${JSON.stringify(was[1])})`);
     }
   });

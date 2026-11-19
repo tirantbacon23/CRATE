@@ -17,8 +17,10 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.212
+  CURRENT_VERSION: 1.135.213
 
+  1.135.213 — 2026-11-19 — Tests: the fill-blanks test sets the newer details (tracklist, catalogue no., genre) off for its own
+          check, and a new test covers them (no tracklist, catalogue number or genre: each from the first source with it).
   1.135.212 — 2026-11-19 — Add a release pulls the details as soon as a release is picked, before you add it: MusicBrainz,
           Discogs, Spotify and iTunes are asked at once and what is blank is filled in as they answer (label, catalogue
           number, the full date for a bare year, cover, genre, tracklist), a better source taking over from a weaker one
