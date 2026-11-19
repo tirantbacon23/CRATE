@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.210
+  CURRENT_VERSION: 1.135.211
 
+  1.135.211 — 2026-11-19 — A song played from the search (▶, double-click, Shift+Enter, or ▶ on a song under a release there) now
+          plays on its own, with its saved links: the rest of its release doesn't follow. With "keep playing similar music"
+          on, similar songs are lined up after it as it starts; otherwise it stops when it ends.
   1.135.210 — 2026-11-19 — Fix: Up next's ⚙ (what each song shows) did nothing in the "by release" view: it edited the one-line
           view's list. There, artist, album, year, genre and your rating now go in each release's heading, and the rest
           (length, song ratings, plays, Last.fm numbers, labelled "1.2M plays") under each song. Adding a release, in its

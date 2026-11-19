@@ -254,7 +254,7 @@ function stlClick(e) {
   if ((b = g('[data-stl-sort]'))) { stop(); stl.sort = b.dataset.stlSort; srchLsSet(STL_SORT_KEY, stl.sort); return stl.selKey && stlPaint(stl.selKey); }
   if (g('[data-stl-close]')) { stop(); stl.selKey = ''; ssActive = -1; return ssRender(); }
   const host = g('[data-stl]'), sj = host ? stlSubjOfId(host.dataset.stl) : null;
-  if (sj && (b = g('[data-stl-play]'))) { stop(); const d = stl.data.get(sj.key), s = d && d.songs[+b.dataset.stlPlay]; if (s && sj.it && typeof playTrackNow === 'function') playTrackNow(sj.it, s.name, s.n); return; }
+  if (sj && (b = g('[data-stl-play]'))) { stop(); const d = stl.data.get(sj.key), s = d && d.songs[+b.dataset.stlPlay]; if (s && sj.it && typeof playTrackNow === 'function') (typeof srchPlaySong === 'function' ? srchPlaySong : playTrackNow)(sj.it, s.name, s.n); return; }
   if (sj && g('[data-stl-playall]')) { stop(); if (sj.it && typeof playAlbumNow === 'function') playAlbumNow(sj.it); return; }
   if (sj && g('[data-stl-deck]')) { stop(); if (sj.it) { srchRemember(el.searchInput.value); srch.keep = true; el.searchInput.blur(); openDeck(sj.it); ssRender(); } return; }
   if (sj && g('[data-stl-add]')) { stop(); if (sj.r) srchAddOnline(sj.r); return; }
@@ -554,7 +554,7 @@ function stlQpMount(item, load) {
       const b = e.target.closest('[data-stl-play]'), m = e.target.closest('[data-stl-all]'); if (!b && !m) return;
       e.stopPropagation(); const key = stl.byId.get((e.target.closest('[data-stl]') || {}).dataset.stl || ''); if (!key) return;
       if (m) { stl.all.add(key); stlPaint(key); return; }
-      const dd = stl.data.get(key), s = dd && dd.songs[+b.dataset.stlPlay]; if (s && dd.subj.it && typeof playTrackNow === 'function') playTrackNow(dd.subj.it, s.name, s.n);
+      const dd = stl.data.get(key), s = dd && dd.songs[+b.dataset.stlPlay]; if (s && dd.subj.it && typeof playTrackNow === 'function') (typeof srchPlaySong === 'function' ? srchPlaySong : playTrackNow)(dd.subj.it, s.name, s.n);
     }); }
 }
 const stlBaseQp = openAlbumQuickPeek;

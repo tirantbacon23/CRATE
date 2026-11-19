@@ -315,15 +315,24 @@ function ssPick(i) {
 // its release; a release plays from its start. A single click (or Enter) still goes to it: the song where it is in the catalogue, the
 // release's deck.
 function srchItemOf(s) { return s && (s.it || (s.row != null ? state.raw.find(r => String(r.row) === String(s.row)) : null) || (s.kind === 'track' && s.sub ? srchItemByAT(String(s.sub).split(' \u00b7 ')[0], String(s.sub).split(' \u00b7 ').slice(1).join(' \u00b7 ')) : null)); }
+// (1.135.211) a song from the search plays on its own, as a one-song queue: when it ends, "keep playing similar music" (if on) carries on
+// from it (lined up as it starts), else it stops; the rest of its release doesn't follow, as it does from a release's own tracklist
+function srchPlaySong(it, name) {
+  const list = (activeItem === it && currentTracklistTracks && currentTracklistTracks.length ? currentTracklistTracks : (state.trackCache[artKey(it)] || [])).concat((it.manualTracks || []).map((t, i) => ({ trackName: t.title, trackNumber: t.trackNumber || i + 1 })));
+  const f = (x) => String(x || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim(), hit = list.find(t => t && t.trackName === name) || list.find(t => t && f(t.trackName) === f(name)) || { trackName: name };
+  const num = hit.trackNumber || '', track = Object.assign({}, hit, { trackName: hit.trackName || name, trackNumber: num }, typeof trackLinkOverridesFor === 'function' ? trackLinkOverridesFor(it, num, hit.trackName || name) : {});
+  nowPlayingItem = it; const myId = ++crateQueueId; crateQueueList = [{ item: it, track }]; crateQueueIndex = -1; renderCrateQueuePanel();
+  playCrateQueueIndex(myId, 0);
+}
 function srchCanPlay(s) { return !!(s && (s.kind === 'track' || s.kind === 'release') && srchItemOf(s)); }
 function srchPlay(i) {
   const s = ssItems[i], it = srchItemOf(s); if (!it) return false;
   srchRemember(el.searchInput.value); el.searchInput.blur();
-  if (s.kind === 'track') { playTrackNow(it, s.label); flashGlobalToast(`Playing \u201c${s.label}\u201d \u00b7 ${it.title}`); }
+  if (s.kind === 'track') { srchPlaySong(it, s.label); flashGlobalToast(`Playing \u201c${s.label}\u201d \u00b7 ${it.title}${typeof rAutoOn === 'function' && rAutoOn() ? ', then similar music' : ''}`); }
   else { playAlbumReplacingQueue(it); flashGlobalToast(`Playing ${it.title}`); }
   return true;
 }
-const srchPlayBtn = (s, i) => srchCanPlay(s) ? `<button type="button" class="srch-play" data-ss-play="${i}" aria-label="Play ${escapeHtml(s.label)}" title="Play${s.kind === 'track' ? ' (the rest of its release follows)' : ''}"><svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg></button>` : '';
+const srchPlayBtn = (s, i) => srchCanPlay(s) ? `<button type="button" class="srch-play" data-ss-play="${i}" aria-label="Play ${escapeHtml(s.label)}" title="Play${s.kind === 'track' ? ' this song' + (typeof rAutoOn === 'function' && rAutoOn() ? ', then similar music' : '') : ''}"><svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg></button>` : '';
 let srchClickT = 0;
 function srchClick(e) {
   { const pb = e.target.closest('[data-ss-play]'); if (pb) { clearTimeout(srchClickT); srchPlay(+pb.dataset.ssPlay); return; } }
