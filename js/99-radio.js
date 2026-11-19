@@ -138,7 +138,7 @@ async function rLinksFor(keys) {          // song links found before, kept in th
 const rWait = (ms) => new Promise(r => setTimeout(() => r(null), ms));
 async function rRadioTracks(item) {
   const key = artKey(item); if (state.trackCache[key] && state.trackCache[key].length) return state.trackCache[key];
-  let al = null; try { if (typeof stlAlbum === 'function') al = await Promise.race([stlAlbum(item.artist, item.title), rWait(7000)]); } catch (e) { al = null; }
+  let al = null; try { if (typeof stlAlbum === 'function') { const sa = Promise.resolve().then(() => stlAlbum(item.artist, item.title)); sa.catch(() => {}); al = await Promise.race([sa, rWait(7000)]); } } catch (e) { al = null; }
   if (al) {
     const im = Array.isArray(al.image) ? ((al.image.find(x => x.size === 'extralarge') || al.image.slice(-1)[0] || {})['#text'] || '') : '';
     if (im && !/2a96cbd8b46e442fc41c2b86b821562f/.test(im) && !item.cover) { item.cover = im; state.artCache[key] = { art: im, collectionId: null }; try { cvAll()[cvK(item.artist, item.title)] = im; cvSave(); } catch (e) { /* fine */ } }
@@ -147,7 +147,7 @@ async function rRadioTracks(item) {
     if (tl.length) { state.trackCache[key] = tl; return tl; }
   }
   if (item.cover && !(state.artCache[key] && state.artCache[key].art)) state.artCache[key] = { art: item.cover, collectionId: null };
-  try { return await Promise.race([getTracksFor(item), rWait(15000)]); } catch (e) { return null; }
+  try { const gt = Promise.resolve().then(() => getTracksFor(item)); gt.catch(() => {}); return await Promise.race([gt, rWait(15000)]); } catch (e) { return null; }          // (1.135.220: the loser's failure caught)
 }
 function rSpotifyCanPlay() { try { return !!(typeof loadSpotifyCreds === 'function' && (loadSpotifyCreds() || {}).clientId && typeof loadSpotifyUserTokens === 'function' && loadSpotifyUserTokens()); } catch (e) { return false; } }
 async function rSongs(item, mode) {

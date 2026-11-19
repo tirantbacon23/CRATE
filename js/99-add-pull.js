@@ -48,7 +48,7 @@ async function aplRun() {
   const fns = { mb: typeof pdFromMb === 'function' && pdFromMb, dc: typeof pdFromDiscogs === 'function' && pdFromDiscogs, sp: typeof pdFromSpotify === 'function' && pdFromSpotify, it: typeof pdFromItunes === 'function' && pdFromItunes };
   const ks = Object.keys(fns).filter(k => fns[k]); ks.forEach(k => { apl.st[k] = 'ask'; }); aplPaint();
   await Promise.all(ks.map(async k => {
-    let d; try { d = await Promise.race([fns[k](item), new Promise(r => setTimeout(() => r({ err: 'took too long' }), 15000))]); } catch (e) { d = { err: String((e && e.message) || e) }; }
+    let d; try { const pr = Promise.resolve().then(() => fns[k](item)); pr.catch(() => {}); d = await Promise.race([pr, new Promise(r => setTimeout(() => r({ err: 'took too long' }), 15000))]); } catch (e) { d = { err: String((e && e.message) || e) }; }          // (1.135.220: a lookup that loses the race and fails later is caught, not an "Unhandled rejection")
     if (me !== apl.seq || el.addOverlay.hidden) return;
     apl.got[k] = d || { err: 'nothing' }; apl.st[k] = d && !d.err ? 'ok' : 'none';
     aplApply(); if (typeof qaPaint === 'function') qaPaint(); aplPaint();

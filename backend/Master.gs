@@ -341,10 +341,24 @@ function _muApply(m, x, now) {   // one release into the map: blanks filled, the
   let s = {}; try { s = JSON.parse(String(r[C('Sources')] || '{}')) || {}; } catch (e) { s = {}; } s[x.src] = (s[x.src] || 0) + 1; r[C('Sources')] = JSON.stringify(s);
   if (r.slice(0, C('Sources')).join('\u0001') !== before || !r[C('Updated')]) r[C('Updated')] = now;
 }
+// (1.135.220) The music database has a lock of its own. It used the script's one lock, which every save to everyone's crate waits for: a
+// merge (reading and writing the whole Music sheet, thousands of rows) held up adds and edits for up to 30 s each, or failed them as busy.
+// This one is a mark in the script's properties with a time on it: a merge, an inbox write and a links write take turns among themselves,
+// and saves never wait for them. A mark left by a run that died expires after 6 minutes (an Apps Script run can't last longer).
+function _muLock(waitMs) {
+  const p = _mProps(), until = Date.now() + (waitMs || 0);
+  for (;;) {
+    const at = Number(p.getProperty('MU_LOCK') || 0);
+    if (!at || Date.now() - at > 6 * 60 * 1000) { const me = String(Date.now()) + ':' + Math.random(); p.setProperty('MU_LOCK', me.split(':')[0]); p.setProperty('MU_LOCK_BY', me); Utilities.sleep(50); if (p.getProperty('MU_LOCK_BY') === me) return true; }
+    if (Date.now() >= until) return false;
+    Utilities.sleep(400);
+  }
+}
+function _muUnlock() { const p = _mProps(); p.deleteProperty('MU_LOCK'); p.deleteProperty('MU_LOCK_BY'); }
 function _muMerge(force, crateRows) {          // the inbox (and, from a build, the friends' crates) into Music; the totals worked out again
   const p = _mProps(), last = Number(p.getProperty('MUSIC_MERGED') || 0);
   if (!force && Date.now() - last < MU_MERGE_EVERY_MS) return false;
-  const lock = LockService.getScriptLock(); if (!lock.tryLock(30000)) return false;
+  if (!_muLock(0)) return false;          // (a merge already running: this one isn't needed)
   try {
     const ss = _mSS(), sh = _muTab(ss, 'Music', MU_COLS), inbox = _muTab(ss, 'Inbox', ['Json']), simSh = _muTab(ss, 'Similar', ['Key', 'Name', 'Json', 'At']);
     const m = _muRead(sh), now = Date.now(), C = (n) => MU_COLS.indexOf(n);
@@ -374,7 +388,7 @@ function _muMerge(force, crateRows) {          // the inbox (and, from a build, 
     const stSh = _muTab(ss, 'MusicStatus', ['Json']); stSh.getRange(2, 1).setValue(JSON.stringify(st));
     p.setProperty('MUSIC_MERGED', String(now)); CacheService.getScriptCache().remove('music:status');
     return true;
-  } finally { lock.releaseLock(); }
+  } finally { _muUnlock(); }
 }
 function _muStatus() {
   const c = CacheService.getScriptCache(), hit = c.get('music:status'); if (hit) { try { return JSON.parse(hit); } catch (e) { /* read again */ } }
@@ -391,8 +405,7 @@ function _music(email, action, payload) {
       const items = Array.isArray(payload.items) ? payload.items.slice(0, MU_ADD_MAX) : [], similar = Array.isArray(payload.similar) ? payload.similar.slice(0, 60) : [];
       if (!items.length && !similar.length) return _json({ ok: true, music: true, queued: 0 });
       const text = JSON.stringify({ at: Date.now(), by: _mNameOf(email) || 'a friend', items: items, similar: similar });          // (1.135.192: who sent it, by their CRATE name) if (text.length > 49000) return _json({ ok: false, music: true, error: 'Too much at once' });
-      const lock = LockService.getScriptLock(); lock.waitLock(20000);
-      try { _muTab(_mSS(), 'Inbox', ['Json']).appendRow([text]); } finally { lock.releaseLock(); }
+      try { _muTab(_mSS(), 'Inbox', ['Json']).appendRow([text]); } catch (e) { return _json({ ok: false, music: true, error: String(e) }); }          // (1.135.220: one row added; no lock needed, and saves never wait for it)
       return _json({ ok: true, music: true, queued: items.length });
     }
     if (action === 'musicLog') {          // (1.135.192) what's come in: waiting in the inbox, and what the last merges added or changed
@@ -483,8 +496,8 @@ function _music(email, action, payload) {
       const ss = _mSS(), sh = _muTab(ss, 'Links', ['Key', 'Song', 'Youtube', 'Spotify', 'At']);
       const put = Array.isArray(payload.put) ? payload.put.slice(0, 200) : [];
       if (put.length) {
-        const lock = LockService.getScriptLock(); lock.waitLock(20000);
-        try { const now = Date.now(); sh.getRange(sh.getLastRow() + 1, 1, put.length, 5).setValues(put.map(x => [_muS(x.k, 400), _muS(x.s, 300), _muS(x.yt, 200), _muS(x.sp, 200), now])); } finally { lock.releaseLock(); }
+        if (!_muLock(20000)) return _json({ ok: false, music: true, error: 'The music database is busy: try again in a moment.' });
+        try { const now = Date.now(); sh.getRange(sh.getLastRow() + 1, 1, put.length, 5).setValues(put.map(x => [_muS(x.k, 400), _muS(x.s, 300), _muS(x.yt, 200), _muS(x.sp, 200), now])); } finally { _muUnlock(); }
       }
       const keys = {}; (Array.isArray(payload.keys) ? payload.keys.slice(0, 200) : []).forEach(k => { keys[String(k)] = 1; });
       const links = {};

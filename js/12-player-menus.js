@@ -307,7 +307,7 @@ function playYtSongQueued(item, link, trackName, trackNum) {
 async function playFromTrackInList(item, trackName, trackNum, list) {
   if (!item || !trackName) return;
   let tracks = list && list.length ? list : (activeItem === item && currentTracklistTracks && currentTracklistTracks.length ? currentTracklistTracks.slice() : (state.trackCache[artKey(item)] || []).length ? state.trackCache[artKey(item)].slice() : null);
-  if (!tracks) { try { tracks = await Promise.race([getTracksFor(item), new Promise(r => setTimeout(() => r(null), 4000))]); } catch (e) { tracks = null; } }          // (not waited on for ever: that one song then)
+  if (!tracks) { try { const gt = Promise.resolve().then(() => getTracksFor(item)); gt.catch(() => {}); tracks = await Promise.race([gt, new Promise(r => setTimeout(() => r(null), 4000))]); } catch (e) { tracks = null; } }          // (not waited on for ever: that one song then)
   const ents = (tracks || []).filter(x => x && (x.track ? x.track.trackName : x.trackName)).map(x => x.track ? { item: x.item || item, track: x.track } : { item, track: x });
   const same = (e) => e.item === item && String(e.track.trackNumber || '') === String(trackNum || '') && (e.track.trackName || '') === trackName;
   let i = ents.findIndex(same); if (i < 0) i = ents.findIndex(e => e.item === item && (e.track.trackName || '') === trackName);
