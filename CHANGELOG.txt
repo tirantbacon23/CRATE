@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.218
+  CURRENT_VERSION: 1.135.219
 
+  1.135.219 — 2026-11-19 — Adding a release says what it is waiting for: "Checking your crate…" (the check for a copy), then
+          "Saving…", then "Still saving… the backend is slow" after 15 s; after two minutes with no answer the button comes
+          back, saying the add may still land (so it isn't added twice). The duplicate check no longer waits for ever on a
+          read of the crate that never finishes (15–20 s at most, then it uses what the page has).
   1.135.218 — 2026-11-19 — Without Spotify connected, CRATE never uses Spotify: its player isn't loaded (it is once you connect),
           songs play from their YouTube link (one without goes to Soulseek if that's on, else is skipped, saying why), and
           Match songs doesn't check Spotify. A save Google Sheets refuses for a moment ("You do not have permission to access

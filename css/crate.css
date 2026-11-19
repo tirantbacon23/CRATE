@@ -7300,7 +7300,7 @@ input.mcd-filled { border-color: rgba(127,209,185,.6) !important; }
 /* (1.135.210) adding, in the window: the button says so, then "✓ Added", the cover pops, the window draws back */
 #qaCard.aan-adding [data-qa-add], #qaCard.aan-done [data-qa-add] { pointer-events: none; }
 #qaCard.aan-adding [data-qa-add]:not([data-qa-add="again"]), #qaCard.aan-done [data-qa-add]:not([data-qa-add="again"]), #addSaveBtn.aan-adding, #addSaveBtn.aan-done { font-size: 0 !important; position: relative; overflow: hidden; }
-#qaCard.aan-adding [data-qa-add]:not([data-qa-add="again"])::after, #addSaveBtn.aan-adding::after { content: "Adding\2026"; font: 600 15px Inter, sans-serif; }
+#qaCard.aan-adding [data-qa-add]:not([data-qa-add="again"])::after, #addSaveBtn.aan-adding::after { content: attr(data-aan-label); font: 600 15px Inter, sans-serif; position: relative; }
 #qaCard.aan-done [data-qa-add]:not([data-qa-add="again"])::after, #addSaveBtn.aan-done::after { content: "\2713  Added"; font: 600 15px Inter, sans-serif; }
 #qaCard.aan-adding [data-qa-add]:not([data-qa-add="again"])::before, #addSaveBtn.aan-adding::before { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,.35) 50%, transparent 80%); animation: aanSheen 1.1s linear infinite; }
 @keyframes aanSheen { from { transform: translateX(-100%); } to { transform: translateX(100%); } }

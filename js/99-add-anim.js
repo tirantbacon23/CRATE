@@ -15,6 +15,16 @@ function aanState(st) {          // the summary card (or the classic form's butt
   const c = document.getElementById('qaCard'), b = el.addSaveBtn;
   [c, b].forEach(n => { if (!n) return; n.classList.toggle('aan-adding', st === 'adding'); n.classList.toggle('aan-done', st === 'done'); });
   if (b) b.disabled = st === 'adding' || st === 'done';
+  if (st !== 'adding') { clearTimeout(aan.slowT); clearTimeout(aan.giveT); aanLabel(''); }
+}
+// (1.135.219) what it is doing while it says so: checking the crate for a copy, then saving (and, when the backend is slow, that it is
+// still waiting); after two minutes with no answer the button comes back, saying the add may still land (so it isn't added twice)
+function aanLabel(t) { if (t !== undefined) aan.label = t; [document.querySelector('#qaCard [data-qa-add]:not([data-qa-add="again"])'), el.addSaveBtn].forEach(n => { if (n) { if (aan.label) n.dataset.aanLabel = aan.label; else delete n.dataset.aanLabel; } }); }
+if (typeof qaPaint === 'function') { const qp = qaPaint; qaPaint = function () { const r = qp.apply(this, arguments); if (aan.label) aanLabel(); return r; }; }          // (the summary drawn again keeps it)
+function aanWatch2() {
+  clearTimeout(aan.slowT); clearTimeout(aan.giveT);
+  aan.slowT = setTimeout(() => { if (aan.pend) aanLabel('Still saving\u2026 the backend is slow'); }, 15000);
+  aan.giveT = setTimeout(() => { if (!aan.pend) return; aanState(''); flashToast(el.addToast, 'No answer from your backend after two minutes. The add may still land: look for it in your crate before adding it again.'); }, 120000);
 }
 function aanTarget(k) {
   const els = aanEls(k), seen = (n) => { const r = n.getBoundingClientRect(); return r.width && r.bottom > 0 && r.top < innerHeight; };
@@ -74,7 +84,7 @@ function aanWatch() {
     const artist = (el.addArtist && el.addArtist.value || '').trim(), title = (el.addTitle && el.addTitle.value || '').trim();
     const cover = (document.getElementById('addCover') || {}).value || '';
     aan.pend = artist && title ? { k: aanKey(artist, title), artist, title, cover: String(cover).trim(), rect: aanFrom(), at: Date.now() } : null;
-    aanState('adding');
+    aanState('adding'); aanLabel('Adding\u2026'); aanWatch2();
     try { return await base.apply(this, arguments); } finally { aan.pend = null; if (!aan.closing) aanState(''); }
   };
   // the add went through when the window closes during the save: that is when it flies
@@ -94,5 +104,7 @@ function aanWatch() {
   }
   // the left list's release rows say which release they are (to light the new one up there too)
   if (typeof buildLeftRow === 'function') { const bl = buildLeftRow; buildLeftRow = function (entry, mode) { const row = bl.apply(this, arguments); try { if (mode === 'album' && entry && entry.item && row) row.dataset.aanLeft = String(entry.item.row); } catch (e) { /* fine */ } return row; }; }
+  if (typeof addDupGuard === 'function') { const bg = addDupGuard; addDupGuard = async function () { if (aan.pend) aanLabel('Checking your crate\u2026'); const ok = await bg.apply(this, arguments); if (aan.pend && ok) aanLabel('Saving\u2026'); return ok; }; }
+  window.addEventListener('DOMContentLoaded', () => { if (typeof postUpdate !== 'function') return; const bp = postUpdate; postUpdate = function (payload) { if (aan.pend && payload && payload.action === 'addAlbum') { aanLabel('Saving\u2026'); aanWatch2(); } return bp.apply(this, arguments); }; });
   new MutationObserver(() => { if (aan.arrive.length) { clearTimeout(aan.t); aan.t = setTimeout(aanWatch, 120); } }).observe(document.body, { childList: true, subtree: true });
 })();

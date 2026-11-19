@@ -550,10 +550,10 @@ function addDupWarm() {
   addDupPrefetch = Promise.resolve().then(() => fetchCatalog({ quiet: true })).catch(() => {}).finally(() => { addDupPrefetch = null; if (typeof addDupRefresh === 'function' && !el.addForm.hidden) addDupRefresh(); });
 }
 async function addDupGuard() {         // true = fine to save. Authoritative: it doesn't trust what the banner last showed.
-  if (addDupPrefetch) { const label = el.addSaveBtn.textContent; el.addSaveBtn.disabled = true; el.addSaveBtn.textContent = 'Checking your crate\u2026'; await addDupPrefetch; el.addSaveBtn.textContent = label; }
+  if (addDupPrefetch) { const label = el.addSaveBtn.textContent; el.addSaveBtn.disabled = true; el.addSaveBtn.textContent = 'Checking your crate\u2026'; await Promise.race([addDupPrefetch, new Promise(r => setTimeout(r, 15000))]); el.addSaveBtn.textContent = label; }          // (1.135.219: never waited on for ever)
   if (Date.now() - (state.catalogFetchedAt || 0) > DUP_FRESH_MS) {
     const label = el.addSaveBtn.textContent; el.addSaveBtn.disabled = true; el.addSaveBtn.textContent = 'Checking your crate\u2026';
-    try { await fetchCatalog({ quiet: true }); } catch (e) { console.warn('refresh before duplicate check failed', e); }
+    try { await Promise.race([fetchCatalog({ quiet: true }), new Promise(r => setTimeout(r, 20000))]); } catch (e) { console.warn('refresh before duplicate check failed', e); }          // (1.135.219: 20 s at most; the check then uses what the page has)
     el.addSaveBtn.textContent = label;
   }
   addDupRefresh();
