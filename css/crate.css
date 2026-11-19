@@ -7286,3 +7286,13 @@ input.mcd-filled { border-color: rgba(127,209,185,.6) !important; }
 @media (prefers-reduced-motion: reduce) { .aan-pop, .aan-bump, .aan-tag { animation: none; } }
 .left-row.aan-new { box-shadow: inset 0 0 0 1px #D6A24C, 0 0 14px rgba(214,162,76,.3) !important; background: rgba(214,162,76,.10); }
 .left-row .aan-tag { top: 50%; left: auto; right: 8px; transform: translateY(-50%); animation: none; }
+
+/* (1.135.209) play from the search: ▶ on songs and releases */
+.srch-play { flex: none; margin-left: auto; width: 28px; height: 28px; border-radius: 50%; border: 1px solid #3A4250; background: #161B22; color: #D6A24C; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; opacity: .75; }
+.srch-play:hover, .srch-play:focus-visible { opacity: 1; background: #D6A24C; color: #12161C; border-color: #D6A24C; }
+.ss-item .srch-play { margin-left: 8px; }
+.ss-item.on .srch-play, .srch-row.on .srch-play { opacity: 1; }
+.srch-hint { font-size: 11px; color: #8B93A0; padding: 4px 10px 0; }
+.ss-item:has(.srch-play) { grid-template-columns: 58px minmax(0, 1fr) auto 28px; align-items: center; }
+.ss-item:has(.srch-play):has(.stl-tog) { grid-template-columns: 58px minmax(0, 1fr) auto 28px auto; }
+.ss-item .srch-play { margin-left: 0; width: 26px; height: 26px; }

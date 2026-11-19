@@ -1068,12 +1068,14 @@ function ssAddTracks(ix, raw) {                                       // each so
     if (was && was.m === m && was.c === c) return;
     ix.trackRefs.set(r, { m, c });
     const fa = smFold(r.artist);
-    trackTitlesFor(r).forEach(t => { const f = smFold(t), k = f + '|' + fa; if (ix.seenT.has(k)) return; ix.seenT.add(k); ix.tracks.push({ name: t, f, artist: r.artist, album: r.title, n: 0 }); });
+    trackTitlesFor(r).forEach(t => { const f = smFold(t), k = f + '|' + fa; if (ix.seenT.has(k)) return; ix.seenT.add(k); ix.tracks.push({ name: t, f, artist: r.artist, album: r.title, row: r.row, n: 0 }); });
   });
 }
-function ssScore(name, q, folded) {                                  // 0 starts with it, 1 a word starts with it, 2 has it somewhere; -1 not at all
+const ssLoose = (s) => String(s || '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();          // (1.135.209) brackets and dashes aside: "spirals (synthintro)" finds "Spirals [Synthintro]" and "Spirals - Synthintro"
+function ssScore(name, q, folded) {                                  // 0 starts with it, 1 a word starts with it, 2 has it somewhere, 3 only with the punctuation aside; -1 not at all
   const n = folded || smFold(name); if (!q || !n) return -1;
-  if (n.startsWith(q)) return 0; if ((' ' + n).includes(' ' + q)) return 1; return n.includes(q) ? 2 : -1;
+  if (n.startsWith(q)) return 0; if ((' ' + n).includes(' ' + q)) return 1; if (n.includes(q)) return 2;
+  const ln = ssLoose(n), lq = ssLoose(q); return lq && ln.includes(lq) ? 3 : -1;
 }
 function ssRank(list, q, limit) { return list.map(e => ({ e, s: ssScore(e.name, q, e.f) })).filter(x => x.s >= 0).sort((a, b) => a.s - b.s || (b.e.n || 0) - (a.e.n || 0) || a.e.name.length - b.e.name.length).slice(0, limit).map(x => x.e); }
 const ssQuote = (v) => `"${String(v).replace(/"/g, '')}"`;
@@ -1093,7 +1095,7 @@ function ssSuggest(q) {                                              // q: the b
   if (!/\s/.test(part)) SS_FIELDS.filter(f => f.startsWith(part) && f !== part).slice(0, 2).forEach(f => out.push({ kind: 'field', label: `${f}:`, sub: 'search one field', insert: `${f}:`, from }));
   ssRank(ix.artists, part, 4).forEach(e => out.push({ kind: 'artist', label: e.name, sub: e.to ? `\u2192 ${e.to}` : `${e.n} release${e.n === 1 ? '' : 's'}`, insert: `artist:${ssQuote(e.to || e.name)} `, from }));
   ssRank(ix.releases, part, 4).forEach(e => out.push({ kind: 'release', label: e.name, sub: [e.artist, e.year].filter(Boolean).join(' \u00b7 '), row: e.row }));
-  ssRank(ix.tracks, part, 4).forEach(e => out.push({ kind: 'track', label: e.name, sub: `${e.artist} \u00b7 ${e.album}`, insert: `track:${ssQuote(e.name)} `, from }));          // a song: the releases with it (in the Tracks view, the song itself)
+  ssRank(ix.tracks, part, 4).forEach(e => out.push({ kind: 'track', label: e.name, sub: `${e.artist} \u00b7 ${e.album}`, row: e.row, insert: `track:${ssQuote(e.name)} `, from }));          // a song: the releases with it (in the Tracks view, the song itself)
   ssRank(ix.genres, part, 3).forEach(e => out.push({ kind: 'genre', label: e.name, sub: `${e.n}`, insert: `genre:${ssQuote(e.name)} `, from }));
   ssRank(searchSongsOnly() ? ix.sdescs : ix.descs, part, 3).forEach(e => out.push({ kind: 'descriptor', label: e.name, sub: `${e.n}`, insert: `descriptor:${ssQuote(e.name)} `, from }));          // (1.135.37)
   ssRank(ix.labels, part, 2).forEach(e => out.push({ kind: 'label', label: e.name, sub: `${e.n}`, insert: `label:${ssQuote(e.name)} `, from }));

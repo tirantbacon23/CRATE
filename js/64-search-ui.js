@@ -193,8 +193,8 @@ function ssUpdate() { if (srchLook() !== 'simple' || srchSimpleOnline(el.searchI
 function srchSimpleHtml() {
   const kindName = { field: 'Field', artist: 'Artist', release: 'Release', track: 'Track', genre: 'Genre', descriptor: 'Descriptor', songdesc: 'Descriptor', label: 'Label', type: 'Type', title: 'Release', online: '+ Add' };
   const look = srchSimpleOnline(el.searchInput.value) ? (srch.onlineState === 'loading' ? '<div class="ss-online-note">Looking online\u2026</div>' : !ssItems.some(x => x.kind === 'online') && srch.onlineState === 'done' ? `<div class="ss-online-note">${escapeHtml(srch.onlineNote || 'Nothing found online either.')}</div>` : '') : '';
-  return ssItems.map((s, i) => `<div class="ss-item ss-k-${s.kind}${i === ssActive ? ' on' : ''}" id="ss-${i}" role="option" aria-selected="${i === ssActive}" data-ss="${i}"><span class="ss-kind">${kindName[s.kind] || ''}</span><span class="ss-label">${escapeHtml(s.label)}</span><span class="ss-sub">${escapeHtml(String(s.sub || ''))}</span></div>`).join('')
-    + look + `<div class="srch-simple-foot"><button type="button" class="srch-link" data-srch-look="drop" title="Your crate and releases to add from online, with covers, refine chips, recent and saved searches">\u2922 More search</button>${srchSongsBtn()}</div>`;
+  return ssItems.map((s, i) => `<div class="ss-item ss-k-${s.kind}${i === ssActive ? ' on' : ''}" id="ss-${i}" role="option" aria-selected="${i === ssActive}" data-ss="${i}"><span class="ss-kind">${kindName[s.kind] || ''}</span><span class="ss-label">${escapeHtml(s.label)}</span><span class="ss-sub">${escapeHtml(String(s.sub || ''))}</span>${srchPlayBtn(s, i)}</div>`).join('')
+    + look + (ssItems.some(srchCanPlay) ? '<div class="srch-hint">\u25b6 or double-click plays \u00b7 click goes to it \u00b7 Shift+Enter plays</div>' : '') + `<div class="srch-simple-foot"><button type="button" class="srch-link" data-srch-look="drop" title="Your crate and releases to add from online, with covers, refine chips, recent and saved searches">\u2922 More search</button>${srchSongsBtn()}</div>`;
 }
 
 function srchRowHtml(s, i) {
@@ -205,7 +205,7 @@ function srchRowHtml(s, i) {
   else lead = `<span class="srch-glyph">${{ genre: '#', descriptor: '◇', label: '⌂', field: ':', type: '□' }[s.kind] || '•'}</span>`;
   const kind = { field: 'Field', artist: 'Artist', release: '', track: 'Song', genre: 'Genre', descriptor: 'Descriptor', label: 'Label', type: 'Type' }[s.kind];
   const tail = s.kind === 'online' ? `<span class="srch-add">${s.r.owned ? '✓ have' : '+ Add'}</span>` : s.kind === 'release' && s.it && s.it.format ? `<span class="srch-tag">${escapeHtml(formatShort(s.it.format))}</span>` : '';
-  return `<div class="srch-row ss-k-${s.kind}${on}" id="ss-${i}" role="option" aria-selected="${!!on}" data-ss="${i}">${lead}<div class="srch-txt"><div class="srch-t">${escapeHtml(s.label)}</div><div class="srch-s">${kind ? `<span class="srch-kind">${kind}</span>` : ''}${escapeHtml(String(s.sub || ''))}</div></div>${tail}</div>`;
+  return `<div class="srch-row ss-k-${s.kind}${on}" id="ss-${i}" role="option" aria-selected="${!!on}" data-ss="${i}">${lead}<div class="srch-txt"><div class="srch-t">${escapeHtml(s.label)}</div><div class="srch-s">${kind ? `<span class="srch-kind">${kind}</span>` : ''}${escapeHtml(String(s.sub || ''))}</div></div>${tail}${srchPlayBtn(s, i)}</div>`;
 }
 function srchChipsHtml() {
   const q = el.searchInput.value, ts = srchTokens(q), dec = srchDecadeNow();
@@ -306,12 +306,29 @@ function ssPick(i) {
   srchRemember(inp.value);
   if (s.kind === 'online') { srchAddOnline(s.r); return; }
   if (s.kind === 'release') { const it = s.it || state.raw.find(r => String(r.row) === String(s.row)); if (it) { srch.keep = true; inp.blur(); openDeck(it); ssRender(); } else inp.blur(); return; }          // (1.135.59) the search stays open behind the release
-  if (s.kind === 'track' && s.it && typeof showSongInCatalogue === 'function') { inp.blur(); showSongInCatalogue(s.it, s.label); return; }
+  if (s.kind === 'track' && typeof showSongInCatalogue === 'function') { const it = srchItemOf(s); if (it) { inp.blur(); showSongInCatalogue(it, s.label); return; } }          // (1.135.209) to where the song is, in every look
   inp.value = inp.value.slice(0, s.from) + s.insert; inp.setSelectionRange(inp.value.length, inp.value.length);
   inp.dispatchEvent(new Event('input')); inp.focus();
   ssUpdate();
 }
+// (1.135.209) Playing from the search: ▶ on a song or release, a double-click on it, or Shift+Enter. A song plays on through the rest of
+// its release; a release plays from its start. A single click (or Enter) still goes to it: the song where it is in the catalogue, the
+// release's deck.
+function srchItemOf(s) { return s && (s.it || (s.row != null ? state.raw.find(r => String(r.row) === String(s.row)) : null) || (s.kind === 'track' && s.sub ? srchItemByAT(String(s.sub).split(' \u00b7 ')[0], String(s.sub).split(' \u00b7 ').slice(1).join(' \u00b7 ')) : null)); }
+function srchCanPlay(s) { return !!(s && (s.kind === 'track' || s.kind === 'release') && srchItemOf(s)); }
+function srchPlay(i) {
+  const s = ssItems[i], it = srchItemOf(s); if (!it) return false;
+  srchRemember(el.searchInput.value); el.searchInput.blur();
+  if (s.kind === 'track') { playTrackNow(it, s.label); flashGlobalToast(`Playing \u201c${s.label}\u201d \u00b7 ${it.title}`); }
+  else { playAlbumReplacingQueue(it); flashGlobalToast(`Playing ${it.title}`); }
+  return true;
+}
+const srchPlayBtn = (s, i) => srchCanPlay(s) ? `<button type="button" class="srch-play" data-ss-play="${i}" aria-label="Play ${escapeHtml(s.label)}" title="Play${s.kind === 'track' ? ' (the rest of its release follows)' : ''}"><svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg></button>` : '';
+let srchClickT = 0;
 function srchClick(e) {
+  { const pb = e.target.closest('[data-ss-play]'); if (pb) { clearTimeout(srchClickT); srchPlay(+pb.dataset.ssPlay); return; } }
+  { const row = e.target.closest('[data-ss]'), s = row && ssItems[+row.dataset.ss];          // a double-click plays; one click waits a moment to be sure it isn't one
+    if (row && srchCanPlay(s) && !e.target.closest('button, a, select, input')) { clearTimeout(srchClickT); if (e.detail >= 2) { srchPlay(+row.dataset.ss); return; } const i = +row.dataset.ss; srchClickT = setTimeout(() => ssPick(i), 260); return; } }
   const t = e.target, inp = el.searchInput, g = (sel) => t.closest(sel);
   let b;
   if ((b = g('[data-srch-untok]'))) return srchRemoveToken(+b.dataset.srchUntok);
@@ -341,7 +358,7 @@ function initSearchSuggest() {
     if (box.hidden) return;
     const n = ssItems.length;
     if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && n) { e.preventDefault(); ssActive = e.key === 'ArrowDown' ? (ssActive + 1 >= n ? -1 : ssActive + 1) : (ssActive <= -1 ? n - 1 : ssActive - 1); ssRender(); const on = box.querySelector('#ss-' + ssActive); if (on) on.scrollIntoView({ block: 'nearest' }); return; }          // (past the last: back to what you typed)
-    if (e.key === 'Enter' && ssActive >= 0) { e.preventDefault(); e.stopImmediatePropagation(); ssPick(ssActive); return; }
+    if (e.key === 'Enter' && ssActive >= 0) { e.preventDefault(); e.stopImmediatePropagation(); if ((e.shiftKey || e.ctrlKey || e.metaKey) && srchCanPlay(ssItems[ssActive])) srchPlay(ssActive); else ssPick(ssActive); return; }          // (Shift+Enter plays)
     if (e.key === 'Enter') { srchRemember(inp.value); return; }
     if (e.key === 'Escape') { e.preventDefault(); inp.blur(); }
   }, true);

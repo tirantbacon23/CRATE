@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.208
+  CURRENT_VERSION: 1.135.209
 
+  1.135.209 — 2026-11-19 — Play from the search: songs and releases in the search's list have ▶; a double-click plays too, and
+          Shift+Enter plays the one picked with the arrow keys. A song plays on through the rest of its release; a release
+          from its start. A single click (or Enter) still goes to it: a song to where it is in the catalogue (now in every
+          look of the search, not only the bigger ones), a release to its deck. Songs are also found with brackets and dashes
+          written differently ("spirals (synthintro)" finds "Spirals [Synthintro]" and "Spirals - Synthintro").
   1.135.208 — 2026-11-19 — Adding a release, seen: when the add goes through, its cover lifts off the summary and arcs (with a
           short trail of sparks) onto its cover in the grid, or its row in the left list, or else the "All Releases" count,
           which pulses. It lands with a pop, a gold ring and a NEW tag for six seconds, in the list and on its card (marked
