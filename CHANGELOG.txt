@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.204
+  CURRENT_VERSION: 1.135.205
 
+  1.135.205 — 2026-11-19 — Fix: with "YouTube only", a song with a YouTube link went looking on Soulseek. Songs queued by a
+          double-click (and from the release bar) now carry their saved links, as the rest of the queue does. And with one
+          source chosen (YouTube, Spotify or SoundCloud only), nothing comes from P2P: no Soulseek search before skipping,
+          no downloaded copy played instead, no songs fetched ahead. Downloads you start yourself still run.
   1.135.204 — 2026-11-19 — Every way of playing one song now plays on through the rest of its release, queued: double-click in
           the deck, the quick peek popup (missed in .203) and the Songs list, the ▶ buttons, Play in a song's menu, a song
           from search. The release's tracklist already loaded is used, so it starts straight away; then "keep playing

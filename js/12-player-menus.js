@@ -313,7 +313,10 @@ async function playFromTrackInList(item, trackName, trackNum, list) {
   let i = ents.findIndex(same); if (i < 0) i = ents.findIndex(e => e.item === item && (e.track.trackName || '') === trackName);
   if (i < 0 || ents.length < 2) return playTrackOnly(item, trackName, trackNum);
   nowPlayingItem = item; const myId = ++crateQueueId;
-  crateQueueList = ents.map(e => ({ item: e.item, track: Object.assign({}, e.track) })); crateQueueIndex = -1; renderCrateQueuePanel();
+  // (1.135.205) each song with its saved links (a YouTube link you matched lives beside the tracklist, not in it): without them, "YouTube
+  // only" took the songs for link-less and went looking on Soulseek
+  crateQueueList = ents.map(e => { const t = Object.assign({}, e.track), num = t.trackNumber || t.trackNum || 0; return { item: e.item, track: Object.assign(t, { trackNumber: num }, typeof trackLinkOverridesFor === 'function' ? trackLinkOverridesFor(e.item, num, t.trackName) : {}) }; });
+  crateQueueIndex = -1; renderCrateQueuePanel();
   playCrateQueueIndex(myId, i);
 }
 // (1.135.204) every "play this song" (double-click, ▶, Play in its menu, wherever it is) plays on through the rest of its release
@@ -343,7 +346,7 @@ async function playTrackOnly(item, trackName, trackNum) {
   // (1.98.1) A song downloaded from P2P (or still arriving) plays from its file: through the queue, as one entry, where the Local player
   // picks it up (p2pQueueTake). If the file has gone meanwhile, that entry falls back to the usual sources there.
   if (typeof p2pSongFor === 'function') {
-    if (p2pWouldTake(item, { trackName, trackNumber: trackNum })) {          // (1.100.0) here, on its way, or a release played from P2P
+    if (!playSourceOnlyOther() && p2pWouldTake(item, { trackName, trackNumber: trackNum })) {          // (1.100.0) here, on its way, or a release played from P2P
       const myId = crateQueueId;
       crateQueueList = [{ item, track: Object.assign({ trackName, trackNumber: trackNum }, trackLinkOverridesFor(item, trackNum, trackName)) }];
       renderCrateQueuePanel(); playCrateQueueIndex(myId, 0); return;

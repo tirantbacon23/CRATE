@@ -2059,7 +2059,7 @@ async function releaseBarPlay(k) {
   if (p.videoId && sp && sp.start != null && activePlayerEngine === 'youtube' && ytPlayer && ytPlayer.seekTo && !(ytQueue[ytQueueIndex] && ytQueue[ytQueueIndex].end)) { ytPlayer.seekTo(sp.start, true); return; }          // a full-release video played whole: to that song in it
   const tracks = await getTracksFor(item); if (!tracks || !tracks.length) return;          // else: the release from that song on, as Play does
   const start = tracks.findIndex(x => String(x.trackNumber) === String(t.trackNumber) && (x.trackName || '') === (t.trackName || ''));
-  const myId = ++crateQueueId; crateQueueList = tracks.map(x => ({ item, track: x })); crateQueueIndex = -1; renderCrateQueuePanel();
+  const myId = ++crateQueueId; crateQueueList = tracks.map(x => ({ item, track: Object.assign({}, x, trackLinkOverridesFor(item, x.trackNumber, x.trackName)) })); crateQueueIndex = -1; renderCrateQueuePanel();          // (1.135.205: with its saved links)
   playCrateQueueIndex(myId, Math.max(0, start));
 }
 (function releaseBarWire() {

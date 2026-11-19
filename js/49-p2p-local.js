@@ -119,7 +119,8 @@ async function p2pRequest(rec, songs) {                              // ask slsk
 function p2pAhead() { return Math.max(0, Math.min(5, Math.round(Number(p2pKeep().ahead) || 1))); }
 function p2pWanted() {                                               // the songs that should be here or on their way: the queue's window, and releases fetched whole
   const want = new Set();
-  if (isPlayingCrateQueue()) for (let j = crateQueueIndex; j <= Math.min(crateQueueList.length - 1, crateQueueIndex + p2pAhead()); j++) {
+  if (isPlayingCrateQueue() && !(typeof playSourceOnlyOther === 'function' && playSourceOnlyOther())) for (let j = crateQueueIndex;          // (1.135.205: not while playing from one other source only)
+     j <= Math.min(crateQueueList.length - 1, crateQueueIndex + p2pAhead()); j++) {
     const e = crateQueueList[j], rec = e && e.item && p2pDl[artKey(e.item)], so = rec && p2pSongFor(e.item, e.track);
     if (so && (rec.prefer || !p2pIdle(so) || j === crateQueueIndex)) want.add(so);
   }
@@ -441,7 +442,7 @@ function p2pAutoGet(item, opts) {                                   // -> Promis
   return pr;
 }
 function p2pAutoTake(myId, index, item, track, opts) {               // called where playback would skip a song (or, Play from Soulseek, before anything): true when CRATE looks for it there
-  if ((!p2pAutoOn() && !(opts && opts.force)) || !p2p.ready || !p2p.configured || !item || !track || !track.trackName) return false;
+  if ((!p2pAutoOn() && !(opts && opts.force)) || (typeof playSourceOnlyOther === 'function' && playSourceOnlyOther()) || !p2p.ready || !p2p.configured || !item || !track || !track.trackName) return false;
   const miss = p2pAutoMissed[artKey(item)]; if (miss && Date.now() - miss.at < 15 * 60000) return false;          // looked a moment ago and found nothing sure
   const rec0 = p2pDl[artKey(item)]; if (rec0) { rec0.prefer = true; p2pDlSave(); }
   if (p2pSwitching.has(artKey(item))) { const s = p2pSongFor(item, track); if (s) { s.st = 'idle'; } }          // (1.107.0) switching sharers: this song comes from the new one
