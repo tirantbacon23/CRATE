@@ -16,7 +16,8 @@ function qaTracks() {
 }
 function qaPaint() {
   const form = el.addForm; if (!form || form.hidden || !qaOn()) { const c = document.getElementById('qaCard'); if (c) c.remove(); if (form) form.classList.remove('qa-on', 'qa-open'); el.addOverlay.classList.remove('qa-picked'); return; }
-  form.classList.add('qa-on'); el.addOverlay.classList.add('qa-picked');          // (the search and its results fold away: "Back to results" brings them back) form.classList.toggle('qa-open', qa.open);
+  form.classList.add('qa-on'); form.classList.toggle('qa-open', qa.open);
+  el.addOverlay.classList.add('qa-picked');          // (the search and its results fold away: "Back to results" brings them back)
   let c = document.getElementById('qaCard');
   if (!c) { c = document.createElement('div'); c.id = 'qaCard'; c.className = 'qa-card'; const dup = document.getElementById('addDupBanner'); (dup || form.firstChild).insertAdjacentElement(dup ? 'afterend' : 'beforebegin', c); }
   const cover = qaV('addCover'), title = qaV('addTitle'), artist = qaV('addArtist'), type = qaV('addType'), fmt = qaV('addFormat'), date = qaDate(), label = qaV('addLabel'), cat = qaV('addCatalog');

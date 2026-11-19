@@ -17,8 +17,10 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.178
+  CURRENT_VERSION: 1.135.179
 
+  1.135.179 — 2026-11-19 — Add a release (quick): "All fields" and Edit open the full form again (the button changed to "Fold the form
+          away" but nothing opened).
   1.135.178 — 2026-11-18 — Add a release, the quicker way (a trial). Once you pick a release from the search, the search folds away
           ("← Back to results" brings it back) and the long form folds into a summary: the cover, title, artist, type, date, label and
           catalogue, genre, tracklist, where it's from and its RYM rating, each with Edit (which opens the full form at that field); a
