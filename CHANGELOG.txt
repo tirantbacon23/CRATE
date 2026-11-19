@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.209
+  CURRENT_VERSION: 1.135.210
 
+  1.135.210 — 2026-11-19 — Fix: Up next's ⚙ (what each song shows) did nothing in the "by release" view: it edited the one-line
+          view's list. There, artist, album, year, genre and your rating now go in each release's heading, and the rest
+          (length, song ratings, plays, Last.fm numbers, labelled "1.2M plays") under each song. Adding a release, in its
+          window: "Add to crate" turns to "Adding…" with a moving sheen while it saves (the rest of the card dims, the
+          cover breathes), then "✓ Added" in teal as the cover lifts off, the window draws back, and the cover flies into
+          the crate. The classic form's button does the same. With "reduce motion" set, only the words change.
   1.135.209 — 2026-11-19 — Play from the search: songs and releases in the search's list have ▶; a double-click plays too, and
           Shift+Enter plays the one picked with the arrow keys. A song plays on through the rest of its release; a release
           from its start. A single click (or Enter) still goes to it: a song to where it is in the catalogue (now in every

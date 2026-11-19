@@ -11,6 +11,11 @@ function aanFrom() {          // where the cover is now: the quick summary's cov
   return { left: innerWidth / 2 - 60, top: innerHeight / 2 - 60, width: 120, height: 120 };
 }
 function aanEls(k) { const it = (state.raw || []).find(r => aanKey(r.artist, r.title) === k); if (!it) return []; const r = CSS.escape(String(it.row)); return [...document.querySelectorAll(`[data-album-row="${r}"], [data-aan-left="${r}"]`)]; }          // its grid card, its row in the left list
+function aanState(st) {          // the summary card (or the classic form's button) while adding: 'adding', 'done', or '' as it was
+  const c = document.getElementById('qaCard'), b = el.addSaveBtn;
+  [c, b].forEach(n => { if (!n) return; n.classList.toggle('aan-adding', st === 'adding'); n.classList.toggle('aan-done', st === 'done'); });
+  if (b) b.disabled = st === 'adding' || st === 'done';
+}
 function aanTarget(k) {
   const els = aanEls(k), seen = (n) => { const r = n.getBoundingClientRect(); return r.width && r.bottom > 0 && r.top < innerHeight; };
   const card = els.find(n => n.classList.contains('card') && seen(n)) || els.find(seen);          // its card in the grid, else its row in the list
@@ -69,15 +74,22 @@ function aanWatch() {
     const artist = (el.addArtist && el.addArtist.value || '').trim(), title = (el.addTitle && el.addTitle.value || '').trim();
     const cover = (document.getElementById('addCover') || {}).value || '';
     aan.pend = artist && title ? { k: aanKey(artist, title), artist, title, cover: String(cover).trim(), rect: aanFrom(), at: Date.now() } : null;
-    try { return await base.apply(this, arguments); } finally { aan.pend = null; }
+    aanState('adding');
+    try { return await base.apply(this, arguments); } finally { aan.pend = null; if (!aan.closing) aanState(''); }
   };
   // the add went through when the window closes during the save: that is when it flies
   if (typeof closeAddModal === 'function') {
     const baseClose = closeAddModal;
     closeAddModal = function () {
-      const p = aan.pend; const r = baseClose.apply(this, arguments);
-      if (p && Date.now() - p.at < 60000) { aan.pend = null; const a = { k: p.k, at: Date.now() }; aan.arrive.push(a); requestAnimationFrame(() => { aanFly(p); setTimeout(() => { a.flown = true; aanWatch(); }, aanCalm() ? 0 : 900); }); }
-      return r;
+      const p = aan.pend, self = this, args = arguments;
+      if (!(p && Date.now() - p.at < 60000)) { aanState(''); return baseClose.apply(self, args); }
+      aan.pend = null; const a = { k: p.k, at: Date.now() }; aan.arrive.push(a);
+      const go = () => { p.rect = aanFrom() || p.rect; const r = baseClose.apply(self, args); el.addOverlay.classList.remove('aan-out'); aanState(''); aan.closing = false;
+        requestAnimationFrame(() => { aanFly(p); setTimeout(() => { a.flown = true; aanWatch(); }, aanCalm() ? 0 : 900); }); return r; };
+      if (aanCalm()) return go();
+      // (1.135.210) in the window first: "✓ Added", the cover pops, the window draws back; then the cover flies
+      aan.closing = true; aanState('done');
+      setTimeout(() => { p.rect = aanFrom() || p.rect; el.addOverlay.classList.add('aan-out'); setTimeout(go, 200); }, 520);
     };
   }
   // the left list's release rows say which release they are (to light the new one up there too)

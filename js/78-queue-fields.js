@@ -20,12 +20,18 @@ const qfBaseSort = trackSortValue;
 trackSortValue = function (row, key) { if (key === 'songPlays') return typeof trackScrobbleCountFor === 'function' ? trackScrobbleCountFor(row.item.artist, row.item.title, row.track.trackName) || 0 : 0; return qfBaseSort.apply(this, arguments); };
 const qfBaseThumb = renderQueueThumbnailHtml;
 renderQueueThumbnailHtml = function () { qfLabelled = true; try { return qfBaseThumb.apply(this, arguments); } finally { qfLabelled = false; } };
+if (typeof renderQueueReleaseTracksHtml === 'function') { const qfBaseRel = renderQueueReleaseTracksHtml; renderQueueReleaseTracksHtml = function () { qfLabelled = true; try { return qfBaseRel.apply(this, arguments); } finally { qfLabelled = false; } }; }          // (1.135.210: there too, "1.2M plays")
 
 // which list the panel's view reads
-function qfKey() { return state.queueViewMode === 'trackDetail' ? 'queueTrackDetail' : 'queue'; }
-function qfList() { return (state.fields[qfKey()] || []).filter(k => k && k !== 'none'); }
+// (1.135.210) Grouped by release ("releaseTracks"): what belongs to the release (artist, album, year, genre, your rating) goes in its heading,
+// the rest on each song's line; the menu edited the one-line view's list there, so nothing it ticked showed
+const QF_REL = ['artist', 'title', 'year', 'genre', 'rating'];
+const qfGrouped = () => state.queueViewMode === 'releaseTracks';
+function qfKey(k) { return state.queueViewMode === 'trackDetail' ? 'queueTrackDetail' : qfGrouped() ? (QF_REL.includes(k) ? 'queueReleaseInfo' : 'queueTrackInfoNested') : 'queue'; }
+const qfOf = (key) => (state.fields[key] || []).filter(k => k && k !== 'none');
+function qfList() { return qfGrouped() ? qfOf('queueReleaseInfo').concat(qfOf('queueTrackInfoNested')) : qfOf(qfKey()); }
 function qfToggle(k, on) {
-  const key = qfKey(); let l = qfList();
+  const key = qfKey(k); let l = qfOf(key);
   if (on && !l.includes(k)) l.push(k); else if (!on) l = l.filter(x => x !== k);
   state.fields[key] = l; try { savePrefs(); } catch (e) { /* this visit */ }
   renderCrateQueuePanel(); qfFetchSoon();
@@ -34,7 +40,7 @@ function qfMenu(anchor) {
   document.querySelectorAll('.qf-menu').forEach(m => m.remove());
   const on = new Set(qfList()), m = document.createElement('div'); m.className = 'panel-mode-menu qf-menu'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-label', 'What Up next shows');
   m.innerHTML = `<div class="menu-section-title">Each song shows</div>${QF_CHOICES.map(([k, l], i) => `${i === 7 ? '<div class="menu-sub-title">How much it’s played</div>' : ''}<label class="qf-row"><input type="checkbox" data-qf="${k}"${on.has(k) ? ' checked' : ''}> ${escapeHtml(l)}</label>`).join('')}
-    <p class="qf-note">${state.queueViewMode === 'trackDetail' ? 'Columns of the Track detail view.' : 'In the line under each song, in the order you tick them.'}${typeof srchLfKey === 'function' && !srchLfKey() ? ' Last.fm numbers need a Last.fm API key (⚙ › Last.fm).' : ''}</p>`;
+    <p class="qf-note">${state.queueViewMode === 'trackDetail' ? 'Columns of the Track detail view.' : qfGrouped() ? 'Artist, album, year, genre and your rating in each release’s heading; the rest under each song, in the order you tick them.' : 'In the line under each song, in the order you tick them.'}${typeof srchLfKey === 'function' && !srchLfKey() ? ' Last.fm numbers need a Last.fm API key (⚙ › Last.fm).' : ''}</p>`;
   document.body.appendChild(m);
   const r = anchor.getBoundingClientRect(); m.style.position = 'fixed'; m.style.top = (r.bottom + 6) + 'px'; m.style.left = Math.max(8, Math.min(innerWidth - 270, r.right - 260)) + 'px'; m.style.zIndex = 600;
   m.addEventListener('change', (e) => { const c = e.target.closest('[data-qf]'); if (c) qfToggle(c.dataset.qf, c.checked); });
