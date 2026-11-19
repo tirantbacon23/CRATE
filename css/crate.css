@@ -7152,3 +7152,13 @@ input.mcd-filled { border-color: rgba(127,209,185,.6) !important; }
 #apCard .ap-top .ap-x + .ap-x { margin-left: -6px; }
 #apCard.ap-small { width: 300px; padding: 10px 12px; gap: 8px; } #apCard .ap-mini .ap-cv { width: 32px; height: 32px; }
 #apCard .ap-mini .ap-t { gap: 4px; } #apCard .ap-mini .ap-pill { align-self: flex-start; }
+
+/* (1.135.186) Add a release: already in your crate, as you type (js/99-add-have.js) */
+.ahv { display: flex; align-items: flex-start; gap: 10px; margin: 8px 0 4px; padding: 9px 12px; border-radius: 8px; font: 12.5px/1.5 Inter, sans-serif; color: #EDE7DC; }
+.ahv-warn { border: 1px solid rgba(232,194,122,.5); background: rgba(214,162,76,.07); }
+.ahv-quiet { color: #9AA2AE; padding: 2px 0; margin: 4px 0; }
+.ahv-i { flex: none; width: 16px; height: 16px; border-radius: 8px; background: #E8C27A; color: #0B0E12; font: 700 11px/16px Inter, sans-serif; text-align: center; margin-top: 2px; }
+.ahv-t { flex: 1; min-width: 0; } .ahv-t em { font-style: normal; color: #8B93A0; }
+.ahv-rel { display: inline; } .ahv-rel + .ahv-rel::before { content: " · "; color: #5D6573; }
+.ahv button { background: none; border: 0; padding: 0; font: inherit; cursor: pointer; color: #E8C27A; text-decoration: underline; text-underline-offset: 2px; }
+.ahv-again { flex: none; color: #8B93A0 !important; white-space: nowrap; }
