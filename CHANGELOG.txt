@@ -17,8 +17,15 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.190
+  CURRENT_VERSION: 1.135.191
 
+  1.135.191 — 2026-11-19 — CRATE Radio stays nearer. With something playing, the radio window starts from it ("A release", filled in with
+          what's playing) unless you've picked another station this visit; before, it started from your whole taste, so "nearby" could be
+          anything you like (Neil Young after Vanilla). Close and Nearby now need a genre in common or an artist near the station's: a
+          release that only rates well, or shares a descriptor, no longer gets in; and they wander less. The release playing when the radio
+          starts isn't played again, however its title is written ("Chrometrails" / "Chrome Trails"), and its artist isn't next. Moving
+          the How new slider while it plays picks the songs already lined up again at the new mix (they followed the old one).
+          Paste the new Master.gs and deploy a new version.
   1.135.190 — 2026-11-19 — RYM pages for releases with no link, when artists share a name: RYM tells them apart with a suffix (coda, coda-5,
           coda_f10), which can't be worked out from the name, so a guess could open another artist's page. The address is now guessed only
           with the artist's address as RYM has it, taken from another of their releases in your crate that has a RYM link (and only when

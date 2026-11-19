@@ -75,11 +75,13 @@ function rYears(st) { if (st.kind === 'time' && st.value) { const y = Number(Str
 async function rLoadPool(st) {
   const seeds = rSeeds(st), [yFrom, yTo] = rYears(st);
   const skip = [...rOwned().keys()].concat(Object.keys(rLs(RADIO_NO_KEY, {}))).slice(0, 8000);
-  const r = await postUpdate({ action: 'masterMusicRadio', genres: seeds.genres, descs: seeds.descs, artists: seeds.artists, yFrom, yTo, strictYears: st.kind === 'time', deep: st.kind === 'deep', cold: (rCold() && (st.kind === 'taste' || st.kind === 'friends')) || st.kind === 'time' || st.kind === 'deep', needGenre: st.kind === 'genre' || st.kind === 'desc', friends: st.kind === 'friends', skip, n: 400 });
+  const r = await postUpdate({ action: 'masterMusicRadio', genres: seeds.genres, descs: seeds.descs, artists: seeds.artists, yFrom, yTo, strictYears: st.kind === 'time', deep: st.kind === 'deep', cold: (rCold() && (st.kind === 'taste' || st.kind === 'friends')) || st.kind === 'time' || st.kind === 'deep', needGenre: st.kind === 'genre' || st.kind === 'desc', needMatch: (st.far || 'near') !== 'far', friends: st.kind === 'friends', skip, n: 400 });
   if (!r || r.music !== true) throw new Error(r && r.error ? r.error : 'Your backend doesn’t have CRATE Radio yet: paste the new Master.gs and deploy a new version.');
   if (r.joined === false) throw new Error('Join the master crate first (⚙ › Master crate…): the radio plays from its music database.');
   const no = rLs(RADIO_NO_KEY, {}), owned = rOwned();
-  radio.pool = (r.items || []).filter(x => x && x.k && !no[x.k] && !owned.has(x.k)); radio.related = r.related || {}; radio.seeds = seeds;
+  // (1.135.191) yours however its title is written ("Chrometrails" / "Chrome Trails"), and never the release playing when the radio started
+  const tight = (k) => String(k || '').replace(/[^a-z0-9|]+/g, ''), ownedT = new Set([...owned.keys()].map(tight)), startK = radio.startKey ? tight(radio.startKey) : '';
+  radio.pool = (r.items || []).filter(x => x && x.k && !no[x.k] && !owned.has(x.k) && !ownedT.has(tight(x.k)) && tight(x.k) !== startK); radio.related = r.related || {}; radio.seeds = seeds;
   // your own releases near the station
   const gs = {}; seeds.genres.forEach(x => { gs[x.g] = x.w; }); const ds = {}; seeds.descs.forEach(x => { ds[x.d] = x.w; }); const as = {}; seeds.artists.forEach(x => { as[rFold(x.a)] = x.w; });
   const played = rLs(RADIO_PLAYED_KEY, {}), wk = Date.now() - 7 * 864e5;
@@ -87,12 +89,14 @@ async function rLoadPool(st) {
     const y = Number(String(it.releaseDate || '').slice(0, 4)) || 0; if (y && (y < yFrom || y > yTo)) return null; if (!y && st.kind === 'time') return null;
     let s = 0; rSplit(it.genre).concat(rSplit(it.genre2)).forEach(x => { s += (gs[x] || gs[rGN(x)] || 0) * 2; }); rSplit(it.rymDescriptors).forEach(x => { s += ds[x] || ds[rGN(x)] || 0; }); s += (as[rFold(it.artist)] || 0) * 3;
     if ((st.kind === 'genre' || st.kind === 'desc') && !(rSplit(it.genre).concat(rSplit(it.genre2), rSplit(it.rymDescriptors)).some(x => seeds.genres.concat(seeds.descs).some(z => rGN(x) === (z.g || z.d))))) return null;          // (yours, on a genre station: only ones of that genre)
-    if (!s) return null; const k = rKey(it.artist, it.title); if ((played[k] || 0) > wk) s *= 0.2;
+    const hitGA = rSplit(it.genre).concat(rSplit(it.genre2)).some(x => gs[x] || gs[rGN(x)]) || as[rFold(it.artist)];
+    if ((st.far || 'near') !== 'far' && !hitGA) return null;          // (1.135.191) close and nearby: a shared genre or the artist, not a descriptor alone
+    if (!s) return null; const k = rKey(it.artist, it.title); if (k === radio.startKey) return null; if ((played[k] || 0) > wk) s *= 0.2;
     s += ((Number(it.rating) || 3) - 3) * 1.2; return { it, s, k };
   }).filter(Boolean).sort((a, b) => b.s - a.s).slice(0, 120);
 }
 function rScore(x) {          // a database release, for this station now: its fit, its quality, what this session taught it, and a little chance
-  const far = (radio.st && radio.st.far) || 'near', jit = far === 'close' ? 0.15 : far === 'far' ? 0.8 : 0.4;
+  const far = (radio.st && radio.st.far) || 'near', jit = far === 'close' ? 0.08 : far === 'far' ? 0.7 : 0.2;
   const max = radio.pool.length ? radio.pool[0].s || 1 : 1; let s = (x.s || 0) / max;
   const rel = radio.related[rFold(x.a)] || 0; if (far === 'close') s += rel * 0.5; if (far === 'far' && rel >= 0.99) s -= 0.3;
   rSplit(x.g).forEach(g => { s += (radio.boost.g[g] || 0) * 0.15; }); s += (radio.boost.a[rFold(x.a)] || 0) * 0.3;
@@ -101,7 +105,7 @@ function rScore(x) {          // a database release, for this station now: its f
 }
 function rPickNew() { let best = null, bs = -1e9; radio.pool.forEach(x => { if (x.used) return; const s = rScore(x); if (s > bs) { bs = s; best = x; } }); if (best) best.used = true; return best; }
 function rPickMine() {
-  const far = (radio.st && radio.st.far) || 'near', top = radio.mine.filter(m => !m.used && !radio.recentA.includes(rFold(m.it.artist))).slice(0, far === 'close' ? 15 : far === 'far' ? 80 : 40);
+  const far = (radio.st && radio.st.far) || 'near', top = radio.mine.filter(m => !m.used && !radio.recentA.includes(rFold(m.it.artist))).slice(0, far === 'close' ? 12 : far === 'far' ? 80 : 25);
   if (!top.length) return null; const m = top[Math.floor(Math.random() * top.length)]; m.used = true; return m;
 }
 // a release from the database as an item the player knows
@@ -202,6 +206,9 @@ async function rTopUp(min) {
 async function radioStart(st) {
   st = Object.assign({ kind: 'taste', newPct: 65, far: 'near', play: 'one' }, st || {});
   radio.st = st; radio.boost = { g: {}, a: {} }; radio.recentA = []; radio.sess = { played: 0, newLiked: 0, added: 0, newPlayed: 0 };
+  const playing = typeof nowPlayingItem !== 'undefined' && nowPlayingItem ? nowPlayingItem : null;          // (1.135.191) the release playing when it starts: not played again, its artist not straight after
+  radio.startKey = playing ? rKey(playing.artist, playing.title) : (st.kind === 'release' ? rKey(st.artist, st.title) : '');
+  if (playing) radio.recentA.push(rFold(playing.artist)); else if (st.kind === 'release' && st.artist) radio.recentA.push(rFold(st.artist));
   rLsSet(RADIO_LAST_KEY, st);
   radio.tab = 'now'; radio.say = 'Tuning in…'; radio.err = ''; rPaint();
   try { await rLoadPool(st); } catch (e) { radio.say = ''; radio.err = e.message; radio.tab = 'stations'; rPaint(); return; }
@@ -241,6 +248,13 @@ function rCur() { return radio.on && crateQueueId === radio.qid && crateQueueInd
     return out;
   };
 })();
+// (1.135.191) a setting changed while playing: the songs lined up but not reached yet are dropped and picked again (the ones queued before
+// still followed the old mix: 100% new, and the next two were still yours)
+function rRequeue() {
+  if (!radio.on || crateQueueId !== radio.qid) return;
+  for (let i = crateQueueList.length - 1; i > crateQueueIndex; i--) { const e = crateQueueList[i]; if (e && e.radio && !e.radioCounted) { const back = e.radio.kind === 'new' ? radio.pool.find(x => x.k === e.radio.key) : radio.mine.find(m => m.k === e.radio.key); if (back) back.used = false; crateQueueList.splice(i, 1); } }
+  renderCrateQueuePanel(); rTopUp(4); rPaint();
+}
 function rSkip() { if (!radio.on || crateQueueId !== radio.qid) return; playCrateQueueIndex(radio.qid, crateQueueIndex + 1); }
 function rLearn(e, w) { if (!e || !e.item) return; rSplit(e.item.genre).forEach(g => { radio.boost.g[g] = (radio.boost.g[g] || 0) + w; }); const a = rFold(e.item.artist); radio.boost.a[a] = (radio.boost.a[a] || 0) + w; }
 function rLike() { const e = rCur(); if (!e || e.radioLiked) return; e.radioLiked = true; rLearn(e, 1); if (e.radio.kind === 'new') radio.sess.newLiked++;
@@ -271,6 +285,8 @@ function radioOpen(tab) {
   }
   radio.tab = tab || (radio.on ? 'now' : radio.tab === 'now' ? 'stations' : radio.tab || 'stations');
   if (!radio.draft) radio.draft = Object.assign({ kind: 'taste', value: '', newPct: 65, far: 'near', play: 'one', yFrom: 0, yTo: 0 }, rLs(RADIO_LAST_KEY, {}));
+  // (1.135.191) something playing and no station chosen this visit: it starts from what's playing (the release card, filled in)
+  if (!radio.on && !radio.kindChosen && typeof nowPlayingItem !== 'undefined' && nowPlayingItem && !nowPlayingItem.radio) { radio.draft.kind = 'release'; radio.draft.value = `${nowPlayingItem.artist} \u2013 ${nowPlayingItem.title}`; }
   ov.hidden = false; rPaint();
   if (radio.tab === 'discover') rDiscoverLoad();
 }
@@ -339,14 +355,14 @@ function rInput(e) {
   if (t.matches('[data-rd-value]')) d.value = t.value;
   else if (t.matches('[data-rd-set-num]')) d[t.dataset.rdSetNum] = Number(t.value) || 0;
   else if (t.matches('[data-rd-set-range]')) { d[t.dataset.rdSetRange] = Number(t.value); const w = t.closest('.rd-sl').querySelector('.rd-w'); if (w) w.textContent = t.value + '% new'; }
-  else if (t.matches('[data-rd-new]') && radio.st) { radio.st.newPct = Number(t.value); const s = t.closest('.rd-slider').querySelector('.rd-sl-say'); if (s) s.textContent = t.value + '% new'; if (e.type === 'change') rLsSet(RADIO_LAST_KEY, radio.st); }
+  else if (t.matches('[data-rd-new]') && radio.st) { radio.st.newPct = Number(t.value); const s = t.closest('.rd-slider').querySelector('.rd-sl-say'); if (s) s.textContent = t.value + '% new'; if (e.type === 'change') { rLsSet(RADIO_LAST_KEY, radio.st); rRequeue(); } }
 }
 async function rClick(e) {
   const ov = document.getElementById('radioOv'); if (e.target === ov || e.target.closest('[data-rd="x"]')) { ov.hidden = true; return; }
   const tb = e.target.closest('[data-rd-tab]'); if (tb) { radio.tab = tb.dataset.rdTab; radio.err = ''; rPaint(); if (radio.tab === 'discover') rDiscoverLoad(); return; }
   const sg = e.target.closest('[data-rd-seedg]'); if (sg) { const seed = rSeedGet(), g = sg.dataset.rdSeedg, i = seed.g.map(x => String(x).toLowerCase()).indexOf(g); if (i >= 0) seed.g.splice(i, 1); else seed.g.push(g); rSeedSet(seed); rSeedChanged(); return; }
   const sx = e.target.closest('[data-rd-seeda-x]'); if (sx) { const seed = rSeedGet(); seed.a.splice(Number(sx.dataset.rdSeedaX), 1); rSeedSet(seed); rSeedChanged(); return; }
-  const kd = e.target.closest('[data-rd-kind]'); if (kd) { radio.draft.kind = kd.dataset.rdKind; radio.draft.value = ''; rPaint(); return; }
+  const kd = e.target.closest('[data-rd-kind]'); if (kd) { radio.kindChosen = true; radio.draft.kind = kd.dataset.rdKind; radio.draft.value = kd.dataset.rdKind === 'release' && typeof nowPlayingItem !== 'undefined' && nowPlayingItem ? `${nowPlayingItem.artist} \u2013 ${nowPlayingItem.title}` : ''; rPaint(); return; }
   const sb = e.target.closest('[data-rd-set]'); if (sb) { radio.draft[sb.dataset.rdSet] = sb.dataset.v; rPaint(); return; }
   const sv = e.target.closest('[data-rd-saved]'); if (sv) { radioStart(rLs(RADIO_ST_KEY, [])[Number(sv.dataset.rdSaved)]); return; }
   const us = e.target.closest('[data-rd-unsave]'); if (us) { const l = rLs(RADIO_ST_KEY, []); l.splice(Number(us.dataset.rdUnsave), 1); rLsSet(RADIO_ST_KEY, l); rPaint(); return; }

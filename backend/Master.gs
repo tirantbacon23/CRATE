@@ -444,10 +444,11 @@ function _music(email, action, payload) {
         const y = Number(_mYear(r[I.Year])) || 0; if (y && (y < yFrom || y > yTo)) return; if (!y && (yFrom > 0 || yTo < 9999) && payload.strictYears) return;
         const g = tokens(r[I.Genre]), d = tokens(r[I.Descriptors]), ak = _mFold(r[I.Artist]);
         let sc = 0, why = [];
-        genres.forEach(x => { if (g.length && has(g, x.g)) { sc += 2 * x.w; if (why.length < 3) why.push('g:' + x.g); } });
+        let gHit = false; genres.forEach(x => { if (g.length && has(g, x.g)) { gHit = true; sc += 2 * x.w; if (why.length < 3) why.push('g:' + x.g); } });
         descs.forEach(x => { if (d.length && has(d, x.d)) sc += 1.2 * x.w; });
         if (payload.needGenre && !sc) return;          // (a named genre or descriptor station: only releases that have it)
         if (related[ak]) { sc += 4 * related[ak]; why.push('a'); }
+        if (payload.needMatch && !gHit && !related[ak]) return;          // (1.135.191) close and nearby: one of its genres, or an artist near the station's, never a release that only rates well
         const li = Number(r[I.Listeners]) || 0, rr = Number(r[I.RymRating]) || 0, rv = Number(r[I.RymVotes]) || 0, cr = Number(r[I.Crates]) || 0;
         if (payload.friends) { if (!cr) return; sc += 1; }          // (the friends' station: only what's in their crates)
         if (!sc) { if (!payload.cold) return; sc = 0.3 + (rr || li || cr ? 0.5 : 0); }          // (1.135.169) a new crate, a time machine, deep cuts: the whole database counts, its best first
