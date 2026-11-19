@@ -64,7 +64,7 @@ function rSeeds(st) {
   const v = String(st.value || '').trim(), vl = v.toLowerCase();
   if (st.kind === 'genre') { const gn = rGN(v); out.genres.push({ g: gn, w: 1 }); (state.raw || []).filter(it => rSplit(it.genre).concat(rSplit(it.genre2)).some(x => rGN(x) === gn) && (Number(it.rating) || 0) >= 4).slice(0, 30).forEach(it => out.artists.push({ a: it.artist, w: 0.5 })); }
   else if (st.kind === 'artist') { out.artists.push({ a: v, w: 1 }); fromItems((state.raw || []).filter(it => rFold(it.artist) === rFold(v)), 0.4); }
-  else if (st.kind === 'release') { const it = rOwned().get(rKey(st.artist, st.title)); out.artists.push({ a: st.artist, w: 0.8 }); if (it) fromItems([it], 1); else rSplit(st.genre).forEach(x => out.genres.push({ g: x, w: 1 })); }
+  else if (st.kind === 'release') { const it = rOwned().get(rKey(st.artist, st.title)) || (typeof nowPlayingItem !== 'undefined' && nowPlayingItem && rKey(nowPlayingItem.artist, nowPlayingItem.title) === rKey(st.artist, st.title) ? nowPlayingItem : null); out.artists.push({ a: st.artist, w: 0.8 }); if (it) fromItems([it], 1); else rSplit(st.genre).forEach(x => out.genres.push({ g: x, w: 1 })); out.descs.forEach(d => { d.w *= 1.6; }); }          // (1.135.193: mood and texture count more)
   else if (st.kind === 'desc') { out.descs.push({ d: rGN(v), w: 1.5 }); fromItems((state.raw || []).filter(it => rSplit(it.rymDescriptors).some(x => rGN(x) === rGN(v))).slice(0, 40), 0.5); }
   else { t.g.forEach(x => out.genres.push({ g: x.k, w: x.w })); t.d.forEach(x => out.descs.push({ d: x.k, w: x.w * 0.6 })); t.a.slice(0, 60).forEach(x => out.artists.push({ a: x.k, w: x.w })); }
   return out;
@@ -203,7 +203,7 @@ async function rTopUp(min) {
     }
   } finally { radio.busy = false; }
 }
-async function radioStart(st) {
+async function radioStart(st, keep) {          // keep (1.135.193): { mode: 'current' } the song playing carries on, the radio follows it; { mode: 'end', index } the queue ran out
   st = Object.assign({ kind: 'taste', newPct: 65, far: 'near', play: 'one' }, st || {});
   radio.st = st; radio.boost = { g: {}, a: {} }; radio.recentA = []; radio.sess = { played: 0, newLiked: 0, added: 0, newPlayed: 0 };
   const playing = typeof nowPlayingItem !== 'undefined' && nowPlayingItem ? nowPlayingItem : null;          // (1.135.191) the release playing when it starts: not played again, its artist not straight after
@@ -211,7 +211,7 @@ async function radioStart(st) {
   if (playing) radio.recentA.push(rFold(playing.artist)); else if (st.kind === 'release' && st.artist) radio.recentA.push(rFold(st.artist));
   rLsSet(RADIO_LAST_KEY, st);
   radio.tab = 'now'; radio.say = 'Tuning in…'; radio.err = ''; rPaint();
-  try { await rLoadPool(st); } catch (e) { radio.say = ''; radio.err = e.message; radio.tab = 'stations'; rPaint(); return; }
+  try { await rLoadPool(st); } catch (e) { radio.say = ''; radio.err = e.message; radio.tab = 'stations'; rPaint(); if (keep) flashGlobalToast('Radio: ' + e.message); return false; }
   // (1.135.174) a genre, descriptor or artist the database barely knows yet: more from Last.fm first, merged, then picked again
   if (['genre', 'desc', 'artist'].includes(st.kind) && st.value && radio.pool.length < 40 && typeof mdbFill === 'function' && typeof srchLfKey === 'function' && srchLfKey()) {
     radio.say = `Only ${radio.pool.length} release${radio.pool.length === 1 ? '' : 's'} for \u201c${st.value}\u201d in the music database so far: fetching more from Last.fm\u2026`; rPaint();
@@ -224,12 +224,32 @@ async function radioStart(st) {
     radio.say = 'Tuning in\u2026'; rPaint();
   }
   if (!radio.pool.length && !radio.mine.length) { radio.say = ''; radio.err = ['genre', 'desc', 'artist'].includes(st.kind) ? `Nothing for \u201c${st.value}\u201d in the music database yet${typeof srchLfKey === 'function' && srchLfKey() ? ', and Last.fm had nothing to add: check the spelling' : ': save a Last.fm key (\u2699 \u203a Last.fm) and it fetches some'}.` : 'Nothing near that station in the music database yet: try a wider one, or fill the database (⚙ › Music database…).'; radio.tab = 'stations'; rPaint(); return; }
+  if (keep && crateQueueList.length && (keep.mode === 'end' || (crateQueueIndex >= 0 && crateQueueList[crateQueueIndex]))) {
+    // (1.135.193) the song playing carries on (or the queue that just ran out stays as it was): similar songs are lined up after it
+    radio.on = true; radio.qid = crateQueueId; if (keep.mode === 'current') { crateQueueList.splice(crateQueueIndex + 1); renderCrateQueuePanel(); }
+    let next = []; for (let i = 0; i < 6 && !next.length; i++) { const p = await rNext(); if (!p) break; next = await rEntries(p); }
+    if (!next.length || crateQueueId !== radio.qid) { radio.on = false; radio.say = ''; rBtnPaint(); if (!next.length) flashGlobalToast('Radio: nothing similar found in the music database yet.'); return false; }
+    crateQueueList.push(...next); renderCrateQueuePanel(); radio.say = ''; rPaint(); rBtnPaint();
+    if (keep.mode === 'end') rPlayAt(radio.qid, keep.index);
+    rTopUp(4); return true;
+  }
   radio.on = true; radio.qid = ++crateQueueId; crateQueueList = []; crateQueueIndex = -1; renderCrateQueuePanel();
   let first = []; for (let i = 0; i < 6 && !first.length; i++) { const p = await rNext(); if (!p) break; first = await rEntries(p); }
-  if (!first.length || crateQueueId !== radio.qid) { radio.on = false; radio.say = ''; radio.err = 'Couldn’t find songs to play for that station.'; rPaint(); return; }
+  if (!first.length || crateQueueId !== radio.qid) { radio.on = false; radio.say = ''; radio.err = 'Couldn’t find songs to play for that station.'; rPaint(); return false; }
   crateQueueList.push(...first); radio.say = ''; rPaint(); rBtnPaint();
   playCrateQueueIndex(radio.qid, 0);
-  rTopUp(4);
+  rTopUp(4); return true;
+}
+// (1.135.193) A station from one release, straight away: its genres, its descriptors (mood and texture: weighed more here), its artist and
+// the artists like them; the How new, How far and Play settings you used last.
+const RADIO_AUTO_KEY = 'crate_radio_auto_v1';
+function rAutoOn() { try { return localStorage.getItem(RADIO_AUTO_KEY) === '1'; } catch (e) { return false; } }
+function rAutoSet(on) { try { localStorage.setItem(RADIO_AUTO_KEY, on ? '1' : '0'); } catch (e) { /* this visit */ } }
+async function radioFromItem(it, keep) {
+  if (!it || !it.artist || !it.title) return false;
+  const last = rLs(RADIO_LAST_KEY, {});
+  const st = { kind: 'release', artist: it.artist, title: it.title, genre: it.genre || '', value: '', newPct: last.newPct != null ? last.newPct : 65, far: last.far === 'far' ? 'far' : last.far || 'near', play: last.play || 'one', yFrom: 0, yTo: 9999, similar: true };
+  return radioStart(st, keep);
 }
 function radioStop() { radio.on = false; rBtnPaint(); rPaint(); try { if (typeof playerPlayingNow === 'function' && playerPlayingNow()) el.miniPlayerPlayPause.click(); } catch (e) { /* fine */ } }
 function rStopped() { if (!radio.on) return; radio.on = false; rBtnPaint(); rPaint(); }
@@ -339,6 +359,7 @@ function rStationsHtml() {
       <div class="rd-row"><div><b>How far</b><span class="gs-s">from what you know</span></div>${seg('far', [['close', 'Close'], ['near', 'Nearby'], ['far', 'Adventurous']])}</div>
       ${d.kind === 'time' ? '' : `<div class="rd-row"><div><b>Years</b></div><div class="rd-sl"><input type="number" class="rd-in rd-yr" data-rd-set-num="yFrom" value="${d.yFrom || ''}" placeholder="from" aria-label="From year" min="1900" max="2030"><span class="gs-s">to</span><input type="number" class="rd-in rd-yr" data-rd-set-num="yTo" value="${d.yTo || ''}" placeholder="to" aria-label="To year" min="1900" max="2030"><span class="gs-s">${d.yFrom || d.yTo ? '' : 'any year'}</span></div></div>`}
       <div class="rd-row"><div><b>Play</b></div>${seg('play', [['one', 'One song a release'], ['few', 'A few songs'], ['whole', 'Whole releases']])}</div>
+      <div class="rd-row"><div><b>When the queue ends</b><span class="gs-s">any queue, not only the radio</span></div><label class="rd-auto"><input type="checkbox" data-rd-auto${rAutoOn() ? ' checked' : ''}> Keep playing similar music (genre, mood, texture) from the music database, instead of stopping</label></div>
       <div class="rd-row"><div><b>Skip</b></div><div class="gs-s">releases you’ve marked Not for me (${Object.keys(rLs(RADIO_NO_KEY, {})).length.toLocaleString()}) · what the radio played in the last week · everything in your crate counts as yours</div></div>
     </div>
     <div class="rd-go"><button type="button" class="gs-btn gs-pri rd-gobtn" data-rd="start">▶ Start radio</button><button type="button" class="gs-btn" data-rd="save">Save as a station</button><span class="gs-s">Saved stations sit at the top here and in the player’s radio button, one click to start.</span></div>
@@ -463,12 +484,23 @@ async function rfOpen(x) {
 }
 
 // ----- the player's radio button, ⚙ › CRATE Radio…, and the database's search results open the card -----
+function rPlayAt(id, i) { return playCrateQueueIndex(id, i); }
 function rBtnPaint() { ['miniPlayerRadioBtn', 'radioTopBtn'].forEach(id => { const b = document.getElementById(id); if (b) { b.classList.toggle('on', radio.on); b.setAttribute('aria-pressed', String(radio.on)); b.title = radio.on ? 'CRATE Radio: ' + rStName(radio.st) + ' (Shift R)' : 'CRATE Radio and Discover (Shift R)'; } }); }
 (function () {
   const q = document.getElementById('miniPlayerQueueBtn');
   if (q) { const b = document.createElement('button'); b.id = 'miniPlayerRadioBtn'; b.className = 'mini-player-btn rd-pbtn'; b.type = 'button'; b.setAttribute('aria-label', 'CRATE Radio'); b.setAttribute('aria-pressed', 'false'); b.title = 'CRATE Radio';
     b.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/></svg>';
-    b.addEventListener('click', () => radioOpen()); q.parentNode.insertBefore(b, q); }
+    // (1.135.193) with a song playing: a station from it, the song carrying on and similar songs lined up after it (again: the window)
+    b.addEventListener('click', async () => {
+      const it = typeof nowPlayingItem !== 'undefined' ? nowPlayingItem : null;
+      if (radio.on || !it || it.radio || b.dataset.busy) { radioOpen(radio.on ? 'now' : undefined); return; }
+      b.dataset.busy = '1'; b.classList.add('rd-tuning'); flashGlobalToast(`Radio: finding songs like \u201c${it.title}\u201d\u2026`);
+      const ok = await radioFromItem(it, { mode: 'current' }); delete b.dataset.busy; b.classList.remove('rd-tuning');
+      if (ok) flashGlobalToast(`Radio: songs like \u201c${it.title}\u201d are up next. Click to see them.`, { onClick: () => radioOpen('now') });
+    });
+    b.addEventListener('contextmenu', (e) => { e.preventDefault(); radioOpen(); });
+    b.title = 'CRATE Radio: songs like this one, up next (right-click: the radio window)';
+    q.parentNode.insertBefore(b, q); }
   // (1.135.172) and one in the top bar, beside Friends: the player only shows once something plays, so a new crate had no way in but the ⚙ menu
   const fb = document.getElementById('friendsBtn');
   if (fb) { const t = document.createElement('button'); t.type = 'button'; t.id = 'radioTopBtn'; t.className = 'icon-btn rd-pbtn'; t.setAttribute('aria-label', 'CRATE Radio and Discover'); t.setAttribute('aria-pressed', 'false'); t.title = 'CRATE Radio and Discover (Shift R)';
@@ -491,4 +523,33 @@ function rBtnPaint() { ['miniPlayerRadioBtn', 'radioTopBtn'].forEach(id => { con
     e.preventDefault(); e.stopImmediatePropagation(); const o = document.getElementById('radioOv'); if (o && !o.hidden) o.hidden = true; else radioOpen();
   }, true);
   if (typeof KEYS_LIST !== 'undefined' && Array.isArray(KEYS_LIST)) { try { KEYS_LIST[0][1].push(['Shift R', 'CRATE Radio']); } catch (e) { /* listed or not */ } }
+})();
+
+// (1.135.193) "When the queue ends, keep playing similar music": instead of stopping, a station from the last release that played (its
+// genres, mood, texture, artist), lined up after it. Not while a release is set to loop, nor while the rest of a big "play everything" is
+// still to load. Turned on in the radio window's Stations, or ⚙ › CRATE Radio: keep playing.
+(function () {
+  const base = playCrateQueueIndex;
+  playCrateQueueIndex = function (myId, index) {
+    try {
+      if (rAutoOn() && !radio.on && !radio.autoBusy && myId === crateQueueId && index >= crateQueueList.length && crateQueueList.length && !state.loop
+        && !(typeof crateQueuePendingCount === 'function' && crateQueuePendingCount())) {
+        const last = crateQueueList[crateQueueList.length - 1]; const it = last && last.item;
+        if (it && it.artist && it.title) {
+          radio.autoBusy = true; flashGlobalToast(`The queue ran out: radio from \u201c${it.title}\u201d\u2026`);
+          radioFromItem(it, { mode: 'end', index }).then(ok => { if (!ok && myId === crateQueueId) base.call(this, myId, index); }).finally(() => { radio.autoBusy = false; });
+          return;
+        }
+      }
+    } catch (e) { /* stops as before */ }
+    return base.apply(this, arguments);
+  };
+  // the switch: ⚙ menu, beside CRATE Radio…
+  const m = document.getElementById('menuRadio'); if (m) {
+    const b = document.createElement('button'); b.type = 'button'; b.id = 'menuRadioAuto';
+    const paint = () => { b.textContent = rAutoOn() ? 'When the queue ends: similar music \u2713' : 'When the queue ends: stop'; b.setAttribute('aria-pressed', String(rAutoOn())); };
+    b.title = 'Keep playing songs like the last one, from the music database, instead of stopping'; paint();
+    b.addEventListener('click', () => { rAutoSet(!rAutoOn()); paint(); rPaint(); }); m.insertAdjacentElement('afterend', b);
+  }
+  document.addEventListener('change', (e) => { if (e.target && e.target.matches && e.target.matches('[data-rd-auto]')) { rAutoSet(e.target.checked); const b = document.getElementById('menuRadioAuto'); if (b) b.textContent = rAutoOn() ? 'When the queue ends: similar music \u2713' : 'When the queue ends: stop'; } });
 })();

@@ -17,8 +17,14 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.192
+  CURRENT_VERSION: 1.135.193
 
+  1.135.193 — 2026-11-19 — The player's radio button, with a song playing, starts a station from it straight away: the song carries on, and
+          what was up next is replaced by similar songs from the music database (its genres, its mood and texture from its descriptors,
+          weighed more here, its artist and artists like them; with the How new, How far and Play settings you used last). Click again, or
+          right-click, for the radio window. A new setting, "When the queue ends: keep playing similar music" (the radio window's Stations,
+          or ⚙ › When the queue ends): any queue that runs out carries on with a station from the last release that played, instead of
+          stopping. Not while a release is set to loop.
   1.135.192 — 2026-11-19 — Watching what goes into the music database: ⚙ › Music database… › Activity. This browser: what CRATE has seen
           this visit by source, how much it queued and how much it left out (sent in the last two weeks, or already waiting), what's
           waiting to be sent (with Send now), and every batch it sent, newest first: when, how many, from which sources, the releases

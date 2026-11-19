@@ -7187,3 +7187,5 @@ input.mcd-filled { border-color: rgba(127,209,185,.6) !important; }
 .mdl-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid #1E242D; font: 12.5px Inter, sans-serif; color: #EDE7DC; }
 .mdl-row > span:first-child { display: flex; flex-direction: column; min-width: 0; } .mdl-row b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .mdl-row em { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 900px) { .mdl { grid-template-columns: 1fr; } .mdl-nums { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.rd-auto { display: flex; gap: 8px; align-items: center; font: 13px Inter, sans-serif; color: #C9C3B8; cursor: pointer; } .rd-auto input { accent-color: #D6A24C; margin: 0; }
+.rd-pbtn.rd-tuning { color: #D6A24C; animation: mlpulse 1s ease-in-out infinite; }
