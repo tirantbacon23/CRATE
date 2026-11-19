@@ -32,6 +32,7 @@ function qaPaint() {
       ${row('addGenre', 'Genre', [g1, g2].filter(Boolean).join(' · '), rymOn ? 'from RYM, after its update' : 'none yet')}
       ${row('addTracksRows', 'Tracklist', tr.n ? `${tr.n} song${tr.n === 1 ? '' : 's'}` : '', tr.mb || tr.sp ? '' : 'found after adding')}
       ${tr.n ? '' : tr.mb ? `<div class="qa-found">${escapeHtml(tr.mb)} <button type="button" data-qa-use="mb">Use it</button></div>` : tr.sp ? `<div class="qa-found">${escapeHtml(tr.sp)} <button type="button" data-qa-use="sp">Use it</button></div>` : ''}
+      ${row('addRymLink', 'RYM page', (() => { const l = qaV('addRymLink'); return l ? l.replace(/^https?:\/\/(www\.)?rateyourmusic\.com\/release\//, '').replace(/\/$/, '') : ''; })(), rymOn && typeof rymOutState !== 'undefined' && rymOutState.finds !== false ? 'found on RYM after adding' : 'none: paste one in Edit')}
       ${row('addLocation', 'From', loc)}
       ${row('addRymRating', 'RYM', rr ? `${rr}${qaV('addRymVotes') ? ' from ' + qaV('addRymVotes') + ' ratings' : ''}` : '', rymOn ? 'after its update' : 'none yet')}
       <button type="button" class="qa-all" data-qa-all aria-expanded="${qa.open}">${qa.open ? 'Fold the form away ▴' : 'All fields (label, catalogue, recorded, scene, links, tracklist…) ▾'}</button>

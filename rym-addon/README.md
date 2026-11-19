@@ -304,3 +304,5 @@ Rate Your Music lists the parts of some tracks under them, with no position of t
 ## Artists' details for CRATE (version 1.21.0)
 
 On an artist's page on Rate Your Music, the add-on notes what the page lists beside the name: born or formed, died or disbanded, members (with their roles), member of, and also known as. CRATE asks for these (as it does tracklists), and its artist page's "Fill from RYM" adds them: the artist's type, the dates, members, the bands it was in, and its other names as aliases. Kept in this browser (`rymArtists`, up to 3,000 artists); the same Options switch as genre descriptions turns it off.
+
+**1.24.0** — tells CRATE on arrival that it can find a release's RYM page by its artist and title, so releases you add without a RYM link get looked up straight away (CRATE used to wait to learn that from a finished update).

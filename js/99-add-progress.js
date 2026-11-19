@@ -10,6 +10,7 @@ function apSteps(e) {
   if (!it) return st;
   const row = String(it.row), running = typeof rymFetchState !== 'undefined' && rymFetchState.active && (jobsState.runRows || []).includes(row), waiting = (jobsState.waiting || []).some(w => (w.rows || []).includes(row));
   const wants = typeof rymUpdateAddedPick === 'function' && rymUpdateAddedPick([it]).length && rymOutState.present;
+  st.noLink = typeof rymUpdateUrl === 'function' && !rymUpdateUrl(it);
   st.rym = it.rymUpdated ? 'done' : running ? 'now' : waiting ? 'wait' : wants && Date.now() - e.at < 5 * 60e3 ? 'wait' : 'skip';
   const tl = (state.trackCache && state.trackCache[artKey(it)]) || null, rel = typeof mlRel === 'function' ? mlRel(it) : null;
   st.songs = rel && rel.songs ? rel.songs.length : tl ? tl.filter(t => t && t.trackName).length : 0;
@@ -53,7 +54,7 @@ function apPaint() {
     const step = (key, label, sub) => `<div class="ap-st ap-${s[key] === 'skip' ? 'done ap-skip' : s[key]}"><i>${s[key] === 'done' ? '✓' : s[key] === 'skip' ? '–' : ''}</i><span>${label}${sub ? `<br>${sub}` : ''}</span></div>`;
     const pct = [s.added, s.rym, s.tl, s.match, s.ready].filter(x => x === 'done' || x === 'skip').length / 5 * 100 + (s.match === 'now' && s.of ? s.n / s.of * 20 : 0);
     html = `<div class="ap-top">${cv(it)}<div class="ap-t"><b>${escapeHtml(e.t)}${s.ready === 'done' ? ' is ready' : ''}</b><span>${escapeHtml(e.a)} · ${s.ready === 'done' && s.tlNone ? 'no tracklist found: add one in its Edit \u203a Tracklist' : s.ready === 'done' ? `${s.songs || s.of} songs · ${s.linked} linked${s.look ? ` · <em>${s.look} to check</em>` : ''}` : 'added just now'}</span></div><button type="button" class="ap-x" data-ap="x" aria-label="Hide">×</button></div>
-      ${s.ready === 'done' ? '' : `<div class="ap-steps">${step('added', 'Added')}${step('rym', 'Rate Your Music', s.rym === 'skip' ? 'skipped' : '')}${step('tl', 'Tracklist', s.songs ? `${s.songs} songs` : s.tlNone ? 'none found' : '')}${step('match', 'Matching', s.match === 'now' && s.of ? `${s.n}/${s.of}` : s.match === 'wait' ? 'queued' : '')}${step('ready', 'Ready')}</div>
+      ${s.ready === 'done' ? '' : `<div class="ap-steps">${step('added', 'Added')}${step('rym', 'Rate Your Music', s.rym === 'skip' ? 'skipped' : (s.rym === 'now' || s.rym === 'wait') && s.noLink ? 'finding its page' : '')}${step('tl', 'Tracklist', s.songs ? `${s.songs} songs` : s.tlNone ? 'none found' : '')}${step('match', 'Matching', s.match === 'now' && s.of ? `${s.n}/${s.of}` : s.match === 'wait' ? 'queued' : '')}${step('ready', 'Ready')}</div>
       <div class="ap-bar"><u style="width:${Math.min(100, pct).toFixed(0)}%"></u></div>`}
       <div class="ap-acts"><button type="button" class="${s.ready === 'done' ? 'ap-pri' : ''}" data-ap="play" data-k="${k}">▶ ${s.ready === 'done' ? 'Play' : 'Play what’s ready'}</button>${s.look ? `<button type="button" data-ap="check" data-k="${k}">Check ${s.look} song${s.look === 1 ? '' : 's'}</button>` : `<button type="button" data-ap="open" data-k="${k}">Open</button>`}<span></span><button type="button" data-ap="another">Add another</button></div>`;
   } else {

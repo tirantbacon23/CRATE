@@ -386,7 +386,10 @@ function rymFetchUpdates(items, opts) {
 // "Update from Rate Your Music" on their own, as a queued run: no question first, and it waits its turn behind a run already going. Only those
 // with a RYM link that have never been updated, only when the add-on has been heard from on this page, and only with the setting on.
 try { if (localStorage.getItem('crate_rym_finds_v1') === '1') rymOutState.finds = true; } catch (e) { /* not known yet */ }
-function rymUpdateAddedPick(added) { return state.rymUpdateOnAdd ? (added || []).filter(it => it && !it.rymUpdated && (rymUpdateUrl(it) || (rymOutState.finds && it.artist && it.title))) : []; }          // (1.135.160: with no link too, once the add-on can find them)
+function rymUpdateAddedPick(added) { return state.rymUpdateOnAdd ? (added || []).filter(it => it && !it.rymUpdated && (rymUpdateUrl(it) || (rymOutState.finds !== false && it.artist && it.title))) : []; }          // (1.135.184: no link → found on RYM unless the add-on is known not to)
+// (1.135.184) the add-on says on arrival that it can find RYM pages (1.24+): new releases with no link are looked up straight away
+window.addEventListener('message', (e) => { if (e.source !== window || e.origin !== window.location.origin) return; const d = e.data; if (!d || d.source !== 'crate-addon' || d.type !== 'rym-hello') return;
+  rymOutState.present = true; rymOutState.addonVersion = String(d.version || ''); if (d.finds) { rymOutState.finds = true; try { localStorage.setItem('crate_rym_finds_v1', '1'); } catch (er) { /* this visit */ } } });          // (1.135.160: with no link too, once the add-on can find them)
 function rymUpdateAdded(added) {
   const todo = rymUpdateAddedPick(added); if (!todo.length || !rymOutState.present) return;
   flashGlobalToast(`Updating ${todo.length === 1 ? `\u201c${todo[0].title}\u201d` : `${todo.length} new releases`} from Rate Your Music in the background${todo.length > 1 ? ' \u2014 one page every 8 to 15 seconds' : ''}.`);
@@ -434,6 +437,7 @@ window.addEventListener('message', (e) => {
   const d = e.data; if (!d || d.source !== 'crate-addon') return;
   if (d.type === 'rym-fetch-ack' && d.for === 'rym-fetch-start') {
     clearTimeout(rymFetchState.ackTimer); const r = d.resp || {};
+    if (r.ok && !r.finds && rymOutState.finds !== true) rymOutState.finds = false;          // (1.135.184: an add-on older than 1.23 can't look a release up)
     if (r.ok && r.finds) { rymOutState.finds = true; try { localStorage.setItem('crate_rym_finds_v1', '1'); } catch (e) { /* this visit */ } }          // (1.135.160) this add-on finds releases with no link
     if (r.ok && rymFetchState.findSent && !r.finds) flashGlobalToast(`${rymFetchState.findSent === 1 ? 'That release has' : rymFetchState.findSent + ' of those have'} no Rate Your Music link yet. To find ${rymFetchState.findSent === 1 ? 'it' : 'them'} on RYM by artist and title, update the CRATE for RYM add-on to 1.23 or later.`);
     if (r.ok) { rymFetchState.active = true; rymFetchState.total = r.accepted || 0; if (!state.rymQueueMode) bgStatus(`Reading Rate Your Music pages \u2014 0 of ${r.accepted}`, 0, { always: true, cancel: true }); } else { flashGlobalToast(rymFetchWhy(r.reason, r)); if (state.rymQueueMode) rymQAbort(); }

@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.183
+  CURRENT_VERSION: 1.135.184
 
+  1.135.184 — 2026-11-19 — Adding a release with no RYM link: its Rate Your Music page is found and fetched (by artist and title, through
+          the add-on) instead of the update being skipped. CRATE only learned the add-on could do that from a finished update, so on a
+          new computer, or before any update had run, new releases got "Rate Your Music: skipped". Now it's tried unless the add-on is
+          known to be older than 1.23, and the RYM add-on 1.24.0 says so as soon as CRATE opens. The quick add's summary has a "RYM page"
+          row (the link, or "found on RYM after adding"), and the card after adding says "finding its page" while it does.
   1.135.183 — 2026-11-19 — The artist page: a release you already have (in "In your crate" or More Releases) opens its Last.fm card, as
           ones you don't have do: its songs with their listeners and plays, your plays and when you last played it, with Play all and
           Open the deck. A double-click on a cover still plays it. In that card (and the one search's covers open), Play all, a song's

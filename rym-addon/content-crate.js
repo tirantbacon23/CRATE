@@ -5,7 +5,9 @@
 (function () {
   'use strict';
   const C = window.CrateRym, ext = (typeof browser !== 'undefined' && browser.runtime) ? browser : chrome;
-  const ask = () => window.postMessage({ source: 'crate-addon', type: 'request-index' }, location.origin);
+  // (1.24.0) says what it is as soon as it's on the page: CRATE then knows it can find a release's RYM page by its artist and title (1.23+)
+  const hello = () => { let v = ''; try { v = ext.runtime.getManifest().version; } catch (e) { /* unknown */ } window.postMessage({ source: 'crate-addon', type: 'rym-hello', version: v, finds: true }, location.origin); };
+  const ask = () => { hello(); window.postMessage({ source: 'crate-addon', type: 'request-index' }, location.origin); };
   if (window.__crateBridgeLoaded) { ask(); return; }                       // injected again (the options page's "sync now"): just ask again
   window.__crateBridgeLoaded = true;
   const bridge = () => { const de = document.documentElement; return (de && de.getAttribute('data-crate-bridge')) || ''; };       // null-safe: this can run before the page has started building       // set by CRATE 1.29.202+; absent on an older CRATE or on a page that isn't CRATE
