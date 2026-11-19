@@ -746,7 +746,8 @@ function renderFlatTrackTable() {
     const originalTitle = titleEl.innerHTML;          // (1.94.5) all of it, ▶ YT button and all: putting back only its text left "▶ YT" as words
     titleEl.textContent = 'Loading...';
     try {
-      await playTrackNow(match.item, match.track.trackName, match.track.trackNumber);
+      const at = rows.indexOf(match);          // (1.135.203) the songs listed after it follow
+      await playFromTrackInList(match.item, match.track.trackName, match.track.trackNumber, rows.slice(at, at + 300).map(r => ({ item: r.item, track: r.track })));
     } finally {
       if (titleEl.isConnected) titleEl.innerHTML = originalTitle;
     }
@@ -2743,7 +2744,7 @@ function openAlbumQuickPeek(item, cardEl) {
     rowEls.forEach(rowEl => {
       rowEl.querySelector('.album-quick-peek-track-play').addEventListener('click', (e) => {
         e.stopPropagation();
-        playTrackNow(item, rowEl.dataset.trackName, rowEl.dataset.trackNum);
+        playFromTrackInList(item, rowEl.dataset.trackName, rowEl.dataset.trackNum);          // (1.135.203) the rest of the release follows
       });
       // The "N credits" chip shows/hides that track's credits under the row. It must not also
       // select the row (hence stopPropagation here, and the matching guards on click/dblclick below).

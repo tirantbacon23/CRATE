@@ -302,6 +302,20 @@ function playYtSongQueued(item, link, trackName, trackNum) {
   crateQueueList = [{ item, track: Object.assign({ trackName, trackNumber: num }, trackLinkOverridesFor(item, num, trackName), { youtubeLink: link, spotifyLink: '' }) }];
   crateQueueIndex = -1; nowPlayingItem = item; renderCrateQueuePanel(); playCrateQueueIndex(myId, 0);
 }
+// (1.135.203) A double-click on a song plays from it through the rest of its release (or the list it is in), queued, so the songs after it
+// follow; when they run out, "keep playing similar music" carries on from there. (Play in a song's menu still plays that one song.)
+async function playFromTrackInList(item, trackName, trackNum, list) {
+  if (!item || !trackName) return;
+  let tracks = list && list.length ? list : null;
+  if (!tracks) { try { tracks = await getTracksFor(item); } catch (e) { tracks = null; } }
+  const ents = (tracks || []).filter(x => x && (x.track ? x.track.trackName : x.trackName)).map(x => x.track ? { item: x.item || item, track: x.track } : { item, track: x });
+  const same = (e) => e.item === item && String(e.track.trackNumber || '') === String(trackNum || '') && (e.track.trackName || '') === trackName;
+  let i = ents.findIndex(same); if (i < 0) i = ents.findIndex(e => e.item === item && (e.track.trackName || '') === trackName);
+  if (i < 0 || ents.length < 2) return playTrackNow(item, trackName, trackNum);
+  nowPlayingItem = item; const myId = ++crateQueueId;
+  crateQueueList = ents.map(e => ({ item: e.item, track: Object.assign({}, e.track) })); crateQueueIndex = -1; renderCrateQueuePanel();
+  playCrateQueueIndex(myId, i);
+}
 async function playTrackNow(item, trackName, trackNum) {
   if (!trackName) return;
   nowPlayingItem = item;

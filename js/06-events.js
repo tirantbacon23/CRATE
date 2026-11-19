@@ -1256,7 +1256,7 @@ function bindEvents() {
     const track = currentTracklistTracks.find(t => String(t.trackNumber || 0) === String(rowEl.dataset.track));
     if (!track) return;
     e.preventDefault(); if (window.getSelection) { try { window.getSelection().removeAllRanges(); } catch (er) { /* fine */ } }
-    playTrackNow(activeItem, track.trackName, track.trackNumber);
+    playFromTrackInList(activeItem, track.trackName, track.trackNumber, currentTracklistTracks.slice());          // (1.135.203) the rest of the release follows
   });
 
   // 11b. Play buttons in the "Album and Tracks" list (each row carries its

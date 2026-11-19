@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.202
+  CURRENT_VERSION: 1.135.203
 
+  1.135.203 — 2026-11-19 — Double-clicking a song plays from it through the rest of its release, queued (in the deck, the quick
+          peek, and the Songs list, where the songs listed after it follow), so "keep playing similar music" carries on
+          when they run out. It used to play that one song and stop. Play in a song's menu still plays just that song.
   1.135.202 — 2026-11-19 — "Keep playing similar music" (and the player's radio button) stays closer to what was playing: the
           release's own genres and descriptors are the station (its main genre counting most, then its mood and texture),
           releases from the database must share one of its genres (or be by an artist close to it) when there are enough,
