@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CRATE for RateYourMusic",
-  "version": "1.24.0",
+  "version": "1.25.0",
   "description": "Flags releases on RateYourMusic pages that are already in your CRATE collection, and lets CRATE show RYM ratings and genre descriptions.",
   "permissions": [
     "storage",

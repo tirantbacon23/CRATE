@@ -364,6 +364,14 @@ function rymFetchWhy(reason, r) {
     challenge: 'Rate Your Music asked for a check on the page it opened. That page is in front of you: pass it, then try again a little later.', timeout: 'a page didn\u2019t finish loading in time.', unreadable: 'a page couldn\u2019t be read.',
     closed: 'you closed the page while it was being read.', noanswer: 'The add-on didn\u2019t answer. Update it to 1.10 or later and check it is connected to this page.' })[reason] || `something went wrong (${reason || 'unknown'}).`;
 }
+// (1.135.188) A release with no RYM link: its page's address guessed from RYM's pattern, /release/<type>/<artist>/<title>/ (lower case,
+// accents dropped, apostrophes and full stops taken out, "&" kept as "and", anything else between words a hyphen). The add-on (1.25+)
+// reads that page, and if there's no such page it searches RYM instead; an older add-on reads the guess, or skips it when it's wrong.
+function rymSlug(s) { return String(s || '').toLowerCase().replace(/[\u00e6]/g, 'ae').replace(/[\u0153]/g, 'oe').replace(/[\u00f8]/g, 'o').replace(/[\u00df]/g, 'ss').replace(/[\u00f0]/g, 'd').replace(/[\u00fe]/g, 'th').replace(/[\u0142]/g, 'l').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/['\u2019.]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
+function rymGuessUrl(it) {
+  const ty = { album: 'album', live: 'album', ep: 'ep', single: 'single', compilation: 'comp', comp: 'comp', mixtape: 'mixtape', 'dj mix': 'djmix', video: 'video' }[String(it.type || 'album').toLowerCase()] || 'album';
+  const a = rymSlug(it.artist), t = rymSlug(it.title); return a && t ? `https://rateyourmusic.com/release/${ty}/${a}/${t}/` : '';
+}
 function rymFetchUpdates(items, opts) {
   opts = opts || {}; items = (items || []).filter(Boolean);
   // (1.135.160) a release with no RYM link is found first: the add-on (1.23 or later) reads Rate Your Music's search for its artist and title,
@@ -379,7 +387,7 @@ function rymFetchUpdates(items, opts) {
   }
   const qOpen = rymQ.open; if (state.rymQueueMode) { rymQBegin(use); if (opts.queued && !qOpen) { rymQ.open = false; rymQRender(); } }          // (a queued run starts quietly: its dialog doesn't jump in front of you)
   jobsState.runRows = use.map(it => String(it.row)); if (over) jobsQueueRym(todo.slice(25), true);
-  window.postMessage({ source: 'crate-app', type: 'rym-fetch-start', items: use.map(it => { const u = rymUpdateUrl(it); return u ? { id: it.row, url: u } : { id: it.row, url: '', search: { artist: it.artist, title: it.title, type: String(it.type || '').toLowerCase() === 'ep' ? 'ep' : String(it.type || '').toLowerCase() === 'single' ? 'single' : String(it.type || '').toLowerCase() === 'compilation' ? 'comp' : 'album', year: String(it.releaseDate || '').slice(0, 4) } }; }) }, window.location.origin);
+  window.postMessage({ source: 'crate-app', type: 'rym-fetch-start', items: use.map(it => { const u = rymUpdateUrl(it); return u ? { id: it.row, url: u } : { id: it.row, url: rymGuessUrl(it), search: { artist: it.artist, title: it.title, type: String(it.type || '').toLowerCase() === 'ep' ? 'ep' : String(it.type || '').toLowerCase() === 'single' ? 'single' : String(it.type || '').toLowerCase() === 'compilation' ? 'comp' : 'album', year: String(it.releaseDate || '').slice(0, 4) } }; }) }, window.location.origin);
   clearTimeout(rymFetchState.ackTimer); rymFetchState.ackTimer = setTimeout(() => { if (!rymFetchState.active) { flashGlobalToast(rymFetchWhy('noanswer')); if (state.rymQueueMode) rymQAbort(); } }, 3000);
 }
 // Releases that just came into the crate (an add, an import, a batch from the add-on: they arrive with the quiet sync after it) get their first

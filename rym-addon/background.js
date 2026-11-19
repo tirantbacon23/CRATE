@@ -92,6 +92,10 @@ async function onDone(sender, msg) {
     if (!(msg && (msg.ok || msg.reason === 'missing'))) { toTab(it, !!(msg && msg.reason === 'challenge')); await saveJob(); progress(); schedule(1500); return; }   // a check, or unreadable here: this page in a tab
   }
   if (msg && msg.ok) { it.state = 'ok'; job.ok++; }
+  else if (msg && msg.reason === 'missing' && it.fallback) {          // (1.25.0) the guessed page doesn't exist: RYM's search for it next, in its place
+    const q = it.fallback; it.fallback = null; it.search = q; it.url = searchUrl(q); it.state = 'wait'; it.inTab = false; job.tabId = 0; job.via = ''; if (tabId) await closeTab(tabId);
+    job.state = 'gap'; job.nextAt = Date.now() + Math.min(gap(), 4000); await saveJob(); progress(); schedule(job.nextAt - Date.now()); return;
+  }
   else if (msg && msg.reason === 'missing') { it.state = 'missing'; job.skipped++; }               // a page that no longer exists is not a reason to stop
   else { await stop((msg && msg.reason) || 'unreadable', false); return; }                  // anything unexpected: the page is left OPEN and in front, so you can see what it is (it may be a check this doesn't recognise)
   job.done++; job.i++; job.tabId = 0; job.via = ''; if (tabId) await closeTab(tabId);
@@ -132,8 +136,10 @@ async function start(sender, msg) {
   const items = [], seen = new Set();
   for (const x of (Array.isArray(msg.items) ? msg.items : [])) {
     let url = cleanUrl(x && x.url), search = null;
+    // (1.25.0) a guessed address with its search behind it: the guess is read first, and if RYM has no such page, its search
+    let fallback = null; if (url && x && x.search && x.search.artist && x.search.title) fallback = { artist: String(x.search.artist), title: String(x.search.title), type: String(x.search.type || ''), year: String(x.search.year || '') };
     if (!url && x && x.search && x.search.artist && x.search.title) { search = { artist: String(x.search.artist), title: String(x.search.title), type: String(x.search.type || ''), year: String(x.search.year || '') }; url = searchUrl(search); }          // (1.23.0) no link yet: found first
-    if (!url || seen.has(url)) continue; seen.add(url); items.push({ id: String((x && x.id) || ''), url, search, state: 'wait' }); if (items.length >= CAP_JOB) break;
+    if (!url || seen.has(url)) continue; seen.add(url); items.push({ id: String((x && x.id) || ''), url, search, fallback, state: 'wait' }); if (items.length >= CAP_JOB) break;
   }
   if (!items.length) return { ok: false, reason: 'nothing' };
   let lo = Number(msg.opts && msg.opts.gapMin) || DEF_LO, hi = Number(msg.opts && msg.opts.gapMax) || DEF_HI;

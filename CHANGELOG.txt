@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.187
+  CURRENT_VERSION: 1.135.188
 
+  1.135.188 — 2026-11-19 — A release with no RYM link: its RYM page is read at its guessed address first, built from RYM's own pattern
+          (rateyourmusic.com/release/<type>/<artist>/<title>/: lower case, accents and apostrophes dropped, æ as ae, & as and, a hyphen
+          between words), so usually one page is read instead of a search and then a page. With the RYM add-on 1.25.0, a guess RYM has no
+          page for falls back to its search; an older add-on skips it.
   1.135.187 — 2026-11-19 — Covers: a release that came without one (from a friend's crate with no cover saved, or the music database),
           or whose cover link doesn't load, has one looked up on Last.fm, a few at a time, kept in this browser and given to the music
           database. In Discover, the radio, its songs in Up next, the release card, and anywhere in CRATE a release fell back to its
