@@ -389,7 +389,7 @@ function tlMove(arr, from, to) {                              // a copy with the
     return out;
   }
   function tracklistLooksWrong(tracks) {                    // titles that are mostly numbers are ratings or counts read as titles: never offer such a list
-    const t = Array.isArray(tracks) ? tracks : []; if (t.length < 2) return false;
+    const t = Array.isArray(tracks) ? tracks : []; if (t.length === 1) return !/\p{L}/u.test(String(t[0] && t[0].title || '')); if (t.length < 2) return false;          // (1.28.0: a lone song needs a title with letters)
     const bad = t.filter(x => /^\d{1,3}(?:[.,]\d{1,2})?[kKmM]?$/.test(String(x && x.title || '').trim())).length;
     return bad / t.length >= 0.5;
   }
@@ -431,7 +431,7 @@ function tlMove(arr, from, to) {                              // a copy with the
   function mergeTracklist(existing, e, cap) {
     const out = Object.assign({}, existing || {}); let changed = false;
     const tracks = cleanTracks(e && e.tracks);
-    if (e && e.p && tracks.length >= 2) {
+    if (e && e.p && tracks.length >= 1) {          // (1.28.0: one song is a tracklist too)
       const prev = out[e.p];
       const d = cleanDetails(e.d) || (prev && prev.d) || null;                                    // the release's label, date, genres and cover as the page shows them (1.18.0)
       if (prev && sameTracks(prev.tracks, tracks)) { if ((!prev.ar && e.ar) || (!prev.u && e.u) || JSON.stringify(prev.d || null) !== JSON.stringify(d)) { out[e.p] = Object.assign({}, prev, { ar: prev.ar || e.ar, ti: prev.ti || e.ti, u: prev.u || e.u }, d ? { d } : {}); changed = true; } }

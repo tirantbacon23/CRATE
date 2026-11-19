@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.216
+  CURRENT_VERSION: 1.135.217
 
+  1.135.217 — 2026-11-19 — A release with one song (most singles) gets its tracklist from Rate Your Music (with the add-on 1.28.0):
+          fewer than two songs used to be taken for a misreading, so nothing was kept. The add-on reads the one song only
+          from under the page's "Track listing" heading, as a whole row, never the "Total length" line; CRATE accepts a
+          one-song list whose title has letters in it.
   1.135.216 — 2026-11-19 — An older Master.gs in Apps Script now says so plainly in the music database's Activity tab and when
           the radio (or similar music) starts, instead of the bare "Unknown music action": the backend's error arrived as a
           thrown error, past the check that turned it into "paste the latest Master.gs and deploy a new version".

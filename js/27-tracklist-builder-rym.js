@@ -278,7 +278,7 @@ function rymAskTracklists(ms) {                                  // -> the add-o
 }
 function rymTracklistsArrived(list) { rymTlWaiters.splice(0).forEach(w => { clearTimeout(w.timer); w.resolve(list); }); }
 function rymTracklistLooksWrong(tracks) {                        // titles that are mostly numbers are ratings or counts read as titles: never offer such a list
-  const t = Array.isArray(tracks) ? tracks : []; if (t.length < 2) return false;
+  const t = Array.isArray(tracks) ? tracks : []; if (t.length === 1) return !/\p{L}/u.test(String(t[0] && t[0].title || '')); if (t.length < 2) return false;          // (1.135.217: a one-song release, as the add-on 1.28 reads it)
   return t.filter(x => /^\d{1,3}(?:[.,]\d{1,2})?$/.test(String(x && x.title || '').trim())).length / t.length >= 0.5;
 }
 function rymPosStr(x) { const t = typeof x === 'string' ? x.trim() : ''; return /^[A-Za-z0-9][A-Za-z0-9.\-]{0,7}$/.test(t) ? t : ''; }          // a track's position on the release ("A", "B2", "3"), or ''

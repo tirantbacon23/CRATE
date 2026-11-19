@@ -8,6 +8,10 @@ A small browser add-on that looks at an artist's discography, or a **genre's** d
 
 Everything happens inside your browser. The add-on makes **no network requests** and sends your data nowhere. It only *adds* markers to RYM's page; it never changes RYM's own text or links.
 
+## New in 1.28.0
+
+- A release with only one song (most singles) gets its tracklist too. Before, fewer than two songs was taken for a misreading and nothing was kept. The one song is read only from under the page's own "Track listing" heading, as a whole row (a title with letters, and its number or length), never the "Total length" line.
+
 ## New in 1.27.0
 
 - A release's guessed address is tried under its other types too (album, EP, single, compilation) before RYM's search, since the type CRATE has isn't always RYM's.

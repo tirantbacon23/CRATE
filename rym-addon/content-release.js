@@ -86,9 +86,16 @@
       if (alt.length >= 2 && !C.tracklistLooksWrong(alt)) { out = alt; if (dbg) { Object.assign(dbg, d2); dbg.lenient = true; } }
       else if (C.tracklistLooksWrong(out)) out = [];
     }
+    // (1.28.0) a single (or any release) with one song: read only from under the page's own "Track listing" heading, one row there, a title
+    // with letters in it. Before, fewer than two songs was taken for a misreading and nothing was kept.
+    if (out.length < 2) {
+      ONE = true; const d3 = dbg ? {} : null; let one = []; try { one = readTracklistOnce(st, d3); } finally { ONE = false; }
+      if (one.length === 1 && /\p{L}/u.test(String(one[0].title || '')) && !C.isExtraTitle(one[0].title) && !C.tracklistLooksWrong(one)) { out = one; if (dbg) { Object.assign(dbg, d3); dbg.single = true; } }
+    }
     if (dbg) dbg.looksWrong = C.tracklistLooksWrong(out);
     return out;
   }
+  let ONE = false;          // (1.28.0) the one-song pass
   function readTracklistOnce(st, dbg) {
     const cache = new Map(), P = (e) => { let p = cache.get(e); if (!p) { p = pieces(e); cache.set(e, p); } return p; };
     const isTime = (t) => C.tlParseTime(t) > 0;
@@ -96,6 +103,8 @@
     // a row: a length, or a track number (first, or just after a rating and its vote count) together with a title; but not a whole block of rows (more than three lengths)
     const numberedRow = (p) => p.length >= 2 && (NUM_LEAD.test(p[0]) || (p.length >= 3 && p.slice(0, 4).some(t => NUM_LEAD.test(t)) && p.some(t => (/\p{L}/u.test(t) && !NUM_LEAD.test(t)) || /^\d{4,6}$/.test(t))));          // (a title of 4+ digits, "1490", can't be a number or a rating)
     const rowLike = (k) => { const p = P(k), nt = p.filter(isTime).length; return nt <= 3 && (nt > 0 || numberedRow(p)); };
+    // (1.28.0) in the one-song pass a row must be a whole one (a title with letters, and its number or length beside it), never a lone length or the "Total length" line
+    const oneRow = (k) => { const p = P(k); return rowLike(k) && p.length >= 2 && p.some(t => /\p{L}/u.test(t) && !isTime(t)) && !/total\s*(length|time|running)/i.test(p.join(' ')); };
     let rowEls = [], scope = null, how = '';
     if (st && st.selTracks) { try { rowEls = [...document.querySelectorAll(st.selTracks)]; how = 'your selector'; scope = rowEls.length ? rowEls[0].parentElement : null; } catch (e) { /* bad selector: look for it ourselves */ } }
     // 1. the page's own heading: "Track listing". The rows are the repeating group of row-like children in the smallest area around it that has one.
@@ -104,7 +113,7 @@
       for (const h of heads) {
         for (let a = h.parentElement, i = 0; a && a !== document.body && i < 8 && !rowEls.length; a = a.parentElement, i++) {
           let best = null;
-          [a, ...a.querySelectorAll('*')].slice(0, 2500).forEach(x => { if (x.tagName === 'SCRIPT' || credBad(x) || isHidden(x)) return; const q = [...x.children].filter(rowLike); if (q.length >= 2 && (!best || q.length >= best.q.length)) best = { x, q }; });      // (on a tie the later, deeper one wins: a list inside the wrapper that merely holds it)
+          [a, ...a.querySelectorAll('*')].slice(0, 2500).forEach(x => { if (x.tagName === 'SCRIPT' || credBad(x) || isHidden(x)) return; const q = [...x.children].filter(ONE ? oneRow : rowLike); if ((ONE ? q.length >= 1 : q.length >= 2) && (!best || (ONE ? q.length > best.q.length : q.length >= best.q.length))) best = { x, q }; });          // (one pass: the "Total length" line looks like a row too; it is dropped below, and one song must be all that's left)      // (on a tie the later, deeper one wins: a list inside the wrapper that merely holds it)
           if (best) {                                                            // more than one group of the same kind beside it (a list per disc)? take them all
             let rows = best.q, parent = best.x;
             const sibs = best.x.parentElement ? [...best.x.parentElement.children].filter(s => s !== best.x && s.tagName === best.x.tagName && !credBad(s) && [...s.children].filter(rowLike).length >= 2) : [];
@@ -116,7 +125,7 @@
       }
     }
     // 2. list items, table rows and "track…" blocks in a tracklist-looking area, grouped by the area they sit in; the biggest group is the tracklist
-    if (!rowEls.length) {
+    if (!rowEls.length && !ONE) {
       const cands = [...document.querySelectorAll('li, tr, div[class*="track" i]')].filter(r => !NOT_TRACKS.test(r.id + ' ' + r.className) && !inBadArea(r)).slice(0, 2000);
       const qualifies = (r) => { if (P(r).some(isTime)) return true; return numberedRow(P(r)) && !!r.closest('[id*="track" i], [class*="track" i]'); };
       const q = cands.filter(qualifies), all = q.filter(r => !q.some(o => o !== r && r.contains(o)));
@@ -146,8 +155,8 @@
       })(scope);
     } else if (rowEls.length) rowEls.forEach(take);
     let clean = C.markBold(C.foldSubTracks(tracks).filter(t => !C.isExtraTitle(t.title)));
-    if (clean.length < 2) {
-      clean = [];
+    if (clean.length < 2 && !(ONE && clean.length === 1)) {
+      clean = []; if (ONE) return [];
       const plain = (e) => [...e.querySelectorAll('*')].every(c => /^(BR|A|SPAN|B|I|EM|STRONG)$/.test(c.tagName));
       const times = (e) => (textWithBreaks(e).match(/\b\d{1,2}:[0-5]\d\b/g) || []).length;
       const numbered = (e) => textWithBreaks(e).split('\n').filter(l => /^\s*(?:\d{1,3}|[A-Pa-p]\d{1,2})[.)]?\s+\S/.test(l)).length;
@@ -281,7 +290,7 @@
     if (!pri.length && dt.genres.length) pri = dt.genres.slice(0, C.MAX_GENRES);                 // the page title's bracket lists the primary genres: used when the page's own genre links aren't found
     const tracks = readTracklist(st), issue = readIssueLabel(), o = { artist, title, type: C.crateType(C.rymType(p)), releaseDate: C.releaseDateFromText(area), genre: C.genreJoin(pri), secondaryGenre: C.genreJoin(sec), rymLink: location.origin + p + '/', cover: readCoverBest(st, { title: dt.title || title, artist: dt.artist || artist }),
       label: infoValue(/^labels?\s*:?$/i, 'a[href*="/label/"]') || issue.label, catalog: infoValue(/^(?:catalog(?:ue)?|cat\.?)\s*(?:#|no\.?|number)?\s*:?$/i, null) || issue.catalog, descriptor: infoValue(/^descriptors?\s*:?$/i, 'a[href*="/descriptor/"]') };
-    if (tracks.length >= 2) o.tracks = tracks;
+    if (tracks.length >= 1) o.tracks = tracks;          // (1.28.0: a one-song release too; readTracklist only gives one it is sure of)
     { const cr = C.readCredits ? C.readCredits(document) : []; if (cr.length) o.credits = cr; }          // (1.22.0) the release's credits, for CRATE
     { const sm = readScenes(pri.concat(sec)); if (sm.scene) o.scene = sm.scene; if (sm.movement) o.movement = sm.movement; }
     { const rec = C.recordedFromText(readRecorded()); if (rec.date) o.recordedDate = rec.date; if (rec.place) o.recordedPlace = rec.place; }          // when and where it was recorded, if the page says
@@ -340,7 +349,7 @@
         if (st.captureRatings !== false) { const e = read(st); if (e) { const r = C.mergeRatings(got && got.rymRatings || {}, [e], 20000); if (r.changed) ext.storage.local.set({ rymRatings: r.out }); } }
         if (st.captureTracklists !== false) {                                           // the tracklist, for CRATE's tracklist editor
           const p = C.rymPath(location.pathname), tracks = p ? readTracklist(st) : [];
-          if (p && tracks.length >= 2) { const names = C.rymNames(p), rel = readRelease(st), d = rel ? { label: rel.label || '', catalog: rel.catalog || '', date: rel.releaseDate || '', genre: rel.genre || '', cover: rel.cover || '' } : null;          // the release's details too, for CRATE's Pull details
+          if (p && tracks.length >= 1) { const names = C.rymNames(p), rel = readRelease(st), d = rel ? { label: rel.label || '', catalog: rel.catalog || '', date: rel.releaseDate || '', genre: rel.genre || '', cover: rel.cover || '' } : null;          // the release's details too, for CRATE's Pull details
             const r = C.mergeTracklist(got && got.rymTracklists || {}, { p, ar: names.ar, ti: names.ti, ty: C.rymType(p), u: location.origin + p + '/', t: Date.now(), tracks, d }, 300); if (r.changed) ext.storage.local.set({ rymTracklists: r.out }); }
           else if (p && got && got.rymTracklists && got.rymTracklists[p] && C.tracklistLooksWrong(got.rymTracklists[p].tracks)) {         // an older version kept a wrong copy (ratings read as titles) and this page can't be read better: forget it
             const o = Object.assign({}, got.rymTracklists); delete o[p]; ext.storage.local.set({ rymTracklists: o });
