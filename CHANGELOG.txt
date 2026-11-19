@@ -17,8 +17,17 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.197
+  CURRENT_VERSION: 1.135.198
 
+  1.135.198 — 2026-11-19 — Pull details for many releases at once (canvas: CRATE batch pull details). From the selection bar
+          ("Pull details…"), a release's menu with several selected ("Pull details for N…"), or ⚙ ("Pull details for many
+          releases…"): pick the releases (selected, this view, or every release missing something), the details (type,
+          date, label, catalogue number, tracklist, cover, genres; each with how many are blank) and the sources (RYM as
+          the add-on saw it, MusicBrainz, Discogs, Spotify, iTunes). Four releases are asked at a time, with a progress
+          card that can be put away in the corner. "Fill blanks by itself" writes only empty details as each release is
+          found; "Let me review" lists every change old → new with its source: blanks ticked, anything replacing yours
+          unticked (REPLACES), a pick where the sources disagree; Apply ticked, or Fill blanks only. Releases not found
+          anywhere open single Pull details; those RYM hasn't seen can have their RYM pages read afterwards.
   1.135.197 — 2026-11-19 — Finding a release on Rate Your Music: an artist with no RYM link in your crate yet is now guessed from
           their name as RYM writes it (Tennyson → /release/album/tennyson/title/), then the other types (EP, single,
           compilation), and only then RYM's search. Artists your crate already knows keep their RYM address; a name with

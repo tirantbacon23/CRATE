@@ -861,7 +861,7 @@ function openAlbumCardContextMenu(item, x, y, opts) {
   const yr = String(item.releaseDate || '').slice(0, 4);
   const groups = {
     fix: `<button type="button" data-card-action="rymUpdate">${many ? `Update ${n} from Rate Your Music\u2026` : 'Update from Rate Your Music'}</button>
-      ${many ? '' : '<button type="button" data-card-action="pullDetails">Pull details\u2026</button>'}
+      ${many ? `<button type="button" data-card-action="pullMany">Pull details for ${n}\u2026</button>` : '<button type="button" data-card-action="pullDetails">Pull details\u2026</button>'}
       <button type="button" data-card-action="editTracks">Edit tracks\u2026</button>
       <div class="menu-divider"></div>
       ${many ? `<button type="button" data-card-action="matchMany">Match songs for ${n}\u2026</button>` : '<button type="button" data-card-action="match">Match songs\u2026</button>'}
@@ -945,6 +945,7 @@ function openAlbumCardContextMenu(item, x, y, opts) {
     else if (action === 'fullVideo') fvOpen(item);
     else if (action === 'editTracks') tgOpen(item);
     else if (action === 'pullDetails') pdOpen(item);
+    else if (action === 'pullMany') { if (typeof bpdOpen === 'function') bpdOpen(selItems); }          // (1.135.198) several at once
     else if (action === 'p2pFind') p2pOpen(item);
     else if (action === 'dlRelease') { if (typeof dlRelease === 'function') (async () => { for (const it of (selItems.length > 1 ? selItems : [item])) await dlRelease(it); })(); }          // (1.130.0)          // (1.96.0) search Soulseek through the CRATE for P2P add-on
     else if (action === 'recommend') { if (typeof socRecommendOpen === 'function') socRecommendOpen(item); }
