@@ -7338,3 +7338,22 @@ input.mcd-filled { border-color: rgba(127,209,185,.6) !important; }
 .track-view-table .mt-title .lk-heart { width: 15px !important; height: 15px !important; margin-right: 3px; }
 .track-view-table .main-track-row .lk-heart, .track-view-table .main-track-row .dl-btn, .track-view-table .main-track-row .sd-chips { margin-top: 0; margin-bottom: 0; max-height: 18px; }
 .track-view-table .main-track-row .dl-btn { transform: scale(0.85); }
+
+/* (1.135.225) asking to use CRATE (sign-in screen) and the requests (⚙ › Access requests) */
+.acc-form { margin-top: 18px; text-align: left; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 16px; max-width: 360px; margin-left: auto; margin-right: auto; }
+.acc-ask { display: flex; flex-direction: column; gap: 10px; }
+.acc-ask h2 { margin: 0; font-family: 'Bebas Neue', sans-serif; font-weight: 400; font-size: 24px; letter-spacing: 1px; color: #EDE7DC; }
+.acc-ask label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #C9C3B8; }
+.acc-ask input, .acc-ask textarea { background: #0B0E12; border: 1px solid #3A4250; border-radius: 6px; color: #EDE7DC; padding: 8px 10px; font: 14px Inter, sans-serif; resize: vertical; }
+.acc-ask input:focus-visible, .acc-ask textarea:focus-visible { outline: 2px solid #D6A24C; outline-offset: 1px; }
+.acc-opt { color: #8B93A0; font-size: 12px; }
+.acc-go { background: #D6A24C; color: #12161C; border: 0; border-radius: 6px; height: 42px; font: 600 14px Inter, sans-serif; cursor: pointer; }
+.acc-go:disabled { opacity: .6; cursor: default; }
+.acc-sub { margin: 0; font-size: 12px; color: #8B93A0; line-height: 1.5; }
+.acc-err { margin: 0; font-size: 12px; color: #E8A27A; }
+.acc-ok { margin: 0 0 6px; color: #7FD1B9; font-size: 14px; line-height: 1.5; } .acc-no { margin: 0 0 6px; color: #E8A27A; font-size: 14px; }
+.acc-dialog { width: 640px; }
+.acc-row { display: flex; gap: 14px; align-items: flex-start; justify-content: space-between; padding: 10px 0; border-top: 1px solid #1E242D; flex-wrap: wrap; }
+.acc-who { min-width: 0; flex: 1; font-size: 14px; } .acc-who .bpd-mut { font-size: 12px; }
+.acc-note { margin: 4px 0 0; font-size: 13px; color: #C9C3B8; font-style: italic; }
+.acc-acts { display: flex; gap: 8px; align-items: center; font-size: 12px; }

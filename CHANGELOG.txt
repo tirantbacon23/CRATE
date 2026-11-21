@@ -17,8 +17,13 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.224
+  CURRENT_VERSION: 1.135.225
 
+  1.135.225 — 2026-11-21 — Asking to use CRATE: someone whose Google account isn't let in gets a form on the sign-in screen (their
+          name, a message) instead of a dead end, and sees where their request stands when they come back. The people who run
+          it (ADMIN_EMAILS in the Apps Script) are told in CRATE when someone asks, and answer in ⚙ › Access requests: Approve
+          lets that account in at once, without editing ALLOWED_EMAILS or deploying again; Decline, Remove, Approve after all.
+          Needs the Code.gs of 1.135.225 (Apps Script: replace the main file, deploy a new version).
   1.135.224 — 2026-11-21 — Match songs: a YouTube match that is the video already on another song of the same release (a reprise
           matched to the original) is no longer ticked by itself, and one ticked by hand is left out with a message naming both
           songs ("…is the video already on …: pick another video for it, or paste one") and its tick taken off. Before, it
