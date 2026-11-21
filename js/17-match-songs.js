@@ -418,17 +418,17 @@ function smLengthFrom(u, s, kind, c) {
   if (kind === 'spotify' || !u.lengthMs) u.lengthMs = Math.round(c.durationMs);
 }
 function bmUpdates(songs, pick, res, linkOf) {                      // what is ticked -> { updates: { trackNum: { spotifyLink?, youtubeLink? } }, n, dup }
-  const updates = {}; let n = 0, dup = 0;
+  const updates = {}; let n = 0, dup = 0; const dups = [];          // (1.135.224) which songs, and whose video it already is
   const taken = {}; songs.forEach(s => { const k = bmYtKey(s.youtubeLink); if (k && !(pick.youtube && pick.youtube[s.idx])) taken[k] = s; });          // videos songs already have
   ['spotify', 'youtube'].forEach(kind => songs.forEach(s => {
     const id = pick[kind] && pick[kind][s.idx]; if (!id) return;
     const list = (res[kind] && res[kind].byIdx && res[kind].byIdx[s.idx]) || [], c = list.find(x => x.id === id); if (!c) return;
     const link = linkOf(kind, c);
-    if (kind === 'youtube') { const k = bmYtKey(link); if (k && taken[k] && taken[k] !== s) { dup++; return; } if (k) taken[k] = s; }          // the same video for a second song: left out
+    if (kind === 'youtube') { const k = bmYtKey(link); if (k && taken[k] && taken[k] !== s) { dup++; dups.push({ s, other: taken[k] }); return; } if (k) taken[k] = s; }          // the same video for a second song: left out
     (updates[s.trackNum] = updates[s.trackNum] || {})[kind === 'spotify' ? 'spotifyLink' : 'youtubeLink'] = link; n++;
     smLengthFrom(updates[s.trackNum], s, kind, c);
   }));
-  return { updates, n, dup };
+  return { updates, n, dup, dups };
 }
 // END batch-match
 
@@ -827,7 +827,12 @@ function bmSetPicks(rel, kind) {                                    // what is t
   rel.songs.forEach(s => {
     if (rel.touched[kind] && rel.touched[kind][s.idx]) return;
     if (bm && bm.songsMode === 'check' && !(rel.broken[kind] && rel.broken[kind][s.idx])) return;
-    const id = bmDefaultPick(bmCellOf(rel, s, kind)); if (id) rel.pick[kind][s.idx] = id; else delete rel.pick[kind][s.idx];
+    let id = bmDefaultPick(bmCellOf(rel, s, kind));
+    if (id && kind === 'youtube') {          // (1.135.224) never ticked by itself: a video another song on this release already has
+      const c = ((rel.youtube && rel.youtube.byIdx && rel.youtube.byIdx[s.idx]) || []).find(x => x.id === id), k = c && bmYtKey(c.link || smCandLink('youtube', c));
+      if (k && rel.songs.some(o => o !== s && (bmYtKey(o.youtubeLink) === k || (rel.pick.youtube && rel.pick.youtube[o.idx] && o.idx < s.idx && (((rel.youtube.byIdx[o.idx] || []).find(x => x.id === rel.pick.youtube[o.idx])) || {}).id && bmYtKey(smCandLink('youtube', (rel.youtube.byIdx[o.idx] || []).find(x => x.id === rel.pick.youtube[o.idx]))) === k)))) id = null;
+    }
+    if (id) rel.pick[kind][s.idx] = id; else delete rel.pick[kind][s.idx];
   });
 }
 function bmFilterRejected(res, kind) {                              // candidates you said never to offer again are dropped
@@ -1214,8 +1219,15 @@ function bmApplyRel(rel, onlyKind, histLabel) {
   b.chain = b.chain.then(async () => {
     if (!rel.songs) return;
     const pick = onlyKind ? { [onlyKind]: rel.pick[onlyKind] } : rel.pick;
-    const { updates, n, dup } = bmUpdates(rel.songs, pick, { spotify: rel.spotify, youtube: rel.youtube }, (kind, c) => c.link || smCandLink(kind, c));
-    if (dup) flashGlobalToast(`Left out ${bmPl(dup, 'YouTube match')}: that video is already another song’s in “${rel.item.title}”.`);
+    const { updates, n, dup, dups } = bmUpdates(rel.songs, pick, { spotify: rel.spotify, youtube: rel.youtube }, (kind, c) => c.link || smCandLink(kind, c));
+    // (1.135.224) a video that is already another song's on this release is left out, and its tick taken off: it stayed ticked, so the
+    // release said "Will add 1 link" for ever and every Apply left it out again. Said plainly, with both songs named.
+    if (dup) {
+      (dups || []).forEach(d => { if (rel.pick.youtube) delete rel.pick.youtube[d.s.idx]; (rel.touched.youtube = rel.touched.youtube || {})[d.s.idx] = true; });          // (touched: not ticked again by itself)
+      const d0 = (dups || [])[0];
+      flashGlobalToast(d0 ? `Not saved: the YouTube match for \u201c${d0.s.title}\u201d is the video already on \u201c${d0.other.title}\u201d. Pick another video for it (More), or paste one.${dup > 1 ? ` (${dup - 1} more like this.)` : ''}` : `Left out ${bmPl(dup, 'YouTube match')}: that video is already another song\u2019s in \u201c${rel.item.title}\u201d.`, { duration: 9000 });
+      bmRedraw();
+    }
     if (onlyKind !== 'spotify') await bmSaveFullVideo(rel);
     if (!n) return;
     const prev = {}; Object.keys(updates).forEach(num => { const td = (rel.item.trackData || {})[num] || {}; prev[num] = {}; Object.keys(updates[num]).forEach(f => { prev[num][f] = td[f] || ''; }); });

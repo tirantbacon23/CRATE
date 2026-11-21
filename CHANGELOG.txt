@@ -17,8 +17,12 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.223
+  CURRENT_VERSION: 1.135.224
 
+  1.135.224 — 2026-11-21 — Match songs: a YouTube match that is the video already on another song of the same release (a reprise
+          matched to the original) is no longer ticked by itself, and one ticked by hand is left out with a message naming both
+          songs ("…is the video already on …: pick another video for it, or paste one") and its tick taken off. Before, it
+          stayed ticked, every Apply quietly left it out again, and the release said "Will add 1 link" for ever.
   1.135.223 — 2026-11-21 — The Songs view is compact, like a music player's library list: rows of 20 px (were 32–36), no rounded
           hover boxes, faint alternating stripes, columns closer together, the in-row buttons (▶ YT, ♥, download) small enough
           not to stretch a row, the length right-aligned, and the song playing marked as a solid green row.
