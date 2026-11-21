@@ -17,8 +17,11 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.222
+  CURRENT_VERSION: 1.135.223
 
+  1.135.223 — 2026-11-21 — The Songs view is compact, like a music player's library list: rows of 20 px (were 32–36), no rounded
+          hover boxes, faint alternating stripes, columns closer together, the in-row buttons (▶ YT, ♥, download) small enough
+          not to stretch a row, the length right-aligned, and the song playing marked as a solid green row.
   1.135.222 — 2026-11-20 — A refused save whose sheet check can't run now says why: an older Master.gs ("paste the newest and
           deploy a new version"), or the check's own error, word for word.
   1.135.221 — 2026-11-20 — A save Google Sheets refuses twice now says which sheet: CRATE asks the backend (Master.gs: deploy a

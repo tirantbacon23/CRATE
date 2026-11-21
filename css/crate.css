@@ -7321,3 +7321,20 @@ input.mcd-filled { border-color: rgba(127,209,185,.6) !important; }
 .apl-s { font-family: 'IBM Plex Mono', monospace; } .apl-s.apl-ok { color: #7FD1B9; } .apl-s.apl-ask { color: #C9C3B8; }
 .apl-s em { font-style: normal; color: #EDE7DC; font-family: Inter, sans-serif; }
 @media (prefers-reduced-motion: reduce) { .apl-spin { animation: none; } }
+
+/* (1.135.223) Songs view, compact: a music player's library list. Rows about 20 px, no rounded hover boxes, faint stripes, columns
+   closer, the in-row buttons (▶ YT, ♥, download) made small enough not to stretch a row, the length right-aligned, the song playing marked */
+.track-view-table .track-table-header { padding: 4px 8px; margin-bottom: 0; gap: 10px; font-size: 10px; }
+.track-view-table .main-track-row { padding: 0 8px; min-height: 20px; line-height: 20px; gap: 10px; border-radius: 0; font-size: 12.5px; }
+.track-view-table .main-track-row:nth-child(even of .main-track-row) { background: rgba(255,255,255,0.028); }
+.track-view-table .main-track-row:hover, .track-view-table .track-load-row-group:hover .main-track-row { background: rgba(255,255,255,0.07) !important; }
+.track-view-table .main-track-row.selected { background: rgba(214,162,76,0.16) !important; outline: none; box-shadow: inset 2px 0 0 #D6A24C; }
+.track-view-table .main-track-row.mt-playing { background: #1F7A4D !important; color: #fff; }          /* (above the stripes, the hover and a selection) */
+.track-view-table .main-track-row.mt-playing .mt-col, .track-view-table .main-track-row.mt-playing .mt-num, .track-view-table .main-track-row.mt-playing .mt-time, .track-view-table .main-track-row.mt-playing .mt-plays { color: #fff; }
+.track-view-table .mt-num { font-size: 11px; }
+.track-view-table .mt-col { font-size: 12.5px; }
+.track-view-table .mt-col[data-col="trackLength"], .track-view-table .mt-col[data-col="length"], .track-view-table .mt-time { text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+.track-view-table .mt-title .mt-yt { font-size: 9px; padding: 0 4px; line-height: 14px; margin-right: 5px; vertical-align: 1px; }
+.track-view-table .mt-title .lk-heart { width: 15px !important; height: 15px !important; margin-right: 3px; }
+.track-view-table .main-track-row .lk-heart, .track-view-table .main-track-row .dl-btn, .track-view-table .main-track-row .sd-chips { margin-top: 0; margin-bottom: 0; max-height: 18px; }
+.track-view-table .main-track-row .dl-btn { transform: scale(0.85); }

@@ -689,7 +689,7 @@ function renderFlatTrackTable() {
         return `<span class="mt-col" title="${titleText}">${item.rating ? starRatingHtml(item.rating) : '—'}</span>`;
       }
       const val = trackColumnVal(colKey, item, t);
-      return `<span class="mt-col" title="${escapeHtml(String(val || ''))}">${val ? escapeHtml(String(val)) : '—'}</span>`;
+      return `<span class="mt-col" data-col="${escapeHtml(String(colKey))}" title="${escapeHtml(String(val || ''))}">${val ? escapeHtml(String(val)) : '—'}</span>`;          // (1.135.223: which column, for its alignment)
     }).join('');
     const selected = state.selectedTracks.has(rowKey);
     return `
