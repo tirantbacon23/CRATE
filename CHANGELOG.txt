@@ -17,8 +17,10 @@
   it; everything after the first blank line becomes "Details"), indent the rest of the entry
   by ten spaces, and don't put a line of equals signs inside an entry. Newest entry on top.
 
-  CURRENT_VERSION: 1.135.226
+  CURRENT_VERSION: 1.135.227
 
+  1.135.227 — 2026-11-23 — Clicking a release in a genre's page opens its popup (the quick peek) beside it, as in the library, and
+          you stay on the genre; the deck is a click away from the popup. A double-click still plays it.
   1.135.226 — 2026-11-23 — A lookup given up after its time limit ("signal is aborted without reason") no longer shows as a red
           error banner, wherever it comes from: it is expected (the lookup was too slow and CRATE went on without it), and is
           noted in the browser console instead.

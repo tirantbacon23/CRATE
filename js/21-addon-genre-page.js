@@ -945,9 +945,11 @@ function giClick(e) {
     return;
   }
   const item = giItemByRow(e.target);
-  if (item) {                                   // wait out a possible double-click (which plays it) before opening the album page
+  if (item) {                                   // wait out a possible double-click (which plays it) before opening it
     clearTimeout(giClickTimer);
-    giClickTimer = setTimeout(() => openDeck(item), 260);
+    const at = e.target.closest('[data-row]');
+    // (1.135.227) its popup (the quick peek, from where it opens the deck), as a click in the library grid does: the deck took you away from the genre
+    giClickTimer = setTimeout(() => { if (typeof openAlbumQuickPeek === 'function' && at && at.isConnected) openAlbumQuickPeek(item, at); else openDeck(item); }, 260);
   }
 }
 function giChange(e) {
